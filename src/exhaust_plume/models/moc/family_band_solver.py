@@ -84,6 +84,7 @@ class MocCausticFamilyBandShockStatus(str, Enum):
   CONTINUATION_FAILURE = 'caustic_band_post_shock_continuation_failure'
   FIRST_LAYER_FAILURE = 'caustic_band_post_shock_first_layer_failure'
   ZONE_FAILURE = 'caustic_band_post_shock_zone_failure'
+####
 
 
 class MocCausticFamilyBandInvariantShockStatus(str, Enum):
@@ -94,6 +95,7 @@ class MocCausticFamilyBandInvariantShockStatus(str, Enum):
   UPSTREAM_DOMAIN_FAILURE = 'invariant_caustic_band_upstream_domain_failure'
   INVARIANT_FAILURE = 'invariant_caustic_band_invariant_failure'
   SHOCK_FAILURE = 'invariant_caustic_band_shock_failure'
+####
 
 
 class MocCausticFamilyBandEnvelopeStatus(str, Enum):
@@ -107,6 +109,7 @@ class MocCausticFamilyBandEnvelopeStatus(str, Enum):
   MACH_ANGLE_FAILURE = 'caustic_forward_envelope_mach_angle_failure'
   GEOMETRY_FAILURE = 'caustic_forward_envelope_geometry_failure'
   CENTERLINE_UNREACHABLE = 'caustic_forward_envelope_centerline_unreachable'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,74 +141,91 @@ class MocCausticFamilyBandEnvelopeResult:
       raise ValueError(
         'envelope points and upstream states must have equal lengths'
       )
+    ####
     if len(self.envelope_points_m) != len(self.zero_turn_tangent_angles_rad):
       raise ValueError(
         'envelope points and tangent angles must have equal lengths'
       )
+    ####
     if any(
       len(point) != 2 or any(not isfinite(float(value)) for value in point)
       for point in self.envelope_points_m
     ):
       raise ValueError('envelope points must contain finite two-coordinate points')
+    ####
     if any(
       not isinstance(state, CharacteristicState)
       for state in self.upstream_states
     ):
       raise TypeError('envelope upstream states must be CharacteristicState values')
+    ####
     if any(
       not isfinite(float(angle))
       for angle in self.zero_turn_tangent_angles_rad
     ):
       raise ValueError('envelope tangent angles must be finite')
+    ####
     if self.anchor_point_m is not None and (
       len(self.anchor_point_m) != 2
       or any(not isfinite(float(value)) for value in self.anchor_point_m)
     ):
       raise ValueError('envelope anchor point must be finite')
+    ####
     if self.target_centerline_y_m is not None and not isfinite(
       float(self.target_centerline_y_m)
     ):
       raise ValueError('envelope target ordinate must be finite')
+    ####
     if self.minimum_lower_boundary_margin_m is not None and not isfinite(
       float(self.minimum_lower_boundary_margin_m)
     ):
       raise ValueError('envelope lower-boundary margin must be finite')
+    ####
     if self.first_missing_sample_index is not None and (
       isinstance(self.first_missing_sample_index, bool)
       or self.first_missing_sample_index < 0
     ):
       raise ValueError('first missing envelope sample index must be nonnegative')
+    ####
     if self.first_missing_point_m is not None and (
       len(self.first_missing_point_m) != 2
       or any(not isfinite(float(value)) for value in self.first_missing_point_m)
     ):
       raise ValueError('first missing envelope point must be finite')
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocCausticFamilyBandEnvelopeStatus.CONVERGED_CENTERLINE_REACHED
+  ####
 
   @property
   def centerline_reached(self) -> bool:
     return self.converged
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The envelope carries no shock entropy or mixed-regime closure."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def sample_count(self) -> int:
     return len(self.envelope_points_m)
+  ####
 
   @property
   def last_valid_point_m(self) -> tuple[float, float] | None:
     return self.envelope_points_m[-1] if self.envelope_points_m else None
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Expose a measured pre-shock remeshing stop when the band ends."""
@@ -214,6 +234,7 @@ class MocCausticFamilyBandEnvelopeResult:
       raise ValueError(
         'a caustic-envelope chain stop requires a centerline-unreachable result'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=MocChainTerminationReason.CHARACTERISTIC_CAUSTIC,
@@ -230,6 +251,7 @@ class MocCausticFamilyBandEnvelopeResult:
         'envelope_sample_count': self.sample_count,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -258,6 +280,8 @@ class MocCausticFamilyBandEnvelopeResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def trace_caustic_family_band_forward_envelope(
@@ -305,18 +329,21 @@ def trace_caustic_family_band_forward_envelope(
       first_missing_point_m=missing_point,
       message=message,
     )
+  ####
 
   if not isinstance(band, MocCausticFamilyBandResult):
     return failure(
       MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT,
       'band must be a MocCausticFamilyBandResult',
     )
+  ####
   if not band.converged:
     return failure(
       MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT,
       f'caustic family band is not converged: {band.message}',
       band_value=band,
     )
+  ####
   if (
     band.anchor_point_m is None
     or band.anchor_state is None
@@ -327,10 +354,12 @@ def trace_caustic_family_band_forward_envelope(
       'caustic family band must carry a verified anchor wedge',
       band_value=band,
     )
+  ####
   try:
     target_y = float(target_centerline_y_m)
   except (TypeError, ValueError):
     target_y = float('nan')
+  ####
   anchor = band.anchor_point_m
   if not isfinite(target_y) or target_y >= anchor[1]:
     return failure(
@@ -340,6 +369,7 @@ def trace_caustic_family_band_forward_envelope(
       anchor_value=anchor,
       target_value=target_y,
     )
+  ####
   if target_y < -float(position_tolerance_m):
     return failure(
       MocCausticFamilyBandEnvelopeStatus.INVALID_INPUT,
@@ -348,19 +378,24 @@ def trace_caustic_family_band_forward_envelope(
       anchor_value=anchor,
       target_value=target_y,
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
     or maximum_segment_iterations < 1
   ):
     raise ValueError('maximum_segment_iterations must be a positive integer')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
 
   def sample(
     point: tuple[float, float],
@@ -373,6 +408,7 @@ def trace_caustic_family_band_forward_envelope(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       return None
+    ####
     if (
       state is None
       or pressure is None
@@ -382,15 +418,19 @@ def trace_caustic_family_band_forward_envelope(
       or state.mach <= 1.0
     ):
       return None
+    ####
     try:
       mach_angle = asin(1.0 / state.mach)
       tangent_angle = state.theta_rad - mach_angle
       tangent_slope = tan(tangent_angle)
     except (ArithmeticError, ValueError):
       return None
+    ####
     if not isfinite(tangent_slope) or tangent_slope >= 0.0:
       return None
+    ####
     return state, tangent_angle
+  ####
 
   first = sample(anchor)
   if first is None:
@@ -401,6 +441,7 @@ def trace_caustic_family_band_forward_envelope(
       anchor_value=anchor,
       target_value=target_y,
     )
+  ####
 
   lower_axis = band.centerline_states[0]
   dy = (target_y - anchor[1]) / (sample_count - 1)
@@ -412,6 +453,7 @@ def trace_caustic_family_band_forward_envelope(
   def lower_boundary_x(y_value: float) -> float:
     fraction = (anchor[1] - y_value) / (anchor[1] - target_y)
     return anchor[0] + fraction * (lower_axis.x_m - anchor[0])
+  ####
 
   margins.append(anchor[0] - lower_boundary_x(anchor[1]))
   for index in range(1, sample_count):
@@ -433,6 +475,7 @@ def trace_caustic_family_band_forward_envelope(
         margin=min(margins, default=None),
         missing_index=index,
       )
+    ####
     next_state_data: tuple[CharacteristicState, float] | None = None
     converged_segment = False
     for _iteration in range(maximum_segment_iterations):
@@ -458,6 +501,7 @@ def trace_caustic_family_band_forward_envelope(
           missing_index=index,
           missing_point=candidate,
         )
+      ####
       candidate_tangent = candidate_data[1]
       try:
         updated_x = current_point[0] + dy * 0.5 * (
@@ -477,6 +521,7 @@ def trace_caustic_family_band_forward_envelope(
           missing_index=index,
           missing_point=candidate,
         )
+      ####
       if abs(updated_x - next_x) <= position_tolerance_m:
         next_x = float(updated_x)
         final_point = (next_x, float(next_y))
@@ -501,10 +546,13 @@ def trace_caustic_family_band_forward_envelope(
             missing_index=index,
             missing_point=final_point,
           )
+        ####
         next_state_data = final_data
         converged_segment = True
         break
+      ####
       next_x = float(updated_x)
+    ####
     if not converged_segment or next_state_data is None:
       return failure(
         MocCausticFamilyBandEnvelopeStatus.GEOMETRY_FAILURE,
@@ -519,6 +567,7 @@ def trace_caustic_family_band_forward_envelope(
         missing_index=index,
         missing_point=(float(next_x), float(next_y)),
       )
+    ####
     if next_x <= current_point[0] + position_tolerance_m:
       return failure(
         MocCausticFamilyBandEnvelopeStatus.GEOMETRY_FAILURE,
@@ -533,11 +582,13 @@ def trace_caustic_family_band_forward_envelope(
         missing_index=index,
         missing_point=(float(next_x), float(next_y)),
       )
+    ####
     point = (float(next_x), float(next_y))
     points.append(point)
     states.append(next_state_data[0])
     tangents.append(next_state_data[1])
     margins.append(point[0] - lower_boundary_x(point[1]))
+  ####
 
   return MocCausticFamilyBandEnvelopeResult(
     status=MocCausticFamilyBandEnvelopeStatus.CONVERGED_CENTERLINE_REACHED,
@@ -556,6 +607,7 @@ def trace_caustic_family_band_forward_envelope(
       'or physical first-cell closure'
     ),
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -589,45 +641,56 @@ class MocCausticFamilyBandShockResult:
       raise ValueError(
         'incoming handoff states and total-pressure samples must have equal lengths'
       )
+    ####
     if any(
       not isinstance(state, CharacteristicState)
       for state in self.incoming_handoff_states
     ):
       raise TypeError('incoming handoff states must be CharacteristicState values')
+    ####
     if any(
       not isfinite(float(value)) or value <= 0.0
       for value in self.incoming_handoff_total_pressure_Pa
     ):
       raise ValueError('incoming handoff total pressures must be finite and positive')
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocCausticFamilyBandShockStatus.CONVERGED_OPEN_TERMINAL_FIELD
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The mixed-regime side and full first-cell perimeter remain open."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def terminal_normal_shock(self) -> MocNormalShockTerminalResult | None:
     if self.shock is None:
       return None
+    ####
     return self.shock.normal_shock_terminal
+  ####
 
   @property
   def physical_terminal_verified(self) -> bool:
     terminal = self.terminal_normal_shock
     return terminal is not None and terminal.converged and terminal.subsonic
+  ####
 
   @property
   def post_shock_zone_converged(self) -> bool:
     return self.zone is not None and self.zone.converged
+  ####
 
   def validate_mixed_regime_boundary(
     self,
@@ -671,6 +734,7 @@ class MocCausticFamilyBandShockResult:
       raise ValueError(
         'a caustic-band chain stop requires a converged open terminal field'
       )
+    ####
     terminal = self.terminal_normal_shock
     return MocChainTerminationDecision(
       physical_termination=False,
@@ -697,6 +761,7 @@ class MocCausticFamilyBandShockResult:
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, object]:
     terminal = self.terminal_normal_shock
@@ -772,6 +837,8 @@ class MocCausticFamilyBandShockResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -794,12 +861,15 @@ class MocCausticFamilyBandInvariantShockResult:
   @property
   def converged(self) -> bool:
     return self.status is MocCausticFamilyBandInvariantShockStatus.CONVERGED_FIELD
+  ####
 
   @property
   def first_missing_sample_index(self) -> int | None:
     if self.shock is None or self.status is not MocCausticFamilyBandInvariantShockStatus.UPSTREAM_DOMAIN_FAILURE:
       return None
+    ####
     return self.shock.sample_count
+  ####
 
   @property
   def shock_curve_verified(self) -> bool:
@@ -809,6 +879,7 @@ class MocCausticFamilyBandInvariantShockResult:
       and self.shock.shock_fit is not None
       and self.shock.shock_fit.converged
     )
+  ####
 
   @property
   def upstream_coupling_verified(self) -> bool:
@@ -818,6 +889,7 @@ class MocCausticFamilyBandInvariantShockResult:
       and self.shock.field is not None
       and self.shock.field.upstream_shock_coupling_verified
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
@@ -827,10 +899,12 @@ class MocCausticFamilyBandInvariantShockResult:
       and self.shock.field is not None
       and self.shock.field.physical_closure_verified
     )
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return not self.physical_closure_verified
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -854,6 +928,8 @@ class MocCausticFamilyBandInvariantShockResult:
       'shock': None if self.shock is None else self.shock.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -879,6 +955,7 @@ def _failure(
     zone=zone,
     message=message,
   )
+####
 
 
 def solve_marched_attached_shock_from_caustic_family_band(
@@ -918,6 +995,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=None,
       message='band must be a MocCausticFamilyBandResult',
     )
+  ####
   if not band.converged:
     return _failure(
       MocCausticFamilyBandShockStatus.INVALID_INPUT,
@@ -925,6 +1003,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=None,
       message=f'caustic family band is not converged: {band.message}',
     )
+  ####
   if not band.state_sampling_available:
     return _failure(
       MocCausticFamilyBandShockStatus.UPSTREAM_DOMAIN_FAILURE,
@@ -935,9 +1014,11 @@ def solve_marched_attached_shock_from_caustic_family_band(
         'sampling domain for shock coupling'
       ),
     )
+  ####
   try:
     if len(start_point_m) != 2:
       raise ValueError
+    ####
     start = (float(start_point_m[0]), float(start_point_m[1]))
     target_y = float(target_centerline_y_m)
     target_angle = float(downstream_flow_angle_rad)
@@ -948,6 +1029,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=None,
       message='start point and downstream terminal coordinates must be numeric',
     )
+  ####
   try:
     valid = all(isfinite(value) for value in (*start, target_y, target_angle))
     tolerance_values = (
@@ -958,6 +1040,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
     valid = valid and all(isfinite(float(value)) and float(value) > 0.0 for value in tolerance_values)
   except (TypeError, ValueError):
     valid = False
+  ####
   if not valid:
     return _failure(
       MocCausticFamilyBandShockStatus.INVALID_INPUT,
@@ -965,6 +1048,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=start,
       message='band shock tolerances and coordinates must be finite and positive',
     )
+  ####
   if target_y >= start[1]:
     return _failure(
       MocCausticFamilyBandShockStatus.INVALID_INPUT,
@@ -972,6 +1056,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=start,
       message='target centerline ordinate must be below the shock start',
     )
+  ####
   if abs(target_angle) > invariant_tolerance:
     return _failure(
       MocCausticFamilyBandShockStatus.INVALID_INPUT,
@@ -982,6 +1067,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
         'a nonzero turn is a separate open-boundary reference problem'
       ),
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _failure(
       MocCausticFamilyBandShockStatus.INVALID_INPUT,
@@ -989,14 +1075,17 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=start,
       message='branch must be a ShockBranch',
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 5:
     raise ValueError('sample_count must be an integer of at least five')
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
     or maximum_segment_iterations < 1
   ):
     raise ValueError('maximum_segment_iterations must be a positive integer')
+  ####
 
   try:
     upstream_state = band.state_at(start, position_tolerance_m=position_tolerance_m)
@@ -1008,6 +1097,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=start,
       message=f'caustic family band sampling raised at shock start: {error}',
     )
+  ####
   if upstream_state is None or upstream_pressure is None:
     return _failure(
       MocCausticFamilyBandShockStatus.UPSTREAM_DOMAIN_FAILURE,
@@ -1018,6 +1108,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
         'or pressure extrapolation is permitted'
       ),
     )
+  ####
 
   try:
     shock = solve_marched_attached_shock_field(
@@ -1041,6 +1132,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       start_point_m=start,
       message=f'caustic-band shock march raised: {error}',
     )
+  ####
   if (
     shock.status is not MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
     or not shock.terminal_model_verified
@@ -1055,6 +1147,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
         f'terminal: {shock.message}'
       ),
     )
+  ####
   if len(shock.shock_points_m) < 4:
     return _failure(
       MocCausticFamilyBandShockStatus.SHOCK_FAILURE,
@@ -1063,6 +1156,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       shock=shock,
       message='caustic-band terminal requires at least four supersonic shock samples',
     )
+  ####
 
   try:
     shock_fit = fit_attached_shock_boundary(
@@ -1082,6 +1176,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       shock=shock,
       message=f'caustic-band shock fit raised: {error}',
     )
+  ####
   if not shock_fit.converged:
     return _failure(
       MocCausticFamilyBandShockStatus.SHOCK_FIT_FAILURE,
@@ -1091,6 +1186,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       shock_fit=shock_fit,
       message=f'caustic-band supersonic shock fit did not converge: {shock_fit.message}',
     )
+  ####
 
   try:
     continuation = continue_post_shock_characteristics_to_centerline_open(
@@ -1108,6 +1204,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       shock_fit=shock_fit,
       message=f'caustic-band post-shock continuation raised: {error}',
     )
+  ####
   if not continuation.converged:
     return _failure(
       MocCausticFamilyBandShockStatus.CONTINUATION_FAILURE,
@@ -1118,6 +1215,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       continuation=continuation,
       message=f'caustic-band post-shock continuation did not converge: {continuation.message}',
     )
+  ####
 
   try:
     first_layer = assemble_post_shock_first_layer(
@@ -1135,6 +1233,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       continuation=continuation,
       message=f'caustic-band first downstream layer raised: {error}',
     )
+  ####
   if not first_layer.converged:
     return _failure(
       MocCausticFamilyBandShockStatus.FIRST_LAYER_FAILURE,
@@ -1146,6 +1245,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       first_layer=first_layer,
       message=f'caustic-band first downstream layer did not converge: {first_layer.message}',
     )
+  ####
 
   try:
     zone = assemble_post_shock_characteristic_zone(
@@ -1166,6 +1266,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       first_layer=first_layer,
       message=f'caustic-band post-shock zone raised: {error}',
     )
+  ####
   if not zone.converged:
     return _failure(
       MocCausticFamilyBandShockStatus.ZONE_FAILURE,
@@ -1178,6 +1279,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       zone=zone,
       message=f'caustic-band post-shock zone did not converge: {zone.message}',
     )
+  ####
 
   return MocCausticFamilyBandShockResult(
     status=MocCausticFamilyBandShockStatus.CONVERGED_OPEN_TERMINAL_FIELD,
@@ -1204,6 +1306,7 @@ def solve_marched_attached_shock_from_caustic_family_band(
       'mixed-regime closure and chain promotion remain blocked'
     ),
   )
+####
 
 
 def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundary(
@@ -1250,30 +1353,35 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       shock=shock_value,
       message=message,
     )
+  ####
 
   if not isinstance(band, MocCausticFamilyBandResult):
     return failure(
       MocCausticFamilyBandInvariantShockStatus.INVALID_INPUT,
       'band must be a MocCausticFamilyBandResult',
     )
+  ####
   if not band.converged:
     return failure(
       MocCausticFamilyBandInvariantShockStatus.INVALID_INPUT,
       f'caustic family band is not converged: {band.message}',
       band_value=band,
     )
+  ####
   if not band.state_sampling_available:
     return failure(
       MocCausticFamilyBandInvariantShockStatus.UPSTREAM_DOMAIN_FAILURE,
       'caustic family band does not expose a bounded state/pressure sampling domain for invariant shock coupling',
       band_value=band,
     )
+  ####
   if not isinstance(downstream_invariant_family, CharacteristicFamily):
     return failure(
       MocCausticFamilyBandInvariantShockStatus.INVALID_INPUT,
       'downstream_invariant_family must be a CharacteristicFamily',
       band_value=band,
     )
+  ####
   if not callable(downstream_invariant_at):
     return failure(
       MocCausticFamilyBandInvariantShockStatus.INVALID_INPUT,
@@ -1281,9 +1389,11 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       band_value=band,
       family_value=downstream_invariant_family,
     )
+  ####
   try:
     if len(start_point_m) != 2:
       raise ValueError
+    ####
     start = (float(start_point_m[0]), float(start_point_m[1]))
     target_y = float(target_centerline_y_m)
   except (IndexError, TypeError, ValueError):
@@ -1293,6 +1403,7 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       band_value=band,
       family_value=downstream_invariant_family,
     )
+  ####
   if not all(isfinite(value) for value in (*start, target_y)):
     return failure(
       MocCausticFamilyBandInvariantShockStatus.INVALID_INPUT,
@@ -1301,6 +1412,7 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       start_value=start,
       family_value=downstream_invariant_family,
     )
+  ####
   if target_y >= start[1]:
     return failure(
       MocCausticFamilyBandInvariantShockStatus.INVALID_INPUT,
@@ -1309,6 +1421,7 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       start_value=start,
       family_value=downstream_invariant_family,
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return failure(
       MocCausticFamilyBandInvariantShockStatus.INVALID_INPUT,
@@ -1317,26 +1430,31 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       start_value=start,
       family_value=downstream_invariant_family,
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
     or maximum_segment_iterations < 1
   ):
     raise ValueError('maximum_segment_iterations must be a positive integer')
+  ####
   if (
     isinstance(maximum_invariant_scan_samples, bool)
     or not isinstance(maximum_invariant_scan_samples, int)
     or maximum_invariant_scan_samples < 4
   ):
     raise ValueError('maximum_invariant_scan_samples must be an integer of at least four')
+  ####
   if (
     isinstance(maximum_invariant_iterations, bool)
     or not isinstance(maximum_invariant_iterations, int)
     or maximum_invariant_iterations < 1
   ):
     raise ValueError('maximum_invariant_iterations must be a positive integer')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -1345,6 +1463,8 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
 
   try:
     upstream_state = band.state_at(start, position_tolerance_m=position_tolerance_m)
@@ -1360,6 +1480,7 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       start_value=start,
       family_value=downstream_invariant_family,
     )
+  ####
   if upstream_state is None or upstream_pressure is None:
     return failure(
       MocCausticFamilyBandInvariantShockStatus.UPSTREAM_DOMAIN_FAILURE,
@@ -1368,6 +1489,7 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       start_value=start,
       family_value=downstream_invariant_family,
     )
+  ####
 
   try:
     shock = solve_marched_attached_shock_with_invariant_boundary(
@@ -1396,6 +1518,7 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
       start_value=start,
       family_value=downstream_invariant_family,
     )
+  ####
 
   if shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
     status = MocCausticFamilyBandInvariantShockStatus.UPSTREAM_DOMAIN_FAILURE
@@ -1405,6 +1528,7 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
     status = MocCausticFamilyBandInvariantShockStatus.CONVERGED_FIELD
   else:
     status = MocCausticFamilyBandInvariantShockStatus.SHOCK_FAILURE
+  ####
   return failure(
     status,
     (
@@ -1417,6 +1541,7 @@ def solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundar
     family_value=downstream_invariant_family,
     shock_value=shock,
   )
+####
 
 
 def _validate_caustic_band_chain_inputs(
@@ -1433,52 +1558,68 @@ def _validate_caustic_band_chain_inputs(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   if not isinstance(band, MocCausticFamilyBandResult):
     raise TypeError('band must be a MocCausticFamilyBandResult')
+  ####
   if not band.converged:
     raise ValueError(f'caustic family band is not converged: {band.message}')
+  ####
   if not band.state_sampling_available:
     raise ValueError(
       'caustic family band does not expose a bounded state/pressure sampling domain'
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError as error:
     raise ValueError(
       'incoming_handoff must be an iterable of MocChainBoundarySample values'
     ) from error
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     raise ValueError('incoming_handoff must contain MocChainBoundarySample values')
+  ####
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('caustic-band continued cells require at least three handoff samples')
+  ####
   try:
     if len(start_point_m) != 2:
       raise ValueError
+    ####
     start = (float(start_point_m[0]), float(start_point_m[1]))
     end_x = float(end_x_m)
   except (IndexError, TypeError, ValueError) as error:
     raise ValueError('caustic-band continued-cell geometry must be numeric') from error
+  ####
   if not all(isfinite(value) for value in (*start, end_x)):
     raise ValueError('caustic-band continued-cell geometry must be finite')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError(
       'caustic-band shock start point must be downstream of the current cell'
     )
+  ####
   if end_x <= current_cell.end_x_m:
     raise ValueError(
       'caustic-band continued-cell end_x_m must be downstream of the current cell'
     )
+  ####
   return handoff, start, end_x
+####
 
 
 def solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_termination(
@@ -1544,6 +1685,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_terminat
         'error': str(error),
       },
     )
+  ####
 
   if solved.status is MocCausticFamilyBandShockStatus.UPSTREAM_DOMAIN_FAILURE:
     shock = solved.shock
@@ -1566,6 +1708,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_terminat
         'message': solved.message,
       },
     )
+  ####
 
   if not solved.converged or solved.shock is None:
     return MocChainTerminationDecision(
@@ -1583,6 +1726,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_terminat
         'message': solved.message,
       },
     )
+  ####
 
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -1604,6 +1748,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_terminat
         'incoming_handoff_sample_count': len(handoff),
       },
     )
+  ####
 
   open_decision = solved.as_chain_termination_decision()
   diagnostics = dict(open_decision.diagnostics)
@@ -1625,6 +1770,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_or_terminat
     ),
     diagnostics=diagnostics,
   )
+####
 
 
 def solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invariant_boundary_or_termination(
@@ -1703,6 +1849,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invari
         'error': str(error),
       },
     )
+  ####
 
   if solved.status is MocCausticFamilyBandInvariantShockStatus.UPSTREAM_DOMAIN_FAILURE:
     shock = solved.shock
@@ -1729,6 +1876,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invari
         'message': solved.message,
       },
     )
+  ####
 
   if solved.status is MocCausticFamilyBandInvariantShockStatus.INVARIANT_FAILURE:
     return MocChainTerminationDecision(
@@ -1752,6 +1900,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invari
         'message': solved.message,
       },
     )
+  ####
 
   if not solved.converged or solved.shock is None or solved.shock.field is None:
     return MocChainTerminationDecision(
@@ -1774,6 +1923,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invari
         'message': solved.message,
       },
     )
+  ####
 
   field = solved.shock.field
   expected_states = tuple(sample.state for sample in handoff)
@@ -1796,6 +1946,7 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invari
         'incoming_handoff_sample_count': len(handoff),
       },
     )
+  ####
   if not field.upstream_shock_coupling_verified:
     return MocChainTerminationDecision(
       physical_termination=False,
@@ -1810,7 +1961,9 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band_with_invari
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=end_x)
+####
 
 
 def solve_marched_attached_shock_chain_cell_from_caustic_family_band(
@@ -1853,4 +2006,6 @@ def solve_marched_attached_shock_chain_cell_from_caustic_family_band(
   )
   if isinstance(solved, MocChainTerminationDecision):
     raise ValueError(solved.message)
+  ####
   return solved
+####

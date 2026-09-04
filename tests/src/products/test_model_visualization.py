@@ -69,6 +69,7 @@ def _basic_result():
     expansion_characteristics=2,
     compression_characteristics=1,
   ))
+####
 
 
 def _reduced_result() -> ShockTrainResult:
@@ -108,6 +109,7 @@ def _reduced_result() -> ShockTrainResult:
     was_domain_truncated=True,
     calibration_id='test-calibration-v1',
   )
+####
 
 
 def _straight_result() -> IntegralStraightResult:
@@ -133,6 +135,7 @@ def _straight_result() -> IntegralStraightResult:
     termination_is_physical=False,
     conservation_residuals={'momentum_relative': 0.0, 'total_enthalpy_relative': 0.0},
   )
+####
 
 
 def _curved_result() -> CurvedPlumeResult:
@@ -170,11 +173,13 @@ def _curved_result() -> CurvedPlumeResult:
     solver_message='test display limit',
     function_evaluations=3,
   )
+####
 
 
 @dataclass(frozen=True)
 class _MocCell:
   vertices_xr_m: tuple[tuple[float, float], ...]
+####
 
 
 class _MocField:
@@ -196,9 +201,12 @@ class _MocField:
 
   def state_at(self, point: tuple[float, float]) -> CharacteristicState:
     return CharacteristicState(x_m=point[0], y_m=point[1], theta_rad=0.0, mach=2.0, gamma=1.4)
+  ####
 
   def total_pressure_at(self, _point: tuple[float, float]) -> float:
     return 180_000.0
+  ####
+####
 
 
 class _MocResult:
@@ -212,6 +220,7 @@ class _MocResult:
     'canonical_free_boundary_verified': False,
     'refinement_verified': False,
   }
+####
 
 
 def test_all_five_model_lanes_share_one_bundle_shape() -> None:
@@ -239,22 +248,28 @@ def test_all_five_model_lanes_share_one_bundle_shape() -> None:
     'moc-centerline-boundary',
   }
   json.dumps([bundle.model_dump() for bundle in bundles], allow_nan=False)
+####
 
 
 def test_moc_field_values_can_remain_masked_without_becoming_zero() -> None:
   class MaskedField(_MocField):
     def state_at(self, _point: tuple[float, float]) -> None:
       return None
+    ####
 
     def total_pressure_at(self, _point: tuple[float, float]) -> None:
       return None
+    ####
+  ####
 
   class MaskedResult(_MocResult):
     field = MaskedField()
+  ####
 
   bundle = standardize_model_visualization(MaskedResult())
   assert bundle.fields[0].channels['mach'] == (None, None)
   assert 'state samples were unavailable' in bundle.warnings[-1]
+####
 
 
 def test_canonical_visual_result_retains_lane_metadata() -> None:
@@ -284,6 +299,7 @@ def test_canonical_visual_result_retains_lane_metadata() -> None:
   assert result.metadata.provenance.metadata['model_lane'] == 'washed-integral-v1'
   assert result.metadata.provenance.metadata['validation_level'] == 'UNVERIFIED'
   assert result.channels['temperature'][0] == pytest.approx(1_000.0)
+####
 
 
 def test_all_lane_collection_requires_exactly_the_five_declared_keys() -> None:
@@ -291,8 +307,11 @@ def test_all_lane_collection_requires_exactly_the_five_declared_keys() -> None:
     standardize_all_model_visualizations({
       ModelVisualizationLane.BASIC_SHOCK_CELL: _basic_result(),
     })
+  ####
 
   with pytest.raises(ValueError, match='unknown model visualization lane'):
     standardize_all_model_visualizations({
       'not-a-model-lane': _basic_result(),
     })
+  ####
+####

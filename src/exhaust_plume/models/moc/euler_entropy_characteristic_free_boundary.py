@@ -65,6 +65,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus(
   REFLECTED_FIELD_FAILURE = (
     'entropy_characteristic_free_boundary_reflected_field_failure'
   )
+####
 
 
 def _finite_point(point_m: Sequence[float]) -> tuple[float, float] | None:
@@ -72,9 +73,12 @@ def _finite_point(point_m: Sequence[float]) -> tuple[float, float] | None:
     point = (float(point_m[0]), float(point_m[1]))
   except (IndexError, TypeError, ValueError):
     return None
+  ####
   if not all(isfinite(value) for value in point):
     return None
+  ####
   return point
+####
 
 
 def _state_matches(
@@ -94,6 +98,7 @@ def _state_matches(
     and abs(actual.gamma - expected.gamma)
     <= state_tolerance * max(1.0, abs(actual.gamma), abs(expected.gamma))
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +140,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
         'status must be a '
         'MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus'
       )
+    ####
     if self.field is not None and not isinstance(
       self.field,
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
@@ -143,6 +149,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
         'field must be a '
         'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult or None'
       )
+    ####
     if self.physical_field is not None and not isinstance(
       self.physical_field,
       MocAmbientPhysicalFieldResult,
@@ -150,29 +157,37 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
       raise TypeError(
         'physical_field must be a MocAmbientPhysicalFieldResult or None'
       )
+    ####
     handoff = tuple(self.incoming_handoff)
     if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
       raise TypeError(
         'incoming_handoff must contain MocChainBoundarySample values'
       )
+    ####
     object.__setattr__(self, 'incoming_handoff', handoff)
     if self.start_point_m is not None:
       point = _finite_point(self.start_point_m)
       if point is None:
         raise ValueError('start_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(self, 'start_point_m', point)
+    ####
     if self.ambient_pressure_Pa is not None:
       pressure = float(self.ambient_pressure_Pa)
       if not isfinite(pressure) or pressure <= 0.0:
         raise ValueError('ambient_pressure_Pa must be finite and positive')
+      ####
       object.__setattr__(self, 'ambient_pressure_Pa', pressure)
+    ####
     if self.outer_flow_angle_bracket is not None:
       bracket = tuple(float(value) for value in self.outer_flow_angle_bracket)
       if len(bracket) != 2 or not all(isfinite(value) for value in bracket):
         raise ValueError(
           'outer_flow_angle_bracket must contain two finite values'
         )
+      ####
       object.__setattr__(self, 'outer_flow_angle_bracket', bracket)
+    ####
     for name in (
       'target_centerline_y_m',
       'target_centerline_flow_angle_rad',
@@ -182,9 +197,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
         numeric = float(value)
         if not isfinite(numeric):
           raise ValueError(f'{name} must be finite when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     if not isinstance(self.allow_zero_strength_attachment, bool):
       raise TypeError('allow_zero_strength_attachment must be a bool')
+    ####
     for name in (
       'shock_sample_count',
       'covered_sample_count',
@@ -193,6 +212,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.first_missing_sample_index is not None and (
       isinstance(self.first_missing_sample_index, bool)
       or not isinstance(self.first_missing_sample_index, int)
@@ -201,20 +222,27 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
       raise ValueError(
         'first_missing_sample_index must be a nonnegative integer or None'
       )
+    ####
     for name in ('maximum_state_residual', 'maximum_pressure_residual'):
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in ('position_tolerance_m', 'state_tolerance'):
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def shock(self) -> MocFreeBoundaryShockResult | None:
@@ -222,17 +250,22 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
 
     if self.physical_field is None or self.physical_field.ambient_attachment is None:
       return None
+    ####
     return self.physical_field.ambient_attachment.shock
+  ####
 
   @property
   def attachment_status(self) -> str | None:
     if self.physical_field is None or self.physical_field.ambient_attachment is None:
       return None
+    ####
     return self.physical_field.ambient_attachment.status.value
+  ####
 
   @property
   def physical_field_status(self) -> str | None:
     return None if self.physical_field is None else self.physical_field.status.value
+  ####
 
   @property
   def path_coverage_verified(self) -> bool:
@@ -242,10 +275,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
       and self.shock_sample_count == self.covered_sample_count
       and self.first_missing_sample_index is None
     )
+  ####
 
   @property
   def converged(self) -> bool:
     return self.reflected_free_boundary_verified
+  ####
 
   @property
   def reflected_free_boundary_verified(self) -> bool:
@@ -256,24 +291,29 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
       and self.physical_field is not None
       and self.physical_field.physical_closure_verified
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     return self.reflected_free_boundary_verified
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     """Keep this entropy-lineage lane below chain promotion."""
 
     return True
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   @property
   def external_validation_required(self) -> bool:
     return True
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -290,6 +330,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Map closure progress to a non-promoting typed chain decision."""
@@ -321,6 +362,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -346,6 +388,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -380,6 +423,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -425,6 +470,7 @@ def _failure(
     state_tolerance=state_tolerance,
     message=message,
   )
+####
 
 
 def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
@@ -472,6 +518,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       None,
       message='field must be a MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult',
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError:
@@ -481,6 +528,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       field,
       message='incoming_handoff must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
@@ -489,6 +537,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       incoming_handoff=handoff,
       message='incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if not field.local_consistency_verified or not field.state_sampling_available:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
@@ -500,6 +549,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
         'entropy-characteristic field with a bounded sampler'
       ),
     )
+  ####
   if handoff != field.continuation_boundary or not handoff:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
@@ -511,6 +561,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
         'entropy-characteristic continuation perimeter'
       ),
     )
+  ####
   point = _finite_point(start_point_m)
   if point is None:
     return _failure(
@@ -520,6 +571,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       incoming_handoff=handoff,
       message='start_point_m must contain two finite coordinates',
     )
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     lower_angle = float(outer_downstream_flow_angle_lower_rad)
@@ -537,6 +589,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       start_point_m=point,
       message='free-boundary coordinates, pressure, bracket, and tolerances must be numeric',
     )
+  ####
   bracket = (lower_angle, upper_angle)
   if not all(
     isfinite(value)
@@ -565,6 +618,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       state_tolerance=state_tolerance_value,
       message='free-boundary inputs must be finite and ambient pressure must be positive',
     )
+  ####
   if lower_angle >= upper_angle or target_y >= point[1]:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
@@ -583,6 +637,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
         'be below the shock start'
       ),
     )
+  ####
   if hypot(point[0] - handoff[0].state.x_m, point[1] - handoff[0].state.y_m) > (
     position_tolerance
   ):
@@ -600,12 +655,16 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       state_tolerance=state_tolerance_value,
       message='start_point_m must coincide with the first continuation perimeter sample',
     )
+  ####
   if not isinstance(allow_zero_strength_attachment, bool):
     raise ValueError('allow_zero_strength_attachment must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise ValueError('allow_zero_strength_endpoints must be a bool')
+  ####
   if downstream_flow_angle_at is not None and not callable(downstream_flow_angle_at):
     raise ValueError('downstream_flow_angle_at must be callable when supplied')
+  ####
   if not isinstance(branch, ShockBranch):
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
@@ -622,6 +681,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       state_tolerance=state_tolerance_value,
       message='branch must be a ShockBranch',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('state_tolerance', state_tolerance_value),
@@ -634,6 +694,8 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
     numeric = float(value)
     if not isfinite(numeric) or numeric <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   for name, value in (
     ('sample_count', sample_count),
     ('maximum_segment_iterations', maximum_segment_iterations),
@@ -642,8 +704,11 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
   ):
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
       raise ValueError(f'{name} must be a positive integer')
+    ####
+  ####
   if sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
 
   start_state = field.state_at(
     point,
@@ -669,6 +734,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       state_tolerance=state_tolerance_value,
       message='shock start point is outside the bounded entropy-characteristic field',
     )
+  ####
 
   def upstream_state_at(
     sample_point: tuple[float, float],
@@ -677,6 +743,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       sample_point,
       position_tolerance_m=position_tolerance,
     )
+  ####
 
   def upstream_pressure_at(
     sample_point: tuple[float, float],
@@ -685,6 +752,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       sample_point,
       position_tolerance_m=position_tolerance,
     )
+  ####
 
   try:
     physical_field = solve_marched_attached_shock_with_ambient_centerline_physical_field(
@@ -729,6 +797,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       state_tolerance=state_tolerance_value,
       message=f'reflected/free-boundary coupling raised: {error}',
     )
+  ####
 
   shock = (
     None
@@ -760,6 +829,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       if actual_state is None or actual_pressure is None:
         first_missing = index
         break
+      ####
       state_residuals.append(
         max(
           abs(actual_state.x_m - expected_state.x_m),
@@ -782,16 +852,22 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       ):
         first_missing = index
         break
+      ####
       covered_count += 1
+    ####
+  ####
   ambient_boundary_sample_count = 0
   if physical_field.ambient_attachment is not None:
     ambient_march = physical_field.ambient_attachment.ambient_march
     if ambient_march is not None:
       ambient_boundary_sample_count = len(ambient_march.boundary_samples)
+    ####
+  ####
 
   if shock is not None and shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
     if first_missing is None:
       first_missing = shock.failed_sample_index
+    ####
     status = (
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
       .UPSTREAM_FIELD_BOUNDARY
@@ -843,6 +919,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       'field candidate; independent Euler refinement and external validation '
       'remain required before chain promotion'
     )
+  ####
   return MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult(
     status=status,
     field=field,
@@ -864,3 +941,4 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
     state_tolerance=state_tolerance_value,
     message=message,
   )
+####

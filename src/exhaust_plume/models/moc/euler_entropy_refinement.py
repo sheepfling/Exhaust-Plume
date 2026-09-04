@@ -70,6 +70,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus(str, Enum):
   EULER_RESIDUAL_FAILURE = (
     'euler_ambient_first_wedge_entropy_carry_refinement_euler_residual_failure'
   )
+####
 
 
 def _finite_point(value: Any, label: str) -> tuple[float, float]:
@@ -77,13 +78,17 @@ def _finite_point(value: Any, label: str) -> tuple[float, float]:
     point = (float(value[0]), float(value[1]))
   except (IndexError, TypeError, ValueError) as error:
     raise ValueError(f'{label} must contain two numeric coordinates') from error
+  ####
   if not all(isfinite(component) for component in point):
     raise ValueError(f'{label} must contain finite coordinates')
+  ####
   return point
+####
 
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _lattice_point(
@@ -103,6 +108,7 @@ def _lattice_point(
     + first_weight * (second[1] - first[1])
     + second_weight * (third[1] - first[1]),
   )
+####
 
 
 def _project_sample(
@@ -136,6 +142,7 @@ def _project_sample(
     raise ValueError(
       'barycentric entropy-carrying projection left the supersonic Mach domain'
     )
+  ####
   state = CharacteristicState(
     x_m=point[0],
     y_m=point[1],
@@ -152,7 +159,9 @@ def _project_sample(
   )
   if not isfinite(pressure) or pressure <= 0.0:
     raise ValueError('barycentric total-pressure projection was not positive')
+  ####
   return state, pressure
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +199,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
         'status must be a '
         'MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus'
       )
+    ####
     if self.source_trial is not None and not isinstance(
       self.source_trial,
       MocEulerAmbientFirstWedgeEntropyCarryResult,
@@ -198,14 +208,19 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
         'source_trial must be a '
         'MocEulerAmbientFirstWedgeEntropyCarryResult or None'
       )
+    ####
     for name in ('subdivision_level', 'subdivision_side_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.subdivision_level == 0 and self.subdivision_side_count != 1:
       raise ValueError('zero-level refinement must have one subcell side')
+    ####
     if self.subdivision_level > 0 and self.subdivision_side_count < 2:
       raise ValueError('positive-level refinement must have at least two sides')
+    ####
     cells = tuple(self.cells)
     samples = tuple(self.cell_samples)
     residuals = tuple(float(value) for value in self.cell_euler_residuals)
@@ -213,8 +228,10 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
       raise ValueError(
         'cells, cell_samples, and cell_euler_residuals must have equal lengths'
       )
+    ####
     if any(not isinstance(cell, MocCharacteristicCell) for cell in cells):
       raise TypeError('cells must contain MocCharacteristicCell values')
+    ####
     if any(
       not isinstance(sample, MocEulerAmbientFirstWedgeCellSample)
       for sample in samples
@@ -222,19 +239,24 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
       raise TypeError(
         'cell_samples must contain MocEulerAmbientFirstWedgeCellSample values'
       )
+    ####
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError(
         'cell_euler_residuals must contain finite nonnegative values'
       )
+    ####
     if not isinstance(self.topology, MocTopologyResult):
       raise TypeError('topology must be a MocTopologyResult')
+    ####
     if self.maximum_cell_euler_residual is not None:
       maximum = float(self.maximum_cell_euler_residual)
       if not isfinite(maximum) or maximum < 0.0:
         raise ValueError(
           'maximum_cell_euler_residual must be finite and nonnegative when supplied'
         )
+      ####
       object.__setattr__(self, 'maximum_cell_euler_residual', maximum)
+    ####
     for name in (
       'state_projection_verified',
       'pressure_lineage_carried',
@@ -247,18 +269,23 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.internal_characteristic_closure_verified:
       raise ValueError(
         'the barycentric projection cannot claim internal characteristic closure'
       )
+    ####
     if self.physical_closure_verified:
       raise ValueError(
         'a diagnostic entropy-carrying refinement cannot claim physical closure'
       )
+    ####
     if self.production_claim_allowed:
       raise ValueError(
         'a diagnostic entropy-carrying refinement cannot claim production validity'
       )
+    ####
     for name in (
       'position_tolerance_m',
       'pressure_lineage_tolerance',
@@ -267,11 +294,14 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     object.__setattr__(self, 'cells', cells)
     object.__setattr__(self, 'cell_samples', samples)
     object.__setattr__(self, 'cell_euler_residuals', residuals)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -281,10 +311,12 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
       MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus
       .CONVERGED_DIAGNOSTIC_REFINEMENT
     )
+  ####
 
   @property
   def cell_count(self) -> int:
     return len(self.cells)
+  ####
 
   @property
   def state_sample_count(self) -> int:
@@ -293,6 +325,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
       for sample in self.cell_samples
       for point in sample.vertices_xr_m
     })
+  ####
 
   @property
   def local_projection_verified(self) -> bool:
@@ -310,6 +343,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the hard boundary between projected cells and MOC cells."""
@@ -350,6 +384,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -393,6 +428,8 @@ class MocEulerAmbientFirstWedgeEntropyCarryRefinementResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -434,6 +471,7 @@ def _failure(
     cell_residual_tolerance=cell_residual_tolerance,
     message=message,
   )
+####
 
 
 def refine_euler_ambient_first_wedge_entropy_carry(
@@ -460,6 +498,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
         'MocEulerAmbientFirstWedgeEntropyCarryResult'
       ),
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     lineage_tolerance = float(pressure_lineage_tolerance)
@@ -470,6 +509,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       source_trial,
       message='entropy-carrying refinement tolerances must be numeric',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('pressure_lineage_tolerance', lineage_tolerance),
@@ -477,6 +517,8 @@ def refine_euler_ambient_first_wedge_entropy_carry(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if (
     isinstance(subdivision_level, bool)
     or not isinstance(subdivision_level, int)
@@ -484,6 +526,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
     or subdivision_level > 5
   ):
     raise ValueError('subdivision_level must be an integer from one through five')
+  ####
   side_count = 2 ** subdivision_level
   common = {
     'subdivision_level': subdivision_level,
@@ -508,6 +551,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       ),
       **common,
     )
+  ####
   try:
     vertices = tuple(
       _finite_point(point, 'entropy-carrying trial vertices')
@@ -520,6 +564,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       message=str(error),
       **common,
     )
+  ####
   if len(vertices) != 3 or len(source_trial.states) != 3 or len(
     source_trial.total_pressure_Pa
   ) != 3:
@@ -529,6 +574,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       message='entropy-carrying refinement requires exactly three source vertices',
       **common,
     )
+  ####
   states = tuple(source_trial.states)
   pressures = tuple(float(value) for value in source_trial.total_pressure_Pa)
   if any(
@@ -541,6 +587,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       message='entropy-carrying source states do not lie on source vertices',
       **common,
     )
+  ####
   pressure_lineage_carried = bool(
     abs(pressures[2] - pressures[0])
     <= lineage_tolerance * max(1.0, abs(pressures[0]), abs(pressures[2]))
@@ -555,6 +602,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       message='source entropy-carrying trial does not preserve axis pressure lineage',
       **common,
     )
+  ####
 
   lattice: dict[tuple[int, int], tuple[float, float]] = {}
   samples_by_key: dict[
@@ -578,6 +626,8 @@ def refine_euler_ambient_first_wedge_entropy_carry(
           first_index,
           second_index,
         )
+      ####
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus.STATE_PROJECTION_FAILURE,
@@ -585,6 +635,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       message=f'entropy-carrying subcell projection failed: {error}',
       **common,
     )
+  ####
 
   cells: list[MocCharacteristicCell] = []
   samples: list[MocEulerAmbientFirstWedgeCellSample] = []
@@ -649,6 +700,9 @@ def refine_euler_ambient_first_wedge_entropy_carry(
           residuals.append(
             _cell_euler_residual(cell_vertices, cell_states, cell_pressures)
           )
+        ####
+      ####
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus.GEOMETRY_FAILURE,
@@ -663,6 +717,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       message=f'entropy-carrying subcell geometry failed: {error}',
       **common,
     )
+  ####
   topology = validate_moc_mesh(tuple(cells))
   topology_verified = bool(
     topology.connected
@@ -684,6 +739,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       message=f'entropy-carrying subcell topology failed: {topology.message}',
       **common,
     )
+  ####
   residuals_finite = bool(residuals and all(isfinite(value) for value in residuals))
   maximum_residual = max(residuals, default=None)
   residuals_verified = bool(
@@ -721,6 +777,7 @@ def refine_euler_ambient_first_wedge_entropy_carry(
       'and local Euler residual gates; internal characteristic closure remains '
       'unsolved'
     )
+  ####
   return MocEulerAmbientFirstWedgeEntropyCarryRefinementResult(
     status=status,
     source_trial=source_trial,
@@ -740,3 +797,4 @@ def refine_euler_ambient_first_wedge_entropy_carry(
     cell_residual_tolerance=residual_tolerance,
     message=message,
   )
+####

@@ -23,14 +23,18 @@ def _finite_nonnegative(name: str, value: float) -> float:
   value = float(value)
   if not isfinite(value) or value < 0.0:
     raise ValueError(f'{name} must be finite and nonnegative')
+  ####
   return value
+####
 
 
 def _finite_positive(name: str, value: float) -> float:
   value = float(value)
   if not isfinite(value) or value <= 0.0:
     raise ValueError(f'{name} must be finite and positive')
+  ####
   return value
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +48,7 @@ class PressureExtremum:
   def __post_init__(self) -> None:
     if self.kind not in ('minimum', 'maximum'):
       raise ValueError("kind must be 'minimum' or 'maximum'")
+    ####
     object.__setattr__(self, 'x_over_D', _finite_nonnegative('x_over_D', self.x_over_D))
     if self.x_uncertainty_over_D is not None:
       object.__setattr__(
@@ -53,6 +58,7 @@ class PressureExtremum:
       )
     ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +105,7 @@ class ShockTrainSpacingComparison:
       'reason': self.reason,
     }
   ####
+####
 
 
 def _extrema_for_phase(
@@ -107,6 +114,7 @@ def _extrema_for_phase(
 ) -> tuple[PressureExtremum, ...]:
   if phase_kind not in ('minimum', 'maximum'):
     raise ValueError("phase_kind must be 'minimum' or 'maximum'")
+  ####
   selected = tuple(
     extremum for extremum in observed_extrema if extremum.kind == phase_kind
   )
@@ -116,7 +124,9 @@ def _extrema_for_phase(
       for left, right in zip(ordered, ordered[1:])
   ):
     raise ValueError('observed extrema must have unique axial positions within a phase')
+  ####
   return ordered
+####
 
 
 def _spacing_uncertainty(
@@ -125,9 +135,11 @@ def _spacing_uncertainty(
 ) -> float | None:
   if left.x_uncertainty_over_D is None or right.x_uncertainty_over_D is None:
     return None
+  ####
   return sqrt(
     left.x_uncertainty_over_D ** 2 + right.x_uncertainty_over_D ** 2
   )
+####
 
 
 def compare_shock_train_pressure_extrema_spacing(
@@ -202,6 +214,7 @@ def compare_shock_train_pressure_extrema_spacing(
   else:
     status = 'diagnostic-computed'
     reason = 'same-phase spacing was computed over the available model and observed ranges'
+  ####
   return ShockTrainSpacingComparison(
     status=status,
     operator_id=SHOCK_TRAIN_PRESSURE_EXTREMA_SPACING_OPERATOR_ID,
@@ -221,6 +234,7 @@ def compare_shock_train_pressure_extrema_spacing(
       'train cells or establish a validated shock-cell measurement operator'
     ),
   )
+####
 
 
 __all__ = (

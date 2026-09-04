@@ -24,6 +24,7 @@ class CurvedGrayRayTransferProvider:
     selected = configuration or GrayRayTransferConfiguration(provider_id='plume.curved-gray-ray-transfer')
     if selected.provider_id != 'plume.curved-gray-ray-transfer':
       raise ProviderConfigurationError('curved provider requires its dedicated provider identity')
+    ####
     self._configuration = selected
     base = _descriptor(selected)
     self._descriptor = base.model_copy(update={
@@ -36,19 +37,27 @@ class CurvedGrayRayTransferProvider:
         'fidelity profile: curved-optical-transfer-v1',
       ),
     })
+  ####
 
   @property
   def descriptor(self):
     return self._descriptor
+  ####
 
   def create_session(self, *, definition: GrayRayTransferDefinition, configuration=None) -> GrayRayTransferSession:
     if not isinstance(definition, GrayRayTransferDefinition):
       raise ProviderConfigurationError('definition must be GrayRayTransferDefinition')
+    ####
     if definition.support.is_straight:
       raise ProviderConfigurationError('curved provider requires a non-straight support')
+    ####
     if not definition.allow_curved_support:
       raise ProviderConfigurationError('curved definition must explicitly allow curved support')
+    ####
     selected = configuration or self._configuration
     if selected != self._configuration:
       raise ProviderConfigurationError('session configuration must match provider configuration')
+    ####
     return GrayRayTransferSession(self._descriptor, definition, selected)
+  ####
+####

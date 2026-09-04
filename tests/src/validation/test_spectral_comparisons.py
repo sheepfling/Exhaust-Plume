@@ -25,6 +25,7 @@ def test_full_domain_spectral_shape_comparison_computes_residuals() -> None:
   assert result.overlap_sample_count == 4
   assert result.full_domain_relative_shape_rmse == pytest.approx(0.0)
   assert result.full_domain_peak_location_error_m == pytest.approx(0.0)
+####
 
 
 def test_partial_domain_comparison_reports_diagnostic_without_full_claim() -> None:
@@ -41,6 +42,7 @@ def test_partial_domain_comparison_reports_diagnostic_without_full_claim() -> No
   assert result.overlap_relative_shape_rmse is not None
   assert result.full_domain_relative_shape_rmse is None
   assert 'complete observed wavelength domain' in (result.reason or '')
+####
 
 
 def test_no_overlap_is_explicit_and_never_extrapolated() -> None:
@@ -55,13 +57,17 @@ def test_no_overlap_is_explicit_and_never_extrapolated() -> None:
   assert result.overlap_domain_m is None
   assert result.coverage_fraction == 0.0
   assert result.overlap_relative_shape_rmse is None
+####
 
 
 def test_spectral_shape_comparison_rejects_mismatched_or_invalid_inputs() -> None:
   with pytest.raises(ValueError, match='matching lengths'):
     compare_peak_normalized_spectral_shape((1.0, 2.0), (1.0,), (1.0, 2.0), (1.0, 2.0))
+  ####
   with pytest.raises(ValueError, match='nonnegative'):
     compare_peak_normalized_spectral_shape((1.0, 2.0), (1.0, -1.0), (1.0, 2.0), (1.0, 2.0))
+  ####
+####
 
 
 def test_declared_spectral_comparison_blocks_cross_space_residuals() -> None:
@@ -86,6 +92,7 @@ def test_declared_spectral_comparison_blocks_cross_space_residuals() -> None:
   assert result.shape_comparison is None
   assert result.model_space == 'intrinsic-radiant-intensity'
   assert result.observed_space == 'sensor-space-radiance'
+####
 
 
 def test_declared_spectral_comparison_runs_only_for_matching_space() -> None:
@@ -107,6 +114,7 @@ def test_declared_spectral_comparison_runs_only_for_matching_space() -> None:
   assert result.status == 'full-domain-computed'
   assert result.shape_comparison is not None
   assert result.shape_comparison.full_domain_relative_shape_rmse == pytest.approx(0.0)
+####
 
 
 def test_spectral_curve_rejects_units_that_do_not_match_declared_space() -> None:
@@ -117,3 +125,5 @@ def test_spectral_curve_rejects_units_that_do_not_match_declared_space() -> None
       measurement_space=SpectralMeasurementSpace.INTRINSIC_RADIANT_INTENSITY,
       units=SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS,
     )
+  ####
+####

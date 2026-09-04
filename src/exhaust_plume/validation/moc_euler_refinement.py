@@ -66,6 +66,7 @@ class MocEulerAmbientPhysicalFieldRefinementStatus(str, Enum):
   CONSISTENCY_FAILURE = (
     'euler_ambient_physical_field_refinement_consistency_failure'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,10 +83,14 @@ class MocEulerAmbientPhysicalFieldRefinementCase:
       or self.resolution < 1
     ):
       raise ValueError('resolution must be a positive integer')
+    ####
     if not isinstance(self.result, MocEulerAmbientPhysicalFieldResult):
       raise TypeError(
         'result must be a MocEulerAmbientPhysicalFieldResult'
       )
+    ####
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,10 +136,12 @@ class MocEulerAmbientPhysicalFieldRefinementMeasurement:
         'status must be a '
         'MocEulerAmbientPhysicalFieldRefinementStatus'
       )
+    ####
     cases = tuple(self.cases)
     audits = tuple(self.audits)
     if len(cases) != len(audits):
       raise ValueError('cases and audits must have equal lengths')
+    ####
     if any(
       not isinstance(case, MocEulerAmbientPhysicalFieldRefinementCase)
       for case in cases
@@ -143,6 +150,7 @@ class MocEulerAmbientPhysicalFieldRefinementMeasurement:
         'cases must contain '
         'MocEulerAmbientPhysicalFieldRefinementCase values'
       )
+    ####
     if any(
       not isinstance(audit, MocEulerAmbientPhysicalFieldAudit)
       for audit in audits
@@ -150,11 +158,13 @@ class MocEulerAmbientPhysicalFieldRefinementMeasurement:
       raise TypeError(
         'audits must contain MocEulerAmbientPhysicalFieldAudit values'
       )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'audits', audits)
     derived_resolutions = tuple(case.resolution for case in cases)
     if self.resolutions and tuple(self.resolutions) != derived_resolutions:
       raise ValueError('resolutions must match the supplied case resolutions')
+    ####
     object.__setattr__(self, 'resolutions', derived_resolutions)
     for name in (
       'field_cell_counts',
@@ -163,12 +173,15 @@ class MocEulerAmbientPhysicalFieldRefinementMeasurement:
       values = tuple(getattr(self, name))
       if len(values) != len(cases):
         raise ValueError(f'{name} must match the case count')
+      ####
       if any(
         isinstance(value, bool) or not isinstance(value, int) or value < 0
         for value in values
       ):
         raise ValueError(f'{name} must contain nonnegative integers')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'maximum_cell_euler_residuals',
       'first_wedge_euler_residuals',
@@ -177,9 +190,12 @@ class MocEulerAmbientPhysicalFieldRefinementMeasurement:
       values = tuple(float(value) for value in getattr(self, name))
       if len(values) != len(cases):
         raise ValueError(f'{name} must match the case count')
+      ####
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'resolution_order_verified',
       'candidate_fields_verified',
@@ -194,21 +210,27 @@ class MocEulerAmbientPhysicalFieldRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     claim_status = str(self.claim_status)
     if not claim_status:
       raise ValueError('claim_status must be a non-empty string')
+    ####
     object.__setattr__(self, 'claim_status', claim_status)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     """Whether all independent refinement and local field gates passed."""
 
     return self.status is MocEulerAmbientPhysicalFieldRefinementStatus.CONVERGED
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -227,6 +249,7 @@ class MocEulerAmbientPhysicalFieldRefinementMeasurement:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -264,6 +287,8 @@ class MocEulerAmbientPhysicalFieldRefinementMeasurement:
       'claim_status': self.claim_status,
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -296,9 +321,12 @@ def _failure(
     normalised = tuple(values)
     if not normalised:
       return (default,) * paired_count
+    ####
     if len(normalised) != paired_count:
       return normalised[:paired_count]
+    ####
     return normalised
+  ####
 
   return MocEulerAmbientPhysicalFieldRefinementMeasurement(
     status=status,
@@ -329,6 +357,7 @@ def _failure(
     ),
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_physical_field_refinement(
@@ -354,11 +383,13 @@ def measure_moc_euler_ambient_physical_field_refinement(
       MocEulerAmbientPhysicalFieldRefinementStatus.INVALID_INPUT,
       'refinement cases must be iterable',
     )
+  ####
   if len(items) < 2:
     return _failure(
       MocEulerAmbientPhysicalFieldRefinementStatus.INVALID_INPUT,
       'at least two ambient physical-field refinement cases are required',
     )
+  ####
   if any(
     not isinstance(item, MocEulerAmbientPhysicalFieldRefinementCase)
     for item in items
@@ -368,6 +399,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
       'refinement cases must contain '
       'MocEulerAmbientPhysicalFieldRefinementCase values',
     )
+  ####
   try:
     cell_tolerance = float(cell_residual_tolerance)
     refinement_bound = float(refinement_tolerance)
@@ -376,6 +408,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
       MocEulerAmbientPhysicalFieldRefinementStatus.INVALID_INPUT,
       'refinement tolerances must be numeric',
     )
+  ####
   if (
     not isfinite(cell_tolerance)
     or cell_tolerance <= 0.0
@@ -386,6 +419,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
       'cell_residual_tolerance must be finite and positive and '
       'refinement_tolerance must be finite and nonnegative'
     )
+  ####
   resolutions = tuple(item.resolution for item in items)
   resolution_order_verified = all(
     right > left for left, right in zip(resolutions, resolutions[1:])
@@ -398,6 +432,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
         MocEulerAmbientPhysicalFieldRefinementStatus.INVALID_INPUT,
         'expected_resolutions must contain integers',
       )
+    ####
     if any(
       isinstance(value, bool) or not isinstance(value, int)
       for value in expected_values
@@ -406,17 +441,21 @@ def measure_moc_euler_ambient_physical_field_refinement(
         MocEulerAmbientPhysicalFieldRefinementStatus.INVALID_INPUT,
         'expected_resolutions must contain integers',
       )
+    ####
     expected = tuple(expected_values)
     if expected != resolutions:
       return _failure(
         MocEulerAmbientPhysicalFieldRefinementStatus.RESOLUTION_FAILURE,
         'supplied resolutions do not match expected coarse-to-fine cases',
       )
+    ####
+  ####
   if not resolution_order_verified:
     return _failure(
       MocEulerAmbientPhysicalFieldRefinementStatus.RESOLUTION_FAILURE,
       'refinement resolutions must be strictly increasing',
     )
+  ####
 
   audits: list[MocEulerAmbientPhysicalFieldAudit] = []
   field_cell_counts: list[int] = []
@@ -442,6 +481,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
         'ambient physical-field refinement case did not retain a field',
         resolution_order_verified=True,
       )
+    ####
     field_cell_counts.append(len(field.cells))
     wedge_indices = tuple(
       index
@@ -474,6 +514,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
         candidate_fields_verified=candidate_fields_verified,
         shock_jumps_verified=shock_jumps_verified,
       )
+    ####
     values = tuple(field_audit.cell_euler_residuals)
     if len(values) != len(field.cells):
       return _failure(
@@ -487,6 +528,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
         candidate_fields_verified=candidate_fields_verified,
         shock_jumps_verified=shock_jumps_verified,
       )
+    ####
     wedge_values = tuple(values[index] for index in wedge_indices)
     non_wedge_values = tuple(
       value for index, value in enumerate(values) if index not in wedge_indices
@@ -504,6 +546,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
     cell_residuals_verified = cell_residuals_verified and bool(
       field_audit.cell_euler_residuals_verified
     )
+  ####
 
   first_wedge_subdivision_verified = bool(
     first_wedge_cell_counts[0] > 0
@@ -558,6 +601,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
       'independent ambient-closed field refinement passed local cell and '
       'first-wedge subdivision gates; canonical closure and external validation remain pending'
     )
+  ####
   return _failure(
     status,
     message,
@@ -577,6 +621,7 @@ def measure_moc_euler_ambient_physical_field_refinement(
     cell_residuals_verified=cell_residuals_verified,
     refinement_convergence_verified=refinement_convergence_verified,
   )
+####
 
 
 MOC_EULER_AMBIENT_FIRST_WEDGE_REMESH_AUDIT_OPERATOR_ID = (
@@ -596,6 +641,7 @@ class MocEulerAmbientFirstWedgeRemeshAuditStatus(str, Enum):
     'euler_ambient_first_wedge_remesh_cell_residual_failure'
   )
   FLAG_FAILURE = 'euler_ambient_first_wedge_remesh_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -627,8 +673,10 @@ class MocEulerAmbientFirstWedgeRemeshAudit:
       raise TypeError(
         'status must be a MocEulerAmbientFirstWedgeRemeshAuditStatus'
       )
+    ####
     if self.remesh_status is not None:
       object.__setattr__(self, 'remesh_status', str(self.remesh_status))
+    ####
     for name in (
       'subdivision_level',
       'subdivision_side_count',
@@ -638,13 +686,17 @@ class MocEulerAmbientFirstWedgeRemeshAudit:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     residuals = tuple(float(value) for value in self.cell_euler_residuals)
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError(
         'cell_euler_residuals must contain finite nonnegative values'
       )
+    ####
     if len(residuals) != self.cell_count:
       raise ValueError('cell_euler_residuals must match cell_count')
+    ####
     object.__setattr__(self, 'cell_euler_residuals', residuals)
     if self.maximum_cell_euler_residual is not None:
       maximum = float(self.maximum_cell_euler_residual)
@@ -652,10 +704,13 @@ class MocEulerAmbientFirstWedgeRemeshAudit:
         raise ValueError(
           'maximum_cell_euler_residual must be finite and nonnegative'
         )
+      ####
       object.__setattr__(self, 'maximum_cell_euler_residual', maximum)
+    ####
     tolerance = float(self.cell_residual_tolerance)
     if not isfinite(tolerance) or tolerance <= 0.0:
       raise ValueError('cell_residual_tolerance must be finite and positive')
+    ####
     object.__setattr__(self, 'cell_residual_tolerance', tolerance)
     for name in (
       'topology_verified',
@@ -669,17 +724,22 @@ class MocEulerAmbientFirstWedgeRemeshAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is (
       MocEulerAmbientFirstWedgeRemeshAuditStatus.CONVERGED_LOCAL_AUDIT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -694,6 +754,7 @@ class MocEulerAmbientFirstWedgeRemeshAudit:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -728,6 +789,8 @@ class MocEulerAmbientFirstWedgeRemeshAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _first_wedge_remesh_audit_failure(
@@ -768,6 +831,7 @@ def _first_wedge_remesh_audit_failure(
     cell_residual_tolerance=cell_residual_tolerance,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_remesh(
@@ -782,6 +846,7 @@ def measure_moc_euler_ambient_first_wedge_remesh(
       MocEulerAmbientFirstWedgeRemeshAuditStatus.INVALID_INPUT,
       'remesh must be a MocEulerAmbientFirstWedgeRemeshResult',
     )
+  ####
   try:
     tolerance = float(cell_residual_tolerance)
   except (TypeError, ValueError):
@@ -794,8 +859,10 @@ def measure_moc_euler_ambient_first_wedge_remesh(
       cell_count=remesh.cell_count,
       state_sample_count=remesh.state_sample_count,
     )
+  ####
   if not isfinite(tolerance) or tolerance <= 0.0:
     raise ValueError('cell_residual_tolerance must be finite and positive')
+  ####
   common = {
     'remesh_status': remesh.status.value,
     'subdivision_level': remesh.subdivision_level,
@@ -810,6 +877,7 @@ def measure_moc_euler_ambient_first_wedge_remesh(
       'first-wedge remesh audit requires a converged diagnostic subdivision',
       **common,
     )
+  ####
   independent_topology = validate_moc_mesh(remesh.cells)
   topology_verified = bool(
     independent_topology.status is remesh.topology.status
@@ -828,6 +896,7 @@ def measure_moc_euler_ambient_first_wedge_remesh(
       topology_verified=False,
       **common,
     )
+  ####
   state_projection_verified = bool(
     len(remesh.cells) == len(remesh.cell_samples)
     and remesh.state_projection_verified
@@ -857,6 +926,7 @@ def measure_moc_euler_ambient_first_wedge_remesh(
       topology_verified=topology_verified,
       **common,
     )
+  ####
   cell_residuals: list[float] = []
   try:
     for sample in remesh.cell_samples:
@@ -867,6 +937,7 @@ def measure_moc_euler_ambient_first_wedge_remesh(
           sample.total_pressure_Pa,
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _first_wedge_remesh_audit_failure(
       MocEulerAmbientFirstWedgeRemeshAuditStatus.CELL_RESIDUAL_FAILURE,
@@ -876,6 +947,7 @@ def measure_moc_euler_ambient_first_wedge_remesh(
       pressure_lineage_carried=remesh.pressure_lineage_carried,
       **common,
     )
+  ####
   residuals_finite = len(cell_residuals) == remesh.cell_count and all(
     isfinite(value) and value >= 0.0 for value in cell_residuals
   )
@@ -909,6 +981,7 @@ def measure_moc_euler_ambient_first_wedge_remesh(
       'projection, pressure lineage, and conservative residual checks; '
       'physical closure remains blocked'
     )
+  ####
   return MocEulerAmbientFirstWedgeRemeshAudit(
     status=status,
     remesh_status=remesh.status.value,
@@ -929,6 +1002,7 @@ def measure_moc_euler_ambient_first_wedge_remesh(
     cell_residual_tolerance=tolerance,
     message=message,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -945,14 +1019,19 @@ class MocEulerAmbientFirstWedgeRemeshRefinementCase:
       or self.subdivision_level < 1
     ):
       raise ValueError('subdivision_level must be a positive integer')
+    ####
     if not isinstance(self.result, MocEulerAmbientFirstWedgeRemeshResult):
       raise TypeError(
         'result must be a MocEulerAmbientFirstWedgeRemeshResult'
       )
+    ####
     if self.result.subdivision_level != self.subdivision_level:
       raise ValueError(
         'subdivision_level must match the remesh result subdivision level'
       )
+    ####
+  ####
+####
 
 
 class MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus(str, Enum):
@@ -968,6 +1047,7 @@ class MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus(str, Enum):
   CONSISTENCY_FAILURE = (
     'euler_ambient_first_wedge_remesh_refinement_consistency_failure'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1006,10 +1086,12 @@ class MocEulerAmbientFirstWedgeRemeshRefinementMeasurement:
         'status must be a '
         'MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus'
       )
+    ####
     cases = tuple(self.cases)
     audits = tuple(self.audits)
     if len(cases) != len(audits):
       raise ValueError('cases and audits must have equal lengths')
+    ####
     if any(
       not isinstance(case, MocEulerAmbientFirstWedgeRemeshRefinementCase)
       for case in cases
@@ -1018,6 +1100,7 @@ class MocEulerAmbientFirstWedgeRemeshRefinementMeasurement:
         'cases must contain '
         'MocEulerAmbientFirstWedgeRemeshRefinementCase values'
       )
+    ####
     if any(
       not isinstance(audit, MocEulerAmbientFirstWedgeRemeshAudit)
       for audit in audits
@@ -1025,11 +1108,13 @@ class MocEulerAmbientFirstWedgeRemeshRefinementMeasurement:
       raise TypeError(
         'audits must contain MocEulerAmbientFirstWedgeRemeshAudit values'
       )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'audits', audits)
     levels = tuple(case.subdivision_level for case in cases)
     if self.subdivision_levels and tuple(self.subdivision_levels) != levels:
       raise ValueError('subdivision_levels must match the supplied cases')
+    ####
     object.__setattr__(self, 'subdivision_levels', levels)
     for name in (
       'subdivision_side_counts',
@@ -1039,21 +1124,26 @@ class MocEulerAmbientFirstWedgeRemeshRefinementMeasurement:
       values = tuple(getattr(self, name))
       if len(values) != len(cases):
         raise ValueError(f'{name} must match the case count')
+      ####
       if any(
         isinstance(value, bool) or not isinstance(value, int) or value < 0
         for value in values
       ):
         raise ValueError(f'{name} must contain nonnegative integers')
+      ####
       object.__setattr__(self, name, values)
+    ####
     residuals = tuple(float(value) for value in self.maximum_cell_euler_residuals)
     if len(residuals) != len(cases):
       raise ValueError(
         'maximum_cell_euler_residuals must match the case count'
       )
+    ####
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError(
         'maximum_cell_euler_residuals must contain finite nonnegative values'
       )
+    ####
     object.__setattr__(self, 'maximum_cell_euler_residuals', residuals)
     for name in (
       'topology_verified',
@@ -1070,21 +1160,27 @@ class MocEulerAmbientFirstWedgeRemeshRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     claim_status = str(self.claim_status)
     if not claim_status:
       raise ValueError('claim_status must be a non-empty string')
+    ####
     object.__setattr__(self, 'claim_status', claim_status)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is (
       MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.CONVERGED
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -1102,6 +1198,7 @@ class MocEulerAmbientFirstWedgeRemeshRefinementMeasurement:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1139,6 +1236,8 @@ class MocEulerAmbientFirstWedgeRemeshRefinementMeasurement:
       'external_validation_verified': False,
       'message': self.message,
     }
+  ####
+####
 
 
 def _first_wedge_remesh_refinement_failure(
@@ -1170,7 +1269,9 @@ def _first_wedge_remesh_refinement_failure(
     normalised = tuple(values)
     if not normalised:
       return (default,) * paired_count
+    ####
     return normalised[:paired_count]
+  ####
 
   return MocEulerAmbientFirstWedgeRemeshRefinementMeasurement(
     status=status,
@@ -1196,6 +1297,7 @@ def _first_wedge_remesh_refinement_failure(
     ),
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_remesh_refinement(
@@ -1214,11 +1316,13 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
       MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.INVALID_INPUT,
       'remesh refinement cases must be iterable',
     )
+  ####
   if len(items) < 2:
     return _first_wedge_remesh_refinement_failure(
       MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.INVALID_INPUT,
       'at least two first-wedge remesh cases are required',
     )
+  ####
   if any(
     not isinstance(item, MocEulerAmbientFirstWedgeRemeshRefinementCase)
     for item in items
@@ -1227,6 +1331,7 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
       MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.INVALID_INPUT,
       'remesh refinement cases must contain typed refinement cases',
     )
+  ####
   try:
     cell_tolerance = float(cell_residual_tolerance)
     refinement_bound = float(refinement_tolerance)
@@ -1235,6 +1340,7 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
       MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.INVALID_INPUT,
       'remesh refinement tolerances must be numeric',
     )
+  ####
   if (
     not isfinite(cell_tolerance)
     or cell_tolerance <= 0.0
@@ -1245,6 +1351,7 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
       'cell_residual_tolerance must be finite and positive and '
       'refinement_tolerance must be finite and nonnegative'
     )
+  ####
   levels = tuple(item.subdivision_level for item in items)
   level_order_verified = all(
     right > left for left, right in zip(levels, levels[1:])
@@ -1257,6 +1364,7 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
         MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.INVALID_INPUT,
         'expected_subdivision_levels must contain integers',
       )
+    ####
     if any(
       isinstance(value, bool) or not isinstance(value, int)
       for value in expected
@@ -1265,16 +1373,20 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
         MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.INVALID_INPUT,
         'expected_subdivision_levels must contain integers',
       )
+    ####
     if expected != levels:
       return _first_wedge_remesh_refinement_failure(
         MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.LEVEL_FAILURE,
         'supplied subdivision levels do not match expected cases',
       )
+    ####
+  ####
   if not level_order_verified:
     return _first_wedge_remesh_refinement_failure(
       MocEulerAmbientFirstWedgeRemeshRefinementMeasurementStatus.LEVEL_FAILURE,
       'subdivision levels must be strictly increasing',
     )
+  ####
   audits: list[MocEulerAmbientFirstWedgeRemeshAudit] = []
   side_counts: list[int] = []
   cell_counts: list[int] = []
@@ -1308,6 +1420,7 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
     cell_residuals_verified = (
       cell_residuals_verified and audit.cell_euler_residuals_verified
     )
+  ####
   subdivision_growth_verified = all(
     right > left for left, right in zip(cell_counts, cell_counts[1:])
   )
@@ -1363,6 +1476,7 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
       'state, pressure, and conservative residual gates; canonical closure '
       'remains pending'
     )
+  ####
   return _first_wedge_remesh_refinement_failure(
     status,
     message,
@@ -1381,3 +1495,4 @@ def measure_moc_euler_ambient_first_wedge_remesh_refinement(
     residual_nonincreasing_verified=residual_nonincreasing_verified,
     refinement_convergence_verified=refinement_convergence_verified,
   )
+####

@@ -60,11 +60,13 @@ class FullyExpandedJetResult:
 
     return self.status is FullyExpandedStatus.CONVERGED
   ####
+####
 
 
 def _ambient_pressure(ambient: AmbientState | float) -> float:
   if isinstance(ambient, AmbientState):
     return float(ambient.pressure_Pa)
+  ####
   return float(ambient)
 ####
 
@@ -121,6 +123,7 @@ def derive_fully_expanded_jet(
       ambient_pressure_Pa=ambient_pressure_Pa,
       message='ambient pressure must be finite and positive',
     )
+  ####
   if not isfinite(pressure_match_rtol) or pressure_match_rtol <= 0.0:
     raise ValueError('pressure_match_rtol must be finite and positive')
   ####
@@ -208,7 +211,6 @@ def derive_fully_expanded_jet(
     species_mass_fractions=exit_state.gas.species_mass_fractions,
     source_kind=NozzleStateSourceKind.DERIVED_ISENTROPIC,
   )
-  ####
   exit_pressure_residual = (
     float(exit_state.static_pressure_Pa) - ambient_pressure_Pa
   ) / ambient_pressure_Pa

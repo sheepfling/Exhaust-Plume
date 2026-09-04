@@ -20,6 +20,7 @@ def test_sampling_is_linear_and_does_not_extrapolate() -> None:
   assert result.validity_mask == ((True, True),)
   with pytest.raises(ValueError, match='outside the source spectral domain'):
     sample_spectral_rows((1.0e-6, 3.0e-6), ((2.0, 6.0),), (0.5e-6,))
+  ####
 ####
 
 

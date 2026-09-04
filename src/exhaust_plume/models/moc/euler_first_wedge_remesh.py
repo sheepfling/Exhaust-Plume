@@ -43,12 +43,16 @@ def _coerce_point(point: Any, *, label: str) -> tuple[float, float]:
   try:
     if len(point) != 2:
       raise ValueError(f'{label} must be a coordinate pair')
+    ####
     values = (float(point[0]), float(point[1]))
   except (IndexError, TypeError, ValueError) as error:
     raise ValueError(f'{label} must be a coordinate pair') from error
+  ####
   if not all(isfinite(value) for value in values):
     raise ValueError(f'{label} must contain finite coordinates')
+  ####
   return values
+####
 
 
 class MocEulerAmbientFirstWedgeRemeshStatus(str, Enum):
@@ -63,6 +67,7 @@ class MocEulerAmbientFirstWedgeRemeshStatus(str, Enum):
   STATE_SAMPLING_FAILURE = 'euler_ambient_first_wedge_state_sampling_failure'
   GEOMETRY_FAILURE = 'euler_ambient_first_wedge_geometry_failure'
   TOPOLOGY_FAILURE = 'euler_ambient_first_wedge_topology_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,22 +90,27 @@ class MocEulerAmbientFirstWedgeCellSample:
         'a first-wedge remesh cell sample requires three vertices, states, '
         'and total-pressure values'
       )
+    ####
     if any(not isinstance(state, CharacteristicState) for state in states):
       raise TypeError('remeshed cell states must be CharacteristicState values')
+    ####
     if any(
       not isfinite(value) or value <= 0.0 for value in pressures
     ):
       raise ValueError(
         'remeshed cell total-pressure values must be finite and positive'
       )
+    ####
     if any(
       hypot(state.x_m - point[0], state.y_m - point[1]) > 1.0e-10
       for point, state in zip(vertices, states, strict=True)
     ):
       raise ValueError('remeshed cell states must lie on their sample vertices')
+    ####
     object.__setattr__(self, 'vertices_xr_m', vertices)
     object.__setattr__(self, 'states', states)
     object.__setattr__(self, 'total_pressure_Pa', pressures)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -109,6 +119,8 @@ class MocEulerAmbientFirstWedgeCellSample:
       'flow_angles_rad': [state.theta_rad for state in self.states],
       'total_pressure_Pa': list(self.total_pressure_Pa),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +156,7 @@ class MocEulerAmbientFirstWedgeRemeshResult:
       raise TypeError(
         'status must be a MocEulerAmbientFirstWedgeRemeshStatus'
       )
+    ####
     if self.source_field is not None and not isinstance(
       self.source_field,
       MocEulerAmbientPhysicalFieldResult,
@@ -151,14 +164,17 @@ class MocEulerAmbientFirstWedgeRemeshResult:
       raise TypeError(
         'source_field must be a MocEulerAmbientPhysicalFieldResult or None'
       )
+    ####
     if self.source_cell_index is not None and (
       isinstance(self.source_cell_index, bool)
       or not isinstance(self.source_cell_index, int)
       or self.source_cell_index < 0
     ):
       raise ValueError('source_cell_index must be a nonnegative integer or None')
+    ####
     if self.source_cell_kind is not None:
       object.__setattr__(self, 'source_cell_kind', str(self.source_cell_kind))
+    ####
     original_vertices = tuple(
       _coerce_point(point, label='original wedge vertices')
       for point in self.original_vertices_xr_m
@@ -168,20 +184,26 @@ class MocEulerAmbientFirstWedgeRemeshResult:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.subdivision_level == 0 and self.subdivision_side_count != 1:
       raise ValueError(
         'a zero-level remesh must retain one subdivision side'
       )
+    ####
     if self.subdivision_level > 0 and self.subdivision_side_count < 2:
       raise ValueError(
         'a positive-level remesh must contain at least two subdivision sides'
       )
+    ####
     cells = tuple(self.cells)
     samples = tuple(self.cell_samples)
     if len(cells) != len(samples):
       raise ValueError('remeshed cells and state samples must have equal lengths')
+    ####
     if any(not isinstance(cell, MocCharacteristicCell) for cell in cells):
       raise TypeError('cells must contain MocCharacteristicCell values')
+    ####
     if any(
       not isinstance(sample, MocEulerAmbientFirstWedgeCellSample)
       for sample in samples
@@ -189,8 +211,10 @@ class MocEulerAmbientFirstWedgeRemeshResult:
       raise TypeError(
         'cell_samples must contain MocEulerAmbientFirstWedgeCellSample values'
       )
+    ####
     if not isinstance(self.topology, MocTopologyResult):
       raise TypeError('topology must be a MocTopologyResult')
+    ####
     for name in (
       'state_projection_verified',
       'pressure_lineage_carried',
@@ -200,19 +224,24 @@ class MocEulerAmbientFirstWedgeRemeshResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'cells', cells)
     object.__setattr__(self, 'cell_samples', samples)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is (
       MocEulerAmbientFirstWedgeRemeshStatus.CONVERGED_DIAGNOSTIC_SUBDIVISION
     )
+  ####
 
   @property
   def cell_count(self) -> int:
     return len(self.cells)
+  ####
 
   @property
   def state_sample_count(self) -> int:
@@ -221,6 +250,7 @@ class MocEulerAmbientFirstWedgeRemeshResult:
       for sample in self.cell_samples
       for point in sample.vertices_xr_m
     })
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the explicit non-promotion boundary for this remesh."""
@@ -229,6 +259,7 @@ class MocEulerAmbientFirstWedgeRemeshResult:
       reason = MocChainTerminationReason.INVALID_INPUT
     else:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -255,6 +286,7 @@ class MocEulerAmbientFirstWedgeRemeshResult:
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -286,10 +318,13 @@ class MocEulerAmbientFirstWedgeRemeshResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _failure(
@@ -323,6 +358,7 @@ def _failure(
     pressure_lineage_carried=pressure_lineage_carried,
     message=message,
   )
+####
 
 
 def _point(
@@ -345,6 +381,7 @@ def _point(
     + first_weight * (second[1] - first[1])
     + second_weight * (third[1] - first[1]),
   )
+####
 
 
 def remesh_euler_ambient_first_wedge(
@@ -367,6 +404,7 @@ def remesh_euler_ambient_first_wedge(
       None,
       message='source_field must be a MocEulerAmbientPhysicalFieldResult',
     )
+  ####
   if (
     isinstance(subdivision_level, bool)
     or not isinstance(subdivision_level, int)
@@ -374,6 +412,7 @@ def remesh_euler_ambient_first_wedge(
     or subdivision_level > 8
   ):
     raise ValueError('subdivision_level must be an integer from one through eight')
+  ####
   try:
     tolerance = float(position_tolerance_m)
   except (TypeError, ValueError):
@@ -384,8 +423,10 @@ def remesh_euler_ambient_first_wedge(
       subdivision_side_count=2 ** subdivision_level,
       message='position_tolerance_m must be numeric',
     )
+  ####
   if not isfinite(tolerance) or tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not (
     source_field.converged
     and source_field.field is not None
@@ -402,6 +443,7 @@ def remesh_euler_ambient_first_wedge(
         'a bounded state sampler'
       ),
     )
+  ####
   field = source_field.field
   wedge_indices = tuple(
     index
@@ -419,6 +461,7 @@ def remesh_euler_ambient_first_wedge(
         'post-shock-ambient-centerline-triangle cell'
       ),
     )
+  ####
   source_cell_index = wedge_indices[0]
   source_cell = field.cells[source_cell_index]
   if len(source_cell.vertices_xr_m) != 3:
@@ -431,6 +474,7 @@ def remesh_euler_ambient_first_wedge(
       subdivision_side_count=2 ** subdivision_level,
       message='the reflected first wedge must be triangular',
     )
+  ####
   original_vertices = tuple(source_cell.vertices_xr_m)
   side_count = 2 ** subdivision_level
   first, second, third = original_vertices
@@ -462,8 +506,11 @@ def remesh_euler_ambient_first_wedge(
             f'({first_index}, {second_index})'
           ),
         )
+      ####
       lattice[(first_index, second_index)] = point
       state_samples[(first_index, second_index)] = (state, float(pressure))
+    ####
+  ####
 
   cells: list[MocCharacteristicCell] = []
   samples: list[MocEulerAmbientFirstWedgeCellSample] = []
@@ -489,6 +536,7 @@ def remesh_euler_ambient_first_wedge(
         total_pressure_Pa=pressures,
       )
     )
+  ####
 
   try:
     for first_index in range(side_count):
@@ -508,6 +556,9 @@ def remesh_euler_ambient_first_wedge(
               (first_index, second_index + 1),
             )
           )
+        ####
+      ####
+    ####
   except (KeyError, TypeError, ValueError) as error:
     return _failure(
       MocEulerAmbientFirstWedgeRemeshStatus.GEOMETRY_FAILURE,
@@ -521,6 +572,7 @@ def remesh_euler_ambient_first_wedge(
       cell_samples=tuple(samples),
       message=f'first-wedge diagnostic subdivision failed: {error}',
     )
+  ####
   topology = validate_moc_mesh(tuple(cells))
   if (
     not topology.connected
@@ -542,6 +594,7 @@ def remesh_euler_ambient_first_wedge(
       pressure_lineage_carried=True,
       message=f'first-wedge diagnostic subdivision topology failed: {topology.message}',
     )
+  ####
   return MocEulerAmbientFirstWedgeRemeshResult(
     status=MocEulerAmbientFirstWedgeRemeshStatus.CONVERGED_DIAGNOSTIC_SUBDIVISION,
     source_field=source_field,
@@ -561,3 +614,4 @@ def remesh_euler_ambient_first_wedge(
       'blocked'
     ),
   )
+####

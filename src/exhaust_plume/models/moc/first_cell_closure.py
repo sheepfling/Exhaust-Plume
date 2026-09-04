@@ -129,6 +129,7 @@ class MocFirstCellTerminalClosureResult:
       raise ValueError(
         'a mixed-regime perimeter request requires a converged terminal field'
       )
+    ####
     return self.terminal_field.mixed_regime_perimeter_request()
   ####
 
@@ -195,6 +196,7 @@ class MocFirstCellTerminalClosureResult:
       raise ValueError(
         'a mixed-regime field requires a converged first-cell terminal field'
       )
+    ####
     updated_field = self.terminal_field.with_mixed_regime_field(mixed_regime_field)
     return replace(
       self,
@@ -222,14 +224,17 @@ class MocFirstCellTerminalClosureResult:
 
     if not isinstance(closure, MocMixedRegimeClosureResult):
       raise TypeError('closure must be a MocMixedRegimeClosureResult')
+    ####
     if closure.request != self.mixed_regime_perimeter_request():
       raise ValueError(
         'mixed-regime closure does not retain this first-cell terminal seam'
       )
+    ####
     if not closure.converged or closure.field is None:
       raise ValueError(
         'only a converged mixed-regime closure with an accepted field can be attached'
       )
+    ####
     return self.with_mixed_regime_field(closure.field)
   ####
 
@@ -238,8 +243,10 @@ class MocFirstCellTerminalClosureResult:
 
     if self.terminal_field is not None:
       return self.terminal_field.as_chain_termination_decision()
+    ####
     if self.composite is not None and self.composite.topology_closed:
       return self.composite.as_chain_termination_decision()
+    ####
     raise ValueError(
       'a first-cell chain decision requires a converged composite or terminal field'
     )
@@ -273,6 +280,7 @@ class MocFirstCellTerminalClosureResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _result(
@@ -290,6 +298,7 @@ def _result(
     terminal_field=terminal_field,
     message=message,
   )
+####
 
 
 def _validate_tolerances(
@@ -305,6 +314,9 @@ def _validate_tolerances(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
+####
 
 
 def assemble_first_cell_terminal_shock_field(
@@ -329,6 +341,7 @@ def assemble_first_cell_terminal_shock_field(
       MocFirstCellTerminalClosureStatus.INVALID_INPUT,
       message='composite must be a MocFirstCellCompositeResult',
     )
+  ####
   if not isinstance(
     downstream_shock,
     MocTerminalReflectionPatchShockSolveResult,
@@ -341,6 +354,7 @@ def assemble_first_cell_terminal_shock_field(
         'MocTerminalReflectionPatchShockSolveResult'
       ),
     )
+  ####
   try:
     target_y = float(target_centerline_y_m)
     _validate_tolerances(
@@ -355,6 +369,7 @@ def assemble_first_cell_terminal_shock_field(
       downstream_shock=downstream_shock,
       message=f'first-cell terminal closure inputs are invalid: {error}',
     )
+  ####
   if not isfinite(target_y):
     return _result(
       MocFirstCellTerminalClosureStatus.INVALID_INPUT,
@@ -362,6 +377,7 @@ def assemble_first_cell_terminal_shock_field(
       downstream_shock=downstream_shock,
       message='target_centerline_y_m must be finite',
     )
+  ####
   if not composite.topology_closed or not composite.physical_boundary_conditions_verified:
     return _result(
       MocFirstCellTerminalClosureStatus.COMPOSITE_FAILURE,
@@ -372,6 +388,7 @@ def assemble_first_cell_terminal_shock_field(
         'and verified physical boundary paths'
       ),
     )
+  ####
   if composite.strip is None or composite.patch is None:
     return _result(
       MocFirstCellTerminalClosureStatus.COMPOSITE_FAILURE,
@@ -379,6 +396,7 @@ def assemble_first_cell_terminal_shock_field(
       downstream_shock=downstream_shock,
       message='first-cell composite does not retain its strip and reflection patch',
     )
+  ####
   expected_handoff = composite.continuation_boundary
   if tuple(downstream_shock.incoming_handoff) != expected_handoff:
     return _result(
@@ -390,6 +408,7 @@ def assemble_first_cell_terminal_shock_field(
         'characteristic handoff'
       ),
     )
+  ####
   if not downstream_shock.physical_terminal_verified:
     return _result(
       MocFirstCellTerminalClosureStatus.SHOCK_FAILURE,
@@ -400,6 +419,7 @@ def assemble_first_cell_terminal_shock_field(
         'a verified normal-shock terminal'
       ),
     )
+  ####
   terminal_field = assemble_terminal_shock_cell_field(
     composite.strip,
     composite.patch,
@@ -420,6 +440,7 @@ def assemble_first_cell_terminal_shock_field(
         f'field did not close: {terminal_field.message}'
       ),
     )
+  ####
   if terminal_field.initial_shock_boundary_points_m != composite.shock_boundary_points_m:
     return _result(
       MocFirstCellTerminalClosureStatus.SEAM_FAILURE,
@@ -428,6 +449,7 @@ def assemble_first_cell_terminal_shock_field(
       terminal_field=terminal_field,
       message='terminal field changed the first-cell fitted shock boundary',
     )
+  ####
   return _result(
     MocFirstCellTerminalClosureStatus.CONVERGED_SUPERSONIC_REGION,
     composite=composite,
@@ -469,18 +491,21 @@ def solve_marched_first_cell_terminal_closure(
       MocFirstCellTerminalClosureStatus.INVALID_INPUT,
       message='composite must be a MocFirstCellCompositeResult',
     )
+  ####
   if composite.patch is None or not composite.continuation_boundary_points_m:
     return _result(
       MocFirstCellTerminalClosureStatus.COMPOSITE_FAILURE,
       composite=composite,
       message='first-cell composite does not expose an outgoing terminal trace',
     )
+  ####
   if not composite.topology_closed:
     return _result(
       MocFirstCellTerminalClosureStatus.COMPOSITE_FAILURE,
       composite=composite,
       message='first-cell composite topology is not closed',
     )
+  ####
   try:
     downstream_shock = solve_marched_attached_shock_from_terminal_reflection_patch(
       composite.patch,
@@ -502,6 +527,7 @@ def solve_marched_first_cell_terminal_closure(
       composite=composite,
       message=f'first-cell terminal shock solve raised: {error}',
     )
+  ####
   if not downstream_shock.physical_terminal_verified:
     return _result(
       MocFirstCellTerminalClosureStatus.SHOCK_FAILURE,
@@ -512,6 +538,7 @@ def solve_marched_first_cell_terminal_closure(
         f'terminal: {downstream_shock.message}'
       ),
     )
+  ####
   return assemble_first_cell_terminal_shock_field(
     composite,
     downstream_shock,

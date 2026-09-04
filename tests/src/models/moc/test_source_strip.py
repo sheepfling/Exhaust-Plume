@@ -57,6 +57,7 @@ def _reflected_boundary_fixture():
   reflected = solve_reflected_free_boundary(fan, exit_state, ambient)
   assert reflected.converged
   return exit_state, ambient, reflected
+####
 
 
 def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> None:
@@ -227,6 +228,7 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
     assert restart.minimum_forward_progress_m > 0.0
     assert restart.maximum_absolute_pressure_residual is not None
     assert restart.maximum_absolute_pressure_residual <= 1.0e-10
+  ####
   assert restart.maximum_absolute_tangent_residual is not None
   assert restart.maximum_absolute_tangent_residual <= 1.0e-10
   assert restart.source_strip is not None
@@ -295,6 +297,7 @@ def test_centerline_reflection_extension_carries_a_physical_boundary_law() -> No
   )
   assert report['domain_x_extent_m'] == restart.family_band.domain_x_extent_m
   assert report['domain_y_extent_m'] == restart.family_band.domain_y_extent_m
+####
 
 
 def test_centerline_reflection_boundary_failure_retains_longest_valid_prefix(
@@ -316,7 +319,9 @@ def test_centerline_reflection_boundary_failure_retains_longest_valid_prefix(
         point_m=None,
         message='forced boundary failure for prefix-retention test',
       )
+    ####
     return result
+  ####
 
   monkeypatch.setattr(
     source_strip_module,
@@ -341,3 +346,4 @@ def test_centerline_reflection_boundary_failure_retains_longest_valid_prefix(
   assert result.remesh is not None
   assert result.remesh.source_index == 9
   assert 'forced boundary failure' in result.message
+####

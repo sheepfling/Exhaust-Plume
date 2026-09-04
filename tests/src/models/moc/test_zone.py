@@ -83,6 +83,7 @@ def test_reflected_characteristic_zone_assembles_one_open_topological_perimeter(
   assert sum(cell.cell_kind == 'axis-strip' for cell in result.cells) == 8
   assert sum(cell.cell_kind == 'interior' for cell in result.cells) == 28
   assert sum(cell.cell_kind == 'free-boundary-strip' for cell in result.cells) == 8
+####
 
 
 def test_reflected_zone_sampler_is_pressure_aware_and_domain_bounded() -> None:
@@ -123,6 +124,7 @@ def test_reflected_zone_sampler_is_pressure_aware_and_domain_bounded() -> None:
   assert zone.static_pressure_at(sample_point) > 0.0
   assert zone.state_at((1.0, 0.5)) is None
   assert zone.static_pressure_at((1.0, 0.5)) is None
+####
 
 
 def test_reflected_zone_shock_coupling_reports_first_missing_strip_sample() -> None:
@@ -165,6 +167,7 @@ def test_reflected_zone_shock_coupling_reports_first_missing_strip_sample() -> N
   assert coupling.sampled_count == 1
   assert coupling.first_missing_sample_index == 1
   assert coupling.last_valid_point_m == pytest.approx(start)
+####
 
 
 def test_source_characteristic_strip_reuses_reflected_compatibility_grid() -> None:
@@ -204,6 +207,7 @@ def test_source_characteristic_strip_reuses_reflected_compatibility_grid() -> No
   assert sample is not None
   assert sample.mach > 1.0
   assert result.static_pressure_at((1.0, 0.5)) is None
+####
 
 
 def test_fan_reflected_interface_reuses_compatibility_grid_and_connects_cells() -> None:
@@ -235,3 +239,4 @@ def test_fan_reflected_interface_reuses_compatibility_grid_and_connects_cells() 
   assert topology.connected
   assert topology.forms_closed_zone
   assert topology.boundary_component_count == 1
+####

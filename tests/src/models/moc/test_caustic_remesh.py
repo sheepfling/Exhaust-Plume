@@ -93,6 +93,7 @@ def _fixture():
   )
   assert restart.family_band is not None
   return seed, old_family, restart.family_band
+####
 
 
 def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
@@ -137,6 +138,7 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   def upstream_state_at(point: tuple[float, float]) -> CharacteristicState:
     if point == request.event_point_m:
       return request.upstream_state
+    ####
     return CharacteristicState(
       x_m=point[0],
       y_m=point[1],
@@ -144,6 +146,7 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
       mach=request.upstream_state.mach,
       gamma=request.upstream_state.gamma,
     )
+  ####
 
   def invariant_law(_index: int, point: tuple[float, float]) -> float:
     desired_angle = request.local_bridge.downstream_state.theta_rad * max(
@@ -159,6 +162,7 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
       ).downstream_mach,
       request.upstream_state.gamma,
     )
+  ####
   result = solve_caustic_shock_remesh(
     request,
     upstream_state_at,
@@ -241,6 +245,7 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert unsampleable_result.bounded_downstream_field_available is False
   with pytest.raises(ValueError, match='bounded downstream continuation field'):
     unsampleable_result.as_bounded_downstream_field()
+  ####
 
   planner = plan_caustic_shock_remesh_chain(
     current,
@@ -267,6 +272,7 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
       start_point_at=lambda _field, _cell, _index: (0.7, 0.05),
       downstream_flow_angle_rad=0.2,
     )
+  ####
 
   continuation_planner = plan_caustic_remesh_downstream_field_chain(
     result,
@@ -310,6 +316,7 @@ def test_caustic_remesh_generates_a_bounded_new_family_field() -> None:
   assert invariant_continuation_planner.chain.resolved
   assert invariant_continuation_planner.diagnostics['downstream_invariant_family'] == 'C+'
   assert invariant_continuation_planner.diagnostics['remesh_chain_promotion_blocked'] is True
+####
 
 
 def test_caustic_remesh_rejects_a_changed_event_state() -> None:
@@ -348,6 +355,7 @@ def test_caustic_remesh_rejects_a_changed_event_state() -> None:
   assert result.status is MocCausticShockRemeshStatus.EVENT_SEAM_FAILURE
   assert result.remesh_seam_verified is False
   assert result.as_chain_termination_decision().reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+####
 
 
 def test_caustic_remesh_uses_the_bounded_old_restarted_family_bridge() -> None:
@@ -449,6 +457,7 @@ def test_caustic_remesh_uses_the_bounded_old_restarted_family_bridge() -> None:
   assert planner.chain.diagnostics['remesh_report']['upstream_bridge_audit']['status'] == (
     MocCausticBridgeStatus.DOMAIN_GAP.value
   )
+####
 
 
 def test_caustic_remesh_planner_carries_exact_perimeter_to_typed_stop() -> None:
@@ -501,3 +510,4 @@ def test_caustic_remesh_planner_carries_exact_perimeter_to_typed_stop() -> None:
     MocCausticShockRemeshStatus.EVENT_SEAM_FAILURE.value
   )
   assert planner.diagnostics['one_step_domain'] is True
+####

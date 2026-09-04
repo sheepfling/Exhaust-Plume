@@ -74,6 +74,7 @@ from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 if TYPE_CHECKING:
   from exhaust_plume.models.moc.shock_chain import MocTerminalShockCellFieldResult
+####
 
 __all__ = (
   'MocPhysicalPostShockFieldStatus',
@@ -141,26 +142,32 @@ class MocAmbientClosedPostShockChainCandidate:
         'shock points, downstream angles, and ambient boundary must be '
         'finite sequences'
       ) from error
+    ####
     if len(shock_points) < 3:
       raise ValueError(
         'an ambient-closed next-shock candidate requires at least three '
         'shock points'
       )
+    ####
     if len(shock_points) != len(downstream_angles):
       raise ValueError(
         'shock points and downstream flow angles must have equal lengths'
       )
+    ####
     if len(ambient_boundary) != len(shock_points):
       raise ValueError(
         'ambient boundary must contain exactly one sample per shock point'
       )
+    ####
     if any(
       not all(isfinite(value) for value in point)
       for point in shock_points
     ):
       raise ValueError('shock points must contain finite coordinates')
+    ####
     if any(not isfinite(angle) for angle in downstream_angles):
       raise ValueError('downstream flow angles must be finite')
+    ####
     if any(
       second[0] <= first[0] or second[1] > first[1]
       for first, second in zip(shock_points, shock_points[1:])
@@ -168,10 +175,12 @@ class MocAmbientClosedPostShockChainCandidate:
       raise ValueError(
         'shock points must be strictly downstream and nonincreasing in y'
       )
+    ####
     if abs(shock_points[-1][1]) > 1.0e-10:
       raise ValueError(
         'the final candidate shock point must lie on the y=0 centerline'
       )
+    ####
     if any(
       not isinstance(sample, MocAmbientBoundarySample)
       for sample in ambient_boundary
@@ -179,6 +188,7 @@ class MocAmbientClosedPostShockChainCandidate:
       raise TypeError(
         'ambient boundary must contain MocAmbientBoundarySample values'
       )
+    ####
     if (
       abs(ambient_boundary[0].point_m[0] - shock_points[0][0]) > 1.0e-10
       or abs(ambient_boundary[0].point_m[1] - shock_points[0][1]) > 1.0e-10
@@ -186,6 +196,7 @@ class MocAmbientClosedPostShockChainCandidate:
       raise ValueError(
         'ambient boundary and candidate shock must share their attachment point'
       )
+    ####
     try:
       ambient_pressure = float(self.ambient_pressure_Pa)
       end_x = float(self.end_x_m)
@@ -193,15 +204,19 @@ class MocAmbientClosedPostShockChainCandidate:
       raise ValueError(
         'ambient_pressure_Pa and end_x_m must be numeric'
       ) from error
+    ####
     if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
       raise ValueError('ambient_pressure_Pa must be finite and positive')
+    ####
     if not isfinite(end_x) or end_x <= shock_points[0][0]:
       raise ValueError(
         'end_x_m must be finite and downstream of the candidate shock start'
       )
+    ####
     model = str(self.model)
     if not model:
       raise ValueError('model must be a non-empty string')
+    ####
     object.__setattr__(self, 'shock_points_m', shock_points)
     object.__setattr__(self, 'downstream_flow_angles_rad', downstream_angles)
     object.__setattr__(self, 'ambient_boundary', ambient_boundary)
@@ -255,6 +270,7 @@ class MocAmbientClosedPostShockChainCandidate:
         'canonical-reflected-free-boundary-pending'
       ),
     }
+  ####
 ####
 
 
@@ -286,6 +302,8 @@ class MocCenterlineSeamComparisonResult:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     for name in (
       'maximum_coordinate_residual_m',
       'maximum_absolute_state_residual',
@@ -297,12 +315,17 @@ class MocCenterlineSeamComparisonResult:
         numeric_value = float(value)
         if not isfinite(numeric_value) or numeric_value < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric_value)
+      ####
+    ####
     for name in ('position_tolerance_m', 'state_tolerance'):
       numeric_value = float(getattr(self, name))
       if not isfinite(numeric_value) or numeric_value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, numeric_value)
+    ####
     if self.first_mismatch_index is not None:
       if (
         isinstance(self.first_mismatch_index, bool)
@@ -312,6 +335,8 @@ class MocCenterlineSeamComparisonResult:
         raise ValueError(
           'first_mismatch_index must be a nonnegative integer when supplied'
         )
+      ####
+    ####
     if self.mismatch_kind not in (
       None,
       'sample_count',
@@ -323,10 +348,12 @@ class MocCenterlineSeamComparisonResult:
         'mismatch_kind must be sample_count, position, state, '
         'total_pressure, or None'
       )
+    ####
     if (self.first_mismatch_index is None) != (self.mismatch_kind is None):
       raise ValueError(
         'first_mismatch_index and mismatch_kind must be supplied together'
       )
+    ####
     if self.first_mismatch_index is not None and self.first_mismatch_index > max(
       self.expected_sample_count,
       self.actual_sample_count,
@@ -334,8 +361,10 @@ class MocCenterlineSeamComparisonResult:
       raise ValueError(
         'first_mismatch_index must be within the compared sample counts'
       )
+    ####
     if not isinstance(self.verified, bool):
       raise TypeError('verified must be a bool')
+    ####
     if self.verified and (
       self.expected_sample_count != self.actual_sample_count
       or self.mismatch_kind is not None
@@ -343,8 +372,10 @@ class MocCenterlineSeamComparisonResult:
       raise ValueError(
         'a verified seam must have equal sample counts and no mismatch kind'
       )
+    ####
     if not self.verified and self.mismatch_kind is None:
       raise ValueError('an unverified seam must retain a mismatch kind')
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -368,6 +399,7 @@ class MocCenterlineSeamComparisonResult:
       'message': self.message,
     }
   ####
+####
 
 
 def compare_centerline_seam(
@@ -393,6 +425,7 @@ def compare_centerline_seam(
     raise TypeError(
       'expected and actual centerline seams must be iterable'
     ) from error
+  ####
   if any(
     not isinstance(sample, MocChainBoundarySample)
     for sample in (*expected_trace, *actual_trace)
@@ -401,15 +434,19 @@ def compare_centerline_seam(
       'expected and actual centerline seams must contain '
       'MocChainBoundarySample values'
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     resolved_state_tolerance = float(state_tolerance)
   except (TypeError, ValueError) as error:
     raise ValueError('seam tolerances must be numeric') from error
+  ####
   if not isfinite(position_tolerance) or position_tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(resolved_state_tolerance) or resolved_state_tolerance <= 0.0:
     raise ValueError('state_tolerance must be finite and positive')
+  ####
 
   pair_count = min(len(expected_trace), len(actual_trace))
   maximum_coordinate_residual = None
@@ -460,6 +497,7 @@ def compare_centerline_seam(
       if maximum_relative_pressure_residual is None
       else maximum_relative_pressure_residual,
     )
+  ####
 
   first_mismatch_index: int | None = None
   mismatch_kind: str | None = None
@@ -486,6 +524,7 @@ def compare_centerline_seam(
         mismatch_kind = 'position'
         message = f'centerline reflection changed axis point {index}'
         break
+      ####
       state_residual = max(
         abs(actual_state.theta_rad - expected_state.theta_rad),
         abs(actual_state.mach - expected_state.mach),
@@ -496,6 +535,7 @@ def compare_centerline_seam(
         mismatch_kind = 'state'
         message = f'centerline reflection changed axis state {index}'
         break
+      ####
       pressure_residual = abs(
         actual_sample.total_pressure_Pa - expected_sample.total_pressure_Pa
       )
@@ -511,6 +551,9 @@ def compare_centerline_seam(
           f'centerline reflection changed axis total pressure {index}'
         )
         break
+      ####
+    ####
+  ####
   verified = mismatch_kind is None
   return MocCenterlineSeamComparisonResult(
     expected_sample_count=len(expected_trace),
@@ -526,6 +569,7 @@ def compare_centerline_seam(
     verified=verified,
     message=message,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -561,32 +605,38 @@ class MocPhysicalPostShockFieldResult:
   def __post_init__(self) -> None:
     if not isinstance(self.zero_strength_shock_start_allowed, bool):
       raise TypeError('zero_strength_shock_start_allowed must be a bool')
+    ####
     if not isinstance(self.zero_strength_shock_endpoints_allowed, bool):
       raise TypeError('zero_strength_shock_endpoints_allowed must be a bool')
+    ####
     if len(self.incoming_handoff_states) != len(
       self.incoming_handoff_total_pressure_Pa
     ):
       raise ValueError(
         'incoming handoff states and total-pressure samples must have equal lengths'
       )
+    ####
     if len(self.upstream_shock_boundary_states) != len(
       self.upstream_shock_boundary_total_pressure_Pa
     ):
       raise ValueError(
         'upstream shock states and total-pressure samples must have equal lengths'
       )
+    ####
     if len(self.post_shock_boundary_states) != len(
       self.post_shock_boundary_total_pressure_Pa
     ):
       raise ValueError(
         'post-shock boundary states and total-pressure samples must have equal lengths'
       )
+    ####
     if self.post_shock_boundary_states and len(self.post_shock_boundary_states) != len(
       self.shock_boundary_points_m
     ):
       raise ValueError(
         'post-shock boundary states must match the shock boundary point count'
       )
+    ####
     if any(
       not isinstance(state, CharacteristicState)
       for state in (
@@ -598,6 +648,7 @@ class MocPhysicalPostShockFieldResult:
       raise TypeError(
         'physical post-shock handoff states must be CharacteristicState values'
       )
+    ####
     for name, pressures in (
       ('incoming_handoff_total_pressure_Pa', self.incoming_handoff_total_pressure_Pa),
       (
@@ -611,6 +662,8 @@ class MocPhysicalPostShockFieldResult:
     ):
       if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
         raise ValueError(f'{name} must contain finite positive values')
+      ####
+    ####
     object.__setattr__(self, 'incoming_handoff_states', tuple(self.incoming_handoff_states))
     object.__setattr__(
       self,
@@ -637,6 +690,7 @@ class MocPhysicalPostShockFieldResult:
       'post_shock_boundary_total_pressure_Pa',
       tuple(float(value) for value in self.post_shock_boundary_total_pressure_Pa),
     )
+  ####
 
   @property
   def converged(self) -> bool:
@@ -705,6 +759,8 @@ class MocPhysicalPostShockFieldResult:
         )
       except (TypeError, ValueError):
         paths_verified = False
+      ####
+    ####
     shock_geometry_verified = bool(
       len(self.shock_boundary_points_m) >= 3
       and all(
@@ -781,6 +837,8 @@ class MocPhysicalPostShockFieldResult:
           and isfinite(float(pressure))
           and float(pressure) > 0.0
         )
+      ####
+    ####
     residuals_verified = bool(
       self.maximum_geometry_residual_m is not None
       and self.maximum_absolute_invariant_residual is not None
@@ -876,10 +934,12 @@ class MocPhysicalPostShockFieldResult:
       and all(node.total_pressure_Pa is not None for node in self.nodes)
     ):
       return False
+    ####
     try:
       return len(self._cell_samples(position_tolerance_m=1.0e-10)) == len(self.cells)
     except (TypeError, ValueError):
       return False
+    ####
   ####
 
   def _cell_samples(
@@ -898,6 +958,7 @@ class MocPhysicalPostShockFieldResult:
 
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     sources: list[
       tuple[tuple[float, float], CharacteristicState, float | None]
     ] = []
@@ -954,7 +1015,10 @@ class MocPhysicalPostShockFieldResult:
       for source_point, state, pressure in sources:
         if hypot(point[0] - source_point[0], point[1] - source_point[1]) <= position_tolerance_m:
           return state, pressure
+        ####
+      ####
       return None
+    ####
 
     resolved_cells: list[
       tuple[
@@ -967,6 +1031,7 @@ class MocPhysicalPostShockFieldResult:
       resolved = tuple(resolve(point) for point in cell.vertices_xr_m)
       if any(value is None for value in resolved):
         continue
+      ####
       samples = tuple(value for value in resolved if value is not None)
       resolved_cells.append(
         (
@@ -975,7 +1040,9 @@ class MocPhysicalPostShockFieldResult:
           tuple(value[1] for value in samples),
         )
       )
+    ####
     return tuple(resolved_cells)
+  ####
 
   def cell_state_samples(
     self,
@@ -998,6 +1065,7 @@ class MocPhysicalPostShockFieldResult:
     """
 
     return self._cell_samples(position_tolerance_m=position_tolerance_m)
+  ####
 
   def state_at(
     self,
@@ -1010,6 +1078,7 @@ class MocPhysicalPostShockFieldResult:
     point = _finite_interpolation_point(point_m, position_tolerance_m)
     if not self.state_sampling_available:
       return None
+    ####
     for vertices, states, _pressures in self._cell_samples(
       position_tolerance_m=position_tolerance_m,
     ):
@@ -1020,6 +1089,7 @@ class MocPhysicalPostShockFieldResult:
       )
       if weights is None:
         continue
+      ####
       gamma = states[0].gamma
       theta = sum(
         weight * state.theta_rad
@@ -1032,6 +1102,7 @@ class MocPhysicalPostShockFieldResult:
       inverse = inverse_prandtl_meyer_angle_rad(nu, gamma)
       if not inverse.converged or inverse.value is None:
         return None
+      ####
       return CharacteristicState(
         x_m=point[0],
         y_m=point[1],
@@ -1039,6 +1110,7 @@ class MocPhysicalPostShockFieldResult:
         mach=inverse.value,
         gamma=gamma,
       )
+    ####
     return None
   ####
 
@@ -1053,11 +1125,13 @@ class MocPhysicalPostShockFieldResult:
     point = _finite_interpolation_point(point_m, position_tolerance_m)
     if not self.state_sampling_available:
       return None
+    ####
     for vertices, _states, pressures in self._cell_samples(
       position_tolerance_m=position_tolerance_m,
     ):
       if any(pressure is None for pressure in pressures):
         continue
+      ####
       weights = _polygon_interpolation_weights(
         point,
         vertices,
@@ -1065,11 +1139,13 @@ class MocPhysicalPostShockFieldResult:
       )
       if weights is None:
         continue
+      ####
       return sum(
         weight * pressure
         for weight, pressure in zip(weights, pressures, strict=True)
         if pressure is not None
       )
+    ####
     return None
   ####
 
@@ -1088,6 +1164,7 @@ class MocPhysicalPostShockFieldResult:
     )
     if state is None or total_pressure is None:
       return None
+    ####
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
@@ -1128,6 +1205,8 @@ class MocPhysicalPostShockFieldResult:
       numeric_value = float(value)
       if not isfinite(numeric_value) or numeric_value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
+    ####
     trace_position_tolerance_m = float(trace_position_tolerance_m)
     trace_invariant_tolerance = float(trace_invariant_tolerance)
     if trace_forward_tolerance_m is None:
@@ -1138,21 +1217,26 @@ class MocPhysicalPostShockFieldResult:
         raise ValueError(
           'trace_forward_tolerance_m must be finite and positive'
         )
+      ####
+    ####
     if not self.converged or not self.physical_closure_verified:
       raise ValueError(
         'only a converged ambient-closed physical field can expose an '
         'open shock/ambient source strip'
       )
+    ####
     if not self.state_sampling_available:
       raise ValueError(
         'the physical field must expose a complete bounded state sampler '
         'before its open source strip can be consumed'
       )
+    ####
     if not self.upstream_shock_coupling_verified:
       raise ValueError(
         'the physical field must retain fitted upstream shock samples '
         'before its open source strip can be consumed'
       )
+    ####
 
     shock_points = tuple(self.shock_boundary_points_m)
     ambient_points = tuple(self.ambient_boundary_points_m)
@@ -1162,6 +1246,7 @@ class MocPhysicalPostShockFieldResult:
         'an accepted physical field must contain equal shock and ambient '
         'sample counts of at least three before projection'
       )
+    ####
     if (
       len(self.post_shock_boundary_states) != expected_count
       or len(self.post_shock_boundary_total_pressure_Pa) != expected_count
@@ -1172,6 +1257,7 @@ class MocPhysicalPostShockFieldResult:
         'an accepted physical field is missing a complete shock/ambient '
         'state and total-pressure projection'
       )
+    ####
 
     node_by_index = {
       (node.centerline_index, node.boundary_index): node
@@ -1187,14 +1273,17 @@ class MocPhysicalPostShockFieldResult:
           raise ValueError(
             f'terminal source node {boundary_index} has no total pressure'
           )
+        ####
         terminal_points.append(terminal_node.point_m)
         terminal_states.append(terminal_node.state)
         terminal_pressures.append(float(terminal_node.total_pressure_Pa))
+      ####
     except KeyError as error:
       raise ValueError(
         'accepted physical field is missing a terminal shock/ambient source '
         f'node: {error}'
       ) from error
+    ####
     terminal_points.append(ambient_points[-1])
     terminal_states.append(self.ambient_boundary.states[-1])
     terminal_pressures.append(self.ambient_boundary.total_pressure_Pa[-1])
@@ -1218,6 +1307,7 @@ class MocPhysicalPostShockFieldResult:
         'accepted physical field terminal shock/ambient trace is not a '
         f'usable C+ source: {terminal_trace.message}'
       )
+    ####
 
     open_cell_kinds = frozenset({
       'post-shock-shock-strip',
@@ -1238,6 +1328,7 @@ class MocPhysicalPostShockFieldResult:
         'accepted physical field open shock/ambient source submesh failed '
         f'topology validation: {topology.message}'
       )
+    ####
     return MocAmbientShockStripResult(
       status=MocAmbientShockStripStatus.CONVERGED_OPEN,
       characteristic_layer_count=expected_count - 1,
@@ -1286,17 +1377,20 @@ class MocPhysicalPostShockFieldResult:
     )
     if strict_loss:
       return True
+    ####
     if not (
       self.zero_strength_shock_start_allowed
       or self.zero_strength_shock_endpoints_allowed
     ):
       return False
+    ####
     if (
       len(self.post_shock_boundary_total_pressure_Pa) < 2
       or len(self.upstream_shock_boundary_total_pressure_Pa)
       != len(self.post_shock_boundary_total_pressure_Pa)
     ):
       return False
+    ####
     ratios = tuple(
       downstream / upstream
       for upstream, downstream in zip(
@@ -1367,6 +1461,7 @@ class MocPhysicalPostShockFieldResult:
         'only a converged ambient-closed post-shock field with verified '
         'shock-C+/ambient-C- family orientation can become a chain cell'
       )
+    ####
     chain_diagnostics: dict[str, Any] = {
       'source': 'ambient-pressure-coupled-post-shock-field',
       'physical_closure_verified': True,
@@ -1420,7 +1515,9 @@ class MocPhysicalPostShockFieldResult:
       reserved = set(chain_diagnostics) & set(diagnostics)
       if reserved:
         raise ValueError(f'diagnostics cannot override reserved closure keys: {sorted(reserved)!r}')
+      ####
       chain_diagnostics.update(diagnostics)
+    ####
     return MocChainCell(
       cell_index=cell_index,
       start_x_m=start_x_m,
@@ -1456,13 +1553,16 @@ class MocPhysicalPostShockFieldResult:
         'coupled physical-field chain promotion requires a converged field '
         'with upstream shock states and total-pressure samples'
       )
+    ####
     coupled_diagnostics = {
       'upstream_coupling_promotion_gate': 'passed',
     }
     if diagnostics is not None:
       if 'upstream_shock_coupling_verified' in diagnostics:
         raise ValueError('reserved coupling diagnostics cannot be overridden')
+      ####
       coupled_diagnostics.update(diagnostics)
+    ####
     return self.as_chain_cell(
       start_x_m=start_x_m,
       end_x_m=end_x_m,
@@ -1470,6 +1570,7 @@ class MocPhysicalPostShockFieldResult:
       diagnostics=coupled_diagnostics,
     )
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1482,9 +1583,12 @@ class MocPhysicalPostShockFieldContinuationSolve:
   def __post_init__(self) -> None:
     if not isinstance(self.field, MocPhysicalPostShockFieldResult):
       raise TypeError('field must be a MocPhysicalPostShockFieldResult')
+    ####
     if not isfinite(float(self.end_x_m)) or self.end_x_m <= 0.0:
       raise ValueError('end_x_m must be finite and positive')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1512,6 +1616,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
   def __post_init__(self) -> None:
     if not isinstance(self.decision, MocChainTerminationDecision):
       raise TypeError('decision must be a MocChainTerminationDecision')
+    ####
     if self.source_strip is not None and not isinstance(
       self.source_strip,
       MocAmbientShockStripResult,
@@ -1519,6 +1624,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       raise TypeError(
         'source_strip must be a MocAmbientShockStripResult or None'
       )
+    ####
     if self.reflection_patch is not None and not isinstance(
       self.reflection_patch,
       MocTerminalReflectionPatchResult,
@@ -1526,6 +1632,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       raise TypeError(
         'reflection_patch must be a MocTerminalReflectionPatchResult or None'
       )
+    ####
     if self.downstream_shock is not None and not isinstance(
       self.downstream_shock,
       MocTerminalReflectionPatchShockSolveResult,
@@ -1534,6 +1641,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         'downstream_shock must be a '
         'MocTerminalReflectionPatchShockSolveResult or None'
       )
+    ####
     if self.mixed_regime_request is not None and not isinstance(
       self.mixed_regime_request,
       MocMixedRegimePerimeterRequest,
@@ -1541,6 +1649,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       raise TypeError(
         'mixed_regime_request must be a MocMixedRegimePerimeterRequest or None'
       )
+    ####
     if self.terminal_field is not None:
       # Keep the import local.  shock_chain imports the coupled solver, which
       # imports this module; importing it at module scope would create a
@@ -1553,11 +1662,13 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         raise TypeError(
           'terminal_field must be a MocTerminalShockCellFieldResult or None'
         )
+      ####
       if self.mixed_regime_request is not None:
         if not self.terminal_field.converged:
           raise ValueError(
             'mixed_regime_request requires a converged terminal_field'
           )
+        ####
         if (
           self.terminal_field.mixed_regime_perimeter_request()
           != self.mixed_regime_request
@@ -1565,33 +1676,41 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
           raise ValueError(
             'mixed_regime_request must retain the terminal_field seam'
           )
+        ####
+      ####
     elif self.mixed_regime_request is not None:
       raise ValueError(
         'mixed_regime_request requires the retained terminal_field'
       )
+    ####
     if self.mixed_regime_field is not None:
       if not isinstance(self.mixed_regime_field, MocMixedRegimeFieldResult):
         raise TypeError(
           'mixed_regime_field must be a MocMixedRegimeFieldResult or None'
         )
+      ####
       if self.terminal_field is None:
         raise ValueError(
           'mixed_regime_field requires the retained terminal_field'
         )
+      ####
       if self.mixed_regime_request is None:
         raise ValueError(
           'mixed_regime_field requires the retained mixed_regime_request'
         )
+      ####
       if not self.mixed_regime_field.physical_closure_verified:
         raise ValueError(
           'only a physically closed mixed-regime field can be attached'
         )
+      ####
       if self.mixed_regime_field.boundary.terminal != (
         self.terminal_field.terminal_normal_shock
       ):
         raise ValueError(
           'mixed_regime_field must retain the exact terminal shock seam'
         )
+      ####
       if (
         self.mixed_regime_field.boundary.supersonic_patch
         != self.terminal_field.terminal_shock_supersonic_downstream_states
@@ -1599,6 +1718,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         raise ValueError(
           'mixed_regime_field must retain the exact terminal supersonic patch'
         )
+      ####
       if (
         self.terminal_field.mixed_regime_field is not self.mixed_regime_field
         and self.terminal_field.mixed_regime_field
@@ -1607,6 +1727,8 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         raise ValueError(
           'terminal_field must retain the exact attached mixed-regime field'
         )
+      ####
+    ####
     if self.centerline_seam_comparison is not None and not isinstance(
       self.centerline_seam_comparison,
       MocCenterlineSeamComparisonResult,
@@ -1615,26 +1737,31 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
         'centerline_seam_comparison must be a '
         'MocCenterlineSeamComparisonResult or None'
       )
+    ####
     object.__setattr__(self, 'mixed_regime_request', self.mixed_regime_request)
     object.__setattr__(self, 'mixed_regime_field', self.mixed_regime_field)
+  ####
 
   @property
   def converged(self) -> bool:
     """Whether the transition produced the typed normal-shock chain stop."""
 
     return self.decision.physical_termination
+  ####
 
   @property
   def physical_terminal_verified(self) -> bool:
     """Whether a verified subsonic terminal was retained."""
 
     return self.decision.physical_termination
+  ####
 
   @property
   def mixed_regime_seam_available(self) -> bool:
     """Whether a complete terminal request is available downstream."""
 
     return self.mixed_regime_request is not None
+  ####
 
   @property
   def mixed_regime_field_complete(self) -> bool:
@@ -1646,6 +1773,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       and self.terminal_field is not None
       and self.terminal_field.mixed_regime_field is self.mixed_regime_field
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
@@ -1656,12 +1784,14 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       and self.terminal_field.physical_closure_verified
       and self.mixed_regime_field_complete
     )
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     """A terminal patch transition is a stop, never a new supersonic cell."""
 
     return True
+  ####
 
   def as_mixed_regime_perimeter_request(self) -> MocMixedRegimePerimeterRequest:
     """Return the exact scalar seam for a downstream mixed-regime solver."""
@@ -1670,7 +1800,9 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       raise ValueError(
         'this terminal-patch transition did not produce a mixed-regime seam'
       )
+    ####
     return self.mixed_regime_request
+  ####
 
   def mixed_regime_entropy_handoff(self):
     """Return the solver-owned entropy profile for this terminal seam.
@@ -1688,7 +1820,9 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
     result = request.entropy_handoff()
     if not isinstance(result, MocMixedRegimeEntropyHandoffResult):
       raise TypeError('mixed-regime entropy handoff returned an invalid result')
+    ####
     return result
+  ####
 
   def with_mixed_regime_field(
     self,
@@ -1708,39 +1842,47 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       raise TypeError(
         'mixed_regime_field must be a MocMixedRegimeFieldResult'
       )
+    ####
     if self.terminal_field is None or not self.converged:
       raise ValueError(
         'a mixed-regime field requires a converged terminal-patch field'
       )
+    ####
     if self.mixed_regime_request is None:
       raise ValueError(
         'a mixed-regime field requires the exact mixed-regime request'
       )
+    ####
     if not mixed_regime_field.physical_closure_verified:
       raise ValueError(
         'only a physically closed mixed-regime field can be attached'
       )
+    ####
     if mixed_regime_field.boundary.terminal != self.terminal_field.terminal_normal_shock:
       raise ValueError(
         'mixed-regime field does not retain the exact terminal shock seam'
       )
+    ####
     if mixed_regime_field.boundary.supersonic_patch != (
       self.terminal_field.terminal_shock_supersonic_downstream_states
     ):
       raise ValueError(
         'mixed-regime field does not retain the exact terminal supersonic patch'
       )
+    ####
     if mixed_regime_field != self.mixed_regime_field:
       updated_terminal_field = self.terminal_field.with_mixed_regime_field(
         mixed_regime_field
       )
     else:
       updated_terminal_field = self.terminal_field
+    ####
     return replace(
       self,
       terminal_field=updated_terminal_field,
       mixed_regime_field=mixed_regime_field,
     )
+  ####
 
   def attach_mixed_regime_closure(
     self,
@@ -1752,19 +1894,24 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       raise TypeError(
         'closure must be a MocMixedRegimeClosureResult'
       )
+    ####
     if self.mixed_regime_request is None:
       raise ValueError(
         'a mixed-regime closure requires the exact mixed-regime request'
       )
+    ####
     if closure.request != self.mixed_regime_request:
       raise ValueError(
         'mixed-regime closure does not retain this terminal-patch seam'
       )
+    ####
     if not closure.converged or closure.field is None:
       raise ValueError(
         'only a converged mixed-regime closure with an accepted field can be attached'
       )
+    ####
     return self.with_mixed_regime_field(closure.field)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1816,6 +1963,7 @@ class MocPhysicalPostShockTerminalPatchTransitionResult:
       ),
     }
   ####
+####
 
 
 def _empty_ambient_boundary(ambient_pressure_Pa: float) -> MocAmbientPressureBoundaryResult:
@@ -1832,6 +1980,7 @@ def _empty_ambient_boundary(ambient_pressure_Pa: float) -> MocAmbientPressureBou
     maximum_absolute_tangent_residual=None,
     message='ambient boundary was not assembled',
   )
+####
 
 
 def _failure(
@@ -1870,6 +2019,7 @@ def _failure(
     maximum_post_shock_total_pressure_ratio=max(pressure_ratios, default=None),
     message=message,
   )
+####
 
 
 def _point_key(
@@ -1877,6 +2027,7 @@ def _point_key(
   position_tolerance_m: float,
 ) -> tuple[int, int]:
   return round(point[0] / position_tolerance_m), round(point[1] / position_tolerance_m)
+####
 
 
 def _edge_key(
@@ -1887,6 +2038,7 @@ def _edge_key(
   first_key = _point_key(first, position_tolerance_m)
   second_key = _point_key(second, position_tolerance_m)
   return (first_key, second_key) if first_key <= second_key else (second_key, first_key)
+####
 
 
 def _edge_counts(
@@ -1899,7 +2051,10 @@ def _edge_counts(
     for first, second in zip(vertices, (*vertices[1:], vertices[0])):
       edge = _edge_key(first, second, position_tolerance_m)
       counts[edge] = counts.get(edge, 0) + 1
+    ####
+  ####
   return counts
+####
 
 
 def _path_edges_present(
@@ -1911,6 +2066,7 @@ def _path_edges_present(
     edge_counts.get(_edge_key(first, second, position_tolerance_m), 0) == 1
     for first, second in zip(points, points[1:])
   )
+####
 
 
 def _finite_interpolation_point(
@@ -1919,9 +2075,12 @@ def _finite_interpolation_point(
 ) -> tuple[float, float]:
   if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
     raise ValueError('point_m must contain two finite coordinates')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   return float(point_m[0]), float(point_m[1])
+####
 
 
 def _triangle_interpolation_weights(
@@ -1934,13 +2093,16 @@ def _triangle_interpolation_weights(
   denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
   if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
     return None
+  ####
   px, py = point
   first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
   second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
   third = 1.0 - first - second
   if min(first, second, third) < -1.0e-10 or max(first, second, third) > 1.0 + 1.0e-10:
     return None
+  ####
   return first, second, third
+####
 
 
 def _polygon_interpolation_weights(
@@ -1956,8 +2118,10 @@ def _polygon_interpolation_weights(
       triangle,
       tolerance_m=tolerance_m,
     )
+  ####
   if len(vertices) != 4:
     return None
+  ####
   first = _triangle_interpolation_weights(
     point,
     (
@@ -1969,6 +2133,7 @@ def _polygon_interpolation_weights(
   )
   if first is not None:
     return first[0], first[1], first[2], 0.0
+  ####
   second = _triangle_interpolation_weights(
     point,
     (
@@ -1980,7 +2145,9 @@ def _polygon_interpolation_weights(
   )
   if second is not None:
     return second[0], 0.0, second[1], second[2]
+  ####
   return None
+####
 
 
 def _shock_endpoint_characteristic_point(
@@ -2011,6 +2178,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       message='shock and ambient endpoint states use different gamma values',
     )
+  ####
   plus_residual = minus_endpoint.k_plus - plus_source.k_plus
   displacement = (
     endpoint[0] - plus_source.x_m,
@@ -2029,6 +2197,7 @@ def _shock_endpoint_characteristic_point(
         intersection_status='shared-attachment',
         message='shared shock/ambient attachment does not preserve C+ compatibility',
       )
+    ####
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.CONVERGED,
       state=minus_endpoint,
@@ -2039,6 +2208,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       intersection_status='shared-attachment',
     )
+  ####
   if abs(plus_residual) > invariant_tolerance:
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.INVARIANT_FAILURE,
@@ -2050,6 +2220,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       message='ambient endpoint does not preserve the shock C+ invariant',
     )
+  ####
   start_angle = plus_source.theta_rad + plus_source.mu_rad
   end_angle = minus_endpoint.theta_rad + minus_endpoint.mu_rad
   direction_angle = 0.5 * (start_angle + end_angle)
@@ -2069,6 +2240,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       message='shock-to-ambient C+ endpoint has no forward margin',
     )
+  ####
   if geometry_residual > position_tolerance_m:
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.GEOMETRY_FAILURE,
@@ -2080,6 +2252,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       message='shock-to-ambient C+ endpoint is not on its averaged characteristic',
     )
+  ####
   return CharacteristicPointResult(
     status=MocPrimitiveStatus.CONVERGED,
     state=minus_endpoint,
@@ -2090,6 +2263,7 @@ def _shock_endpoint_characteristic_point(
     iterations=0,
     intersection_status='boundary-endpoint',
   )
+####
 
 
 def assemble_ambient_boundary_post_shock_field(
@@ -2135,14 +2309,19 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_boundary=ambient_result,
       message='shock_fit must be a MocShockBoundaryFitResult',
     )
+  ####
   if not isfinite(float(ambient_pressure_Pa)) or ambient_pressure_Pa <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
   if not isinstance(centerline_reflection, bool):
     raise TypeError('centerline_reflection must be a bool')
+  ####
   if not isinstance(allow_zero_strength_shock_start, bool):
     raise TypeError('allow_zero_strength_shock_start must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise TypeError('allow_zero_strength_endpoints must be a bool')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -2151,6 +2330,8 @@ def assemble_ambient_boundary_post_shock_field(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   try:
     incoming_samples = () if incoming_handoff is None else tuple(incoming_handoff)
   except TypeError:
@@ -2161,6 +2342,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_boundary=ambient_result,
       message='incoming_handoff must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in incoming_samples):
     ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
     return _failure(
@@ -2168,6 +2350,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_boundary=ambient_result,
       message='incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if incoming_handoff is not None and len(incoming_samples) < 3:
     ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
     return _failure(
@@ -2175,6 +2358,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_boundary=ambient_result,
       message='incoming_handoff requires at least three state samples',
     )
+  ####
   incoming_states = tuple(sample.state for sample in incoming_samples)
   incoming_pressures = tuple(sample.total_pressure_Pa for sample in incoming_samples)
   if not shock_fit.converged:
@@ -2184,6 +2368,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_boundary=ambient_result,
       message=f'shock boundary fit is not converged: {shock_fit.message}',
     )
+  ####
   samples = tuple(ambient_boundary)
   if any(not isinstance(sample, MocAmbientBoundarySample) for sample in samples):
     ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
@@ -2192,6 +2377,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_boundary=ambient_result,
       message='ambient_boundary must contain MocAmbientBoundarySample values',
     )
+  ####
   shock_samples = tuple(shock_fit.boundary_states)
   if len(shock_samples) < 3 or len(samples) not in (
     len(shock_samples),
@@ -2207,6 +2393,7 @@ def assemble_ambient_boundary_post_shock_field(
         'corner'
       ),
     )
+  ####
   if centerline_reflection and len(samples) != len(shock_samples):
     ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
     return _failure(
@@ -2220,6 +2407,7 @@ def assemble_ambient_boundary_post_shock_field(
         'C- source'
       ),
     )
+  ####
   upstream_shock_states = tuple(shock_fit.upstream_states)
   upstream_shock_pressures = tuple(shock_fit.upstream_total_pressure_Pa)
   if bool(upstream_shock_states) != bool(upstream_shock_pressures):
@@ -2233,6 +2421,7 @@ def assemble_ambient_boundary_post_shock_field(
         'upstream total-pressure samples'
       ),
     )
+  ####
   if upstream_shock_states and (
     len(upstream_shock_states) != len(shock_samples)
     or len(upstream_shock_pressures) != len(shock_samples)
@@ -2244,6 +2433,7 @@ def assemble_ambient_boundary_post_shock_field(
       shock_points=tuple(sample.point_m for sample in shock_samples),
       message='shock-fit upstream coupling samples must match the shock boundary count',
     )
+  ####
   if upstream_shock_states and any(
     abs(state.x_m - sample.point_m[0]) > position_tolerance_m
     or abs(state.y_m - sample.point_m[1]) > position_tolerance_m
@@ -2263,6 +2453,7 @@ def assemble_ambient_boundary_post_shock_field(
       shock_points=tuple(sample.point_m for sample in shock_samples),
       message='shock-fit upstream coupling does not match the fitted shock samples',
     )
+  ####
   ambient_result = validate_ambient_pressure_boundary(
     samples,
     ambient_pressure_Pa,
@@ -2278,6 +2469,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_points=tuple(sample.point_m for sample in samples),
       message=f'ambient boundary is not accepted: {ambient_result.message}',
     )
+  ####
   shock_points = tuple(sample.point_m for sample in shock_samples)
   ambient_points = tuple(sample.point_m for sample in samples)
   if (
@@ -2294,6 +2486,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_points=ambient_points,
       message='shock boundary state coordinates do not match their fitted points',
     )
+  ####
   if any(point[1] < -position_tolerance_m for point in shock_points):
     return _failure(
       MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -2302,6 +2495,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_points=ambient_points,
       message='shock boundary crossed below the symmetry line',
     )
+  ####
   if any(
     second[0] <= first[0] + position_tolerance_m
     or second[1] > first[1] + position_tolerance_m
@@ -2314,6 +2508,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_points=ambient_points,
       message='shock boundary must be strictly downstream and nonincreasing in y',
     )
+  ####
   if (
     sqrt(
       (shock_points[0][0] - ambient_points[0][0]) ** 2
@@ -2327,6 +2522,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_points=ambient_points,
       message='shock and ambient boundaries must share their attachment point',
     )
+  ####
   if abs(shock_points[-1][1]) > position_tolerance_m:
     return _failure(
       MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -2335,6 +2531,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_points=ambient_points,
       message='shock boundary must terminate on the symmetry line',
     )
+  ####
   if not centerline_reflection and abs(ambient_points[-1][1]) > position_tolerance_m:
     return _failure(
       MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -2343,6 +2540,7 @@ def assemble_ambient_boundary_post_shock_field(
       ambient_points=ambient_points,
       message='ambient boundary must terminate on the symmetry line',
     )
+  ####
   pressure_ratios = tuple(
     sample.downstream_total_pressure_Pa / sample.upstream_total_pressure_Pa
     for sample in shock_samples
@@ -2402,6 +2600,7 @@ def assemble_ambient_boundary_post_shock_field(
             pressure_ratios=pressure_ratios,
             message=f'diagonal shock coupling {plus_index} failed: {point_result.message}',
           )
+        ####
         point = point_result.point_m
         state = point_result.state
       else:
@@ -2427,8 +2626,10 @@ def assemble_ambient_boundary_post_shock_field(
             pressure_ratios=pressure_ratios,
             message=f'characteristic node ({plus_index}, {minus_index}) failed: {point_result.message}',
           )
+        ####
         point = point_result.point_m
         state = point_result.state
+      ####
       nodes_by_index[(plus_index, minus_index)] = MocCharacteristicNode(
         centerline_index=plus_index,
         boundary_index=minus_index,
@@ -2437,6 +2638,7 @@ def assemble_ambient_boundary_post_shock_field(
         point_result=point_result,
         total_pressure_Pa=samples[minus_index].total_pressure_Pa,
       )
+    ####
   ####
 
   axis_results: tuple[CharacteristicPointResult, ...] = ()
@@ -2475,6 +2677,7 @@ def assemble_ambient_boundary_post_shock_field(
           pressure_ratios=pressure_ratios,
           message=f'ambient C- centerline reflection {index} raised: {error}',
         )
+      ####
       if (
         not axis_result.converged
         or axis_result.point_m is None
@@ -2512,7 +2715,9 @@ def assemble_ambient_boundary_post_shock_field(
             f'{axis_result.message}'
           ),
         )
+      ####
       resolved_axis_results.append(axis_result)
+    ####
     axis_results = tuple(resolved_axis_results)
     axis_x_values = tuple(
       result.point_m[0]
@@ -2543,13 +2748,16 @@ def assemble_ambient_boundary_post_shock_field(
           'axis trace after the fitted shock endpoint'
         ),
       )
+    ####
   ####
 
   def node_point(plus_index: int, minus_index: int) -> tuple[float, float]:
     return nodes_by_index[(plus_index, minus_index)].point_m
+  ####
 
   def axis_state(plus_index: int, minus_index: int) -> CharacteristicState:
     return nodes_by_index[(plus_index, minus_index)].state
+  ####
 
   cells_list: list[MocCharacteristicCell] = []
   try:
@@ -2567,6 +2775,7 @@ def assemble_ambient_boundary_post_shock_field(
           node_point(index + 1, 0),
           node_point(index, 0),
         )
+      ####
       cells_list.append(
         MocCharacteristicCell(
           cell_index=len(cells_list),
@@ -2576,6 +2785,7 @@ def assemble_ambient_boundary_post_shock_field(
           boundary_indices=(0,),
         )
       )
+    ####
     for index in range(expected_count - 1):
       cells_list.append(
         MocCharacteristicCell(
@@ -2590,6 +2800,7 @@ def assemble_ambient_boundary_post_shock_field(
           boundary_indices=(index, index + 1),
         )
       )
+    ####
     if centerline_reflection:
       assert len(axis_results) == expected_count
       cells_list.append(
@@ -2620,6 +2831,7 @@ def assemble_ambient_boundary_post_shock_field(
             boundary_indices=(column, column + 1),
           )
         )
+      ####
       cells_list.append(
         MocCharacteristicCell(
           cell_index=len(cells_list),
@@ -2648,6 +2860,7 @@ def assemble_ambient_boundary_post_shock_field(
           boundary_indices=(expected_count - 1, expected_count),
         )
       )
+    ####
     for row in range(1, expected_count - 1):
       for column in range(row):
         cells_list.append(
@@ -2664,6 +2877,8 @@ def assemble_ambient_boundary_post_shock_field(
             boundary_indices=(column, column + 1),
           )
         )
+      ####
+    ####
   except (KeyError, ValueError) as error:
     return _failure(
       MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -2728,6 +2943,7 @@ def assemble_ambient_boundary_post_shock_field(
     axis_points_natural.append(ambient_points[-1])
     axis_states_natural.append(samples[-1].state)
     axis_pressures_natural.append(samples[-1].total_pressure_Pa)
+  ####
   natural_axis = (
     tuple(axis_points_natural),
     tuple(axis_states_natural),
@@ -2750,6 +2966,7 @@ def assemble_ambient_boundary_post_shock_field(
     axis_points, axis_states, axis_pressures = reversed_axis
   else:
     axis_points, axis_states, axis_pressures = natural_axis
+  ####
   if any(
     abs(point[1]) > position_tolerance_m or abs(state.theta_rad) > invariant_tolerance
     for point, state in zip(axis_points, axis_states, strict=True)
@@ -2769,6 +2986,7 @@ def assemble_ambient_boundary_post_shock_field(
       pressure_ratios=pressure_ratios,
       message='coupled field closing perimeter does not reproduce centerline y=0 and theta=0',
     )
+  ####
   if any(
     second[0] <= first[0] + position_tolerance_m
     for first, second in zip(axis_points, axis_points[1:])
@@ -2811,6 +3029,7 @@ def assemble_ambient_boundary_post_shock_field(
       pressure_ratios=pressure_ratios,
       message='coupled field is missing an explicit shock, ambient, or centerline perimeter edge',
     )
+  ####
   geometry_residuals = tuple(
     abs(node.point_result.geometry_residual)
     for node in nodes_by_index.values()
@@ -2863,6 +3082,7 @@ def assemble_ambient_boundary_post_shock_field(
         'for every characteristic node'
       ),
     )
+  ####
   return MocPhysicalPostShockFieldResult(
     status=MocPhysicalPostShockFieldStatus.CONVERGED_AMBIENT_CLOSED,
     characteristic_layer_count=(
@@ -2898,6 +3118,7 @@ def assemble_ambient_boundary_post_shock_field(
     zero_strength_shock_start_allowed=zero_strength_start,
     zero_strength_shock_endpoints_allowed=zero_strength_endpoints,
   )
+####
 
 
 def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
@@ -2937,6 +3158,7 @@ def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
     allow_zero_strength_shock_start=allow_zero_strength_shock_start,
     allow_zero_strength_endpoints=allow_zero_strength_endpoints,
   )
+####
 
 
 def solve_ambient_closed_post_shock_terminal_patch_transition(
@@ -3009,12 +3231,14 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       mixed_regime_request=mixed_regime_request,
       centerline_seam_comparison=centerline_seam_comparison,
     )
+  ####
 
   if not isinstance(current_cell, MocChainCell):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'current_cell must be a MocChainCell',
     )
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
@@ -3024,38 +3248,45 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       MocChainTerminationReason.INVALID_INPUT,
       'next_cell_index must immediately follow current_cell.cell_index',
     )
+  ####
   if not current_cell.resolved:
     return decision(
       MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
       'terminal-patch continuation requires a resolved physical current cell',
     )
+  ####
   if not isinstance(upstream_field, MocPhysicalPostShockFieldResult):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'upstream_field must be a MocPhysicalPostShockFieldResult',
     )
+  ####
   if not upstream_field.converged or not upstream_field.physical_closure_verified:
     return decision(
       MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
       'upstream physical field is not physically closed; no terminal patch was assembled',
       {'upstream_field_status': upstream_field.status.value},
     )
+  ####
   if not upstream_field.state_sampling_available:
     return decision(
       MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
       'upstream physical field has no complete bounded state/pressure sampler',
       {'upstream_field_status': upstream_field.status.value},
     )
+  ####
   if not upstream_field.upstream_shock_coupling_verified:
     return decision(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'upstream physical field has no retained fitted upstream shock samples',
     )
+  ####
   if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.CENTERLINE_TRACE:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'terminal-patch physical-field continuation requires a centerline-trace handoff',
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError:
@@ -3063,16 +3294,19 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       MocChainTerminationReason.INVALID_INPUT,
       'incoming_handoff must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if handoff != current_cell.continuation_boundary:
     return decision(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'incoming_handoff must exactly match the current physical cell boundary',
     )
+  ####
   expected_handoff = tuple(
     MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
     for state, pressure in zip(
@@ -3086,26 +3320,31 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'incoming_handoff does not match the bounded upstream physical field',
     )
+  ####
   if len(handoff) < 3:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'terminal-patch physical-field continuation requires at least three handoff samples',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'branch must be a ShockBranch',
     )
+  ####
   if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'supply exactly one downstream flow-angle provider',
     )
+  ####
   if downstream_flow_angle_rad is not None and not isfinite(float(downstream_flow_angle_rad)):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'downstream_flow_angle_rad must be finite',
     )
+  ####
   if (
     isinstance(sample_count, bool)
     or not isinstance(sample_count, int)
@@ -3115,6 +3354,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       MocChainTerminationReason.INVALID_INPUT,
       'sample_count must be an integer of at least three',
     )
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
@@ -3124,6 +3364,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       MocChainTerminationReason.INVALID_INPUT,
       'maximum_segment_iterations must be a positive integer',
     )
+  ####
   for name, value in (
     ('trace_position_tolerance_m', trace_position_tolerance_m),
     ('seam_position_tolerance_m', seam_position_tolerance_m),
@@ -3136,6 +3377,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       numeric_value = float(value)
     except (TypeError, ValueError):
       numeric_value = float('nan')
+    ####
     if not isfinite(numeric_value) or (
       numeric_value <= 0.0
       if name != 'end_x_m'
@@ -3145,16 +3387,20 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
         MocChainTerminationReason.INVALID_INPUT,
         f'{name} must be finite and valid for terminal-patch continuation',
       )
+    ####
+  ####
   if not isfinite(float(target_centerline_y_m)):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'target_centerline_y_m must be finite',
     )
+  ####
   if abs(float(target_centerline_y_m)) > position_tolerance_m:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'terminal reflection patch continuation currently targets y=0 only',
     )
+  ####
 
   try:
     source_strip = upstream_field.as_open_shock_ambient_strip(
@@ -3172,6 +3418,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   try:
     patch = assemble_terminal_trace_centerline_patch(
       source_strip,
@@ -3190,6 +3437,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   reflection_patch = patch
   seam_position_tolerance = float(seam_position_tolerance_m)
   common_diagnostics: dict[str, Any] = {
@@ -3215,6 +3463,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       'terminal reflection patch did not converge; no next shock was fitted',
       common_diagnostics,
     )
+  ####
 
   state_tolerance = max(float(invariant_tolerance), 1.0e-8)
   expected_axis = tuple(
@@ -3250,6 +3499,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       'terminal reflection patch did not preserve the accepted field centerline seam',
       common_diagnostics,
     )
+  ####
   common_diagnostics['centerline_seam_verified'] = True
   common_diagnostics['centerline_seam_comparison'] = (
     centerline_seam_comparison.as_report()
@@ -3266,6 +3516,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       'terminal reflection patch begins upstream of the current cell interface',
       common_diagnostics,
     )
+  ####
   try:
     solved = solve_marched_attached_shock_from_terminal_reflection_patch(
       patch,
@@ -3291,6 +3542,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       'terminal-patch downstream shock solve raised; no physical endpoint was inferred',
       common_diagnostics,
     )
+  ####
   downstream_shock = solved
   common_diagnostics['downstream_shock_report'] = solved.as_report()
   if solved.physical_terminal_verified:
@@ -3301,6 +3553,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
         'terminal-patch shock reported a physical stop without normal-shock diagnostics',
         common_diagnostics,
       )
+    ####
     if terminal.shock_point_m[0] > float(end_x_m) + float(position_tolerance_m):
       common_diagnostics.update({
         'terminal_shock_point_m': terminal.shock_point_m,
@@ -3311,6 +3564,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
         'verified terminal shock lies beyond the requested continuation interval',
         common_diagnostics,
       )
+    ####
     try:
       # Keep this import local because shock_chain imports the coupled solver,
       # which imports this module during package initialization.
@@ -3341,6 +3595,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
         'verified terminal shock did not produce a closed supersonic terminal field',
         common_diagnostics,
       )
+    ####
     common_diagnostics['terminal_field_report'] = terminal_field.as_report()
     if not terminal_field.converged or not terminal_field.supersonic_region_closed:
       common_diagnostics.update({
@@ -3352,6 +3607,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
         'verified terminal shock reached a boundary, but its supersonic field remained open',
         common_diagnostics,
       )
+    ####
     try:
       mixed_regime_request = terminal_field.mixed_regime_perimeter_request()
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -3364,6 +3620,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
         'closed supersonic terminal field did not expose a complete mixed-regime seam',
         common_diagnostics,
       )
+    ####
     common_diagnostics.update({
       'mixed_regime_request_available': True,
       'mixed_regime_request_report': mixed_regime_request.as_report(),
@@ -3387,6 +3644,7 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       diagnostics,
       physical_termination=True,
     )
+  ####
   common_diagnostics.update({
     'physical_terminal_verified': False,
     'downstream_shock_status': solved.shock.status.value,
@@ -3401,11 +3659,13 @@ def solve_ambient_closed_post_shock_terminal_patch_transition(
       'continued shock left the finite terminal reflection patch; no extrapolation or physical endpoint was inferred',
       common_diagnostics,
     )
+  ####
   return decision(
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
     'continued shock did not produce a verified terminal or a complete next cell; no physical endpoint was inferred',
     common_diagnostics,
   )
+####
 
 
 def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patch_or_termination(
@@ -3454,6 +3714,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_terminal_patc
     maximum_segment_iterations=maximum_segment_iterations,
   )
   return result.decision
+####
 
 
 def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_ambient_closure_or_termination(
@@ -3517,12 +3778,14 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       message=message,
       diagnostics={} if diagnostics is None else diagnostics,
     )
+  ####
 
   if not isinstance(current_cell, MocChainCell):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'current_cell must be a MocChainCell',
     )
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
@@ -3532,38 +3795,45 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'next_cell_index must immediately follow current_cell.cell_index',
     )
+  ####
   if not current_cell.resolved:
     return decision(
       MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
       'ambient-closed terminal-patch continuation requires a resolved current cell',
     )
+  ####
   if not isinstance(upstream_field, MocPhysicalPostShockFieldResult):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'upstream_field must be a MocPhysicalPostShockFieldResult',
     )
+  ####
   if not upstream_field.converged or not upstream_field.physical_closure_verified:
     return decision(
       MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
       'upstream physical field is not physically closed; no reflected patch was promoted',
       {'upstream_field_status': upstream_field.status.value},
     )
+  ####
   if not upstream_field.state_sampling_available:
     return decision(
       MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
       'upstream physical field has no complete bounded state/pressure sampler',
       {'upstream_field_status': upstream_field.status.value},
     )
+  ####
   if not upstream_field.upstream_shock_coupling_verified:
     return decision(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'upstream physical field has no retained fitted upstream shock samples',
     )
+  ####
   if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.CENTERLINE_TRACE:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'ambient-closed terminal-patch continuation requires a centerline-trace handoff',
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError:
@@ -3571,16 +3841,19 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'incoming_handoff must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if handoff != current_cell.continuation_boundary:
     return decision(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'incoming_handoff must exactly match the current physical cell boundary',
     )
+  ####
   if len(upstream_field.centerline_boundary_states) != len(
     upstream_field.centerline_boundary_total_pressure_Pa
   ):
@@ -3588,6 +3861,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'upstream physical field has mismatched centerline state and pressure samples',
     )
+  ####
   expected_handoff = tuple(
     MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
     for state, pressure in zip(
@@ -3601,26 +3875,31 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'incoming_handoff does not match the bounded upstream physical field',
     )
+  ####
   if len(handoff) < 3:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'ambient-closed terminal-patch continuation requires at least three handoff samples',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'branch must be a ShockBranch',
     )
+  ####
   if not isinstance(allow_zero_strength_attachment, bool):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'allow_zero_strength_attachment must be a bool',
     )
+  ####
   if not isinstance(polarity_aware, bool):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'polarity_aware must be a bool',
     )
+  ####
   try:
     compression_amplitude = float(compression_amplitude_rad)
   except (TypeError, ValueError):
@@ -3628,11 +3907,13 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'compression_amplitude_rad must be numeric',
     )
+  ####
   if not isfinite(compression_amplitude) or compression_amplitude <= 0.0:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'compression_amplitude_rad must be finite and positive',
     )
+  ####
   if (
     isinstance(sample_count, bool)
     or not isinstance(sample_count, int)
@@ -3642,6 +3923,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'sample_count must be an integer of at least three',
     )
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
@@ -3651,6 +3933,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'maximum_segment_iterations must be a positive integer',
     )
+  ####
   if (
     isinstance(maximum_boundary_iterations, bool)
     or not isinstance(maximum_boundary_iterations, int)
@@ -3660,6 +3943,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'maximum_boundary_iterations must be a positive integer',
     )
+  ####
   if (
     isinstance(maximum_shooting_iterations, bool)
     or not isinstance(maximum_shooting_iterations, int)
@@ -3669,6 +3953,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'maximum_shooting_iterations must be a positive integer',
     )
+  ####
   try:
     requested_end = float(end_x_m)
     lower_angle = float(outer_downstream_flow_angle_lower_rad)
@@ -3680,6 +3965,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'end point, outer angle bracket, and centerline target must be numeric',
     )
+  ####
   for name, value in (
     ('trace_position_tolerance_m', trace_position_tolerance_m),
     ('trace_forward_tolerance_m', trace_forward_tolerance_m),
@@ -3695,11 +3981,14 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       value = float(value)
     except (TypeError, ValueError):
       value = float('nan')
+    ####
     if not isfinite(value) or value <= 0.0:
       return decision(
         MocChainTerminationReason.INVALID_INPUT,
         f'{name} must be finite and positive',
       )
+    ####
+  ####
   trace_position_tolerance = float(trace_position_tolerance_m)
   trace_forward_tolerance = float(trace_forward_tolerance_m)
   seam_position_tolerance = float(seam_position_tolerance_m)
@@ -3717,21 +4006,25 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'end_x_m must be finite and downstream of the current cell interface',
     )
+  ####
   if not all(isfinite(value) for value in (lower_angle, upper_angle, target_y, target_angle)):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'outer angle bracket and centerline target must be finite',
     )
+  ####
   if lower_angle >= upper_angle:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'outer downstream flow-angle lower bound must be below its upper bound',
     )
+  ####
   if abs(target_y) > position_tolerance or abs(target_angle) > tangent_tolerance:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'terminal-reflection ambient closure currently targets y=0 and theta=0',
     )
+  ####
 
   ambient_pressure = upstream_field.ambient_boundary.ambient_pressure_Pa
   if ambient_pressure is None or not isfinite(float(ambient_pressure)) or ambient_pressure <= 0.0:
@@ -3739,6 +4032,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       MocChainTerminationReason.INVALID_INPUT,
       'upstream physical field does not retain a finite ambient pressure',
     )
+  ####
 
   source_strip: MocAmbientShockStripResult | None = None
   reflection_patch: MocTerminalReflectionPatchResult | None = None
@@ -3795,12 +4089,14 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       'accepted physical field could not produce a reflected terminal patch',
       common_diagnostics,
     )
+  ####
   if not reflection_patch.converged:
     return decision(
       MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
       'terminal reflection patch did not converge; no next physical field was fitted',
       common_diagnostics,
     )
+  ####
 
   state_tolerance = max(float(invariant_tolerance), 1.0e-8)
   expected_axis = tuple(
@@ -3836,6 +4132,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       'terminal reflection patch did not preserve the accepted field centerline seam',
       common_diagnostics,
     )
+  ####
   common_diagnostics['centerline_seam_verified'] = True
   common_diagnostics['centerline_seam_comparison'] = (
     centerline_seam_comparison.as_report()
@@ -3852,6 +4149,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       'terminal reflection patch begins upstream of the current cell interface',
       common_diagnostics,
     )
+  ####
 
   from exhaust_plume.models.moc.coupled import (
     MocTerminalReflectionPatchPhysicalFieldStatus,
@@ -3908,6 +4206,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
         maximum_shooting_iterations=maximum_shooting_iterations,
         allow_zero_strength_attachment=allow_zero_strength_attachment,
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     common_diagnostics.update({
       'terminal_patch_physical_field_status': 'solve-failure',
@@ -3918,6 +4217,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       'terminal-patch ambient-closure solve raised; no next field was promoted',
       common_diagnostics,
     )
+  ####
   common_diagnostics['terminal_patch_physical_field_report'] = field_result.as_report()
   if field_result.status is MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT:
     return decision(
@@ -3925,6 +4225,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       'terminal-patch ambient-closure solve rejected its boundary contract',
       common_diagnostics,
     )
+  ####
   if not field_result.converged or field_result.field is None:
     attachment = (
       None
@@ -3948,7 +4249,9 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
         'terminal-patch ambient-closure did not produce a physically closed '
         'next field; no chain cell was promoted'
       )
+    ####
     return decision(reason, message, common_diagnostics)
+  ####
 
   next_field = field_result.field
   if (
@@ -3961,18 +4264,21 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       'terminal-patch ambient-closure field failed the chain promotion gates',
       common_diagnostics,
     )
+  ####
   if next_field.incoming_handoff != handoff:
     return decision(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'terminal-patch ambient-closure field changed its exact incoming handoff',
       common_diagnostics,
     )
+  ####
   if not next_field.ambient_boundary_points_m:
     return decision(
       MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
       'terminal-patch ambient-closure field has no downstream ambient endpoint',
       common_diagnostics,
     )
+  ####
   next_end_x = float(next_field.ambient_boundary_points_m[-1][0])
   common_diagnostics.update({
     'next_field_end_x_m': next_end_x,
@@ -3988,12 +4294,14 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       'terminal-patch ambient-closure field did not end downstream of the current interface',
       common_diagnostics,
     )
+  ####
   if next_end_x > requested_end + position_tolerance:
     return decision(
       MocChainTerminationReason.AXIAL_DOMAIN_LIMIT,
       'terminal-patch ambient-closure field extends beyond the requested axial limit',
       common_diagnostics,
     )
+  ####
   try:
     return MocPhysicalPostShockFieldContinuationSolve(
       field=next_field,
@@ -4006,6 +4314,8 @@ def solve_ambient_closed_post_shock_chain_cell_from_terminal_reflection_patch_am
       'terminal-patch ambient-closure field could not become a continuation solve',
       common_diagnostics,
     )
+  ####
+####
 
 
 def _physical_chain_failure(
@@ -4021,6 +4331,7 @@ def _physical_chain_failure(
     physical_termination=False,
     message=message,
   )
+####
 
 
 def _validate_physical_field_handoff(
@@ -4037,8 +4348,10 @@ def _validate_physical_field_handoff(
       'next ambient-closed physical field does not record the prior '
       'centerline handoff'
     )
+  ####
   if len(consumed) != len(expected):
     return 'next physical field incoming handoff length does not match the current boundary'
+  ####
   for index, (expected_sample, consumed_sample) in enumerate(
     zip(expected, consumed, strict=True)
   ):
@@ -4052,6 +4365,7 @@ def _validate_physical_field_handoff(
       or abs(expected_state.gamma - consumed_state.gamma) > state_tolerance
     ):
       return f'next physical field changed consumed state sample {index}'
+    ####
     if abs(expected_sample.total_pressure_Pa - consumed_sample.total_pressure_Pa) > (
       state_tolerance
       * max(
@@ -4061,7 +4375,10 @@ def _validate_physical_field_handoff(
       )
     ):
       return f'next physical field changed consumed total pressure sample {index}'
+    ####
+  ####
   return None
+####
 
 
 def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination(
@@ -4106,12 +4423,14 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       message=message,
       diagnostics={} if diagnostics is None else diagnostics,
     )
+  ####
 
   if not isinstance(current_cell, MocChainCell):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'current_cell must be a MocChainCell',
     )
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
@@ -4121,28 +4440,33 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       MocChainTerminationReason.INVALID_INPUT,
       'next_cell_index must immediately follow current_cell.cell_index',
     )
+  ####
   if not isinstance(upstream_field, MocPhysicalPostShockFieldResult):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'upstream_field must be a MocPhysicalPostShockFieldResult',
     )
+  ####
   if not upstream_field.converged or not upstream_field.physical_closure_verified:
     return decision(
       MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
       'upstream physical field is not physically closed; no next shock was fitted',
       {'upstream_field_status': upstream_field.status.value},
     )
+  ####
   if not upstream_field.state_sampling_available:
     return decision(
       MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY,
       'upstream physical field has no complete bounded state/pressure sampler',
       {'upstream_field_status': upstream_field.status.value},
     )
+  ####
   if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.CENTERLINE_TRACE:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'physical-field continuation requires a centerline-trace handoff',
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError:
@@ -4150,16 +4474,19 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       MocChainTerminationReason.INVALID_INPUT,
       'incoming_handoff must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if handoff != current_cell.continuation_boundary:
     return decision(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'incoming_handoff must exactly match the current physical cell boundary',
     )
+  ####
   expected_handoff = tuple(
     MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
     for state, pressure in zip(
@@ -4173,16 +4500,19 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       MocChainTerminationReason.STATE_NOT_CARRIED,
       'incoming_handoff does not match the bounded upstream physical field',
     )
+  ####
   if len(handoff) < 3:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'physical-field continuation requires at least three handoff samples',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'branch must be a ShockBranch',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -4201,6 +4531,8 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
         MocChainTerminationReason.INVALID_INPUT,
         f'{name} must be finite and valid for physical-field continuation',
       )
+    ####
+  ####
   try:
     points = tuple(
       (float(point[0]), float(point[1]))
@@ -4213,11 +4545,13 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       MocChainTerminationReason.INVALID_INPUT,
       'shock points, downstream angles, and ambient boundary must be finite sequences',
     )
+  ####
   if len(points) < 3 or len(points) != len(target_angles):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'the next physical cell requires at least three shock points and one angle per point',
     )
+  ####
   if any(
     len(point) != 2 or not all(isfinite(float(value)) for value in point)
     for point in points
@@ -4226,22 +4560,26 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       MocChainTerminationReason.INVALID_INPUT,
       'shock points and downstream flow angles must be finite',
     )
+  ####
   if points[0][0] <= current_cell.end_x_m + position_tolerance_m:
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'the next shock must start strictly downstream of the current cell',
     )
+  ####
   if any(not isinstance(sample, MocAmbientBoundarySample) for sample in ambient_samples):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'ambient_boundary must contain MocAmbientBoundarySample values',
     )
+  ####
   if len(ambient_samples) != len(points):
     return decision(
       MocChainTerminationReason.INVALID_INPUT,
       'ambient_boundary must contain exactly one physical sample per shock point; '
       'an explicit axis corner is not a C- source',
     )
+  ####
 
   upstream_states: list[CharacteristicState] = []
   upstream_pressures: list[float] = []
@@ -4268,6 +4606,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
           'upstream_field_model': 'bounded-ambient-closed-physical-moc-field',
         },
       )
+    ####
     if (
       abs(state.x_m - point[0]) > position_tolerance_m
       or abs(state.y_m - point[1]) > position_tolerance_m
@@ -4279,8 +4618,10 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
         f'upstream physical field returned an invalid sample at index {index}',
         {'first_missing_sample_index': index, 'sampled_count': len(upstream_states)},
       )
+    ####
     upstream_states.append(state)
     upstream_pressures.append(float(pressure))
+  ####
 
   shock_fit = fit_attached_shock_boundary(
     upstream_states,
@@ -4301,6 +4642,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
         'sampled_count': len(upstream_states),
       },
     )
+  ####
   try:
     field = assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
       shock_fit,
@@ -4318,6 +4660,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
       f'next ambient-closed physical field assembly failed: {error}',
       {'shock_fit_status': shock_fit.status.value},
     )
+  ####
   if not field.converged or not field.physical_closure_verified:
     return decision(
       MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
@@ -4331,6 +4674,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
         'shock_fit_status': shock_fit.status.value,
       },
     )
+  ####
   if (
     field.incoming_handoff != handoff
     or not field.upstream_shock_coupling_verified
@@ -4345,10 +4689,12 @@ def solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_terminatio
         'upstream_shock_coupling_verified': field.upstream_shock_coupling_verified,
       },
     )
+  ####
   return MocPhysicalPostShockFieldContinuationSolve(
     field=field,
     end_x_m=float(end_x_m),
   )
+####
 
 
 def solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination(
@@ -4382,6 +4728,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination(
         'candidate must be a MocAmbientClosedPostShockChainCandidate'
       ),
     )
+  ####
   return solve_ambient_closed_post_shock_chain_cell_from_physical_field_or_termination(
     current_cell,
     next_cell_index,
@@ -4399,6 +4746,7 @@ def solve_ambient_closed_post_shock_chain_cell_from_candidate_or_termination(
     pressure_tolerance=pressure_tolerance,
     tangent_tolerance=tangent_tolerance,
   )
+####
 
 
 def continue_ambient_closed_post_shock_chain(
@@ -4431,6 +4779,7 @@ def continue_ambient_closed_post_shock_chain(
       MocChainTerminationReason.INVALID_INPUT,
       message='seed must be a MocPhysicalPostShockFieldResult',
     )
+  ####
   if not seed.converged or not seed.physical_closure_verified:
     return _physical_chain_failure(
       MocChainStatus.OPEN_CELL,
@@ -4440,18 +4789,21 @@ def continue_ambient_closed_post_shock_chain(
         f'physically closed seed: {seed.message}'
       ),
     )
+  ####
   if not callable(solve_next):
     return _physical_chain_failure(
       MocChainStatus.INVALID_INPUT,
       MocChainTerminationReason.INVALID_INPUT,
       message='solve_next must be callable',
     )
+  ####
   if not isinstance(require_upstream_shock_coupling, bool):
     return _physical_chain_failure(
       MocChainStatus.INVALID_INPUT,
       MocChainTerminationReason.INVALID_INPUT,
       message='require_upstream_shock_coupling must be a bool',
     )
+  ####
   try:
     start = float(start_x_m)
     end = float(end_x_m)
@@ -4461,12 +4813,14 @@ def continue_ambient_closed_post_shock_chain(
       MocChainTerminationReason.INVALID_INPUT,
       message='start_x_m and end_x_m must be numeric',
     )
+  ####
   if not isfinite(start) or start < 0.0 or not isfinite(end) or end <= start:
     return _physical_chain_failure(
       MocChainStatus.INVALID_INPUT,
       MocChainTerminationReason.INVALID_INPUT,
       message='end_x_m must be finite and strictly downstream of start_x_m',
     )
+  ####
   if policy is None:
     policy = MocChainContinuationPolicy(require_state_carry=True)
   elif not policy.require_state_carry:
@@ -4478,6 +4832,7 @@ def continue_ambient_closed_post_shock_chain(
       allowed_fidelities=policy.allowed_fidelities,
       require_state_carry=True,
     )
+  ####
   try:
     seed_cell = (
       seed.as_coupled_chain_cell(
@@ -4498,6 +4853,7 @@ def continue_ambient_closed_post_shock_chain(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       message=f'physical-field chain seed has no usable state carry: {error}',
     )
+  ####
 
   def solve_cell(
     current: MocChainCell,
@@ -4507,19 +4863,23 @@ def continue_ambient_closed_post_shock_chain(
       solved = solve_next(current, cell_index, current.continuation_boundary)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       raise ValueError(f'ambient-closed physical-field solve failed: {error}') from error
+    ####
     if solved is None or isinstance(solved, MocChainTerminationDecision):
       return solved
+    ####
     if not isinstance(solved, MocPhysicalPostShockFieldContinuationSolve):
       raise ValueError(
         'solve_next must return MocPhysicalPostShockFieldContinuationSolve, '
         'MocChainTerminationDecision, or None'
       )
+    ####
     field = solved.field
     if not field.converged or not field.physical_closure_verified:
       raise ValueError(
         'next ambient-closed physical field is not physically closed: '
         f'{field.message}'
       )
+    ####
     handoff_error = _validate_physical_field_handoff(
       current,
       field,
@@ -4528,11 +4888,13 @@ def continue_ambient_closed_post_shock_chain(
     )
     if handoff_error is not None:
       raise ValueError(handoff_error)
+    ####
     if solved.end_x_m <= current.end_x_m + policy.position_tolerance_m:
       raise ValueError(
         'continued ambient-closed physical field must end strictly downstream '
         'of the current cell'
       )
+    ####
     try:
       return (
         field.as_coupled_chain_cell(
@@ -4551,5 +4913,8 @@ def continue_ambient_closed_post_shock_chain(
       raise ValueError(
         f'next ambient-closed physical field could not become a chain cell: {error}'
       ) from error
+    ####
+  ####
 
   return continue_moc_cell_chain(seed_cell, solve_cell, policy)
+####

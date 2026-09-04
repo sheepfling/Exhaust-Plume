@@ -77,6 +77,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryStatus(str, Enum):
   )
   ENTROPY_FAILURE = 'euler_ambient_first_wedge_entropy_compatibility_failure'
   EULER_RESIDUAL_FAILURE = 'euler_ambient_first_wedge_entropy_euler_residual_failure'
+####
 
 
 def _finite_point(value: Any, label: str) -> tuple[float, float]:
@@ -84,13 +85,17 @@ def _finite_point(value: Any, label: str) -> tuple[float, float]:
     point = (float(value[0]), float(value[1]))
   except (IndexError, TypeError, ValueError) as error:
     raise ValueError(f'{label} must contain two numeric coordinates') from error
+  ####
   if not all(isfinite(component) for component in point):
     raise ValueError(f'{label} must contain finite coordinates')
+  ####
   return point
+####
 
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _log_pressure_gradient(
@@ -99,8 +104,10 @@ def _log_pressure_gradient(
 ) -> tuple[float, float] | None:
   if len(vertices) != 3 or len(pressures) != 3:
     return None
+  ####
   if any(not isfinite(value) or value <= 0.0 for value in pressures):
     return None
+  ####
   (x1, y1), (x2, y2), (x3, y3) = vertices
   twice_area = (
     x1 * (y2 - y3)
@@ -109,6 +116,7 @@ def _log_pressure_gradient(
   )
   if not isfinite(twice_area) or abs(twice_area) <= 1.0e-24:
     return None
+  ####
   values = tuple(log(value) for value in pressures)
   return (
     (
@@ -122,6 +130,7 @@ def _log_pressure_gradient(
       + values[2] * (x2 - x1)
     ) / twice_area,
   )
+####
 
 
 def _average_direction(
@@ -138,7 +147,9 @@ def _average_direction(
   length = hypot(*direction)
   if not isfinite(length) or length <= 0.0:
     return None
+  ####
   return direction[0] / length, direction[1] / length
+####
 
 
 def _edge_metrics(
@@ -156,6 +167,7 @@ def _edge_metrics(
   )
   if direction is None:
     return None
+  ####
   displacement = (
     vertices[end_index][0] - vertices[start_index][0],
     vertices[end_index][1] - vertices[start_index][1],
@@ -163,6 +175,7 @@ def _edge_metrics(
   edge_length = hypot(*displacement)
   if not isfinite(edge_length) or edge_length <= 0.0:
     return None
+  ####
   forward_margin = displacement[0] * direction[0] + displacement[1] * direction[1]
   alignment = abs(
     displacement[0] * direction[1] - displacement[1] * direction[0]
@@ -170,6 +183,7 @@ def _edge_metrics(
   gradient = _log_pressure_gradient(vertices, pressures)
   if gradient is None:
     return None
+  ####
   average_theta = 0.5 * (
     states[start_index].theta_rad + states[end_index].theta_rad
   )
@@ -191,6 +205,7 @@ def _edge_metrics(
     else states[end_index].k_minus - states[start_index].k_minus
   )
   return alignment, forward_margin, edge_length, actual, signed_source
+####
 
 
 def _cell_euler_residual(
@@ -202,12 +217,14 @@ def _cell_euler_residual(
 
   if len(vertices) != len(states) or len(vertices) != len(pressures):
     raise ValueError('entropy-carrying cell samples must align')
+  ####
   signed_area = 0.5 * sum(
     first[0] * second[1] - second[0] * first[1]
     for first, second in zip(vertices, (*vertices[1:], vertices[0]))
   )
   if not isfinite(signed_area) or abs(signed_area) <= 1.0e-24:
     raise ValueError('entropy-carrying cell must have nonzero area')
+  ####
   orientation = 1.0 if signed_area > 0.0 else -1.0
 
   def primitive(
@@ -229,7 +246,9 @@ def _cell_euler_residual(
     values = (density, pressure, velocity_x, velocity_y, energy)
     if not all(isfinite(value) for value in values):
       raise ValueError('entropy-carrying primitive contains a non-finite value')
+    ####
     return values
+  ####
 
   def flux(
     values: tuple[float, float, float, float, float],
@@ -244,6 +263,7 @@ def _cell_euler_residual(
       density * velocity_y * normal_speed + pressure * normal_y,
       (energy + pressure) * normal_speed,
     )
+  ####
 
   primitives = tuple(
     primitive(state, pressure)
@@ -259,6 +279,7 @@ def _cell_euler_residual(
     length = hypot(dx, dy)
     if not isfinite(length) or length <= 0.0:
       raise ValueError('entropy-carrying cell has a zero-length edge')
+    ####
     normal_x = orientation * dy / length
     normal_y = -orientation * dx / length
     first_flux = flux(primitives[index], normal_x, normal_y)
@@ -271,12 +292,15 @@ def _cell_euler_residual(
       residual[component] += 0.5 * length * (
         first_flux[component] + second_flux[component]
       )
+    ####
     scale += length * max(
       1.0,
       max(abs(value) for value in first_flux),
       max(abs(value) for value in second_flux),
     )
+  ####
   return sqrt(sum(value * value for value in residual)) / max(1.0, scale)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,6 +352,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       raise TypeError(
         'status must be a MocEulerAmbientFirstWedgeEntropyCarryStatus'
       )
+    ####
     if self.source_candidate is not None and not isinstance(
       self.source_candidate,
       MocEulerAmbientFirstWedgeCharacteristicResult,
@@ -336,6 +361,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
         'source_candidate must be a '
         'MocEulerAmbientFirstWedgeCharacteristicResult or None'
       )
+    ####
     if self.source_field is not None and not isinstance(
       self.source_field,
       MocEulerAmbientPhysicalFieldResult,
@@ -343,12 +369,14 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       raise TypeError(
         'source_field must be a MocEulerAmbientPhysicalFieldResult or None'
       )
+    ####
     if self.ambient_source_point is not None:
       object.__setattr__(
         self,
         'ambient_source_point',
         _finite_point(self.ambient_source_point, 'ambient_source_point'),
       )
+    ####
     vertices = tuple(
       _finite_point(point, 'vertices_xr_m') for point in self.vertices_xr_m
     )
@@ -356,20 +384,25 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
     pressures = tuple(float(value) for value in self.total_pressure_Pa)
     if len(vertices) != len(states) or len(vertices) != len(pressures):
       raise ValueError('vertices, states, and total_pressure_Pa must align')
+    ####
     if any(not isinstance(state, CharacteristicState) for state in states):
       raise TypeError('states must contain CharacteristicState values')
+    ####
     if any(not isfinite(value) or value <= 0.0 for value in pressures):
       raise ValueError('total_pressure_Pa must contain finite positive values')
+    ####
     if any(
       hypot(state.x_m - point[0], state.y_m - point[1]) > 1.0e-10
       for point, state in zip(vertices, states, strict=True)
     ):
       raise ValueError('states must lie on vertices')
+    ####
     object.__setattr__(self, 'vertices_xr_m', vertices)
     object.__setattr__(self, 'states', states)
     object.__setattr__(self, 'total_pressure_Pa', pressures)
     if self.cell is not None and not isinstance(self.cell, MocCharacteristicCell):
       raise TypeError('cell must be a MocCharacteristicCell or None')
+    ####
     if self.cell_sample is not None and not isinstance(
       self.cell_sample,
       MocEulerAmbientFirstWedgeCellSample,
@@ -377,8 +410,10 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       raise TypeError(
         'cell_sample must be a MocEulerAmbientFirstWedgeCellSample or None'
       )
+    ####
     if not isinstance(self.topology, MocTopologyResult):
       raise TypeError('topology must be a MocTopologyResult')
+    ####
     edges = tuple(self.characteristic_edges)
     if any(
       not isinstance(edge, MocEulerAmbientFirstWedgeCharacteristicEdge)
@@ -387,6 +422,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       raise TypeError(
         'characteristic_edges must contain typed characteristic edge values'
       )
+    ####
     object.__setattr__(self, 'characteristic_edges', edges)
     for name in (
       'incoming_characteristic_alignment_residual',
@@ -404,24 +440,29 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or (
         numeric < 0.0 and name != 'axis_streamline_pressure_residual_log'
       ):
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     if self.axis_streamline_pressure_residual_log is not None:
       object.__setattr__(
         self,
         'axis_streamline_pressure_residual_log',
         abs(self.axis_streamline_pressure_residual_log),
       )
+    ####
     if (
       isinstance(self.solver_iterations, bool)
       or not isinstance(self.solver_iterations, int)
       or self.solver_iterations < 0
     ):
       raise ValueError('solver_iterations must be a nonnegative integer')
+    ####
     for name in (
       'position_tolerance_m',
       'characteristic_residual_tolerance',
@@ -432,7 +473,9 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'incoming_characteristic_geometry_verified',
       'pressure_lineage_verified',
@@ -447,11 +490,16 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_closure_verified:
       raise ValueError('a local entropy trial cannot claim physical closure')
+    ####
     if self.production_claim_allowed:
       raise ValueError('a local entropy trial cannot claim production validity')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -459,6 +507,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       MocEulerAmbientFirstWedgeEntropyCarryStatus
       .CONVERGED_LOCAL_ENTROPY_CARRY
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -475,6 +524,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     reason = (
@@ -513,6 +563,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -588,6 +639,8 @@ class MocEulerAmbientFirstWedgeEntropyCarryResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -675,6 +728,7 @@ def _failure(
     pressure_lineage_tolerance=pressure_lineage_tolerance,
     message=message,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -687,6 +741,7 @@ class _EntropyTrialGeometry:
   incoming_k_minus_residual: float
   incoming_edge_length: float
   outer_metrics: tuple[tuple[float, float, float, float, float], ...]
+####
 
 
 def _trial_geometry(
@@ -701,8 +756,10 @@ def _trial_geometry(
 ) -> _EntropyTrialGeometry | None:
   if len(candidate.vertices_xr_m) != 3 or len(candidate.states) != 3:
     return None
+  ####
   if len(candidate.total_pressure_Pa) != 3:
     return None
+  ####
   shock_state = candidate.states[0]
   shock_point = _finite_point(candidate.vertices_xr_m[0], 'shock point')
   shock_pressure = float(candidate.total_pressure_Pa[0])
@@ -712,14 +769,18 @@ def _trial_geometry(
     for value in (shock_pressure, off_axis_pressure)
   ):
     return None
+  ####
   if abs(shock_state.gamma - ambient_state.gamma) > pressure_lineage_tolerance:
     return None
+  ####
   nu_b = ambient_state.k_minus - float(theta_b)
   if not isfinite(nu_b) or nu_b <= 0.0:
     return None
+  ####
   inversion = inverse_prandtl_meyer_angle_rad(nu_b, shock_state.gamma)
   if not inversion.converged or inversion.value is None:
     return None
+  ####
   try:
     provisional_b = CharacteristicState(
       x_m=0.0,
@@ -737,6 +798,7 @@ def _trial_geometry(
     )
   except (TypeError, ValueError):
     return None
+  ####
   plus_direction = _average_direction(
     shock_state,
     provisional_b,
@@ -749,6 +811,7 @@ def _trial_geometry(
   )
   if plus_direction is None or minus_incoming_direction is None:
     return None
+  ####
   try:
     intersection = intersect_rays(
       Ray2D(
@@ -764,8 +827,10 @@ def _trial_geometry(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     return None
+  ####
   if not intersection.is_success or intersection.point is None:
     return None
+  ####
   b_point = _finite_point(intersection.point, 'entropy-carrying off-axis point')
   b_state = replace(provisional_b, x_m=b_point[0], y_m=b_point[1])
   minus_reflection_direction = _average_direction(
@@ -775,9 +840,11 @@ def _trial_geometry(
   )
   if minus_reflection_direction is None or minus_reflection_direction[1] >= 0.0:
     return None
+  ####
   reflection_parameter = -b_point[1] / minus_reflection_direction[1]
   if not isfinite(reflection_parameter) or reflection_parameter <= 0.0:
     return None
+  ####
   d_point = (
     b_point[0] + reflection_parameter * minus_reflection_direction[0],
     0.0,
@@ -793,6 +860,7 @@ def _trial_geometry(
   incoming_edge_length = hypot(*incoming_displacement)
   if not isfinite(incoming_edge_length) or incoming_edge_length <= 0.0:
     return None
+  ####
   incoming_alignment = abs(
     incoming_displacement[0] * minus_incoming_direction[1]
     - incoming_displacement[1] * minus_incoming_direction[0]
@@ -833,6 +901,7 @@ def _trial_geometry(
     incoming_edge_length=incoming_edge_length,
     outer_metrics=outer_metrics,
   )
+####
 
 
 def _solve_two_variable_entropy_root(
@@ -847,6 +916,7 @@ def _solve_two_variable_entropy_root(
 ) -> tuple[_EntropyTrialGeometry | None, int, str]:
   if len(candidate.states) < 3:
     return None, 0, 'terminal candidate does not contain an initial reflected state'
+  ####
   theta = float(candidate.states[1].theta_rad)
   mach_d = float(candidate.states[2].mach)
 
@@ -862,10 +932,12 @@ def _solve_two_variable_entropy_root(
     )
     if geometry is None or len(geometry.outer_metrics) != 2:
       return geometry, None
+    ####
     return geometry, (
       geometry.outer_metrics[0][3] - geometry.outer_metrics[0][4],
       geometry.outer_metrics[1][3] - geometry.outer_metrics[1][4],
     )
+  ####
 
   last_geometry: _EntropyTrialGeometry | None = None
   for iteration in range(1, maximum_iterations + 1):
@@ -873,9 +945,11 @@ def _solve_two_variable_entropy_root(
     last_geometry = geometry
     if residual is None:
       return None, iteration, 'entropy root trial left the valid characteristic domain'
+    ####
     norm = max(abs(residual[0]), abs(residual[1]))
     if norm <= characteristic_residual_tolerance:
       return geometry, iteration, ''
+    ####
     theta_step = max(1.0e-6, abs(theta) * 1.0e-5)
     mach_step = max(1.0e-5, abs(mach_d) * 1.0e-5)
     theta_geometry, theta_residual = evaluate((theta + theta_step, mach_d))
@@ -887,6 +961,7 @@ def _solve_two_variable_entropy_root(
       or mach_residual is None
     ):
       return None, iteration, 'entropy root finite-difference stencil failed'
+    ####
     jacobian = (
       (
         (theta_residual[0] - residual[0]) / theta_step,
@@ -903,6 +978,7 @@ def _solve_two_variable_entropy_root(
     )
     if not isfinite(determinant) or abs(determinant) <= 1.0e-18:
       return None, iteration, 'entropy root Jacobian is singular'
+    ####
     delta_theta = (
       -residual[0] * jacobian[1][1]
       + jacobian[0][1] * residual[1]
@@ -913,6 +989,7 @@ def _solve_two_variable_entropy_root(
     ) / determinant
     if not all(isfinite(value) for value in (delta_theta, delta_mach)):
       return None, iteration, 'entropy root Newton step is not finite'
+    ####
     accepted = False
     for fraction in (1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125):
       trial_theta = theta + fraction * delta_theta
@@ -920,14 +997,20 @@ def _solve_two_variable_entropy_root(
       trial_geometry, trial_residual = evaluate((trial_theta, trial_mach))
       if trial_geometry is None or trial_residual is None:
         continue
+      ####
       if max(abs(value) for value in trial_residual) < norm:
         theta = trial_theta
         mach_d = trial_mach
         accepted = True
         break
+      ####
+    ####
     if not accepted:
       return None, iteration, 'entropy root line search could not reduce residual'
+    ####
+  ####
   return last_geometry, maximum_iterations, 'entropy root did not converge'
+####
 
 
 def solve_euler_ambient_first_wedge_entropy_carry(
@@ -957,6 +1040,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       None,
       message='candidate must be a MocEulerAmbientFirstWedgeCharacteristicResult',
     )
+  ####
   source_field = candidate.source_field
   if source_field is None or source_field.field is None:
     return _failure(
@@ -965,6 +1049,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       source_field,
       message='entropy carry requires a terminal candidate with its source field',
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     residual_tolerance = float(characteristic_residual_tolerance)
@@ -978,6 +1063,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       source_field,
       message='entropy carry tolerances must be numeric',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('characteristic_residual_tolerance', residual_tolerance),
@@ -987,12 +1073,15 @@ def solve_euler_ambient_first_wedge_entropy_carry(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if (
     isinstance(maximum_iterations, bool)
     or not isinstance(maximum_iterations, int)
     or maximum_iterations < 1
   ):
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   common = {
     'position_tolerance_m': position_tolerance,
     'characteristic_residual_tolerance': residual_tolerance,
@@ -1008,6 +1097,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       message='entropy carry requires exactly three terminal-wedge vertices and states',
       **common,
     )
+  ####
   try:
     ambient_source_point = _finite_point(
       source_field.field.ambient_boundary.points_m[0],
@@ -1016,13 +1106,16 @@ def solve_euler_ambient_first_wedge_entropy_carry(
     ambient_source_state = source_field.field.ambient_boundary.states[0]
     if not isinstance(ambient_source_state, CharacteristicState):
       raise ValueError('ambient source state is not a CharacteristicState')
+    ####
     if len(source_field.field.ambient_boundary.total_pressure_Pa) == 0:
       raise ValueError('ambient source pressure is missing')
+    ####
     ambient_source_pressure = float(
       source_field.field.ambient_boundary.total_pressure_Pa[0]
     )
     if not isfinite(ambient_source_pressure) or ambient_source_pressure <= 0.0:
       raise ValueError('ambient source pressure is not finite and positive')
+    ####
   except (IndexError, TypeError, ValueError) as error:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCarryStatus.AMBIENT_SOURCE_REQUIRED,
@@ -1031,6 +1124,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       message=f'ambient source for entropy carry is unavailable: {error}',
       **common,
     )
+  ####
   shock_pressure = float(candidate.total_pressure_Pa[0])
   off_axis_pressure = float(candidate.total_pressure_Pa[1])
   pressure_lineage_verified = bool(
@@ -1063,6 +1157,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       ),
       **common,
     )
+  ####
   geometry, iterations, solver_message = _solve_two_variable_entropy_root(
     candidate,
     ambient_source_point,
@@ -1084,6 +1179,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       message=f'entropy-carrying local solve failed: {solver_message}',
       **common,
     )
+  ####
   incoming_geometry_verified = bool(
     geometry.incoming_alignment <= alignment_tolerance
     and geometry.incoming_forward_margin > position_tolerance
@@ -1177,6 +1273,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       message=f'entropy-carrying terminal cell assembly failed: {error}',
       **common,
     )
+  ####
   topology_verified = bool(
     topology.connected
     and topology.forms_closed_zone
@@ -1214,6 +1311,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       message=f'entropy-carrying terminal topology failed: {topology.message}',
       **common,
     )
+  ####
   try:
     cell_residual = _cell_euler_residual(
       geometry.vertices,
@@ -1252,6 +1350,7 @@ def solve_euler_ambient_first_wedge_entropy_carry(
       message=f'entropy-carrying Euler residual failed: {error}',
       **common,
     )
+  ####
   cell_residual_finite = isfinite(cell_residual)
   cell_residual_verified = bool(
     cell_residual_finite and cell_residual <= cell_tolerance
@@ -1271,8 +1370,10 @@ def solve_euler_ambient_first_wedge_entropy_carry(
   else:
     status = MocEulerAmbientFirstWedgeEntropyCarryStatus.CONVERGED_LOCAL_ENTROPY_CARRY
     message = 'entropy-carrying terminal wedge passed local gates; reflected field closure remains blocked'
+  ####
   if not cell_residual_verified:
     message += f' (cell Euler residual={cell_residual})'
+  ####
   return MocEulerAmbientFirstWedgeEntropyCarryResult(
     status=status,
     source_candidate=candidate,
@@ -1311,3 +1412,4 @@ def solve_euler_ambient_first_wedge_entropy_carry(
     pressure_lineage_tolerance=lineage_tolerance,
     message=message,
   )
+####

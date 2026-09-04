@@ -25,6 +25,7 @@ def _request(frame_id: str = 'source-local') -> VisualSectionedTubeRequest:
     sampling=VisualSampling(maximum_section_count=12),
     requested_channels=('temperature', 'pressure', 'curvature'),
   )
+####
 
 
 def test_curved_integral_provider_returns_standard_visual_product() -> None:
@@ -62,6 +63,8 @@ def test_curved_integral_provider_returns_standard_visual_product() -> None:
       dynamic_state={},
       ambient_state={},
     )
+  ####
+####
 
 
 def test_curved_integral_provider_rejects_wrong_output_frame() -> None:
@@ -81,3 +84,5 @@ def test_curved_integral_provider_rejects_wrong_output_frame() -> None:
 
   with pytest.raises(ProviderConfigurationError, match='output frame'):
     snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, _request('wrong-frame'))
+  ####
+####

@@ -61,6 +61,7 @@ def _terminal():
     ),
     upstream_pressure_Pa=100000.0,
   )
+####
 
 
 def _supersonic_patch():
@@ -90,6 +91,7 @@ def _supersonic_patch():
       downstream_total_pressure_Pa=1.8e6,
     ),
   )
+####
 
 
 def _samples(terminal, *, interior_total_pressure: float | None = None):
@@ -116,6 +118,7 @@ def _samples(terminal, *, interior_total_pressure: float | None = None):
     )
     for index, point in enumerate(points)
   )
+####
 
 
 def _terminal_equivalent_control_section(request):
@@ -142,6 +145,7 @@ def _terminal_equivalent_control_section(request):
     samples=samples,
     normal_angle_rad=0.0,
   )
+####
 
 
 def _slip_wall_samples(terminal):
@@ -171,6 +175,7 @@ def _slip_wall_samples(terminal):
     )
     for point, flow_angle in zip(points, flow_angles, strict=True)
   )
+####
 
 
 def _slip_wall_boundary_and_condition(terminal):
@@ -186,6 +191,7 @@ def _slip_wall_boundary_and_condition(terminal):
   )
   assert condition.converged
   return boundary, condition
+####
 
 
 def _pressure_outflow_boundary_and_condition(terminal):
@@ -203,6 +209,7 @@ def _pressure_outflow_boundary_and_condition(terminal):
   )
   assert condition.converged
   return boundary, condition
+####
 
 
 def _single_edge_slip_wall_boundary_and_condition(terminal):
@@ -246,6 +253,7 @@ def _single_edge_slip_wall_boundary_and_condition(terminal):
         gamma=gamma,
       )
     )
+  ####
   samples.append(samples[0])
   boundary = validate_mixed_regime_boundary(
     terminal,
@@ -261,6 +269,7 @@ def _single_edge_slip_wall_boundary_and_condition(terminal):
   )
   assert condition.converged
   return boundary, condition
+####
 
 
 def test_scalar_mixed_regime_boundary_handoff_is_valid_but_not_field_closure() -> None:
@@ -281,6 +290,7 @@ def test_scalar_mixed_regime_boundary_handoff_is_valid_but_not_field_closure() -
   assert result.mixed_regime_field_complete is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+####
 
 
 def test_downstream_slip_wall_condition_is_separate_from_scalar_boundary_handoff() -> None:
@@ -304,6 +314,7 @@ def test_downstream_slip_wall_condition_is_separate_from_scalar_boundary_handoff
   assert result.pressure_condition_verified
   assert result.maximum_tangent_residual_rad == pytest.approx(0.0)
   assert result.chain_promotion_blocked
+####
 
 
 def test_downstream_condition_rejects_a_geometrically_closed_but_nontangent_perimeter() -> None:
@@ -327,6 +338,7 @@ def test_downstream_condition_rejects_a_geometrically_closed_but_nontangent_peri
   assert result.maximum_tangent_residual_rad is not None
   assert result.maximum_tangent_residual_rad > 0.0
   assert result.chain_promotion_blocked
+####
 
 
 def test_downstream_ambient_condition_requires_tangency_and_static_pressure() -> None:
@@ -350,6 +362,7 @@ def test_downstream_ambient_condition_requires_tangency_and_static_pressure() ->
   assert result.pressure_condition_verified
   assert result.maximum_pressure_residual_Pa == pytest.approx(0.0)
   assert result.chain_promotion_blocked
+####
 
 
 def test_downstream_condition_callback_preserves_exact_terminal_and_patch_seams() -> None:
@@ -398,6 +411,7 @@ def test_downstream_condition_callback_preserves_exact_terminal_and_patch_seams(
   assert mismatch_result.status is MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE
   assert not mismatch_result.converged
   assert 'supersonic patch' in mismatch_result.message
+####
 
 
 def test_explicit_downstream_perimeter_solver_returns_conditioned_reference_field() -> None:
@@ -445,6 +459,7 @@ def test_explicit_downstream_perimeter_solver_returns_conditioned_reference_fiel
       total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
       gamma=received.terminal.upstream_state.gamma,
     )
+  ####
 
   result = solve_mixed_regime_downstream_perimeter(
     request,
@@ -462,6 +477,7 @@ def test_explicit_downstream_perimeter_solver_returns_conditioned_reference_fiel
   assert result.field is not None
   assert result.field.radial_divisions == 2
   assert result.field.downstream_condition is result.downstream_condition
+####
 
 
 def test_explicit_downstream_perimeter_solver_never_repairs_a_changed_sample_point() -> None:
@@ -513,6 +529,7 @@ def test_explicit_downstream_perimeter_solver_never_repairs_a_changed_sample_poi
   assert not result.converged
   assert result.field is None
   assert 'changed the explicit perimeter coordinate' in result.message
+####
 
 
 def test_prescribed_mixed_regime_closure_mock_is_explicit_reference_only() -> None:
@@ -551,6 +568,7 @@ def test_prescribed_mixed_regime_closure_mock_is_explicit_reference_only() -> No
   assert report['planning_only'] is True
   assert report['production_claim_allowed'] is False
   assert report['condition_kind'] == 'prescribed-pressure-outflow-section'
+####
 
 
 def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model() -> None:
@@ -576,6 +594,7 @@ def test_elliptic_subsonic_reference_field_closes_only_its_declared_mesh_model()
   assert field.mixed_regime_field_complete is False
   assert field.chain_promotion_blocked
   assert field.model == 'elliptic-isentropic-subsonic-reference'
+####
 
 
 @pytest.mark.parametrize(
@@ -619,6 +638,7 @@ def test_radial_elliptic_reference_field_refines_without_promoting_the_chain(
   assert field.maximum_harmonic_residual <= 1.0e-12
   assert field.maximum_velocity_divergence_residual is not None
   assert field.maximum_velocity_divergence_residual <= 1.0e-12
+####
 
 
 def test_condition_qualified_elliptic_reference_field_can_be_attached() -> None:
@@ -638,6 +658,7 @@ def test_condition_qualified_elliptic_reference_field_can_be_attached() -> None:
   assert field.mixed_regime_field_complete
   assert condition.tangency_condition_applicable is False
   assert condition.tangent_residuals_rad == ()
+####
 
 
 @pytest.mark.parametrize(
@@ -679,6 +700,7 @@ def test_compressible_potential_reference_solves_a_declared_subsonic_field(
   assert field.potential_circulation_residual <= 1.0e-8
   assert field.maximum_mach is not None
   assert field.maximum_mach < 1.0
+####
 
 
 def test_compressible_potential_reference_gates_no_penetration_for_tangent_condition() -> None:
@@ -697,6 +719,7 @@ def test_compressible_potential_reference_gates_no_penetration_for_tangent_condi
   assert field.maximum_boundary_normal_velocity_residual > 1.0e-8
   assert not field.model_closure_verified
   assert 'boundary_normal_velocity' in field.message
+####
 
 
 def test_compressible_potential_reference_reports_nonlinear_iterations() -> None:
@@ -740,6 +763,7 @@ def test_compressible_potential_reference_reports_nonlinear_iterations() -> None
       total_pressure_Pa=terminal.downstream_total_pressure_Pa,
       gamma=gamma,
     )
+  ####
 
   boundary = validate_mixed_regime_boundary(
     terminal,
@@ -759,6 +783,7 @@ def test_compressible_potential_reference_reports_nonlinear_iterations() -> None
   assert field.nonlinear_iteration_count >= 1
   assert field.maximum_mass_conservation_residual is not None
   assert field.maximum_mass_conservation_residual <= 1.0e-8
+####
 
 
 def test_compressible_potential_reference_tolerates_roundoff_on_collinear_edges() -> None:
@@ -813,6 +838,7 @@ def test_compressible_potential_reference_tolerates_roundoff_on_collinear_edges(
   assert field.model_closure_verified
   assert field.potential_circulation_residual is not None
   assert field.potential_circulation_residual <= 1.0e-8
+####
 
 
 def test_compressible_potential_reference_rejects_incompatible_boundary_circulation() -> None:
@@ -835,6 +861,7 @@ def test_compressible_potential_reference_rejects_incompatible_boundary_circulat
   assert field.potential_circulation_residual is not None
   assert field.potential_circulation_residual > 0.0
   assert 'not single-valued' in field.message
+####
 
 
 def test_independent_potential_measurement_rechecks_the_solver_field() -> None:
@@ -870,6 +897,7 @@ def test_independent_potential_measurement_rechecks_the_solver_field() -> None:
   assert tampered_measurement.status is MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE
   assert not tampered_measurement.converged
   assert tampered_measurement.reference_model_verified is False
+####
 
 
 def test_independent_potential_measurement_recomputes_tangent_boundary_normal_flux() -> None:
@@ -886,6 +914,7 @@ def test_independent_potential_measurement_recomputes_tangent_boundary_normal_fl
   assert measurement.maximum_boundary_normal_velocity_residual is not None
   assert measurement.maximum_boundary_normal_velocity_residual > 1.0e-8
   assert not measurement.reference_model_verified
+####
 
 
 def test_field_solver_rejects_a_condition_from_a_different_scalar_boundary() -> None:
@@ -907,6 +936,7 @@ def test_field_solver_rejects_a_condition_from_a_different_scalar_boundary() -> 
   assert not result.converged
   assert result.downstream_condition is None
   assert 'exact scalar boundary' in result.message
+####
 
 
 def test_mixed_regime_reference_rejects_nonpositive_radial_divisions() -> None:
@@ -920,9 +950,12 @@ def test_mixed_regime_reference_rejects_nonpositive_radial_divisions() -> None:
 
   with pytest.raises(ValueError, match='radial_divisions must be a positive integer'):
     solve_mixed_regime_subsonic_field(boundary, radial_divisions=0)
+  ####
 
   with pytest.raises(ValueError, match='radial_divisions must be a positive integer'):
     solve_mixed_regime_subsonic_field(boundary, radial_divisions=True)
+  ####
+####
 
 
 def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> None:
@@ -982,6 +1015,7 @@ def test_mixed_regime_closure_callback_requires_the_exact_terminal_seam() -> Non
   mismatch_result = run_mixed_regime_closure_solver(request, lambda _request: mismatched)
   assert mismatch_result.status is MocMixedRegimeClosureStatus.SEAM_FAILURE
   assert not mismatch_result.converged
+####
 
 
 def test_mixed_regime_closure_rejects_same_length_but_different_supersonic_patch() -> None:
@@ -1032,6 +1066,7 @@ def test_mixed_regime_closure_rejects_same_length_but_different_supersonic_patch
   assert result.status is MocMixedRegimeClosureStatus.SEAM_FAILURE
   assert not result.converged
   assert 'exact supersonic patch' in result.message
+####
 
 
 def test_mixed_regime_perimeter_request_rejects_inconsistent_terminal_scalars() -> None:
@@ -1054,6 +1089,8 @@ def test_mixed_regime_perimeter_request_rejects_inconsistent_terminal_scalars() 
       terminal_total_pressure_ratio=terminal.total_pressure_ratio,
       supersonic_patch=_supersonic_patch(),
     )
+  ####
+####
 
 
 def test_mixed_regime_boundary_rejects_missing_scalar_field() -> None:
@@ -1068,6 +1105,7 @@ def test_mixed_regime_boundary_rejects_missing_scalar_field() -> None:
   assert not result.converged
   assert result.supersonic_patch_verified
   assert result.chain_promotion_blocked
+####
 
 
 def test_mixed_regime_boundary_rejects_total_pressure_gain() -> None:
@@ -1087,6 +1125,7 @@ def test_mixed_regime_boundary_rejects_total_pressure_gain() -> None:
   assert not result.converged
   assert result.terminal_continuity_verified
   assert not result.total_pressure_lineage_verified
+####
 
 
 def test_mixed_regime_boundary_distributed_profile_requires_explicit_opt_in() -> None:
@@ -1109,6 +1148,7 @@ def test_mixed_regime_boundary_distributed_profile_requires_explicit_opt_in() ->
   assert result.maximum_total_pressure_gain_Pa is not None
   assert result.maximum_total_pressure_gain_Pa > 0.0
   assert 'distributed-profile' in result.message
+####
 
 
 def test_downstream_condition_can_select_only_the_declared_boundary_edges() -> None:
@@ -1132,6 +1172,7 @@ def test_downstream_condition_can_select_only_the_declared_boundary_edges() -> N
   assert result.condition_edge_indices == (0,)
   assert result.condition_sample_indices == (0, 1)
   assert result.pressure_residuals_Pa == (0.0, 0.0)
+####
 
 
 def test_control_section_validator_requires_explicit_flux_bearing_geometry() -> None:
@@ -1154,6 +1195,7 @@ def test_control_section_validator_requires_explicit_flux_bearing_geometry() -> 
   assert not result.physical_closure_verified
   assert result.chain_promotion_blocked
   assert 'area or mass flux' in result.message
+####
 
 
 def test_control_section_validator_accepts_terminal_equivalent_scalar_section() -> None:
@@ -1184,6 +1226,7 @@ def test_control_section_validator_accepts_terminal_equivalent_scalar_section() 
   assert result.maximum_terminal_state_residual == pytest.approx(0.0)
   assert not result.physical_closure_verified
   assert result.chain_promotion_blocked
+####
 
 
 def test_control_section_measurement_rechecks_the_section_independently() -> None:
@@ -1214,6 +1257,7 @@ def test_control_section_measurement_rechecks_the_section_independently() -> Non
   assert not measurement.physical_closure_verified
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_control_section_reference_uses_measure_and_rejects_varying_section_projection() -> None:
@@ -1290,6 +1334,7 @@ def test_control_section_reference_uses_measure_and_rejects_varying_section_proj
   assert varying_result.control_section_validation.converged
   assert 'two-dimensional mixed-regime coupling' in varying_result.message
   assert varying_result.chain_promotion_blocked
+####
 
 
 def test_integrated_flux_reference_retains_varying_control_section_flux() -> None:
@@ -1375,6 +1420,7 @@ def test_integrated_flux_reference_retains_varying_control_section_flux() -> Non
   assert tampered_measurement.control_section_verified
   assert tampered_measurement.control_section_flux_verified is False
   assert tampered_measurement.physical_closure_verified is False
+####
 
 
 def test_planar_downstream_handoff_requires_and_retains_a_varying_control_section() -> None:
@@ -1422,6 +1468,7 @@ def test_planar_downstream_handoff_requires_and_retains_a_varying_control_sectio
       total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
       gamma=received.terminal.upstream_state.gamma,
     )
+  ####
 
   scalar_closure = solve_mixed_regime_downstream_perimeter(
     request,
@@ -1466,6 +1513,7 @@ def test_planar_downstream_handoff_requires_and_retains_a_varying_control_sectio
   ) -> MocMixedRegimeFieldResult:
     callback_arguments.extend((received, received_section, received_specification))
     return replace(scalar_closure.field, control_section=received_section)
+  ####
 
   result = run_mixed_regime_planar_field_solver(
     request,
@@ -1514,6 +1562,7 @@ def test_planar_downstream_handoff_requires_and_retains_a_varying_control_sectio
   assert not pressure_mismatch.converged
   assert 'pressure samples' in pressure_mismatch.message
   assert pressure_mismatch.chain_promotion_blocked
+####
 
 
 def test_planar_downstream_handoff_rejects_a_changed_perimeter() -> None:
@@ -1562,6 +1611,7 @@ def test_planar_downstream_handoff_rejects_a_changed_perimeter() -> None:
       total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
       gamma=received.terminal.upstream_state.gamma,
     )
+  ####
 
   scalar_closure = solve_mixed_regime_downstream_perimeter(
     request,
@@ -1604,6 +1654,7 @@ def test_planar_downstream_handoff_rejects_a_changed_perimeter() -> None:
   assert result.field is changed_field
   assert result.chain_promotion_blocked
   assert 'perimeter geometry' in result.message
+####
 
 
 def test_planar_potential_reference_projects_a_varying_section_into_a_nonlinear_field() -> None:
@@ -1647,6 +1698,7 @@ def test_planar_potential_reference_projects_a_varying_section_into_a_nonlinear_
         gamma=gamma,
       )
     )
+  ####
   section = MocMixedRegimeControlSection(
     points_m=section_points,
     samples=tuple(section_samples),
@@ -1721,6 +1773,7 @@ def test_planar_potential_reference_projects_a_varying_section_into_a_nonlinear_
   assert not rejected.converged
   assert not rejected.control_section_projection_verified
   assert 'affine' in rejected.message
+####
 
 
 def test_planar_frozen_profile_reference_preserves_non_affine_data_without_extrapolation() -> None:
@@ -1758,6 +1811,7 @@ def test_planar_frozen_profile_reference_preserves_non_affine_data_without_extra
       total_pressure_Pa=request.terminal_downstream_total_pressure_Pa,
       gamma=gamma,
     )
+  ####
 
   section_points = (
     (terminal_x + 0.02, terminal_y - 0.01),
@@ -1839,6 +1893,7 @@ def test_planar_frozen_profile_reference_preserves_non_affine_data_without_extra
   assert not outside_span.converged
   assert not outside_span.control_section_projection_verified
   assert 'extrapolation is disabled' in outside_span.message
+####
 
 
 def test_solver_owned_free_boundary_reference_shoots_height_and_closes_scalar_field() -> None:
@@ -1883,6 +1938,7 @@ def test_solver_owned_free_boundary_reference_shoots_height_and_closes_scalar_fi
   assert result.pressure_residual_Pa <= 1.0e-8 * terminal.downstream_pressure_Pa
   assert result.production_claim_allowed is False
   assert result.chain_promotion_blocked
+####
 
 
 def test_independent_free_boundary_measurement_rechecks_the_reference_lane() -> None:
@@ -1935,6 +1991,7 @@ def test_independent_free_boundary_measurement_rechecks_the_reference_lane() -> 
   assert tampered_measurement.status is not MocMixedRegimeFreeBoundaryMeasurementStatus.CONVERGED
   assert not tampered_measurement.converged
   assert not tampered_measurement.scalar_root_verified
+####
 
 
 def test_independent_free_boundary_refinement_rechecks_declared_resolution() -> None:
@@ -1990,3 +2047,4 @@ def test_independent_free_boundary_refinement_rechecks_declared_resolution() -> 
 
   assert reversed_measurement.status is MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.RESOLUTION_FAILURE
   assert not reversed_measurement.converged
+####

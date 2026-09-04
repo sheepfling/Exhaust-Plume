@@ -136,6 +136,7 @@ def _compatible_specs(
   resolved_right.validate_for_result(right)
   if resolved_left.selection != resolved_right.selection:
     raise ValueError('comparison view selections must match')
+  ####
   return resolved_left, resolved_right
 ####
 
@@ -628,7 +629,6 @@ def render_product_comparison(
     axes[1].set_xticks(range(5), scalar_names, rotation=35, ha='right')
     axes[1].set_title('left − right scalar deltas')
     axes[1].grid(True, axis='y', alpha=0.22)
-    ####
   else:
     figure = plt.figure(figsize=(10.0, 7.0))
     _comparison_text(figure, report)

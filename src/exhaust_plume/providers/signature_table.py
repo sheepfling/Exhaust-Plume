@@ -175,6 +175,7 @@ class SignatureTableDefinition:
       raise ProviderConfigurationError(
         'a single direction cosine node requires angular_interpolation=exact-only'
       )
+    ####
     time_interpolation = _coerce_policy(
       self.time_interpolation,
       'time_interpolation',

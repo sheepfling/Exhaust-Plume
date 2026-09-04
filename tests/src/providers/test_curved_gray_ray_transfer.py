@@ -21,6 +21,7 @@ def _definition(*, allow: bool = True) -> GrayRayTransferDefinition:
     absorption_coefficient_per_m=(1.0, 2.0),
     allow_curved_support=allow,
   )
+####
 
 
 def test_curved_provider_transfers_through_curved_support() -> None:
@@ -46,8 +47,11 @@ def test_curved_provider_transfers_through_curved_support() -> None:
   assert result.metadata.provenance.provider_id == 'plume.curved-gray-ray-transfer'
   assert result.metadata.provenance.metadata['support_geometry'].startswith('curved')
   assert result.metadata.claims.radiation.value == 'gray_approximate'
+####
 
 
 def test_curved_provider_requires_explicit_definition_opt_in() -> None:
   with pytest.raises(ProviderConfigurationError, match='allow curved'):
     CurvedGrayRayTransferProvider().create_session(definition=_definition(allow=False))
+  ####
+####

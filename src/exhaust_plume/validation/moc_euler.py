@@ -122,6 +122,7 @@ class MocPhysicalFieldEulerAuditStatus(str, Enum):
   FIELD_FAILURE = 'euler_audit_field_failure'
   SHOCK_JUMP_FAILURE = 'euler_audit_shock_jump_failure'
   CELL_RESIDUAL_FAILURE = 'euler_audit_cell_residual_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,15 +165,20 @@ class MocPhysicalFieldEulerAudit:
       raise TypeError(
         'status must be a MocPhysicalFieldEulerAuditStatus'
       )
+    ####
     if self.field_status is not None:
       object.__setattr__(self, 'field_status', str(self.field_status))
+    ####
     for name in ('shock_sample_count', 'cell_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     residual_tolerance = float(self.residual_tolerance)
     if not isfinite(residual_tolerance) or residual_tolerance <= 0.0:
       raise ValueError('residual_tolerance must be finite and positive')
+    ####
     object.__setattr__(self, 'residual_tolerance', residual_tolerance)
     for name in (
       'shock_jump_mass_residuals',
@@ -183,7 +189,9 @@ class MocPhysicalFieldEulerAudit:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'maximum_shock_jump_mass_residual',
       'maximum_shock_jump_momentum_residual',
@@ -195,7 +203,10 @@ class MocPhysicalFieldEulerAudit:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     for name in (
       'shock_jump_verified',
       'cell_euler_residuals_finite',
@@ -207,17 +218,22 @@ class MocPhysicalFieldEulerAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     """Whether finite local evidence and all shock jump gates passed."""
 
     return self.status is MocPhysicalFieldEulerAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
 
   @property
   def local_euler_consistency_verified(self) -> bool:
@@ -228,12 +244,14 @@ class MocPhysicalFieldEulerAudit:
       and self.shock_jump_verified
       and self.cell_euler_residuals_verified
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """Keep local Euler evidence below the physical-closure claim ceiling."""
 
     return False
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -281,6 +299,8 @@ class MocPhysicalFieldEulerAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,6 +310,7 @@ class _EulerPrimitive:
   velocity_x: float
   velocity_y: float
   total_energy: float
+####
 
 
 def _primitive(
@@ -312,7 +333,9 @@ def _primitive(
   values = (density, pressure, velocity_x, velocity_y, total_energy)
   if not all(isfinite(value) for value in values):
     raise ValueError('reconstructed Euler primitive contains a non-finite value')
+  ####
   return _EulerPrimitive(*values)
+####
 
 
 def _flux_dot_normal(
@@ -332,10 +355,12 @@ def _flux_dot_normal(
     + primitive.pressure * normal_y,
     (primitive.total_energy + primitive.pressure) * normal_speed,
   )
+####
 
 
 def _relative_residual(actual: float, scale: float) -> float:
   return abs(float(actual)) / max(1.0, abs(float(scale)))
+####
 
 
 def _shock_tangent(
@@ -348,12 +373,15 @@ def _shock_tangent(
     first, second = points[-2], points[-1]
   else:
     first, second = points[index - 1], points[index + 1]
+  ####
   dx = second[0] - first[0]
   dy = second[1] - first[1]
   length = hypot(dx, dy)
   if not isfinite(length) or length <= 0.0:
     raise ValueError('shock boundary contains a zero-length tangent')
+  ####
   return dx / length, dy / length
+####
 
 
 def _shock_jump_residuals(
@@ -393,6 +421,7 @@ def _shock_jump_residuals(
     ),
     _relative_residual(upstream_flux[3] - downstream_flux[3], energy_scale),
   )
+####
 
 
 def _cell_flux_residual(
@@ -402,14 +431,17 @@ def _cell_flux_residual(
 ) -> float:
   if len(vertices) != len(states) or len(vertices) != len(pressures):
     raise ValueError('cell vertices and Euler samples must have equal lengths')
+  ####
   if len(vertices) < 3:
     raise ValueError('Euler cell residual requires at least three vertices')
+  ####
   signed_area = 0.5 * sum(
     first[0] * second[1] - second[0] * first[1]
     for first, second in zip(vertices, (*vertices[1:], vertices[0]))
   )
   if not isfinite(signed_area) or abs(signed_area) <= 1.0e-24:
     raise ValueError('Euler cell residual requires a non-degenerate polygon')
+  ####
   orientation = 1.0 if signed_area > 0.0 else -1.0
   primitives = tuple(
     _primitive(state, pressure)
@@ -425,6 +457,7 @@ def _cell_flux_residual(
     length = hypot(dx, dy)
     if not isfinite(length) or length <= 0.0:
       raise ValueError(f'Euler cell edge {index} has zero length')
+    ####
     normal_x = orientation * dy / length
     normal_y = -orientation * dx / length
     first_flux = _flux_dot_normal(
@@ -441,15 +474,18 @@ def _cell_flux_residual(
       residual[component] += 0.5 * length * (
         first_flux[component] + second_flux[component]
       )
+    ####
     scale += length * max(
       1.0,
       max(abs(value) for value in first_flux),
       max(abs(value) for value in second_flux),
     )
+  ####
   return _relative_residual(
     sqrt(sum(value * value for value in residual)),
     scale,
   )
+####
 
 
 def _failure(
@@ -498,6 +534,7 @@ def _failure(
     residual_tolerance=residual_tolerance,
     message=message,
   )
+####
 
 
 class MocEulerAmbientCompanionBoundaryAuditStatus(str, Enum):
@@ -510,6 +547,7 @@ class MocEulerAmbientCompanionBoundaryAuditStatus(str, Enum):
   INVARIANT_FAILURE = 'ambient_companion_boundary_audit_invariant_failure'
   GEOMETRY_FAILURE = 'ambient_companion_boundary_audit_geometry_failure'
   FLAG_FAILURE = 'ambient_companion_boundary_audit_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -553,14 +591,17 @@ class MocEulerAmbientCompanionBoundaryAudit:
       raise TypeError(
         'status must be a MocEulerAmbientCompanionBoundaryAuditStatus'
       )
+    ####
     if self.boundary_status is not None:
       object.__setattr__(self, 'boundary_status', str(self.boundary_status))
+    ####
     if (
       isinstance(self.sample_count, bool)
       or not isinstance(self.sample_count, int)
       or self.sample_count < 0
     ):
       raise ValueError('sample_count must be a nonnegative integer')
+    ####
     for name in (
       'position_tolerance_m',
       'invariant_tolerance',
@@ -569,17 +610,23 @@ class MocEulerAmbientCompanionBoundaryAudit:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     if self.ambient_pressure_Pa is not None:
       pressure = float(self.ambient_pressure_Pa)
       if not isfinite(pressure) or pressure <= 0.0:
         raise ValueError('ambient_pressure_Pa must be finite and positive')
+      ####
       object.__setattr__(self, 'ambient_pressure_Pa', pressure)
+    ####
     if self.separation_m is not None:
       separation = float(self.separation_m)
       if not isfinite(separation):
         raise ValueError('separation_m must be finite when supplied')
+      ####
       object.__setattr__(self, 'separation_m', separation)
+    ####
     for name in (
       'static_pressure_residuals',
       'companion_invariant_residuals',
@@ -588,9 +635,12 @@ class MocEulerAmbientCompanionBoundaryAudit:
       values = tuple(float(value) for value in getattr(self, name))
       if len(values) != self.sample_count:
         raise ValueError(f'{name} must match sample_count')
+      ####
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'maximum_static_pressure_residual',
       'maximum_companion_invariant_residual',
@@ -599,15 +649,20 @@ class MocEulerAmbientCompanionBoundaryAudit:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     if self.minimum_shock_clearance_m is not None:
       clearance = float(self.minimum_shock_clearance_m)
       if not isfinite(clearance):
         raise ValueError('minimum_shock_clearance_m must be finite when supplied')
+      ####
       object.__setattr__(self, 'minimum_shock_clearance_m', clearance)
+    ####
     for name in (
       'sampling_verified',
       'pressure_verified',
@@ -620,15 +675,20 @@ class MocEulerAmbientCompanionBoundaryAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocEulerAmbientCompanionBoundaryAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
 
   @property
   def local_boundary_consistency_verified(self) -> bool:
@@ -640,6 +700,7 @@ class MocEulerAmbientCompanionBoundaryAudit:
       and self.geometry_verified
       and self.fidelity_flags_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -686,6 +747,8 @@ class MocEulerAmbientCompanionBoundaryAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _ambient_companion_boundary_audit_failure(
@@ -735,6 +798,7 @@ def _ambient_companion_boundary_audit_failure(
     pressure_tolerance=pressure_tolerance,
     message=message,
   )
+####
 
 
 def measure_moc_ambient_companion_boundary(
@@ -751,6 +815,7 @@ def measure_moc_ambient_companion_boundary(
       MocEulerAmbientCompanionBoundaryAuditStatus.INVALID_INPUT,
       'boundary must be a MocEulerAmbientCompanionBoundaryResult',
     )
+  ####
   try:
     position_tolerance = float(
       boundary.position_tolerance_m
@@ -774,6 +839,7 @@ def measure_moc_ambient_companion_boundary(
       boundary_status=boundary.status.value,
       sample_count=len(boundary.samples),
     )
+  ####
   tolerances = (
     position_tolerance,
     invariant_tolerance_value,
@@ -783,6 +849,7 @@ def measure_moc_ambient_companion_boundary(
     raise ValueError(
       'ambient companion boundary audit tolerances must be finite and positive'
     )
+  ####
   common = {
     'boundary_status': boundary.status.value,
     'sample_count': len(boundary.samples),
@@ -798,6 +865,7 @@ def measure_moc_ambient_companion_boundary(
       'ambient companion boundary audit requires a converged solver result',
       **common,
     )
+  ####
   shock = boundary.shock_boundary
   if (
     shock is None
@@ -810,6 +878,7 @@ def measure_moc_ambient_companion_boundary(
       'ambient companion boundary audit requires a converged mixed-characteristic shock curve',
       **common,
     )
+  ####
   ambient_pressure = boundary.ambient_pressure_Pa
   separation = boundary.separation_m
   seed_k_minus = boundary.seed_k_minus_rad
@@ -823,6 +892,7 @@ def measure_moc_ambient_companion_boundary(
       'ambient companion boundary audit requires ambient pressure, separation, and seeded invariant',
       **common,
     )
+  ####
   shock_points = tuple(shock.shock_points_m)
   shock_states = tuple(shock.downstream_states)
   shock_pressures = tuple(shock.downstream_total_pressure_Pa)
@@ -860,6 +930,7 @@ def measure_moc_ambient_companion_boundary(
       sampling_verified=False,
       **common,
     )
+  ####
   gamma = shock_states[0].gamma
   pressure_residuals: list[float] = []
   invariant_residuals: list[float] = []
@@ -897,6 +968,8 @@ def measure_moc_ambient_companion_boundary(
             * (point[0] - shock_points[index - 1][0])
           )
         )
+      ####
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _ambient_companion_boundary_audit_failure(
       MocEulerAmbientCompanionBoundaryAuditStatus.INVARIANT_FAILURE,
@@ -904,6 +977,7 @@ def measure_moc_ambient_companion_boundary(
       sampling_verified=True,
       **common,
     )
+  ####
   maximum_pressure = max(pressure_residuals, default=float('inf'))
   maximum_invariant = max(invariant_residuals, default=float('inf'))
   maximum_geometry = max(geometry_residuals, default=float('inf'))
@@ -939,6 +1013,7 @@ def measure_moc_ambient_companion_boundary(
       'ambient pressure, C- invariant, geometry, and non-promotion flags; '
       'global reflected free-boundary closure remains pending'
     )
+  ####
   return MocEulerAmbientCompanionBoundaryAudit(
     status=status,
     boundary_status=boundary.status.value,
@@ -965,6 +1040,7 @@ def measure_moc_ambient_companion_boundary(
     production_claim_allowed=boundary.production_claim_allowed,
     message=message,
   )
+####
 
 
 class MocEulerCompanionFieldAuditStatus(str, Enum):
@@ -1015,15 +1091,20 @@ class MocEulerCompanionFieldAudit:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocEulerCompanionFieldAuditStatus):
       raise TypeError('status must be a MocEulerCompanionFieldAuditStatus')
+    ####
     for name in ('shock_sample_count', 'cell_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     for name in ('shock_residual_tolerance', 'cell_residual_tolerance'):
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'shock_jump_mass_residuals',
       'shock_jump_momentum_residuals',
@@ -1033,7 +1114,9 @@ class MocEulerCompanionFieldAudit:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'maximum_shock_jump_mass_residual',
       'maximum_shock_jump_momentum_residual',
@@ -1043,10 +1126,13 @@ class MocEulerCompanionFieldAudit:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'shock_jump_verified',
       'cell_euler_residuals_finite',
@@ -1062,17 +1148,23 @@ class MocEulerCompanionFieldAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.field_status is not None:
       object.__setattr__(self, 'field_status', str(self.field_status))
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocEulerCompanionFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
 
   @property
   def local_euler_consistency_verified(self) -> bool:
@@ -1085,6 +1177,7 @@ class MocEulerCompanionFieldAudit:
       and self.pressure_lineage_verified
       and self.promotion_flags_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1126,6 +1219,8 @@ class MocEulerCompanionFieldAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _companion_audit_failure(
@@ -1182,6 +1277,7 @@ def _companion_audit_failure(
     cell_residual_tolerance=cell_residual_tolerance,
     message=message,
   )
+####
 
 
 def measure_moc_euler_companion_field(
@@ -1200,6 +1296,7 @@ def measure_moc_euler_companion_field(
       MocEulerCompanionFieldAuditStatus.INVALID_INPUT,
       'field must be a MocEulerCompanionFieldResult',
     )
+  ####
   try:
     shock_tolerance = float(shock_residual_tolerance)
     cell_tolerance = float(cell_residual_tolerance)
@@ -1212,6 +1309,7 @@ def measure_moc_euler_companion_field(
       'companion-field audit tolerances must be numeric',
       field_status=field.status.value,
     )
+  ####
   tolerances = (
     shock_tolerance,
     cell_tolerance,
@@ -1221,6 +1319,7 @@ def measure_moc_euler_companion_field(
   )
   if any(not isfinite(value) or value <= 0.0 for value in tolerances):
     raise ValueError('companion-field audit tolerances must be finite and positive')
+  ####
   if not field.converged:
     return _companion_audit_failure(
       MocEulerCompanionFieldAuditStatus.FIELD_FAILURE,
@@ -1231,6 +1330,7 @@ def measure_moc_euler_companion_field(
       shock_residual_tolerance=shock_tolerance,
       cell_residual_tolerance=cell_tolerance,
     )
+  ####
   curve = field.shock_boundary
   if curve is None or not curve.converged:
     return _companion_audit_failure(
@@ -1242,6 +1342,7 @@ def measure_moc_euler_companion_field(
       shock_residual_tolerance=shock_tolerance,
       cell_residual_tolerance=cell_tolerance,
     )
+  ####
   shock_points = tuple(field.shock_boundary_points_m)
   boundary_geometry_verified = bool(
     len(shock_points) >= 2
@@ -1267,6 +1368,7 @@ def measure_moc_euler_companion_field(
       shock_residual_tolerance=shock_tolerance,
       cell_residual_tolerance=cell_tolerance,
     )
+  ####
   boundary_geometry_verified = boundary_geometry_verified and all(
     abs(state.x_m - point[0]) <= position_tolerance
     and abs(state.y_m - point[1]) <= position_tolerance
@@ -1319,6 +1421,7 @@ def measure_moc_euler_companion_field(
       == len(shock_points)
     ):
       raise ValueError('retained shock curve evidence sequences have unequal lengths')
+    ####
     for index in range(len(shock_points)):
       mass, momentum, energy = _shock_jump_residuals(
         curve.upstream_states[index],
@@ -1330,6 +1433,7 @@ def measure_moc_euler_companion_field(
       jump_mass.append(mass)
       jump_momentum.append(momentum)
       jump_energy.append(energy)
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _companion_audit_failure(
       MocEulerCompanionFieldAuditStatus.SHOCK_JUMP_FAILURE,
@@ -1342,6 +1446,7 @@ def measure_moc_euler_companion_field(
       boundary_geometry_verified=boundary_geometry_verified,
       pressure_lineage_verified=pressure_lineage_verified,
     )
+  ####
   maximum_shock_residual = max(
     (*jump_mass, *jump_momentum, *jump_energy),
     default=float('inf'),
@@ -1367,6 +1472,7 @@ def measure_moc_euler_companion_field(
         for axis in (0, 1)
       ):
         cell_geometry_verified = False
+      ####
       states = (
         field.shock_boundary_states[index],
         field.shock_boundary_states[index + 1],
@@ -1380,6 +1486,7 @@ def measure_moc_euler_companion_field(
         field.interior_total_pressure_Pa[index],
       )
       cells.append(_cell_flux_residual(vertices, states, pressures))
+    ####
   except (ArithmeticError, FloatingPointError, IndexError, TypeError, ValueError) as error:
     return _companion_audit_failure(
       MocEulerCompanionFieldAuditStatus.CELL_RESIDUAL_FAILURE,
@@ -1396,6 +1503,7 @@ def measure_moc_euler_companion_field(
       shock_residual_tolerance=shock_tolerance,
       cell_residual_tolerance=cell_tolerance,
     )
+  ####
   cells_finite = all(isfinite(value) for value in cells)
   maximum_cell_residual = max(cells, default=0.0)
   cells_verified = cells_finite and maximum_cell_residual <= cell_tolerance
@@ -1458,6 +1566,7 @@ def measure_moc_euler_companion_field(
       'cell residuals, topology, compatibility, and pressure lineage; '
       'physical closure remains pending'
     )
+  ####
   return MocEulerCompanionFieldAudit(
     status=status,
     field_status=field.status.value,
@@ -1482,6 +1591,7 @@ def measure_moc_euler_companion_field(
     cell_residual_tolerance=cell_tolerance,
     message=message,
   )
+####
 
 
 def measure_moc_physical_field_euler_audit(
@@ -1506,6 +1616,7 @@ def measure_moc_physical_field_euler_audit(
       MocPhysicalFieldEulerAuditStatus.INVALID_INPUT,
       'field must be a MocPhysicalPostShockFieldResult',
     )
+  ####
   try:
     shock_tolerance = float(shock_residual_tolerance)
     cell_tolerance = float(cell_residual_tolerance)
@@ -1516,11 +1627,13 @@ def measure_moc_physical_field_euler_audit(
       'Euler audit tolerances must be numeric',
       field_status=field.status.value,
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (shock_tolerance, cell_tolerance, position_tolerance)
   ):
     raise ValueError('Euler audit tolerances must be finite and positive')
+  ####
   if not field.converged or not field.physical_closure_verified:
     return _failure(
       MocPhysicalFieldEulerAuditStatus.FIELD_FAILURE,
@@ -1530,6 +1643,7 @@ def measure_moc_physical_field_euler_audit(
       cell_count=len(field.cells),
       residual_tolerance=cell_tolerance,
     )
+  ####
   if not field.state_sampling_available:
     return _failure(
       MocPhysicalFieldEulerAuditStatus.FIELD_FAILURE,
@@ -1544,6 +1658,7 @@ def measure_moc_physical_field_euler_audit(
       ),
       residual_tolerance=cell_tolerance,
     )
+  ####
   shock_points = tuple(field.shock_boundary_points_m)
   upstream_states = tuple(field.upstream_shock_boundary_states)
   upstream_pressures = tuple(field.upstream_shock_boundary_total_pressure_Pa)
@@ -1564,6 +1679,7 @@ def measure_moc_physical_field_euler_audit(
       cell_count=len(field.cells),
       residual_tolerance=cell_tolerance,
     )
+  ####
   if any(
     len(point) != 2
     or not all(isfinite(float(value)) for value in point)
@@ -1577,6 +1693,7 @@ def measure_moc_physical_field_euler_audit(
       cell_count=len(field.cells),
       residual_tolerance=cell_tolerance,
     )
+  ####
   jump_mass: list[float] = []
   jump_momentum: list[float] = []
   jump_energy: list[float] = []
@@ -1592,6 +1709,7 @@ def measure_moc_physical_field_euler_audit(
       jump_mass.append(mass)
       jump_momentum.append(momentum)
       jump_energy.append(energy)
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocPhysicalFieldEulerAuditStatus.SHOCK_JUMP_FAILURE,
@@ -1601,6 +1719,7 @@ def measure_moc_physical_field_euler_audit(
       cell_count=len(field.cells),
       residual_tolerance=cell_tolerance,
     )
+  ####
   maximum_shock_residual = max(
     (*jump_mass, *jump_momentum, *jump_energy),
     default=float('inf'),
@@ -1623,6 +1742,7 @@ def measure_moc_physical_field_euler_audit(
       shock_jump_verified=shock_verified,
       residual_tolerance=cell_tolerance,
     )
+  ####
   if len(cell_samples) != len(field.cells):
     return _failure(
       MocPhysicalFieldEulerAuditStatus.FIELD_FAILURE,
@@ -1636,6 +1756,7 @@ def measure_moc_physical_field_euler_audit(
       shock_jump_verified=shock_verified,
       residual_tolerance=cell_tolerance,
     )
+  ####
   cell_residuals: list[float] = []
   try:
     for (vertices, states, pressures) in cell_samples:
@@ -1643,6 +1764,7 @@ def measure_moc_physical_field_euler_audit(
         raise ValueError(
           'bounded cell sampling returned a missing total pressure'
         )
+      ####
       cell_residuals.append(
         _cell_flux_residual(
           tuple((float(point[0]), float(point[1])) for point in vertices),
@@ -1650,6 +1772,7 @@ def measure_moc_physical_field_euler_audit(
           tuple(float(value) for value in pressures),
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       (
@@ -1667,6 +1790,7 @@ def measure_moc_physical_field_euler_audit(
       shock_jump_verified=shock_verified,
       residual_tolerance=cell_tolerance,
     )
+  ####
   maximum_cell_residual = max(cell_residuals, default=0.0)
   cells_finite = all(isfinite(value) for value in cell_residuals)
   cells_verified = cells_finite and maximum_cell_residual <= cell_tolerance
@@ -1691,6 +1815,7 @@ def measure_moc_physical_field_euler_audit(
       'energy jumps and finite conservative cell residuals; canonical reflected '
       'free-boundary/Euler closure remains pending'
     )
+  ####
   return MocPhysicalFieldEulerAudit(
     status=status,
     field_status=field.status.value,
@@ -1711,6 +1836,7 @@ def measure_moc_physical_field_euler_audit(
     residual_tolerance=cell_tolerance,
     message=message,
   )
+####
 
 
 class MocEulerAmbientPhysicalFieldAuditStatus(str, Enum):
@@ -1726,6 +1852,7 @@ class MocEulerAmbientPhysicalFieldAuditStatus(str, Enum):
     'euler_ambient_physical_field_audit_cell_residual_failure'
   )
   FLAG_FAILURE = 'euler_ambient_physical_field_audit_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1761,12 +1888,16 @@ class MocEulerAmbientPhysicalFieldAudit:
       raise TypeError(
         'status must be a MocEulerAmbientPhysicalFieldAuditStatus'
       )
+    ####
     if self.result_status is not None:
       object.__setattr__(self, 'result_status', str(self.result_status))
+    ####
     for name in ('shock_sample_count', 'field_cell_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     for name in (
       'maximum_shock_jump_mass_residual',
       'maximum_shock_jump_momentum_residual',
@@ -1776,10 +1907,13 @@ class MocEulerAmbientPhysicalFieldAudit:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'shock_jump_verified',
       'cell_euler_residuals_verified',
@@ -1791,17 +1925,22 @@ class MocEulerAmbientPhysicalFieldAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     """Whether every requested local bridge audit gate passed."""
 
     return self.status is MocEulerAmbientPhysicalFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -1816,6 +1955,7 @@ class MocEulerAmbientPhysicalFieldAudit:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1854,6 +1994,8 @@ class MocEulerAmbientPhysicalFieldAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _ambient_physical_field_audit_failure(
@@ -1893,6 +2035,7 @@ def _ambient_physical_field_audit_failure(
     maximum_cell_euler_residual=maximum_cell_euler_residual,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_physical_field(
@@ -1916,6 +2059,7 @@ def measure_moc_euler_ambient_physical_field(
       MocEulerAmbientPhysicalFieldAuditStatus.INVALID_INPUT,
       'result must be a MocEulerAmbientPhysicalFieldResult',
     )
+  ####
   try:
     shock_tolerance = float(shock_residual_tolerance)
     cell_tolerance = float(cell_residual_tolerance)
@@ -1928,6 +2072,7 @@ def measure_moc_euler_ambient_physical_field(
       'ambient physical-field audit tolerances must be numeric',
       result_status=result.status.value,
     )
+  ####
   tolerances = (
     shock_tolerance,
     cell_tolerance,
@@ -1937,6 +2082,7 @@ def measure_moc_euler_ambient_physical_field(
   )
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('ambient physical-field audit tolerances must be finite and positive')
+  ####
   shock = result.shock_boundary
   march = result.ambient_march
   field = result.field
@@ -1949,6 +2095,7 @@ def measure_moc_euler_ambient_physical_field(
       result_status=result.status.value,
       field_cell_count=cell_count,
     )
+  ####
   if not shock.converged or not shock.local_euler_verified:
     return _ambient_physical_field_audit_failure(
       MocEulerAmbientPhysicalFieldAuditStatus.SHOCK_FAILURE,
@@ -1957,6 +2104,7 @@ def measure_moc_euler_ambient_physical_field(
       shock_sample_count=shock_count,
       field_cell_count=cell_count,
     )
+  ####
   if march is None or not march.converged:
     return _ambient_physical_field_audit_failure(
       MocEulerAmbientPhysicalFieldAuditStatus.AMBIENT_FAILURE,
@@ -1965,6 +2113,7 @@ def measure_moc_euler_ambient_physical_field(
       shock_sample_count=shock_count,
       field_cell_count=cell_count,
     )
+  ####
   ambient_boundary_verified = bool(
     len(march.boundary_samples) == shock_count
     and len(march.point_results) == shock_count
@@ -1991,6 +2140,7 @@ def measure_moc_euler_ambient_physical_field(
       shock_sample_count=shock_count,
       field_cell_count=cell_count,
     )
+  ####
   if field is None:
     return _ambient_physical_field_audit_failure(
       MocEulerAmbientPhysicalFieldAuditStatus.FIELD_FAILURE,
@@ -1998,6 +2148,7 @@ def measure_moc_euler_ambient_physical_field(
       result_status=result.status.value,
       shock_sample_count=shock_count,
     )
+  ####
   try:
     field_audit = measure_moc_physical_field_euler_audit(
       field,
@@ -2013,6 +2164,7 @@ def measure_moc_euler_ambient_physical_field(
       shock_sample_count=shock_count,
       field_cell_count=cell_count,
     )
+  ####
   physical_field_verified = bool(
     result.converged
     and result.physical_field_verified
@@ -2092,11 +2244,13 @@ def measure_moc_euler_ambient_physical_field(
       'independent exact ambient physical-field audit passed shock, ambient, '
       'field, cell, entropy-lineage, and fidelity gates'
     )
+  ####
   return _ambient_physical_field_audit_failure(
     status,
     message,
     **common,
   )
+####
 
 
 MOC_EULER_COMPANION_FIELD_CHAIN_AUDIT_OPERATOR_ID = (
@@ -2114,6 +2268,7 @@ class MocEulerCompanionFieldChainAuditStatus(str, Enum):
   DOMAIN_FAILURE = 'euler_companion_field_chain_domain_failure'
   TERMINATION_FAILURE = 'euler_companion_field_chain_termination_failure'
   FLAG_FAILURE = 'euler_companion_field_chain_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -2144,6 +2299,7 @@ class MocEulerCompanionFieldChainAudit:
       raise TypeError(
         'status must be a MocEulerCompanionFieldChainAuditStatus'
       )
+    ####
     for name in (
       'field_count',
       'continued_field_count',
@@ -2152,9 +2308,12 @@ class MocEulerCompanionFieldChainAudit:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     statuses = tuple(str(value) for value in self.field_statuses)
     if len(statuses) != self.field_count:
       raise ValueError('field_statuses must match field_count')
+    ####
     object.__setattr__(self, 'field_statuses', statuses)
     for name in (
       'field_audits_verified',
@@ -2168,9 +2327,12 @@ class MocEulerCompanionFieldChainAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -2225,6 +2387,7 @@ class MocEulerCompanionFieldChainAudit:
       'message': self.message,
     }
   ####
+####
 
 
 def _euler_chain_handoff_fingerprint(samples: Any) -> str | None:
@@ -2232,8 +2395,10 @@ def _euler_chain_handoff_fingerprint(samples: Any) -> str | None:
     handoff = tuple(samples)
   except TypeError:
     return None
+  ####
   if not handoff:
     return None
+  ####
   payload = '\n'.join(
     '|'.join(
       value.hex()
@@ -2249,11 +2414,13 @@ def _euler_chain_handoff_fingerprint(samples: Any) -> str | None:
     for sample in handoff
   )
   return sha256(payload.encode('ascii')).hexdigest()
+####
 
 
 def _euler_chain_field_fingerprint(field: Any) -> str | None:
   if field is None:
     return None
+  ####
 
   def state_payload(state: Any) -> str:
     return '|'.join(
@@ -2266,6 +2433,7 @@ def _euler_chain_field_fingerprint(field: Any) -> str | None:
         state.gamma,
       )
     )
+  ####
 
   try:
     payload = [f'status:{field.status.value}']
@@ -2287,9 +2455,12 @@ def _euler_chain_field_fingerprint(field: Any) -> str | None:
         f'{state_payload(state)}|{float(pressure).hex()}'
         for state, pressure in zip(states, pressures, strict=True)
       )
+    ####
   except (AttributeError, TypeError, ValueError):
     return None
+  ####
   return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+####
 
 
 def _euler_chain_field_x_extent(field: Any) -> tuple[float, float] | None:
@@ -2302,9 +2473,12 @@ def _euler_chain_field_x_extent(field: Any) -> tuple[float, float] | None:
     values = tuple(float(point[0]) for point in points)
   except (AttributeError, TypeError, ValueError, IndexError):
     return None
+  ####
   if not values or not all(isfinite(value) for value in values):
     return None
+  ####
   return min(values), max(values)
+####
 
 
 def _euler_companion_field_chain_audit_failure(
@@ -2334,6 +2508,7 @@ def _euler_companion_field_chain_audit_failure(
     fidelity_flags_verified=fidelity_flags_verified,
     message=message,
   )
+####
 
 
 def measure_moc_euler_companion_field_chain(
@@ -2358,6 +2533,7 @@ def measure_moc_euler_companion_field_chain(
       MocEulerCompanionFieldChainAuditStatus.INVALID_INPUT,
       'chain must be a MocEulerCompanionFieldChainPlannerResult',
     )
+  ####
   fields = tuple(chain.fields)
   steps = tuple(chain.steps)
   if not fields or any(
@@ -2372,6 +2548,7 @@ def measure_moc_euler_companion_field_chain(
       step_count=len(steps),
       field_statuses=tuple(field.status.value for field in fields),
     )
+  ####
 
   field_audits = tuple(measure_moc_euler_companion_field(field) for field in fields)
   field_audits_verified = all(
@@ -2388,6 +2565,7 @@ def measure_moc_euler_companion_field_chain(
       field_statuses=tuple(field.status.value for field in fields),
       field_audits_verified=False,
     )
+  ####
 
   fresh_domains_verified = True
   extents = tuple(_euler_chain_field_x_extent(field) for field in fields)
@@ -2397,6 +2575,7 @@ def measure_moc_euler_companion_field_chain(
       and current is not None
       and current[0] > previous[1] + 1.0e-10
     )
+  ####
   if not fresh_domains_verified:
     return _euler_companion_field_chain_audit_failure(
       MocEulerCompanionFieldChainAuditStatus.DOMAIN_FAILURE,
@@ -2408,6 +2587,7 @@ def measure_moc_euler_companion_field_chain(
       field_audits_verified=True,
       fresh_domains_verified=False,
     )
+  ####
 
   handoff_links_verified = bool(steps)
   for index, step in enumerate(steps):
@@ -2423,6 +2603,7 @@ def measure_moc_euler_companion_field_chain(
       if index + 1 >= len(fields):
         handoff_links_verified = False
         continue
+      ####
       next_field = fields[index + 1]
       handoff_links_verified = handoff_links_verified and bool(
         step.result_field_status == next_field.status.value
@@ -2434,6 +2615,8 @@ def measure_moc_euler_companion_field_chain(
           next_field
         )
       )
+    ####
+  ####
   if not handoff_links_verified:
     return _euler_companion_field_chain_audit_failure(
       MocEulerCompanionFieldChainAuditStatus.HANDOFF_FAILURE,
@@ -2446,6 +2629,7 @@ def measure_moc_euler_companion_field_chain(
       fresh_domains_verified=True,
       handoff_links_verified=False,
     )
+  ####
 
   termination_verified = bool(
     steps
@@ -2466,6 +2650,7 @@ def measure_moc_euler_companion_field_chain(
       handoff_links_verified=True,
       termination_verified=False,
     )
+  ####
 
   fidelity_flags_verified = bool(
     not chain.physical_closure_verified
@@ -2492,6 +2677,7 @@ def measure_moc_euler_companion_field_chain(
       termination_verified=True,
       fidelity_flags_verified=False,
     )
+  ####
   return MocEulerCompanionFieldChainAudit(
     status=MocEulerCompanionFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT,
     field_count=len(fields),
@@ -2510,6 +2696,7 @@ def measure_moc_euler_companion_field_chain(
       'remain pending'
     ),
   )
+####
 
 
 MOC_EULER_COMPANION_FIELD_CHAIN_REFINEMENT_OPERATOR_ID = (
@@ -2531,6 +2718,7 @@ class MocEulerCompanionFieldChainRefinementMeasurementStatus(str, Enum):
   SENSITIVITY_FAILURE = 'sensitivity_failure'
   TERMINATION_FAILURE = 'termination_failure'
   FIDELITY_FAILURE = 'fidelity_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -2555,6 +2743,9 @@ class MocEulerCompanionFieldChainRefinementCase:
       or self.resolution < 2
     ):
       raise ValueError('resolution must be an integer of at least two')
+    ####
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -2614,10 +2805,12 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
         'status must be a '
         'MocEulerCompanionFieldChainRefinementMeasurementStatus'
       )
+    ####
     cases = tuple(self.cases)
     audits = tuple(self.chain_audits)
     if len(cases) != len(audits):
       raise ValueError('cases and chain_audits must have equal lengths')
+    ####
     if any(
       not isinstance(case, MocEulerCompanionFieldChainRefinementCase)
       for case in cases
@@ -2625,6 +2818,7 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
       raise TypeError(
         'cases must contain MocEulerCompanionFieldChainRefinementCase values'
       )
+    ####
     if any(
       not isinstance(audit, MocEulerCompanionFieldChainAudit)
       for audit in audits
@@ -2632,15 +2826,18 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
       raise TypeError(
         'chain_audits must contain MocEulerCompanionFieldChainAudit values'
       )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'chain_audits', audits)
     resolutions = tuple(case.resolution for case in cases)
     if self.resolutions and tuple(self.resolutions) != resolutions:
       raise ValueError('resolutions must match the declared refinement cases')
+    ####
     object.__setattr__(self, 'resolutions', resolutions)
     expected = tuple(int(value) for value in self.expected_resolutions)
     if any(value < 2 for value in expected):
       raise ValueError('expected_resolutions must contain values of at least two')
+    ####
     object.__setattr__(self, 'expected_resolutions', expected)
     for name in (
       'field_count',
@@ -2649,8 +2846,11 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer when supplied')
+      ####
+    ####
     for name in (
       'endpoint_tolerance_m',
       'cell_residual_tolerance',
@@ -2659,7 +2859,9 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'maximum_cell_euler_residuals',
       'axial_extent_residuals_m',
@@ -2670,7 +2872,9 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'expected_resolutions_verified',
       'resolution_order_verified',
@@ -2690,6 +2894,8 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     for name in (
       'handoff_links_verified',
       'termination_sensitivity_verified',
@@ -2697,6 +2903,8 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
       value = getattr(self, name)
       if value is not None and not isinstance(value, bool):
         raise TypeError(f'{name} must be a bool or None')
+      ####
+    ####
     for name in ('field_node_counts', 'field_cell_counts'):
       rows = tuple(tuple(int(value) for value in row) for row in getattr(self, name))
       if any(
@@ -2704,17 +2912,22 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
         for row in rows
       ):
         raise ValueError(f'{name} must contain nonnegative integer counts')
+      ####
       object.__setattr__(self, name, rows)
+    ####
     object.__setattr__(self, 'claim_status', str(self.claim_status))
     object.__setattr__(self, 'message', str(self.message))
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocEulerCompanionFieldChainRefinementMeasurementStatus.CONVERGED
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -2785,6 +2998,8 @@ class MocEulerCompanionFieldChainRefinementMeasurement:
       'claim_status': self.claim_status,
       'message': self.message,
     }
+  ####
+####
 
 
 def _euler_companion_field_chain_refinement_failure(
@@ -2865,6 +3080,7 @@ def _euler_companion_field_chain_refinement_failure(
     cell_residual_trend_tolerance=cell_residual_trend_tolerance,
     message=message,
   )
+####
 
 
 def _euler_field_endpoint_pair(
@@ -2875,16 +3091,21 @@ def _euler_field_endpoint_pair(
     points = tuple(getattr(field, attribute))
   except (AttributeError, TypeError):
     return None
+  ####
   if len(points) < 2:
     return None
+  ####
   try:
     first = (float(points[0][0]), float(points[0][1]))
     last = (float(points[-1][0]), float(points[-1][1]))
   except (IndexError, TypeError, ValueError):
     return None
+  ####
   if not all(isfinite(value) for point in (first, last) for value in point):
     return None
+  ####
   return first, last
+####
 
 
 def _euler_endpoint_residual(
@@ -2893,6 +3114,7 @@ def _euler_endpoint_residual(
 ) -> float:
   if previous is None or current is None:
     return _EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL
+  ####
   return max(
     hypot(
       current[index][0] - previous[index][0],
@@ -2900,6 +3122,7 @@ def _euler_endpoint_residual(
     )
     for index in (0, 1)
   )
+####
 
 
 def measure_moc_euler_companion_field_chain_refinement(
@@ -2939,6 +3162,7 @@ def measure_moc_euler_companion_field_chain_refinement(
     for value in tolerance_values
   ):
     raise ValueError('Euler chain refinement tolerances must be finite and positive')
+  ####
   try:
     items = tuple(cases)
   except TypeError:
@@ -2946,6 +3170,7 @@ def measure_moc_euler_companion_field_chain_refinement(
       MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
       'refinement cases must be iterable',
     )
+  ####
   expected = ()
   if expected_resolutions is not None:
     try:
@@ -2955,6 +3180,7 @@ def measure_moc_euler_companion_field_chain_refinement(
         MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
         'expected_resolutions must be iterable',
       )
+    ####
     if any(
       isinstance(value, bool)
       or not isinstance(value, int)
@@ -2966,12 +3192,15 @@ def measure_moc_euler_companion_field_chain_refinement(
         'expected_resolutions must contain integers of at least two',
         expected_resolutions=expected,
       )
+    ####
+  ####
   if len(items) < 2:
     return _euler_companion_field_chain_refinement_failure(
       MocEulerCompanionFieldChainRefinementMeasurementStatus.INVALID_INPUT,
       'at least two Euler companion-field refinement cases are required',
       expected_resolutions=expected,
     )
+  ####
   if any(
     not isinstance(case, MocEulerCompanionFieldChainRefinementCase)
     for case in items
@@ -2983,6 +3212,7 @@ def measure_moc_euler_companion_field_chain_refinement(
       cases=items,
       expected_resolutions=expected,
     )
+  ####
   resolutions = tuple(case.resolution for case in items)
   expected_verified = not expected or expected == resolutions
   if not expected_verified:
@@ -2992,6 +3222,7 @@ def measure_moc_euler_companion_field_chain_refinement(
       cases=items,
       expected_resolutions=expected,
     )
+  ####
   resolution_order_verified = all(
     right > left
     for left, right in zip(resolutions, resolutions[1:])
@@ -3004,6 +3235,7 @@ def measure_moc_euler_companion_field_chain_refinement(
       expected_resolutions=expected,
       expected_resolutions_verified=True,
     )
+  ####
 
   from exhaust_plume.models.moc.planner import (
     MocEulerCompanionFieldChainPlannerResult,
@@ -3021,6 +3253,7 @@ def measure_moc_euler_companion_field_chain_refinement(
       expected_resolutions_verified=True,
       resolution_order_verified=True,
     )
+  ####
 
   chain_audits = tuple(
     measure_moc_euler_companion_field_chain(case.chain)
@@ -3039,6 +3272,7 @@ def measure_moc_euler_companion_field_chain_refinement(
       expected_resolutions_verified=True,
       resolution_order_verified=True,
     )
+  ####
 
   chains = tuple(case.chain for case in items)
   field_counts = tuple(chain.field_count for chain in chains)
@@ -3072,6 +3306,7 @@ def measure_moc_euler_companion_field_chain_refinement(
       continued_field_count_consistent=continued_field_count_consistent,
       step_count_consistent=step_count_consistent,
     )
+  ####
 
   field_audits = tuple(
     tuple(
@@ -3148,6 +3383,7 @@ def measure_moc_euler_companion_field_chain_refinement(
         _EULER_CHAIN_REFINEMENT_FAILURE_RESIDUAL
       )
       continue
+    ####
     extent_residual = 0.0
     shock_residual = 0.0
     companion_residual = 0.0
@@ -3167,6 +3403,7 @@ def measure_moc_euler_companion_field_chain_refinement(
           abs(current_extent[0] - previous_extent[0]),
           abs(current_extent[1] - previous_extent[1]),
         )
+      ####
       shock_residual = max(
         shock_residual,
         _euler_endpoint_residual(
@@ -3197,10 +3434,12 @@ def measure_moc_euler_companion_field_chain_refinement(
           _euler_field_endpoint_pair(current_field, 'interior_points_m'),
         ),
       )
+    ####
     axial_extent_residuals.append(extent_residual)
     shock_endpoint_residuals.append(shock_residual)
     companion_endpoint_residuals.append(companion_residual)
     interior_endpoint_residuals.append(interior_residual)
+  ####
   geometry_shape_verified = bool(
     geometry_shape_verified
     and all(
@@ -3318,36 +3557,42 @@ def measure_moc_euler_companion_field_chain_refinement(
       'one or more retained fields failed independent Euler remeasurement',
       **common,
     )
+  ####
   if not sample_resolution_verified or not topology_verified:
     return _euler_companion_field_chain_refinement_failure(
       MocEulerCompanionFieldChainRefinementMeasurementStatus.TOPOLOGY_FAILURE,
       'refinement cases failed independent resolution or topology checks',
       **common,
     )
+  ####
   if not geometry_shape_verified:
     return _euler_companion_field_chain_refinement_failure(
       MocEulerCompanionFieldChainRefinementMeasurementStatus.GEOMETRY_FAILURE,
       'corresponding open-field boundary endpoints changed beyond tolerance',
       **common,
     )
+  ####
   if not cell_residual_trend_verified:
     return _euler_companion_field_chain_refinement_failure(
       MocEulerCompanionFieldChainRefinementMeasurementStatus.SENSITIVITY_FAILURE,
       'open-field conservative residuals did not remain bounded or non-increasing',
       **common,
     )
+  ####
   if not handoff_links_verified or not termination_sensitivity_verified:
     return _euler_companion_field_chain_refinement_failure(
       MocEulerCompanionFieldChainRefinementMeasurementStatus.TERMINATION_FAILURE,
       'handoff or typed termination metadata changed across refinement',
       **common,
     )
+  ####
   if not fidelity_flags_verified:
     return _euler_companion_field_chain_refinement_failure(
       MocEulerCompanionFieldChainRefinementMeasurementStatus.FIDELITY_FAILURE,
       'refinement sequence weakened its open-field fidelity boundary',
       **common,
     )
+  ####
   return MocEulerCompanionFieldChainRefinementMeasurement(
     status=MocEulerCompanionFieldChainRefinementMeasurementStatus.CONVERGED,
     **common,
@@ -3365,6 +3610,7 @@ def measure_moc_euler_companion_field_chain_refinement(
       'physical reflected closure remains pending'
     ),
   )
+####
 
 
 class MocEulerAmbientShockFieldAuditStatus(str, Enum):
@@ -3377,6 +3623,7 @@ class MocEulerAmbientShockFieldAuditStatus(str, Enum):
   ENTROPY_FAILURE = 'euler_ambient_shock_field_audit_entropy_failure'
   FIELD_FAILURE = 'euler_ambient_shock_field_audit_field_failure'
   FLAG_FAILURE = 'euler_ambient_shock_field_audit_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -3438,10 +3685,13 @@ class MocEulerAmbientShockFieldAudit:
       raise TypeError(
         'status must be a MocEulerAmbientShockFieldAuditStatus'
       )
+    ####
     for name in ('shock_sample_count', 'ambient_sample_count', 'cell_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     for name in (
       'shock_residual_tolerance',
       'cell_residual_tolerance',
@@ -3453,7 +3703,9 @@ class MocEulerAmbientShockFieldAudit:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'shock_jump_mass_residuals',
       'shock_jump_momentum_residuals',
@@ -3466,7 +3718,9 @@ class MocEulerAmbientShockFieldAudit:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'maximum_shock_jump_mass_residual',
       'maximum_shock_jump_momentum_residual',
@@ -3480,10 +3734,13 @@ class MocEulerAmbientShockFieldAudit:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     companion_residuals = tuple(
       float(value) for value in self.ambient_companion_invariant_residuals
     )
@@ -3494,6 +3751,7 @@ class MocEulerAmbientShockFieldAudit:
         'ambient_companion_invariant_residuals must contain finite '
         'nonnegative values'
       )
+    ####
     object.__setattr__(
       self,
       'ambient_companion_invariant_residuals',
@@ -3506,11 +3764,13 @@ class MocEulerAmbientShockFieldAudit:
           'maximum_ambient_companion_invariant_residual must be finite and '
           'nonnegative when supplied'
         )
+      ####
       object.__setattr__(
         self,
         'maximum_ambient_companion_invariant_residual',
         companion_maximum,
       )
+    ####
     for name in (
       'shock_geometry_verified',
       'shock_jump_verified',
@@ -3526,21 +3786,28 @@ class MocEulerAmbientShockFieldAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.field_status is not None:
       object.__setattr__(self, 'field_status', str(self.field_status))
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     boundary_kind = str(self.ambient_boundary_kind)
     if not boundary_kind:
       raise ValueError('ambient_boundary_kind must be a non-empty string')
+    ####
     object.__setattr__(self, 'ambient_boundary_kind', boundary_kind)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocEulerAmbientShockFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -3555,6 +3822,7 @@ class MocEulerAmbientShockFieldAudit:
       and self.companion_field_verified
       and self.promotion_flags_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -3635,6 +3903,8 @@ class MocEulerAmbientShockFieldAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _ambient_shock_field_audit_failure(
@@ -3725,6 +3995,7 @@ def _ambient_shock_field_audit_failure(
     tangent_tolerance=tangent_tolerance,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_shock_field(
@@ -3749,6 +4020,7 @@ def measure_moc_euler_ambient_shock_field(
       MocEulerAmbientShockFieldAuditStatus.INVALID_INPUT,
       'field must be a MocEulerAmbientShockFieldResult',
     )
+  ####
   try:
     shock_tolerance = float(shock_residual_tolerance)
     cell_tolerance = float(cell_residual_tolerance)
@@ -3762,6 +4034,7 @@ def measure_moc_euler_ambient_shock_field(
       'ambient shock-field audit tolerances must be numeric',
       field_status=field.status.value,
     )
+  ####
   tolerances = (
     shock_tolerance,
     cell_tolerance,
@@ -3774,6 +4047,7 @@ def measure_moc_euler_ambient_shock_field(
     raise ValueError(
       'ambient shock-field audit tolerances must be finite and positive'
     )
+  ####
 
   shock = field.shock_boundary
   march = field.ambient_march
@@ -3792,6 +4066,7 @@ def measure_moc_euler_ambient_shock_field(
       pressure_tolerance=pressure_tolerance_value,
       tangent_tolerance=tangent_tolerance_value,
     )
+  ####
 
   shock_points = tuple(shock.shock_points_m)
   shock_count = len(shock_points)
@@ -3832,8 +4107,11 @@ def measure_moc_euler_ambient_shock_field(
         jump_mass.append(mass)
         jump_momentum.append(momentum)
         jump_energy.append(energy)
+      ####
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       shock_geometry_verified = False
+    ####
+  ####
   maximum_shock_residual = max(
     (*jump_mass, *jump_momentum, *jump_energy),
     default=None,
@@ -3909,18 +4187,21 @@ def measure_moc_euler_ambient_shock_field(
           static_pressure = sample.total_pressure_Pa / pressure_ratio
           if ambient_pressure is None or ambient_pressure <= 0.0:
             raise ValueError('ambient pressure is missing or non-positive')
+          ####
           ambient_pressure_residuals.append(
             abs(static_pressure - ambient_pressure) / ambient_pressure
           )
           incoming_k_plus_residuals.append(
             abs(state.k_plus - shock.downstream_states[index].k_plus)
           )
+        ####
         for first, second in zip(samples, samples[1:]):
           dx = second.point_m[0] - first.point_m[0]
           dy = second.point_m[1] - first.point_m[1]
           length = hypot(dx, dy)
           if not isfinite(length) or length <= 0.0:
             raise ValueError('ambient boundary contains a zero-length segment')
+          ####
           segment_angle = atan2(dy, dx)
           flow_angle = 0.5 * (
             first.state.theta_rad + second.state.theta_rad
@@ -3928,6 +4209,7 @@ def measure_moc_euler_ambient_shock_field(
           ambient_tangent_residuals.append(
             abs(sin(segment_angle - flow_angle))
           )
+        ####
         attachment_residual = ambient_pressure_residuals[0]
         ambient_direction_verified = bool(
           all(
@@ -3945,6 +4227,8 @@ def measure_moc_euler_ambient_shock_field(
         )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError):
         ambient_sample_alignment_verified = False
+      ####
+    ####
     ambient_pressure_maximum = max(ambient_pressure_residuals, default=None)
     ambient_tangent_maximum = max(ambient_tangent_residuals, default=None)
     incoming_k_plus_maximum = max(incoming_k_plus_residuals, default=None)
@@ -4006,6 +4290,7 @@ def measure_moc_euler_ambient_shock_field(
         seed_k_minus = companion.seed_k_minus_rad
         if seed_k_minus is None:
           raise ValueError('explicit companion boundary is missing seed K-')
+        ####
         for sample in samples:
           state = sample.state
           pressure_ratio = (
@@ -4014,18 +4299,21 @@ def measure_moc_euler_ambient_shock_field(
           static_pressure = sample.total_pressure_Pa / pressure_ratio
           if ambient_pressure is None or ambient_pressure <= 0.0:
             raise ValueError('ambient pressure is missing or non-positive')
+          ####
           ambient_pressure_residuals.append(
             abs(static_pressure - ambient_pressure) / ambient_pressure
           )
           ambient_companion_invariant_residuals.append(
             abs(state.k_minus - seed_k_minus)
           )
+        ####
         for first, second in zip(samples, samples[1:]):
           dx = second.point_m[0] - first.point_m[0]
           dy = second.point_m[1] - first.point_m[1]
           length = hypot(dx, dy)
           if not isfinite(length) or length <= 0.0:
             raise ValueError('explicit companion boundary contains a zero-length segment')
+          ####
           segment_angle = atan2(dy, dx)
           flow_angle = 0.5 * (
             first.state.theta_rad + second.state.theta_rad
@@ -4033,6 +4321,7 @@ def measure_moc_euler_ambient_shock_field(
           ambient_tangent_residuals.append(
             abs(sin(segment_angle - flow_angle))
           )
+        ####
         ambient_direction_verified = bool(
           all(
             second.point_m[0] > first.point_m[0] + position_tolerance
@@ -4053,6 +4342,8 @@ def measure_moc_euler_ambient_shock_field(
         )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError):
         ambient_sample_alignment_verified = False
+      ####
+    ####
     ambient_pressure_maximum = max(ambient_pressure_residuals, default=None)
     ambient_tangent_maximum = max(ambient_tangent_residuals, default=None)
     incoming_k_plus_maximum = None
@@ -4092,6 +4383,7 @@ def measure_moc_euler_ambient_shock_field(
     ambient_tangent_maximum = None
     incoming_k_plus_maximum = None
     companion_invariant_maximum = None
+  ####
 
   entropy_residuals: list[float] = []
   entropy_lineage_verified = False
@@ -4118,6 +4410,8 @@ def measure_moc_euler_ambient_shock_field(
         )
         and field.entropy_lineage_verified
       )
+    ####
+  ####
 
   companion_field_verified = False
   if field.field is not None:
@@ -4133,6 +4427,7 @@ def measure_moc_euler_ambient_shock_field(
       companion_audit.converged
       and companion_audit.local_euler_consistency_verified
     )
+  ####
   promotion_flags_verified = bool(
     shock.physical_closure_verified is False
     and shock.chain_promotion_blocked
@@ -4197,6 +4492,7 @@ def measure_moc_euler_ambient_shock_field(
       'ambient pressure/tangency, C+ lineage, entropy consistency, and the '
       'open-field local strip; reflected closure remains pending'
     )
+  ####
   return MocEulerAmbientShockFieldAudit(
     status=status,
     field_status=field.status.value,
@@ -4241,6 +4537,7 @@ def measure_moc_euler_ambient_shock_field(
     ),
     message=message,
   )
+####
 
 
 class MocEulerAmbientShockFieldChainAuditStatus(str, Enum):
@@ -4253,6 +4550,7 @@ class MocEulerAmbientShockFieldChainAuditStatus(str, Enum):
   DOMAIN_FAILURE = 'euler_ambient_shock_field_chain_domain_failure'
   TERMINATION_FAILURE = 'euler_ambient_shock_field_chain_termination_failure'
   FLAG_FAILURE = 'euler_ambient_shock_field_chain_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -4283,6 +4581,7 @@ class MocEulerAmbientShockFieldChainAudit:
       raise TypeError(
         'status must be a MocEulerAmbientShockFieldChainAuditStatus'
       )
+    ####
     for name in (
       'field_count',
       'continued_field_count',
@@ -4291,9 +4590,12 @@ class MocEulerAmbientShockFieldChainAudit:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     statuses = tuple(str(value) for value in self.field_statuses)
     if len(statuses) != self.field_count:
       raise ValueError('field_statuses must match field_count')
+    ####
     object.__setattr__(self, 'field_statuses', statuses)
     for name in (
       'field_audits_verified',
@@ -4307,9 +4609,12 @@ class MocEulerAmbientShockFieldChainAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -4365,6 +4670,7 @@ class MocEulerAmbientShockFieldChainAudit:
       'message': self.message,
     }
   ####
+####
 
 
 def _ambient_shock_field_chain_audit_failure(
@@ -4394,11 +4700,13 @@ def _ambient_shock_field_chain_audit_failure(
     fidelity_flags_verified=fidelity_flags_verified,
     message=message,
   )
+####
 
 
 def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
   if not isinstance(field, MocEulerAmbientShockFieldResult):
     return None
+  ####
 
   def state_payload(state: Any) -> str:
     return '|'.join(
@@ -4411,6 +4719,7 @@ def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
         state.gamma,
       )
     )
+  ####
 
   payload = [
     f'status:{field.status.value}',
@@ -4427,6 +4736,7 @@ def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
         strict=True,
       )
     )
+  ####
   if field.ambient_march is not None:
     payload.append('ambient')
     payload.extend(
@@ -4434,6 +4744,7 @@ def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
       f'{float(sample.point_m[1]).hex()}|{float(sample.total_pressure_Pa).hex()}'
       for sample in field.ambient_march.boundary_samples
     )
+  ####
   if field.ambient_companion_boundary is not None:
     payload.append('explicit-companion')
     payload.extend(
@@ -4441,6 +4752,7 @@ def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
       f'{float(sample.point_m[1]).hex()}|{float(sample.total_pressure_Pa).hex()}'
       for sample in field.ambient_companion_boundary.samples
     )
+  ####
   if field.attachment_wedge is not None:
     payload.append('attachment-wedge:' + field.attachment_wedge.status.value)
     payload.extend(
@@ -4448,12 +4760,16 @@ def _ambient_shock_field_chain_fingerprint(field: Any) -> str | None:
       f'{trial.accepted}|{trial.forward_margin_m!r}'
       for trial in field.attachment_wedge.trials
     )
+  ####
   if field.field is not None:
     nested = _euler_chain_field_fingerprint(field.field)
     if nested is None:
       return None
+    ####
     payload.append('companion:' + nested)
+  ####
   return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+####
 
 
 def _ambient_shock_field_chain_x_extent(
@@ -4461,25 +4777,33 @@ def _ambient_shock_field_chain_x_extent(
 ) -> tuple[float, float] | None:
   if not isinstance(field, MocEulerAmbientShockFieldResult):
     return None
+  ####
   points: list[tuple[float, float]] = []
   if field.shock_boundary is not None:
     points.extend(field.shock_boundary.shock_points_m)
+  ####
   if field.ambient_march is not None:
     points.extend(field.ambient_march.points_m)
+  ####
   if field.ambient_companion_boundary is not None:
     points.extend(
       sample.point_m for sample in field.ambient_companion_boundary.samples
     )
+  ####
   if field.field is not None:
     points.extend(field.field.shock_boundary_points_m)
     points.extend(field.field.companion_boundary_points_m)
     points.extend(field.field.interior_points_m)
+  ####
   if not points:
     return None
+  ####
   values = tuple(float(point[0]) for point in points)
   if not all(isfinite(value) for value in values):
     return None
+  ####
   return min(values), max(values)
+####
 
 
 def measure_moc_euler_ambient_shock_field_chain(
@@ -4503,6 +4827,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       MocEulerAmbientShockFieldChainAuditStatus.INVALID_INPUT,
       'chain must be a MocEulerAmbientShockFieldChainPlannerResult',
     )
+  ####
   fields = tuple(chain.fields)
   steps = tuple(chain.steps)
   field_statuses = tuple(field.status.value for field in fields)
@@ -4518,6 +4843,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       step_count=len(steps),
       field_statuses=field_statuses,
     )
+  ####
 
   field_audits = tuple(
     measure_moc_euler_ambient_shock_field(
@@ -4544,6 +4870,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       step_count=len(steps),
       field_statuses=field_statuses,
     )
+  ####
 
   extents = tuple(_ambient_shock_field_chain_x_extent(field) for field in fields)
   fresh_domains_verified = all(
@@ -4562,6 +4889,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       field_statuses=field_statuses,
       field_audits_verified=True,
     )
+  ####
 
   handoff_links_verified = bool(steps)
   for index, step in enumerate(steps):
@@ -4569,6 +4897,7 @@ def measure_moc_euler_ambient_shock_field_chain(
     if index >= len(fields):
       handoff_links_verified = False
       continue
+    ####
     incoming = fields[index].downstream_handoff
     handoff_links_verified = handoff_links_verified and bool(
       step.next_field_index == expected_index
@@ -4580,6 +4909,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       if index + 1 >= len(fields):
         handoff_links_verified = False
         continue
+      ####
       next_field = fields[index + 1]
       handoff_links_verified = handoff_links_verified and bool(
         step.result_field_status == next_field.status.value
@@ -4589,6 +4919,8 @@ def measure_moc_euler_ambient_shock_field_chain(
         and step.result_handoff_fingerprint
         == _euler_chain_handoff_fingerprint(next_field.downstream_handoff)
       )
+    ####
+  ####
   if not handoff_links_verified:
     return _ambient_shock_field_chain_audit_failure(
       MocEulerAmbientShockFieldChainAuditStatus.HANDOFF_FAILURE,
@@ -4600,6 +4932,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       field_audits_verified=True,
       fresh_domains_verified=True,
     )
+  ####
 
   termination_verified = bool(
     steps
@@ -4619,6 +4952,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       fresh_domains_verified=True,
       handoff_links_verified=True,
     )
+  ####
 
   fidelity_flags_verified = bool(
     not chain.physical_closure_verified
@@ -4647,6 +4981,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       handoff_links_verified=True,
       termination_verified=True,
     )
+  ####
   return MocEulerAmbientShockFieldChainAudit(
     status=MocEulerAmbientShockFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT,
     field_count=len(fields),
@@ -4665,6 +5000,7 @@ def measure_moc_euler_ambient_shock_field_chain(
       'remain pending'
     ),
   )
+####
 
 
 MOC_EULER_POST_SHOCK_FIELD_AUDIT_OPERATOR_ID = (
@@ -4686,6 +5022,7 @@ class MocEulerPostShockFieldAuditStatus(str, Enum):
   TOPOLOGY_FAILURE = 'euler_post_shock_field_audit_topology_failure'
   CELL_RESIDUAL_FAILURE = 'euler_post_shock_field_audit_cell_residual_failure'
   FLAG_FAILURE = 'euler_post_shock_field_audit_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -4735,12 +5072,16 @@ class MocEulerPostShockFieldAudit:
       raise TypeError(
         'status must be a MocEulerPostShockFieldAuditStatus'
       )
+    ####
     if self.field_status is not None:
       object.__setattr__(self, 'field_status', str(self.field_status))
+    ####
     for name in ('shock_sample_count', 'node_count', 'cell_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     for name in (
       'shock_jump_mass_residuals',
       'shock_jump_momentum_residuals',
@@ -4752,7 +5093,9 @@ class MocEulerPostShockFieldAudit:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'maximum_shock_jump_mass_residual',
       'maximum_shock_jump_momentum_residual',
@@ -4766,7 +5109,10 @@ class MocEulerPostShockFieldAudit:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     for name in (
       'shock_residual_tolerance',
       'cell_residual_tolerance',
@@ -4778,7 +5124,9 @@ class MocEulerPostShockFieldAudit:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'shock_geometry_verified',
       'shock_jump_verified',
@@ -4795,15 +5143,20 @@ class MocEulerPostShockFieldAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocEulerPostShockFieldAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -4818,6 +5171,7 @@ class MocEulerPostShockFieldAudit:
       and self.cell_euler_residuals_verified
       and self.fidelity_flags_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -4873,6 +5227,8 @@ class MocEulerPostShockFieldAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _post_shock_field_audit_failure(
@@ -4952,6 +5308,7 @@ def _post_shock_field_audit_failure(
     pressure_tolerance=pressure_tolerance,
     message=message,
   )
+####
 
 
 def _post_shock_characteristic_geometry(
@@ -4968,12 +5325,14 @@ def _post_shock_characteristic_geometry(
   norm = hypot(*averaged)
   if norm <= 0.0 or not isfinite(norm):
     return None
+  ####
   displacement = (target.x_m - source.x_m, target.y_m - source.y_m)
   unit = (averaged[0] / norm, averaged[1] / norm)
   return (
     displacement[0] * unit[0] + displacement[1] * unit[1],
     abs(displacement[0] * unit[1] - displacement[1] * unit[0]),
   )
+####
 
 
 def measure_moc_euler_post_shock_field(
@@ -4993,6 +5352,7 @@ def measure_moc_euler_post_shock_field(
       MocEulerPostShockFieldAuditStatus.INVALID_INPUT,
       'field must be a MocEulerPostShockFieldResult',
     )
+  ####
   try:
     shock_tolerance = float(shock_residual_tolerance)
     cell_tolerance = float(cell_residual_tolerance)
@@ -5006,6 +5366,7 @@ def measure_moc_euler_post_shock_field(
       'post-shock field audit tolerances must be numeric',
       field_status=field.status.value,
     )
+  ####
   if any(
     not isfinite(value) or value <= 0.0
     for value in (
@@ -5018,6 +5379,7 @@ def measure_moc_euler_post_shock_field(
     )
   ):
     raise ValueError('post-shock field audit tolerances must be finite and positive')
+  ####
 
   shock = field.shock_boundary
   points = tuple(field.shock_boundary_points_m)
@@ -5041,12 +5403,14 @@ def measure_moc_euler_post_shock_field(
       'local post-shock audit requires a retained shock boundary with at least three samples',
       **common,
     )
+  ####
   if len(states) != len(points) or len(pressures) != len(points):
     return _post_shock_field_audit_failure(
       MocEulerPostShockFieldAuditStatus.SHOCK_FAILURE,
       'retained post-shock shock arrays are not aligned',
       **common,
     )
+  ####
   if (
     len(shock.upstream_states) != len(points)
     or len(shock.upstream_total_pressure_Pa) != len(points)
@@ -5058,6 +5422,7 @@ def measure_moc_euler_post_shock_field(
       'retained exact shock data is incomplete for an independent jump audit',
       **common,
     )
+  ####
 
   shock_geometry_verified = bool(
     shock.orientation is MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY
@@ -5163,11 +5528,13 @@ def measure_moc_euler_post_shock_field(
       or not node.point_result.converged
     ):
       interior_geometry_verified = False
+    ####
     if node.point_result.intersection_status == (
       'synthetic-uniform-state-terminal-center'
     ):
       node_invariants.append(0.0)
       continue
+    ####
     centerline_index = node.centerline_index
     boundary_index = node.boundary_index
     if (
@@ -5178,6 +5545,7 @@ def measure_moc_euler_post_shock_field(
     ):
       interior_geometry_verified = False
       continue
+    ####
     if centerline_index == boundary_index:
       node_invariants.append(
         abs(node.state.k_minus - states[boundary_index].k_minus)
@@ -5189,6 +5557,7 @@ def measure_moc_euler_post_shock_field(
       )
       if geometry is None or geometry[0] <= position_tolerance:
         interior_geometry_verified = False
+      ####
     elif centerline_index < boundary_index:
       plus_residual = abs(
         node.state.k_plus - centerline_states[centerline_index].k_plus
@@ -5216,10 +5585,14 @@ def measure_moc_euler_post_shock_field(
         or minus_geometry[1] > position_tolerance
       ):
         interior_geometry_verified = False
+      ####
     else:
       interior_geometry_verified = False
+    ####
+  ####
   if max(node_invariants, default=float('inf')) > invariant_tolerance_value:
     interior_geometry_verified = False
+  ####
 
   topology = validate_moc_mesh(field.cells)
   topology_verified = bool(
@@ -5242,8 +5615,10 @@ def measure_moc_euler_post_shock_field(
           (pressures[0],) * len(cell.vertices_xr_m),
         )
       )
+    ####
   except (ArithmeticError, TypeError, ValueError):
     cell_residuals_finite = False
+  ####
   cell_euler_residuals_verified = bool(
     cell_residuals_finite
     and len(cell_residuals) == len(field.cells)
@@ -5285,6 +5660,7 @@ def measure_moc_euler_post_shock_field(
       'uniform state, centerline/interior characteristic geometry, closed '
       'topology, bounded cell residuals, and the non-physical fidelity stop'
     )
+  ####
   return _post_shock_field_audit_failure(
     status,
     message,
@@ -5305,6 +5681,7 @@ def measure_moc_euler_post_shock_field(
     cell_euler_residuals_verified=cell_euler_residuals_verified,
     fidelity_flags_verified=fidelity_flags_verified,
   )
+####
 
 
 class MocEulerPostShockFieldChainAuditStatus(str, Enum):
@@ -5317,6 +5694,7 @@ class MocEulerPostShockFieldChainAuditStatus(str, Enum):
   HANDOFF_FAILURE = 'euler_post_shock_field_chain_audit_handoff_failure'
   TERMINATION_FAILURE = 'euler_post_shock_field_chain_audit_termination_failure'
   FLAG_FAILURE = 'euler_post_shock_field_chain_audit_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -5344,10 +5722,13 @@ class MocEulerPostShockFieldChainAudit:
       raise TypeError(
         'status must be a MocEulerPostShockFieldChainAuditStatus'
       )
+    ####
     for name in ('field_count', 'continued_field_count', 'step_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     statuses = tuple(str(value) for value in self.field_statuses)
     object.__setattr__(self, 'field_statuses', statuses)
     for name in (
@@ -5362,15 +5743,20 @@ class MocEulerPostShockFieldChainAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocEulerPostShockFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -5382,6 +5768,7 @@ class MocEulerPostShockFieldChainAudit:
       and self.termination_verified
       and self.fidelity_flags_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -5413,6 +5800,8 @@ class MocEulerPostShockFieldChainAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _post_shock_field_chain_audit_failure(
@@ -5442,11 +5831,13 @@ def _post_shock_field_chain_audit_failure(
     fidelity_flags_verified=fidelity_flags_verified,
     message=message,
   )
+####
 
 
 def _post_shock_field_chain_handoff_fingerprint(boundary: Sequence[Any]) -> str | None:
   if not boundary:
     return None
+  ####
   payload = '\n'.join(
     '|'.join(
       value.hex()
@@ -5462,6 +5853,7 @@ def _post_shock_field_chain_handoff_fingerprint(boundary: Sequence[Any]) -> str 
     for sample in boundary
   )
   return sha256(payload.encode('ascii')).hexdigest()
+####
 
 
 def _post_shock_field_chain_fingerprint(field: MocEulerPostShockFieldResult) -> str:
@@ -5476,6 +5868,7 @@ def _post_shock_field_chain_fingerprint(field: MocEulerPostShockFieldResult) -> 
         state.gamma,
       )
     )
+  ####
 
   payload = [f'status:{field.status.value}']
   for label, points, states, pressures in (
@@ -5497,6 +5890,7 @@ def _post_shock_field_chain_fingerprint(field: MocEulerPostShockFieldResult) -> 
       f'{point[0].hex()}|{point[1].hex()}|{state_payload(state)}|{pressure.hex()}'
       for point, state, pressure in zip(points, states, pressures, strict=True)
     )
+  ####
   payload.append('nodes')
   payload.extend(
     f'{node.point_m[0].hex()}|{node.point_m[1].hex()}|'
@@ -5509,6 +5903,7 @@ def _post_shock_field_chain_fingerprint(field: MocEulerPostShockFieldResult) -> 
     for cell in field.cells
   )
   return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+####
 
 
 def _post_shock_field_chain_x_extent(
@@ -5521,10 +5916,13 @@ def _post_shock_field_chain_x_extent(
   )
   if not points:
     return None
+  ####
   values = tuple(float(point[0]) for point in points)
   if not all(isfinite(value) for value in values):
     return None
+  ####
   return min(values), max(values)
+####
 
 
 def measure_moc_euler_post_shock_field_chain(
@@ -5548,6 +5946,7 @@ def measure_moc_euler_post_shock_field_chain(
       MocEulerPostShockFieldChainAuditStatus.INVALID_INPUT,
       'chain must be a MocEulerPostShockFieldChainPlannerResult',
     )
+  ####
   fields = tuple(chain.fields)
   steps = tuple(chain.steps)
   statuses = tuple(field.status.value for field in fields)
@@ -5566,6 +5965,7 @@ def measure_moc_euler_post_shock_field_chain(
       'chain must retain one or more local post-shock fields',
       **common,
     )
+  ####
   field_audits = tuple(
     measure_moc_euler_post_shock_field(
       field,
@@ -5588,6 +5988,7 @@ def measure_moc_euler_post_shock_field_chain(
       'one or more local post-shock fields failed its independent audit',
       **common,
     )
+  ####
   extents = tuple(_post_shock_field_chain_x_extent(field) for field in fields)
   fresh_domains_verified = all(
     previous is not None
@@ -5602,11 +6003,13 @@ def measure_moc_euler_post_shock_field_chain(
       **common,
       field_audits_verified=True,
     )
+  ####
   handoff_links_verified = bool(steps)
   for index, step in enumerate(steps):
     if index >= len(fields):
       handoff_links_verified = False
       continue
+    ####
     incoming = fields[index].downstream_handoff
     handoff_links_verified = handoff_links_verified and bool(
       step.next_field_index == index + 2
@@ -5619,6 +6022,7 @@ def measure_moc_euler_post_shock_field_chain(
       if index + 1 >= len(fields):
         handoff_links_verified = False
         continue
+      ####
       next_field = fields[index + 1]
       handoff_links_verified = handoff_links_verified and bool(
         step.result_field_status == next_field.status.value
@@ -5630,6 +6034,8 @@ def measure_moc_euler_post_shock_field_chain(
           next_field.downstream_handoff
         )
       )
+    ####
+  ####
   if not handoff_links_verified:
     return _post_shock_field_chain_audit_failure(
       MocEulerPostShockFieldChainAuditStatus.HANDOFF_FAILURE,
@@ -5638,6 +6044,7 @@ def measure_moc_euler_post_shock_field_chain(
       field_audits_verified=True,
       fresh_domains_verified=True,
     )
+  ####
   termination_verified = bool(
     steps
     and steps[-1].result_termination_reason is chain.termination.reason
@@ -5653,6 +6060,7 @@ def measure_moc_euler_post_shock_field_chain(
       fresh_domains_verified=True,
       handoff_links_verified=True,
     )
+  ####
   fidelity_flags_verified = bool(
     not chain.physical_closure_verified
     and chain.chain_promotion_blocked
@@ -5674,6 +6082,7 @@ def measure_moc_euler_post_shock_field_chain(
       handoff_links_verified=True,
       termination_verified=True,
     )
+  ####
   return MocEulerPostShockFieldChainAudit(
     status=MocEulerPostShockFieldChainAuditStatus.CONVERGED_LOCAL_AUDIT,
     **common,
@@ -5688,3 +6097,4 @@ def measure_moc_euler_post_shock_field_chain(
       'non-physical stop; ambient/free-boundary closure remains pending'
     ),
   )
+####

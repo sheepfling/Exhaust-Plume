@@ -75,6 +75,7 @@ def _open_lattice_metrics(characteristic_count: int) -> dict[str, float | int | 
     'physical_closure_status': zone.physical_closure_status,
     'shock_closure_status': zone.shock_closure_status,
   }
+####
 
 
 def test_open_reflected_lattice_refinement_is_monotone_but_not_a_physical_first_cell() -> None:
@@ -112,4 +113,4 @@ def test_open_reflected_lattice_refinement_is_monotone_but_not_a_physical_first_
   )
   assert all(metric['physical_closure_status'] == 'open' for metric in (coarse, medium, fine))
   assert all(metric['shock_closure_status'] == 'not_assembled' for metric in (coarse, medium, fine))
-  ####
+####

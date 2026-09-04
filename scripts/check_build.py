@@ -53,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     ]
     if arguments.offline:
       build_command.append('--no-isolation')
+    ####
     built = subprocess.run(
         build_command,
         cwd=ROOT,
@@ -72,6 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     venv_command = [sys.executable, "-m", "venv"]
     if arguments.offline:
       venv_command.append('--system-site-packages')
+    ####
     venv_command.append(str(environment_directory))
     created = subprocess.run(
         venv_command,
@@ -86,9 +88,11 @@ def main(argv: list[str] | None = None) -> int:
     install_commands = []
     if not arguments.offline:
       install_commands.append([python, "-m", "pip", "install", "--upgrade", "pip"])
+    ####
     wheel_install = [python, "-m", "pip", "install"]
     if arguments.offline:
       wheel_install.extend(["--no-index", "--no-deps"])
+    ####
     wheel_install.append(str(wheels[0]))
     install_commands.append(wheel_install)
     for command in install_commands:

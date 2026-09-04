@@ -72,6 +72,7 @@ class MocCausticShockRemeshPreparationStatus(str, Enum):
   INVALID_INPUT = 'invalid_input'
   SEED_FAILURE = 'caustic_remesh_seed_failure'
   LOCAL_SHOCK_FAILURE = 'caustic_remesh_local_shock_failure'
+####
 
 
 class MocCausticShockRemeshStatus(str, Enum):
@@ -85,6 +86,7 @@ class MocCausticShockRemeshStatus(str, Enum):
   SHOCK_CURVE_FAILURE = 'caustic_remesh_shock_curve_failure'
   DOWNSTREAM_FIELD_FAILURE = 'caustic_remesh_downstream_field_failure'
   REMESH_SEAM_FAILURE = 'caustic_remesh_new_family_seam_failure'
+####
 
 
 _DEFAULT_REQUIRED_OUTPUTS = (
@@ -119,10 +121,13 @@ class MocCausticShockRemeshRequest:
   def __post_init__(self) -> None:
     if not isinstance(self.seed, MocSourceStripCausticShockSeedResult):
       raise TypeError('seed must be a MocSourceStripCausticShockSeedResult')
+    ####
     if not isinstance(self.local_bridge, MocCausticShockBridgeResult):
       raise TypeError('local_bridge must be a MocCausticShockBridgeResult')
+    ####
     if not self.seed.converged:
       raise ValueError('caustic remesh request requires a converged one-sided seed')
+    ####
     if (
       not self.local_bridge.converged
       or not self.local_bridge.entropy_admissible
@@ -132,36 +137,46 @@ class MocCausticShockRemeshRequest:
         'caustic remesh request requires the entropy-admissible bridge built '
         'from the exact seed'
       )
+    ####
     event = self.seed.event
     if event is None or event.caustic_point_m is None:
       raise ValueError('caustic remesh request requires a bounded caustic point')
+    ####
     if len(self.event_point_m) != 2 or not all(
       isfinite(float(value)) for value in self.event_point_m
     ):
       raise ValueError('event_point_m must contain two finite coordinates')
+    ####
     if any(
       abs(float(first) - float(second)) > 1.0e-12
       for first, second in zip(self.event_point_m, event.caustic_point_m, strict=True)
     ):
       raise ValueError('event_point_m must match the seed caustic point exactly')
+    ####
     if (
       isinstance(self.upstream_edge_index, bool)
       or not isinstance(self.upstream_edge_index, int)
       or self.upstream_edge_index not in (0, 1)
     ):
       raise ValueError('upstream_edge_index must be 0 or 1')
+    ####
     if self.local_bridge.upstream_edge_index != self.upstream_edge_index:
       raise ValueError('local bridge upstream edge does not match the request')
+    ####
     if not isinstance(self.upstream_state, CharacteristicState):
       raise TypeError('upstream_state must be a CharacteristicState')
+    ####
     edge = self.seed.edge_states[self.upstream_edge_index]
     if edge.state is None or edge.static_pressure_Pa is None:
       raise ValueError('selected seed edge must carry a state and static pressure')
+    ####
     if self.upstream_state != edge.state:
       raise ValueError('upstream_state must match the selected one-sided seed state')
+    ####
     pressure = float(self.upstream_static_pressure_Pa)
     if not isfinite(pressure) or pressure <= 0.0:
       raise ValueError('upstream_static_pressure_Pa must be finite and positive')
+    ####
     if abs(pressure - float(edge.static_pressure_Pa)) > 1.0e-12 * max(
       1.0,
       abs(pressure),
@@ -170,28 +185,35 @@ class MocCausticShockRemeshRequest:
       raise ValueError(
         'upstream_static_pressure_Pa must match the selected one-sided seed state'
       )
+    ####
     if not isinstance(self.downstream_invariant_family, CharacteristicFamily):
       raise TypeError(
         'downstream_invariant_family must be a CharacteristicFamily'
       )
+    ####
     if self.local_bridge.downstream_invariant_family is not self.downstream_invariant_family:
       raise ValueError(
         'local bridge downstream invariant family does not match the request'
       )
+    ####
     target = float(self.downstream_invariant_target)
     if not isfinite(target):
       raise ValueError('downstream_invariant_target must be finite')
+    ####
     if self.local_bridge.downstream_invariant_target is None or abs(
       target - float(self.local_bridge.downstream_invariant_target)
     ) > 1.0e-12 * max(1.0, abs(target)):
       raise ValueError(
         'downstream_invariant_target must match the local bridge target'
       )
+    ####
     outputs = tuple(self.required_outputs)
     if not outputs or any(not isinstance(value, str) or not value for value in outputs):
       raise ValueError('required_outputs must contain non-empty strings')
+    ####
     if len(set(outputs)) != len(outputs):
       raise ValueError('required_outputs must not contain duplicates')
+    ####
     object.__setattr__(self, 'event_point_m', tuple(float(value) for value in self.event_point_m))
     object.__setattr__(self, 'upstream_static_pressure_Pa', pressure)
     object.__setattr__(self, 'downstream_invariant_target', target)
@@ -228,6 +250,7 @@ class MocCausticShockRemeshRequest:
       'chain_promotion_blocked': True,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,6 +300,7 @@ class MocCausticShockRemeshPreparationResult:
       reason = MocChainTerminationReason.INVALID_INPUT
     else:
       reason = MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+    ####
     event_point = (
       None
       if self.seed is None or self.seed.event is None
@@ -332,6 +356,7 @@ class MocCausticShockRemeshPreparationResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -363,11 +388,13 @@ class MocCausticShockRemeshResult:
         isfinite(float(value)) for value in self.event_point_m
       ):
         raise ValueError('event_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(
         self,
         'event_point_m',
         (float(self.event_point_m[0]), float(self.event_point_m[1])),
       )
+    ####
     for name in (
       'event_seam_verified',
       'local_bridge_state_verified',
@@ -377,6 +404,8 @@ class MocCausticShockRemeshResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.upstream_bridge_audit is not None and not isinstance(
       self.upstream_bridge_audit,
       MocCausticBridgeResult,
@@ -384,6 +413,7 @@ class MocCausticShockRemeshResult:
       raise TypeError(
         'upstream_bridge_audit must be a MocCausticBridgeResult when supplied'
       )
+    ####
   ####
 
   @property
@@ -411,6 +441,7 @@ class MocCausticShockRemeshResult:
       self.upstream_bridge_audit is not None
       and self.upstream_bridge_audit.converged
     )
+  ####
 
   @property
   def bounded_downstream_field_available(self) -> bool:
@@ -433,6 +464,7 @@ class MocCausticShockRemeshResult:
       and field.domain_x_extent_m is not None
       and field.domain_y_extent_m is not None
     )
+  ####
 
   def as_bounded_downstream_field(self) -> MocPostShockCharacteristicFieldResult:
     """Expose the remesh field for an explicit research continuation.
@@ -448,9 +480,11 @@ class MocCausticShockRemeshResult:
         'a bounded downstream continuation field requires a converged caustic '
         'remesh with every event, upstream, shock, and field seam gate passed'
       )
+    ####
     assert self.shock is not None
     assert self.shock.field is not None
     return self.shock.field
+  ####
 
   @property
   def remesh_seam_verified(self) -> bool:
@@ -486,6 +520,7 @@ class MocCausticShockRemeshResult:
       reason = MocChainTerminationReason.SOLVER_ERROR
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -556,6 +591,7 @@ class MocCausticShockRemeshResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _state_matches(
@@ -575,6 +611,7 @@ def _state_matches(
     and abs(actual.gamma - expected.gamma)
     <= state_tolerance * max(1.0, abs(actual.gamma), abs(expected.gamma))
   )
+####
 
 
 def _pressure_matches(
@@ -588,6 +625,7 @@ def _pressure_matches(
     abs(float(actual)),
     abs(float(expected)),
   )
+####
 
 
 def _caustic_bridge_audit_for_shock(
@@ -610,6 +648,7 @@ def _caustic_bridge_audit_for_shock(
     missing_index = shock.failed_sample_index
     if missing_index is None:
       missing_index = shock.sample_count
+    ####
     return replace(
       audit,
       status=MocCausticBridgeStatus.DOMAIN_GAP,
@@ -621,7 +660,9 @@ def _caustic_bridge_audit_for_shock(
         'extrapolation was used'
       ),
     )
+  ####
   return audit
+####
 
 
 def _remesh_result(
@@ -650,6 +691,7 @@ def _remesh_result(
     message=message,
     upstream_bridge_audit=upstream_bridge_audit,
   )
+####
 
 
 def solve_caustic_shock_remesh(
@@ -686,18 +728,21 @@ def solve_caustic_shock_remesh(
       MocCausticShockRemeshStatus.INVALID_INPUT,
       message='request must be a MocCausticShockRemeshRequest',
     )
+  ####
   if not callable(upstream_state_at) or not callable(upstream_pressure_at):
     return _remesh_result(
       MocCausticShockRemeshStatus.INVALID_INPUT,
       request=request,
       message='upstream state and pressure providers must be callable',
     )
+  ####
   if downstream_invariant_at is not None and not callable(downstream_invariant_at):
     return _remesh_result(
       MocCausticShockRemeshStatus.INVALID_INPUT,
       request=request,
       message='downstream_invariant_at must be callable when supplied',
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError:
@@ -706,6 +751,7 @@ def solve_caustic_shock_remesh(
       request=request,
       message='incoming_handoff must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if len(handoff) < 3 or any(
     not isinstance(sample, MocChainBoundarySample) for sample in handoff
   ):
@@ -714,6 +760,7 @@ def solve_caustic_shock_remesh(
       request=request,
       message='caustic remesh requires at least three typed incoming handoff samples',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -721,8 +768,11 @@ def solve_caustic_shock_remesh(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
 
   event_point = request.event_point_m
   try:
@@ -734,18 +784,21 @@ def solve_caustic_shock_remesh(
       request=request,
       message=f'caustic remesh upstream event sample failed: {error}',
     )
+  ####
   if not isinstance(event_state, CharacteristicState):
     return _remesh_result(
       MocCausticShockRemeshStatus.EVENT_SEAM_FAILURE,
       request=request,
       message='caustic remesh upstream event provider returned no CharacteristicState',
     )
+  ####
   if event_pressure is None or not isfinite(float(event_pressure)) or float(event_pressure) <= 0.0:
     return _remesh_result(
       MocCausticShockRemeshStatus.EVENT_SEAM_FAILURE,
       request=request,
       message='caustic remesh upstream event provider returned invalid pressure',
     )
+  ####
   event_state_verified = _state_matches(
     event_state,
     request.upstream_state,
@@ -766,6 +819,7 @@ def solve_caustic_shock_remesh(
         'one-sided request state and static pressure'
       ),
     )
+  ####
 
   law_target_verified = True
 
@@ -775,14 +829,17 @@ def solve_caustic_shock_remesh(
       target = request.downstream_invariant_target
     else:
       target = downstream_invariant_at(index, point_m)
+    ####
     try:
       target_value = float(target)
     except (TypeError, ValueError) as error:
       law_target_verified = False
       raise ValueError(f'downstream invariant law returned a nonnumeric value: {error}') from error
+    ####
     if not isfinite(target_value):
       law_target_verified = False
       raise ValueError('downstream invariant law returned a non-finite value')
+    ####
     if index == 0 and abs(target_value - request.downstream_invariant_target) > float(invariant_tolerance) * max(
       1.0,
       abs(target_value),
@@ -793,7 +850,9 @@ def solve_caustic_shock_remesh(
         'downstream invariant law does not reproduce the prepared local '
         'caustic bridge target at the remesh event'
       )
+    ####
     return target_value
+  ####
 
   try:
     shock = solve_marched_attached_shock_with_invariant_boundary(
@@ -820,6 +879,7 @@ def solve_caustic_shock_remesh(
       request=request,
       message=f'caustic remesh shock solve raised: {error}',
     )
+  ####
 
   shock_curve_verified = bool(
     shock.converged
@@ -843,6 +903,7 @@ def solve_caustic_shock_remesh(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       callback_samples = ()
+    ####
     upstream_coupling_verified = len(callback_samples) == len(shock.shock_points_m) and all(
       isinstance(state, CharacteristicState)
       and pressure is not None
@@ -872,6 +933,8 @@ def solve_caustic_shock_remesh(
           sample.total_pressure_Pa for sample in handoff
         )
       )
+    ####
+  ####
 
   local_bridge_state_verified = False
   if shock_curve_verified and shock.shock_fit is not None and shock.shock_fit.boundary_states:
@@ -910,6 +973,7 @@ def solve_caustic_shock_remesh(
         pressure_tolerance=float(pressure_tolerance),
       )
     )
+  ####
   remesh_seam_verified = bool(
     event_state_verified
     and event_pressure_verified
@@ -944,6 +1008,7 @@ def solve_caustic_shock_remesh(
       'characteristic field with exact event/upstream coupling; ambient physical '
       'closure remains a separate first-cell gate'
     )
+  ####
   return _remesh_result(
     status,
     request=request,
@@ -955,7 +1020,7 @@ def solve_caustic_shock_remesh(
     downstream_field_verified=downstream_field_verified,
     message=message,
   )
-  ####
+####
 
 
 def solve_caustic_shock_remesh_from_upstream_bridge(
@@ -990,12 +1055,14 @@ def solve_caustic_shock_remesh_from_upstream_bridge(
       MocCausticShockRemeshStatus.INVALID_INPUT,
       message='request must be a MocCausticShockRemeshRequest',
     )
+  ####
   if not isinstance(bridge, MocCausticUpstreamBridge):
     return _remesh_result(
       MocCausticShockRemeshStatus.INVALID_INPUT,
       request=request,
       message='bridge must be a MocCausticUpstreamBridge',
     )
+  ####
 
   event_audit = sample_caustic_upstream_bridge(
     bridge,
@@ -1017,6 +1084,7 @@ def solve_caustic_shock_remesh_from_upstream_bridge(
         f'event: {event_audit.message}'
       ),
     )
+  ####
   assert event_audit.samples
   event_sample = event_audit.samples[0]
   if not _state_matches(
@@ -1038,6 +1106,7 @@ def solve_caustic_shock_remesh_from_upstream_bridge(
         'reproduce the prepared one-sided state and static pressure'
       ),
     )
+  ####
 
   result = solve_caustic_shock_remesh(
     request,
@@ -1059,6 +1128,7 @@ def solve_caustic_shock_remesh_from_upstream_bridge(
   )
   if result.shock is None:
     return replace(result, upstream_bridge_audit=event_audit)
+  ####
   path_audit = _caustic_bridge_audit_for_shock(
     bridge,
     result.shock,
@@ -1075,8 +1145,9 @@ def solve_caustic_shock_remesh_from_upstream_bridge(
         'family bridge did not cover the complete shock path'
       ),
     )
-  return replace(result, upstream_bridge_audit=path_audit)
   ####
+  return replace(result, upstream_bridge_audit=path_audit)
+####
 
 
 def _failure(
@@ -1093,6 +1164,7 @@ def _failure(
     request=None,
     message=message,
   )
+####
 
 
 def prepare_caustic_shock_remesh(
@@ -1119,22 +1191,26 @@ def prepare_caustic_shock_remesh(
       MocCausticShockRemeshPreparationStatus.INVALID_INPUT,
       message='seed must be a MocSourceStripCausticShockSeedResult',
     )
+  ####
   if not isinstance(downstream_invariant_family, CharacteristicFamily):
     return _failure(
       MocCausticShockRemeshPreparationStatus.INVALID_INPUT,
       seed=seed,
       message='downstream_invariant_family must be a CharacteristicFamily',
     )
+  ####
   try:
     target = float(downstream_invariant_target)
   except (TypeError, ValueError):
     target = float('nan')
+  ####
   if not isfinite(target):
     return _failure(
       MocCausticShockRemeshPreparationStatus.INVALID_INPUT,
       seed=seed,
       message='downstream_invariant_target must be finite',
     )
+  ####
   if (
     isinstance(upstream_edge_index, bool)
     or not isinstance(upstream_edge_index, int)
@@ -1145,12 +1221,14 @@ def prepare_caustic_shock_remesh(
       seed=seed,
       message='upstream_edge_index must be 0 or 1',
     )
+  ####
   if not seed.converged or len(seed.edge_states) != 2 or seed.event is None:
     return _failure(
       MocCausticShockRemeshPreparationStatus.SEED_FAILURE,
       seed=seed,
       message=f'caustic seed is not usable: {seed.message}',
     )
+  ####
   edge = seed.edge_states[upstream_edge_index]
   if edge.state is None or edge.static_pressure_Pa is None:
     return _failure(
@@ -1158,6 +1236,7 @@ def prepare_caustic_shock_remesh(
       seed=seed,
       message='selected caustic edge lacks a state and static pressure',
     )
+  ####
   try:
     bridge = solve_caustic_shock_bridge(
       seed,
@@ -1176,6 +1255,7 @@ def prepare_caustic_shock_remesh(
       seed=seed,
       message=f'local caustic shock bridge raised: {error}',
     )
+  ####
   if (
     bridge.status is not MocCausticShockBridgeStatus.CONVERGED_LOCAL_COMPATIBILITY
     or not bridge.entropy_admissible
@@ -1189,6 +1269,7 @@ def prepare_caustic_shock_remesh(
         f'compatibility state: {bridge.message}'
       ),
     )
+  ####
   event_point = seed.event.caustic_point_m
   if event_point is None:
     return _failure(
@@ -1197,6 +1278,7 @@ def prepare_caustic_shock_remesh(
       local_bridge=bridge,
       message='caustic event does not expose a bounded crossing point',
     )
+  ####
   try:
     request = MocCausticShockRemeshRequest(
       seed=seed,
@@ -1215,6 +1297,7 @@ def prepare_caustic_shock_remesh(
       local_bridge=bridge,
       message=f'caustic remesh request failed validation: {error}',
     )
+  ####
   return MocCausticShockRemeshPreparationResult(
     status=MocCausticShockRemeshPreparationStatus.READY_FOR_COUPLED_REMESH,
     seed=seed,
@@ -1225,3 +1308,4 @@ def prepare_caustic_shock_remesh(
       'shock-curve/new-family remesh; no curve or downstream field is solved'
     ),
   )
+####

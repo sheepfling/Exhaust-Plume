@@ -241,8 +241,11 @@ def test_product_visualization_rejects_failed_results_and_unknown_rays() -> None
 
   with pytest.raises(ValueError, match='FAILED'):
     extract_product_visualization_data(failed)
+  ####
   with pytest.raises(KeyError, match='unknown ray_id'):
     extract_spectral_ray_transfer_lines(_ray_transfer_result(), ray_id='missing')
+  ####
   with pytest.raises(IndexError, match='direction_index'):
     extract_spectral_radiant_intensity_lines(result, direction_index=10)
+  ####
 ####

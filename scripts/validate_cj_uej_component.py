@@ -23,6 +23,7 @@ from zipfile import ZipFile
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / 'src') not in sys.path:
   sys.path.insert(0, str(REPO_ROOT / 'src'))
+####
 
 from exhaust_plume import (  # noqa: E402
   AmbientInput,
@@ -53,6 +54,7 @@ try:
   )
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus  # noqa: E402
+####
 
 
 CJ_BENCHMARK_ID = 'CJ-UEJ-001'
@@ -83,11 +85,16 @@ class CJRunConfiguration:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
+    ####
     if self.near_sonic_exit_mach <= 1.0:
       raise ValueError('near_sonic_exit_mach must be greater than one for the current exit contract')
+    ####
     if isinstance(self.max_cells, bool) or self.max_cells < 1:
       raise ValueError('max_cells must be a positive integer')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True)
@@ -95,6 +102,7 @@ class _ZoneMatch:
   zone: Any | None
   reason: str | None
   match_count: int
+####
 
 
 def _point_on_segment(
@@ -111,6 +119,7 @@ def _point_on_segment(
   scale = max(1.0, abs(dx), abs(dy), abs(x - x1), abs(y - y1))
   if abs(cross) > 1.0e-12 * scale:
     return False
+  ####
   return (
     min(x1, x2) - 1.0e-12 <= x <= max(x1, x2) + 1.0e-12
     and min(y1, y2) - 1.0e-12 <= y <= max(y1, y2) + 1.0e-12
@@ -129,10 +138,14 @@ def _strictly_contains(point: tuple[float, float], vertices: Any) -> bool:
     x2, y2 = (float(value) for value in vertices[(index + 1) % count])
     if _point_on_segment(x, y, x1, y1, x2, y2):
       return False
+    ####
     if (y1 > y) != (y2 > y):
       crossing_x = (x2 - x1) * (y - y1) / (y2 - y1) + x1
       if x < crossing_x:
         inside = not inside
+      ####
+    ####
+  ####
   return inside
 ####
 
@@ -148,10 +161,14 @@ def _contains_or_boundary(point: tuple[float, float], vertices: Any) -> bool:
     x2, y2 = (float(value) for value in vertices[(index + 1) % count])
     if _point_on_segment(x, y, x1, y1, x2, y2):
       return True
+    ####
     if (y1 > y) != (y2 > y):
       crossing_x = (x2 - x1) * (y - y1) / (y2 - y1) + x1
       if x < crossing_x:
         inside = not inside
+      ####
+    ####
+  ####
   return inside
 ####
 
@@ -163,14 +180,17 @@ def _match_zone(result: ShockCellSolveResult, x_m: float, radius_m: float) -> _Z
   )
   if len(interior_matches) == 1:
     return _ZoneMatch(zone=interior_matches[0], reason=None, match_count=1)
+  ####
   boundary_matches = tuple(
     zone for zone in result.zones
     if _contains_or_boundary((x_m, radius_m), zone.vertices_xr_m)
   )
   if len(boundary_matches) == 1:
     return _ZoneMatch(zone=boundary_matches[0], reason='boundary_selected', match_count=1)
+  ####
   if not boundary_matches:
     return _ZoneMatch(zone=None, reason='outside_or_boundary_support', match_count=0)
+  ####
   # The legacy construction commonly places the axis on more than one
   # closed-zone boundary.  A deterministic first-in-solver-order selection
   # keeps the diagnostic reproducible while recording that it is not a native
@@ -181,6 +201,7 @@ def _match_zone(result: ShockCellSolveResult, x_m: float, radius_m: float) -> _Z
       reason='centerline_boundary_first_solver_zone',
       match_count=len(boundary_matches),
     )
+  ####
   return _ZoneMatch(zone=None, reason='overlapping_support', match_count=len(boundary_matches))
 ####
 
@@ -189,6 +210,7 @@ def _float(row: Mapping[str, str], key: str) -> float:
   value = row.get(key)
   if value is None or value == '':
     raise ValueError(f'row is missing numeric field {key!r}')
+  ####
   return float(value)
 ####
 
@@ -200,12 +222,15 @@ def _prediction(
 ) -> float:
   if quantity == 'static_pressure_ratio':
     return flow.static_pressure / ambient_pressure_Pa
+  ####
   if quantity == 'axial_velocity':
     # The current ClosedZone state stores scalar speed, not a velocity vector.
     # The report labels this explicitly as an axial-speed proxy.
     return flow.speed_mps
+  ####
   if quantity == 'mach_number':
     return flow.mach
+  ####
   raise ValueError(f'unsupported validation quantity {quantity!r}')
 ####
 
@@ -229,12 +254,14 @@ def _sample_rows(
     if match.zone is None:
       skipped[match.reason or 'unavailable'] += 1
       continue
+    ####
     samples.append({
       'x_over_D': x_over_D,
       'observed': _float(row, observed_key),
       'predicted': _prediction(match.zone.flow, quantity, ambient_pressure_Pa),
       'uncertainty': max(0.0, _float(row, uncertainty_key)),
     })
+  ####
   return samples, dict(sorted(skipped.items()))
 ####
 
@@ -304,11 +331,13 @@ def _local_extrema(samples: Sequence[Mapping[str, float]]) -> list[dict[str, flo
       kind = 'minimum'
     else:
       continue
+    ####
     extrema.append({
       'kind': kind,
       'x_over_D': float(ordered[index]['x_over_D']),
       'value': current,
     })
+  ####
   return extrema
 ####
 
@@ -438,6 +467,7 @@ def _typed_claim(archive_sha256: str, configuration: CJRunConfiguration) -> dict
   operator_ids = {operator.operator_id for operator in registry.operators}
   if INTERNAL_OPERATOR_ID not in operator_ids:
     raise ValueError(f'{INTERNAL_OPERATOR_ID!r} is missing from the committed operator registry')
+  ####
   claim = ValidationClaim(
     claim_id='VAL-002-CJ-UEJ-LOCAL-FIELD-DIAGNOSTIC',
     benchmark_id=CJ_BENCHMARK_ID,
@@ -482,6 +512,7 @@ def _group_rows(rows: Sequence[Mapping[str, str]], keys: Sequence[str]) -> dict[
   grouped: dict[tuple[str, ...], list[Mapping[str, str]]] = defaultdict(list)
   for row in rows:
     grouped[tuple(str(row.get(key, '')) for key in keys)].append(row)
+  ####
   return dict(grouped)
 ####
 
@@ -521,11 +552,13 @@ def build_cj_uej_component_report(
   if preflight.get('status') != 'preflight-valid-pending-release-gates':
     report['errors'] = list(preflight.get('errors', ()))
     return report
+  ####
 
   with ZipFile(corpus_path) as archive_file:
     metadata = _read_json(archive_file, 'data/cj_uej_001_metadata.json')
     profile_rows = _read_csv(archive_file, 'data/cj_uej_001_profiles.csv')
     mach_rows = _read_csv(archive_file, 'data/cj_uej_001_mach_estimates.csv')
+  ####
   result, model_case = _case_from_metadata(metadata, configuration)
   diameter_m = float(model_case['exit_diameter_m'])
   pressure_groups = _group_rows(profile_rows, ('profile_id', 'observable'))
@@ -537,6 +570,7 @@ def build_cj_uej_component_report(
   for (profile_id, observable), rows in sorted(pressure_groups.items()):
     if observable not in quantity_by_observable:
       continue
+    ####
     quantity, observed_key, uncertainty_key = quantity_by_observable[observable]
     samples, skipped = _sample_rows(
       rows,
@@ -561,6 +595,7 @@ def build_cj_uej_component_report(
         'metric_ids': ['metric.profile.nrmse'],
       },
     ))
+  ####
   mach_results: list[dict[str, Any]] = []
   for (profile_id, method), rows in sorted(_group_rows(mach_rows, ('profile_id', 'method')).items()):
     samples, skipped = _sample_rows(
@@ -587,6 +622,7 @@ def build_cj_uej_component_report(
         'source_shift_variant': method == 'pressure_static_profile_shifted_downstream',
       },
     ))
+  ####
   x_values = [
     float(zone.vertices_xr_m[:, 0].min()) / diameter_m
     for zone in result.zones
@@ -641,9 +677,12 @@ def main(argv: list[str] | None = None) -> int:
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
+  ####
   print(serialized, end='')
   return 0 if report['validation_status'] != 'blocked-invalid-corpus' else 1
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

@@ -86,6 +86,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAuditS
   FLAG_FAILURE = (
     'entropy_characteristic_frontier_reconciliation_fidelity_flag_audit_failure'
   )
+####
 
 
 def _sample_residuals(
@@ -102,6 +103,7 @@ def _sample_residuals(
     abs(actual.state.gamma - expected.state.gamma),
     abs(log(actual.total_pressure_Pa / expected.total_pressure_Pa)),
   )
+####
 
 
 def _samples_match(
@@ -116,6 +118,7 @@ def _samples_match(
   expected_values = tuple(expected)
   if len(actual_values) != len(expected_values):
     return False
+  ####
   return all(
     residual[0] <= position_tolerance_m
     and residual[1] <= state_tolerance
@@ -131,6 +134,7 @@ def _samples_match(
       )
     )
   )
+####
 
 
 def _endpoint_residuals(
@@ -147,6 +151,7 @@ def _endpoint_residuals(
   expected_values = tuple(expected)
   if len(actual_values) < 2 or len(expected_values) != 2:
     return (), (), (), (), ()
+  ####
   residuals = tuple(
     _sample_residuals(actual_value, expected_value)
     for actual_value, expected_value in zip(
@@ -159,6 +164,7 @@ def _endpoint_residuals(
     tuple(residual[index] for residual in residuals)
     for index in range(5)
   )  # type: ignore[return-value]
+####
 
 
 def _residuals_within(
@@ -180,6 +186,7 @@ def _residuals_within(
     and all(value <= state_tolerance for values in residuals[1:4] for value in values)
     and all(value <= pressure_tolerance for value in residuals[4])
   )
+####
 
 
 def _fingerprint(
@@ -205,6 +212,7 @@ def _fingerprint(
     for sample in frontier.samples
   )
   return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+####
 
 
 def _arrays_close(
@@ -216,6 +224,7 @@ def _arrays_close(
     len(actual) == len(expected)
     and all(abs(left - right) <= tolerance for left, right in zip(actual, expected, strict=True))
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,27 +268,33 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAuditStatus,
     ):
       raise TypeError('status must be a frontier-reconciliation audit status')
+    ####
     if not isinstance(self.operator_id, str) or not self.operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     if self.reconciliation is not None and not isinstance(
       self.reconciliation,
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationResult,
     ):
       raise TypeError('reconciliation must be typed or None')
+    ####
     if self.closure_chain_audit is not None and not isinstance(
       self.closure_chain_audit,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudit,
     ):
       raise TypeError('closure_chain_audit must be typed or None')
+    ####
     if (
       isinstance(self.reextracted_frontier_count, bool)
       or not isinstance(self.reextracted_frontier_count, int)
       or self.reextracted_frontier_count < 0
     ):
       raise ValueError('reextracted_frontier_count must be nonnegative')
+    ####
     fingerprints = tuple(str(value) for value in self.reextracted_frontier_fingerprints)
     if any(not value for value in fingerprints):
       raise ValueError('reextracted_frontier_fingerprints must be non-empty strings')
+    ####
     object.__setattr__(self, 'reextracted_frontier_fingerprints', fingerprints)
     for name in (
       'planner_resolved',
@@ -299,14 +314,20 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_chain_cell_count < 0:
       raise ValueError('physical_chain_cell_count must be nonnegative')
+    ####
     if self.physical_closure_verified:
       raise ValueError('frontier reconciliation audit cannot claim physical closure')
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError('frontier reconciliation audit must retain promotion block')
+    ####
     if self.production_claim_allowed:
       raise ValueError('frontier reconciliation audit cannot claim production validity')
+    ####
     for name in (
       'maximum_endpoint_position_residual_m',
       'maximum_endpoint_flow_angle_residual_rad',
@@ -321,10 +342,14 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAudit:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative or None')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     object.__setattr__(self, 'operator_id', str(self.operator_id))
     object.__setattr__(self, 'message', str(self.message))
     object.__setattr__(self, 'diagnostics', {} if self.diagnostics is None else dict(self.diagnostics))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -332,6 +357,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAuditStatus
       .CONVERGED_GLOBAL_AUDIT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -353,14 +379,17 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAudit:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   @property
   def frontier_count(self) -> int:
     return self.reextracted_frontier_count
+  ####
 
   @property
   def seam_count(self) -> int:
     return max(0, self.reextracted_frontier_count - 1)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -400,6 +429,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationAudit:
       'diagnostics': dict(self.diagnostics or {}),
       'message': self.message,
     }
+  ####
+####
 
 
 def _audit_failure(
@@ -463,10 +494,12 @@ def _audit_failure(
     message=message,
     diagnostics=diagnostics,
   )
+####
 
 
 def _maximum(values: Sequence[float]) -> float | None:
   return None if not values else max(values)
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation(
@@ -493,6 +526,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
     MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationResult,
   ):
     return _audit_failure(status_type.INVALID_INPUT, 'result must be a typed frontier-reconciliation result')
+  ####
   try:
     tolerances = tuple(
       float(value)
@@ -511,8 +545,10 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
       'frontier-reconciliation audit tolerances must be numeric',
       reconciliation=result,
     )
+  ####
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('frontier-reconciliation audit tolerances must be finite and positive')
+  ####
   (
     position_tolerance,
     resolved_state_tolerance,
@@ -531,6 +567,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
       'reconciliation result did not retain its typed planner',
       reconciliation=result,
     )
+  ####
   try:
     chain_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
       planner,
@@ -546,6 +583,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
       f'independent closure-chain audit raised: {error}',
       reconciliation=result,
     )
+  ####
   if not chain_audit.local_consistency_verified:
     return _audit_failure(
       status_type.CHAIN_FAILURE,
@@ -555,6 +593,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
       planner_resolved=planner.resolved,
       diagnostics={'chain_audit_status': chain_audit.status.value},
     )
+  ####
 
   fresh_frontiers: list[MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierResult] = []
   fingerprints: list[str] = []
@@ -577,6 +616,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
         reextracted_frontier_count=len(fresh_frontiers),
         reextracted_frontier_fingerprints=fingerprints,
       )
+    ####
     frontier = extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       remesh,
       position_tolerance_m=position_tolerance,
@@ -592,8 +632,10 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
         reextracted_frontier_count=len(fresh_frontiers),
         reextracted_frontier_fingerprints=fingerprints,
       )
+    ####
     fresh_frontiers.append(frontier)
     fingerprints.append(_fingerprint(frontier))
+  ####
 
   frontier_fingerprints_verified = bool(
     tuple(fingerprints) == result.frontier_fingerprints
@@ -629,6 +671,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
         frontier.samples,
         continuation.continuation_boundary,
       )
+    ####
     endpoint_ok = _residuals_within(
       endpoint_residuals,
       position_tolerance_m=position_tolerance,
@@ -655,6 +698,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
     )
     frontier_records_verified = bool(frontier_records_verified and recorded_ok)
     anchor_links_verified = bool(anchor_links_verified and anchor_ok)
+  ####
 
   shape_verified = bool(
     len(result.anchors) == len(fresh_frontiers)
@@ -708,6 +752,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
         and spacing
         <= result.maximum_allowed_frontier_spacing_m + position_tolerance
       )
+    ####
     bridge_ok = bool(
       upstream_continuation is not None
       and downstream_continuation is not None
@@ -732,6 +777,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
     frontier_order_verified = bool(frontier_order_verified and order_ok and seam_ok)
     source_band_bridges_verified = bool(source_band_bridges_verified and bridge_ok and seam_ok)
     seams_verified = bool(seams_verified and seam_ok)
+  ####
   # The independently measured arrays are retained below without relying on
   # the result's aggregate properties.
   endpoint_values = [
@@ -816,36 +862,42 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
       'independent audit found weakened non-promotion flags',
       **common,
     )
+  ####
   if not termination_verified:
     return _audit_failure(
       status_type.TERMINATION_FAILURE,
       'independent audit found an invalid frontier-chain termination',
       **common,
     )
+  ####
   if not shape_verified or not frontier_fingerprints_verified or not frontier_records_verified:
     return _audit_failure(
       status_type.FRONTIER_FAILURE,
       'independent frontier extraction did not match the stored reconciliation',
       **common,
     )
+  ####
   if not anchor_links_verified:
     return _audit_failure(
       status_type.ANCHOR_FAILURE,
       'independent endpoint and anchor checks failed',
       **common,
     )
+  ####
   if not frontier_order_verified or not source_band_bridges_verified or not seams_verified:
     return _audit_failure(
       status_type.SEQUENCE_FAILURE,
       'independent adjacent-frontier seam checks failed',
       **common,
     )
+  ####
   if not planner_result_consistent:
     return _audit_failure(
       status_type.TERMINATION_FAILURE,
       'stored reconciliation convergence does not match independent gates',
       **common,
     )
+  ####
   return _audit_failure(
     status_type.CONVERGED_GLOBAL_AUDIT,
     'independent audit confirmed exact frontier records, endpoint anchors, '
@@ -853,6 +905,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
     'physical shock-cell closure remain unclaimed',
     **common,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -870,31 +923,41 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'case_id', case_id)
     angle = float(self.outer_flow_angle_half_width_rad)
     if not isfinite(angle) or angle <= 0.0:
       raise ValueError('outer_flow_angle_half_width_rad must be finite and positive')
+    ####
     object.__setattr__(self, 'outer_flow_angle_half_width_rad', angle)
     for name in ('cycle_count', 'subdivision_side_count', 'closure_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f'{name} must be a positive integer')
+      ####
+    ####
     if not isinstance(
       self.result,
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationResult,
     ):
       raise TypeError('result must be a typed frontier-reconciliation result')
+    ####
     if self.result.frontier_count != self.closure_count:
       raise ValueError('closure_count must match the reconciliation frontier count')
+    ####
     if self.result.planner is not None:
       if len(self.result.planner.closures) != self.closure_count:
         raise ValueError('closure_count must match the planner closure count')
+      ####
       if any(
         candidate.subdivision_side_count != self.subdivision_side_count
         or candidate.cycle_count != self.cycle_count
         for candidate in self.result.planner.closures
       ):
         raise ValueError('case solver parameters must match retained closure candidates')
+      ####
+    ####
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -909,6 +972,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       'seam_count': self.result.seam_count,
       'frontier_sample_counts': list(self.result.frontier_sample_counts),
     }
+  ####
+####
 
 
 class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus(
@@ -925,6 +990,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
   PARAMETER_FAILURE = 'frontier_reconciliation_refinement_parameter_failure'
   SHAPE_FAILURE = 'frontier_reconciliation_refinement_shape_failure'
   RESIDUAL_FAILURE = 'frontier_reconciliation_refinement_residual_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -982,10 +1048,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus,
     ):
       raise TypeError('status must be a frontier-refinement status')
+    ####
     cases = tuple(self.cases)
     audits = tuple(self.audits)
     if len(cases) != len(audits):
       raise ValueError('cases and audits must have equal lengths')
+    ####
     if any(
       not isinstance(
         case,
@@ -994,6 +1062,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       for case in cases
     ):
       raise TypeError('cases must contain typed frontier-refinement cases')
+    ####
     if any(
       not isinstance(
         audit,
@@ -1002,6 +1071,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       for audit in audits
     ):
       raise TypeError('audits must contain typed frontier-reconciliation audits')
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'audits', audits)
     for name in (
@@ -1024,7 +1094,9 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       values = tuple(getattr(self, name))
       if len(values) != len(cases):
         raise ValueError(f'{name} must match the case count')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'case_ids_verified',
       'parameter_refinement_verified',
@@ -1046,14 +1118,20 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_chain_cell_count < 0:
       raise ValueError('physical_chain_cell_count must be nonnegative')
+    ####
     if self.physical_closure_verified:
       raise ValueError('frontier refinement cannot claim physical closure')
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError('frontier refinement must retain promotion block')
+    ####
     if self.production_claim_allowed:
       raise ValueError('frontier refinement cannot claim production validity')
+    ####
     for name in (
       'maximum_endpoint_position_residuals_m',
       'maximum_endpoint_flow_angle_residuals_rad',
@@ -1066,10 +1144,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     angles = tuple(float(value) for value in self.outer_flow_angle_half_widths_rad)
     if any(not isfinite(value) or value <= 0.0 for value in angles):
       raise ValueError('outer_flow_angle_half_widths_rad must be finite and positive')
+    ####
     object.__setattr__(self, 'outer_flow_angle_half_widths_rad', angles)
     for name in (
       'position_tolerance_m',
@@ -1079,12 +1160,16 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -1092,6 +1177,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus
       .CONVERGED_LOCAL_REFINEMENT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -1114,6 +1200,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1166,6 +1253,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefine
       'external_validation_required': True,
       'message': self.message,
     }
+  ####
+####
 
 
 def _measurement_failure(
@@ -1239,6 +1328,7 @@ def _measurement_failure(
     pressure_tolerance=pressure_tolerance,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement_ladder(
@@ -1261,11 +1351,13 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus.INVALID_INPUT,
       'frontier-refinement cases must be iterable',
     )
+  ####
   if len(items) < 2:
     return _measurement_failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus.INVALID_INPUT,
       'at least two frontier-refinement cases are required',
     )
+  ####
   if any(
     not isinstance(
       case,
@@ -1277,6 +1369,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementStatus.INVALID_INPUT,
       'cases must contain typed frontier-refinement cases',
     )
+  ####
   tolerances = tuple(
     float(value)
     for value in (
@@ -1290,6 +1383,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
   )
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('frontier-refinement tolerances must be finite and positive')
+  ####
   (
     position_tolerance,
     resolved_state_tolerance,
@@ -1413,6 +1507,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
       'bracket ladder; this is local global-frontier evidence, not dense '
       'pointwise continuity or physical shock-cell promotion'
     )
+  ####
   return MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementMeasurement(
     status=status,
     cases=items,
@@ -1450,3 +1545,4 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconc
     pressure_tolerance=resolved_pressure_tolerance,
     message=message,
   )
+####

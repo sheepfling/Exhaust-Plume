@@ -75,6 +75,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureStatus(
     'entropy_characteristic_continuation_closure_euler_residual_failure'
   )
   CLOSURE_FAILURE = 'entropy_characteristic_continuation_closure_field_failure'
+####
 
 
 def _source_extent(source: EntropyContinuationSource) -> tuple[float, float] | None:
@@ -100,15 +101,20 @@ def _source_extent(source: EntropyContinuationSource) -> tuple[float, float] | N
     )
   else:
     return None
+  ####
   for point in points:
     try:
       value = float(point[0])
     except (IndexError, TypeError, ValueError):
       return None
+    ####
     if not isfinite(value):
       return None
+    ####
     values.append(value)
+  ####
   return None if not values else (min(values), max(values))
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +144,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureStatus,
     ):
       raise TypeError('status must be a continuation-closure status')
+    ####
     if self.source_field is not None and not isinstance(
       self.source_field,
       (
@@ -146,46 +153,60 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       ),
     ):
       raise TypeError('source_field must be a typed entropy source or None')
+    ####
     handoff = tuple(self.incoming_handoff)
     if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
       raise TypeError('incoming_handoff must contain typed boundary samples')
+    ####
     object.__setattr__(self, 'incoming_handoff', handoff)
     if self.continuation is not None and not isinstance(
       self.continuation,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
     ):
       raise TypeError('continuation must be typed or None')
+    ####
     if self.remesh is not None and not isinstance(
       self.remesh,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult,
     ):
       raise TypeError('remesh must be typed or None')
+    ####
     if self.closure is not None and not isinstance(
       self.closure,
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryResult,
     ):
       raise TypeError('closure must be typed or None')
+    ####
     if self.ambient_pressure_Pa is not None:
       pressure = float(self.ambient_pressure_Pa)
       if not isfinite(pressure) or pressure <= 0.0:
         raise ValueError('ambient_pressure_Pa must be finite and positive')
+      ####
       object.__setattr__(self, 'ambient_pressure_Pa', pressure)
+    ####
     if self.outer_flow_angle_bracket is not None:
       bracket = tuple(float(value) for value in self.outer_flow_angle_bracket)
       if len(bracket) != 2 or not all(isfinite(value) for value in bracket):
         raise ValueError('outer_flow_angle_bracket must contain two finite values')
+      ####
       if bracket[0] >= bracket[1]:
         raise ValueError('outer_flow_angle_bracket must be ordered')
+      ####
       object.__setattr__(self, 'outer_flow_angle_bracket', bracket)
+    ####
     for name in ('cycle_count', 'subdivision_side_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f'{name} must be a positive integer')
+      ####
+    ####
     for name in ('target_centerline_y_m', 'target_centerline_flow_angle_rad'):
       value = float(getattr(self, name))
       if not isfinite(value):
         raise ValueError(f'{name} must be finite')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'use_outgoing_frontier_bridge',
       'allow_zero_strength_attachment',
@@ -193,7 +214,10 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def source_kind(self) -> str | None:
@@ -202,12 +226,15 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
     ):
       return 'internal-entropy-characteristic-field'
+    ####
     if isinstance(
       self.source_field,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
     ):
       return 'variable-entropy-characteristic-continuation'
+    ####
     return None
+  ####
 
   @property
   def source_link_verified(self) -> bool:
@@ -216,6 +243,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       and self.continuation is not None
       and self.continuation.source_field is self.source_field
     )
+  ####
 
   @property
   def incoming_handoff_link_verified(self) -> bool:
@@ -225,6 +253,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       and self.continuation is not None
       and self.continuation.incoming_handoff == self.incoming_handoff
     )
+  ####
 
   @property
   def gradient_link_verified(self) -> bool:
@@ -235,15 +264,18 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       and self.continuation.source_pressure_gradient
       == self.source_field.source_pressure_gradient
     )
+  ####
 
   @property
   def fresh_domain_verified(self) -> bool:
     if self.source_field is None or self.continuation is None:
       return False
+    ####
     current_extent = _source_extent(self.source_field)
     next_extent = _source_extent(self.continuation)
     if current_extent is None or next_extent is None:
       return False
+    ####
     tolerance = (
       self.continuation.position_tolerance_m
       if self.continuation is not None
@@ -253,6 +285,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       next_extent[0] >= current_extent[1] - tolerance
       and next_extent[1] > current_extent[1] + tolerance
     )
+  ####
 
   @property
   def continuation_local_consistency_verified(self) -> bool:
@@ -260,6 +293,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       self.continuation is not None
       and self.continuation.local_consistency_verified
     )
+  ####
 
   @property
   def remesh_source_link_verified(self) -> bool:
@@ -268,6 +302,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       and self.remesh is not None
       and self.remesh.source_continuation is self.continuation
     )
+  ####
 
   @property
   def remesh_local_consistency_verified(self) -> bool:
@@ -275,6 +310,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       self.remesh is not None
       and self.remesh.local_characteristic_remesh_verified
     )
+  ####
 
   @property
   def source_euler_gate_verified(self) -> bool:
@@ -282,10 +318,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       self.remesh is not None
       and self.remesh.cell_euler_residuals_verified
     )
+  ####
 
   @property
   def closure_remesh_link_verified(self) -> bool:
     return bool(self.remesh is not None and self.closure is not None and self.closure.remesh is self.remesh)
+  ####
 
   @property
   def local_reflected_free_boundary_verified(self) -> bool:
@@ -293,6 +331,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       self.closure is not None
       and self.closure.reflected_free_boundary_verified
     )
+  ####
 
   @property
   def local_closure_verified(self) -> bool:
@@ -318,32 +357,39 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       and self.closure.path_coverage_verified
       and self.closure.outgoing_frontier_bridge_verified
     )
+  ####
 
   @property
   def converged(self) -> bool:
     return self.local_closure_verified
+  ####
 
   @property
   def physical_chain_cell_count(self) -> int:
     return 0
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The composed evidence is intentionally not a production claim."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   @property
   def external_validation_required(self) -> bool:
     return True
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     if self.status is (
@@ -370,6 +416,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -406,6 +453,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -450,6 +498,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _result(
@@ -489,6 +539,7 @@ def _result(
     allow_zero_strength_endpoints=allow_zero_strength_endpoints,
     message=message,
   )
+####
 
 
 def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
@@ -533,6 +584,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       None,
       message='source_field must be a typed entropy field or continuation',
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError:
@@ -541,6 +593,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       source_field,
       message='incoming_handoff must be iterable',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     return _result(
       status_type.INVALID_INPUT,
@@ -548,6 +601,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       handoff,
       message='incoming_handoff must contain typed boundary samples',
     )
+  ####
   try:
     pressure = float(ambient_pressure_Pa)
     lower_angle = float(outer_downstream_flow_angle_lower_rad)
@@ -559,6 +613,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       handoff,
       message='closure inputs must be numeric',
     )
+  ####
   if (
     not isfinite(pressure)
     or pressure <= 0.0
@@ -574,6 +629,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       outer_flow_angle_bracket=(lower_angle, upper_angle),
       message='ambient pressure must be positive and angle bracket ordered',
     )
+  ####
   if handoff != source_field.continuation_boundary or len(handoff) < 2:
     return _result(
       status_type.HANDOFF_FAILURE,
@@ -583,6 +639,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       outer_flow_angle_bracket=(lower_angle, upper_angle),
       message='incoming_handoff must exactly match the source continuation boundary',
     )
+  ####
   if not source_field.local_consistency_verified or not source_field.state_sampling_available:
     return _result(
       status_type.SOURCE_REQUIRED,
@@ -592,6 +649,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       outer_flow_angle_bracket=(lower_angle, upper_angle),
       message='source must expose a locally consistent bounded state sampler',
     )
+  ####
   common = {
     'ambient_pressure_Pa': pressure,
     'outer_flow_angle_bracket': (lower_angle, upper_angle),
@@ -625,6 +683,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       message=f'continuation solve raised: {error}',
       **common,
     )
+  ####
   if (
     not continuation.converged
     or not continuation.local_consistency_verified
@@ -642,6 +701,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       ),
       **common,
     )
+  ####
   try:
     remesh = remesh_euler_ambient_first_wedge_entropy_characteristic_continuation(
       continuation,
@@ -668,6 +728,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       message=f'continuation remesh raised: {error}',
       **common,
     )
+  ####
   if (
     not remesh.converged
     or not remesh.local_characteristic_remesh_verified
@@ -682,6 +743,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       message='continuation remesh did not pass its local characteristic gates',
       **common,
     )
+  ####
   if not remesh.cell_euler_residuals_verified:
     return _result(
       status_type.EULER_RESIDUAL_FAILURE,
@@ -695,6 +757,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       ),
       **common,
     )
+  ####
   remesh_handoff = remesh.continuation_boundary
   if not remesh_handoff:
     return _result(
@@ -706,6 +769,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       message='accepted remesh did not expose a continuation boundary',
       **common,
     )
+  ####
   start_point = remesh_handoff[0].point_m
   local_ambient_pressure = remesh.diagnostic_static_pressure_at(
     start_point,
@@ -721,6 +785,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       message='remesh did not provide a finite local ambient pressure at its frontier',
       **common,
     )
+  ####
   try:
     closure = solve_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
       remesh,
@@ -756,6 +821,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       message=f'reflected/free-boundary closure raised: {error}',
       **common,
     )
+  ####
   if not closure.converged or not closure.reflected_free_boundary_verified:
     return _result(
       status_type.CLOSURE_FAILURE,
@@ -770,6 +836,7 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
       ),
       **common,
     )
+  ####
   return _result(
     status_type.CONVERGED_LOCAL_CLOSURE,
     source_field,
@@ -784,3 +851,4 @@ def solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
     ),
     **common,
   )
+####

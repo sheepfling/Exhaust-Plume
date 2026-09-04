@@ -46,6 +46,7 @@ class MocTopologyResult:
   @property
   def is_closed(self) -> bool:
     return self.status is MocTopologyStatus.CLOSED
+  ####
 
   @property
   def forms_closed_zone(self) -> bool:
@@ -57,6 +58,7 @@ class MocTopologyResult:
       and self.boundary_component_count == 1
       and self.boundary_is_closed_cycle
     )
+  ####
 ####
 
 
@@ -80,6 +82,7 @@ def validate_moc_mesh(
 
   if not isfinite(vertex_tolerance_m) or vertex_tolerance_m <= 0.0:
     raise ValueError('vertex_tolerance_m must be finite and positive')
+  ####
   if not cells:
     return MocTopologyResult(
       status=MocTopologyStatus.INVALID_INPUT,
@@ -109,6 +112,7 @@ def validate_moc_mesh(
         connected=False,
         message=f'cell {cell_index} does not expose vertices_xr_m',
       )
+    ####
     points = np.asarray(vertices, dtype=float)
     if points.ndim != 2 or points.shape[1] != 2 or not np.isfinite(points).all():
       return MocTopologyResult(
@@ -122,6 +126,7 @@ def validate_moc_mesh(
         connected=False,
         message=f'cell {cell_index} has non-finite or malformed vertices',
       )
+    ####
     polygon = validate_polygon(points, tolerance=vertex_tolerance_m)
     if not polygon.is_valid:
       return MocTopologyResult(
@@ -135,6 +140,7 @@ def validate_moc_mesh(
         connected=False,
         message=f'cell {cell_index} is not a valid simple polygon: {polygon.status.value}',
       )
+    ####
     keys = tuple(_vertex_key(point, vertex_tolerance_m) for point in points)
     canonical_polygon = tuple(sorted(keys))
     if canonical_polygon in polygon_keys:
@@ -149,12 +155,14 @@ def validate_moc_mesh(
         connected=False,
         message=f'cell {cell_index} duplicates another cell',
       )
+    ####
     polygon_keys.add(canonical_polygon)
     for first, second in zip(keys, (*keys[1:], keys[0])):
       edge: tuple[tuple[int, int], tuple[int, int]] = (
         (first, second) if first <= second else (second, first)
       )
       edge_owners.setdefault(edge, []).append(cell_index)
+    ####
   ####
   nonmanifold_edges = [owners for owners in edge_owners.values() if len(owners) > 2]
   if nonmanifold_edges:
@@ -176,6 +184,8 @@ def validate_moc_mesh(
       first, second = owners
       adjacency[first].add(second)
       adjacency[second].add(first)
+    ####
+  ####
   visited = {0}
   frontier = [0]
   while frontier:
@@ -184,6 +194,9 @@ def validate_moc_mesh(
       if neighbor not in visited:
         visited.add(neighbor)
         frontier.append(neighbor)
+      ####
+    ####
+  ####
   connected = len(visited) == len(cells)
   boundary_edges = [edge for edge, owners in edge_owners.items() if len(owners) == 1]
   boundary_edge_count = len(boundary_edges)
@@ -191,6 +204,7 @@ def validate_moc_mesh(
   for first, second in boundary_edges:
     boundary_graph.setdefault(first, set()).add(second)
     boundary_graph.setdefault(second, set()).add(first)
+  ####
   boundary_is_closed_cycle = bool(boundary_graph) and all(
     len(neighbors) == 2 for neighbors in boundary_graph.values()
   )
@@ -199,6 +213,7 @@ def validate_moc_mesh(
   for start in boundary_graph:
     if start in boundary_visited:
       continue
+    ####
     boundary_component_count += 1
     boundary_frontier = [start]
     boundary_visited.add(start)
@@ -208,6 +223,10 @@ def validate_moc_mesh(
         if neighbor not in boundary_visited:
           boundary_visited.add(neighbor)
           boundary_frontier.append(neighbor)
+        ####
+      ####
+    ####
+  ####
   if not connected:
     status = MocTopologyStatus.DISCONNECTED
     message = 'MOC cells do not form one connected component'
@@ -222,6 +241,7 @@ def validate_moc_mesh(
   else:
     status = MocTopologyStatus.CLOSED
     message = ''
+  ####
   return MocTopologyResult(
     status=status,
     cell_count=len(cells),

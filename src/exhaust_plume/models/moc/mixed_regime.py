@@ -38,6 +38,7 @@ if TYPE_CHECKING:
   from exhaust_plume.models.moc.mixed_regime_entropy import (
     MocMixedRegimeEntropyHandoffResult,
   )
+####
 
 __all__ = (
   'MocMixedRegimeBoundaryStatus',
@@ -80,6 +81,7 @@ class MocMixedRegimeBoundaryStatus(str, Enum):
   SUBSONIC_FIELD_FAILURE = 'subsonic_field_failure'
   GEOMETRY_FAILURE = 'mixed_regime_geometry_failure'
   PRESSURE_FAILURE = 'mixed_regime_pressure_failure'
+####
 
 
 class MocMixedRegimeFieldStatus(str, Enum):
@@ -96,6 +98,7 @@ class MocMixedRegimeFieldStatus(str, Enum):
   THERMODYNAMIC_FAILURE = 'mixed_regime_thermodynamic_failure'
   RESIDUAL_FAILURE = 'mixed_regime_elliptic_residual_failure'
   POTENTIAL_FLOW_FAILURE = 'mixed_regime_potential_flow_failure'
+####
 
 
 class MocMixedRegimeDownstreamConditionKind(str, Enum):
@@ -155,8 +158,10 @@ class MocMixedRegimeFieldSample:
       point = (float(self.point_m[0]), float(self.point_m[1]))
     except (IndexError, TypeError, ValueError):
       raise ValueError('mixed-regime sample point must contain two finite coordinates') from None
+    ####
     if not all(isfinite(value) for value in point):
       raise ValueError('mixed-regime sample point must contain two finite coordinates')
+    ####
     values = (
       ('mach', self.mach, 0.0, 1.0),
       ('flow_angle_rad', self.flow_angle_rad, None, None),
@@ -168,16 +173,22 @@ class MocMixedRegimeFieldSample:
       value = float(raw_value)
       if not isfinite(value):
         raise ValueError(f'{name} must be finite')
+      ####
       if lower is not None and value <= lower:
         raise ValueError(f'{name} must be greater than {lower}')
+      ####
       if upper is not None and value >= upper:
         raise ValueError(f'{name} must be less than {upper}')
+      ####
+    ####
     object.__setattr__(self, 'point_m', point)
     object.__setattr__(self, 'mach', float(self.mach))
     object.__setattr__(self, 'flow_angle_rad', float(self.flow_angle_rad))
     object.__setattr__(self, 'static_pressure_Pa', float(self.static_pressure_Pa))
     object.__setattr__(self, 'total_pressure_Pa', float(self.total_pressure_Pa))
     object.__setattr__(self, 'gamma', float(self.gamma))
+  ####
+####
 
 
 MocMixedRegimeTerminal = MocNormalShockTerminalResult | MocSubsonicShockBoundaryResult
@@ -227,8 +238,10 @@ class MocMixedRegimePerimeterRequest:
         (MocNormalShockTerminalResult, MocSubsonicShockBoundaryResult),
     ):
       raise TypeError('terminal must be a normal-shock or subsonic boundary result')
+    ####
     if not self.terminal.converged or not self.terminal.subsonic:
       raise ValueError('terminal must be a converged subsonic boundary result')
+    ####
     terminal_values = (
       self.terminal.shock_point_m,
       self.terminal.downstream_mach,
@@ -241,13 +254,16 @@ class MocMixedRegimePerimeterRequest:
       raise ValueError(
         'terminal must expose complete scalar seam values for the perimeter request'
       )
+    ####
     expected_point, expected_mach, expected_angle, expected_pressure, expected_total_pressure, expected_ratio = terminal_values
     try:
       point = (float(self.terminal_point_m[0]), float(self.terminal_point_m[1]))
     except (IndexError, TypeError, ValueError):
       raise ValueError('terminal_point_m must contain two finite coordinates') from None
+    ####
     if not all(isfinite(value) for value in point):
       raise ValueError('terminal_point_m must contain two finite coordinates')
+    ####
     assert expected_point is not None
     assert expected_mach is not None
     assert expected_angle is not None
@@ -259,6 +275,7 @@ class MocMixedRegimePerimeterRequest:
       or abs(point[1] - expected_point[1]) > 1.0e-10
     ):
       raise ValueError('terminal_point_m does not match the terminal shock point')
+    ####
     for name, value, lower in (
       ('terminal_downstream_mach', self.terminal_downstream_mach, 0.0),
       ('terminal_downstream_pressure_Pa', self.terminal_downstream_pressure_Pa, 0.0),
@@ -268,13 +285,18 @@ class MocMixedRegimePerimeterRequest:
       numeric = float(value)
       if not isfinite(numeric) or numeric <= lower:
         raise ValueError(f'{name} must be finite and greater than {lower}')
+      ####
+    ####
     if self.terminal_downstream_mach >= 1.0:
       raise ValueError('terminal_downstream_mach must be subsonic')
+    ####
     if self.terminal_total_pressure_ratio >= 1.0:
       raise ValueError('terminal_total_pressure_ratio must show strict total-pressure loss')
+    ####
     angle = float(self.terminal_downstream_flow_angle_rad)
     if not isfinite(angle):
       raise ValueError('terminal_downstream_flow_angle_rad must be finite')
+    ####
     scalar_pairs = (
       ('terminal_downstream_mach', self.terminal_downstream_mach, expected_mach),
       ('terminal_downstream_flow_angle_rad', angle, expected_angle),
@@ -291,16 +313,22 @@ class MocMixedRegimePerimeterRequest:
         abs(expected_value),
       ):
         raise ValueError(f'{name} does not match the terminal shock result')
+      ####
+    ####
     patch = tuple(self.supersonic_patch)
     if not patch:
       raise ValueError('supersonic_patch must contain at least one boundary state')
+    ####
     if any(not isinstance(sample, MocPostShockBoundaryState) for sample in patch):
       raise TypeError('supersonic_patch must contain MocPostShockBoundaryState values')
+    ####
     if any(sample.state.mach <= 1.0 for sample in patch):
       raise ValueError('supersonic_patch must contain only supersonic states')
+    ####
     conditions = tuple(str(condition) for condition in self.required_boundary_conditions)
     if not conditions:
       raise ValueError('required_boundary_conditions must not be empty')
+    ####
     object.__setattr__(self, 'terminal_point_m', point)
     object.__setattr__(self, 'terminal_downstream_mach', float(self.terminal_downstream_mach))
     object.__setattr__(self, 'terminal_downstream_flow_angle_rad', angle)
@@ -366,6 +394,7 @@ class MocMixedRegimePerimeterRequest:
 
     return build_mixed_regime_entropy_handoff(self)
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -399,12 +428,16 @@ class MocMixedRegimeControlSection:
       raise ValueError(
         'control-section points and samples must be finite iterables'
       ) from error
+    ####
     if len(points) < 2:
       raise ValueError('control section requires at least two points')
+    ####
     if len(points) != len(samples):
       raise ValueError('control-section points and samples must have equal lengths')
+    ####
     if any(not all(isfinite(value) for value in point) for point in points):
       raise ValueError('control-section points must be finite')
+    ####
     if any(
       not isinstance(sample, MocMixedRegimeFieldSample)
       for sample in samples
@@ -412,15 +445,18 @@ class MocMixedRegimeControlSection:
       raise TypeError(
         'control-section samples must contain MocMixedRegimeFieldSample values'
       )
+    ####
     if any(
       hypot(sample.point_m[0] - point[0], sample.point_m[1] - point[1])
       > 1.0e-10
       for sample, point in zip(samples, points, strict=True)
     ):
       raise ValueError('control-section sample points must match its geometry')
+    ####
     normal_angle = float(self.normal_angle_rad)
     if not isfinite(normal_angle):
       raise ValueError('normal_angle_rad must be finite')
+    ####
     tangent = (-sin(normal_angle), cos(normal_angle))
     normal = (cos(normal_angle), sin(normal_angle))
     normal_coordinates = tuple(
@@ -433,6 +469,7 @@ class MocMixedRegimeControlSection:
     )
     if max(normal_coordinates) - min(normal_coordinates) > 1.0e-10:
       raise ValueError('control-section points must lie on one straight section')
+    ####
     if any(
       second <= first + 1.0e-10
       for first, second in zip(tangent_coordinates, tangent_coordinates[1:])
@@ -440,14 +477,17 @@ class MocMixedRegimeControlSection:
       raise ValueError(
         'control-section points must be strictly ordered along the section tangent'
       )
+    ####
     if any(
       hypot(second[0] - first[0], second[1] - first[1]) <= 1.0e-10
       for first, second in zip(points, points[1:])
     ):
       raise ValueError('control-section points must not contain zero-length segments')
+    ####
     source = str(self.source)
     if not source:
       raise ValueError('control-section source must be non-empty')
+    ####
     object.__setattr__(self, 'points_m', points)
     object.__setattr__(self, 'samples', samples)
     object.__setattr__(self, 'normal_angle_rad', normal_angle)
@@ -525,6 +565,7 @@ class MocMixedRegimeControlSection:
       ),
     }
   ####
+####
 
 
 class MocMixedRegimeControlSectionStatus(str, Enum):
@@ -563,16 +604,19 @@ class MocMixedRegimeControlSectionResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocMixedRegimeControlSectionStatus):
       raise TypeError('status must be a MocMixedRegimeControlSectionStatus')
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocMixedRegimePerimeterRequest,
     ):
       raise TypeError('request must be a MocMixedRegimePerimeterRequest or None')
+    ####
     if self.section is not None and not isinstance(
       self.section,
       MocMixedRegimeControlSection,
     ):
       raise TypeError('section must be a MocMixedRegimeControlSection or None')
+    ####
     for name in (
       'section_measure_m',
       'mass_flux_proxy',
@@ -585,6 +629,8 @@ class MocMixedRegimeControlSectionResult:
       value = getattr(self, name)
       if value is not None and not isfinite(float(value)):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -626,6 +672,7 @@ class MocMixedRegimeControlSectionResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -658,20 +705,25 @@ class MocMixedRegimeDownstreamPerimeterSpec:
       raise ValueError(
         'perimeter_points_m must contain two-coordinate numeric points'
       ) from error
+    ####
     if len(points) < 4:
       raise ValueError('perimeter_points_m must contain at least four points')
+    ####
     if any(not all(isfinite(value) for value in point) for point in points):
       raise ValueError('perimeter_points_m must contain finite points')
+    ####
     if hypot(
       points[-1][0] - points[0][0],
       points[-1][1] - points[0][1],
     ) > 1.0e-10:
       raise ValueError('perimeter_points_m must be explicitly closed')
+    ####
     if any(
       hypot(second[0] - first[0], second[1] - first[1]) <= 1.0e-10
       for first, second in zip(points[:-1], points[1:], strict=True)
     ):
       raise ValueError('perimeter_points_m must not contain zero-length segments')
+    ####
     if not isinstance(
       self.condition_kind,
       MocMixedRegimeDownstreamConditionKind,
@@ -679,6 +731,7 @@ class MocMixedRegimeDownstreamPerimeterSpec:
       raise TypeError(
         'condition_kind must be a MocMixedRegimeDownstreamConditionKind'
       )
+    ####
     ambient_pressure = self.ambient_pressure_Pa
     if ambient_pressure is not None:
       ambient_pressure = float(ambient_pressure)
@@ -686,9 +739,12 @@ class MocMixedRegimeDownstreamPerimeterSpec:
         raise ValueError(
           'ambient_pressure_Pa must be finite and positive when supplied'
         )
+      ####
+    ####
     model = str(self.model)
     if not model:
       raise ValueError('model must be a non-empty string')
+    ####
     try:
       condition_edges = tuple(self.condition_edge_indices)
       condition_samples = tuple(self.condition_sample_indices)
@@ -696,6 +752,7 @@ class MocMixedRegimeDownstreamPerimeterSpec:
       raise ValueError(
         'condition_edge_indices and condition_sample_indices must be iterable'
       ) from error
+    ####
     for name, indices, upper in (
       ('condition_edge_indices', condition_edges, len(points) - 2),
       ('condition_sample_indices', condition_samples, len(points) - 1),
@@ -710,8 +767,11 @@ class MocMixedRegimeDownstreamPerimeterSpec:
         raise ValueError(
           f'{name} must contain integer indices in the explicit perimeter range'
         )
+      ####
       if len(set(indices)) != len(indices):
         raise ValueError(f'{name} must not contain duplicate indices')
+      ####
+    ####
     object.__setattr__(self, 'perimeter_points_m', points)
     object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
     object.__setattr__(self, 'model', model)
@@ -743,6 +803,7 @@ class MocMixedRegimeDownstreamPerimeterSpec:
       ),
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -794,6 +855,7 @@ class MocMixedRegimeClosureResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -830,27 +892,33 @@ class MocMixedRegimeBoundaryResult:
       raise TypeError(
         'supersonic_patch must contain MocPostShockBoundaryState values'
       )
+    ####
     object.__setattr__(self, 'supersonic_patch', patch)
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocMixedRegimeBoundaryStatus.CONVERGED_BOUNDARY_HANDOFF
+  ####
 
   @property
   def mixed_regime_field_complete(self) -> bool:
     """Whether a subsonic characteristic/finite-volume field was supplied."""
 
     return False
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """A scalar perimeter handoff is not physical cell closure."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   def as_report(self) -> dict[str, object]:
     terminal_report = None if self.terminal is None else self.terminal.as_report()
@@ -879,6 +947,8 @@ class MocMixedRegimeBoundaryResult:
       'terminal': terminal_report,
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -910,10 +980,12 @@ class MocMixedRegimeDownstreamConditionResult:
   @property
   def converged(self) -> bool:
     return self.status is MocMixedRegimeDownstreamConditionStatus.CONVERGED
+  ####
 
   @property
   def physical_condition_verified(self) -> bool:
     return self.converged
+  ####
 
   @property
   def tangency_condition_applicable(self) -> bool:
@@ -923,12 +995,14 @@ class MocMixedRegimeDownstreamConditionResult:
       MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
       MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
     )
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     """A boundary condition is not a resolved supersonic chain handoff."""
 
     return True
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -951,6 +1025,8 @@ class MocMixedRegimeDownstreamConditionResult:
       'boundary': None if self.boundary is None else self.boundary.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1009,15 +1085,18 @@ class MocMixedRegimeFieldResult:
       or self.radial_divisions < 1
     ):
       raise ValueError('radial_divisions must be a positive integer')
+    ####
     if (
       isinstance(self.nonlinear_iteration_count, bool)
       or not isinstance(self.nonlinear_iteration_count, int)
       or self.nonlinear_iteration_count < 0
     ):
       raise ValueError('nonlinear_iteration_count must be a nonnegative integer')
+    ####
     potential = tuple(float(value) for value in self.velocity_potential)
     if any(not isfinite(value) for value in potential):
       raise ValueError('velocity_potential must contain finite values')
+    ####
     object.__setattr__(self, 'velocity_potential', potential)
     if self.downstream_condition is not None:
       if not isinstance(
@@ -1028,10 +1107,13 @@ class MocMixedRegimeFieldResult:
           'downstream_condition must be a '
           'MocMixedRegimeDownstreamConditionResult or None'
         )
+      ####
       if self.downstream_condition.boundary != self.boundary:
         raise ValueError(
           'downstream_condition must retain the exact scalar boundary'
         )
+      ####
+    ####
     if self.control_section is not None and not isinstance(
       self.control_section,
       MocMixedRegimeControlSection,
@@ -1039,6 +1121,7 @@ class MocMixedRegimeFieldResult:
       raise TypeError(
         'control_section must be a MocMixedRegimeControlSection or None'
       )
+    ####
     if self.maximum_boundary_normal_velocity_residual is not None:
       residual = float(self.maximum_boundary_normal_velocity_residual)
       if not isfinite(residual) or residual < 0.0:
@@ -1046,11 +1129,14 @@ class MocMixedRegimeFieldResult:
           'maximum_boundary_normal_velocity_residual must be finite and '
           'nonnegative when supplied'
         )
+      ####
       object.__setattr__(
         self,
         'maximum_boundary_normal_velocity_residual',
         residual,
       )
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
@@ -1058,18 +1144,22 @@ class MocMixedRegimeFieldResult:
       MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD,
       MocMixedRegimeFieldStatus.CONVERGED_COMPRESSIBLE_POTENTIAL_FIELD,
     )
+  ####
 
   @property
   def node_count(self) -> int:
     return len(self.nodes)
+  ####
 
   @property
   def cell_count(self) -> int:
     return len(self.cells)
+  ####
 
   @property
   def mixed_regime_field_complete(self) -> bool:
     return self.converged and self.physical_closure_verified
+  ####
 
   @property
   def model_closure_verified(self) -> bool:
@@ -1107,6 +1197,7 @@ class MocMixedRegimeFieldResult:
         and self.free_boundary_geometry_residual_m <= 1.0e-8
         and self.maximum_mass_conservation_residual <= 1.0e-8
       )
+    ####
     if self.model == 'compressible-isentropic-potential-reference':
       tangency_condition_required = bool(
         self.downstream_condition is not None
@@ -1131,6 +1222,7 @@ class MocMixedRegimeFieldResult:
           )
         )
       )
+    ####
     return bool(
       mesh_gates
       and self.maximum_harmonic_residual is not None
@@ -1138,6 +1230,7 @@ class MocMixedRegimeFieldResult:
       and self.maximum_harmonic_residual <= 1.0e-12
       and self.maximum_velocity_divergence_residual <= 1.0e-12
     )
+  ####
 
   @property
   def downstream_condition_verified(self) -> bool:
@@ -1148,18 +1241,21 @@ class MocMixedRegimeFieldResult:
       and self.downstream_condition.converged
       and self.downstream_condition.boundary == self.boundary
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """Whether the model and its downstream physical condition both passed."""
 
     return self.model_closure_verified and self.downstream_condition_verified
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     """A terminal subsonic field is a closure/stop, not a supersonic handoff."""
 
     return True
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -1209,6 +1305,8 @@ class MocMixedRegimeFieldResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1255,8 +1353,10 @@ class MocMixedRegimeFreeBoundaryResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocMixedRegimeFreeBoundaryStatus):
       raise TypeError('status must be a MocMixedRegimeFreeBoundaryStatus')
+    ####
     if not isinstance(self.request, MocMixedRegimePerimeterRequest):
       raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+    ####
     for name, value in (
       ('ambient_pressure_Pa', self.ambient_pressure_Pa),
       ('effective_inlet_height_m', self.effective_inlet_height_m),
@@ -1264,15 +1364,19 @@ class MocMixedRegimeFreeBoundaryResult:
     ):
       if not isfinite(float(value)) or float(value) <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
+    ####
     if (
       isinstance(self.iteration_count, bool)
       or not isinstance(self.iteration_count, int)
       or self.iteration_count < 0
     ):
       raise ValueError('iteration_count must be a nonnegative integer')
+    ####
     if self.height_bracket_m is not None:
       if len(self.height_bracket_m) != 2:
         raise ValueError('height_bracket_m must contain two values')
+      ####
       lower, upper = (float(value) for value in self.height_bracket_m)
       if (
         not isfinite(lower)
@@ -1281,7 +1385,9 @@ class MocMixedRegimeFreeBoundaryResult:
         or upper < lower
       ):
         raise ValueError('height_bracket_m must contain an ordered positive bracket')
+      ####
       object.__setattr__(self, 'height_bracket_m', (lower, upper))
+    ####
     for name in (
       'target_outlet_height_m',
       'outlet_height_m',
@@ -1295,10 +1401,14 @@ class MocMixedRegimeFreeBoundaryResult:
         numeric = float(value)
         if not isfinite(numeric):
           raise ValueError(f'{name} must be finite when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     model = str(self.model)
     if not model:
       raise ValueError('model must be a non-empty string')
+    ####
     object.__setattr__(self, 'model', model)
     object.__setattr__(self, 'message', str(self.message))
     if self.control_section is not None and not isinstance(
@@ -1308,6 +1418,7 @@ class MocMixedRegimeFreeBoundaryResult:
       raise TypeError(
         'control_section must be a MocMixedRegimeControlSection or None'
       )
+    ####
     if self.control_section_validation is not None and not isinstance(
       self.control_section_validation,
       MocMixedRegimeControlSectionResult,
@@ -1316,17 +1427,22 @@ class MocMixedRegimeFreeBoundaryResult:
         'control_section_validation must be a '
         'MocMixedRegimeControlSectionResult or None'
       )
+    ####
     if not isinstance(self.control_section_projection_verified, bool):
       raise TypeError('control_section_projection_verified must be a bool')
+    ####
     if not isinstance(self.control_section_flux_verified, bool):
       raise TypeError('control_section_flux_verified must be a bool')
+    ####
     if self.control_section_flux_proxy is not None:
       numeric = float(self.control_section_flux_proxy)
       if not isfinite(numeric):
         raise ValueError(
           'control_section_flux_proxy must be finite when supplied'
         )
+      ####
       object.__setattr__(self, 'control_section_flux_proxy', numeric)
+    ####
     for name in (
       'control_section_flux_equivalent_height_m',
       'control_section_flux_residual',
@@ -1338,7 +1454,10 @@ class MocMixedRegimeFreeBoundaryResult:
           raise ValueError(
             f'{name} must be finite and nonnegative when supplied'
           )
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     if (
       self.control_section_validation is not None
       and self.control_section_validation.section is not None
@@ -1348,6 +1467,8 @@ class MocMixedRegimeFreeBoundaryResult:
       raise ValueError(
         'control_section_validation must retain the exact control_section'
       )
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
@@ -1382,6 +1503,7 @@ class MocMixedRegimeFreeBoundaryResult:
 
     if self.closure is None:
       raise ValueError('free-boundary reference did not produce a closure result')
+    ####
     return self.closure
   ####
 
@@ -1450,10 +1572,12 @@ class MocMixedRegimeFreeBoundaryResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _empty_mixed_regime_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _field_failure(
@@ -1515,11 +1639,13 @@ def _field_failure(
     ),
     message=message,
   )
+####
 
 
 def _isentropic_total_pressure(sample: MocMixedRegimeFieldSample) -> float:
   factor = 1.0 + 0.5 * (sample.gamma - 1.0) * sample.mach * sample.mach
   return sample.static_pressure_Pa * factor ** (sample.gamma / (sample.gamma - 1.0))
+####
 
 
 def _polygon_signed_area(points: Sequence[tuple[float, float]]) -> float:
@@ -1527,6 +1653,7 @@ def _polygon_signed_area(points: Sequence[tuple[float, float]]) -> float:
     first[0] * second[1] - second[0] * first[1]
     for first, second in zip(points, (*points[1:], points[0]), strict=True)
   )
+####
 
 
 def _potential_boundary_normal_velocity_residual(
@@ -1550,21 +1677,27 @@ def _potential_boundary_normal_velocity_residual(
 
   if not condition_edge_indices:
     return None
+  ####
   area = _polygon_signed_area(unique_points)
   if abs(area) <= position_tolerance_m * position_tolerance_m:
     raise ValueError('potential perimeter has zero signed area for normal-flow measurement')
+  ####
   perimeter_count = len(unique_points)
   edge_to_triangles: dict[tuple[int, int], list[int]] = {}
   for triangle_index, triangle in enumerate(connectivity):
     if len(triangle) != 3:
       raise ValueError('potential normal-flow measurement requires triangular cells')
+    ####
     for first, second in zip(triangle, (*triangle[1:], triangle[0])):
       edge = (first, second) if first <= second else (second, first)
       edge_to_triangles.setdefault(edge, []).append(triangle_index)
+    ####
+  ####
   if len(connectivity) != len(triangle_velocities):
     raise ValueError(
       'potential normal-flow measurement has mismatched cell gradients'
     )
+  ####
   orientation = 1.0 if area > 0.0 else -1.0
   residuals: list[float] = []
   for edge_index in condition_edge_indices:
@@ -1575,6 +1708,7 @@ def _potential_boundary_normal_velocity_residual(
       or edge_index >= perimeter_count
     ):
       raise ValueError('potential normal-flow measurement received an invalid edge index')
+    ####
     next_index = (edge_index + 1) % perimeter_count
     first_node = outer_start + edge_index
     second_node = outer_start + next_index
@@ -1589,6 +1723,7 @@ def _potential_boundary_normal_velocity_residual(
         'potential normal-flow measurement requires exactly one adjacent '
         f'triangle for outer edge {edge_index}'
       )
+    ####
     displacement = (
       unique_points[next_index][0] - unique_points[edge_index][0],
       unique_points[next_index][1] - unique_points[edge_index][1],
@@ -1598,6 +1733,7 @@ def _potential_boundary_normal_velocity_residual(
       raise ValueError(
         'potential normal-flow measurement encountered a zero-length outer edge'
       )
+    ####
     outward_normal = (
       orientation * displacement[1] / segment_length,
       -orientation * displacement[0] / segment_length,
@@ -1607,11 +1743,14 @@ def _potential_boundary_normal_velocity_residual(
       raise ValueError(
         'potential normal-flow measurement encountered a non-finite triangle velocity'
       )
+    ####
     residuals.append(abs(
       velocity[0] * outward_normal[0]
       + velocity[1] * outward_normal[1]
     ))
+  ####
   return max(residuals, default=None)
+####
 
 
 def _convex_polygon(points: Sequence[tuple[float, float]], tolerance_m: float) -> bool:
@@ -1642,14 +1781,18 @@ def _convex_polygon(points: Sequence[tuple[float, float]], tolerance_m: float) -
     )
     if abs(cross) > cross_tolerance:
       signs.append(cross)
+    ####
+  ####
   return bool(signs) and (
     all(value > 0.0 for value in signs)
     or all(value < 0.0 for value in signs)
   )
+####
 
 
 def _relative_residual(actual: float, expected: float) -> float:
   return abs(actual - expected) / max(1.0, abs(actual), abs(expected))
+####
 
 
 def _triangle_velocity_divergence(
@@ -1657,6 +1800,7 @@ def _triangle_velocity_divergence(
 ) -> float:
   if len(vertices) != 3:
     return float('inf')
+  ####
   first, second, third = vertices
   x1, y1 = first.point_m
   x2, y2 = second.point_m
@@ -1664,6 +1808,7 @@ def _triangle_velocity_divergence(
   area_twice = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
   if abs(area_twice) <= 1.0e-20:
     return float('inf')
+  ####
   velocities = tuple(
     (
       sample.mach * cos(sample.flow_angle_rad),
@@ -1684,6 +1829,7 @@ def _triangle_velocity_divergence(
     / area_twice
   )
   return abs(dudy + dvdy)
+####
 
 
 def _harmonic_radial_levels(
@@ -1710,10 +1856,13 @@ def _harmonic_radial_levels(
   values = tuple(float(value) for value in boundary_values)
   if len(values) < 3:
     raise ValueError('harmonic radial levels require at least three boundary values')
+  ####
   if any(not isfinite(value) for value in values):
     raise ValueError('harmonic radial levels require finite boundary values')
+  ####
   if logarithmic and any(value <= 0.0 for value in values):
     raise ValueError('logarithmic harmonic radial levels require positive values')
+  ####
   transformed = tuple(log(value) for value in values) if logarithmic else values
   sample_count = len(values)
 
@@ -1727,6 +1876,7 @@ def _harmonic_radial_levels(
       ),
       0.0,
     )
+  ####
 
   unknown_count = 1 + (radial_divisions - 1) * sample_count
   matrix = np.zeros((unknown_count, unknown_count), dtype=float)
@@ -1735,7 +1885,9 @@ def _harmonic_radial_levels(
   def ring_index(level: int, index: int) -> int:
     if level < 1 or level >= radial_divisions:
       raise ValueError('ring level must be an interior radial level')
+    ####
     return 1 + (level - 1) * sample_count + index % sample_count
+  ####
 
   # The center node is coupled to the first interior ring.  This keeps the
   # polygonal mesh single-valued instead of duplicating a center vertex once
@@ -1743,6 +1895,7 @@ def _harmonic_radial_levels(
   matrix[0, 0] = float(sample_count)
   for index in range(sample_count):
     matrix[0, ring_index(1, index)] = -1.0
+  ####
 
   for level in range(1, radial_divisions):
     for index in range(sample_count):
@@ -1752,19 +1905,25 @@ def _harmonic_radial_levels(
         matrix[row, 0] -= 1.0
       else:
         matrix[row, ring_index(level - 1, index)] -= 1.0
+      ####
       if level + 1 == radial_divisions:
         right_hand_side[row] += transformed[index]
       else:
         matrix[row, ring_index(level + 1, index)] -= 1.0
+      ####
       matrix[row, ring_index(level, index - 1)] -= 1.0
       matrix[row, ring_index(level, index + 1)] -= 1.0
+    ####
+  ####
 
   try:
     solution = np.linalg.solve(matrix, right_hand_side)
   except np.linalg.LinAlgError as error:
     raise ValueError('harmonic radial reference system is singular') from error
+  ####
   if not np.isfinite(solution).all():
     raise ValueError('harmonic radial reference system returned non-finite values')
+  ####
 
   residual = float(np.max(np.abs(matrix @ solution - right_hand_side)))
   transformed_levels: list[tuple[float, ...]] = [
@@ -1774,6 +1933,7 @@ def _harmonic_radial_levels(
     transformed_levels.append(
       tuple(float(solution[ring_index(level, index)]) for index in range(sample_count))
     )
+  ####
   transformed_levels.append(transformed)
   if logarithmic:
     return (
@@ -1783,7 +1943,9 @@ def _harmonic_radial_levels(
       ),
       residual,
     )
+  ####
   return tuple(transformed_levels), residual
+####
 
 
 def _radial_mesh_points(
@@ -1805,7 +1967,9 @@ def _radial_mesh_points(
         for point in perimeter_points
       )
     )
+  ####
   return tuple(rings)
+####
 
 
 def _radial_mesh_connectivity(
@@ -1816,13 +1980,17 @@ def _radial_mesh_connectivity(
 
   if len(rings) < 2 or len(rings[0]) != 1:
     raise ValueError('radial mesh must contain a center and an outer ring')
+  ####
   if perimeter_count < 3:
     raise ValueError('radial mesh requires at least three perimeter vertices')
+  ####
 
   def ring_node_index(level: int, index: int) -> int:
     if level < 1 or level >= len(rings):
       raise ValueError('radial mesh ring level is outside the mesh')
+    ####
     return 1 + (level - 1) * perimeter_count + index % perimeter_count
+  ####
 
   cells: list[MocCharacteristicCell] = []
   connectivity: list[tuple[int, int, int]] = []
@@ -1839,6 +2007,7 @@ def _radial_mesh_connectivity(
         boundary_indices=(index, next_index),
       )
     )
+  ####
   for level in range(1, len(rings) - 1):
     inner_ring = rings[level]
     outer_ring = rings[level + 1]
@@ -1868,7 +2037,10 @@ def _radial_mesh_connectivity(
           boundary_indices=(index, next_index),
         ),
       ))
+    ####
+  ####
   return tuple(cells), tuple(connectivity)
+####
 
 
 def _potential_primitive(
@@ -1880,16 +2052,20 @@ def _potential_primitive(
 
   if not isfinite(q_x) or not isfinite(q_y) or not isfinite(gamma) or gamma <= 1.0:
     raise ValueError('potential primitive inputs must be finite with gamma greater than one')
+  ####
   speed_squared = q_x * q_x + q_y * q_y
   sonic_factor = 0.5 * (gamma - 1.0)
   enthalpy_factor = 1.0 - sonic_factor * speed_squared
   if enthalpy_factor <= 0.0:
     raise ValueError('potential velocity reached a nonphysical enthalpy factor')
+  ####
   mach = sqrt(speed_squared / enthalpy_factor)
   density = enthalpy_factor ** (1.0 / (gamma - 1.0))
   if not isfinite(mach) or not isfinite(density):
     raise ValueError('potential primitive returned a non-finite state')
+  ####
   return mach, density
+####
 
 
 def _potential_flux_and_jacobian(
@@ -1914,6 +2090,7 @@ def _potential_flux_and_jacobian(
     -jacobian_scale * q_y * q_x,
     density - jacobian_scale * q_y * q_y,
   )
+####
 
 
 def _triangle_basis_gradients(
@@ -1923,6 +2100,7 @@ def _triangle_basis_gradients(
 
   if len(vertices) != 3:
     raise ValueError('potential-flow finite elements require triangular cells')
+  ####
   first, second, third = vertices
   x1, y1 = first
   x2, y2 = second
@@ -1930,12 +2108,14 @@ def _triangle_basis_gradients(
   area_twice = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
   if not isfinite(area_twice) or abs(area_twice) <= 1.0e-20:
     raise ValueError('potential-flow finite element has zero area')
+  ####
   gradients = (
     ((y2 - y3) / area_twice, (x3 - x2) / area_twice),
     ((y3 - y1) / area_twice, (x1 - x3) / area_twice),
     ((y1 - y2) / area_twice, (x2 - x1) / area_twice),
   )
   return abs(area_twice) * 0.5, gradients
+####
 
 
 def _solve_mixed_regime_radial_reference_field(
@@ -1982,12 +2162,14 @@ def _solve_mixed_regime_radial_reference_field(
       radial_divisions=radial_divisions,
       message=f'mixed-regime radial reference solve failed: {error}',
     )
+  ####
 
   levels: list[tuple[MocMixedRegimeFieldSample, ...]] = []
   for level, points in enumerate(rings):
     if level == radial_divisions:
       levels.append(unique_samples)
       continue
+    ####
     level_samples: list[MocMixedRegimeFieldSample] = []
     for index, point in enumerate(points):
       mach = mach_levels[level][index]
@@ -2018,7 +2200,10 @@ def _solve_mixed_regime_radial_reference_field(
           radial_divisions=radial_divisions,
           message=f'mixed-regime radial scalar state failed at level {level}: {error}',
         )
+      ####
+    ####
     levels.append(tuple(level_samples))
+  ####
 
   nodes = tuple(sample for level_samples in levels for sample in level_samples)
   thermodynamic_residual = max(
@@ -2046,6 +2231,7 @@ def _solve_mixed_regime_radial_reference_field(
         f'isentrope relation: residual={thermodynamic_residual}'
       ),
     )
+  ####
 
   cells: list[MocCharacteristicCell] = []
   try:
@@ -2062,6 +2248,7 @@ def _solve_mixed_regime_radial_reference_field(
           boundary_indices=(index, next_index),
         )
       )
+    ####
     for level in range(1, radial_divisions):
       inner_ring = rings[level]
       outer_ring = rings[level + 1]
@@ -2088,6 +2275,8 @@ def _solve_mixed_regime_radial_reference_field(
             boundary_indices=(index, next_index),
           ),
         ))
+      ####
+    ####
   except (TypeError, ValueError) as error:
     return _field_failure(
       MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
@@ -2101,6 +2290,7 @@ def _solve_mixed_regime_radial_reference_field(
       radial_divisions=radial_divisions,
       message=f'mixed-regime radial mesh geometry failed: {error}',
     )
+  ####
 
   topology = validate_moc_mesh(tuple(cells))
   if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
@@ -2117,6 +2307,7 @@ def _solve_mixed_regime_radial_reference_field(
       radial_divisions=radial_divisions,
       message=f'mixed-regime radial mesh topology failed: {topology.message}',
     )
+  ####
 
   node_lookup: dict[tuple[float, float], MocMixedRegimeFieldSample] = {
     sample.point_m: sample
@@ -2149,6 +2340,7 @@ def _solve_mixed_regime_radial_reference_field(
         f'harmonic={harmonic_residual}, divergence={divergence_residual}'
       ),
     )
+  ####
   return MocMixedRegimeFieldResult(
     status=MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD,
     boundary=boundary,
@@ -2170,6 +2362,7 @@ def _solve_mixed_regime_radial_reference_field(
       'supersonic MOC lane'
     ),
   )
+####
 
 
 def solve_mixed_regime_subsonic_field(
@@ -2204,6 +2397,7 @@ def solve_mixed_regime_subsonic_field(
 
   if not isinstance(boundary, MocMixedRegimeBoundaryResult):
     raise TypeError('boundary must be a MocMixedRegimeBoundaryResult')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('thermodynamic_tolerance', thermodynamic_tolerance),
@@ -2211,12 +2405,15 @@ def solve_mixed_regime_subsonic_field(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if (
     isinstance(radial_divisions, bool)
     or not isinstance(radial_divisions, int)
     or radial_divisions < 1
   ):
     raise ValueError('radial_divisions must be a positive integer')
+  ####
   if downstream_condition is not None:
     if not isinstance(
       downstream_condition,
@@ -2226,6 +2423,7 @@ def solve_mixed_regime_subsonic_field(
         'downstream_condition must be a '
         'MocMixedRegimeDownstreamConditionResult or None'
       )
+    ####
     if downstream_condition.boundary != boundary:
       return _field_failure(
         MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
@@ -2235,6 +2433,7 @@ def solve_mixed_regime_subsonic_field(
           'boundary supplied to the field solver'
         ),
       )
+    ####
     if not downstream_condition.converged:
       return _field_failure(
         MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
@@ -2245,12 +2444,15 @@ def solve_mixed_regime_subsonic_field(
           f'condition: {downstream_condition.message}'
         ),
       )
+    ####
+  ####
   if not boundary.converged:
     return _field_failure(
       MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
       boundary,
       message=f'mixed-regime field requires a converged boundary handoff: {boundary.message}',
     )
+  ####
   samples = boundary.subsonic_samples
   points = boundary.perimeter_points_m
   if len(samples) < 4 or len(points) != len(samples):
@@ -2260,6 +2462,7 @@ def solve_mixed_regime_subsonic_field(
       nodes=samples,
       message='mixed-regime field requires a closed perimeter with matching scalar samples',
     )
+  ####
   if any(
     hypot(sample.point_m[0] - point[0], sample.point_m[1] - point[1])
     > position_tolerance_m
@@ -2271,6 +2474,7 @@ def solve_mixed_regime_subsonic_field(
       nodes=samples,
       message='mixed-regime scalar sample coordinates do not match the perimeter geometry',
     )
+  ####
   unique_samples = samples[:-1]
   unique_points = points[:-1]
   if len(unique_samples) < 3:
@@ -2280,6 +2484,7 @@ def solve_mixed_regime_subsonic_field(
       nodes=samples,
       message='mixed-regime field requires at least three unique perimeter vertices',
     )
+  ####
   area = _polygon_signed_area(unique_points)
   if abs(area) <= position_tolerance_m * position_tolerance_m:
     return _field_failure(
@@ -2288,6 +2493,7 @@ def solve_mixed_regime_subsonic_field(
       nodes=samples,
       message='mixed-regime perimeter has zero signed area',
     )
+  ####
   if not _convex_polygon(unique_points, position_tolerance_m):
     return _field_failure(
       MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
@@ -2295,6 +2501,7 @@ def solve_mixed_regime_subsonic_field(
       nodes=samples,
       message='mixed-regime reference field requires a convex perimeter fan',
     )
+  ####
   center_point = (
     sum(point[0] for point in unique_points) / len(unique_points),
     sum(point[1] for point in unique_points) / len(unique_points),
@@ -2311,6 +2518,7 @@ def solve_mixed_regime_subsonic_field(
       residual_tolerance=residual_tolerance,
       downstream_condition=downstream_condition,
     )
+  ####
   center_sample = MocMixedRegimeFieldSample(
     point_m=center_point,
     mach=sum(sample.mach for sample in unique_samples) / len(unique_samples),
@@ -2336,6 +2544,7 @@ def solve_mixed_regime_subsonic_field(
         f'total-pressure relation: residual={thermodynamic_residual}'
       ),
     )
+  ####
   harmonic_residual = max(
     value
     for value in (
@@ -2359,6 +2568,7 @@ def solve_mixed_regime_subsonic_field(
           boundary_indices=(index, (index + 1) % len(unique_points)),
         )
       )
+    ####
   except ValueError as error:
     return _field_failure(
       MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
@@ -2369,6 +2579,7 @@ def solve_mixed_regime_subsonic_field(
       maximum_harmonic_residual=harmonic_residual,
       message=f'mixed-regime fan-cell geometry failed: {error}',
     )
+  ####
   topology = validate_moc_mesh(tuple(cells))
   if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
     return _field_failure(
@@ -2382,6 +2593,7 @@ def solve_mixed_regime_subsonic_field(
       maximum_harmonic_residual=harmonic_residual,
       message=f'mixed-regime fan topology failed: {topology.message}',
     )
+  ####
   node_by_index = {index: sample for index, sample in enumerate(unique_samples)}
   node_by_index[len(unique_samples)] = center_sample
   divergence_residual = max(
@@ -2408,6 +2620,7 @@ def solve_mixed_regime_subsonic_field(
         f'harmonic={harmonic_residual}, divergence={divergence_residual}'
       ),
     )
+  ####
   return MocMixedRegimeFieldResult(
     status=MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD,
     boundary=boundary,
@@ -2432,6 +2645,7 @@ def solve_mixed_regime_subsonic_field(
       + 'this model remains separate from the supersonic MOC lane'
     ),
   )
+####
 
 
 def solve_mixed_regime_compressible_potential_field(
@@ -2470,6 +2684,7 @@ def solve_mixed_regime_compressible_potential_field(
   model = 'compressible-isentropic-potential-reference'
   if not isinstance(boundary, MocMixedRegimeBoundaryResult):
     raise TypeError('boundary must be a MocMixedRegimeBoundaryResult')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('thermodynamic_tolerance', thermodynamic_tolerance),
@@ -2480,20 +2695,25 @@ def solve_mixed_regime_compressible_potential_field(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if subsonic_margin >= 1.0:
     raise ValueError('subsonic_margin must be less than one')
+  ####
   if (
     isinstance(radial_divisions, bool)
     or not isinstance(radial_divisions, int)
     or radial_divisions < 1
   ):
     raise ValueError('radial_divisions must be a positive integer')
+  ####
   if (
     isinstance(maximum_iterations, bool)
     or not isinstance(maximum_iterations, int)
     or maximum_iterations < 1
   ):
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
 
   if downstream_condition is not None:
     if not isinstance(
@@ -2504,6 +2724,7 @@ def solve_mixed_regime_compressible_potential_field(
         'downstream_condition must be a '
         'MocMixedRegimeDownstreamConditionResult or None'
       )
+    ####
     if downstream_condition.boundary != boundary:
       return _field_failure(
         MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
@@ -2515,6 +2736,7 @@ def solve_mixed_regime_compressible_potential_field(
           'retained by the downstream condition'
         ),
       )
+    ####
     if not downstream_condition.converged:
       return _field_failure(
         MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
@@ -2527,6 +2749,8 @@ def solve_mixed_regime_compressible_potential_field(
           f'physical condition: {downstream_condition.message}'
         ),
       )
+    ####
+  ####
   if not boundary.converged:
     return _field_failure(
       MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
@@ -2538,6 +2762,7 @@ def solve_mixed_regime_compressible_potential_field(
         f'handoff: {boundary.message}'
       ),
     )
+  ####
 
   samples = boundary.subsonic_samples
   points = boundary.perimeter_points_m
@@ -2553,6 +2778,7 @@ def solve_mixed_regime_compressible_potential_field(
         'matching scalar samples'
       ),
     )
+  ####
   if any(not isinstance(sample, MocMixedRegimeFieldSample) for sample in samples):
     return _field_failure(
       MocMixedRegimeFieldStatus.BOUNDARY_FAILURE,
@@ -2561,6 +2787,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message='compressible potential field requires scalar mixed-regime samples',
     )
+  ####
   if any(
     hypot(sample.point_m[0] - point[0], sample.point_m[1] - point[1])
     > position_tolerance_m
@@ -2574,6 +2801,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message='compressible potential field scalar coordinates do not match the perimeter',
     )
+  ####
 
   unique_samples = tuple(samples[:-1])
   unique_points = tuple(points[:-1])
@@ -2586,6 +2814,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message='compressible potential field requires at least three unique perimeter vertices',
     )
+  ####
   area = _polygon_signed_area(unique_points)
   if abs(area) <= position_tolerance_m * position_tolerance_m:
     return _field_failure(
@@ -2596,6 +2825,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message='compressible potential perimeter has zero signed area',
     )
+  ####
   if not _convex_polygon(unique_points, position_tolerance_m):
     return _field_failure(
       MocMixedRegimeFieldStatus.GEOMETRY_FAILURE,
@@ -2605,6 +2835,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message='compressible potential reference field requires a convex perimeter',
     )
+  ####
 
   center_point = (
     sum(point[0] for point in unique_points) / len(unique_points),
@@ -2641,6 +2872,7 @@ def solve_mixed_regime_compressible_potential_field(
         f'gamma={maximum_gamma_residual}'
       ),
     )
+  ####
 
   boundary_velocities: list[tuple[float, float]] = []
   try:
@@ -2650,6 +2882,7 @@ def solve_mixed_regime_compressible_potential_field(
           f'boundary sample {index} is too close to sonic for the declared '
           f'subsonic margin: mach={sample.mach}'
         )
+      ####
       sonic_factor = 0.5 * (gamma_reference - 1.0)
       speed = sample.mach / sqrt(1.0 + sonic_factor * sample.mach * sample.mach)
       boundary_velocities.append(
@@ -2658,6 +2891,7 @@ def solve_mixed_regime_compressible_potential_field(
           speed * sin(sample.flow_angle_rad),
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _field_failure(
       MocMixedRegimeFieldStatus.THERMODYNAMIC_FAILURE,
@@ -2671,6 +2905,7 @@ def solve_mixed_regime_compressible_potential_field(
       ),
       message=f'compressible potential boundary velocity conversion failed: {error}',
     )
+  ####
 
   perimeter_length = sum(
     hypot(
@@ -2693,6 +2928,7 @@ def solve_mixed_regime_compressible_potential_field(
         + (boundary_velocities[previous][1] + boundary_velocities[index][1]) * displacement[1]
       )
     )
+  ####
   closing_displacement = (
     unique_points[0][0] - unique_points[-1][0],
     unique_points[0][1] - unique_points[-1][1],
@@ -2728,6 +2964,7 @@ def solve_mixed_regime_compressible_potential_field(
         f'tolerance={potential_tolerance * circulation_scale}'
       ),
     )
+  ####
 
   try:
     rings = _radial_mesh_points(
@@ -2750,6 +2987,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message=f'compressible potential radial mesh geometry failed: {error}',
     )
+  ####
   topology = validate_moc_mesh(cells)
   if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
     return _field_failure(
@@ -2764,6 +3002,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message=f'compressible potential radial mesh topology failed: {topology.message}',
     )
+  ####
 
   node_points = tuple(point for ring in rings for point in ring)
   perimeter_count = len(unique_points)
@@ -2781,6 +3020,7 @@ def solve_mixed_regime_compressible_potential_field(
       for local, row_index in enumerate(triangle):
         if row_index >= unknown_count:
           continue
+        ####
         row_gradient_x, row_gradient_y = gradients[local]
         for column_local, column_index in enumerate(triangle):
           column_gradient_x, column_gradient_y = gradients[column_local]
@@ -2794,12 +3034,17 @@ def solve_mixed_regime_compressible_potential_field(
             initial_right_hand_side[row_index] -= coefficient * (
               fixed_boundary_potential[column_index - outer_start]
             )
+          ####
+        ####
+      ####
+    ####
     current_unknown = np.linalg.solve(
       initial_matrix,
       initial_right_hand_side,
     )
     if not np.isfinite(current_unknown).all():
       raise ValueError('compressible potential initial Laplace solve returned non-finite values')
+    ####
     initial_harmonic_residual = float(
       np.max(np.abs(initial_matrix @ current_unknown - initial_right_hand_side))
     )
@@ -2816,14 +3061,17 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message=f'compressible potential initial Dirichlet solve failed: {error}',
     )
+  ####
 
   def full_potential(unknown: np.ndarray) -> np.ndarray:
     if unknown.shape != (unknown_count,):
       raise ValueError('potential unknown vector has an invalid shape')
+    ####
     values = np.empty(total_node_count, dtype=float)
     values[:unknown_count] = unknown
     values[outer_start:] = fixed_boundary_potential
     return values
+  ####
 
   def assemble(
     unknown: np.ndarray,
@@ -2849,17 +3097,21 @@ def solve_mixed_regime_compressible_potential_field(
         raise ValueError(
           f'interior potential state reached the sonic limit: mach={mach}'
         )
+      ####
       triangle_velocities.append((q_x, q_y))
       for local, row_index in enumerate(triangle):
         if row_index >= unknown_count:
           continue
+        ####
         gradient_x, gradient_y = gradients[local]
         residual[row_index] += area * (gradient_x * flux_x + gradient_y * flux_y)
         if jacobian is None:
           continue
+        ####
         for column_local, column_index in enumerate(triangle):
           if column_index >= unknown_count:
             continue
+          ####
           column_gradient_x, column_gradient_y = gradients[column_local]
           jacobian[row_index, column_index] += area * (
             gradient_x * (
@@ -2871,11 +3123,17 @@ def solve_mixed_regime_compressible_potential_field(
               + jacobian_yy * column_gradient_y
             )
           )
+        ####
+      ####
+    ####
     if not np.isfinite(residual).all():
       raise ValueError('compressible potential residual contains non-finite values')
+    ####
     if jacobian is not None and not np.isfinite(jacobian).all():
       raise ValueError('compressible potential Jacobian contains non-finite values')
+    ####
     return residual, jacobian, tuple(triangle_velocities)
+  ####
 
   iteration_count = 0
   nonlinear_update_residual = 0.0
@@ -2904,15 +3162,19 @@ def solve_mixed_regime_compressible_potential_field(
         radial_divisions=radial_divisions,
         message=f'compressible potential residual assembly failed: {error}',
       )
+    ####
     current_residual_norm = float(np.max(np.abs(current_residual)))
     if current_residual_norm <= residual_tolerance:
       converged = True
       nonlinear_update_residual = 0.0
       break
+    ####
     if iteration_index >= maximum_iterations:
       break
+    ####
     if current_jacobian is None:
       raise AssertionError('potential Newton assembly omitted its Jacobian')
+    ####
     try:
       delta = np.linalg.solve(current_jacobian, -current_residual)
     except (np.linalg.LinAlgError, TypeError, ValueError) as error:
@@ -2933,6 +3195,7 @@ def solve_mixed_regime_compressible_potential_field(
         radial_divisions=radial_divisions,
         message=f'compressible potential Newton system failed: {error}',
       )
+    ####
     if not np.isfinite(delta).all():
       return _field_failure(
         MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
@@ -2951,12 +3214,14 @@ def solve_mixed_regime_compressible_potential_field(
         radial_divisions=radial_divisions,
         message='compressible potential Newton system returned a non-finite update',
       )
+    ####
     delta_norm = float(np.max(np.abs(delta)))
     if delta_norm <= np.finfo(float).eps * max(
       1.0,
       float(np.max(np.abs(current_unknown))),
     ):
       break
+    ####
     accepted_unknown: np.ndarray | None = None
     accepted_residual_norm = float('inf')
     step_scale = 1.0
@@ -2966,6 +3231,7 @@ def solve_mixed_regime_compressible_potential_field(
         candidate_residual, _, _ = assemble(candidate, with_jacobian=False)
       except (ArithmeticError, FloatingPointError, TypeError, ValueError):
         candidate_residual = None
+      ####
       if candidate_residual is not None:
         candidate_norm = float(np.max(np.abs(candidate_residual)))
         if (
@@ -2975,15 +3241,20 @@ def solve_mixed_regime_compressible_potential_field(
           accepted_unknown = candidate
           accepted_residual_norm = candidate_norm
           break
+        ####
+      ####
       step_scale *= 0.5
+    ####
     if accepted_unknown is None:
       break
+    ####
     nonlinear_update_residual = float(
       np.max(np.abs(accepted_unknown - current_unknown))
     )
     current_unknown = accepted_unknown
     current_residual_norm = accepted_residual_norm
     iteration_count = iteration_index + 1
+  ####
   if not converged:
     return _field_failure(
       MocMixedRegimeFieldStatus.POTENTIAL_FLOW_FAILURE,
@@ -3005,6 +3276,7 @@ def solve_mixed_regime_compressible_potential_field(
         f'residual={current_residual_norm}, iterations={iteration_count}'
       ),
     )
+  ####
 
   try:
     final_residual, _, triangle_velocities = assemble(
@@ -3028,6 +3300,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message=f'compressible potential final assembly failed: {error}',
     )
+  ####
   mass_residual = float(np.max(np.abs(final_residual)))
   potential_values = full_potential(current_unknown)
   velocity_sums = [[0.0, 0.0] for _ in range(total_node_count)]
@@ -3037,6 +3310,8 @@ def solve_mixed_regime_compressible_potential_field(
       velocity_sums[node_index][0] += velocity[0]
       velocity_sums[node_index][1] += velocity[1]
       velocity_counts[node_index] += 1
+    ####
+  ####
 
   nodes: list[MocMixedRegimeFieldSample] = []
   try:
@@ -3044,8 +3319,10 @@ def solve_mixed_regime_compressible_potential_field(
       if node_index >= outer_start:
         nodes.append(unique_samples[node_index - outer_start])
         continue
+      ####
       if velocity_counts[node_index] == 0:
         raise ValueError(f'potential mesh node {node_index} has no adjacent cells')
+      ####
       q_x = velocity_sums[node_index][0] / velocity_counts[node_index]
       q_y = velocity_sums[node_index][1] / velocity_counts[node_index]
       mach, _ = _potential_primitive(q_x, q_y, gamma_reference)
@@ -3054,6 +3331,7 @@ def solve_mixed_regime_compressible_potential_field(
           f'potential mesh node {node_index} is outside the strict subsonic '
           f'range: mach={mach}'
         )
+      ####
       sonic_factor = 0.5 * (gamma_reference - 1.0)
       enthalpy_factor = 1.0 - sonic_factor * (q_x * q_x + q_y * q_y)
       nodes.append(
@@ -3069,6 +3347,7 @@ def solve_mixed_regime_compressible_potential_field(
           gamma=gamma_reference,
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _field_failure(
       MocMixedRegimeFieldStatus.THERMODYNAMIC_FAILURE,
@@ -3087,6 +3366,7 @@ def solve_mixed_regime_compressible_potential_field(
       radial_divisions=radial_divisions,
       message=f'compressible potential field state construction failed: {error}',
     )
+  ####
 
   boundary_velocity_residual = 0.0
   for index in range(perimeter_count):
@@ -3115,6 +3395,7 @@ def solve_mixed_regime_compressible_potential_field(
         radial_divisions=radial_divisions,
         message='compressible potential field encountered a zero-length perimeter segment',
       )
+    ####
     tangent = (
       displacement[0] / segment_length,
       displacement[1] / segment_length,
@@ -3131,6 +3412,7 @@ def solve_mixed_regime_compressible_potential_field(
       boundary_velocity_residual,
       abs(computed_tangent_velocity - prescribed_tangent_velocity),
     )
+  ####
 
   boundary_normal_velocity_residual: float | None = None
   if (
@@ -3170,6 +3452,8 @@ def solve_mixed_regime_compressible_potential_field(
         radial_divisions=radial_divisions,
         message=f'compressible potential normal-flow measurement failed: {error}',
       )
+    ####
+  ####
 
   thermodynamic_residual = max(
     max(
@@ -3223,6 +3507,7 @@ def solve_mixed_regime_compressible_potential_field(
         f'thermodynamic={thermodynamic_residual}, maximum_mach={maximum_mach}'
       ),
     )
+  ####
   return MocMixedRegimeFieldResult(
     status=MocMixedRegimeFieldStatus.CONVERGED_COMPRESSIBLE_POTENTIAL_FIELD,
     boundary=boundary,
@@ -3255,6 +3540,7 @@ def solve_mixed_regime_compressible_potential_field(
       'infer a free boundary'
     ),
   )
+####
 
 
 def run_mixed_regime_closure_solver(
@@ -3274,8 +3560,10 @@ def run_mixed_regime_closure_solver(
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
     raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  ####
   if not callable(solve_field):
     raise TypeError('solve_field must be callable')
+  ####
   try:
     field = solve_field(request)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -3284,18 +3572,21 @@ def run_mixed_regime_closure_solver(
       request=request,
       message=f'mixed-regime closure callback failed: {error}',
     )
+  ####
   if field is None:
     return MocMixedRegimeClosureResult(
       status=MocMixedRegimeClosureStatus.SOLVER_FAILURE,
       request=request,
       message='mixed-regime closure callback returned no field',
     )
+  ####
   if not isinstance(field, MocMixedRegimeFieldResult):
     return MocMixedRegimeClosureResult(
       status=MocMixedRegimeClosureStatus.INVALID_INPUT,
       request=request,
       message='mixed-regime closure callback must return MocMixedRegimeFieldResult or None',
     )
+  ####
   if field.boundary.terminal != request.terminal:
     return MocMixedRegimeClosureResult(
       status=MocMixedRegimeClosureStatus.SEAM_FAILURE,
@@ -3303,6 +3594,7 @@ def run_mixed_regime_closure_solver(
       field=field,
       message='mixed-regime field terminal does not match the requested shock seam',
     )
+  ####
   if field.boundary.supersonic_patch_sample_count != len(request.supersonic_patch):
     return MocMixedRegimeClosureResult(
       status=MocMixedRegimeClosureStatus.SEAM_FAILURE,
@@ -3313,6 +3605,7 @@ def run_mixed_regime_closure_solver(
         'sample count from the requested seam'
       ),
     )
+  ####
   if field.boundary.supersonic_patch != request.supersonic_patch:
     return MocMixedRegimeClosureResult(
       status=MocMixedRegimeClosureStatus.SEAM_FAILURE,
@@ -3323,6 +3616,7 @@ def run_mixed_regime_closure_solver(
         'states and pressure-loss samples from the requested seam'
       ),
     )
+  ####
   if not field.converged or not field.boundary.converged:
     return MocMixedRegimeClosureResult(
       status=MocMixedRegimeClosureStatus.FIELD_FAILURE,
@@ -3333,6 +3627,7 @@ def run_mixed_regime_closure_solver(
         'boundary and field acceptance'
       ),
     )
+  ####
   if not field.physical_closure_verified:
     return MocMixedRegimeClosureResult(
       status=MocMixedRegimeClosureStatus.FIELD_FAILURE,
@@ -3343,6 +3638,7 @@ def run_mixed_regime_closure_solver(
         'condition gates are not complete'
       ),
     )
+  ####
   return MocMixedRegimeClosureResult(
     status=MocMixedRegimeClosureStatus.CONVERGED,
     request=request,
@@ -3394,6 +3690,7 @@ def _failure(
     maximum_total_pressure_gain_Pa=maximum_total_pressure_gain_Pa,
     message=message,
   )
+####
 
 
 def _terminal_scalars(
@@ -3414,15 +3711,20 @@ def _terminal_scalars(
     or upstream_total_pressure is None
   ):
     return None
+  ####
   values = (*point, mach, flow_angle, static_pressure, total_pressure, upstream_total_pressure)
   if not all(isfinite(float(value)) for value in values):
     return None
+  ####
   if mach <= 0.0 or mach >= 1.0:
     return None
+  ####
   if static_pressure <= 0.0 or total_pressure <= 0.0 or upstream_total_pressure <= 0.0:
     return None
+  ####
   if total_pressure > upstream_total_pressure:
     return None
+  ####
   return (
     (float(point[0]), float(point[1])),
     float(mach),
@@ -3431,6 +3733,7 @@ def _terminal_scalars(
     float(total_pressure),
     float(upstream_total_pressure),
   )
+####
 
 
 def validate_mixed_regime_boundary(
@@ -3459,12 +3762,14 @@ def validate_mixed_regime_boundary(
       MocMixedRegimeBoundaryStatus.INVALID_INPUT,
       message='terminal must be a normal-shock or attached subsonic boundary result',
     )
+  ####
   if not isinstance(supersonic_patch_converged, bool):
     return _failure(
       MocMixedRegimeBoundaryStatus.INVALID_INPUT,
       terminal=terminal,
       message='supersonic_patch_converged must be a bool',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -3472,8 +3777,11 @@ def validate_mixed_regime_boundary(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isinstance(allow_distributed_total_pressure_profile, bool):
     raise TypeError('allow_distributed_total_pressure_profile must be a bool')
+  ####
   try:
     patch = tuple(supersonic_patch)
     samples = tuple(subsonic_samples)
@@ -3483,12 +3791,14 @@ def validate_mixed_regime_boundary(
       terminal=terminal,
       message='supersonic_patch and subsonic_samples must be iterable',
     )
+  ####
   if not terminal.converged or not terminal.subsonic:
     return _failure(
       MocMixedRegimeBoundaryStatus.TERMINAL_FAILURE,
       terminal=terminal,
       message='terminal must be a converged subsonic shock boundary',
     )
+  ####
   scalars = _terminal_scalars(terminal)
   if scalars is None:
     return _failure(
@@ -3496,6 +3806,7 @@ def validate_mixed_regime_boundary(
       terminal=terminal,
       message='terminal does not expose a complete finite scalar downstream state',
     )
+  ####
   terminal_point, terminal_mach, terminal_angle, terminal_pressure, terminal_total_pressure, upstream_total_pressure = scalars
 
   if not supersonic_patch_converged or not patch:
@@ -3505,6 +3816,7 @@ def validate_mixed_regime_boundary(
       supersonic_patch_sample_count=len(patch),
       message='a converged open supersonic patch is required before subsonic closure',
     )
+  ####
   for index, boundary_state in enumerate(patch):
     if not isinstance(boundary_state, MocPostShockBoundaryState):
       return _failure(
@@ -3513,6 +3825,7 @@ def validate_mixed_regime_boundary(
         supersonic_patch_sample_count=len(patch),
         message=f'supersonic patch sample {index} is not a MocPostShockBoundaryState',
       )
+    ####
     state = boundary_state.state
     if state.mach <= 1.0:
       return _failure(
@@ -3521,6 +3834,7 @@ def validate_mixed_regime_boundary(
         supersonic_patch_sample_count=len(patch),
         message=f'supersonic patch sample {index} is not supersonic',
       )
+    ####
     if (
       abs(state.x_m - boundary_state.point_m[0]) > position_tolerance_m
       or abs(state.y_m - boundary_state.point_m[1]) > position_tolerance_m
@@ -3531,6 +3845,7 @@ def validate_mixed_regime_boundary(
         supersonic_patch_sample_count=len(patch),
         message=f'supersonic patch sample {index} state coordinates do not match its point',
       )
+    ####
     if (
       not isfinite(boundary_state.upstream_total_pressure_Pa)
       or not isfinite(boundary_state.downstream_total_pressure_Pa)
@@ -3544,6 +3859,8 @@ def validate_mixed_regime_boundary(
         supersonic_patch_sample_count=len(patch),
         message=f'supersonic patch sample {index} does not carry a strict total-pressure loss',
       )
+    ####
+  ####
   patch_verified = True
 
   if len(samples) < 4:
@@ -3555,6 +3872,7 @@ def validate_mixed_regime_boundary(
       subsonic_samples=samples,
       message='subsonic perimeter requires at least four scalar samples',
     )
+  ####
   if any(not isinstance(sample, MocMixedRegimeFieldSample) for sample in samples):
     return _failure(
       MocMixedRegimeBoundaryStatus.SUBSONIC_FIELD_FAILURE,
@@ -3564,6 +3882,7 @@ def validate_mixed_regime_boundary(
       subsonic_samples=tuple(sample for sample in samples if isinstance(sample, MocMixedRegimeFieldSample)),
       message='subsonic_samples must contain MocMixedRegimeFieldSample values',
     )
+  ####
   points = tuple(samples[index].point_m for index in range(len(samples)))
   if perimeter_points_m is not None:
     try:
@@ -3577,6 +3896,7 @@ def validate_mixed_regime_boundary(
         subsonic_samples=samples,
         message='perimeter_points_m must contain finite two-coordinate points',
       )
+    ####
     if len(points) != len(samples) or any(not all(isfinite(value) for value in point) for point in points):
       return _failure(
         MocMixedRegimeBoundaryStatus.INVALID_INPUT,
@@ -3587,6 +3907,8 @@ def validate_mixed_regime_boundary(
         perimeter_points_m=points,
         message='perimeter_points_m must match the scalar sample count and be finite',
       )
+    ####
+  ####
   if len(points) < 4:
     return _failure(
       MocMixedRegimeBoundaryStatus.GEOMETRY_FAILURE,
@@ -3597,6 +3919,7 @@ def validate_mixed_regime_boundary(
       perimeter_points_m=points,
       message='subsonic perimeter requires at least four geometry points',
     )
+  ####
 
   closed = hypot(points[-1][0] - points[0][0], points[-1][1] - points[0][1]) <= position_tolerance_m
   downstream = all(point[0] >= terminal_point[0] - position_tolerance_m for point in points)
@@ -3630,6 +3953,7 @@ def validate_mixed_regime_boundary(
         f'distinct_segments={distinct_segments}, terminal_residual_m={terminal_geometry_residual}'
       ),
     )
+  ####
 
   seam_samples = (samples[0], samples[-1])
   mach_residual = max(abs(sample.mach - terminal_mach) for sample in seam_samples)
@@ -3659,6 +3983,7 @@ def validate_mixed_regime_boundary(
       maximum_terminal_total_pressure_residual_Pa=total_residual,
       message='subsonic perimeter endpoints do not reproduce the scalar terminal shock state',
     )
+  ####
 
   maximum_total_pressure_gain = max(
     sample.total_pressure_Pa - terminal_total_pressure
@@ -3694,6 +4019,7 @@ def validate_mixed_regime_boundary(
         'shock state'
       ),
     )
+  ####
 
   return MocMixedRegimeBoundaryResult(
     status=MocMixedRegimeBoundaryStatus.CONVERGED_BOUNDARY_HANDOFF,
@@ -3726,6 +4052,7 @@ def validate_mixed_regime_boundary(
       )
     ),
   )
+####
 
 
 def _control_section_failure(
@@ -3755,6 +4082,7 @@ def _control_section_failure(
     maximum_terminal_state_residual=maximum_terminal_state_residual,
     message=message,
   )
+####
 
 
 def validate_mixed_regime_control_section(
@@ -3786,6 +4114,7 @@ def validate_mixed_regime_control_section(
       MocMixedRegimeControlSectionStatus.INVALID_INPUT,
       message='request must be a MocMixedRegimePerimeterRequest',
     )
+  ####
   if section is None:
     return _control_section_failure(
       MocMixedRegimeControlSectionStatus.INVALID_INPUT,
@@ -3795,12 +4124,14 @@ def validate_mixed_regime_control_section(
         'supersonic patch and terminal point do not provide area or mass flux'
       ),
     )
+  ####
   if not isinstance(section, MocMixedRegimeControlSection):
     return _control_section_failure(
       MocMixedRegimeControlSectionStatus.INVALID_INPUT,
       request=request,
       message='section must be a MocMixedRegimeControlSection or None',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -3809,8 +4140,11 @@ def validate_mixed_regime_control_section(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isinstance(allow_distributed_total_pressure_profile, bool):
     raise TypeError('allow_distributed_total_pressure_profile must be a bool')
+  ####
 
   terminal = request.terminal
   terminal_point = request.terminal_point_m
@@ -3826,6 +4160,7 @@ def validate_mixed_regime_control_section(
       section_measure_m=section.section_measure_m,
       message='terminal does not expose an upstream state for section validation',
     )
+  ####
 
   measure = section.section_measure_m
   flux_factors = section.normal_flux_factors
@@ -3879,6 +4214,7 @@ def validate_mixed_regime_control_section(
       maximum_terminal_state_residual=maximum_terminal_state_residual,
       message=f'control-section mass-flux evaluation failed: {error}',
     )
+  ####
 
   common = {
     'request': request,
@@ -3897,6 +4233,7 @@ def validate_mixed_regime_control_section(
       **common,
       message='control section has no finite positive transverse measure',
     )
+  ####
   if minimum_margin is None or minimum_margin <= position_tolerance_m:
     return _control_section_failure(
       MocMixedRegimeControlSectionStatus.GEOMETRY_FAILURE,
@@ -3906,18 +4243,21 @@ def validate_mixed_regime_control_section(
         'terminal shock in the terminal flow direction'
       ),
     )
+  ####
   if minimum_flux_factor is None or minimum_flux_factor <= normal_flux_tolerance:
     return _control_section_failure(
       MocMixedRegimeControlSectionStatus.FLUX_FAILURE,
       **common,
       message='control-section samples must carry positive oriented normal flux',
     )
+  ####
   if not isfinite(mass_flux) or mass_flux <= 0.0:
     return _control_section_failure(
       MocMixedRegimeControlSectionStatus.FLUX_FAILURE,
       **common,
       message='control section must carry a finite positive mass-flux proxy',
     )
+  ####
   if maximum_isentropic_residual is None or maximum_isentropic_residual > state_tolerance:
     return _control_section_failure(
       MocMixedRegimeControlSectionStatus.STATE_FAILURE,
@@ -3927,6 +4267,7 @@ def validate_mixed_regime_control_section(
         f'isentropic total-pressure relation: residual={maximum_isentropic_residual}'
       ),
     )
+  ####
   if (
     not allow_distributed_total_pressure_profile
     and (
@@ -3944,6 +4285,7 @@ def validate_mixed_regime_control_section(
         f'shock: gain={maximum_total_pressure_gain}'
       ),
     )
+  ####
   if any(
     sample.gamma <= 1.0
     or abs(sample.gamma - upstream_state.gamma) > state_tolerance
@@ -3959,6 +4301,7 @@ def validate_mixed_regime_control_section(
         'terminal gamma'
       ),
     )
+  ####
   return MocMixedRegimeControlSectionResult(
     status=MocMixedRegimeControlSectionStatus.CONVERGED,
     request=request,
@@ -3983,6 +4326,7 @@ def validate_mixed_regime_control_section(
       )
     ),
   )
+####
 
 
 def _downstream_condition_failure(
@@ -4017,6 +4361,7 @@ def _downstream_condition_failure(
     condition_sample_indices=tuple(condition_sample_indices),
     message=message,
   )
+####
 
 
 def _segment_flow_angle(
@@ -4027,6 +4372,7 @@ def _segment_flow_angle(
 
   delta = (second_angle_rad - first_angle_rad + pi) % (2.0 * pi) - pi
   return first_angle_rad + 0.5 * delta
+####
 
 
 def _line_angle_residual(
@@ -4039,6 +4385,7 @@ def _line_angle_residual(
     flow_angle_rad - tangent_angle_rad + 0.5 * pi
   ) % pi - 0.5 * pi
   return abs(residual)
+####
 
 
 def validate_mixed_regime_downstream_condition(
@@ -4069,6 +4416,7 @@ def validate_mixed_regime_downstream_condition(
       condition_kind=None,
       message='condition_kind must be a MocMixedRegimeDownstreamConditionKind',
     )
+  ####
   try:
     for name, value in (
       ('position_tolerance_m', position_tolerance_m),
@@ -4077,6 +4425,8 @@ def validate_mixed_regime_downstream_condition(
     ):
       if not isfinite(float(value)) or float(value) <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
+    ####
   except (TypeError, ValueError) as error:
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
@@ -4084,12 +4434,14 @@ def validate_mixed_regime_downstream_condition(
       boundary=boundary if isinstance(boundary, MocMixedRegimeBoundaryResult) else None,
       message=f'downstream condition inputs are invalid: {error}',
     )
+  ####
   if not isinstance(boundary, MocMixedRegimeBoundaryResult):
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
       condition_kind=condition_kind,
       message='boundary must be a MocMixedRegimeBoundaryResult',
     )
+  ####
   tangency_required = condition_kind in (
     MocMixedRegimeDownstreamConditionKind.SLIP_WALL,
     MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
@@ -4102,6 +4454,7 @@ def validate_mixed_regime_downstream_condition(
         boundary=boundary,
         message='ambient_pressure_Pa is only valid for an ambient free boundary',
       )
+    ####
     pressure_verified = True
   else:
     if ambient_pressure_Pa is None:
@@ -4114,10 +4467,12 @@ def validate_mixed_regime_downstream_condition(
           'prescribed-pressure outflow section'
         ),
       )
+    ####
     try:
       ambient_pressure = float(ambient_pressure_Pa)
     except (TypeError, ValueError):
       ambient_pressure = float('nan')
+    ####
     if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
       return _downstream_condition_failure(
         MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
@@ -4128,7 +4483,9 @@ def validate_mixed_regime_downstream_condition(
           'pressure condition'
         ),
       )
+    ####
     pressure_verified = False
+  ####
 
   if not boundary.converged:
     return _downstream_condition_failure(
@@ -4141,6 +4498,7 @@ def validate_mixed_regime_downstream_condition(
         f'{boundary.message}'
       ),
     )
+  ####
   points = boundary.perimeter_points_m
   samples = boundary.subsonic_samples
   if len(points) != len(samples) or len(points) < 4:
@@ -4151,6 +4509,7 @@ def validate_mixed_regime_downstream_condition(
       pressure_condition_verified=pressure_verified,
       message='downstream physical condition requires a closed perimeter with matching samples',
     )
+  ####
 
   edge_count = len(points) - 1
   try:
@@ -4167,6 +4526,7 @@ def validate_mixed_regime_downstream_condition(
       }))
     else:
       selected_samples = tuple(condition_sample_indices)
+    ####
   except TypeError:
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
@@ -4177,6 +4537,7 @@ def validate_mixed_regime_downstream_condition(
         'integer selections'
       ),
     )
+  ####
   for name, indices, upper in (
     ('condition_edge_indices', selected_edges, edge_count - 1),
     ('condition_sample_indices', selected_samples, len(samples) - 1),
@@ -4196,6 +4557,7 @@ def validate_mixed_regime_downstream_condition(
         condition_sample_indices=selected_samples,
         message=f'{name} contains an index outside the explicit perimeter range',
       )
+    ####
     if len(set(indices)) != len(indices):
       return _downstream_condition_failure(
         MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
@@ -4205,6 +4567,8 @@ def validate_mixed_regime_downstream_condition(
         condition_sample_indices=selected_samples,
         message=f'{name} must not contain duplicate indices',
       )
+    ####
+  ####
   if tangency_required and not selected_edges:
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
@@ -4214,6 +4578,7 @@ def validate_mixed_regime_downstream_condition(
       condition_sample_indices=selected_samples,
       message='a tangency condition requires at least one selected perimeter edge',
     )
+  ####
   if (
     condition_kind in (
       MocMixedRegimeDownstreamConditionKind.AMBIENT_PRESSURE_FREE_BOUNDARY,
@@ -4229,6 +4594,7 @@ def validate_mixed_regime_downstream_condition(
       condition_sample_indices=selected_samples,
       message='a pressure condition requires at least one selected perimeter sample',
     )
+  ####
 
   tangent_residuals: list[float] = []
   if tangency_required:
@@ -4252,6 +4618,7 @@ def validate_mixed_regime_downstream_condition(
           condition_sample_indices=selected_samples,
           message='downstream physical condition encountered a zero-length perimeter segment',
         )
+      ####
       tangent_angle = atan2(displacement[1], displacement[0])
       flow_angle = _segment_flow_angle(
         first_sample.flow_angle_rad,
@@ -4260,6 +4627,7 @@ def validate_mixed_regime_downstream_condition(
       tangent_residuals.append(
         _line_angle_residual(flow_angle, tangent_angle)
       )
+    ####
     maximum_tangent_residual = max(tangent_residuals, default=float('inf'))
     tangency_verified = maximum_tangent_residual <= float(tangent_tolerance_rad)
     if not tangency_verified:
@@ -4276,9 +4644,11 @@ def validate_mixed_regime_downstream_condition(
           f'maximum residual={maximum_tangent_residual}'
         ),
       )
+    ####
   else:
     maximum_tangent_residual = None
     tangency_verified = True
+  ####
 
   pressure_residuals: tuple[float, ...] = ()
   if condition_kind in (
@@ -4315,6 +4685,8 @@ def validate_mixed_regime_downstream_condition(
           f'maximum residual={maximum_pressure_residual}'
         ),
       )
+    ####
+  ####
 
   return MocMixedRegimeDownstreamConditionResult(
     status=MocMixedRegimeDownstreamConditionStatus.CONVERGED,
@@ -4341,6 +4713,7 @@ def validate_mixed_regime_downstream_condition(
       )
     ),
   )
+####
 
 
 def solve_mixed_regime_downstream_condition(
@@ -4374,6 +4747,7 @@ def solve_mixed_regime_downstream_condition(
       ),
       message='request must be a MocMixedRegimePerimeterRequest',
     )
+  ####
   if not callable(solve_boundary):
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
@@ -4384,6 +4758,7 @@ def solve_mixed_regime_downstream_condition(
       ),
       message='solve_boundary must be callable',
     )
+  ####
   try:
     boundary = solve_boundary(request)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -4396,6 +4771,7 @@ def solve_mixed_regime_downstream_condition(
       ),
       message=f'downstream boundary callback failed: {error}',
     )
+  ####
   if boundary is None:
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.SOLVER_FAILURE,
@@ -4406,6 +4782,7 @@ def solve_mixed_regime_downstream_condition(
       ),
       message='downstream boundary callback returned no perimeter',
     )
+  ####
   if not isinstance(boundary, MocMixedRegimeBoundaryResult):
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.INVALID_INPUT,
@@ -4416,6 +4793,7 @@ def solve_mixed_regime_downstream_condition(
       ),
       message='downstream boundary callback must return MocMixedRegimeBoundaryResult or None',
     )
+  ####
   if boundary.terminal != request.terminal:
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
@@ -4427,6 +4805,7 @@ def solve_mixed_regime_downstream_condition(
       boundary=boundary,
       message='downstream boundary callback changed the requested terminal seam',
     )
+  ####
   if boundary.supersonic_patch != request.supersonic_patch:
     return _downstream_condition_failure(
       MocMixedRegimeDownstreamConditionStatus.BOUNDARY_FAILURE,
@@ -4438,6 +4817,7 @@ def solve_mixed_regime_downstream_condition(
       boundary=boundary,
       message='downstream boundary callback changed the requested supersonic patch',
     )
+  ####
   return validate_mixed_regime_downstream_condition(
     boundary,
     condition_kind,
@@ -4446,6 +4826,7 @@ def solve_mixed_regime_downstream_condition(
     tangent_tolerance_rad=tangent_tolerance_rad,
     pressure_tolerance=pressure_tolerance,
   )
+####
 
 
 def solve_mixed_regime_downstream_perimeter(
@@ -4477,6 +4858,7 @@ def solve_mixed_regime_downstream_perimeter(
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
     raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  ####
   if not isinstance(
     specification,
     MocMixedRegimeDownstreamPerimeterSpec,
@@ -4484,8 +4866,10 @@ def solve_mixed_regime_downstream_perimeter(
     raise TypeError(
       'specification must be a MocMixedRegimeDownstreamPerimeterSpec'
     )
+  ####
   if not callable(sample_at):
     raise TypeError('sample_at must be callable')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -4496,12 +4880,15 @@ def solve_mixed_regime_downstream_perimeter(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if (
     isinstance(radial_divisions, bool)
     or not isinstance(radial_divisions, int)
     or radial_divisions < 1
   ):
     raise ValueError('radial_divisions must be a positive integer')
+  ####
 
   samples: list[MocMixedRegimeFieldSample] = []
   for index, point in enumerate(specification.perimeter_points_m):
@@ -4517,6 +4904,7 @@ def solve_mixed_regime_downstream_perimeter(
           f'{error}'
         ),
       )
+    ####
     if not isinstance(sample, MocMixedRegimeFieldSample):
       return MocMixedRegimeClosureResult(
         status=MocMixedRegimeClosureStatus.INVALID_INPUT,
@@ -4527,6 +4915,7 @@ def solve_mixed_regime_downstream_perimeter(
           'MocMixedRegimeFieldSample values'
         ),
       )
+    ####
     if hypot(
       sample.point_m[0] - point[0],
       sample.point_m[1] - point[1],
@@ -4540,7 +4929,9 @@ def solve_mixed_regime_downstream_perimeter(
           'coordinate'
         ),
       )
+    ####
     samples.append(sample)
+  ####
 
   boundary = validate_mixed_regime_boundary(
     request.terminal,
@@ -4562,6 +4953,7 @@ def solve_mixed_regime_downstream_perimeter(
         f'gate: {boundary.message}'
       ),
     )
+  ####
   condition = validate_mixed_regime_downstream_condition(
     boundary,
     specification.condition_kind,
@@ -4591,6 +4983,7 @@ def solve_mixed_regime_downstream_perimeter(
         f'condition: {condition.message}'
       ),
     )
+  ####
   field = solve_mixed_regime_subsonic_field(
     boundary,
     radial_divisions=radial_divisions,
@@ -4612,6 +5005,7 @@ def solve_mixed_regime_downstream_perimeter(
       else 'explicit downstream perimeter reference solve completed'
     ),
   )
+####
 
 
 def _subsonic_area_ratio(mach: float, gamma: float) -> float:
@@ -4625,10 +5019,12 @@ def _subsonic_area_ratio(mach: float, gamma: float) -> float:
     or mach >= 1.0
   ):
     raise ValueError('subsonic area-ratio inputs must be finite and strictly subsonic')
+  ####
   factor = 2.0 / (gamma + 1.0) * (
     1.0 + 0.5 * (gamma - 1.0) * mach * mach
   )
   return factor ** ((gamma + 1.0) / (2.0 * (gamma - 1.0))) / mach
+####
 
 
 def _subsonic_mach_from_area_ratio(
@@ -4641,12 +5037,14 @@ def _subsonic_mach_from_area_ratio(
 
   if not isfinite(float(area_ratio)) or area_ratio < 1.0:
     raise ValueError('subsonic area ratio must be finite and at least one')
+  ####
   if (
     isinstance(iterations, bool)
     or not isinstance(iterations, int)
     or iterations < 1
   ):
     raise ValueError('iterations must be a positive integer')
+  ####
   lower = 1.0e-10
   upper = 1.0 - 1.0e-10
   for _ in range(iterations):
@@ -4655,7 +5053,10 @@ def _subsonic_mach_from_area_ratio(
       lower = midpoint
     else:
       upper = midpoint
+    ####
+  ####
   return 0.5 * (lower + upper)
+####
 
 
 def _subsonic_static_pressure_from_total(
@@ -4665,6 +5066,7 @@ def _subsonic_static_pressure_from_total(
 ) -> float:
   factor = 1.0 + 0.5 * (gamma - 1.0) * mach * mach
   return total_pressure_Pa / factor ** (gamma / (gamma - 1.0))
+####
 
 
 def _subsonic_mass_flux_factor(mach: float, gamma: float) -> float:
@@ -4674,6 +5076,7 @@ def _subsonic_mass_flux_factor(mach: float, gamma: float) -> float:
   return mach * (
     1.0 + 0.5 * (gamma - 1.0) * mach * mach
   ) ** (-exponent)
+####
 
 
 def _solve_free_boundary_reference_field(
@@ -4712,6 +5115,7 @@ def _solve_free_boundary_reference_field(
       maximum_mass_conservation_residual=mass_flow_residual,
       message='free-boundary reference requires a closed scalar perimeter',
     )
+  ####
   center_point = (
     sum(point[0] for point in unique_points) / len(unique_points),
     sum(point[1] for point in unique_points) / len(unique_points),
@@ -4756,6 +5160,7 @@ def _solve_free_boundary_reference_field(
       maximum_mass_conservation_residual=mass_flow_residual,
       message=f'free-boundary reference mesh construction failed: {error}',
     )
+  ####
 
   levels: list[tuple[MocMixedRegimeFieldSample, ...]] = []
   for level, points in enumerate(rings):
@@ -4798,7 +5203,10 @@ def _solve_free_boundary_reference_field(
           maximum_mass_conservation_residual=mass_flow_residual,
           message=f'free-boundary scalar state construction failed: {error}',
         )
+      ####
+    ####
     levels.append(tuple(level_samples))
+  ####
   nodes = tuple(sample for level_samples in levels for sample in level_samples)
   topology = validate_moc_mesh(cells)
   maximum_harmonic_residual = max(
@@ -4841,6 +5249,7 @@ def _solve_free_boundary_reference_field(
       maximum_mass_conservation_residual=mass_flow_residual,
       message=f'free-boundary reference cell/node lookup failed: {error}',
     )
+  ####
   if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
     return _field_failure(
       MocMixedRegimeFieldStatus.TOPOLOGY_FAILURE,
@@ -4863,6 +5272,7 @@ def _solve_free_boundary_reference_field(
       maximum_mass_conservation_residual=mass_flow_residual,
       message=f'free-boundary reference mesh topology failed: {topology.message}',
     )
+  ####
   if thermodynamic_residual > thermodynamic_tolerance or maximum_harmonic_residual > residual_tolerance:
     return _field_failure(
       MocMixedRegimeFieldStatus.RESIDUAL_FAILURE,
@@ -4889,6 +5299,7 @@ def _solve_free_boundary_reference_field(
         f'harmonic={maximum_harmonic_residual}'
       ),
     )
+  ####
   return MocMixedRegimeFieldResult(
     status=MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD,
     boundary=boundary,
@@ -4917,6 +5328,7 @@ def _solve_free_boundary_reference_field(
       'from the supersonic MOC lane'
     ),
   )
+####
 
 
 def solve_mixed_regime_downstream_free_boundary(
@@ -4950,6 +5362,7 @@ def solve_mixed_regime_downstream_free_boundary(
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
     raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  ####
   for name, value in (
     ('ambient_pressure_Pa', ambient_pressure_Pa),
     ('effective_inlet_height_m', effective_inlet_height_m),
@@ -4963,8 +5376,11 @@ def solve_mixed_regime_downstream_free_boundary(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if subsonic_margin >= 1.0:
     raise ValueError('subsonic_margin must be less than one')
+  ####
   for name, value, minimum in (
     ('free_boundary_sample_count', free_boundary_sample_count, 3),
     ('radial_divisions', radial_divisions, 1),
@@ -4972,10 +5388,14 @@ def solve_mixed_regime_downstream_free_boundary(
   ):
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
       raise ValueError(f'{name} must be an integer greater than or equal to {minimum}')
+    ####
+  ####
   if not 0.0 < terminal_regularization_fraction < 1.0:
     raise ValueError('terminal_regularization_fraction must lie strictly between zero and one')
+  ####
   if not isfinite(float(request.terminal_downstream_flow_angle_rad)):
     raise ValueError('terminal downstream flow angle must be finite')
+  ####
   if abs(request.terminal_downstream_flow_angle_rad) > 1.0e-8:
     return MocMixedRegimeFreeBoundaryResult(
       status=MocMixedRegimeFreeBoundaryStatus.INVALID_INPUT,
@@ -4996,6 +5416,7 @@ def solve_mixed_regime_downstream_free_boundary(
         'downstream flow angle'
       ),
     )
+  ####
 
   terminal_mach = request.terminal_downstream_mach
   terminal_pressure = request.terminal_downstream_pressure_Pa
@@ -5003,6 +5424,7 @@ def solve_mixed_regime_downstream_free_boundary(
   upstream_state = request.terminal.upstream_state
   if upstream_state is None:
     raise ValueError('request terminal must expose an upstream state for gamma')
+  ####
   gamma = upstream_state.gamma
   pressure_factor = total_pressure / float(ambient_pressure_Pa)
   ambient_mach_squared = (
@@ -5033,6 +5455,7 @@ def solve_mixed_regime_downstream_free_boundary(
         'number for the terminal total pressure'
       ),
     )
+  ####
   ambient_mach = sqrt(ambient_mach_squared)
   terminal_area_ratio = _subsonic_area_ratio(terminal_mach, gamma)
   ambient_area_ratio = _subsonic_area_ratio(ambient_mach, gamma)
@@ -5049,6 +5472,7 @@ def solve_mixed_regime_downstream_free_boundary(
       - float(ambient_pressure_Pa),
       outlet_mach,
     )
+  ####
 
   lower = sonic_height * (1.0 + 1.0e-8)
   upper = max(target_height * 1.5, lower * 2.0)
@@ -5058,6 +5482,7 @@ def solve_mixed_regime_downstream_free_boundary(
     for _ in range(24):
       if lower_residual <= 0.0 <= upper_residual:
         break
+      ####
       upper *= 2.0
       upper_residual, _ = pressure_at_height(upper)
     else:
@@ -5065,6 +5490,7 @@ def solve_mixed_regime_downstream_free_boundary(
         f'could not bracket ambient pressure: lower={lower_residual}, '
         f'upper={upper_residual}'
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return MocMixedRegimeFreeBoundaryResult(
       status=MocMixedRegimeFreeBoundaryStatus.BRACKET_FAILURE,
@@ -5082,6 +5508,7 @@ def solve_mixed_regime_downstream_free_boundary(
       height_bracket_m=(lower, upper),
       message=f'free-boundary outlet-height bracket failed: {error}',
     )
+  ####
 
   pressure_scale = max(1.0, abs(float(ambient_pressure_Pa)))
   root_height = target_height
@@ -5099,10 +5526,13 @@ def solve_mixed_regime_downstream_free_boundary(
       or upper - lower <= height_tolerance_m
     ):
       break
+    ####
     if midpoint_residual > 0.0:
       upper = midpoint
     else:
       lower = midpoint
+    ####
+  ####
 
   if abs(root_residual) > pressure_tolerance * pressure_scale:
     return MocMixedRegimeFreeBoundaryResult(
@@ -5124,6 +5554,7 @@ def solve_mixed_regime_downstream_free_boundary(
         f'pressure_residual={root_residual}'
       ),
     )
+  ####
 
   terminal_point = request.terminal_point_m
   x0, y0 = terminal_point
@@ -5134,8 +5565,10 @@ def solve_mixed_regime_downstream_free_boundary(
     fraction = index / (free_boundary_sample_count - 1)
     radius_fraction = 1.0 - fraction * (1.0 - terminal_regularization_fraction)
     free_points.append((x0 + float(downstream_length_m) * radius_fraction, y0 + root_height * radius_fraction))
+  ####
   if free_points[0] != outlet_outer:
     raise AssertionError('free-boundary construction did not start at the outlet')
+  ####
   tangent_angle = atan2(root_height, float(downstream_length_m))
   points = (terminal_point, outlet_centerline, *free_points, terminal_point)
   terminal_sample = MocMixedRegimeFieldSample(
@@ -5192,6 +5625,7 @@ def solve_mixed_regime_downstream_free_boundary(
       boundary=boundary,
       message=f'free-boundary perimeter failed its scalar seam: {boundary.message}',
     )
+  ####
 
   outer_edge_start = 2
   outer_edge_stop = 2 + free_boundary_sample_count - 1
@@ -5232,6 +5666,7 @@ def solve_mixed_regime_downstream_free_boundary(
       perimeter_spec=specification,
       message=f'free-boundary condition failed: {condition.message}',
     )
+  ####
 
   centerline_tangent_residual = _line_angle_residual(
     _segment_flow_angle(
@@ -5298,6 +5733,7 @@ def solve_mixed_regime_downstream_free_boundary(
       perimeter_spec=specification,
       message=f'free-boundary scalar field failed its model gates: {field.message}',
     )
+  ####
   closure = replace(
     run_mixed_regime_closure_solver(
       request,
@@ -5328,6 +5764,7 @@ def solve_mixed_regime_downstream_free_boundary(
       perimeter_spec=specification,
       message=f'free-boundary closure seam failed: {closure.message}',
     )
+  ####
   return MocMixedRegimeFreeBoundaryResult(
     status=MocMixedRegimeFreeBoundaryStatus.CONVERGED_REFERENCE,
     request=request,
@@ -5353,6 +5790,7 @@ def solve_mixed_regime_downstream_free_boundary(
       'canonical reflected-MOC coupling and external validation remain pending'
     ),
   )
+####
 
 
 def solve_mixed_regime_downstream_free_boundary_from_control_section(
@@ -5392,10 +5830,12 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
     raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  ####
   if not isinstance(control_section, MocMixedRegimeControlSection):
     raise TypeError(
       'control_section must be a MocMixedRegimeControlSection'
     )
+  ####
   for name, value in (
     ('ambient_pressure_Pa', ambient_pressure_Pa),
     ('downstream_length_m', downstream_length_m),
@@ -5413,10 +5853,14 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isinstance(use_integrated_flux, bool):
     raise TypeError('use_integrated_flux must be a bool')
+  ####
   if subsonic_margin >= 1.0:
     raise ValueError('subsonic_margin must be less than one')
+  ####
   for name, value, minimum in (
     ('free_boundary_sample_count', free_boundary_sample_count, 3),
     ('radial_divisions', radial_divisions, 1),
@@ -5424,10 +5868,13 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
   ):
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
       raise ValueError(f'{name} must be an integer greater than or equal to {minimum}')
+    ####
+  ####
   if not 0.0 < terminal_regularization_fraction < 1.0:
     raise ValueError(
       'terminal_regularization_fraction must lie strictly between zero and one'
     )
+  ####
 
   validation = validate_mixed_regime_control_section(
     request,
@@ -5477,6 +5924,7 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
       ),
       **common,
     )
+  ####
   if use_integrated_flux:
     terminal = request.terminal
     upstream_state = terminal.upstream_state
@@ -5486,6 +5934,7 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
         message='terminal does not expose gamma for integrated control-section flux',
         **common,
       )
+    ####
     if (
       abs(request.terminal_downstream_flow_angle_rad) > state_tolerance
       or abs(control_section.normal_angle_rad) > state_tolerance
@@ -5499,6 +5948,7 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
         ),
         **common,
       )
+    ####
     terminal_total_pressure = request.terminal_downstream_total_pressure_Pa
     maximum_total_pressure_residual = max(
       abs(sample.total_pressure_Pa - terminal_total_pressure)
@@ -5516,12 +5966,14 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
         ),
         **common,
       )
+    ####
     if control_section_flux_proxy is None or not isfinite(control_section_flux_proxy):
       return MocMixedRegimeFreeBoundaryResult(
         status=MocMixedRegimeFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
         message='integrated control-section flux is unavailable or non-finite',
         **common,
       )
+    ####
     terminal_flux_factor = _subsonic_mass_flux_factor(
       request.terminal_downstream_mach,
       upstream_state.gamma,
@@ -5539,6 +5991,7 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
         ),
         **common,
       )
+    ####
     common['effective_inlet_height_m'] = effective_inlet_height
     control_section_flux_equivalent_height = effective_inlet_height
     reference_flux = (
@@ -5572,6 +6025,7 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
           }
         },
       )
+    ####
   else:
     maximum_terminal_state_residual = validation.maximum_terminal_state_residual
     if (
@@ -5588,6 +6042,8 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
         ),
         **common,
       )
+    ####
+  ####
 
   result = solve_mixed_regime_downstream_free_boundary(
     request,
@@ -5633,3 +6089,4 @@ def solve_mixed_regime_downstream_free_boundary_from_control_section(
       )
     ),
   )
+####

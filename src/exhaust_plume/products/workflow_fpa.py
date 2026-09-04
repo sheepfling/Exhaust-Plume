@@ -304,6 +304,7 @@ def _write_pixel_table(inputs: FpaVisualizationInput, output: Path) -> Path:
             (column - inputs.camera_optics.principal_point_px[0]) * inputs.camera_optics.pixel_pitch_m[0],
             (row - inputs.camera_optics.principal_point_px[1]) * inputs.camera_optics.pixel_pitch_m[1],
           )
+        ####
         digitized = None if inputs.digitized is None else inputs.digitized.counts[row][column]
         saturated = None if inputs.digitized is None else inputs.digitized.saturated_mask[row][column]
         writer.writerow((
@@ -318,6 +319,9 @@ def _write_pixel_table(inputs: FpaVisualizationInput, output: Path) -> Path:
           None if plane is None else plane[0],
           None if plane is None else plane[1],
         ))
+      ####
+    ####
+  ####
   return path
 ####
 
@@ -350,7 +354,6 @@ def render_fpa_gallery(
   output.mkdir(parents=True, exist_ok=True)
   base_spec = spec or FpaVisualizationSpec.for_source(inputs.source, view_kind='fpa.overview')
   base_spec.validate_for_source(inputs.source)
-  ####
   view_specs: list[FpaVisualizationSpec] = []
   artifacts: list[GalleryArtifact] = []
   expected_spec = base_spec.model_copy(update={
@@ -366,7 +369,6 @@ def render_fpa_gallery(
   )
   view_specs.append(expected_spec)
   artifacts.append(GalleryArtifact('fpa.expected-electrons', 'fpa_expected_electrons.png', 'image/png'))
-  ####
   if inputs.digitized is not None:
     counts_spec = base_spec.model_copy(update={
       'view_kind': 'fpa.digitized-counts',
@@ -389,7 +391,6 @@ def render_fpa_gallery(
   })
   view_specs.append(validity_spec)
   artifacts.append(GalleryArtifact('fpa.validity-and-saturation', 'fpa_validity_and_saturation.png', 'image/png'))
-  ####
   response_path = _render_detector_response(inputs, base_spec, output)
   if response_path is not None:
     response_spec = base_spec.model_copy(update={
@@ -401,7 +402,6 @@ def render_fpa_gallery(
   ####
   pixel_table = _write_pixel_table(inputs, output)
   artifacts.append(GalleryArtifact('fpa.pixel-values', pixel_table.name, 'text/csv'))
-  ####
   spec_path = _write_json(output / 'visualization_spec.json', {
     'schema': FPA_GALLERY_MANIFEST_SCHEMA,
     'view_spec': base_spec.model_dump(mode='json'),
@@ -416,7 +416,6 @@ def render_fpa_gallery(
     ],
   })
   artifacts.append(GalleryArtifact('fpa.visualization-spec', spec_path.name, 'application/json'))
-  ####
   guards = (
     'fpa_is_a_downstream_adapter_not_a_public_provider',
     'expected_electrons_are_not_measured_detector_counts',

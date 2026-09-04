@@ -53,14 +53,18 @@ class CurvedIntegralVisualDefinition:
   def __post_init__(self) -> None:
     if not self.frame_id:
       raise ProviderConfigurationError('curved visual frame_id must not be empty')
+    ####
     if not isinstance(self.result, CurvedPlumeResult):
       raise ProviderConfigurationError('curved visual result must be CurvedPlumeResult')
+    ####
     if len(self.result.stations) < 2:
       raise ProviderConfigurationError('curved visual result requires at least two stations')
+    ####
     arc_lengths = tuple(station.arc_length_m for station in self.result.stations)
     if any(next_value <= value for value, next_value in zip(arc_lengths, arc_lengths[1:])):
       raise ProviderConfigurationError('curved visual station arc lengths must be strictly increasing')
     ####
+  ####
 
   @property
   def digest(self) -> str:
@@ -81,6 +85,8 @@ class CurvedIntegralVisualDefinition:
         'exhaust_mass_fraction': station.exhaust_mass_fraction,
       } for station in self.result.stations),
     })
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,9 +102,12 @@ class CurvedIntegralVisualConfiguration:
   def __post_init__(self) -> None:
     if not self.provider_id or not self.provider_version:
       raise ProviderConfigurationError('curved visual provider identity must not be empty')
+    ####
     if not isinstance(self.time_model, TimeModel):
       raise ProviderConfigurationError('curved visual time_model must be TimeModel')
     ####
+  ####
+####
 
 
 def _descriptor(configuration: CurvedIntegralVisualConfiguration) -> ProviderDescriptor:
@@ -113,6 +122,7 @@ def _descriptor(configuration: CurvedIntegralVisualConfiguration) -> ProviderDes
     deterministic=True,
     notes=('curved/washed integral swept-tube visualization only',),
   )
+####
 
 
 class _CurvedIntegralVisualEvaluator:
@@ -123,6 +133,7 @@ class _CurvedIntegralVisualEvaluator:
   ) -> None:
     self._definition = definition
     self._configuration = configuration
+  ####
 
   def evaluate(
       self,
@@ -150,6 +161,8 @@ class _CurvedIntegralVisualEvaluator:
       provider_version=self._configuration.provider_version,
       time_model=self._configuration.time_model,
     )
+  ####
+####
 
 
 class CurvedIntegralVisualProvider:
@@ -158,10 +171,12 @@ class CurvedIntegralVisualProvider:
   def __init__(self, configuration: CurvedIntegralVisualConfiguration | None = None) -> None:
     self._configuration = configuration or CurvedIntegralVisualConfiguration()
     self._descriptor = _descriptor(self._configuration)
+  ####
 
   @property
   def descriptor(self) -> ProviderDescriptor:
     return self._descriptor
+  ####
 
   def create_session(
       self,
@@ -171,10 +186,14 @@ class CurvedIntegralVisualProvider:
   ) -> 'CurvedIntegralVisualSession':
     if not isinstance(definition, CurvedIntegralVisualDefinition):
       raise ProviderConfigurationError('definition must be CurvedIntegralVisualDefinition')
+    ####
     selected_configuration = configuration or self._configuration
     if selected_configuration != self._configuration:
       raise ProviderConfigurationError('session configuration must match provider configuration')
+    ####
     return CurvedIntegralVisualSession(self._descriptor, definition, selected_configuration)
+  ####
+####
 
 
 class CurvedIntegralVisualSession:
@@ -200,10 +219,12 @@ class CurvedIntegralVisualSession:
       provider_version=descriptor.provider_version,
       configuration_digest_sha256=configuration_digest,
     )
+  ####
 
   @property
   def metadata(self) -> SessionMetadata:
     return self._metadata
+  ####
 
   def create_snapshot(
       self,
@@ -215,8 +236,10 @@ class CurvedIntegralVisualSession:
   ) -> ImmutableProductSnapshot:
     if self._closed:
       raise ProviderClosedError('curved visual session is closed')
+    ####
     if not isfinite(time_s):
       raise ProviderConfigurationError('time_s must be finite')
+    ####
     dynamic_digest = canonical_digest(dynamic_state)
     ambient_digest = canonical_digest(ambient_state)
     provider_digest = canonical_digest({
@@ -244,6 +267,9 @@ class CurvedIntegralVisualSession:
       metadata=metadata,
       _evaluators={VISUAL_SECTIONED_TUBE_CAPABILITY: _CurvedIntegralVisualEvaluator(self._definition, self._configuration)},
     )
+  ####
 
   def close(self) -> None:
     self._closed = True
+  ####
+####

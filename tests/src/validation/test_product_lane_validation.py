@@ -30,6 +30,7 @@ def test_external_summary_redacts_machine_local_archive_path(monkeypatch) -> Non
   summary = _external_summary(Path('/machine-specific/archive.zip'))
 
   assert summary['archive'] == {'status': 'verified'}
+####
 
 
 def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> None:
@@ -47,6 +48,7 @@ def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> 
     for entry in report['provider_reports']
   )
   assert report['external_comparison']['status'] == 'pending'
+####
 
 
 def test_signature_lane_local_interpolation_acceptance_is_explicitly_table_only() -> None:
@@ -59,6 +61,7 @@ def test_signature_lane_local_interpolation_acceptance_is_explicitly_table_only(
   assert report['measurement_space_operators']['measurement_space_guard']['status'] == 'passed'
   assert report['measurement_space_operators']['measurement_space_guard']['cross_space_status'] == 'blocked-measurement-space-mismatch'
   assert report['external_comparison']['status'] == 'pending'
+####
 
 
 def test_optical_lane_passes_analytic_gray_transfer_without_promoting_external_claims() -> None:
@@ -69,6 +72,7 @@ def test_optical_lane_passes_analytic_gray_transfer_without_promoting_external_c
   assert report['analytic_slab_and_chord_passed'] is True
   assert report['sensor_space_operators']['status'] == 'passed'
   assert report['external_comparison']['status'] == 'pending'
+####
 
 
 def test_fpa_boundary_does_not_advertise_an_unimplemented_provider() -> None:
@@ -86,6 +90,7 @@ def test_fpa_boundary_does_not_advertise_an_unimplemented_provider() -> None:
   )
   assert report['visualization_selected_pixel']['column_index'] == 1
   assert report['source_semantics'] == 'source-only'
+####
 
 
 def test_ray_to_signature_consistency_is_synthetic_and_lineage_preserving() -> None:
@@ -95,3 +100,4 @@ def test_ray_to_signature_consistency_is_synthetic_and_lineage_preserving() -> N
   assert report['miss_group_zero_passed'] is True
   assert report['snapshot_lineage_preserved'] is True
   assert report['external_comparison']['status'] == 'synthetic-only'
+####

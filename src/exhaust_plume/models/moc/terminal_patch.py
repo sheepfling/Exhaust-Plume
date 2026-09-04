@@ -59,6 +59,7 @@ class MocReflectedTracePolarity(str, Enum):
   MIXED = 'mixed-polarity'
   NEUTRAL = 'neutral'
   INVALID_INPUT = 'invalid-input'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +117,7 @@ class MocReflectedTracePolarityResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,8 +141,10 @@ class MocReflectedTraceCompressionProfile:
   def __post_init__(self) -> None:
     if len(self.source_trace) < 3:
       raise ValueError('compression profile requires at least three trace samples')
+    ####
     if len(self.baseline_flow_angles_rad) != len(self.source_trace):
       raise ValueError('compression profile baseline must match the source trace')
+    ####
     if not all(isfinite(float(value)) for value in (
       self.target_centerline_y_m,
       self.target_centerline_flow_angle_rad,
@@ -148,15 +152,19 @@ class MocReflectedTraceCompressionProfile:
       *self.baseline_flow_angles_rad,
     )):
       raise ValueError('compression profile values must be finite')
+    ####
     if self.compression_amplitude_rad <= 0.0:
       raise ValueError('compression_amplitude_rad must be finite and positive')
+    ####
     if not isfinite(float(self.envelope_skew)) or abs(self.envelope_skew) > 1.0:
       raise ValueError('envelope_skew must be finite and within [-1, 1]')
+    ####
     if any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in self.source_trace
     ):
       raise TypeError('source_trace must contain MocChainBoundarySample values')
+    ####
   ####
 
   @property
@@ -183,13 +191,16 @@ class MocReflectedTraceCompressionProfile:
 
     if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     denominator = self.start_y_m - self.target_centerline_y_m
     if denominator <= 0.0:
       raise ValueError('compression profile source must lie above its target centerline')
+    ####
     ordinate = float(point_m[1])
     fraction = (self.start_y_m - ordinate) / denominator
     if fraction < -1.0e-8 or fraction > 1.0 + 1.0e-8:
       raise ValueError('shock point ordinate lies outside the reflected trace profile')
+    ####
     fraction = max(0.0, min(1.0, fraction))
     baseline = self.target_centerline_flow_angle_rad + (
       self.source_trace[0].state.theta_rad
@@ -217,6 +228,7 @@ class MocReflectedTraceCompressionProfile:
       'production_claim_allowed': False,
     }
   ####
+####
 
 
 def _polarity_failure(message: str) -> MocReflectedTracePolarityResult:
@@ -224,6 +236,7 @@ def _polarity_failure(message: str) -> MocReflectedTracePolarityResult:
     status=MocReflectedTracePolarity.INVALID_INPUT,
     message=message,
   )
+####
 
 
 def classify_reflected_trace_polarity(
@@ -242,10 +255,13 @@ def classify_reflected_trace_polarity(
     trace = tuple(samples)
   except TypeError:
     return _polarity_failure('samples must be an iterable of chain samples')
+  ####
   if len(trace) < 3:
     return _polarity_failure('reflected trace polarity requires at least three samples')
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in trace):
     return _polarity_failure('reflected trace polarity requires typed chain samples')
+  ####
   for name, value in (
     ('target_centerline_y_m', target_centerline_y_m),
     ('target_centerline_flow_angle_rad', target_centerline_flow_angle_rad),
@@ -258,6 +274,7 @@ def classify_reflected_trace_polarity(
       numeric_value = float(value)
     except (TypeError, ValueError):
       return _polarity_failure(f'{name} must be numeric')
+    ####
     if not isfinite(numeric_value) or (
       numeric_value <= 0.0
       and name in (
@@ -268,6 +285,8 @@ def classify_reflected_trace_polarity(
       )
     ):
       return _polarity_failure(f'{name} must be finite and valid')
+    ####
+  ####
   target_y = float(target_centerline_y_m)
   target_angle = float(target_centerline_flow_angle_rad)
   position_tolerance = float(position_tolerance_m)
@@ -278,30 +297,38 @@ def classify_reflected_trace_polarity(
   last = trace[-1].state
   if first.y_m <= target_y + position_tolerance:
     return _polarity_failure('reflected trace source must lie above the target centerline')
+  ####
   if abs(last.y_m - target_y) > position_tolerance:
     return _polarity_failure('reflected trace endpoint must lie on the target centerline')
+  ####
   if abs(last.theta_rad - target_angle) > polarity_tolerance:
     return _polarity_failure(
       'reflected trace endpoint flow angle must match the target centerline angle'
     )
+  ####
   reference_invariant = first.k_minus
   for index, (left, right) in enumerate(zip(trace, trace[1:])):
     if right.state.x_m <= left.state.x_m + forward_tolerance:
       return _polarity_failure(
         f'reflected trace sample {index + 1} is not strictly downstream'
       )
+    ####
     if right.state.y_m >= left.state.y_m - forward_tolerance:
       return _polarity_failure(
         f'reflected trace sample {index + 1} is not strictly toward the centerline'
       )
+    ####
     if abs(right.state.gamma - first.gamma) > invariant_tolerance:
       return _polarity_failure(
         f'reflected trace sample {index + 1} uses a different gamma'
       )
+    ####
     if abs(right.state.k_minus - reference_invariant) > invariant_tolerance:
       return _polarity_failure(
         f'reflected trace sample {index + 1} does not preserve the C- invariant'
       )
+    ####
+  ####
   source_angles = tuple(float(sample.state.theta_rad) for sample in trace)
   reference_angles = tuple(
     target_angle + (source_angles[0] - target_angle) * (
@@ -325,6 +352,7 @@ def classify_reflected_trace_polarity(
     status = MocReflectedTracePolarity.EXPANSION
   else:
     status = MocReflectedTracePolarity.NEUTRAL
+  ####
   return MocReflectedTracePolarityResult(
     status=status,
     source_flow_angles_rad=source_angles,
@@ -349,7 +377,7 @@ def classify_reflected_trace_polarity(
       )
     ),
   )
-  ####
+####
 
 
 def build_reflected_trace_compression_profile(
@@ -366,26 +394,34 @@ def build_reflected_trace_compression_profile(
   amplitude = float(compression_amplitude_rad)
   if len(trace) < 3:
     raise ValueError('reflected trace profile requires at least three samples')
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in trace):
     raise TypeError('samples must contain MocChainBoundarySample values')
+  ####
   target_y = float(target_centerline_y_m)
   target_angle = float(target_centerline_flow_angle_rad)
   if not all(isfinite(value) for value in (target_y, target_angle, amplitude)):
     raise ValueError('reflected trace profile inputs must be finite')
+  ####
   if amplitude <= 0.0:
     raise ValueError('compression_amplitude_rad must be finite and positive')
+  ####
   skew = float(envelope_skew)
   if not isfinite(skew) or abs(skew) > 1.0:
     raise ValueError('envelope_skew must be finite and within [-1, 1]')
+  ####
   start_y = trace[0].state.y_m
   if start_y <= target_y:
     raise ValueError('reflected trace source must lie above the target centerline')
+  ####
   if abs(trace[-1].state.y_m - target_y) > 1.0e-8:
     raise ValueError('reflected trace endpoint must lie on the target centerline')
+  ####
   if abs(trace[-1].state.theta_rad - target_angle) > 1.0e-8:
     raise ValueError(
       'reflected trace endpoint flow angle must match the target centerline angle'
     )
+  ####
   baseline = tuple(
     target_angle + (trace[0].state.theta_rad - target_angle) * (
       (sample.state.y_m - target_y) / (start_y - target_y)
@@ -400,6 +436,7 @@ def build_reflected_trace_compression_profile(
     baseline_flow_angles_rad=baseline,
     envelope_skew=skew,
   )
+####
 
 
 class MocTerminalReflectionPatchStatus(str, Enum):
@@ -413,6 +450,7 @@ class MocTerminalReflectionPatchStatus(str, Enum):
   INVARIANT_FAILURE = 'invariant_failure'
   TRACE_FAILURE = 'outgoing_trace_failure'
   TOPOLOGY_FAILURE = 'topology_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -441,26 +479,31 @@ class MocTerminalReflectionPatchResult:
   @property
   def converged(self) -> bool:
     return self.status is MocTerminalReflectionPatchStatus.CONVERGED_OPEN
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The outgoing characteristic front still needs a physical boundary."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     """An open transition cannot become a resolved shock-cell by itself."""
 
     return True
+  ####
 
   @property
   def node_count(self) -> int:
     return len(self.nodes)
+  ####
 
   @property
   def cell_count(self) -> int:
     return len(self.cells)
+  ####
 
   @property
   def outgoing_trace_samples(self) -> tuple[MocChainBoundarySample, ...]:
@@ -472,6 +515,7 @@ class MocTerminalReflectionPatchResult:
         strict=True,
       )
     )
+  ####
 
   def state_at(
     self,
@@ -483,6 +527,7 @@ class MocTerminalReflectionPatchResult:
 
     sample = self._sample_at(point_m, position_tolerance_m=position_tolerance_m)
     return None if sample is None else sample[0]
+  ####
 
   def total_pressure_at(
     self,
@@ -494,6 +539,7 @@ class MocTerminalReflectionPatchResult:
 
     sample = self._sample_at(point_m, position_tolerance_m=position_tolerance_m)
     return None if sample is None else sample[1]
+  ####
 
   def static_pressure_at(
     self,
@@ -506,11 +552,13 @@ class MocTerminalReflectionPatchResult:
     sample = self._sample_at(point_m, position_tolerance_m=position_tolerance_m)
     if sample is None:
       return None
+    ####
     state, total_pressure = sample
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
     return total_pressure / pressure_ratio
+  ####
 
   def _sample_at(
     self,
@@ -520,8 +568,10 @@ class MocTerminalReflectionPatchResult:
   ) -> tuple[CharacteristicState, float] | None:
     if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     point = (float(point_m[0]), float(point_m[1]))
     node_by_key = {
       (node.centerline_index, node.boundary_index): node
@@ -534,6 +584,7 @@ class MocTerminalReflectionPatchResult:
       ):
         if node.total_pressure_Pa is None:
           return None
+        ####
         return (
           CharacteristicState(
             x_m=point[0],
@@ -544,10 +595,13 @@ class MocTerminalReflectionPatchResult:
           ),
           float(node.total_pressure_Pa),
         )
+      ####
+    ####
     for cell in self.cells:
       samples = _terminal_cell_samples(cell, node_by_key)
       if samples is None:
         continue
+      ####
       vertices, states, pressures = samples
       weights = _polygon_interpolation_weights(
         point,
@@ -556,6 +610,7 @@ class MocTerminalReflectionPatchResult:
       )
       if weights is None:
         continue
+      ####
       theta = sum(
         weight * state.theta_rad
         for weight, state in zip(weights, states, strict=True)
@@ -567,6 +622,7 @@ class MocTerminalReflectionPatchResult:
       inverse = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
       if not inverse.converged or inverse.value is None:
         return None
+      ####
       return (
         CharacteristicState(
           x_m=point[0],
@@ -577,7 +633,9 @@ class MocTerminalReflectionPatchResult:
         ),
         sum(weight * pressure for weight, pressure in zip(weights, pressures, strict=True)),
       )
+    ####
     return None
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -622,10 +680,13 @@ class MocTerminalReflectionPatchResult:
       'minimum_forward_margin_m': self.minimum_forward_margin_m,
       'message': self.message,
     }
+  ####
+####
 
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _failure(
@@ -671,6 +732,7 @@ def _failure(
     minimum_forward_margin_m=minimum_forward_margin_m,
     message=message,
   )
+####
 
 
 def _residual_maxima(
@@ -698,6 +760,7 @@ def _residual_maxima(
       default=None,
     ),
   )
+####
 
 
 def _terminal_cell_samples(
@@ -713,6 +776,7 @@ def _terminal_cell_samples(
   if cell.cell_kind == 'terminal-reflection-interior':
     if len(cell.centerline_indices) != 2 or len(cell.boundary_indices) != 2:
       return None
+    ####
     first_axis, second_axis = cell.centerline_indices
     first_boundary, second_boundary = cell.boundary_indices
     keys = (
@@ -724,6 +788,7 @@ def _terminal_cell_samples(
   elif cell.cell_kind == 'terminal-reflection-axis-strip':
     if len(cell.centerline_indices) != 2:
       return None
+    ####
     first_row, second_row = cell.centerline_indices
     keys = (
       (first_row, first_row),
@@ -732,15 +797,18 @@ def _terminal_cell_samples(
     )
   else:
     return None
+  ####
   nodes = tuple(node_by_key.get(key) for key in keys)
   if any(node is None or node.total_pressure_Pa is None for node in nodes):
     return None
+  ####
   resolved = tuple(node for node in nodes if node is not None)
   return (
     tuple(cell.vertices_xr_m),
     tuple(node.state for node in resolved),
     tuple(float(node.total_pressure_Pa) for node in resolved if node.total_pressure_Pa is not None),
   )
+####
 
 
 def _triangle_interpolation_weights(
@@ -753,13 +821,16 @@ def _triangle_interpolation_weights(
   denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
   if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
     return None
+  ####
   px, py = point
   first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
   second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
   third = 1.0 - first - second
   if min(first, second, third) < -1.0e-10 or max(first, second, third) > 1.0 + 1.0e-10:
     return None
+  ####
   return first, second, third
+####
 
 
 def _polygon_interpolation_weights(
@@ -770,6 +841,7 @@ def _polygon_interpolation_weights(
 ) -> tuple[float, ...] | None:
   if len(vertices) == 3:
     return _triangle_interpolation_weights(point, vertices, tolerance_m=tolerance_m)
+  ####
   first = _triangle_interpolation_weights(
     point,
     (vertices[0], vertices[1], vertices[2]),
@@ -777,6 +849,7 @@ def _polygon_interpolation_weights(
   )
   if first is not None:
     return first[0], first[1], first[2], 0.0
+  ####
   second = _triangle_interpolation_weights(
     point,
     (vertices[0], vertices[2], vertices[3]),
@@ -784,7 +857,9 @@ def _polygon_interpolation_weights(
   )
   if second is not None:
     return second[0], 0.0, second[1], second[2]
+  ####
   return None
+####
 
 
 def assemble_terminal_trace_centerline_patch(
@@ -816,8 +891,10 @@ def assemble_terminal_trace_centerline_patch(
       source_strip_status=None,
       message='strip must be a MocAmbientShockStripResult',
     )
+  ####
   if trace_position_tolerance_m is None:
     trace_position_tolerance_m = strip.terminal_trace_position_tolerance_m
+  ####
   for name, value in (
     ('trace_position_tolerance_m', trace_position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -825,6 +902,8 @@ def assemble_terminal_trace_centerline_patch(
     numeric_value = float(value)
     if not isfinite(numeric_value) or numeric_value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   trace_position_tolerance_m = float(trace_position_tolerance_m)
   invariant_tolerance = float(invariant_tolerance)
   if trace_forward_tolerance_m is None:
@@ -833,6 +912,8 @@ def assemble_terminal_trace_centerline_patch(
     trace_forward_tolerance = float(trace_forward_tolerance_m)
     if not isfinite(trace_forward_tolerance) or trace_forward_tolerance <= 0.0:
       raise ValueError('trace_forward_tolerance_m must be finite and positive')
+    ####
+  ####
   if (
     strip.status is not MocAmbientShockStripStatus.CONVERGED_OPEN
     or not strip.topology.connected
@@ -847,6 +928,7 @@ def assemble_terminal_trace_centerline_patch(
         f'received {strip.status.value}: {strip.topology.message}'
       ),
     )
+  ####
 
   input_trace = validate_characteristic_trace(
     strip.terminal_trace_samples,
@@ -862,6 +944,7 @@ def assemble_terminal_trace_centerline_patch(
       input_trace_validation=input_trace,
       message=f'incoming terminal C+ trace failed: {input_trace.message}',
     )
+  ####
   trace = input_trace.samples
   if len(trace) < 3:
     return _failure(
@@ -870,6 +953,7 @@ def assemble_terminal_trace_centerline_patch(
       input_trace_validation=input_trace,
       message='terminal reflection requires at least three trace samples',
     )
+  ####
 
   axis_results: list[CharacteristicPointResult] = []
   axis_states: list[CharacteristicState] = []
@@ -897,6 +981,7 @@ def assemble_terminal_trace_centerline_patch(
         axis_pressures=tuple(axis_pressures),
         message=f'terminal trace sample {index} did not reach the centerline: {result.message}',
       )
+    ####
     if abs(result.point_m[1]) > trace_position_tolerance_m or abs(result.state.theta_rad) > invariant_tolerance:
       return _failure(
         MocTerminalReflectionPatchStatus.AXIS_FAILURE,
@@ -907,6 +992,7 @@ def assemble_terminal_trace_centerline_patch(
         axis_pressures=tuple(axis_pressures),
         message=f'centerline reflection sample {index} does not satisfy y=0 and theta=0',
       )
+    ####
     if axis_points and result.point_m[0] <= axis_points[-1][0] + trace_position_tolerance_m:
       return _failure(
         MocTerminalReflectionPatchStatus.GEOMETRY_FAILURE,
@@ -917,10 +1003,12 @@ def assemble_terminal_trace_centerline_patch(
         axis_pressures=tuple(axis_pressures),
         message=f'centerline reflection sample {index} is not strictly downstream',
       )
+    ####
     axis_results.append(result)
     axis_states.append(result.state)
     axis_points.append(result.point_m)
     axis_pressures.append(sample.total_pressure_Pa)
+  ####
 
   node_by_index: dict[tuple[int, int], MocCharacteristicNode] = {}
   for trace_index, trace_sample in enumerate(trace):
@@ -959,12 +1047,15 @@ def assemble_terminal_trace_centerline_patch(
               f'{point_result.message}'
             ),
           )
+        ####
         if axis_index == 0:
           point = trace_sample.point_m
           state = trace_sample.state
         else:
           point = point_result.point_m
           state = point_result.state
+        ####
+      ####
       node_by_index[(trace_index, axis_index)] = MocCharacteristicNode(
         centerline_index=axis_index,
         boundary_index=trace_index,
@@ -973,9 +1064,12 @@ def assemble_terminal_trace_centerline_patch(
         point_result=point_result,
         total_pressure_Pa=trace_sample.total_pressure_Pa,
       )
+    ####
+  ####
 
   def node_point(trace_index: int, axis_index: int) -> tuple[float, float]:
     return node_by_index[(trace_index, axis_index)].point_m
+  ####
 
   cells_list: list[MocCharacteristicCell] = []
   try:
@@ -995,6 +1089,7 @@ def assemble_terminal_trace_centerline_patch(
             boundary_indices=(row, row + 1),
           )
         )
+      ####
       cells_list.append(
         MocCharacteristicCell(
           cell_index=len(cells_list),
@@ -1008,6 +1103,7 @@ def assemble_terminal_trace_centerline_patch(
           boundary_indices=(row + 1,),
         )
       )
+    ####
   except ValueError as error:
     nodes = tuple(node_by_index.values())
     maximum_geometry, maximum_invariant = _residual_maxima(nodes)
@@ -1024,6 +1120,7 @@ def assemble_terminal_trace_centerline_patch(
       maximum_absolute_invariant_residual=maximum_invariant,
       message=f'terminal reflection cell geometry failed: {error}',
     )
+  ####
 
   nodes = tuple(node_by_index.values())
   cells = tuple(cells_list)
@@ -1056,6 +1153,7 @@ def assemble_terminal_trace_centerline_patch(
         f'patch={topology.message}; combined={combined_topology.message}'
       ),
     )
+  ####
 
   outgoing_nodes = tuple(
     node_by_index[(len(trace) - 1, axis_index)]
@@ -1108,6 +1206,7 @@ def assemble_terminal_trace_centerline_patch(
       minimum_forward_margin_m=minimum_forward,
       message=f'outgoing reflected C- trace failed: {outgoing_trace.message}',
     )
+  ####
   return MocTerminalReflectionPatchResult(
     status=MocTerminalReflectionPatchStatus.CONVERGED_OPEN,
     source_strip_status=strip.status,
@@ -1132,3 +1231,4 @@ def assemble_terminal_trace_centerline_patch(
       'shock/boundary solve'
     ),
   )
+####

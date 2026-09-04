@@ -64,6 +64,7 @@ class MocCausticSimpleWaveTraceStatus(str, Enum):
 
   CONVERGED_TRACE = 'converged_solver_owned_simple_wave_trace'
   INVALID_INPUT = 'invalid_input'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,16 +95,19 @@ class MocCausticSimpleWaveTrace:
         isfinite(float(value)) for value in self.event_point_m
       ):
         raise ValueError('event_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(
         self,
         'event_point_m',
         (float(self.event_point_m[0]), float(self.event_point_m[1])),
       )
+    ####
     if self.event_state is not None and not isinstance(
       self.event_state,
       CharacteristicState,
     ):
       raise TypeError('event_state must be a CharacteristicState or None')
+    ####
     for name in (
       'event_static_pressure_Pa',
       'invariant_value',
@@ -115,36 +119,48 @@ class MocCausticSimpleWaveTrace:
       value = getattr(self, name)
       if value is not None and not isfinite(float(value)):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
+    ####
     if self.event_static_pressure_Pa is not None and self.event_static_pressure_Pa <= 0.0:
       raise ValueError('event_static_pressure_Pa must be positive')
+    ####
     if self.total_pressure_Pa is not None and self.total_pressure_Pa <= 0.0:
       raise ValueError('total_pressure_Pa must be positive')
+    ####
     if self.maximum_x_m is not None and self.event_point_m is not None and (
       self.maximum_x_m <= self.event_point_m[0]
     ):
       raise ValueError('maximum_x_m must be downstream of the event point')
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocCausticSimpleWaveTraceStatus.CONVERGED_TRACE
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   def _fraction(self, y_m: float) -> float | None:
     if not self.converged or self.event_point_m is None or self.target_centerline_y_m is None:
       return None
+    ####
     event_y = self.event_point_m[1]
     target_y = self.target_centerline_y_m
     span = event_y - target_y
     if span <= 0.0 or y_m < target_y - 1.0e-10 or y_m > event_y + 1.0e-10:
       return None
+    ####
     return max(0.0, min(1.0, (y_m - target_y) / span))
+  ####
 
   def state_at(
     self,
@@ -156,10 +172,13 @@ class MocCausticSimpleWaveTrace:
 
     if not self.converged:
       return None
+    ####
     if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     assert self.event_point_m is not None
     assert self.event_state is not None
     assert self.invariant_family is not None
@@ -169,16 +188,20 @@ class MocCausticSimpleWaveTrace:
     x_m, y_m = float(point_m[0]), float(point_m[1])
     if x_m < self.event_point_m[0] - position_tolerance_m:
       return None
+    ####
     if self.maximum_x_m is not None and x_m > self.maximum_x_m + position_tolerance_m:
       return None
+    ####
     fraction = self._fraction(y_m)
     if fraction is None:
       return None
+    ####
     if (
       abs(x_m - self.event_point_m[0]) <= position_tolerance_m
       and abs(y_m - self.event_point_m[1]) <= position_tolerance_m
     ):
       return self.event_state
+    ####
     theta = self.centerline_flow_angle_rad + (
       self.event_state.theta_rad - self.centerline_flow_angle_rad
     ) * fraction
@@ -186,11 +209,14 @@ class MocCausticSimpleWaveTrace:
       nu = theta - self.invariant_value
     else:
       nu = self.invariant_value - theta
+    ####
     if not isfinite(nu) or nu <= 0.0:
       return None
+    ####
     inversion = inverse_prandtl_meyer_angle_rad(nu, self.event_state.gamma)
     if not inversion.converged or inversion.value is None or inversion.value <= 1.0:
       return None
+    ####
     return CharacteristicState(
       x_m=x_m,
       y_m=y_m,
@@ -198,6 +224,7 @@ class MocCausticSimpleWaveTrace:
       mach=inversion.value,
       gamma=self.event_state.gamma,
     )
+  ####
 
   def static_pressure_at(
     self,
@@ -210,8 +237,10 @@ class MocCausticSimpleWaveTrace:
     state = self.state_at(point_m, position_tolerance_m=position_tolerance_m)
     if state is None or self.total_pressure_Pa is None:
       return None
+    ####
     factor = 1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     return self.total_pressure_Pa / factor ** (state.gamma / (state.gamma - 1.0))
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -239,6 +268,8 @@ class MocCausticSimpleWaveTrace:
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'message': self.message,
     }
+  ####
+####
 
 
 def build_caustic_simple_wave_trace(
@@ -271,6 +302,7 @@ def build_caustic_simple_wave_trace(
       maximum_x_m=None,
       message='request must be a MocCausticShockRemeshRequest',
     )
+  ####
   if not isinstance(upstream_invariant_family, CharacteristicFamily):
     return MocCausticSimpleWaveTrace(
       status=MocCausticSimpleWaveTraceStatus.INVALID_INPUT,
@@ -285,6 +317,7 @@ def build_caustic_simple_wave_trace(
       maximum_x_m=None,
       message='upstream_invariant_family must be a CharacteristicFamily',
     )
+  ####
   try:
     target_y = float(target_centerline_y_m)
     target_theta = float(centerline_flow_angle_rad)
@@ -302,6 +335,7 @@ def build_caustic_simple_wave_trace(
       maximum_x_m=None,
       message='simple-wave target ordinate and centerline angle must be numeric',
     )
+  ####
   event = request.event_point_m
   if not isfinite(target_y) or not isfinite(target_theta):
     return MocCausticSimpleWaveTrace(
@@ -317,6 +351,7 @@ def build_caustic_simple_wave_trace(
       maximum_x_m=None,
       message='simple-wave target ordinate and centerline angle must be finite',
     )
+  ####
   if target_y >= event[1]:
     message = 'simple-wave target ordinate must be finite and below the caustic event'
     return MocCausticSimpleWaveTrace(
@@ -332,6 +367,7 @@ def build_caustic_simple_wave_trace(
       maximum_x_m=None,
       message=message,
     )
+  ####
   if target_y < -1.0e-10:
     return MocCausticSimpleWaveTrace(
       status=MocCausticSimpleWaveTraceStatus.INVALID_INPUT,
@@ -346,11 +382,13 @@ def build_caustic_simple_wave_trace(
       maximum_x_m=None,
       message='simple-wave target ordinate must remain in the upper half-plane',
     )
+  ####
   if maximum_x_m is not None:
     try:
       x_limit = float(maximum_x_m)
     except (TypeError, ValueError):
       x_limit = float('nan')
+    ####
     if not isfinite(x_limit) or x_limit <= event[0]:
       return MocCausticSimpleWaveTrace(
         status=MocCausticSimpleWaveTraceStatus.INVALID_INPUT,
@@ -365,8 +403,10 @@ def build_caustic_simple_wave_trace(
         maximum_x_m=x_limit if isfinite(x_limit) else None,
         message='maximum_x_m must be finite and downstream of the caustic event',
       )
+    ####
   else:
     x_limit = None
+  ####
 
   upstream = request.upstream_state
   invariant = (
@@ -378,6 +418,7 @@ def build_caustic_simple_wave_trace(
     target_nu = target_theta - invariant
   else:
     target_nu = invariant - target_theta
+  ####
   if not isfinite(target_nu) or target_nu <= 0.0:
     return MocCausticSimpleWaveTrace(
       status=MocCausticSimpleWaveTraceStatus.INVALID_INPUT,
@@ -392,6 +433,7 @@ def build_caustic_simple_wave_trace(
       maximum_x_m=x_limit,
       message='simple-wave centerline angle leaves the supersonic compatibility domain',
     )
+  ####
   if total_pressure_Pa is None:
     factor = 1.0 + 0.5 * (upstream.gamma - 1.0) * upstream.mach * upstream.mach
     total_pressure = request.upstream_static_pressure_Pa * factor ** (
@@ -399,8 +441,10 @@ def build_caustic_simple_wave_trace(
     )
   else:
     total_pressure = float(total_pressure_Pa)
+  ####
   if not isfinite(total_pressure) or total_pressure <= 0.0:
     raise ValueError('total_pressure_Pa must be finite and positive')
+  ####
   return MocCausticSimpleWaveTrace(
     status=MocCausticSimpleWaveTraceStatus.CONVERGED_TRACE,
     event_point_m=event,
@@ -417,6 +461,7 @@ def build_caustic_simple_wave_trace(
       'caustic one-sided state; this is a research boundary condition'
     ),
   )
+####
 
 
 class MocCausticSimpleWaveTerminalStatus(str, Enum):
@@ -430,6 +475,7 @@ class MocCausticSimpleWaveTerminalStatus(str, Enum):
   SHOCK_FAILURE = 'simple_wave_shock_failure'
   SHOCK_PREFIX_FAILURE = 'simple_wave_shock_prefix_failure'
   DOWNSTREAM_ZONE_FAILURE = 'simple_wave_downstream_zone_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -465,14 +511,19 @@ class MocCausticSimpleWaveTerminalResult:
   def __post_init__(self) -> None:
     if len(self.incoming_handoff_states) != len(self.incoming_handoff_total_pressure_Pa):
       raise ValueError('incoming handoff states and pressures must have equal lengths')
+    ####
     if any(not isinstance(state, CharacteristicState) for state in self.incoming_handoff_states):
       raise TypeError('incoming handoff states must be CharacteristicState values')
+    ####
     if any(not isfinite(float(value)) or value <= 0.0 for value in self.incoming_handoff_total_pressure_Pa):
       raise ValueError('incoming handoff pressures must be finite and positive')
+    ####
     if self.event_point_m is not None:
       if len(self.event_point_m) != 2 or not all(isfinite(float(value)) for value in self.event_point_m):
         raise ValueError('event_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(self, 'event_point_m', tuple(float(value) for value in self.event_point_m))
+    ####
     for name in (
       'event_seam_verified',
       'local_bridge_state_verified',
@@ -483,26 +534,34 @@ class MocCausticSimpleWaveTerminalResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocCausticSimpleWaveTerminalStatus.CONVERGED_OPEN_TERMINAL_FIELD
+  ####
 
   @property
   def physical_terminal_verified(self) -> bool:
     return self.terminal_verified and self.terminal is not None and self.terminal.subsonic
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def open_field_available(self) -> bool:
     return self.converged and self.zone is not None and self.zone.converged
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     if self.status is MocCausticSimpleWaveTerminalStatus.INVALID_INPUT:
@@ -515,6 +574,7 @@ class MocCausticSimpleWaveTerminalResult:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
     else:
       reason = MocChainTerminationReason.SOLVER_ERROR
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -540,6 +600,7 @@ class MocCausticSimpleWaveTerminalResult:
         'incoming_handoff_sample_count': len(self.incoming_handoff_states),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -587,6 +648,8 @@ class MocCausticSimpleWaveTerminalResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _state_matches(
@@ -609,12 +672,14 @@ def _state_matches(
       1.0, abs(actual.gamma), abs(expected.gamma)
     )
   )
+####
 
 
 def _pressure_matches(actual: float, expected: float, tolerance: float) -> bool:
   return abs(float(actual) - float(expected)) <= tolerance * max(
     1.0, abs(float(actual)), abs(float(expected))
   )
+####
 
 
 def _failure(
@@ -658,6 +723,7 @@ def _failure(
     incoming_handoff_total_pressure_Pa=tuple(sample.total_pressure_Pa for sample in handoff),
     message=message,
   )
+####
 
 
 def solve_caustic_simple_wave_terminal_remesh(
@@ -693,6 +759,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       trace=None,
       message='request must be a MocCausticShockRemeshRequest',
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError:
@@ -702,6 +769,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       trace=None,
       message='incoming_handoff must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if len(handoff) < 3 or any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     return _failure(
       MocCausticSimpleWaveTerminalStatus.INVALID_INPUT,
@@ -710,6 +778,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='simple-wave terminal remesh requires at least three typed incoming handoff samples',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _failure(
       MocCausticSimpleWaveTerminalStatus.INVALID_INPUT,
@@ -718,8 +787,10 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='branch must be a ShockBranch',
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 5:
     raise ValueError('sample_count must be an integer of at least five')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -727,6 +798,8 @@ def solve_caustic_simple_wave_terminal_remesh(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   trace = build_caustic_simple_wave_trace(
     request,
     upstream_invariant_family=upstream_invariant_family,
@@ -742,6 +815,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave upstream trace could not be built: {trace.message}',
     )
+  ####
 
   event = request.event_point_m
   event_state = trace.state_at(event, position_tolerance_m=position_tolerance_m)
@@ -769,6 +843,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='simple-wave trace does not reproduce the exact prepared caustic event state and pressure',
     )
+  ####
 
   local_downstream = request.local_bridge.downstream_state
   compression = request.local_bridge.compression
@@ -781,10 +856,12 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='prepared caustic request has no complete local downstream bridge state',
     )
+  ####
   try:
     target_downstream_angle = float(downstream_centerline_flow_angle_rad)
   except (TypeError, ValueError):
     target_downstream_angle = float('nan')
+  ####
   if not isfinite(target_downstream_angle):
     return _failure(
       MocCausticSimpleWaveTerminalStatus.INVALID_INPUT,
@@ -794,6 +871,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='downstream_centerline_flow_angle_rad must be finite',
     )
+  ####
 
   law_checked = False
 
@@ -801,6 +879,7 @@ def solve_caustic_simple_wave_terminal_remesh(
     nonlocal law_checked
     if point[1] < target_centerline_y_m - position_tolerance_m or point[1] > event[1] + position_tolerance_m:
       raise ValueError('downstream angle law was sampled outside the terminal ordinate domain')
+    ####
     fraction = max(
       0.0,
       min(1.0, (point[1] - target_centerline_y_m) / (event[1] - target_centerline_y_m)),
@@ -812,7 +891,9 @@ def solve_caustic_simple_wave_terminal_remesh(
       law_checked = abs(value - local_downstream.theta_rad) <= invariant_tolerance * max(
         1.0, abs(value), abs(local_downstream.theta_rad)
       )
+    ####
     return value
+  ####
 
   def supplied_downstream_angle(index: int, point: tuple[float, float]) -> float:
     nonlocal law_checked
@@ -820,11 +901,14 @@ def solve_caustic_simple_wave_terminal_remesh(
     value = float(downstream_flow_angle_at(index, point))
     if not isfinite(value):
       raise ValueError('downstream_flow_angle_at returned a non-finite value')
+    ####
     if index == 0:
       law_checked = abs(value - local_downstream.theta_rad) <= invariant_tolerance * max(
         1.0, abs(value), abs(local_downstream.theta_rad)
       )
+    ####
     return value
+  ####
 
   angle_law = supplied_downstream_angle if downstream_flow_angle_at is not None else default_downstream_angle
   try:
@@ -838,6 +922,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'downstream angle law failed at the caustic event: {error}',
     )
+  ####
   if not law_checked or abs(angle_at_event - local_downstream.theta_rad) > invariant_tolerance * max(
     1.0, abs(angle_at_event), abs(local_downstream.theta_rad)
   ):
@@ -849,6 +934,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='downstream angle law does not reproduce the prepared local caustic bridge at the event',
     )
+  ####
 
   try:
     shock = solve_marched_attached_shock_field(
@@ -874,6 +960,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave shock march raised: {error}',
     )
+  ####
   terminal = shock.normal_shock_terminal
   terminal_verified = bool(
     shock.status is MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
@@ -893,6 +980,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave shock did not reach a typed normal-shock terminal: {shock.message}',
     )
+  ####
   if len(shock.shock_points_m) < 4:
     return _failure(
       MocCausticSimpleWaveTerminalStatus.SHOCK_PREFIX_FAILURE,
@@ -905,6 +993,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='simple-wave terminal requires at least four retained supersonic shock samples',
     )
+  ####
 
   try:
     shock_fit = fit_attached_shock_boundary(
@@ -928,6 +1017,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave shock-prefix fit raised: {error}',
     )
+  ####
   shock_prefix_verified = bool(
     shock_fit.converged
     and len(shock_fit.boundary_states) == len(shock.shock_points_m)
@@ -947,6 +1037,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave shock prefix did not pass attached-boundary fitting: {shock_fit.message}',
     )
+  ####
 
   first_boundary = shock_fit.boundary_states[0]
   local_bridge_state_verified = bool(
@@ -995,6 +1086,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='simple-wave shock prefix does not reproduce the prepared local caustic shock bridge',
     )
+  ####
 
   try:
     continuation = continue_post_shock_characteristics_to_centerline_open(
@@ -1018,6 +1110,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave open C- continuation raised: {error}',
     )
+  ####
   if not continuation.converged:
     return _failure(
       MocCausticSimpleWaveTerminalStatus.DOWNSTREAM_ZONE_FAILURE,
@@ -1034,6 +1127,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave open C- continuation did not converge: {continuation.message}',
     )
+  ####
   first_layer = assemble_post_shock_first_layer(
     continuation,
     position_tolerance_m=position_tolerance_m,
@@ -1056,6 +1150,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave first downstream layer did not converge: {first_layer.message}',
     )
+  ####
   zone = assemble_post_shock_characteristic_zone(
     continuation,
     first_layer,
@@ -1082,6 +1177,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message=f'simple-wave open post-shock zone did not converge: {zone.message}',
     )
+  ####
 
   upstream_coupling_verified = all(
     (
@@ -1121,6 +1217,7 @@ def solve_caustic_simple_wave_terminal_remesh(
       handoff=handoff,
       message='simple-wave shock prefix did not retain the solver-owned upstream trace samples',
     )
+  ####
   return MocCausticSimpleWaveTerminalResult(
     status=MocCausticSimpleWaveTerminalStatus.CONVERGED_OPEN_TERMINAL_FIELD,
     request=request,
@@ -1146,3 +1243,4 @@ def solve_caustic_simple_wave_terminal_remesh(
       'terminal; mixed-regime closure and chain promotion remain blocked'
     ),
   )
+####

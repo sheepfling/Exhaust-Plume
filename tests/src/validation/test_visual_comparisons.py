@@ -20,6 +20,7 @@ def test_mach_disk_comparison_requires_explicit_branch_crosswalk() -> None:
   assert result.status == 'branch-crosswalk-required'
   assert result.position_rmse_m is None
   assert 'row order' in (result.reason or '')
+####
 
 
 def test_mach_disk_comparison_is_branch_aware_and_does_not_use_row_order() -> None:
@@ -37,6 +38,7 @@ def test_mach_disk_comparison_is_branch_aware_and_does_not_use_row_order() -> No
   assert result.matched_point_count == 4
   assert isclose(result.position_rmse_m or -1.0, 0.0, abs_tol=1.0e-15)
   assert isclose(result.position_max_abs_error_m or -1.0, 0.0, abs_tol=1.0e-15)
+####
 
 
 def test_mach_disk_comparison_keeps_partial_overlap_as_diagnostic() -> None:
@@ -53,6 +55,7 @@ def test_mach_disk_comparison_keeps_partial_overlap_as_diagnostic() -> None:
   assert result.matched_point_count == 2
   assert result.position_rmse_m is not None
   assert result.reason is not None
+####
 
 
 def test_mach_disk_comparison_rejects_invalid_array_shapes() -> None:
@@ -63,3 +66,5 @@ def test_mach_disk_comparison_rejects_invalid_array_shapes() -> None:
       (1.0, 2.0),
       (0.01, 0.02),
     )
+  ####
+####

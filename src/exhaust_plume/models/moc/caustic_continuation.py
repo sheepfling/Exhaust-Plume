@@ -60,6 +60,7 @@ class MocCausticUpstreamContinuationStatus(str, Enum):
   BRANCH_SELECTION_REQUIRED = 'caustic_continuation_branch_selection_required'
   RESTART_FAILURE = 'caustic_continuation_restart_failure'
   SEAM_FAILURE = 'caustic_continuation_seam_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +86,7 @@ class MocCausticUpstreamContinuationResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocCausticUpstreamContinuationStatus):
       raise TypeError('status must be a MocCausticUpstreamContinuationStatus')
+    ####
     if self.old_family is not None and not isinstance(
       self.old_family,
       MocSourceCharacteristicStripResult,
@@ -92,6 +94,7 @@ class MocCausticUpstreamContinuationResult:
       raise TypeError(
         'old_family must be a MocSourceCharacteristicStripResult when supplied'
       )
+    ####
     if self.seed is not None and not isinstance(
       self.seed,
       MocSourceStripCausticShockSeedResult,
@@ -99,6 +102,7 @@ class MocCausticUpstreamContinuationResult:
       raise TypeError(
         'seed must be a MocSourceStripCausticShockSeedResult when supplied'
       )
+    ####
     if any(
       not isinstance(result, MocCausticFamilyRestartResult)
       for result in self.restart_results
@@ -106,8 +110,10 @@ class MocCausticUpstreamContinuationResult:
       raise TypeError(
         'restart_results must contain MocCausticFamilyRestartResult values'
       )
+    ####
     if self.selected_anchor_edge_index not in (None, 0, 1):
       raise ValueError('selected_anchor_edge_index must be None, 0, or 1')
+    ####
     if self.bridge is not None and not isinstance(
       self.bridge,
       MocCausticUpstreamBridge,
@@ -115,24 +121,30 @@ class MocCausticUpstreamContinuationResult:
       raise TypeError(
         'bridge must be a MocCausticUpstreamBridge when supplied'
       )
+    ####
     if not isinstance(self.seam_verified, bool):
       raise TypeError('seam_verified must be a bool')
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is (
       MocCausticUpstreamContinuationStatus.CONVERGED_BOUNDED_CONTINUATION
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The upstream continuation has no shock or downstream closure."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def selected_restart(self) -> MocCausticFamilyRestartResult | None:
@@ -140,6 +152,7 @@ class MocCausticUpstreamContinuationResult:
 
     if self.selected_anchor_edge_index is None:
       return None
+    ####
     return next(
       (
         result
@@ -148,6 +161,7 @@ class MocCausticUpstreamContinuationResult:
       ),
       None,
     )
+  ####
 
   @property
   def state_sampling_available(self) -> bool:
@@ -165,12 +179,15 @@ class MocCausticUpstreamContinuationResult:
       and selected.family_band is not None
       and selected.family_band.state_sampling_available
     )
+  ####
 
   @property
   def event_point_m(self) -> Point | None:
     if self.seed is None or self.seed.event is None:
       return None
+    ####
     return self.seed.event.caustic_point_m
+  ####
 
   def state_at(
     self,
@@ -182,10 +199,12 @@ class MocCausticUpstreamContinuationResult:
 
     if self.bridge is None:
       return None
+    ####
     return self.bridge.state_at(
       point_m,
       position_tolerance_m=position_tolerance_m,
     )
+  ####
 
   def static_pressure_at(
     self,
@@ -197,10 +216,12 @@ class MocCausticUpstreamContinuationResult:
 
     if self.bridge is None:
       return None
+    ####
     return self.bridge.static_pressure_at(
       point_m,
       position_tolerance_m=position_tolerance_m,
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the explicit non-physical stop at the unresolved caustic seam."""
@@ -233,6 +254,7 @@ class MocCausticUpstreamContinuationResult:
         'chain_promotion_blocked': self.chain_promotion_blocked,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -259,6 +281,8 @@ class MocCausticUpstreamContinuationResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -284,6 +308,7 @@ def _failure(
     message=message,
     side_selection_model=side_selection_model,
   )
+####
 
 
 def _state_matches(
@@ -303,6 +328,7 @@ def _state_matches(
     and abs(actual.gamma - expected.gamma)
     <= state_tolerance * max(1.0, abs(actual.gamma), abs(expected.gamma))
   )
+####
 
 
 def _pressure_matches(
@@ -316,6 +342,7 @@ def _pressure_matches(
     abs(float(actual)),
     abs(float(expected)),
   )
+####
 
 
 def solve_caustic_upstream_continuation(
@@ -348,12 +375,14 @@ def solve_caustic_upstream_continuation(
       MocCausticUpstreamContinuationStatus.INVALID_INPUT,
       message='old_family must be a MocSourceCharacteristicStripResult',
     )
+  ####
   if not isinstance(seed, MocSourceStripCausticShockSeedResult):
     return _failure(
       MocCausticUpstreamContinuationStatus.INVALID_INPUT,
       old_family=old_family,
       message='seed must be a MocSourceStripCausticShockSeedResult',
     )
+  ####
   if (
     isinstance(anchor_edge_index, bool)
     or anchor_edge_index not in (None, 0, 1)
@@ -364,6 +393,7 @@ def solve_caustic_upstream_continuation(
       seed=seed,
       message='anchor_edge_index must be None, 0, or 1',
     )
+  ####
   if side_at is not None and not callable(side_at):
     return _failure(
       MocCausticUpstreamContinuationStatus.INVALID_INPUT,
@@ -373,6 +403,7 @@ def solve_caustic_upstream_continuation(
       message='side_at must be callable when supplied',
       side_selection_model='caller-supplied-explicit-side-selector',
     )
+  ####
   try:
     total_pressure = float(total_pressure_Pa)
     ambient_pressure = float(ambient_pressure_Pa)
@@ -384,6 +415,7 @@ def solve_caustic_upstream_continuation(
       selected_anchor_edge_index=anchor_edge_index,
       message='pressures must be finite numeric values',
     )
+  ####
   if (
     not isfinite(total_pressure)
     or total_pressure <= 0.0
@@ -398,6 +430,7 @@ def solve_caustic_upstream_continuation(
       selected_anchor_edge_index=anchor_edge_index,
       message='total pressure must exceed finite positive ambient pressure',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -405,14 +438,18 @@ def solve_caustic_upstream_continuation(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if (
     isinstance(maximum_iterations, bool)
     or not isinstance(maximum_iterations, int)
     or maximum_iterations < 1
   ):
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if not old_family.converged:
     return _failure(
       MocCausticUpstreamContinuationStatus.SOURCE_FIELD_FAILURE,
@@ -421,6 +458,7 @@ def solve_caustic_upstream_continuation(
       selected_anchor_edge_index=anchor_edge_index,
       message=f'old source family is not converged: {old_family.message}',
     )
+  ####
   if (
     not seed.converged
     or seed.event is None
@@ -435,6 +473,7 @@ def solve_caustic_upstream_continuation(
       selected_anchor_edge_index=anchor_edge_index,
       message=f'caustic seed is not usable: {seed.message}',
     )
+  ####
   if seed.total_pressure_Pa is None or not isfinite(float(seed.total_pressure_Pa)):
     return _failure(
       MocCausticUpstreamContinuationStatus.SEED_FAILURE,
@@ -443,6 +482,7 @@ def solve_caustic_upstream_continuation(
       selected_anchor_edge_index=anchor_edge_index,
       message='caustic seed lacks a finite total-pressure lineage',
     )
+  ####
   if not _pressure_matches(
     total_pressure,
     float(seed.total_pressure_Pa),
@@ -462,6 +502,7 @@ def solve_caustic_upstream_continuation(
         'do not share one exact lineage'
       ),
     )
+  ####
 
   indices = (
     (anchor_edge_index,)
@@ -491,7 +532,9 @@ def solve_caustic_upstream_continuation(
         selected_anchor_edge_index=anchor_edge_index,
         message=f'caustic family restart raised at edge {edge_index}: {error}',
       )
+    ####
     restarts.append(restart)
+  ####
 
   if anchor_edge_index is None:
     if not all(
@@ -511,6 +554,7 @@ def solve_caustic_upstream_continuation(
           'cannot be audited from an incomplete candidate set'
         ),
       )
+    ####
     return _failure(
       MocCausticUpstreamContinuationStatus.BRANCH_SELECTION_REQUIRED,
       old_family=old_family,
@@ -521,6 +565,7 @@ def solve_caustic_upstream_continuation(
         'selector was supplied; no upstream bridge was assembled'
       ),
     )
+  ####
 
   restart = restarts[0]
   band = restart.family_band
@@ -542,6 +587,7 @@ def solve_caustic_upstream_continuation(
         f'bounded family band: {restart.message}'
       ),
     )
+  ####
   event_point = seed.event.caustic_point_m
   assert event_point is not None
   selected_edge = seed.edge_states[anchor_edge_index]
@@ -554,6 +600,7 @@ def solve_caustic_upstream_continuation(
       selected_anchor_edge_index=anchor_edge_index,
       message='selected caustic edge has no state/pressure for the bridge seam',
     )
+  ####
   if side_at is None:
     event_x = float(event_point[0])
 
@@ -563,11 +610,13 @@ def solve_caustic_upstream_continuation(
         if point[0] < event_x - float(position_tolerance_m)
         else MocCausticBridgeSide.RESTARTED_FAMILY
       )
+    ####
 
     side_selection_model = 'x-split-at-caustic-event'
   else:
     selector = side_at
     side_selection_model = 'caller-supplied-explicit-side-selector'
+  ####
   bridge = build_caustic_upstream_bridge(
     old_family,
     band,
@@ -620,6 +669,7 @@ def solve_caustic_upstream_continuation(
       ),
       side_selection_model=side_selection_model,
     )
+  ####
   return MocCausticUpstreamContinuationResult(
     status=MocCausticUpstreamContinuationStatus.CONVERGED_BOUNDED_CONTINUATION,
     old_family=old_family,
@@ -635,3 +685,4 @@ def solve_caustic_upstream_continuation(
     ),
     side_selection_model=side_selection_model,
   )
+####

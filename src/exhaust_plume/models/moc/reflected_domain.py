@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Sequence
 if TYPE_CHECKING:
   from exhaust_plume.models.moc.coupled import MocAmbientPhysicalFieldResult
   from exhaust_plume.models.moc.physical_cell import MocPhysicalPostShockFieldResult
+####
 
 from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
@@ -116,6 +117,7 @@ class MocReflectedDomainRemeshStatus(str, Enum):
   OUTER_SOURCE_FAILURE = 'reflected_domain_outer_source_failure'
   POLARITY_FAILURE = 'reflected_domain_polarity_failure'
   FIELD_FAILURE = 'reflected_domain_field_failure'
+####
 
 
 def _state_matches(
@@ -137,6 +139,7 @@ def _state_matches(
     and abs(actual.gamma - expected.gamma)
     <= state_tolerance * max(1.0, abs(actual.gamma), abs(expected.gamma))
   )
+####
 
 
 def _pressure_matches(actual: float, expected: float, tolerance: float) -> bool:
@@ -145,6 +148,7 @@ def _pressure_matches(actual: float, expected: float, tolerance: float) -> bool:
     abs(float(actual)),
     abs(float(expected)),
   )
+####
 
 
 class MocReflectedDomainOuterSourceStatus(str, Enum):
@@ -169,6 +173,7 @@ class MocReflectedDomainAlternatingSourceStatus(str, Enum):
   CENTERLINE_FAILURE = 'alternating_source_centerline_failure'
   BOUNDARY_FAILURE = 'alternating_source_ambient_boundary_failure'
   FIELD_FAILURE = 'alternating_source_field_failure'
+####
 
 
 class MocReflectedDomainAlternatingPhysicalFieldStatus(str, Enum):
@@ -181,6 +186,7 @@ class MocReflectedDomainAlternatingPhysicalFieldStatus(str, Enum):
   SOURCE_FIELD_FAILURE = 'alternating_physical_source_field_failure'
   SHOCK_FAILURE = 'alternating_physical_shock_failure'
   FIELD_FAILURE = 'alternating_physical_field_failure'
+####
 
 
 class MocReflectedDomainSolverOwnedFirstCellStatus(str, Enum):
@@ -237,6 +243,7 @@ class MocReflectedDomainOuterSourceResult:
       raise TypeError(
         'status must be a MocReflectedDomainOuterSourceStatus'
       )
+    ####
     centerline = tuple(self.centerline_source_states)
     outer = tuple(self.outer_source_states)
     point_results = tuple(self.point_results)
@@ -253,14 +260,17 @@ class MocReflectedDomainOuterSourceResult:
       raise TypeError(
         'outer-source result rows must contain CharacteristicState values'
       )
+    ####
     if len(centerline_pressures) not in (0, len(centerline)):
       raise ValueError(
         'centerline_total_pressure_Pa must match the centerline source row'
       )
+    ####
     if len(outer_pressures) not in (0, len(outer)):
       raise ValueError(
         'outer_total_pressure_Pa must match the outer source row'
       )
+    ####
     if any(
       not isfinite(value) or value <= 0.0
       for value in (*centerline_pressures, *outer_pressures)
@@ -268,13 +278,16 @@ class MocReflectedDomainOuterSourceResult:
       raise ValueError(
         'outer-source pressure rows must contain finite positive values'
       )
+    ####
     if self.reference_total_pressure_Pa is not None:
       reference = float(self.reference_total_pressure_Pa)
       if not isfinite(reference) or reference <= 0.0:
         raise ValueError(
           'reference_total_pressure_Pa must be finite and positive when supplied'
         )
+      ####
       object.__setattr__(self, 'reference_total_pressure_Pa', reference)
+    ####
     if self.previous_boundary_state is not None and not isinstance(
       self.previous_boundary_state,
       CharacteristicState,
@@ -282,6 +295,7 @@ class MocReflectedDomainOuterSourceResult:
       raise TypeError(
         'previous_boundary_state must be a CharacteristicState or None'
       )
+    ####
     for name in (
       'previous_boundary_total_pressure_Pa',
       'ambient_pressure_Pa',
@@ -289,10 +303,13 @@ class MocReflectedDomainOuterSourceResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       normalized = float(value)
       if not isfinite(normalized) or normalized <= 0.0:
         raise ValueError(f'{name} must be finite and positive when supplied')
+      ####
       object.__setattr__(self, name, normalized)
+    ####
     if any(
       not isinstance(result, MocFreeBoundaryPointResult)
       for result in point_results
@@ -300,6 +317,7 @@ class MocReflectedDomainOuterSourceResult:
       raise TypeError(
         'point_results must contain MocFreeBoundaryPointResult values'
       )
+    ####
     if self.ambient_boundary is not None and not isinstance(
       self.ambient_boundary,
       MocAmbientPressureBoundaryResult,
@@ -307,6 +325,7 @@ class MocReflectedDomainOuterSourceResult:
       raise TypeError(
         'ambient_boundary must be a MocAmbientPressureBoundaryResult or None'
       )
+    ####
     if self.source_strip is not None and not isinstance(
       self.source_strip,
       MocSourceCharacteristicStripResult,
@@ -314,6 +333,7 @@ class MocReflectedDomainOuterSourceResult:
       raise TypeError(
         'source_strip must be a MocSourceCharacteristicStripResult or None'
       )
+    ####
     for name in (
       'target_centerline_y_m',
       'target_centerline_flow_angle_rad',
@@ -331,7 +351,9 @@ class MocReflectedDomainOuterSourceResult:
         )
       ):
         raise ValueError(f'{name} must be finite and valid')
+      ####
       object.__setattr__(self, name, value)
+    ####
     object.__setattr__(self, 'centerline_source_states', centerline)
     object.__setattr__(self, 'outer_source_states', outer)
     object.__setattr__(self, 'centerline_total_pressure_Pa', centerline_pressures)
@@ -385,6 +407,7 @@ class MocReflectedDomainOuterSourceResult:
     )
     if all_pressures:
       pressure_range = (min(all_pressures), max(all_pressures))
+    ####
     return {
       'status': self.status.value,
       'converged': self.converged,
@@ -421,6 +444,7 @@ class MocReflectedDomainOuterSourceResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -471,6 +495,7 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'status must be a MocReflectedDomainAlternatingSourceStatus'
       )
+    ####
     if self.reflection_patch is not None and not isinstance(
       self.reflection_patch,
       MocTerminalReflectionPatchResult,
@@ -478,6 +503,7 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'reflection_patch must be a MocTerminalReflectionPatchResult or None'
       )
+    ####
     centerline = tuple(self.centerline_source_states)
     outer = tuple(self.outer_source_states)
     centerline_pressures = tuple(
@@ -496,14 +522,17 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'alternating source rows must contain CharacteristicState values'
       )
+    ####
     if len(centerline_pressures) not in (0, len(centerline)):
       raise ValueError(
         'centerline_total_pressure_Pa must match the centerline source row'
       )
+    ####
     if len(outer_pressures) not in (0, len(outer)):
       raise ValueError(
         'outer_total_pressure_Pa must match the outer source row'
       )
+    ####
     if any(
       not isfinite(value) or value <= 0.0
       for value in (*centerline_pressures, *outer_pressures)
@@ -511,14 +540,18 @@ class MocReflectedDomainAlternatingSourceResult:
       raise ValueError(
         'alternating source pressure rows must contain finite positive values'
       )
+    ####
     for name in ('outer_seed_total_pressure_Pa', 'ambient_pressure_Pa'):
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       normalized = float(value)
       if not isfinite(normalized) or normalized <= 0.0:
         raise ValueError(f'{name} must be finite and positive when supplied')
+      ####
       object.__setattr__(self, name, normalized)
+    ####
     if self.outer_seed_state is not None and not isinstance(
       self.outer_seed_state,
       CharacteristicState,
@@ -526,6 +559,7 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'outer_seed_state must be a CharacteristicState or None'
       )
+    ####
     if self.incoming_trace_validation is not None and not isinstance(
       self.incoming_trace_validation,
       MocCharacteristicTraceResult,
@@ -533,6 +567,7 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'incoming_trace_validation must be a MocCharacteristicTraceResult or None'
       )
+    ####
     if self.incoming_trace_polarity is not None and not isinstance(
       self.incoming_trace_polarity,
       MocReflectedTracePolarityResult,
@@ -540,6 +575,7 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'incoming_trace_polarity must be a MocReflectedTracePolarityResult or None'
       )
+    ####
     if any(
       not isinstance(result, CharacteristicPointResult)
       for result in centerline_results
@@ -547,6 +583,7 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'centerline_results must contain CharacteristicPointResult values'
       )
+    ####
     if any(
       not isinstance(result, MocFreeBoundaryPointResult)
       for result in point_results
@@ -554,6 +591,7 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'point_results must contain MocFreeBoundaryPointResult values'
       )
+    ####
     if self.ambient_boundary is not None and not isinstance(
       self.ambient_boundary,
       MocAmbientPressureBoundaryResult,
@@ -561,21 +599,26 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'ambient_boundary must be a MocAmbientPressureBoundaryResult or None'
       )
+    ####
     if any(not isinstance(cell, MocCharacteristicCell) for cell in cells):
       raise TypeError(
         'cells must contain MocCharacteristicCell values'
       )
+    ####
     if self.topology is not None and not isinstance(
       self.topology,
       MocTopologyResult,
     ):
       raise TypeError('topology must be a MocTopologyResult or None')
+    ####
     for name in (
       'reflection_anchor_verified',
       'alternating_seam_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     for name in (
       'target_centerline_y_m',
       'target_centerline_flow_angle_rad',
@@ -595,7 +638,9 @@ class MocReflectedDomainAlternatingSourceResult:
         )
       ):
         raise ValueError(f'{name} must be finite and valid')
+      ####
       object.__setattr__(self, name, value)
+    ####
     incoming_handoff = tuple(self.incoming_handoff)
     if any(
       not isinstance(sample, MocChainBoundarySample)
@@ -604,6 +649,7 @@ class MocReflectedDomainAlternatingSourceResult:
       raise TypeError(
         'incoming_handoff must contain MocChainBoundarySample values'
       )
+    ####
     object.__setattr__(self, 'incoming_handoff', incoming_handoff)
     object.__setattr__(self, 'centerline_source_states', centerline)
     object.__setattr__(self, 'outer_source_states', outer)
@@ -696,6 +742,8 @@ class MocReflectedDomainAlternatingSourceResult:
         and abs(state.y_m - point_m[1]) <= position_tolerance_m
       ):
         return state, pressure
+      ####
+    ####
     return None
   ####
 
@@ -707,11 +755,13 @@ class MocReflectedDomainAlternatingSourceResult:
   ) -> tuple[CharacteristicState, float] | None:
     if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     if (
       not isfinite(float(position_tolerance_m))
       or position_tolerance_m <= 0.0
     ):
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     point = (float(point_m[0]), float(point_m[1]))
     endpoint = self._endpoint_sample(
       point,
@@ -729,10 +779,12 @@ class MocReflectedDomainAlternatingSourceResult:
         ),
         pressure,
       )
+    ####
     for cell in self.cells:
       vertices = cell.vertices_xr_m
       if len(vertices) != 3:
         continue
+      ####
       first, second, third = vertices
       denominator = (
         (second[1] - third[1]) * (first[0] - third[0])
@@ -740,6 +792,7 @@ class MocReflectedDomainAlternatingSourceResult:
       )
       if abs(denominator) <= max(position_tolerance_m**2, 1.0e-24):
         continue
+      ####
       weight_first = (
         (second[1] - third[1]) * (point[0] - third[0])
         + (third[0] - second[0]) * (point[1] - third[1])
@@ -752,6 +805,7 @@ class MocReflectedDomainAlternatingSourceResult:
       weights = (weight_first, weight_second, weight_third)
       if min(weights) < -position_tolerance_m or max(weights) > 1.0 + position_tolerance_m:
         continue
+      ####
       samples = tuple(
         self._endpoint_sample(
           (vertex[0], vertex[1]),
@@ -761,6 +815,7 @@ class MocReflectedDomainAlternatingSourceResult:
       )
       if any(sample is None for sample in samples):
         continue
+      ####
       resolved = tuple(sample for sample in samples if sample is not None)
       gamma = resolved[0][0].gamma
       theta = sum(
@@ -774,6 +829,7 @@ class MocReflectedDomainAlternatingSourceResult:
       mach_result = inverse_prandtl_meyer_angle_rad(nu, gamma)
       if not mach_result.converged or mach_result.value is None:
         return None
+      ####
       return (
         CharacteristicState(
           x_m=point[0],
@@ -787,6 +843,7 @@ class MocReflectedDomainAlternatingSourceResult:
           for weight, sample in zip(weights, resolved, strict=True)
         ),
       )
+    ####
     if self.reflection_patch is not None:
       patch_state = self.reflection_patch.state_at(
         point,
@@ -798,6 +855,8 @@ class MocReflectedDomainAlternatingSourceResult:
       )
       if patch_state is not None and patch_pressure is not None:
         return patch_state, patch_pressure
+      ####
+    ####
     return None
   ####
 
@@ -845,6 +904,7 @@ class MocReflectedDomainAlternatingSourceResult:
     )
     if sample is None:
       return None
+    ####
     state, total_pressure = sample
     return _static_pressure_from_total_pressure(state, total_pressure)
   ####
@@ -937,6 +997,7 @@ class MocReflectedDomainAlternatingSourceResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -978,6 +1039,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       raise TypeError(
         'status must be a MocReflectedDomainAlternatingPhysicalFieldStatus'
       )
+    ####
     if self.source_band is not None and not isinstance(
       self.source_band,
       MocReflectedDomainAlternatingSourceResult,
@@ -985,6 +1047,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       raise TypeError(
         'source_band must be a MocReflectedDomainAlternatingSourceResult or None'
       )
+    ####
     if self.field_result is not None:
       from exhaust_plume.models.moc.coupled import MocAmbientPhysicalFieldResult
 
@@ -992,16 +1055,20 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
         raise TypeError(
           'field_result must be a MocAmbientPhysicalFieldResult or None'
         )
+      ####
+    ####
     if self.start_point_m is not None:
       if len(self.start_point_m) != 2 or not all(
         isfinite(float(value)) for value in self.start_point_m
       ):
         raise ValueError('start_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(
         self,
         'start_point_m',
         (float(self.start_point_m[0]), float(self.start_point_m[1])),
       )
+    ####
     if self.outer_source_index is not None:
       if (
         isinstance(self.outer_source_index, bool)
@@ -1011,19 +1078,24 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
         raise ValueError(
           'outer_source_index must be a nonnegative integer or None'
         )
+      ####
+    ####
     if self.compression_amplitude_rad is not None:
       amplitude = float(self.compression_amplitude_rad)
       if not isfinite(amplitude) or amplitude <= 0.0:
         raise ValueError(
           'compression_amplitude_rad must be finite and positive when supplied'
         )
+      ####
       object.__setattr__(self, 'compression_amplitude_rad', amplitude)
+    ####
     if (
       isinstance(self.sample_count, bool)
       or not isinstance(self.sample_count, int)
       or self.sample_count < 0
     ):
       raise ValueError('sample_count must be a nonnegative integer')
+    ####
     if self.outer_flow_angle_bracket is not None:
       if len(self.outer_flow_angle_bracket) != 2 or not all(
         isfinite(float(value)) for value in self.outer_flow_angle_bracket
@@ -1031,6 +1103,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
         raise ValueError(
           'outer_flow_angle_bracket must contain two finite values'
         )
+      ####
       object.__setattr__(
         self,
         'outer_flow_angle_bracket',
@@ -1039,6 +1112,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
           float(self.outer_flow_angle_bracket[1]),
         ),
       )
+    ####
     incoming_handoff = tuple(self.incoming_handoff)
     if any(
       not isinstance(sample, MocChainBoundarySample)
@@ -1047,28 +1121,35 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       raise TypeError(
         'incoming_handoff must contain MocChainBoundarySample values'
       )
+    ####
     object.__setattr__(self, 'incoming_handoff', incoming_handoff)
     if not isinstance(self.continuation_law, str) or not self.continuation_law:
       raise ValueError('continuation_law must be a non-empty string')
+    ####
     if not isinstance(self.attachment_source, str) or not self.attachment_source:
       raise ValueError('attachment_source must be a non-empty string')
+    ####
     if not isinstance(self.use_trace_referenced_profile, bool):
       raise TypeError('use_trace_referenced_profile must be a bool')
+    ####
     envelope_skew = float(self.compression_envelope_skew)
     if not isfinite(envelope_skew) or abs(envelope_skew) > 1.0:
       raise ValueError(
         'compression_envelope_skew must be finite and within [-1, 1]'
       )
+    ####
     object.__setattr__(self, 'compression_envelope_skew', envelope_skew)
     position_tolerance = float(self.position_tolerance_m)
     if not isfinite(position_tolerance) or position_tolerance <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     object.__setattr__(self, 'position_tolerance_m', position_tolerance)
     shock_angle_tolerance = float(self.shock_angle_tolerance_rad)
     if not isfinite(shock_angle_tolerance) or shock_angle_tolerance <= 0.0:
       raise ValueError(
         'shock_angle_tolerance_rad must be finite and positive'
       )
+    ####
     object.__setattr__(self, 'shock_angle_tolerance_rad', shock_angle_tolerance)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -1085,6 +1166,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
   def shock_curve_verified(self) -> bool:
     if self.field_result is None or not self.field_result.converged:
       return False
+    ####
     attachment = self.field_result.ambient_attachment
     shock = None if attachment is None else attachment.shock
     return bool(
@@ -1161,6 +1243,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       raise ValueError(
         'alternating-source physical field is not eligible for chain promotion'
       )
+    ####
     return self.field_result.as_coupled_chain_cell(
       start_x_m=start_x_m,
       end_x_m=end_x_m,
@@ -1210,6 +1293,7 @@ class MocReflectedDomainAlternatingPhysicalFieldResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1234,6 +1318,7 @@ class MocReflectedDomainSolverOwnedFirstCellTrial:
       raise ValueError(
         'compression_amplitude_rad must be finite and positive'
       )
+    ####
     object.__setattr__(self, 'compression_amplitude_rad', amplitude)
     if self.physical_field is not None and not isinstance(
       self.physical_field,
@@ -1243,16 +1328,21 @@ class MocReflectedDomainSolverOwnedFirstCellTrial:
         'physical_field must be a '
         'MocReflectedDomainAlternatingPhysicalFieldResult or None'
       )
+    ####
     if self.endpoint_m is not None:
       point = (float(self.endpoint_m[0]), float(self.endpoint_m[1]))
       if not all(isfinite(value) for value in point):
         raise ValueError('endpoint_m must contain finite coordinates')
+      ####
       object.__setattr__(self, 'endpoint_m', point)
+    ####
     if self.residual_m is not None:
       residual = float(self.residual_m)
       if not isfinite(residual):
         raise ValueError('residual_m must be finite when supplied')
+      ####
       object.__setattr__(self, 'residual_m', residual)
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -1282,6 +1372,7 @@ class MocReflectedDomainSolverOwnedFirstCellTrial:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1324,6 +1415,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       raise TypeError(
         'status must be a MocReflectedDomainSolverOwnedFirstCellStatus'
       )
+    ####
     if self.source_band is not None and not isinstance(
       self.source_band,
       MocReflectedDomainAlternatingSourceResult,
@@ -1332,12 +1424,15 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
         'source_band must be a '
         'MocReflectedDomainAlternatingSourceResult or None'
       )
+    ####
     for name in ('outer_source_index', 'target_centerline_index'):
       value = getattr(self, name)
       if value is not None and (
         isinstance(value, bool) or not isinstance(value, int) or value < 0
       ):
         raise ValueError(f'{name} must be a nonnegative integer when supplied')
+      ####
+    ####
     if self.target_centerline_point_m is not None:
       point = (
         float(self.target_centerline_point_m[0]),
@@ -1347,7 +1442,9 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
         raise ValueError(
           'target_centerline_point_m must contain finite coordinates'
         )
+      ####
       object.__setattr__(self, 'target_centerline_point_m', point)
+    ####
     if self.compression_amplitude_bracket is not None:
       bracket = (
         float(self.compression_amplitude_bracket[0]),
@@ -1360,7 +1457,9 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
         raise ValueError(
           'compression_amplitude_bracket must contain two ordered positive values'
         )
+      ####
       object.__setattr__(self, 'compression_amplitude_bracket', bracket)
+    ####
     if self.selected_trial_index is not None and (
       isinstance(self.selected_trial_index, bool)
       or not isinstance(self.selected_trial_index, int)
@@ -1369,13 +1468,16 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       raise ValueError(
         'selected_trial_index must be a nonnegative integer when supplied'
       )
+    ####
     if self.selected_compression_amplitude_rad is not None:
       amplitude = float(self.selected_compression_amplitude_rad)
       if not isfinite(amplitude) or amplitude <= 0.0:
         raise ValueError(
           'selected_compression_amplitude_rad must be finite and positive'
         )
+      ####
       object.__setattr__(self, 'selected_compression_amplitude_rad', amplitude)
+    ####
     if self.selected_physical_field is not None and not isinstance(
       self.selected_physical_field,
       MocReflectedDomainAlternatingPhysicalFieldResult,
@@ -1384,17 +1486,21 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
         'selected_physical_field must be a '
         'MocReflectedDomainAlternatingPhysicalFieldResult or None'
       )
+    ####
     if self.closure_residual_m is not None:
       residual = float(self.closure_residual_m)
       if not isfinite(residual):
         raise ValueError('closure_residual_m must be finite when supplied')
+      ####
       object.__setattr__(self, 'closure_residual_m', residual)
+    ####
     if (
       isinstance(self.shooting_iterations, bool)
       or not isinstance(self.shooting_iterations, int)
       or self.shooting_iterations < 0
     ):
       raise ValueError('shooting_iterations must be a nonnegative integer')
+    ####
     if (
       isinstance(self.bracket_scan_sample_count, bool)
       or not isinstance(self.bracket_scan_sample_count, int)
@@ -1403,11 +1509,13 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       raise ValueError(
         'bracket_scan_sample_count must be a nonnegative integer'
       )
+    ####
     envelope_skew = float(self.compression_envelope_skew)
     if not isfinite(envelope_skew) or abs(envelope_skew) > 1.0:
       raise ValueError(
         'compression_envelope_skew must be finite and within [-1, 1]'
       )
+    ####
     object.__setattr__(self, 'compression_envelope_skew', envelope_skew)
     trials = tuple(self.trials)
     if any(
@@ -1417,8 +1525,10 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       raise TypeError(
         'trials must contain MocReflectedDomainSolverOwnedFirstCellTrial values'
       )
+    ####
     if self.selected_trial_index is not None and self.selected_trial_index >= len(trials):
       raise ValueError('selected_trial_index must select a retained trial')
+    ####
     object.__setattr__(self, 'trials', trials)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -1540,6 +1650,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
         'solver-owned first-cell endpoint iteration did not close; no '
         'continued cell may be inferred from its trial fields'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -1593,6 +1704,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _static_pressure_from_total_pressure(
@@ -1602,6 +1714,7 @@ def _static_pressure_from_total_pressure(
   return float(total_pressure_Pa) / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
+####
 
 
 class MocReflectedDomainGlobalShockRemeshStatus(str, Enum):
@@ -1612,6 +1725,7 @@ class MocReflectedDomainGlobalShockRemeshStatus(str, Enum):
   INVALID_INPUT = 'invalid_input'
   SOURCE_FIELD_FAILURE = 'global_reflected_shock_source_field_failure'
   ATTEMPT_FAILURE = 'global_reflected_shock_attempt_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1632,11 +1746,14 @@ class MocReflectedDomainGlobalShockRemeshAttempt:
         or value < 0
       ):
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     skew = float(self.compression_envelope_skew)
     if not isfinite(skew) or abs(skew) > 1.0:
       raise ValueError(
         'compression_envelope_skew must be finite and within [-1, 1]'
       )
+    ####
     object.__setattr__(self, 'compression_envelope_skew', skew)
     if not isinstance(
       self.first_cell_result,
@@ -1646,6 +1763,7 @@ class MocReflectedDomainGlobalShockRemeshAttempt:
         'first_cell_result must be a '
         'MocReflectedDomainSolverOwnedFirstCellResult'
       )
+    ####
   ####
 
   @property
@@ -1668,6 +1786,7 @@ class MocReflectedDomainGlobalShockRemeshAttempt:
       'first_cell_result': self.first_cell_result.as_report(),
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1696,6 +1815,7 @@ class MocReflectedDomainGlobalShockRemeshResult:
       raise TypeError(
         'status must be a MocReflectedDomainGlobalShockRemeshStatus'
       )
+    ####
     if self.source_band is not None and not isinstance(
       self.source_band,
       MocReflectedDomainAlternatingSourceResult,
@@ -1703,6 +1823,7 @@ class MocReflectedDomainGlobalShockRemeshResult:
       raise TypeError(
         'source_band must be a MocReflectedDomainAlternatingSourceResult or None'
       )
+    ####
     attempts = tuple(self.attempts)
     if any(
       not isinstance(
@@ -1714,6 +1835,7 @@ class MocReflectedDomainGlobalShockRemeshResult:
       raise TypeError(
         'attempts must contain MocReflectedDomainGlobalShockRemeshAttempt values'
       )
+    ####
     object.__setattr__(self, 'attempts', attempts)
     for name in ('outer_source_indices', 'target_centerline_indices'):
       values = tuple(getattr(self, name))
@@ -1722,12 +1844,15 @@ class MocReflectedDomainGlobalShockRemeshResult:
         for value in values
       ):
         raise ValueError(f'{name} must contain nonnegative integers')
+      ####
       object.__setattr__(self, name, values)
+    ####
     skews = tuple(float(value) for value in self.compression_envelope_skews)
     if any(not isfinite(value) or abs(value) > 1.0 for value in skews):
       raise ValueError(
         'compression_envelope_skews must be finite values within [-1, 1]'
       )
+    ####
     object.__setattr__(self, 'compression_envelope_skews', skews)
     if self.selected_attempt_index is not None and (
       isinstance(self.selected_attempt_index, bool)
@@ -1736,11 +1861,14 @@ class MocReflectedDomainGlobalShockRemeshResult:
       or self.selected_attempt_index >= len(attempts)
     ):
       raise ValueError('selected_attempt_index must select a retained attempt')
+    ####
     if self.selected_residual_m is not None:
       residual = float(self.selected_residual_m)
       if not isfinite(residual):
         raise ValueError('selected_residual_m must be finite when supplied')
+      ####
       object.__setattr__(self, 'selected_residual_m', residual)
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -1833,6 +1961,7 @@ class MocReflectedDomainGlobalShockRemeshResult:
         or 'global reflected-shock remesh did not close its endpoint; no '
         'continued cell may be inferred'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -1877,6 +2006,7 @@ class MocReflectedDomainGlobalShockRemeshResult:
       'message': self.message,
     }
   ####
+####
 
 
 class MocReflectedDomainGlobalEulerShockBoundaryStatus(str, Enum):
@@ -1888,6 +2018,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryStatus(str, Enum):
   GEOMETRY_FAILURE = 'global_euler_shock_geometry_failure'
   SHOCK_BOUNDARY_FAILURE = 'global_euler_shock_boundary_failure'
   AMBIENT_FIELD_FAILURE = 'global_euler_ambient_field_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1923,6 +2054,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
       raise TypeError(
         'status must be a MocReflectedDomainGlobalEulerShockBoundaryStatus'
       )
+    ####
     if self.global_remesh is not None and not isinstance(
       self.global_remesh,
       MocReflectedDomainGlobalShockRemeshResult,
@@ -1930,6 +2062,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
       raise TypeError(
         'global_remesh must be a MocReflectedDomainGlobalShockRemeshResult or None'
       )
+    ####
     for name in (
       'selected_attempt_index',
       'outer_source_index',
@@ -1940,10 +2073,13 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
         isinstance(value, bool) or not isinstance(value, int) or value < 0
       ):
         raise ValueError(f'{name} must be a nonnegative integer or None')
+      ####
+    ####
     if self.selected_attempt_index is not None and self.global_remesh is not None and (
       self.selected_attempt_index >= len(self.global_remesh.attempts)
     ):
       raise ValueError('selected_attempt_index must select a retained global attempt')
+    ####
     if self.shock_boundary is not None and not isinstance(
       self.shock_boundary,
       MocEulerShockBoundaryCurveResult,
@@ -1951,6 +2087,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
       raise TypeError(
         'shock_boundary must be a MocEulerShockBoundaryCurveResult or None'
       )
+    ####
     if self.physical_field is not None and not isinstance(
       self.physical_field,
       MocEulerAmbientPhysicalFieldResult,
@@ -1958,18 +2095,22 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
       raise TypeError(
         'physical_field must be a MocEulerAmbientPhysicalFieldResult or None'
       )
+    ####
     if self.source_frontier_state is not None and not isinstance(
       self.source_frontier_state,
       CharacteristicState,
     ):
       raise TypeError('source_frontier_state must be a CharacteristicState or None')
+    ####
     if self.source_frontier_total_pressure_Pa is not None:
       pressure = float(self.source_frontier_total_pressure_Pa)
       if not isfinite(pressure) or pressure <= 0.0:
         raise ValueError(
           'source_frontier_total_pressure_Pa must be finite and positive'
         )
+      ####
       object.__setattr__(self, 'source_frontier_total_pressure_Pa', pressure)
+    ####
     for name in (
       'first_endpoint_tangent_residual_rad',
       'last_endpoint_tangent_residual_rad',
@@ -1977,8 +2118,11 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
       value = getattr(self, name)
       if value is not None and not isfinite(float(value)):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
+    ####
     if not isinstance(self.source_frontier_verified, bool):
       raise TypeError('source_frontier_verified must be a bool')
+    ####
     initial_points = tuple(
       (float(point[0]), float(point[1])) for point in self.initial_shock_points_m
     )
@@ -1990,6 +2134,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
       for point in (*initial_points, *remeshed_points)
     ):
       raise ValueError('shock point sequences must contain finite coordinates')
+    ####
     object.__setattr__(self, 'initial_shock_points_m', initial_points)
     object.__setattr__(self, 'remeshed_shock_points_m', remeshed_points)
     object.__setattr__(self, 'message', str(self.message))
@@ -2015,6 +2160,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
 
     if self.physical_field is None:
       return ()
+    ####
     return self.physical_field.incoming_handoff
   ####
 
@@ -2077,6 +2223,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -2151,6 +2298,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryResult:
       'message': self.message,
     }
   ####
+####
 
 
 def solve_reflected_domain_global_euler_shock_boundary(
@@ -2225,17 +2373,20 @@ def solve_reflected_domain_global_euler_shock_boundary(
       last_endpoint_tangent_residual_rad=last_endpoint_residual,
       message=message,
     )
+  ####
 
   if not isinstance(global_remesh, MocReflectedDomainGlobalShockRemeshResult):
     return failure(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
       'global_remesh must be a MocReflectedDomainGlobalShockRemeshResult',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return failure(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
       'branch must be a ShockBranch',
     )
+  ####
   resolved_tolerances: dict[str, float] = {}
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
@@ -2252,12 +2403,16 @@ def solve_reflected_domain_global_euler_shock_boundary(
         numeric_value = float(value)
       except (TypeError, ValueError):
         numeric_value = float('nan')
+      ####
+    ####
     if not isfinite(numeric_value) or numeric_value <= 0.0:
       return failure(
         MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
         f'{name} must be finite and positive',
       )
+    ####
     resolved_tolerances[name] = numeric_value
+  ####
   if (
     isinstance(maximum_boundary_iterations, bool)
     or not isinstance(maximum_boundary_iterations, int)
@@ -2267,6 +2422,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
       'maximum_boundary_iterations must be a positive integer',
     )
+  ####
   position_tolerance_m = resolved_tolerances['position_tolerance_m']
   invariant_tolerance = resolved_tolerances['invariant_tolerance']
   pressure_tolerance = resolved_tolerances['pressure_tolerance']
@@ -2278,8 +2434,10 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'global Euler shock closure requires a verified bounded source band',
     )
+  ####
   if resolved_attempt_index is None:
     resolved_attempt_index = global_remesh.selected_attempt_index
+  ####
   if (
     isinstance(resolved_attempt_index, bool)
     or not isinstance(resolved_attempt_index, int)
@@ -2290,6 +2448,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
       'selected_attempt_index must select a retained global remesh attempt',
     )
+  ####
   attempt = global_remesh.attempts[resolved_attempt_index]
   resolved_outer_index = attempt.outer_source_index
   resolved_target_index = attempt.target_centerline_index
@@ -2301,6 +2460,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'global remesh attempt references a source index outside the retained band',
     )
+  ####
   selected_field = attempt.first_cell_result.selected_physical_field
   candidate_field = None if selected_field is None else selected_field.field
   if candidate_field is None:
@@ -2308,12 +2468,14 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'selected global remesh attempt does not retain a physical shock field',
     )
+  ####
   initial_points = tuple(candidate_field.shock_boundary_points_m)
   if len(initial_points) < 3:
     return failure(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
       'selected global remesh shock field must retain at least three points',
     )
+  ####
   if any(
     len(point) != 2 or not all(isfinite(float(value)) for value in point)
     for point in initial_points
@@ -2322,6 +2484,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
       'selected global remesh shock field contains non-finite geometry',
     )
+  ####
   if any(
     second[0] <= first[0] + position_tolerance_m
     or second[1] > first[1] + position_tolerance_m
@@ -2331,6 +2494,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
       'selected global remesh shock field must advance downstream and downward',
     )
+  ####
   target_y = source_band.target_centerline_y_m
   target_theta = source_band.target_centerline_flow_angle_rad
   if abs(initial_points[-1][1] - target_y) > position_tolerance_m:
@@ -2338,6 +2502,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'selected shock endpoint does not lie on the source centerline frontier',
     )
+  ####
 
   outer_source = source_band.outer_source_states[resolved_outer_index]
   first_point = initial_points[0]
@@ -2349,6 +2514,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'selected shock start does not reproduce its selected outer source point',
     )
+  ####
   sampled_first = source_band.state_at(
     first_point,
     position_tolerance_m=position_tolerance_m,
@@ -2358,6 +2524,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'selected shock start is outside the bounded source band',
     )
+  ####
   if not _state_matches(
     sampled_first,
     outer_source,
@@ -2368,6 +2535,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'selected shock start does not reproduce the selected outer source state',
     )
+  ####
 
   frontier_point = initial_points[-1]
   source_frontier_state = source_band.state_at(
@@ -2390,6 +2558,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'selected shock endpoint is not a state-carrying source centerline point',
     )
+  ####
   centerline_xs = tuple(state.x_m for state in source_band.centerline_source_states)
   if (
     frontier_point[0] < centerline_xs[0] - position_tolerance_m
@@ -2399,6 +2568,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'selected shock endpoint lies outside the retained centerline source edge',
     )
+  ####
   source_frontier_verified = True
 
   try:
@@ -2411,6 +2581,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
       'source frontier Mach-wave endpoint tangent is not finite',
     )
+  ####
   if (
     not isfinite(first_slope)
     or not isfinite(last_slope)
@@ -2421,6 +2592,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
       'source frontier Mach-wave endpoint tangents do not descend toward the centerline',
     )
+  ####
   remeshed = list(initial_points)
   remeshed[1] = (
     first_point[0] + (initial_points[1][1] - first_point[1]) / first_slope,
@@ -2441,6 +2613,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.GEOMETRY_FAILURE,
       'Mach-wave endpoint projection broke shock-point ordering',
     )
+  ####
   first_endpoint_residual = abs(
     (remeshed_points[1][1] - remeshed_points[0][1])
     / (remeshed_points[1][0] - remeshed_points[0][0])
@@ -2473,8 +2646,10 @@ def solve_reflected_domain_global_euler_shock_boundary(
         MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
         f'remeshed shock point {index} left the bounded source band',
       )
+    ####
     upstream_states.append(state)
     upstream_pressures.append(float(pressure))
+  ####
   try:
     curve = fit_euler_consistent_shock_boundary_from_geometry(
       tuple(upstream_states),
@@ -2491,17 +2666,20 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SHOCK_BOUNDARY_FAILURE,
       f'global Euler shock boundary reconciliation raised: {error}',
     )
+  ####
   if not curve.converged or not curve.local_euler_verified:
     return failure(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SHOCK_BOUNDARY_FAILURE,
       f'global Euler shock boundary reconciliation did not converge: {curve.message}',
     )
+  ####
   ambient_pressure = source_band.ambient_pressure_Pa
   if ambient_pressure is None:
     return failure(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
       'source band does not retain an ambient pressure for exact field closure',
     )
+  ####
   try:
     physical_field = assemble_euler_ambient_physical_field(
       curve,
@@ -2523,12 +2701,14 @@ def solve_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.AMBIENT_FIELD_FAILURE,
       f'global Euler ambient/centerline assembly raised: {error}',
     )
+  ####
   if not physical_field.converged or not physical_field.physical_closure_verified:
     return failure(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.AMBIENT_FIELD_FAILURE,
       'global Euler shock boundary closed locally, but its ambient/centerline '
       f'field did not pass closure gates: {physical_field.message}',
     )
+  ####
   return MocReflectedDomainGlobalEulerShockBoundaryResult(
     status=MocReflectedDomainGlobalEulerShockBoundaryStatus.CONVERGED,
     global_remesh=global_remesh,
@@ -2550,6 +2730,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
       'cell, refinement, and external validation remain pending'
     ),
   )
+####
 
 
 def solve_reflected_domain_alternating_source(
@@ -2597,6 +2778,7 @@ def solve_reflected_domain_alternating_source(
     ambient_pressure = float(ambient_pressure_Pa)
   except (TypeError, ValueError):
     ambient_pressure = float('nan')
+  ####
   if total_pressure_Pa is None:
     if (
       patch is not None
@@ -2605,11 +2787,14 @@ def solve_reflected_domain_alternating_source(
       reference_pressure = float(patch.outgoing_trace_total_pressure_Pa[0])
     else:
       reference_pressure = float('nan')
+    ####
   else:
     try:
       reference_pressure = float(total_pressure_Pa)
     except (TypeError, ValueError):
       reference_pressure = float('nan')
+    ####
+  ####
   try:
     supplied_pressures = tuple(
       float(value) for value in centerline_total_pressure_Pa
@@ -2619,12 +2804,14 @@ def solve_reflected_domain_alternating_source(
     pressure_row_error = True
   else:
     pressure_row_error = False
+  ####
   try:
     target_y = float(target_centerline_y_m)
     target_theta = float(target_centerline_flow_angle_rad)
   except (TypeError, ValueError):
     target_y = float('nan')
     target_theta = float('nan')
+  ####
   try:
     resolved_incoming_handoff = tuple(incoming_handoff)
   except TypeError:
@@ -2635,6 +2822,7 @@ def solve_reflected_domain_alternating_source(
       not isinstance(sample, MocChainBoundarySample)
       for sample in resolved_incoming_handoff
     )
+  ####
   try:
     seed_pressure = (
       float(outer_seed_total_pressure_Pa)
@@ -2643,6 +2831,7 @@ def solve_reflected_domain_alternating_source(
     )
   except (TypeError, ValueError):
     seed_pressure = float('nan')
+  ####
   try:
     resolved_position_tolerance = float(position_tolerance_m)
     resolved_trace_forward_tolerance = float(trace_forward_tolerance_m)
@@ -2650,6 +2839,7 @@ def solve_reflected_domain_alternating_source(
     resolved_pressure_tolerance = float(pressure_tolerance)
   except (TypeError, ValueError) as error:
     raise ValueError('MOC alternating-source tolerances must be numeric') from error
+  ####
   for name, value in (
     ('position_tolerance_m', resolved_position_tolerance),
     ('trace_forward_tolerance_m', resolved_trace_forward_tolerance),
@@ -2658,14 +2848,18 @@ def solve_reflected_domain_alternating_source(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if (
     isinstance(source_sample_count, bool)
     or not isinstance(source_sample_count, int)
     or source_sample_count < 3
   ):
     source_sample_count = 0
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
 
   centerline: list[CharacteristicState] = []
   outer: list[CharacteristicState] = []
@@ -2725,17 +2919,20 @@ def solve_reflected_domain_alternating_source(
       pressure_tolerance=resolved_pressure_tolerance,
       incoming_handoff=resolved_incoming_handoff,
     )
+  ####
 
   if source_sample_count == 0:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'source_sample_count must be an integer of at least three',
     )
+  ####
   if incoming_handoff_error:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if (
     not isfinite(ambient_pressure)
     or ambient_pressure <= 0.0
@@ -2749,16 +2946,19 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'ambient/reference pressures and centerline target values must be finite and valid',
     )
+  ####
   if abs(target_y) > resolved_position_tolerance or abs(target_theta) > resolved_invariant_tolerance:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'the alternating source primitive currently supports only the y=0, theta=0 symmetry centerline',
     )
+  ####
   if len(supplied_pressures) not in (0, source_sample_count):
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'centerline_total_pressure_Pa must match source_sample_count when supplied',
     )
+  ####
   resolved_centerline_pressures = (
     (reference_pressure,) * source_sample_count
     if not supplied_pressures
@@ -2772,16 +2972,19 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'alternating source total-pressure values must be finite and exceed ambient pressure',
     )
+  ####
   if patch is None:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'reflection_patch must be a MocTerminalReflectionPatchResult',
     )
+  ####
   if not patch.converged:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'alternating source remesh requires a converged terminal reflection patch',
     )
+  ####
   incoming = patch.outgoing_trace_samples
   incoming_validation = validate_characteristic_trace(
     incoming,
@@ -2795,6 +2998,7 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.INCOMING_TRACE_FAILURE,
       f'exact reflected C- front failed validation: {incoming_validation.message}',
     )
+  ####
   incoming_polarity = classify_reflected_trace_polarity(
     incoming,
     target_centerline_y_m=target_y,
@@ -2808,6 +3012,7 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.INCOMING_TRACE_FAILURE,
       f'exact reflected trace polarity failed validation: {incoming_polarity.message}',
     )
+  ####
   if (
     declared_polarity is not None
     and declared_polarity is not incoming_polarity.status
@@ -2816,20 +3021,25 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.INCOMING_TRACE_FAILURE,
       'declared reflected trace polarity does not match the exact incoming front',
     )
+  ####
   if len(incoming) < 2:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INCOMING_TRACE_FAILURE,
       'the reflected C- front requires at least two samples',
     )
+  ####
   if resolved_seed is None:
     resolved_seed = incoming[0].state
+  ####
   if not isinstance(resolved_seed, CharacteristicState):
     return failure(
       MocReflectedDomainAlternatingSourceStatus.SEED_FAILURE,
       'outer_seed_state must be a CharacteristicState when supplied',
     )
+  ####
   if outer_seed_total_pressure_Pa is None:
     seed_pressure = incoming[0].total_pressure_Pa
+  ####
   if (
     not isfinite(seed_pressure)
     or seed_pressure <= ambient_pressure
@@ -2849,6 +3059,7 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.SEED_FAILURE,
       'the alternating outer seed must reproduce the first exact outgoing-front state and pressure',
     )
+  ####
   if (
     resolved_seed.y_m <= target_y + resolved_position_tolerance
     or abs(_static_pressure_from_total_pressure(resolved_seed, seed_pressure) - ambient_pressure)
@@ -2858,6 +3069,7 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.SEED_FAILURE,
       'the alternating outer seed must be above the centerline and ambient-pressure matched',
     )
+  ####
   if (
     not _pressure_matches(
       reference_pressure,
@@ -2874,6 +3086,7 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.ANCHOR_FAILURE,
       'the first alternating source pressure must preserve the exact reflection-front pressure',
     )
+  ####
 
   previous_outer = resolved_seed
   previous_axis: CharacteristicState | None = None
@@ -2890,6 +3103,7 @@ def solve_reflected_domain_alternating_source(
         MocReflectedDomainAlternatingSourceStatus.CENTERLINE_FAILURE,
         f'alternating centerline sample {index} failed: {axis_result.message}',
       )
+    ####
     axis_state = axis_result.state
     if index == 0:
       reflection_anchor_verified = bool(
@@ -2910,6 +3124,7 @@ def solve_reflected_domain_alternating_source(
           MocReflectedDomainAlternatingSourceStatus.ANCHOR_FAILURE,
           'the first C- reflection of the outer seed did not reproduce the exact prior patch anchor',
         )
+      ####
     elif (
       previous_axis is None
       or axis_state.x_m <= previous_axis.x_m + resolved_position_tolerance
@@ -2920,6 +3135,7 @@ def solve_reflected_domain_alternating_source(
         MocReflectedDomainAlternatingSourceStatus.CENTERLINE_FAILURE,
         f'alternating centerline sample {index} failed downstream or C- compatibility ordering',
       )
+    ####
     if (
       abs(axis_state.y_m - target_y) > resolved_position_tolerance
       or abs(axis_state.theta_rad - target_theta) > resolved_invariant_tolerance
@@ -2928,6 +3144,7 @@ def solve_reflected_domain_alternating_source(
         MocReflectedDomainAlternatingSourceStatus.CENTERLINE_FAILURE,
         f'alternating centerline sample {index} did not remain on the declared symmetry centerline',
       )
+    ####
     centerline.append(axis_state)
     centerline_pressures.append(resolved_centerline_pressures[index])
 
@@ -2947,6 +3164,7 @@ def solve_reflected_domain_alternating_source(
         MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE,
         f'alternating ambient boundary sample {index} failed: {boundary_result.message}',
       )
+    ####
     next_outer = boundary_result.state
     if (
       next_outer.x_m <= previous_outer.x_m + resolved_position_tolerance
@@ -2958,10 +3176,12 @@ def solve_reflected_domain_alternating_source(
         MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE,
         f'alternating ambient boundary sample {index} failed downstream, geometry, or C+ compatibility ordering',
       )
+    ####
     outer.append(next_outer)
     outer_pressures.append(resolved_centerline_pressures[index])
     previous_axis = axis_state
     previous_outer = next_outer
+  ####
 
   ambient_boundary = validate_ambient_pressure_boundary(
     tuple(
@@ -2982,6 +3202,7 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE,
       f'alternating outer curve failed independent ambient acceptance: {ambient_boundary.message}',
     )
+  ####
 
   for index in range(source_sample_count - 1):
     try:
@@ -3014,6 +3235,8 @@ def solve_reflected_domain_alternating_source(
         MocReflectedDomainAlternatingSourceStatus.FIELD_FAILURE,
         f'alternating characteristic cell {index} could not be assembled: {error}',
       )
+    ####
+  ####
   topology = validate_moc_mesh(cells)
   if (
     not topology.connected
@@ -3024,6 +3247,7 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.FIELD_FAILURE,
       f'alternating source-band topology failed: {topology.message}',
     )
+  ####
   alternating_seam_verified = bool(
     all(result.converged for result in centerline_results)
     and all(result.converged for result in point_results)
@@ -3041,6 +3265,7 @@ def solve_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceStatus.FIELD_FAILURE,
       'alternating source band did not retain every solved C-/C+ neighboring seam',
     )
+  ####
   return MocReflectedDomainAlternatingSourceResult(
     status=MocReflectedDomainAlternatingSourceStatus.CONVERGED,
     reflection_patch=patch,
@@ -3143,10 +3368,12 @@ def solve_reflected_domain_alternating_physical_field(
     amplitude = float(compression_amplitude_rad)
   except (TypeError, ValueError):
     amplitude = float('nan')
+  ####
   try:
     envelope_skew = float(compression_envelope_skew)
   except (TypeError, ValueError):
     envelope_skew = float('nan')
+  ####
   try:
     target_y = float(target_centerline_y_m)
     target_theta = float(target_centerline_flow_angle_rad)
@@ -3155,6 +3382,7 @@ def solve_reflected_domain_alternating_physical_field(
     target_y = float('nan')
     target_theta = float('nan')
     half_width = float('nan')
+  ####
   resolved_sample_count = (
     sample_count
     if isinstance(sample_count, int)
@@ -3191,6 +3419,7 @@ def solve_reflected_domain_alternating_physical_field(
     continuation_law = 'alternating-source-skewed-compression-envelope'
   else:
     continuation_law = 'alternating-source-local-compression-envelope'
+  ####
   resolved_incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
   incoming_handoff_error = False
   if incoming_handoff is not None:
@@ -3203,6 +3432,8 @@ def solve_reflected_domain_alternating_physical_field(
         not isinstance(sample, MocChainBoundarySample)
         for sample in resolved_incoming_handoff
       )
+    ####
+  ####
   resolved_position_tolerance = 1.0e-9
   resolved_shock_angle_tolerance = 1.0e-2
   try:
@@ -3210,11 +3441,13 @@ def solve_reflected_domain_alternating_physical_field(
     resolved_shock_angle_tolerance = float(shock_angle_tolerance_rad)
   except (TypeError, ValueError):
     pass
+  ####
   if (
     not isfinite(resolved_position_tolerance)
     or resolved_position_tolerance <= 0.0
   ):
     resolved_position_tolerance = 1.0e-9
+  ####
   bracket: tuple[float, float] | None = None
   start_point: tuple[float, float] | None = None
 
@@ -3253,27 +3486,32 @@ def solve_reflected_domain_alternating_physical_field(
       ),
       message=message,
     )
+  ####
 
   if band is None:
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'source_band must be a MocReflectedDomainAlternatingSourceResult',
     )
+  ####
   if incoming_handoff_error:
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if not isinstance(use_outer_seed_attachment, bool):
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'use_outer_seed_attachment must be a bool',
     )
+  ####
   if not isinstance(use_trace_referenced_profile, bool):
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'use_trace_referenced_profile must be a bool',
     )
+  ####
   if (
     not isfinite(resolved_envelope_skew)
     or abs(resolved_envelope_skew) > 1.0
@@ -3282,16 +3520,19 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'compression_envelope_skew must be finite and within [-1, 1]',
     )
+  ####
   if resolved_trace_profile and not resolved_seed_attachment:
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'use_trace_referenced_profile requires use_outer_seed_attachment',
     )
+  ####
   if not band.source_field_verified:
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
       'alternating source band is not a verified bounded source field',
     )
+  ####
   if (
     not isfinite(amplitude)
     or amplitude <= 0.0
@@ -3304,6 +3545,7 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'compression amplitude, centerline target, and attachment bracket must be finite and valid',
     )
+  ####
   if (
     abs(target_y) > resolved_position_tolerance
     or abs(target_theta) > float(tangent_tolerance)
@@ -3312,6 +3554,7 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'alternating physical coupling currently supports only y=0, theta=0 symmetry closure',
     )
+  ####
   if (
     not isinstance(resolved_outer_index, int)
     or resolved_outer_index >= len(band.outer_source_states)
@@ -3320,16 +3563,19 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'outer_source_index must select a state in the alternating outer source row',
     )
+  ####
   if resolved_sample_count < 3:
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'sample_count must be an integer of at least three',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
       'branch must be a ShockBranch',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -3342,11 +3588,14 @@ def solve_reflected_domain_alternating_physical_field(
       numeric_value = float(value)
     except (TypeError, ValueError):
       numeric_value = float('nan')
+    ####
     if not isfinite(numeric_value) or numeric_value <= 0.0:
       return failure(
         MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
         f'{name} must be finite and positive',
       )
+    ####
+  ####
   for name, value in (
     ('maximum_segment_iterations', maximum_segment_iterations),
     ('maximum_boundary_iterations', maximum_boundary_iterations),
@@ -3357,12 +3606,15 @@ def solve_reflected_domain_alternating_physical_field(
         MocReflectedDomainAlternatingPhysicalFieldStatus.INVALID_INPUT,
         f'{name} must be a positive integer',
       )
+    ####
+  ####
   ambient_pressure = band.ambient_pressure_Pa
   if ambient_pressure is None or not isfinite(float(ambient_pressure)) or ambient_pressure <= 0.0:
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
       'alternating source band does not retain a finite ambient pressure',
     )
+  ####
   source_state = (
     band.outer_seed_state
     if resolved_seed_attachment
@@ -3373,12 +3625,14 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
       'alternating source band does not retain an outer seed attachment state',
     )
+  ####
   if resolved_seed_attachment and resolved_trace_profile:
     if band.reflection_patch is None:
       return failure(
         MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
         'outer-seed attachment requires the exact reflected trace source',
       )
+    ####
     try:
       compression_profile = build_reflected_trace_compression_profile(
         band.reflection_patch.outgoing_trace_samples,
@@ -3392,6 +3646,7 @@ def solve_reflected_domain_alternating_physical_field(
         MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
         f'outer-seed reflected trace compression profile is invalid: {error}',
       )
+    ####
     if not _state_matches(
       source_state,
       compression_profile.source_trace[0].state,
@@ -3402,7 +3657,9 @@ def solve_reflected_domain_alternating_physical_field(
         MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
         'outer-seed attachment state does not match the exact reflected trace start',
       )
+    ####
     continuation_law = compression_profile.model
+  ####
   start_point = (source_state.x_m, source_state.y_m)
   bracket = (
     source_state.theta_rad - half_width,
@@ -3433,12 +3690,14 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
       'alternating source attachment point does not reproduce its ambient-matched state and pressure',
     )
+  ####
   denominator = source_state.y_m - target_y
   if denominator <= float(position_tolerance_m):
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SOURCE_FIELD_FAILURE,
       'alternating source attachment point must lie above the target centerline',
     )
+  ####
 
   def downstream_flow_angle_at(
     index: int,
@@ -3446,18 +3705,21 @@ def solve_reflected_domain_alternating_physical_field(
   ) -> float:
     if compression_profile is not None:
       return compression_profile.flow_angle_at(index, point_m)
+    ####
     ordinate = float(point_m[1])
     fraction = (ordinate - target_y) / denominator
     if fraction < -1.0e-8 or fraction > 1.0 + 1.0e-8:
       raise ValueError(
         'alternating physical shock point lies outside the bounded source ordinate'
       )
+    ####
     fraction = max(0.0, min(1.0, fraction))
     if abs(ordinate - target_y) <= max(
       float(position_tolerance_m),
       float(invariant_tolerance),
     ):
       return target_theta
+    ####
     state = band.state_at(
       point_m,
       position_tolerance_m=float(position_tolerance_m),
@@ -3466,9 +3728,11 @@ def solve_reflected_domain_alternating_physical_field(
       raise ValueError(
         'alternating physical shock point is outside the bounded source band'
       )
+    ####
     envelope = 4.0 * fraction * (1.0 - fraction)
     envelope *= 1.0 + resolved_envelope_skew * (2.0 * fraction - 1.0)
     return float(state.theta_rad + amplitude * envelope)
+  ####
 
   try:
     from exhaust_plume.models.moc.coupled import (
@@ -3514,11 +3778,13 @@ def solve_reflected_domain_alternating_physical_field(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SHOCK_FAILURE,
       f'alternating source physical shock solve raised: {error}',
     )
+  ####
   if not isinstance(field_result, MocAmbientPhysicalFieldResult):
     return failure(
       MocReflectedDomainAlternatingPhysicalFieldStatus.SHOCK_FAILURE,
       'alternating source physical shock solve returned an invalid field result',
     )
+  ####
   if (
     field_result.converged
     and field_result.physical_closure_verified
@@ -3547,6 +3813,7 @@ def solve_reflected_domain_alternating_physical_field(
         'reflected free-boundary validation remains pending'
       ),
     )
+  ####
   return failure(
     MocReflectedDomainAlternatingPhysicalFieldStatus.FIELD_FAILURE,
     f'alternating source physical field did not pass closure gates: {field_result.message}',
@@ -3655,12 +3922,14 @@ def solve_reflected_domain_solver_owned_first_cell(
       compression_envelope_skew=envelope_skew,
       message=message,
     )
+  ####
 
   if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'source_band must be a MocReflectedDomainAlternatingSourceResult',
     )
+  ####
   if (
     isinstance(outer_source_index, bool)
     or not isinstance(outer_source_index, int)
@@ -3671,6 +3940,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'outer_source_index must select a generated outer source state',
     )
+  ####
   resolved_target_index = (
     outer_source_index + 1
     if target_centerline_index is None
@@ -3686,6 +3956,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'target_centerline_index must select a generated centerline source state',
     )
+  ####
   try:
     lower_amplitude = float(compression_amplitude_lower_rad)
     upper_amplitude = float(compression_amplitude_upper_rad)
@@ -3702,6 +3973,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'solver-owned first-cell tolerances and amplitude bounds must be numeric',
     )
+  ####
   if (
     not all(
       isfinite(value) and value > 0.0
@@ -3734,6 +4006,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket=invalid_bracket,
       envelope_skew=resolved_envelope_skew,
     )
+  ####
   if not isfinite(resolved_envelope_skew) or abs(resolved_envelope_skew) > 1.0:
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
@@ -3741,6 +4014,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket=(lower_amplitude, upper_amplitude),
       envelope_skew=resolved_envelope_skew,
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
@@ -3748,6 +4022,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket=(lower_amplitude, upper_amplitude),
       envelope_skew=resolved_envelope_skew,
     )
+  ####
   for name, value in (
     ('maximum_segment_iterations', maximum_segment_iterations),
     ('maximum_boundary_iterations', maximum_boundary_iterations),
@@ -3760,6 +4035,8 @@ def solve_reflected_domain_solver_owned_first_cell(
         bracket=(lower_amplitude, upper_amplitude),
         envelope_skew=resolved_envelope_skew,
       )
+    ####
+  ####
   if (
     isinstance(maximum_bracket_scan_samples, bool)
     or not isinstance(maximum_bracket_scan_samples, int)
@@ -3771,6 +4048,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket=(lower_amplitude, upper_amplitude),
       envelope_skew=resolved_envelope_skew,
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
@@ -3778,6 +4056,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket=(lower_amplitude, upper_amplitude),
       envelope_skew=resolved_envelope_skew,
     )
+  ####
   if not source_band.source_field_verified:
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.SOURCE_FIELD_FAILURE,
@@ -3785,6 +4064,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket=(lower_amplitude, upper_amplitude),
       envelope_skew=resolved_envelope_skew,
     )
+  ####
   resolved_handoff = source_band.incoming_handoff
   if incoming_handoff is not None:
     try:
@@ -3796,6 +4076,7 @@ def solve_reflected_domain_solver_owned_first_cell(
         bracket=(lower_amplitude, upper_amplitude),
         envelope_skew=resolved_envelope_skew,
       )
+    ####
     if any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in resolved_handoff
@@ -3806,6 +4087,8 @@ def solve_reflected_domain_solver_owned_first_cell(
         bracket=(lower_amplitude, upper_amplitude),
         envelope_skew=resolved_envelope_skew,
       )
+    ####
+  ####
   if resolved_handoff != source_band.incoming_handoff:
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
@@ -3813,6 +4096,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket=(lower_amplitude, upper_amplitude),
       envelope_skew=resolved_envelope_skew,
     )
+  ####
   source_state = source_band.outer_source_states[outer_source_index]
   target_state = source_band.centerline_source_states[resolved_target_index]
   target_point = (target_state.x_m, target_state.y_m)
@@ -3828,6 +4112,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket=(lower_amplitude, upper_amplitude),
       envelope_skew=resolved_envelope_skew,
     )
+  ####
 
   trials: list[MocReflectedDomainSolverOwnedFirstCellTrial] = []
 
@@ -3864,11 +4149,13 @@ def solve_reflected_domain_solver_owned_first_cell(
         residual_m=None,
         message=f'physical-field trial raised: {error}',
       )
+    ####
     endpoint = None
     residual = None
     if physical_field.field is not None and physical_field.field.shock_boundary_points_m:
       endpoint = physical_field.field.shock_boundary_points_m[-1]
       residual = endpoint[0] - target_point[0]
+    ####
     if (
       residual is None
       or not physical_field.converged
@@ -3884,6 +4171,7 @@ def solve_reflected_domain_solver_owned_first_cell(
           f'{physical_field.message}'
         ),
       )
+    ####
     return MocReflectedDomainSolverOwnedFirstCellTrial(
       compression_amplitude_rad=amplitude,
       physical_field=physical_field,
@@ -3891,6 +4179,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       residual_m=residual,
       message='complete local physical field retained for endpoint iteration',
     )
+  ####
 
   def best_trial_index() -> int | None:
     valid = tuple(
@@ -3899,6 +4188,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       if trial.residual_m is not None and trial.converged
     )
     return None if not valid else min(valid, key=lambda item: item[1])[0]
+  ####
 
   def result_for(
     status: MocReflectedDomainSolverOwnedFirstCellStatus,
@@ -3929,6 +4219,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       bracket_scan_sample_count=maximum_bracket_scan_samples,
       envelope_skew=resolved_envelope_skew,
     )
+  ####
 
   lower_trial = evaluate(lower_amplitude)
   trials.append(lower_trial)
@@ -3942,6 +4233,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       'solver-owned first-cell endpoint aligned at the lower amplitude bound',
       0,
     )
+  ####
   upper_trial = evaluate(upper_amplitude)
   trials.append(upper_trial)
   if (
@@ -3954,6 +4246,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       'solver-owned first-cell endpoint aligned at the upper amplitude bound',
       0,
     )
+  ####
   if lower_trial.residual_m is None or upper_trial.residual_m is None:
     return result_for(
       MocReflectedDomainSolverOwnedFirstCellStatus.FIELD_FAILURE,
@@ -3964,6 +4257,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       ),
       0,
     )
+  ####
   def find_adjacent_bracket() -> tuple[float, float, float, float] | None:
     ordered = tuple(
       sorted(trials, key=lambda trial: trial.compression_amplitude_rad)
@@ -3976,6 +4270,7 @@ def solve_reflected_domain_solver_owned_first_cell(
         or second.residual_m is None
       ):
         continue
+      ####
       if first.residual_m * second.residual_m <= 0.0:
         return (
           first.compression_amplitude_rad,
@@ -3983,7 +4278,10 @@ def solve_reflected_domain_solver_owned_first_cell(
           first.residual_m,
           second.residual_m,
         )
+      ####
+    ####
     return None
+  ####
 
   bracket = find_adjacent_bracket()
   if bracket is None and maximum_bracket_scan_samples:
@@ -4003,9 +4301,13 @@ def solve_reflected_domain_solver_owned_first_cell(
           'solver-owned first-cell endpoint aligned at a bounded bracket-scan amplitude',
           0,
         )
+      ####
       bracket = find_adjacent_bracket()
       if bracket is not None:
         break
+      ####
+    ####
+  ####
   if bracket is None:
     return result_for(
       MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE,
@@ -4017,6 +4319,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       ),
       0,
     )
+  ####
 
   current_lower, current_upper, current_lower_residual, _ = bracket
   completed_iterations = 0
@@ -4035,17 +4338,21 @@ def solve_reflected_domain_solver_owned_first_cell(
         ),
         iteration,
       )
+    ####
     if abs(midpoint_trial.residual_m) <= closure_tolerance:
       return result_for(
         MocReflectedDomainSolverOwnedFirstCellStatus.CONVERGED_CENTERLINE_ENDPOINT,
         'solver-owned first-cell endpoint aligned in the bounded amplitude shoot',
         iteration,
       )
+    ####
     if current_lower_residual * midpoint_trial.residual_m <= 0.0:
       current_upper = midpoint
     else:
       current_lower = midpoint
       current_lower_residual = midpoint_trial.residual_m
+    ####
+  ####
   return result_for(
     MocReflectedDomainSolverOwnedFirstCellStatus.ITERATION_LIMIT,
     (
@@ -4054,6 +4361,7 @@ def solve_reflected_domain_solver_owned_first_cell(
     ),
     completed_iterations,
   )
+####
 
 
 def solve_reflected_domain_global_shock_remesh(
@@ -4117,17 +4425,20 @@ def solve_reflected_domain_global_shock_remesh(
       compression_envelope_skews=tuple(resolved_skews),
       message=message,
     )
+  ####
 
   if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
     return failure(
       MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
       'source_band must be a MocReflectedDomainAlternatingSourceResult',
     )
+  ####
   if not source_band.source_field_verified:
     return failure(
       MocReflectedDomainGlobalShockRemeshStatus.SOURCE_FIELD_FAILURE,
       'global reflected-shock remesh requires a verified bounded source band',
     )
+  ####
   if (
     isinstance(maximum_attempts, bool)
     or not isinstance(maximum_attempts, int)
@@ -4137,6 +4448,7 @@ def solve_reflected_domain_global_shock_remesh(
       MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
       'maximum_attempts must be a positive integer',
     )
+  ####
 
   def resolve_indices(
     values: Sequence[int] | None,
@@ -4145,19 +4457,24 @@ def solve_reflected_domain_global_shock_remesh(
   ) -> tuple[int, ...] | None:
     if values is None:
       return tuple(range(count))
+    ####
     try:
       resolved = tuple(values)
     except TypeError:
       return None
+    ####
     if any(
       isinstance(value, bool) or not isinstance(value, int) or value < 0
       or value >= count
       for value in resolved
     ):
       return None
+    ####
     if len(set(resolved)) != len(resolved):
       return None
+    ####
     return resolved
+  ####
 
   resolved_outer = resolve_indices(
     outer_source_indices,
@@ -4169,6 +4486,7 @@ def solve_reflected_domain_global_shock_remesh(
       MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
       'outer_source_indices must contain unique in-range source indices',
     )
+  ####
   explicit_targets = resolve_indices(
     target_centerline_indices,
     len(source_band.centerline_source_states),
@@ -4182,6 +4500,7 @@ def solve_reflected_domain_global_shock_remesh(
       'target_centerline_indices must contain unique in-range centerline indices',
       resolved_outer=resolved_outer,
     )
+  ####
   try:
     resolved_skews = tuple(float(value) for value in compression_envelope_skews)
   except (TypeError, ValueError):
@@ -4190,6 +4509,7 @@ def solve_reflected_domain_global_shock_remesh(
       'compression_envelope_skews must be an iterable of numeric values',
       resolved_outer=resolved_outer,
     )
+  ####
   if not resolved_skews or any(
     not isfinite(value) or abs(value) > 1.0 for value in resolved_skews
   ):
@@ -4199,6 +4519,7 @@ def solve_reflected_domain_global_shock_remesh(
       resolved_outer=resolved_outer,
       resolved_skews=resolved_skews,
     )
+  ####
   if len(set(resolved_skews)) != len(resolved_skews):
     return failure(
       MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
@@ -4206,6 +4527,7 @@ def solve_reflected_domain_global_shock_remesh(
       resolved_outer=resolved_outer,
       resolved_skews=resolved_skews,
     )
+  ####
   target_pairs = (
     tuple(
       (outer_index, outer_index + 1)
@@ -4226,6 +4548,7 @@ def solve_reflected_domain_global_shock_remesh(
       resolved_outer=resolved_outer,
       resolved_skews=resolved_skews,
     )
+  ####
   attempt_count = len(target_pairs) * len(resolved_skews)
   if attempt_count > maximum_attempts:
     return failure(
@@ -4235,6 +4558,7 @@ def solve_reflected_domain_global_shock_remesh(
       resolved_target=tuple(sorted({target for _, target in target_pairs})),
       resolved_skews=resolved_skews,
     )
+  ####
   resolved_targets = tuple(sorted({target for _, target in target_pairs}))
   attempts: list[MocReflectedDomainGlobalShockRemeshAttempt] = []
   for outer_index, target_index in target_pairs:
@@ -4269,6 +4593,8 @@ def solve_reflected_domain_global_shock_remesh(
           first_cell_result=first_cell,
         )
       )
+    ####
+  ####
 
   valid_attempts = tuple(
     (index, attempt)
@@ -4289,6 +4615,7 @@ def solve_reflected_domain_global_shock_remesh(
       key=lambda item: abs(item[1].residual_m),
     )
     selected_residual = selected_attempt.residual_m
+  ####
   converged_attempts = tuple(
     (index, attempt)
     for index, attempt in valid_attempts
@@ -4319,6 +4646,7 @@ def solve_reflected_domain_global_shock_remesh(
       'the retained typed first-cell outcomes identify the limiting source '
       'or characteristic-field seam'
     )
+  ####
   return failure(
     status,
     message,
@@ -4329,6 +4657,7 @@ def solve_reflected_domain_global_shock_remesh(
     selected_index=selected_index,
     selected_residual=selected_residual,
   )
+####
 
 
 def solve_reflected_domain_outer_source_curve(
@@ -4364,20 +4693,24 @@ def solve_reflected_domain_outer_source_curve(
     centerline = tuple(centerline_source_states)
   except TypeError:
     centerline = ()
+  ####
   try:
     reference_pressure = float(total_pressure_Pa)
   except (TypeError, ValueError):
     reference_pressure = float('nan')
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
   except (TypeError, ValueError):
     ambient_pressure = float('nan')
+  ####
   try:
     target_y = float(target_centerline_y_m)
     target_theta = float(target_centerline_flow_angle_rad)
   except (TypeError, ValueError):
     target_y = float('nan')
     target_theta = float('nan')
+  ####
   try:
     supplied_pressures = tuple(
       float(value) for value in centerline_total_pressure_Pa
@@ -4387,6 +4720,7 @@ def solve_reflected_domain_outer_source_curve(
     pressure_row_error = True
   else:
     pressure_row_error = False
+  ####
   try:
     previous_pressure = (
       reference_pressure
@@ -4395,26 +4729,33 @@ def solve_reflected_domain_outer_source_curve(
     )
   except (TypeError, ValueError):
     previous_pressure = float('nan')
+  ####
   reported_target_y = target_y if isfinite(target_y) else 0.0
   reported_target_theta = target_theta if isfinite(target_theta) else 0.0
   try:
     reported_position_tolerance = float(position_tolerance_m)
   except (TypeError, ValueError):
     reported_position_tolerance = 1.0e-3
+  ####
   if not isfinite(reported_position_tolerance) or reported_position_tolerance <= 0.0:
     reported_position_tolerance = 1.0e-3
+  ####
   try:
     reported_invariant_tolerance = float(invariant_tolerance)
   except (TypeError, ValueError):
     reported_invariant_tolerance = 1.0e-10
+  ####
   if not isfinite(reported_invariant_tolerance) or reported_invariant_tolerance <= 0.0:
     reported_invariant_tolerance = 1.0e-10
+  ####
   try:
     reported_pressure_tolerance = float(pressure_tolerance)
   except (TypeError, ValueError):
     reported_pressure_tolerance = 1.0e-8
+  ####
   if not isfinite(reported_pressure_tolerance) or reported_pressure_tolerance <= 0.0:
     reported_pressure_tolerance = 1.0e-8
+  ####
   def failure(
     status: MocReflectedDomainOuterSourceStatus,
     message: str,
@@ -4464,6 +4805,7 @@ def solve_reflected_domain_outer_source_curve(
       invariant_tolerance=reported_invariant_tolerance,
       pressure_tolerance=reported_pressure_tolerance,
     )
+  ####
 
   if (
     len(centerline) < 3
@@ -4473,11 +4815,13 @@ def solve_reflected_domain_outer_source_curve(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'centerline source row requires at least three CharacteristicState values',
     )
+  ####
   if not isinstance(previous_boundary_state, CharacteristicState):
     return failure(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'previous_boundary_state must be a CharacteristicState',
     )
+  ####
   if (
     not isfinite(reference_pressure)
     or reference_pressure <= 0.0
@@ -4491,11 +4835,13 @@ def solve_reflected_domain_outer_source_curve(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'pressures and centerline target coordinates must be finite and valid',
     )
+  ####
   if len(supplied_pressures) not in (0, len(centerline)):
     return failure(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'centerline_total_pressure_Pa must match the centerline source row',
     )
+  ####
   centerline_pressures = (
     (reference_pressure,) * len(centerline)
     if not supplied_pressures
@@ -4509,19 +4855,25 @@ def solve_reflected_domain_outer_source_curve(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'centerline total-pressure values must be finite and positive',
     )
+  ####
   if not isfinite(previous_pressure) or previous_pressure <= 0.0:
     return failure(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'previous_boundary_total_pressure_Pa must be finite and positive',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if not isfinite(float(pressure_tolerance)) or pressure_tolerance <= 0.0:
     raise ValueError('pressure_tolerance must be finite and positive')
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   gamma = centerline[0].gamma
   if (
     abs(previous_boundary_state.gamma - gamma) > invariant_tolerance
@@ -4531,6 +4883,7 @@ def solve_reflected_domain_outer_source_curve(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'centerline and previous outer states must use one common gamma',
     )
+  ####
   if any(
     abs(state.y_m - target_y) > position_tolerance_m
     or abs(state.theta_rad - target_theta) > invariant_tolerance
@@ -4540,6 +4893,7 @@ def solve_reflected_domain_outer_source_curve(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'centerline source states must lie on the target centerline with its declared flow angle',
     )
+  ####
   if any(
     next_state.x_m <= state.x_m + position_tolerance_m
     for state, next_state in zip(centerline, centerline[1:])
@@ -4548,6 +4902,7 @@ def solve_reflected_domain_outer_source_curve(
       MocReflectedDomainOuterSourceStatus.INVALID_INPUT,
       'centerline source states must progress strictly downstream',
     )
+  ####
   if (
     previous_boundary_state.y_m <= target_y + position_tolerance_m
     or previous_boundary_state.x_m <= centerline[0].x_m + position_tolerance_m
@@ -4556,6 +4911,7 @@ def solve_reflected_domain_outer_source_curve(
       MocReflectedDomainOuterSourceStatus.SEED_FAILURE,
       'previous outer boundary seed must be above and downstream of the first centerline source',
     )
+  ####
   seed_static_pressure = _static_pressure_from_total_pressure(
     previous_boundary_state,
     previous_pressure,
@@ -4570,6 +4926,7 @@ def solve_reflected_domain_outer_source_curve(
       outer=(previous_boundary_state,),
       outer_pressures=(previous_pressure,),
     )
+  ####
 
   outer_states: list[CharacteristicState] = [previous_boundary_state]
   outer_pressures: list[float] = [previous_pressure]
@@ -4594,6 +4951,7 @@ def solve_reflected_domain_outer_source_curve(
         outer_pressures=outer_pressures,
         point_results=point_results,
       )
+    ####
     if (
       result.point_m[0] <= outer_states[-1].x_m + position_tolerance_m
       or result.point_m[1] <= target_y + position_tolerance_m
@@ -4605,8 +4963,10 @@ def solve_reflected_domain_outer_source_curve(
         outer_pressures=outer_pressures,
         point_results=point_results,
       )
+    ####
     outer_states.append(result.state)
     outer_pressures.append(centerline_pressures[index])
+  ####
 
   ambient_boundary = validate_ambient_pressure_boundary(
     tuple(
@@ -4631,6 +4991,7 @@ def solve_reflected_domain_outer_source_curve(
       point_results=point_results,
       ambient_boundary=ambient_boundary,
     )
+  ####
   source_strip = assemble_source_characteristic_strip_with_source_pressures(
     centerline,
     outer_states,
@@ -4649,6 +5010,7 @@ def solve_reflected_domain_outer_source_curve(
       ambient_boundary=ambient_boundary,
       source_strip=source_strip,
     )
+  ####
   return MocReflectedDomainOuterSourceResult(
     status=MocReflectedDomainOuterSourceStatus.CONVERGED,
     centerline_source_states=centerline,
@@ -4716,6 +5078,7 @@ class MocReflectedDomainRemeshRequest:
       raise TypeError(
         'reflection_patch must be a MocTerminalReflectionPatchResult'
       )
+    ####
     try:
       centerline = tuple(self.centerline_source_states)
       outer = tuple(self.outer_source_states)
@@ -4724,14 +5087,17 @@ class MocReflectedDomainRemeshRequest:
       raise TypeError(
         'reflected-domain source rows and incoming_handoff must be iterable'
       ) from error
+    ####
     if len(centerline) < 3 or len(outer) < 3:
       raise ValueError(
         'reflected-domain source rows require at least three samples'
       )
+    ####
     if len(centerline) != len(outer):
       raise ValueError(
         'reflected-domain centerline and outer source rows must have equal lengths'
       )
+    ####
     if any(
       not isinstance(state, CharacteristicState)
       for state in (*centerline, *outer)
@@ -4739,19 +5105,23 @@ class MocReflectedDomainRemeshRequest:
       raise TypeError(
         'reflected-domain source rows must contain CharacteristicState values'
       )
+    ####
     if any(
       not isinstance(sample, MocChainBoundarySample) for sample in handoff
     ):
       raise TypeError(
         'incoming_handoff must contain MocChainBoundarySample values'
       )
+    ####
     if handoff and len(handoff) < 3:
       raise ValueError(
         'incoming_handoff requires at least three samples when supplied'
       )
+    ####
     pressure = float(self.total_pressure_Pa)
     if not isfinite(pressure) or pressure <= 0.0:
       raise ValueError('total_pressure_Pa must be finite and positive')
+    ####
     try:
       centerline_pressures = tuple(
         float(value) for value in self.centerline_total_pressure_Pa
@@ -4763,18 +5133,23 @@ class MocReflectedDomainRemeshRequest:
       raise ValueError(
         'source-row total pressures must contain finite positive values'
       ) from error
+    ####
     if not centerline_pressures:
       centerline_pressures = (pressure,) * len(centerline)
+    ####
     if not outer_pressures:
       outer_pressures = (pressure,) * len(outer)
+    ####
     if len(centerline_pressures) != len(centerline):
       raise ValueError(
         'centerline_total_pressure_Pa must match centerline_source_states'
       )
+    ####
     if len(outer_pressures) != len(outer):
       raise ValueError(
         'outer_total_pressure_Pa must match outer_source_states'
       )
+    ####
     if any(
       not isfinite(value) or value <= 0.0
       for value in (*centerline_pressures, *outer_pressures)
@@ -4782,6 +5157,7 @@ class MocReflectedDomainRemeshRequest:
       raise ValueError(
         'source-row total pressures must contain finite positive values'
       )
+    ####
     for name in (
       'target_centerline_y_m',
       'target_centerline_flow_angle_rad',
@@ -4801,6 +5177,8 @@ class MocReflectedDomainRemeshRequest:
         )
       ):
         raise ValueError(f'{name} must be finite and valid')
+      ####
+    ####
     if self.declared_polarity is not None and not isinstance(
       self.declared_polarity,
       MocReflectedTracePolarity,
@@ -4808,6 +5186,7 @@ class MocReflectedDomainRemeshRequest:
       raise TypeError(
         'declared_polarity must be a MocReflectedTracePolarity or None'
       )
+    ####
     object.__setattr__(self, 'centerline_source_states', centerline)
     object.__setattr__(self, 'outer_source_states', outer)
     object.__setattr__(self, 'incoming_handoff', handoff)
@@ -4827,6 +5206,7 @@ class MocReflectedDomainRemeshRequest:
       'pressure_tolerance',
     ):
       object.__setattr__(self, name, float(getattr(self, name)))
+    ####
   ####
 
   @property
@@ -4914,6 +5294,7 @@ class MocReflectedDomainRemeshRequest:
       'nonuniform_entropy_remesh_solved': False,
     }
   ####
+####
 
 
 def build_reflected_domain_remesh_request_from_outer_source(
@@ -4936,15 +5317,18 @@ def build_reflected_domain_remesh_request_from_outer_source(
     raise TypeError(
       'reflection_patch must be a MocTerminalReflectionPatchResult'
     )
+  ####
   if not isinstance(outer_source, MocReflectedDomainOuterSourceResult):
     raise TypeError(
       'outer_source must be a MocReflectedDomainOuterSourceResult'
     )
+  ####
   if not outer_source.source_field_verified:
     raise ValueError(
       'outer_source must carry a converged ambient source curve and '
       'characteristic field'
     )
+  ####
   reference_pressure = (
     outer_source.reference_total_pressure_Pa
     if total_pressure_Pa is None
@@ -4954,8 +5338,10 @@ def build_reflected_domain_remesh_request_from_outer_source(
     raise ValueError(
       'outer_source must retain a reference total pressure when one is not supplied'
     )
+  ####
   if not isfinite(reference_pressure) or reference_pressure <= 0.0:
     raise ValueError('total_pressure_Pa must be finite and positive')
+  ####
   return MocReflectedDomainRemeshRequest(
     reflection_patch=reflection_patch,
     centerline_source_states=outer_source.centerline_source_states,
@@ -4994,6 +5380,7 @@ class MocReflectedDomainRemeshResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainRemeshStatus):
       raise TypeError('status must be a MocReflectedDomainRemeshStatus')
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocReflectedDomainRemeshRequest,
@@ -5001,6 +5388,7 @@ class MocReflectedDomainRemeshResult:
       raise TypeError(
         'request must be a MocReflectedDomainRemeshRequest or None'
       )
+    ####
     if self.source_strip is not None and not isinstance(
       self.source_strip,
       MocSourceCharacteristicStripResult,
@@ -5008,6 +5396,7 @@ class MocReflectedDomainRemeshResult:
       raise TypeError(
         'source_strip must be a MocSourceCharacteristicStripResult or None'
       )
+    ####
     if self.incoming_trace_validation is not None and not isinstance(
       self.incoming_trace_validation,
       MocCharacteristicTraceResult,
@@ -5015,6 +5404,7 @@ class MocReflectedDomainRemeshResult:
       raise TypeError(
         'incoming_trace_validation must be a MocCharacteristicTraceResult or None'
       )
+    ####
     if self.incoming_trace_polarity is not None and not isinstance(
       self.incoming_trace_polarity,
       MocReflectedTracePolarityResult,
@@ -5022,6 +5412,7 @@ class MocReflectedDomainRemeshResult:
       raise TypeError(
         'incoming_trace_polarity must be a MocReflectedTracePolarityResult or None'
       )
+    ####
     for name in (
       'reflection_seam_verified',
       'centerline_source_verified',
@@ -5030,6 +5421,8 @@ class MocReflectedDomainRemeshResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
   ####
 
   @property
@@ -5069,6 +5462,7 @@ class MocReflectedDomainRemeshResult:
         'a reflected-domain source continuation requires a converged bounded '
         'source field'
       )
+    ####
     request = self.request
     assert request is not None
     return MocSourceStripContinuationResult(
@@ -5105,6 +5499,7 @@ class MocReflectedDomainRemeshResult:
       reason = MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -5158,6 +5553,7 @@ class MocReflectedDomainRemeshResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -5185,6 +5581,7 @@ def _failure(
     source_field_verified=source_field_verified,
     message=message,
   )
+####
 
 
 def solve_reflected_domain_remesh(
@@ -5204,6 +5601,7 @@ def solve_reflected_domain_remesh(
       MocReflectedDomainRemeshStatus.INVALID_INPUT,
       message='request must be a MocReflectedDomainRemeshRequest',
     )
+  ####
   patch = request.reflection_patch
   if not patch.converged:
     return _failure(
@@ -5211,6 +5609,7 @@ def solve_reflected_domain_remesh(
       request=request,
       message='reflected-domain remesh requires a converged reflection patch',
     )
+  ####
   incoming = request.incoming_trace
   incoming_validation = validate_characteristic_trace(
     incoming,
@@ -5226,6 +5625,7 @@ def solve_reflected_domain_remesh(
       incoming_trace_validation=incoming_validation,
       message=f'incoming reflected C- trace failed: {incoming_validation.message}',
     )
+  ####
   polarity = classify_reflected_trace_polarity(
     incoming,
     target_centerline_y_m=request.target_centerline_y_m,
@@ -5242,6 +5642,7 @@ def solve_reflected_domain_remesh(
       incoming_trace_polarity=polarity,
       message=f'incoming reflected trace polarity failed: {polarity.message}',
     )
+  ####
   if (
     request.declared_polarity is not None
     and request.declared_polarity is not polarity.status
@@ -5257,6 +5658,7 @@ def solve_reflected_domain_remesh(
         f'observed={polarity.status.value}'
       ),
     )
+  ####
 
   anchor = request.incoming_anchor
   centerline = request.centerline_source_states
@@ -5289,6 +5691,7 @@ def solve_reflected_domain_remesh(
         'incoming C- reflection endpoint and total pressure'
       ),
     )
+  ####
 
   common_gamma = first_centerline.gamma
   centerline_source_verified = bool(
@@ -5322,6 +5725,7 @@ def solve_reflected_domain_remesh(
         'match its flow angle, and progress strictly downstream'
       ),
     )
+  ####
 
   outer = request.outer_source_states
   outer_source_verified = bool(
@@ -5352,6 +5756,7 @@ def solve_reflected_domain_remesh(
         'with varying C- invariant; the prior single C- front cannot be reused'
       ),
     )
+  ####
 
   incoming_pressure_uniform = all(
     _pressure_matches(
@@ -5375,6 +5780,7 @@ def solve_reflected_domain_remesh(
         'provide source-row pressure data for variable-entropy transport'
       ),
     )
+  ####
 
   if request.variable_total_pressure:
     strip = assemble_source_characteristic_strip_with_source_pressures(
@@ -5393,6 +5799,7 @@ def solve_reflected_domain_remesh(
       position_tolerance_m=request.position_tolerance_m,
       invariant_tolerance=request.invariant_tolerance,
     )
+  ####
   if not strip.converged:
     return _failure(
       MocReflectedDomainRemeshStatus.FIELD_FAILURE,
@@ -5405,6 +5812,7 @@ def solve_reflected_domain_remesh(
       outer_source_verified=outer_source_verified,
       message=f'reflected-domain source field failed: {strip.message}',
     )
+  ####
   sampled_anchor = strip.state_at(
     (first_centerline.x_m, first_centerline.y_m),
     position_tolerance_m=request.position_tolerance_m,
@@ -5452,6 +5860,7 @@ def solve_reflected_domain_remesh(
         'anchor state and total pressure'
       ),
     )
+  ####
   return MocReflectedDomainRemeshResult(
     status=MocReflectedDomainRemeshStatus.CONVERGED_BOUNDED_FIELD,
     request=request,
@@ -5468,3 +5877,4 @@ def solve_reflected_domain_remesh(
       'separate gates'
     ),
   )
+####

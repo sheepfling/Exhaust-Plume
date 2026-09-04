@@ -111,6 +111,7 @@ class MocEulerAmbientCompanionBoundaryResult:
       raise TypeError(
         'status must be a MocEulerAmbientCompanionBoundaryStatus'
       )
+    ####
     if self.shock_boundary is not None and not isinstance(
       self.shock_boundary,
       MocEulerShockBoundaryCurveResult,
@@ -118,6 +119,7 @@ class MocEulerAmbientCompanionBoundaryResult:
       raise TypeError(
         'shock_boundary must be a MocEulerShockBoundaryCurveResult or None'
       )
+    ####
     for name in (
       'position_tolerance_m',
       'invariant_tolerance',
@@ -126,15 +128,20 @@ class MocEulerAmbientCompanionBoundaryResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     if self.ambient_pressure_Pa is not None:
       pressure = float(self.ambient_pressure_Pa)
       if not isfinite(pressure) or pressure <= 0.0:
         raise ValueError('ambient_pressure_Pa must be finite and positive')
+      ####
       object.__setattr__(self, 'ambient_pressure_Pa', pressure)
+    ####
     samples = tuple(self.samples)
     if any(not isinstance(sample, MocChainBoundarySample) for sample in samples):
       raise TypeError('samples must contain MocChainBoundarySample values')
+    ####
     object.__setattr__(self, 'samples', samples)
     expected = len(samples)
     for name in (
@@ -145,9 +152,12 @@ class MocEulerAmbientCompanionBoundaryResult:
       values = tuple(float(value) for value in getattr(self, name))
       if len(values) != expected:
         raise ValueError(f'{name} must match the companion sample count')
+      ####
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'seed_k_minus_rad',
       'seed_flow_angle_rad',
@@ -160,12 +170,15 @@ class MocEulerAmbientCompanionBoundaryResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or (
         numeric < 0.0 and name not in ('seed_k_minus_rad', 'seed_flow_angle_rad')
       ):
         raise ValueError(f'{name} must be finite and valid when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'physical_closure_verified',
       'chain_promotion_blocked',
@@ -173,8 +186,10 @@ class MocEulerAmbientCompanionBoundaryResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
-    object.__setattr__(self, 'message', str(self.message))
+      ####
     ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -225,6 +240,7 @@ class MocEulerAmbientCompanionBoundaryResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -270,6 +286,7 @@ class MocEulerCompanionFieldResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocEulerCompanionFieldStatus):
       raise TypeError('status must be a MocEulerCompanionFieldStatus')
+    ####
     for name in (
       'position_tolerance_m',
       'invariant_tolerance',
@@ -278,31 +295,41 @@ class MocEulerCompanionFieldResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     if len(self.nodes) != len(self.point_results):
       raise ValueError('nodes and point_results must have equal lengths')
+    ####
     if len(self.nodes) != len(self.interior_states):
       raise ValueError('nodes and interior states must have equal lengths')
+    ####
     if len(self.nodes) != len(self.interior_total_pressure_Pa):
       raise ValueError('nodes and interior pressures must have equal lengths')
+    ####
     if len(self.shock_boundary_points_m) != len(self.shock_boundary_states):
       raise ValueError('shock boundary points and states must have equal lengths')
+    ####
     if self.shock_boundary_total_pressure_Pa and len(
       self.shock_boundary_total_pressure_Pa
     ) != len(self.shock_boundary_points_m):
       raise ValueError(
         'shock boundary points and pressures must have equal lengths'
       )
+    ####
     if len(self.companion_boundary_points_m) != len(self.companion_boundary_states):
       raise ValueError('companion boundary points and states must have equal lengths')
+    ####
     if self.companion_boundary_total_pressure_Pa and len(
       self.companion_boundary_total_pressure_Pa
     ) != len(self.companion_boundary_points_m):
       raise ValueError(
         'companion boundary points and pressures must have equal lengths'
       )
+    ####
     if len(self.interior_points_m) != len(self.nodes):
       raise ValueError('interior points and nodes must have equal lengths')
+    ####
     for name, states in (
       ('shock_boundary_states', self.shock_boundary_states),
       ('companion_boundary_states', self.companion_boundary_states),
@@ -310,6 +337,8 @@ class MocEulerCompanionFieldResult:
     ):
       if any(not isinstance(state, CharacteristicState) for state in states):
         raise TypeError(f'{name} must contain CharacteristicState values')
+      ####
+    ####
     for name, points in (
       ('shock_boundary_points_m', self.shock_boundary_points_m),
       ('companion_boundary_points_m', self.companion_boundary_points_m),
@@ -320,11 +349,14 @@ class MocEulerCompanionFieldResult:
         for point in points
       ):
         raise ValueError(f'{name} must contain finite coordinate pairs')
+      ####
+    ####
     if any(
       not isfinite(float(value)) or value <= 0.0
       for value in self.interior_total_pressure_Pa
     ):
       raise ValueError('interior total pressures must be finite and positive')
+    ####
     for name, pressures in (
       ('shock_boundary_total_pressure_Pa', self.shock_boundary_total_pressure_Pa),
       (
@@ -334,6 +366,8 @@ class MocEulerCompanionFieldResult:
     ):
       if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
         raise ValueError(f'{name} must contain finite positive values')
+      ####
+    ####
     for name in (
       'maximum_geometry_residual_m',
       'maximum_absolute_invariant_residual',
@@ -343,10 +377,13 @@ class MocEulerCompanionFieldResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or (name != 'minimum_forward_margin_m' and numeric < 0.0):
         raise ValueError(f'{name} must be finite and valid when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     if self.shock_boundary_orientation is not None and not isinstance(
       self.shock_boundary_orientation,
       MocEulerShockBoundaryOrientation,
@@ -354,6 +391,7 @@ class MocEulerCompanionFieldResult:
       raise TypeError(
         'shock_boundary_orientation must be a MocEulerShockBoundaryOrientation'
       )
+    ####
     if self.shock_boundary is not None and not isinstance(
       self.shock_boundary,
       MocEulerShockBoundaryCurveResult,
@@ -361,6 +399,7 @@ class MocEulerCompanionFieldResult:
       raise TypeError(
         'shock_boundary must be a MocEulerShockBoundaryCurveResult when supplied'
       )
+    ####
     for name in (
       'shock_boundary_local_euler_verified',
       'companion_boundary_contract_verified',
@@ -371,6 +410,8 @@ class MocEulerCompanionFieldResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -407,6 +448,7 @@ class MocEulerCompanionFieldResult:
 
     if not self.state_sampling_available:
       return ()
+    ####
     return tuple(
       MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
       for state, pressure in zip(
@@ -488,6 +530,7 @@ class MocEulerCompanionFieldResult:
         'Euler companion characteristic strip failed before a continued '
         'cell handoff was available'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -570,6 +613,7 @@ class MocEulerCompanionFieldResult:
       'message': self.message,
     }
   ####
+####
 
 
 def solve_euler_ambient_companion_boundary_reference(
@@ -604,6 +648,7 @@ def solve_euler_ambient_companion_boundary_reference(
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
       **defaults,
     )
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     separation = float(separation_m)
@@ -621,6 +666,7 @@ def solve_euler_ambient_companion_boundary_reference(
       ),
       **defaults,
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('invariant_tolerance', invariant_tolerance_value),
@@ -628,6 +674,8 @@ def solve_euler_ambient_companion_boundary_reference(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     return MocEulerAmbientCompanionBoundaryResult(
       status=MocEulerAmbientCompanionBoundaryStatus.INVALID_INPUT,
@@ -638,6 +686,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message='ambient_pressure_Pa must be finite and positive',
     )
+  ####
   if not isfinite(separation) or separation <= position_tolerance:
     return MocEulerAmbientCompanionBoundaryResult(
       status=MocEulerAmbientCompanionBoundaryStatus.INVALID_INPUT,
@@ -649,6 +698,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message='separation_m must be finite and greater than position tolerance',
     )
+  ####
   if not isfinite(seed_angle):
     return MocEulerAmbientCompanionBoundaryResult(
       status=MocEulerAmbientCompanionBoundaryStatus.INVALID_INPUT,
@@ -661,6 +711,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message='seed_flow_angle_rad must be finite',
     )
+  ####
   if not shock_boundary.converged or not shock_boundary.local_euler_verified:
     return MocEulerAmbientCompanionBoundaryResult(
       status=MocEulerAmbientCompanionBoundaryStatus.SHOCK_BOUNDARY_REQUIRED,
@@ -673,6 +724,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message='ambient companion boundary requires a locally Euler-verified shock curve',
     )
+  ####
   if shock_boundary.orientation is not MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY:
     return MocEulerAmbientCompanionBoundaryResult(
       status=MocEulerAmbientCompanionBoundaryStatus.SHOCK_BOUNDARY_REQUIRED,
@@ -688,6 +740,7 @@ def solve_euler_ambient_companion_boundary_reference(
         'characteristic shock orientation'
       ),
     )
+  ####
   points = tuple(shock_boundary.shock_points_m)
   pressures = tuple(shock_boundary.downstream_total_pressure_Pa)
   states = tuple(shock_boundary.downstream_states)
@@ -703,6 +756,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message='shock curve must contain at least two aligned points and states',
     )
+  ####
   if any(
     points[index + 1][0] <= points[index][0] + position_tolerance
     for index in range(len(points) - 1)
@@ -718,6 +772,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message='shock curve must advance strictly downstream in x',
     )
+  ####
   gamma = states[0].gamma
   if any(abs(state.gamma - gamma) > invariant_tolerance_value for state in states):
     return MocEulerAmbientCompanionBoundaryResult(
@@ -731,6 +786,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message='shock downstream states must use one gamma',
     )
+  ####
   first_ratio = pressures[0] / ambient_pressure
   if not isfinite(first_ratio) or first_ratio <= 1.0:
     return MocEulerAmbientCompanionBoundaryResult(
@@ -744,6 +800,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message='ambient pressure must be below every shock downstream total pressure',
     )
+  ####
   try:
     first_inverse = supersonic_mach_from_stagnation_pressure_ratio(
       first_ratio,
@@ -761,6 +818,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message=f'ambient Mach inversion failed: {error}',
     )
+  ####
   if not first_inverse.converged or first_inverse.value is None:
     return MocEulerAmbientCompanionBoundaryResult(
       status=MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE,
@@ -773,6 +831,7 @@ def solve_euler_ambient_companion_boundary_reference(
       pressure_tolerance=pressure_tolerance_value,
       message=first_inverse.message,
     )
+  ####
   first_nu = prandtl_meyer_angle_rad(first_inverse.value, gamma)
   seed_k_minus = seed_angle + first_nu
   samples: list[MocChainBoundarySample] = []
@@ -807,6 +866,7 @@ def solve_euler_ambient_companion_boundary_reference(
         pressure_tolerance=pressure_tolerance_value,
         message=f'shock sample {index} cannot support an ambient supersonic state',
       )
+    ####
     try:
       inverse = supersonic_mach_from_stagnation_pressure_ratio(ratio, gamma)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -830,6 +890,7 @@ def solve_euler_ambient_companion_boundary_reference(
         pressure_tolerance=pressure_tolerance_value,
         message=f'ambient Mach inversion failed at sample {index}: {error}',
       )
+    ####
     if not inverse.converged or inverse.value is None:
       return MocEulerAmbientCompanionBoundaryResult(
         status=MocEulerAmbientCompanionBoundaryStatus.AMBIENT_PRESSURE_FAILURE,
@@ -851,6 +912,7 @@ def solve_euler_ambient_companion_boundary_reference(
         pressure_tolerance=pressure_tolerance_value,
         message=f'ambient Mach inversion failed at sample {index}: {inverse.message}',
       )
+    ####
     mach = inverse.value
     nu = prandtl_meyer_angle_rad(mach, gamma)
     theta = seed_k_minus - nu
@@ -877,6 +939,7 @@ def solve_euler_ambient_companion_boundary_reference(
         pressure_tolerance=pressure_tolerance_value,
         message=f'ambient companion tangent failed at sample {index}: {error}',
       )
+    ####
     if not isfinite(tangent):
       return MocEulerAmbientCompanionBoundaryResult(
         status=MocEulerAmbientCompanionBoundaryStatus.GEOMETRY_FAILURE,
@@ -898,6 +961,7 @@ def solve_euler_ambient_companion_boundary_reference(
         pressure_tolerance=pressure_tolerance_value,
         message=f'ambient companion tangent is non-finite at sample {index}',
       )
+    ####
     companion_y = (
       point[1] + separation
       if index == 0
@@ -925,6 +989,7 @@ def solve_euler_ambient_companion_boundary_reference(
         pressure_tolerance=pressure_tolerance_value,
         message=f'ambient companion point is non-finite at sample {index}',
       )
+    ####
     clearance = companion_y - point[1]
     if clearance <= position_tolerance:
       return MocEulerAmbientCompanionBoundaryResult(
@@ -947,6 +1012,7 @@ def solve_euler_ambient_companion_boundary_reference(
         pressure_tolerance=pressure_tolerance_value,
         message=f'ambient companion boundary crosses the shock at sample {index}',
       )
+    ####
     static_pressure = total_pressure / (
       1.0 + 0.5 * (gamma - 1.0) * mach * mach
     ) ** (gamma / (gamma - 1.0))
@@ -977,6 +1043,7 @@ def solve_euler_ambient_companion_boundary_reference(
     clearances.append(clearance)
     previous_theta = theta
     previous_y = companion_y
+  ####
   maximum_pressure_residual = max(static_pressure_residuals, default=0.0)
   maximum_invariant_residual = max(invariant_residuals, default=0.0)
   maximum_geometry_residual = max(geometry_residuals, default=0.0)
@@ -995,6 +1062,7 @@ def solve_euler_ambient_companion_boundary_reference(
       'ambient-conditioned companion boundary derived from shock total-pressure '
       'lineage; global reflected free-boundary closure remains pending'
     )
+  ####
   return MocEulerAmbientCompanionBoundaryResult(
     status=status,
     shock_boundary=shock_boundary,
@@ -1038,6 +1106,7 @@ def _failure(
     message=message,
     **values,
   )
+####
 
 
 def assemble_euler_consistent_companion_characteristic_strip(
@@ -1063,6 +1132,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
       MocEulerCompanionFieldStatus.INVALID_INPUT,
       'shock_boundary must be a MocEulerShockBoundaryCurveResult',
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     invariant_tolerance_value = float(invariant_tolerance)
@@ -1072,12 +1142,16 @@ def assemble_euler_consistent_companion_characteristic_strip(
       MocEulerCompanionFieldStatus.INVALID_INPUT,
       'strip tolerances must be numeric',
     )
+  ####
   if not isfinite(position_tolerance) or position_tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(invariant_tolerance_value) or invariant_tolerance_value <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if not isfinite(pressure_tolerance_value) or pressure_tolerance_value <= 0.0:
     raise ValueError('pressure_tolerance must be finite and positive')
+  ####
   if not shock_boundary.converged or not shock_boundary.local_euler_verified:
     return _failure(
       MocEulerCompanionFieldStatus.SHOCK_BOUNDARY_REQUIRED,
@@ -1086,6 +1160,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
       invariant_tolerance=invariant_tolerance_value,
       pressure_tolerance=pressure_tolerance_value,
     )
+  ####
   if shock_boundary.orientation is not MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY:
     return _failure(
       MocEulerCompanionFieldStatus.CHARACTERISTIC_ORIENTATION_FAILURE,
@@ -1096,6 +1171,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
       shock_boundary_orientation=shock_boundary.orientation,
       shock_boundary_local_euler_verified=shock_boundary.local_euler_verified,
     )
+  ####
   try:
     companion = tuple(companion_boundary)
   except TypeError:
@@ -1108,6 +1184,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
       shock_boundary_orientation=shock_boundary.orientation,
       shock_boundary_local_euler_verified=shock_boundary.local_euler_verified,
     )
+  ####
   if len(companion) != len(shock_boundary.shock_points_m) or len(companion) < 2:
     return _failure(
       MocEulerCompanionFieldStatus.COMPANION_BOUNDARY_REQUIRED,
@@ -1118,6 +1195,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
       shock_boundary_orientation=shock_boundary.orientation,
       shock_boundary_local_euler_verified=shock_boundary.local_euler_verified,
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in companion):
     return _failure(
       MocEulerCompanionFieldStatus.INVALID_INPUT,
@@ -1128,6 +1206,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
       shock_boundary_orientation=shock_boundary.orientation,
       shock_boundary_local_euler_verified=shock_boundary.local_euler_verified,
     )
+  ####
   gamma = shock_boundary.downstream_states[0].gamma
   if any(abs(sample.state.gamma - gamma) > invariant_tolerance_value for sample in companion):
     return _failure(
@@ -1139,6 +1218,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
       shock_boundary_orientation=shock_boundary.orientation,
       shock_boundary_local_euler_verified=shock_boundary.local_euler_verified,
     )
+  ####
   companion_pressure_residuals = tuple(
     sample.total_pressure_Pa - expected
     for sample, expected in zip(
@@ -1234,6 +1314,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
         ),
         maximum_companion_pressure_residual=maximum_pressure_residual,
       )
+    ####
     point = (float(point_result.point_m[0]), float(point_result.point_m[1]))
     minimum_y = min(shock_state.y_m, companion_sample.state.y_m)
     maximum_y = max(shock_state.y_m, companion_sample.state.y_m)
@@ -1259,6 +1340,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
         pressure_lineage_verified=True,
         maximum_companion_pressure_residual=maximum_pressure_residual,
       )
+    ####
     forward_margin = point[0] - max(shock_state.x_m, companion_sample.state.x_m)
     if forward_margin <= position_tolerance:
       return _failure(
@@ -1282,6 +1364,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
         pressure_lineage_verified=True,
         maximum_companion_pressure_residual=maximum_pressure_residual,
       )
+    ####
     forward_margins.append(forward_margin)
     interior_states.append(point_result.state)
     interior_points.append(point)
@@ -1356,6 +1439,8 @@ def assemble_euler_consistent_companion_characteristic_strip(
         minimum_forward_margin_m=min(forward_margins, default=None),
         maximum_companion_pressure_residual=maximum_pressure_residual,
       )
+    ####
+  ####
   cell_tuple = tuple(cells)
   topology = validate_moc_mesh(cell_tuple)
   if not topology.connected or topology.nonmanifold_edge_count or not topology.forms_closed_zone:
@@ -1399,6 +1484,7 @@ def assemble_euler_consistent_companion_characteristic_strip(
       minimum_forward_margin_m=min(forward_margins, default=None),
       maximum_companion_pressure_residual=maximum_pressure_residual,
     )
+  ####
   return MocEulerCompanionFieldResult(
     status=MocEulerCompanionFieldStatus.CONVERGED_OPEN_COMPANION_FIELD,
     nodes=tuple(nodes),
@@ -1448,3 +1534,4 @@ def assemble_euler_consistent_companion_characteristic_strip(
       'continued-cell promotion remain blocked'
     ),
   )
+####

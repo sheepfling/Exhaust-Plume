@@ -130,6 +130,7 @@ def _shaped_exact_shock():
         gamma=1.4,
       )
     )
+  ####
   return fit_euler_consistent_shock_boundary(
     tuple(upstream_states),
     (100000.0,) * sample_count,
@@ -139,6 +140,7 @@ def _shaped_exact_shock():
       for state, turn in zip(upstream_states, turns, strict=True)
     ),
   )
+####
 
 
 def _internal_field():
@@ -154,6 +156,7 @@ def _internal_field():
   return entropy_trial, solve_euler_ambient_first_wedge_entropy_characteristic_field(
     entropy_trial,
   )
+####
 
 
 def test_internal_entropy_characteristic_field_closes_local_subcells() -> None:
@@ -187,6 +190,7 @@ def test_internal_entropy_characteristic_field_closes_local_subcells() -> None:
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_field_exposes_bounded_sampler() -> None:
@@ -206,11 +210,13 @@ def test_internal_entropy_characteristic_field_exposes_bounded_sampler() -> None
     assert state.mach > 1.0
     assert pressure is not None and pressure > 0.0
     assert total_pressure is not None and total_pressure > 0.0
+  ####
 
   assert field.state_sampling_available
   assert field.state_at((2.0, 0.2)) is None
   assert field.static_pressure_at((2.0, 0.2)) is None
   assert field.total_pressure_at((2.0, 0.2)) is None
+####
 
 
 def test_internal_entropy_characteristic_shock_coupling_stops_at_bounded_field() -> None:
@@ -242,6 +248,7 @@ def test_internal_entropy_characteristic_shock_coupling_stops_at_bounded_field()
     'reflected-free-boundary-coupling-and-independent-euler-validation-'
     'before-continued-shock-cell-chain'
   )
+####
 
 
 def test_internal_entropy_characteristic_chain_probe_records_bounded_shock_attempt() -> None:
@@ -267,6 +274,7 @@ def test_internal_entropy_characteristic_chain_probe_records_bounded_shock_attem
     .UPSTREAM_FIELD_BOUNDARY.value
   )
   assert planner.diagnostics['synthetic_downstream_field_created'] is False
+####
 
 
 def test_internal_entropy_characteristic_shock_coupling_has_independent_audit() -> None:
@@ -300,6 +308,7 @@ def test_internal_entropy_characteristic_shock_coupling_has_independent_audit() 
   assert audit.termination_reason == (
     MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY.value
   )
+####
 
 
 def test_internal_entropy_characteristic_free_boundary_stops_at_bounded_field() -> None:
@@ -339,6 +348,7 @@ def test_internal_entropy_characteristic_free_boundary_stops_at_bounded_field() 
   assert attempt.as_chain_termination_decision().reason is (
     MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
   )
+####
 
 
 def test_internal_entropy_characteristic_free_boundary_planner_and_audit_keep_stop_typed() -> None:
@@ -394,6 +404,7 @@ def test_internal_entropy_characteristic_free_boundary_planner_and_audit_keep_st
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_builds_bounded_cell_band() -> None:
@@ -446,7 +457,9 @@ def test_internal_entropy_characteristic_continuation_builds_bounded_cell_band()
     assert result.state_at(centroid) is not None
     assert result.total_pressure_at(centroid) is not None
     assert result.static_pressure_at(centroid) is not None
+  ####
   assert result.state_at((2.0, 0.2)) is None
+####
 
 
 def test_internal_entropy_characteristic_continuation_audit_keeps_euler_gate_separate() -> None:
@@ -490,6 +503,7 @@ def test_internal_entropy_characteristic_continuation_audit_keeps_euler_gate_sep
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_chain_carries_multiple_bands() -> None:
@@ -504,6 +518,7 @@ def test_internal_entropy_characteristic_continuation_chain_carries_multiple_ban
     nonlocal solve_count
     if solve_count == 2:
       return None
+    ####
     solve_count += 1
     return solve_euler_ambient_first_wedge_entropy_characteristic_continuation(
       current,
@@ -511,6 +526,7 @@ def test_internal_entropy_characteristic_continuation_chain_carries_multiple_ban
       ambient_pressure,
       cycle_count=4,
     )
+  ####
 
   planner = plan_euler_ambient_first_wedge_entropy_characteristic_continuation_chain(
     field,
@@ -543,6 +559,7 @@ def test_internal_entropy_characteristic_continuation_chain_carries_multiple_ban
   assert audit.physical_chain_cell_count == 0
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_chain_mock_replays_typed_bands() -> None:
@@ -588,6 +605,7 @@ def test_internal_entropy_characteristic_continuation_chain_mock_replays_typed_b
   assert audit.physical_chain_cell_count == 0
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_planner_records_typed_stop() -> None:
@@ -615,6 +633,7 @@ def test_internal_entropy_characteristic_continuation_planner_records_typed_stop
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_refinement_keeps_gate_and_planner_separate() -> None:
@@ -694,6 +713,7 @@ def test_internal_entropy_characteristic_continuation_refinement_keeps_gate_and_
   assert planner.diagnostics['refinement_side_counts'] == (1, 4, 12, 16)
   assert len(planner.diagnostics['refinement_ladder']) == 4
   assert planner.diagnostics['refinement_consumed_as_chain_cell'] is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_refinement_ladder_audits_resolution_trend() -> None:
@@ -750,6 +770,7 @@ def test_internal_entropy_characteristic_continuation_refinement_ladder_audits_r
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_remesh_solves_shared_edges_but_keeps_euler_gate_separate() -> None:
@@ -841,6 +862,7 @@ def test_internal_entropy_characteristic_continuation_remesh_solves_shared_edges
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_remesh_solves_interior_rows_without_physical_promotion() -> None:
@@ -920,6 +942,7 @@ def test_internal_entropy_characteristic_continuation_remesh_solves_interior_row
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_remesh_planner_records_ladder_without_consuming_cells() -> None:
@@ -964,6 +987,7 @@ def test_internal_entropy_characteristic_continuation_remesh_planner_records_lad
   ] < 1.0e-2
   assert planner.diagnostics['remesh_consumed_as_chain_cell'] is False
   assert planner.diagnostics['external_validation_required'] is True
+####
 
 
 def test_internal_entropy_characteristic_remesh_free_boundary_probe_stops_at_remesh_boundary() -> None:
@@ -1068,6 +1092,7 @@ def test_internal_entropy_characteristic_remesh_free_boundary_probe_stops_at_rem
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_remesh_free_boundary_frontier_bridge_closes_locally() -> None:
@@ -1174,6 +1199,7 @@ def test_internal_entropy_characteristic_remesh_free_boundary_frontier_bridge_cl
   assert not tampered_audit.converged
   assert tampered_audit.outgoing_frontier_bridge_enabled
   assert not tampered_audit.outgoing_frontier_bridge_verified
+####
 
 
 def test_internal_entropy_characteristic_remesh_free_boundary_planner_frontier_bridge_remains_nonphysical() -> None:
@@ -1215,6 +1241,7 @@ def test_internal_entropy_characteristic_remesh_free_boundary_planner_frontier_b
   assert attempt['external_validation_required'] is True
   assert planner.diagnostics['synthetic_downstream_field_created'] is False
   assert planner.diagnostics['physical_chain_cell_count'] == 0
+####
 
 
 def test_internal_entropy_characteristic_bridge_records_global_centerline_seam_gap() -> None:
@@ -1283,6 +1310,7 @@ def test_internal_entropy_characteristic_bridge_records_global_centerline_seam_g
   assert comparison['maximum_absolute_state_residual'] < 1.0e-10
   assert comparison['maximum_relative_total_pressure_residual'] < 1.0e-10
   assert decision.diagnostics['centerline_seam_verified'] is False
+####
 
 
 def test_internal_entropy_characteristic_remesh_free_boundary_planner_keeps_boundary_typed() -> None:
@@ -1332,6 +1360,7 @@ def test_internal_entropy_characteristic_remesh_free_boundary_planner_keeps_boun
   assert planner.diagnostics['remesh_free_boundary_consumed_as_chain_cell'] is False
   assert planner.diagnostics['external_validation_required'] is True
   assert planner.diagnostics['synthetic_downstream_field_created'] is False
+####
 
 
 def test_internal_entropy_characteristic_field_has_independent_audit() -> None:
@@ -1361,6 +1390,7 @@ def test_internal_entropy_characteristic_field_has_independent_audit() -> None:
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_audit_rejects_tampered_node() -> None:
@@ -1382,6 +1412,7 @@ def test_internal_entropy_characteristic_audit_rejects_tampered_node() -> None:
   )
   assert not audit.converged
   assert not audit.local_consistency_verified
+####
 
 
 def test_internal_entropy_characteristic_audit_rejects_weakened_cached_flag() -> None:
@@ -1398,6 +1429,7 @@ def test_internal_entropy_characteristic_audit_rejects_weakened_cached_flag() ->
   assert audit.internal_characteristic_closure_verified
   assert not audit.solver_status_consistent
   assert not audit.local_consistency_verified
+####
 
 
 def test_internal_entropy_characteristic_planner_stops_before_chain_promotion() -> None:
@@ -1423,6 +1455,7 @@ def test_internal_entropy_characteristic_planner_stops_before_chain_promotion() 
     'reflected-free-boundary-coupling-and-external-validation-before-'
     'continued-shock-cell-chain'
   )
+####
 
 
 def test_internal_entropy_characteristic_chain_has_typed_nonphysical_stop() -> None:
@@ -1460,6 +1493,7 @@ def test_internal_entropy_characteristic_chain_has_typed_nonphysical_stop() -> N
   assert audit.physical_chain_cell_count == 0
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_chain_downgrades_physical_stop() -> None:
@@ -1472,6 +1506,7 @@ def test_internal_entropy_characteristic_chain_downgrades_physical_stop() -> Non
       reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
       message='fixture attempted a physical stop',
     )
+  ####
 
   planner = plan_euler_ambient_first_wedge_entropy_characteristic_field_chain(
     field,
@@ -1487,6 +1522,7 @@ def test_internal_entropy_characteristic_chain_downgrades_physical_stop() -> Non
   assert planner.steps[-1].result_termination_reason is (
     MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
+####
 
 
 def test_internal_entropy_characteristic_chain_rejects_replayed_seed() -> None:
@@ -1503,6 +1539,7 @@ def test_internal_entropy_characteristic_chain_rejects_replayed_seed() -> None:
   assert planner.termination.reason is MocChainTerminationReason.STATE_NOT_CARRIED
   assert planner.steps[-1].result_kind == 'field-reuse-rejected'
   assert planner.physical_chain_cell_count == 0
+####
 
 
 def test_internal_entropy_characteristic_chain_audit_rejects_tampered_link() -> None:
@@ -1528,6 +1565,7 @@ def test_internal_entropy_characteristic_chain_audit_rejects_tampered_link() -> 
   )
   assert not audit.converged
   assert not audit.local_consistency_verified
+####
 
 
 def test_internal_entropy_characteristic_continuation_closure_chain_closes_local_bands_without_promotion() -> None:
@@ -1595,6 +1633,7 @@ def test_internal_entropy_characteristic_continuation_closure_chain_closes_local
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_frontiers_reconcile_and_audit_without_promotion() -> None:
@@ -1679,6 +1718,7 @@ def test_internal_entropy_characteristic_frontiers_reconcile_and_audit_without_p
   )
   assert not tampered_audit.converged
   assert not tampered_audit.local_consistency_verified
+####
 
 
 def test_internal_entropy_characteristic_frontier_reconciliation_refines_across_angle_cases() -> None:
@@ -1710,6 +1750,7 @@ def test_internal_entropy_characteristic_frontier_reconciliation_refines_across_
         result=reconciliation,
       )
     )
+  ####
 
   measurement = (
     measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement_ladder(
@@ -1744,6 +1785,7 @@ def test_internal_entropy_characteristic_frontier_reconciliation_refines_across_
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_internal_entropy_characteristic_continuation_closure_chain_mock_replays_typed_candidate() -> None:
@@ -1785,6 +1827,7 @@ def test_internal_entropy_characteristic_continuation_closure_chain_mock_replays
   assert audit.local_consistency_verified
   assert audit.step_records_verified
   assert audit.termination_verified
+####
 
 
 def test_internal_entropy_characteristic_continuation_closure_chain_keeps_euler_gate_explicit() -> None:
@@ -1811,3 +1854,4 @@ def test_internal_entropy_characteristic_continuation_closure_chain_keeps_euler_
   assert planner.physical_chain_cell_count == 0
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+####

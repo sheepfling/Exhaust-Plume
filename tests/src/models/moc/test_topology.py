@@ -34,6 +34,7 @@ def test_open_fan_topology_reports_boundary_without_nonmanifold_edges() -> None:
   assert topology.forms_closed_zone
   assert topology.nonmanifold_edge_count == 0
   assert topology.connected
+####
 
 
 def test_two_triangles_can_form_a_closed_mesh() -> None:
@@ -70,3 +71,4 @@ def test_two_triangles_can_form_a_closed_mesh() -> None:
   assert topology.boundary_component_count == 1
   assert topology.forms_closed_zone
   assert topology.connected
+####

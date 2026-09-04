@@ -89,6 +89,7 @@ class MocFanReflectedInterfaceResult:
   @property
   def aligned(self) -> bool:
     return self.status is MocInterfaceStatus.ALIGNED
+  ####
 ####
 
 
@@ -124,6 +125,7 @@ class MocReflectedZoneShockCouplingResult:
   def last_valid_point_m(self) -> tuple[float, float] | None:
     if not self.upstream_states:
       return None
+    ####
     state = self.upstream_states[-1]
     return state.x_m, state.y_m
   ####
@@ -138,6 +140,7 @@ class MocReflectedZoneShockCouplingResult:
       'last_valid_point_m': self.last_valid_point_m,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -156,6 +159,9 @@ class MocCharacteristicNode:
     if self.total_pressure_Pa is not None:
       if not isfinite(float(self.total_pressure_Pa)) or self.total_pressure_Pa <= 0.0:
         raise ValueError('total_pressure_Pa must be finite and positive when supplied')
+      ####
+    ####
+  ####
 ####
 
 
@@ -173,9 +179,11 @@ class MocCharacteristicCell:
   def __post_init__(self) -> None:
     if len(self.vertices_xr_m) not in (3, 4):
       raise ValueError('characteristic cells must be triangular or quadrilateral')
+    ####
     validation = validate_polygon(np.asarray(self.vertices_xr_m, dtype=float))
     if not validation.is_valid:
       raise ValueError(f'characteristic cell polygon is invalid: {validation.status.value}')
+    ####
     object.__setattr__(self, 'geometry_status', GeometryStatus.VALID)
   ####
 ####
@@ -210,6 +218,7 @@ class MocReflectedCharacteristicZoneResult:
       not isfinite(float(self.total_pressure_Pa)) or self.total_pressure_Pa <= 0.0
     ):
       raise ValueError('total_pressure_Pa must be finite and positive when supplied')
+    ####
   ####
 
   @property
@@ -249,6 +258,7 @@ class MocReflectedCharacteristicZoneResult:
       for cell in self.cells
       for point in cell.vertices_xr_m
     )
+  ####
 
   @property
   def domain_x_extent_m(self) -> tuple[float, float] | None:
@@ -260,8 +270,10 @@ class MocReflectedCharacteristicZoneResult:
       for point in points
     ):
       return None
+    ####
     x_values = tuple(point[0] for point in points)
     return min(x_values), max(x_values)
+  ####
 
   @property
   def domain_y_extent_m(self) -> tuple[float, float] | None:
@@ -273,8 +285,10 @@ class MocReflectedCharacteristicZoneResult:
       for point in points
     ):
       return None
+    ####
     y_values = tuple(point[1] for point in points)
     return min(y_values), max(y_values)
+  ####
 
   @property
   def state_sampling_available(self) -> bool:
@@ -292,6 +306,7 @@ class MocReflectedCharacteristicZoneResult:
       and self.domain_x_extent_m is not None
       and self.domain_y_extent_m is not None
     )
+  ####
 
   def as_report(self) -> dict[str, object]:
     """Serialize open-zone geometry and its bounded sampling capability."""
@@ -345,8 +360,10 @@ class MocReflectedCharacteristicZoneResult:
 
     if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     node_by_key = {
       (node.centerline_index, node.boundary_index): node
       for node in self.nodes
@@ -356,6 +373,7 @@ class MocReflectedCharacteristicZoneResult:
       samples = _zone_cell_samples(self, cell, node_by_key)
       if samples is None:
         continue
+      ####
       vertices, states = samples
       weights = _polygon_interpolation_weights(
         point,
@@ -364,6 +382,7 @@ class MocReflectedCharacteristicZoneResult:
       )
       if weights is None:
         continue
+      ####
       theta = sum(
         weight * state.theta_rad
         for weight, state in zip(weights, states, strict=True)
@@ -375,6 +394,7 @@ class MocReflectedCharacteristicZoneResult:
       inverse = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
       if not inverse.converged or inverse.value is None:
         return None
+      ####
       return CharacteristicState(
         x_m=point[0],
         y_m=point[1],
@@ -382,6 +402,7 @@ class MocReflectedCharacteristicZoneResult:
         mach=inverse.value,
         gamma=states[0].gamma,
       )
+    ####
     return None
   ####
 
@@ -395,9 +416,11 @@ class MocReflectedCharacteristicZoneResult:
 
     if self.total_pressure_Pa is None:
       return None
+    ####
     state = self.state_at(point_m, position_tolerance_m=position_tolerance_m)
     if state is None:
       return None
+    ####
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
@@ -428,6 +451,7 @@ def sample_reflected_zone_along_shock_path(
       first_missing_sample_index=None,
       message='zone must be a MocReflectedCharacteristicZoneResult',
     )
+  ####
   try:
     points = tuple(
       (float(point[0]), float(point[1]))
@@ -442,6 +466,7 @@ def sample_reflected_zone_along_shock_path(
       first_missing_sample_index=None,
       message='shock_points_m must contain finite two-coordinate points',
     )
+  ####
   if len(points) < 2 or any(not all(isfinite(value) for value in point) for point in points):
     return MocReflectedZoneShockCouplingResult(
       status=MocReflectedZoneShockCouplingStatus.INVALID_INPUT,
@@ -451,8 +476,10 @@ def sample_reflected_zone_along_shock_path(
       first_missing_sample_index=None,
       message='shock path coupling requires at least two finite points',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   for index, (previous, current) in enumerate(zip(points, points[1:]), start=1):
     if current[0] <= previous[0] + position_tolerance_m or current[1] > previous[1] + position_tolerance_m:
       return MocReflectedZoneShockCouplingResult(
@@ -465,6 +492,7 @@ def sample_reflected_zone_along_shock_path(
           'shock path must be strictly downstream in x and nonincreasing in y'
         ),
       )
+    ####
   ####
 
   states: list[CharacteristicState] = []
@@ -483,6 +511,7 @@ def sample_reflected_zone_along_shock_path(
           f'reflected characteristic zone has no upstream state at shock sample {index}'
         ),
       )
+    ####
     if pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0:
       return MocReflectedZoneShockCouplingResult(
         status=MocReflectedZoneShockCouplingStatus.PRESSURE_FAILURE,
@@ -494,6 +523,7 @@ def sample_reflected_zone_along_shock_path(
           f'reflected characteristic zone has no valid static pressure at shock sample {index}'
         ),
       )
+    ####
     states.append(state)
     pressures.append(float(pressure))
   ####
@@ -518,13 +548,16 @@ def _zone_cell_samples(
   def node_sample(key: tuple[int, int]) -> tuple[tuple[float, float], CharacteristicState] | None:
     node = node_by_key.get(key)
     return None if node is None else (node.point_m, node.state)
+  ####
 
   if cell.cell_kind == 'axis-strip':
     if len(cell.centerline_indices) != 2 or not zone.centerline_states:
       return None
+    ####
     first, second = cell.centerline_indices
     if not (0 <= first < len(zone.centerline_states) and 0 <= second < len(zone.centerline_states)):
       return None
+    ####
     samples = (
       (cell.vertices_xr_m[0], zone.centerline_states[first]),
       (cell.vertices_xr_m[1], zone.centerline_states[second]),
@@ -534,6 +567,7 @@ def _zone_cell_samples(
   elif cell.cell_kind == 'interior':
     if len(cell.centerline_indices) != 2 or len(cell.boundary_indices) != 2:
       return None
+    ####
     row, next_row = cell.centerline_indices
     column, next_column = cell.boundary_indices
     samples = (
@@ -545,6 +579,7 @@ def _zone_cell_samples(
   elif cell.cell_kind == 'free-boundary-strip':
     if len(cell.boundary_indices) != 2:
       return None
+    ####
     first, second = cell.boundary_indices
     samples = (
       node_sample((first, first)),
@@ -553,8 +588,10 @@ def _zone_cell_samples(
     )
   else:
     return None
+  ####
   if any(sample is None for sample in samples):
     return None
+  ####
   resolved = tuple(sample for sample in samples if sample is not None)
   return tuple(cell.vertices_xr_m), tuple(sample[1] for sample in resolved)
 ####
@@ -570,12 +607,14 @@ def _triangle_interpolation_weights(
   denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
   if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
     return None
+  ####
   px, py = point
   first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
   second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
   third = 1.0 - first - second
   if min(first, second, third) < -1.0e-10 or max(first, second, third) > 1.0 + 1.0e-10:
     return None
+  ####
   return first, second, third
 ####
 
@@ -588,6 +627,7 @@ def _polygon_interpolation_weights(
 ) -> tuple[float, ...] | None:
   if len(vertices) == 3:
     return _triangle_interpolation_weights(point, vertices, tolerance_m=tolerance_m)
+  ####
   first = _triangle_interpolation_weights(
     point,
     (vertices[0], vertices[1], vertices[2]),
@@ -595,6 +635,7 @@ def _polygon_interpolation_weights(
   )
   if first is not None:
     return first[0], first[1], first[2], 0.0
+  ####
   second = _triangle_interpolation_weights(
     point,
     (vertices[0], vertices[2], vertices[3]),
@@ -602,6 +643,7 @@ def _polygon_interpolation_weights(
   )
   if second is not None:
     return second[0], 0.0, second[1], second[2]
+  ####
   return None
 ####
 
@@ -626,6 +668,7 @@ def validate_fan_reflected_interface(
 
   if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not fan.converged:
     return MocFanReflectedInterfaceResult(
       status=MocInterfaceStatus.INVALID_INPUT,
@@ -634,6 +677,7 @@ def validate_fan_reflected_interface(
       position_tolerance_m=position_tolerance_m,
       message=f'lip fan is not converged: {fan.message}',
     )
+  ####
   if not reflected_boundary.converged:
     return MocFanReflectedInterfaceResult(
       status=MocInterfaceStatus.INVALID_INPUT,
@@ -642,6 +686,7 @@ def validate_fan_reflected_interface(
       position_tolerance_m=position_tolerance_m,
       message=f'reflected free boundary is not converged: {reflected_boundary.message}',
     )
+  ####
   if (
     len(fan.centerline_points_m) != len(reflected_boundary.centerline_states)
     or len(fan.centerline_states) != len(fan.centerline_points_m)
@@ -653,6 +698,7 @@ def validate_fan_reflected_interface(
       position_tolerance_m=position_tolerance_m,
       message='fan and reflected centerline arrays have inconsistent lengths',
     )
+  ####
   fan_internal_residual = max(
     (
       sqrt(
@@ -671,6 +717,7 @@ def validate_fan_reflected_interface(
       position_tolerance_m=position_tolerance_m,
       message='fan centerline states do not reproduce its compatibility grid',
     )
+  ####
   residuals = tuple(
     sqrt(
       (fan_point[0] - state.x_m) ** 2
@@ -686,6 +733,7 @@ def validate_fan_reflected_interface(
       maximum_coordinate_residual_m=maximum_residual,
       position_tolerance_m=position_tolerance_m,
     )
+  ####
   return MocFanReflectedInterfaceResult(
     status=MocInterfaceStatus.MISALIGNED,
     coordinate_residuals_m=residuals,
@@ -744,13 +792,16 @@ def _coverage_area(
 
   if not cells:
     return None
+  ####
   signed_areas = [_signed_area(cell.vertices_xr_m) for cell in cells]
   if not all(isfinite(value) for value in signed_areas):
     return None
+  ####
   if any(value == 0.0 for value in signed_areas) or (
     min(signed_areas) < 0.0 < max(signed_areas)
   ):
     return None
+  ####
   edge_counts: dict[tuple[tuple[int, int], tuple[int, int]], int] = {}
   vertex_points: dict[tuple[int, int], tuple[float, float]] = {}
   for cell in cells:
@@ -759,18 +810,24 @@ def _coverage_area(
       key = round(point[0] / vertex_tolerance_m), round(point[1] / vertex_tolerance_m)
       keys.append(key)
       vertex_points[key] = point
+    ####
     for first, second in zip(keys, (*keys[1:], keys[0])):
       edge = (first, second) if first <= second else (second, first)
       edge_counts[edge] = edge_counts.get(edge, 0) + 1
+    ####
+  ####
   boundary_edges = [edge for edge, count in edge_counts.items() if count == 1]
   if not boundary_edges:
     return None
+  ####
   boundary_graph: dict[tuple[int, int], list[tuple[int, int]]] = {}
   for first, second in boundary_edges:
     boundary_graph.setdefault(first, []).append(second)
     boundary_graph.setdefault(second, []).append(first)
+  ####
   if not all(len(neighbors) == 2 for neighbors in boundary_graph.values()):
     return None
+  ####
   start = next(iter(boundary_graph))
   cycle = [start]
   previous: tuple[int, int] | None = None
@@ -780,14 +837,19 @@ def _coverage_area(
     next_vertex = neighbors[0] if neighbors[0] != previous else neighbors[1]
     if next_vertex == start:
       break
+    ####
     if next_vertex in cycle:
       return None
+    ####
     cycle.append(next_vertex)
     previous, current = current, next_vertex
     if len(cycle) > len(boundary_graph):
       return None
+    ####
+  ####
   if len(cycle) != len(boundary_graph):
     return None
+  ####
   perimeter_vertices = tuple(vertex_points[key] for key in cycle)
   perimeter_area = abs(_signed_area(perimeter_vertices))
   cell_area = sum(abs(value) for value in signed_areas)
@@ -819,18 +881,22 @@ def assemble_reflected_characteristic_zone(
 
   if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(invariant_tolerance) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if total_pressure_Pa is not None and (
     not isfinite(float(total_pressure_Pa)) or total_pressure_Pa <= 0.0
   ):
     raise ValueError('total_pressure_Pa must be finite and positive when supplied')
+  ####
   if not fan.converged:
     return _failure(
       status=MocZoneAssemblyStatus.INVALID_INPUT,
       characteristic_count=0,
       message=f'lip fan is not converged: {fan.message}',
     )
+  ####
   if not reflected_boundary.converged:
     return _failure(
       status=MocZoneAssemblyStatus.INVALID_INPUT,
@@ -846,6 +912,7 @@ def assemble_reflected_characteristic_zone(
       characteristic_count=0,
       message='reflected characteristic assembly requires at least two intervals',
     )
+  ####
   expected_count = len(centerline_states)
   if (
     len(fan.states) != expected_count
@@ -859,8 +926,8 @@ def assemble_reflected_characteristic_zone(
       characteristic_count=max(0, expected_count - 1),
       message='fan, centerline, and reflected-boundary arrays have inconsistent lengths',
     )
-  characteristic_count = expected_count - 1
   ####
+  characteristic_count = expected_count - 1
   nodes_by_index: dict[tuple[int, int], MocCharacteristicNode] = {}
   for centerline_index in range(expected_count):
     for boundary_index in range(centerline_index + 1):
@@ -881,6 +948,7 @@ def assemble_reflected_characteristic_zone(
             f'{point_result.message}'
           ),
         )
+      ####
       point = point_result.point_m
       if centerline_index == boundary_index:
         boundary_point = reflected_boundary.boundary_points_m[boundary_index]
@@ -899,7 +967,9 @@ def assemble_reflected_characteristic_zone(
               f'does not reproduce the supplied boundary point; residual={discrepancy}'
             ),
           )
+        ####
         point = (float(boundary_point[0]), float(boundary_point[1]))
+      ####
       nodes_by_index[(centerline_index, boundary_index)] = MocCharacteristicNode(
         centerline_index=centerline_index,
         boundary_index=boundary_index,
@@ -908,19 +978,24 @@ def assemble_reflected_characteristic_zone(
         point_result=point_result,
         total_pressure_Pa=total_pressure_Pa,
       )
+    ####
   ####
   nodes = tuple(nodes_by_index.values())
 
   def node_point(centerline_index: int, boundary_index: int) -> tuple[float, float]:
     return nodes_by_index[(centerline_index, boundary_index)].point_m
+  ####
 
   def axis_point(index: int) -> tuple[float, float]:
     state = centerline_states[index]
     if not isfinite(state.x_m) or not isfinite(state.y_m):
       raise ValueError(f'centerline state {index} has a non-finite coordinate')
+    ####
     if abs(state.y_m) > position_tolerance_m:
       raise ValueError(f'centerline state {index} is not on the symmetry line')
+    ####
     return state.x_m, 0.0
+  ####
 
   cells_list: list[MocCharacteristicCell] = []
   try:
@@ -939,6 +1014,7 @@ def assemble_reflected_characteristic_zone(
           boundary_indices=(0,),
         )
       )
+    ####
     for row in range(1, expected_count - 1):
       for column in range(row):
         cells_list.append(
@@ -955,6 +1031,8 @@ def assemble_reflected_characteristic_zone(
             boundary_indices=(column, column + 1),
           )
         )
+      ####
+    ####
     for index in range(characteristic_count):
       cells_list.append(
         MocCharacteristicCell(
@@ -969,6 +1047,7 @@ def assemble_reflected_characteristic_zone(
           boundary_indices=(index, index + 1),
         )
       )
+    ####
   except (KeyError, ValueError) as error:
     return _failure(
       status=MocZoneAssemblyStatus.GEOMETRY_FAILURE,
@@ -989,6 +1068,7 @@ def assemble_reflected_characteristic_zone(
       topology=topology,
       message=f'characteristic zone topology failed: {topology.message}',
     )
+  ####
   coverage = _coverage_area(cells, vertex_tolerance_m=1.0e-12)
   if coverage is None:
     return _failure(
@@ -999,6 +1079,7 @@ def assemble_reflected_characteristic_zone(
       topology=topology,
       message='characteristic zone coverage area could not be validated',
     )
+  ####
   coverage_area_m2, coverage_area_residual_m2 = coverage
   if abs(coverage_area_residual_m2) > max(1.0e-12, 1.0e-9 * coverage_area_m2):
     return _failure(
@@ -1014,6 +1095,7 @@ def assemble_reflected_characteristic_zone(
         f'{coverage_area_residual_m2}'
       ),
     )
+  ####
   return MocReflectedCharacteristicZoneResult(
     status=MocZoneAssemblyStatus.CONVERGED_OPEN,
     characteristic_count=characteristic_count,

@@ -51,6 +51,7 @@ class MocTerminalCompressionStatus(str, Enum):
   TRACE_FAILURE = 'terminal_trace_failure'
   PRESSURE_FAILURE = 'terminal_pressure_failure'
   COMPRESSION_FAILURE = 'terminal_compression_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,24 +79,28 @@ class MocTerminalCompressionClosureResult:
   @property
   def converged(self) -> bool:
     return self.status is MocTerminalCompressionStatus.CONVERGED_LOCAL_COMPRESSION_CANDIDATE
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """Whether this result can stand in for a complete first-cell solve."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     """Keep a local boundary primitive out of the resolved chain."""
 
     return True
+  ####
 
   @property
   def accepted_for_chain(self) -> bool:
     """The explicit promotion gate, always false for this local primitive."""
 
     return False
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -141,6 +146,8 @@ class MocTerminalCompressionClosureResult:
       },
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -170,6 +177,7 @@ def _failure(
     compression=compression,
     message=message,
   )
+####
 
 
 def _static_pressure_from_total(
@@ -179,6 +187,7 @@ def _static_pressure_from_total(
   return float(total_pressure_Pa) / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach**2
   ) ** (state.gamma / (state.gamma - 1.0))
+####
 
 
 def solve_terminal_compression_candidate(
@@ -211,6 +220,7 @@ def solve_terminal_compression_candidate(
       strip_status=None,
       message='strip must be a MocAmbientShockStripResult',
     )
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     target_y = float(target_centerline_y_m)
@@ -220,6 +230,7 @@ def solve_terminal_compression_candidate(
       strip_status=strip.status,
       message='ambient pressure and target centerline ordinate must be numeric',
     )
+  ####
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     return _failure(
       MocTerminalCompressionStatus.INVALID_INPUT,
@@ -228,6 +239,7 @@ def solve_terminal_compression_candidate(
       target_y=target_y,
       message='ambient_pressure_Pa must be finite and positive',
     )
+  ####
   if not isfinite(target_y):
     return _failure(
       MocTerminalCompressionStatus.INVALID_INPUT,
@@ -236,6 +248,7 @@ def solve_terminal_compression_candidate(
       target_y=target_y,
       message='target_centerline_y_m must be finite',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _failure(
       MocTerminalCompressionStatus.INVALID_INPUT,
@@ -244,6 +257,7 @@ def solve_terminal_compression_candidate(
       target_y=target_y,
       message='branch must be a ShockBranch',
     )
+  ####
   for name, value in (
     ('trace_position_tolerance_m', trace_position_tolerance_m),
     ('trace_invariant_tolerance', trace_invariant_tolerance),
@@ -251,6 +265,8 @@ def solve_terminal_compression_candidate(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if (
     strip.status is not MocAmbientShockStripStatus.CONVERGED_OPEN
     or not strip.topology.connected
@@ -267,6 +283,7 @@ def solve_terminal_compression_candidate(
         f'received {strip.status.value} with topology {strip.topology.message}'
       ),
     )
+  ####
 
   trace_validation = validate_characteristic_trace(
     strip.terminal_trace_samples,
@@ -286,6 +303,7 @@ def solve_terminal_compression_candidate(
         f'{trace_validation.message}'
       ),
     )
+  ####
 
   terminal_sample = trace_validation.samples[-1]
   terminal_state = terminal_sample.state
@@ -313,6 +331,7 @@ def solve_terminal_compression_candidate(
         f'residual={pressure_residual}'
       ),
     )
+  ####
 
   try:
     compression = solve_attached_shock_to_centerline(
@@ -335,6 +354,7 @@ def solve_terminal_compression_candidate(
       target_y=target_y,
       message=f'terminal compression solve failed: {error}',
     )
+  ####
   if not compression.converged:
     return _failure(
       MocTerminalCompressionStatus.COMPRESSION_FAILURE,
@@ -352,6 +372,7 @@ def solve_terminal_compression_candidate(
         f'did not converge: {compression.message}'
       ),
     )
+  ####
   return MocTerminalCompressionClosureResult(
     status=MocTerminalCompressionStatus.CONVERGED_LOCAL_COMPRESSION_CANDIDATE,
     strip_status=strip.status,
@@ -368,3 +389,4 @@ def solve_terminal_compression_candidate(
       'the downstream characteristic patch and chain-cell closure remain pending'
     ),
   )
+####

@@ -89,6 +89,7 @@ def test_static_fpa_gallery_writes_views_and_guardrails(tmp_path: Path) -> None:
   assert (tmp_path / 'fpa-gallery' / 'fpa_detector_response.png').exists()
   assert (tmp_path / 'fpa-gallery' / 'fpa_pixel_values.csv').exists()
   assert all((tmp_path / 'fpa-gallery' / artifact['path']).exists() for artifact in payload['artifacts'])
+####
 
 
 def test_interactive_fpa_gallery_is_self_contained_and_exports_view_state(tmp_path: Path) -> None:
@@ -101,6 +102,7 @@ def test_interactive_fpa_gallery_is_self_contained_and_exports_view_state(tmp_pa
   assert 'fetch(' not in html
   assert 'expected_electrons' in html
   assert 'digitized_counts' in html
+####
 
 
 def test_fpa_source_reference_preserves_curved_ray_provider_identity() -> None:
@@ -150,3 +152,4 @@ def test_fpa_source_reference_preserves_curved_ray_provider_identity() -> None:
   )
   assert integrated.width_px == 1
   assert integrated.validity_mask == ((True,),)
+####

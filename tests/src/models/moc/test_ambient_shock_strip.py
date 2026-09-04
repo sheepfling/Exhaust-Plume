@@ -55,6 +55,7 @@ def _shock_reference():
   assert result.converged
   assert result.shock_fit is not None
   return result.shock_fit
+####
 
 
 def _ambient_pressure(shock_fit) -> float:
@@ -63,6 +64,7 @@ def _ambient_pressure(shock_fit) -> float:
   return sample.downstream_total_pressure_Pa / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
+####
 
 
 def _axis_shoot_ambient_pressure() -> float:
@@ -81,6 +83,7 @@ def _axis_shoot_ambient_pressure() -> float:
   )
   assert result.shock_fit is not None
   return _ambient_pressure(result.shock_fit)
+####
 
 
 def test_shock_sourced_ambient_march_closes_the_boundary_conditions() -> None:
@@ -98,6 +101,7 @@ def test_shock_sourced_ambient_march_closes_the_boundary_conditions() -> None:
   assert result.maximum_absolute_pressure_residual < 1.0e-8
   assert result.maximum_absolute_invariant_residual is not None
   assert result.maximum_absolute_invariant_residual < 1.0e-8
+####
 
 
 def test_ambient_axis_probe_retains_the_centerline_pressure_gap() -> None:
@@ -131,6 +135,7 @@ def test_ambient_axis_probe_retains_the_centerline_pressure_gap() -> None:
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
   assert result.as_report()['axis_candidate_verified'] is True
+####
 
 
 def test_global_axis_shoot_solves_an_explicit_nonuniform_attachment_coordinate() -> None:
@@ -144,6 +149,7 @@ def test_global_axis_shoot_solves_an_explicit_nonuniform_attachment_coordinate()
       mach=2.0 + (point[0] - 0.5),
       gamma=1.4,
     )
+  ####
 
   result = solve_marched_attached_shock_with_ambient_axis_closure(
     upstream_state_at,
@@ -175,6 +181,7 @@ def test_global_axis_shoot_solves_an_explicit_nonuniform_attachment_coordinate()
   assert report['axis_pressure_closure_verified'] is True
   assert report['physical_closure_verified'] is False
   assert report['chain_promotion_blocked'] is True
+####
 
 
 def test_global_axis_shoot_keeps_uniform_no_bracket_as_a_typed_failure() -> None:
@@ -207,6 +214,7 @@ def test_global_axis_shoot_keeps_uniform_no_bracket_as_a_typed_failure() -> None
   assert result.axis_boundary_verified is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
+####
 
 
 def test_physical_field_bridge_blocks_scalar_axis_root_before_tangency_gate() -> None:
@@ -220,6 +228,7 @@ def test_physical_field_bridge_blocks_scalar_axis_root_before_tangency_gate() ->
       mach=2.0 + (point[0] - 0.5),
       gamma=1.4,
     )
+  ####
 
   result = solve_marched_attached_shock_with_ambient_physical_field(
     upstream_state_at,
@@ -244,6 +253,7 @@ def test_physical_field_bridge_blocks_scalar_axis_root_before_tangency_gate() ->
   report = result.as_report()
   assert report['production_claim_allowed'] is False
   assert report['chain_promotion_blocked'] is True
+####
 
 
 def test_ambient_centerline_physical_field_closes_the_reflected_boundary() -> None:
@@ -257,6 +267,7 @@ def test_ambient_centerline_physical_field_closes_the_reflected_boundary() -> No
       mach=2.0,
       gamma=1.4,
     )
+  ####
 
   result = solve_marched_attached_shock_with_ambient_centerline_physical_field(
     upstream_state_at,
@@ -282,6 +293,7 @@ def test_ambient_centerline_physical_field_closes_the_reflected_boundary() -> No
   assert result.field.node_count == 45
   assert result.field.cell_count == 53
   assert result.as_report()['ambient_attachment'] is not None
+####
 
 
 def test_shock_and_ambient_characteristic_strip_keeps_terminal_trace_open() -> None:
@@ -314,6 +326,7 @@ def test_shock_and_ambient_characteristic_strip_keeps_terminal_trace_open() -> N
   assert trace_validation.maximum_absolute_invariant_residual < 1.0e-8
   assert trace_validation.maximum_geometry_residual_m is not None
   assert not trace_validation.converged
+####
 
 
 def test_terminal_compression_candidate_is_explicitly_not_a_closed_cell() -> None:
@@ -343,6 +356,7 @@ def test_terminal_compression_candidate_is_explicitly_not_a_closed_cell() -> Non
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
   assert result.accepted_for_chain is False
+####
 
 
 def test_terminal_compression_candidate_keeps_strict_trace_failure_visible() -> None:
@@ -365,6 +379,7 @@ def test_terminal_compression_candidate_keeps_strict_trace_failure_visible() -> 
   assert result.terminal_trace_validation is not None
   assert result.terminal_trace_validation.converged is False
   assert result.chain_promotion_blocked is True
+####
 
 
 def test_terminal_trace_centerline_patch_emits_a_typed_open_c_minus_front() -> None:
@@ -400,6 +415,7 @@ def test_terminal_trace_centerline_patch_emits_a_typed_open_c_minus_front() -> N
   assert result.outgoing_trace_validation.converged
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
+####
 
 
 def test_terminal_reflection_patch_is_domain_bounded_and_reaches_typed_mixed_regime_gate() -> None:
@@ -442,6 +458,7 @@ def test_terminal_reflection_patch_is_domain_bounded_and_reaches_typed_mixed_reg
   assert decision.physical_termination is True
   assert decision.message.startswith('supersonic terminal-patch march')
   assert decision.as_report()['diagnostics']['termination_model'] == 'normal-shock-terminal'
+####
 
 
 def test_terminal_reflection_patch_retains_a_strong_subsonic_branch_seam() -> None:
@@ -476,6 +493,7 @@ def test_terminal_reflection_patch_retains_a_strong_subsonic_branch_seam() -> No
   assert result.physical_terminal_verified is False
   assert result.chain_promotion_blocked is True
   assert result.as_report()['shock_branch'] == 'strong'
+####
 
 
 def _terminal_patch_chain_fixture():
@@ -514,6 +532,7 @@ def _terminal_patch_chain_fixture():
     continuation_boundary_kind=MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE,
   )
   return current, patch
+####
 
 
 def test_terminal_patch_chain_adapter_consumes_exact_handoff_and_stops_at_typed_terminal() -> None:
@@ -535,6 +554,7 @@ def test_terminal_patch_chain_adapter_consumes_exact_handoff_and_stops_at_typed_
   assert isinstance(result, MocChainTerminationDecision)
   assert result.physical_termination
   assert result.diagnostics['termination_model'] == 'normal-shock-terminal'
+####
 
 
 def test_terminal_patch_planner_audits_one_step_handoff_and_typed_stop() -> None:
@@ -564,6 +584,7 @@ def test_terminal_patch_planner_audits_one_step_handoff_and_typed_stop() -> None
   assert result.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert result.steps[0].result_physical_termination is True
   assert result.as_report()['planning_only'] is True
+####
 
 
 def test_terminal_patch_chain_adapter_rejects_mismatched_handoff_before_solving() -> None:
@@ -589,6 +610,8 @@ def test_terminal_patch_chain_adapter_rejects_mismatched_handoff_before_solving(
       sample_count=len(current.continuation_boundary),
       position_tolerance_m=1.0e-3,
     )
+  ####
+####
 
 
 def test_ambient_strip_rejects_a_boundary_trace_with_wrong_family_geometry() -> None:
@@ -611,6 +634,7 @@ def test_ambient_strip_rejects_a_boundary_trace_with_wrong_family_geometry() -> 
   assert result.status is not MocAmbientShockStripStatus.CONVERGED_OPEN
   assert not result.converged
   assert 'ambient boundary' in result.message
+####
 
 
 def test_ambient_boundary_march_requires_a_compatible_attachment_state() -> None:
@@ -625,3 +649,4 @@ def test_ambient_boundary_march_requires_a_compatible_attachment_state() -> None
   assert result.status is MocAmbientShockBoundaryMarchStatus.SEED_FAILURE
   assert not result.converged
   assert 'attachment state' in result.message
+####

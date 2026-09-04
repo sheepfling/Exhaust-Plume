@@ -62,6 +62,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditS
   )
   STATUS_FAILURE = 'entropy_characteristic_continuation_refinement_status_failure'
   FLAG_FAILURE = 'entropy_characteristic_continuation_refinement_flag_failure'
+####
 
 
 def _triangle_projected_values(
@@ -91,6 +92,7 @@ def _triangle_projected_values(
   inversion = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
   if not inversion.converged or inversion.value is None:
     raise ValueError('independent refinement projection left the Mach domain')
+  ####
   state = CharacteristicState(
     x_m=point[0],
     y_m=point[1],
@@ -102,6 +104,7 @@ def _triangle_projected_values(
     sum(weights[index] * log(pressures[index]) for index in range(3))
   )
   return point, state, pressure
+####
 
 
 def _expected_subcell_values(
@@ -125,6 +128,8 @@ def _expected_subcell_values(
               key[0],
               key[1],
             )
+          ####
+        ####
         if first_index + second_index <= side_count - 2:
           keys = (
             (first_index + 1, second_index),
@@ -138,6 +143,12 @@ def _expected_subcell_values(
               key[0],
               key[1],
             )
+          ####
+        ####
+      ####
+    ####
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,13 +190,16 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus,
     ):
       raise TypeError('status must be a refinement audit status')
+    ####
     if self.solver_status is not None:
       object.__setattr__(self, 'solver_status', str(self.solver_status))
+    ####
     if self.source_continuation_audit is not None and not isinstance(
       self.source_continuation_audit,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit,
     ):
       raise TypeError('source_continuation_audit must be typed or None')
+    ####
     for name in (
       'subdivision_side_count',
       'cell_count',
@@ -195,11 +209,15 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     residuals = tuple(float(value) for value in self.cell_euler_residuals)
     if len(residuals) != self.cell_count:
       raise ValueError('cell_euler_residuals must match cell_count')
+    ####
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError('cell_euler_residuals must be finite and nonnegative')
+    ####
     object.__setattr__(self, 'cell_euler_residuals', residuals)
     if self.maximum_cell_euler_residual is not None:
       maximum = float(self.maximum_cell_euler_residual)
@@ -207,9 +225,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
         raise ValueError(
           'maximum_cell_euler_residual must be finite and nonnegative'
         )
+      ####
       object.__setattr__(self, 'maximum_cell_euler_residual', maximum)
+    ####
     if not isinstance(self.topology, MocTopologyResult):
       raise TypeError('topology must be a MocTopologyResult')
+    ####
     for name in (
       'source_continuation_gates_verified',
       'topology_verified',
@@ -227,12 +248,17 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_closure_verified:
       raise ValueError('refinement audit cannot claim physical closure')
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError('refinement audit must retain the promotion block')
+    ####
     if self.production_claim_allowed:
       raise ValueError('refinement audit cannot claim production validity')
+    ####
     for name in (
       'position_tolerance_m',
       'projection_tolerance',
@@ -241,12 +267,16 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -254,6 +284,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus
       .CONVERGED_LOCAL_AUDIT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -262,6 +293,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
       and self.structural_consistency_verified
       and self.cell_euler_residuals_verified
     )
+  ####
 
   @property
   def structural_consistency_verified(self) -> bool:
@@ -281,6 +313,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -331,6 +364,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit:
       'fidelity_flags_verified': self.fidelity_flags_verified,
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -378,6 +413,7 @@ def _failure(
     topology=validate_moc_mesh(()) if topology is None else topology,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement(
@@ -398,6 +434,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       .INVALID_INPUT,
       'result must be a typed continuation-refinement result',
     )
+  ####
   tolerances = (
     float(position_tolerance_m),
     float(projection_tolerance),
@@ -405,6 +442,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
   )
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('refinement audit tolerances must be finite and positive')
+  ####
   source = result.source_continuation
   if source is None:
     return _failure(
@@ -413,6 +451,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       'refinement did not retain its source continuation',
       result=result,
     )
+  ####
   try:
     source_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation(
       source,
@@ -428,6 +467,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       f'independent source continuation audit raised: {error}',
       result=result,
     )
+  ####
   if not source_audit.local_consistency_verified:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus
@@ -436,6 +476,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       result=result,
       source_audit=source_audit,
     )
+  ####
   topology = validate_moc_mesh(result.cells)
   topology_verified = bool(
     result.cells
@@ -455,6 +496,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       topology=topology,
       continuation_boundary_verified=result.continuation_boundary_verified,
     )
+  ####
   state_projection_verified = True
   pressure_lineage_carried = True
   expected_values = _expected_subcell_values(
@@ -468,6 +510,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       if not isinstance(sample, MocEulerAmbientFirstWedgeCellSample):
         state_projection_verified = False
         break
+      ####
       for point, state, pressure in zip(
         sample.vertices_xr_m,
         sample.states,
@@ -489,28 +532,37 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
           or abs(log(float(pressure) / expected_pressure)) > projection_tolerance
         ):
           state_projection_verified = False
+        ####
         if not isfinite(float(pressure)) or float(pressure) <= 0.0:
           pressure_lineage_carried = False
+        ####
+      ####
+    ####
     if actual_count != expected_count:
       state_projection_verified = False
+    ####
     try:
       next(expected_values)
       state_projection_verified = False
     except StopIteration:
       pass
+    ####
   except (ArithmeticError, FloatingPointError, StopIteration, TypeError, ValueError):
     state_projection_verified = False
+  ####
   if not result.continuation_boundary_verified or not source.continuation_boundary_verified:
     continuation_boundary_verified = False
   else:
     continuation_boundary_verified = bool(
       result.continuation_boundary == source.continuation_boundary
     )
+  ####
   residuals: list[float] = []
   try:
     for cell, sample in zip(result.cells, result.cell_samples, strict=True):
       if tuple(cell.vertices_xr_m) != tuple(sample.vertices_xr_m):
         state_projection_verified = False
+      ####
       residuals.append(
         _cell_flux_residual(
           tuple(sample.vertices_xr_m),
@@ -518,8 +570,10 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
           tuple(float(value) for value in sample.total_pressure_Pa),
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     residuals = []
+  ####
   residuals_tuple = tuple(residuals)
   residuals_finite = bool(
     len(residuals_tuple) == result.cell_count
@@ -559,6 +613,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus
       .TOPOLOGY_FAILURE.value
     )
+  ####
   solver_status_consistent = result.status.value == expected_status
   if not flags_verified:
     audit_status = (
@@ -590,6 +645,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAuditStatus
       .CONVERGED_LOCAL_AUDIT
     )
+  ####
   return MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementAudit(
     status=audit_status,
     operator_id=(
@@ -629,6 +685,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       else 'independent continuation projection audit failed one or more gates'
     ),
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -645,6 +702,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase:
       or self.subdivision_side_count < 1
     ):
       raise ValueError('subdivision_side_count must be a positive integer')
+    ####
     if not isinstance(
       self.result,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult,
@@ -653,10 +711,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase:
         'result must be a '
         'MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult'
       )
+    ####
     if self.result.subdivision_side_count != self.subdivision_side_count:
       raise ValueError(
         'case side count must match result subdivision_side_count'
       )
+    ####
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -668,6 +729,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementCase:
         self.result.maximum_cell_euler_residual
       ),
     }
+  ####
+####
 
 
 class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus(
@@ -692,6 +755,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
   MONOTONICITY_FAILURE = (
     'euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_monotonicity_failure'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -741,10 +805,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
       raise TypeError(
         'status must be a continuation-refinement measurement status'
       )
+    ####
     cases = tuple(self.cases)
     audits = tuple(self.audits)
     if len(cases) != len(audits):
       raise ValueError('cases and audits must have equal lengths')
+    ####
     if any(
       not isinstance(
         case,
@@ -753,6 +819,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
       for case in cases
     ):
       raise TypeError('cases must contain typed continuation-refinement cases')
+    ####
     if any(
       not isinstance(
         audit,
@@ -761,6 +828,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
       for audit in audits
     ):
       raise TypeError('audits must contain typed continuation-refinement audits')
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'audits', audits)
     for name in (
@@ -771,19 +839,24 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
       values = tuple(getattr(self, name))
       if len(values) != len(cases):
         raise ValueError(f'{name} must match the case count')
+      ####
       if any(
         isinstance(value, bool) or not isinstance(value, int) or value < 0
         for value in values
       ):
         raise ValueError(f'{name} must contain nonnegative integers')
+      ####
       object.__setattr__(self, name, values)
+    ####
     residuals = tuple(float(value) for value in self.maximum_cell_euler_residuals)
     if len(residuals) != len(cases):
       raise ValueError('maximum_cell_euler_residuals must match the case count')
+    ####
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError(
         'maximum_cell_euler_residuals must contain finite nonnegative values'
       )
+    ####
     object.__setattr__(self, 'maximum_cell_euler_residuals', residuals)
     for name in (
       'levels_verified',
@@ -803,32 +876,42 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.internal_characteristic_closure_verified:
       raise ValueError(
         'a continuation projection ladder cannot claim characteristic closure'
       )
+    ####
     if self.physical_closure_verified:
       raise ValueError(
         'a continuation projection ladder cannot claim physical closure'
       )
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError(
         'a continuation projection ladder must retain the promotion block'
       )
+    ####
     if self.production_claim_allowed:
       raise ValueError(
         'a continuation projection ladder cannot claim production validity'
       )
+    ####
     for name in ('refinement_tolerance', 'cell_residual_tolerance'):
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -836,6 +919,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus
       .CONVERGED_LOCAL_REFINEMENT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -856,6 +940,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -899,6 +984,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasur
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _measurement_failure(
@@ -947,6 +1034,7 @@ def _measurement_failure(
     cell_residual_tolerance=cell_residual_tolerance,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_ladder(
@@ -972,6 +1060,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       refinement_tolerance=refinement_tolerance,
       cell_residual_tolerance=cell_residual_tolerance,
     )
+  ####
   if len(items) < 2:
     return _measurement_failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurementStatus
@@ -980,6 +1069,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       refinement_tolerance=refinement_tolerance,
       cell_residual_tolerance=cell_residual_tolerance,
     )
+  ####
   if any(
     not isinstance(
       case,
@@ -994,6 +1084,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       refinement_tolerance=refinement_tolerance,
       cell_residual_tolerance=cell_residual_tolerance,
     )
+  ####
   tolerances = (
     float(position_tolerance_m),
     float(projection_tolerance),
@@ -1002,6 +1093,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
   )
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('continuation-refinement ladder tolerances must be positive')
+  ####
   audits = tuple(
     measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_refinement(
       case.result,
@@ -1024,6 +1116,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
     levels_verified = all(
       left < right for left, right in zip(side_counts, side_counts[1:])
     )
+  ####
   levels_verified = bool(
     levels_verified
     and all(
@@ -1105,6 +1198,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
       'residual, and reduction gates; characteristic re-closure and physical '
       'shock-cell promotion remain blocked'
     )
+  ####
   return MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementMeasurement(
     status=status,
     cases=items,
@@ -1127,3 +1221,4 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_re
     cell_residual_tolerance=cell_residual_tolerance,
     message=message,
   )
+####

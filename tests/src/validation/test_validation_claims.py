@@ -67,6 +67,7 @@ def test_pending_unacquired_claim_is_not_accepted() -> None:
       status=ClaimStatus.ACCEPTED,
     )
   ####
+####
 
 
 def _accepted_comparison_evidence(**overrides: object) -> ProviderBoundComparisonEvidence:
@@ -99,6 +100,7 @@ def _accepted_comparison_evidence(**overrides: object) -> ProviderBoundCompariso
   }
   values.update(overrides)
   return ProviderBoundComparisonEvidence(**values)
+####
 
 
 def test_accepted_quantitative_claim_requires_and_matches_bound_evidence() -> None:
@@ -136,6 +138,7 @@ def test_accepted_quantitative_claim_without_bound_evidence_is_rejected() -> Non
       status=ClaimStatus.ACCEPTED,
     )
   ####
+####
 
 
 def test_bound_evidence_rejects_calibration_validation_overlap() -> None:
@@ -145,6 +148,7 @@ def test_bound_evidence_rejects_calibration_validation_overlap() -> None:
       validation_case_ids=('shared-case',),
     )
   ####
+####
 
 
 def test_bound_evidence_must_match_claim_identity() -> None:
@@ -163,6 +167,7 @@ def test_bound_evidence_must_match_claim_identity() -> None:
       status=ClaimStatus.ACCEPTED,
     )
   ####
+####
 
 
 def test_bound_evidence_requires_one_digest_per_named_asset_and_output() -> None:
@@ -173,6 +178,7 @@ def test_bound_evidence_requires_one_digest_per_named_asset_and_output() -> None
   with pytest.raises(ValueError, match='provider_output_ids and provider_output_sha256'):
     _accepted_comparison_evidence(provider_output_ids=('output-1', 'output-2'))
   ####
+####
 
 
 def test_accepted_bound_evidence_requires_metrics_within_tolerance() -> None:
@@ -182,3 +188,4 @@ def test_accepted_bound_evidence_requires_metrics_within_tolerance() -> None:
       metric_tolerances={'shock-spacing': 0.5},
     )
   ####
+####

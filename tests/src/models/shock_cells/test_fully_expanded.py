@@ -39,6 +39,7 @@ def _states(*, exit_pressure_ratio: float, exit_radius_m: float = 1.0):
     gas,
   )
   return exit_state, ambient
+####
 
 
 def test_fully_expanded_state_preserves_total_conditions() -> None:
@@ -61,7 +62,7 @@ def test_fully_expanded_state_preserves_total_conditions() -> None:
   assert result.diameter_m is not None and result.diameter_m > 0.0
   assert result.area_ratio_to_exit is not None and result.area_ratio_to_exit > 0.0
   assert result.state.area_m2 == pytest.approx(pi * result.radius_m**2)
-  ####
+####
 
 
 def test_fully_expanded_diameter_and_spacing_scale_with_exit_diameter() -> None:
@@ -76,7 +77,7 @@ def test_fully_expanded_diameter_and_spacing_scale_with_exit_diameter() -> None:
   assert small_correlation.spacing_m is not None and large_correlation.spacing_m is not None
   assert large.diameter_m == pytest.approx(2.0 * small.diameter_m)
   assert large_correlation.spacing_m == pytest.approx(2.0 * small_correlation.spacing_m)
-  ####
+####
 
 
 def test_prandtl_pack_spacing_uses_equivalent_diameter_and_is_not_imposed() -> None:
@@ -93,7 +94,7 @@ def test_prandtl_pack_spacing_uses_equivalent_diameter_and_is_not_imposed() -> N
   comparison = compare_first_cell_length(10.0, correlation)
   assert comparison.relative_error is not None
   assert comparison.relative_error == pytest.approx((10.0 - correlation.spacing_m) / correlation.spacing_m)
-  ####
+####
 
 
 def test_matched_flow_has_no_first_cell_correlation_claim() -> None:
@@ -105,7 +106,7 @@ def test_matched_flow_has_no_first_cell_correlation_claim() -> None:
   assert fully_expanded.first_cell_claim_allowed is False
   assert correlation.status is FirstCellCorrelationStatus.NO_FIRST_CELL_CLAIM
   assert correlation.spacing_m is None
-  ####
+####
 
 
 def test_non_supersonic_equivalent_state_is_explicitly_outside_validity() -> None:
@@ -116,4 +117,4 @@ def test_non_supersonic_equivalent_state_is_explicitly_outside_validity() -> Non
   assert result.status is FullyExpandedStatus.OUTSIDE_MODEL_VALIDITY
   assert result.state is None
   assert 'supersonic equivalent' in result.message
-  ####
+####

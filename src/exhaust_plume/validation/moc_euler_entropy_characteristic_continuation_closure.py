@@ -73,14 +73,18 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudi
   CLOSURE_FAILURE = 'entropy_characteristic_continuation_closure_chain_closure_failure'
   TERMINATION_FAILURE = 'entropy_characteristic_continuation_closure_chain_termination_failure'
   FLAG_FAILURE = 'entropy_characteristic_continuation_closure_chain_flag_failure'
+####
 
 
 def _source_kind(source: Any) -> str:
   if isinstance(source, MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult):
     return 'internal-entropy-characteristic-field'
+  ####
   if isinstance(source, MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult):
     return 'variable-entropy-characteristic-continuation'
+  ####
   return type(source).__name__
+####
 
 
 def _handoff_fingerprint(boundary: Any) -> str | None:
@@ -88,8 +92,10 @@ def _handoff_fingerprint(boundary: Any) -> str | None:
     values = tuple(boundary)
   except TypeError:
     return None
+  ####
   if not values:
     return None
+  ####
   try:
     payload = '\n'.join(
       '|'.join(
@@ -107,7 +113,9 @@ def _handoff_fingerprint(boundary: Any) -> str | None:
     )
   except (AttributeError, TypeError, ValueError):
     return None
+  ####
   return sha256(payload.encode('ascii')).hexdigest()
+####
 
 
 def _state_payload(state: CharacteristicState) -> str:
@@ -121,6 +129,7 @@ def _state_payload(state: CharacteristicState) -> str:
       state.gamma,
     )
   )
+####
 
 
 def _field_fingerprint(
@@ -145,20 +154,25 @@ def _field_fingerprint(
     for cell in field.cells
   )
   return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+####
 
 
 def _continuation_fingerprint(
   continuation: MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
 ) -> str:
   return sha256(repr(continuation.as_report()).encode('utf-8')).hexdigest()
+####
 
 
 def _source_fingerprint(source: Any) -> str | None:
   if isinstance(source, MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult):
     return _field_fingerprint(source)
+  ####
   if isinstance(source, MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult):
     return _continuation_fingerprint(source)
+  ####
   return None
+####
 
 
 def _closure_fingerprint(
@@ -177,6 +191,7 @@ def _closure_fingerprint(
     f'closure-shock-count:{None if result.closure is None else result.closure.shock_sample_count}',
   ]
   return sha256('\n'.join(payload).encode('utf-8')).hexdigest()
+####
 
 
 def _source_extent(source: Any) -> tuple[float, float] | None:
@@ -199,15 +214,20 @@ def _source_extent(source: Any) -> tuple[float, float] | None:
     )
   else:
     return None
+  ####
   for point in points:
     try:
       value = float(point[0])
     except (IndexError, TypeError, ValueError):
       return None
+    ####
     if not isfinite(value):
       return None
+    ####
     values.append(value)
+  ####
   return None if not values else (min(values), max(values))
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,13 +274,17 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudi
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus,
     ):
       raise TypeError('status must be a closure-chain audit status')
+    ####
     if not isinstance(self.operator_id, str) or not self.operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     for name, expected_type in (
       ('seed_field_audit', (MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit, type(None))),
     ):
       if not isinstance(getattr(self, name), expected_type):
         raise TypeError(f'{name} must have its typed audit or None')
+      ####
+    ####
     for name, item_type in (
       ('continuation_audits', MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit),
       ('remesh_audits', MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshAudit),
@@ -269,7 +293,9 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudi
       values = tuple(getattr(self, name))
       if any(not isinstance(value, item_type) for value in values):
         raise TypeError(f'{name} must contain typed audits')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'planner_resolved',
       'incoming_handoff_links_verified',
@@ -290,16 +316,23 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudi
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_chain_cell_count < 0:
       raise ValueError('physical_chain_cell_count must be nonnegative')
+    ####
     if self.physical_closure_verified:
       raise ValueError('closure-chain audit cannot claim physical closure')
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError('closure-chain audit must retain the promotion block')
+    ####
     if self.production_claim_allowed:
       raise ValueError('closure-chain audit cannot claim production validity')
+    ####
     object.__setattr__(self, 'message', str(self.message))
     object.__setattr__(self, 'diagnostics', {} if self.diagnostics is None else dict(self.diagnostics))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -307,6 +340,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudi
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAuditStatus
       .CONVERGED_LOCAL_AUDIT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -332,10 +366,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudi
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   @property
   def local_physical_closure_count(self) -> int:
     return sum(audit.reflected_free_boundary_verified for audit in self.closure_audits)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -370,6 +406,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainAudi
       'diagnostics': dict(self.diagnostics or {}),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -427,6 +465,7 @@ def _failure(
     message=message,
     diagnostics=diagnostics,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_closure_chain(
@@ -452,6 +491,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
     MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureChainPlannerResult,
   ):
     return _failure(status_type.INVALID_INPUT, 'result must be a typed closure-chain planner result')
+  ####
   tolerances = (
     float(position_tolerance_m),
     float(state_tolerance),
@@ -461,6 +501,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
   )
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('closure-chain audit tolerances must be finite and positive')
+  ####
 
   try:
     seed_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
@@ -472,6 +513,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(status_type.SEED_FAILURE, f'independent seed audit raised: {error}', step_count=len(result.steps))
+  ####
   if not seed_audit.local_consistency_verified:
     return _failure(
       status_type.SEED_FAILURE,
@@ -480,6 +522,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
       accepted_closure_count=len(result.closures),
       step_count=len(result.steps),
     )
+  ####
 
   continuation_audits: list[MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationAudit] = []
   remesh_audits: list[MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshAudit] = []
@@ -511,6 +554,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
         accepted_closure_count=len(result.closures),
         step_count=len(result.steps),
       )
+    ####
     try:
       continuation_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation(
         continuation,
@@ -545,6 +589,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
         accepted_closure_count=len(result.closures),
         step_count=len(result.steps),
       )
+    ####
     continuation_audits.append(continuation_audit)
     remesh_audits.append(remesh_audit)
     closure_audits.append(closure_audit)
@@ -587,6 +632,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
       and candidate.source_euler_gate_verified
     )
     current = continuation
+  ####
 
   accepted_steps = tuple(
     step for step in result.steps
@@ -726,12 +772,14 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
       'closure-chain weakened its explicit non-promotion boundary',
       **common,
     )
+  ####
   if expected_resolved and planner_resolved_consistent:
     return _failure(
       status_type.CONVERGED_LOCAL_AUDIT,
       'independent audit confirmed the continued local reflected-closure sequence; global intercell reconciliation and external validation remain required',
       **common,
     )
+  ####
   if not (
     incoming_links_verified
     and source_links_verified
@@ -748,8 +796,10 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_cl
     audit_status = status_type.STEP_FAILURE
   else:
     audit_status = status_type.STEP_FAILURE
+  ####
   return _failure(
     audit_status,
     'closure-chain did not pass the independent sequence gates',
     **common,
   )
+####

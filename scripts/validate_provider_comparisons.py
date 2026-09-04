@@ -15,6 +15,7 @@ from pydantic import ValidationError
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / 'src') not in sys.path:
   sys.path.insert(0, str(REPO_ROOT / 'src'))
+####
 
 try:
   from scripts.validate_external_corpus_alignment import (
@@ -57,6 +58,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution
     ProviderBoundComparisonEvidence,
   )
   from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
+####
 
 
 VISUAL_PRODUCT = 'plume.visual.sectioned-tube@1'
@@ -78,6 +80,7 @@ def _provider_bound_evidence_source_label(path: Path | None) -> str | None:
   """
 
   return None if path is None else Path(path).name
+####
 
 
 def load_provider_bound_evidence(
@@ -96,19 +99,24 @@ def load_provider_bound_evidence(
     payload = json.loads(path.read_text(encoding='utf-8'))
   except (OSError, json.JSONDecodeError) as error:
     raise ValueError(f'could not read provider-bound evidence from {path}: {error}') from error
+  ####
   if not isinstance(payload, dict):
     raise ValueError('provider-bound evidence document must be a JSON object')
+  ####
   if set(payload) != {'schema_id', 'evidence'}:
     raise ValueError(
       'provider-bound evidence document must contain only schema_id and evidence'
     )
+  ####
   if payload.get('schema_id') != PROVIDER_BOUND_EVIDENCE_SCHEMA:
     raise ValueError(
       'provider-bound evidence document has an unsupported schema_id'
     )
+  ####
   records = payload.get('evidence')
   if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
     raise ValueError('provider-bound evidence document evidence must be a list of objects')
+  ####
   evidence_by_claim: dict[str, ProviderBoundComparisonEvidence] = {}
   evidence_ids: set[str] = set()
   for index, record in enumerate(records):
@@ -118,17 +126,22 @@ def load_provider_bound_evidence(
       raise ValueError(
         f'provider-bound evidence record {index} failed typed validation: {error}'
       ) from error
+    ####
     if evidence.evidence_id in evidence_ids:
       raise ValueError(
         f'provider-bound evidence contains duplicate evidence_id {evidence.evidence_id!r}'
       )
+    ####
     if evidence.claim_id in evidence_by_claim:
       raise ValueError(
         f'provider-bound evidence contains duplicate claim_id {evidence.claim_id!r}'
       )
+    ####
     evidence_ids.add(evidence.evidence_id)
     evidence_by_claim[evidence.claim_id] = evidence
+  ####
   return evidence_by_claim
+####
 
 
 def _summarize_csv(
@@ -149,6 +162,7 @@ def _summarize_csv(
     },
     'uncertainty_fields': [field for field in columns if 'uncertainty' in field],
   }
+####
 
 
 def _summarize_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
@@ -157,12 +171,15 @@ def _summarize_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
   for key in ('source_id', 'source_url', 'source_pdf_sha256'):
     if key in metadata:
       source_summary[key] = metadata[key]
+    ####
+  ####
   return {
     'benchmark_id': metadata.get('benchmark_id'),
     'source': source_summary,
     'evidence_limits': list(metadata.get('evidence_limits', ())),
     'validation_role': metadata.get('validation_role'),
   }
+####
 
 
 def summarize_corpus_observations(archive: ZipFile) -> dict[str, Any]:
@@ -230,6 +247,7 @@ def summarize_corpus_observations(archive: ZipFile) -> dict[str, Any]:
       ),
     },
   }
+####
 
 
 def _local_provider_inventory() -> dict[str, Any]:
@@ -305,6 +323,7 @@ def _local_provider_inventory() -> dict[str, Any]:
       'claim_ceiling': fpa['claim_ceiling'],
     },
   }
+####
 
 
 def _read_spectral_curve(
@@ -328,6 +347,7 @@ def _read_spectral_curve(
     units=units,
     source_semantics=source_semantics,
   )
+####
 
 
 def _not_executed(reason: str) -> dict[str, Any]:
@@ -335,6 +355,7 @@ def _not_executed(reason: str) -> dict[str, Any]:
     'status': 'not-executed',
     'reason': reason,
   }
+####
 
 
 def execute_visual_feature_probe(
@@ -365,6 +386,7 @@ def execute_visual_feature_probe(
       'provider inventory has the feature names but no bound pressure/feature sample arrays'
     ),
   }
+####
 
 
 def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
@@ -407,6 +429,7 @@ def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> d
       units=RELATIVE_SPECTRAL_SHAPE_UNITS,
       source_semantics='digitized published relative FTIR spectral envelope',
     )
+  ####
   signature_probe = providers['signature']['measurement_probe']
   optical_probe = providers['optical']['measurement_probe']
   signature_model = SpectralCurve(
@@ -427,6 +450,7 @@ def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> d
   def run(model: SpectralCurve, observed: SpectralCurve) -> dict[str, Any]:
     result = compare_declared_peak_normalized_spectral_shape(model, observed)
     return asdict(result)
+  ####
 
   return {
     'VIS-MVP-A-061': _not_executed(
@@ -457,6 +481,7 @@ def execute_spectral_shape_probes(path: Path, providers: Mapping[str, Any]) -> d
       'ALSI corpus record is a band-integrated thermal table without a spectral curve',
     ),
   }
+####
 
 
 def _comparison(
@@ -490,6 +515,7 @@ def _comparison(
     'provider_bound_evidence': None,
     'blockers': blockers,
   }
+####
 
 
 def build_comparison_plan(
@@ -520,6 +546,7 @@ def build_comparison_plan(
   ]
   if crosswalk_blocker is not None:
     visual_blockers.append(crosswalk_blocker)
+  ####
   comparisons = [
     _comparison(
       comparison_id='VIS-MVP-A-061',
@@ -697,6 +724,9 @@ def build_comparison_plan(
       execution = operator_executions.get(comparison['comparison_id'])
       if execution is not None:
         comparison['operator_execution'] = dict(execution)
+      ####
+    ####
+  ####
   evidence_by_comparison = {} if provider_bound_evidence is None else dict(provider_bound_evidence)
   comparison_ids = {str(comparison['comparison_id']) for comparison in comparisons}
   unknown_evidence_ids = set(evidence_by_comparison) - comparison_ids
@@ -705,18 +735,22 @@ def build_comparison_plan(
       'provider-bound evidence contains unknown comparison IDs: '
       + ', '.join(sorted(unknown_evidence_ids))
     )
+  ####
   for comparison in comparisons:
     evidence = evidence_by_comparison.get(str(comparison['comparison_id']))
     if evidence is None:
       continue
+    ####
     if evidence.claim_id != comparison['comparison_id']:
       raise ValueError(
         'provider-bound evidence claim_id must match comparison_id'
       )
+    ####
     if evidence.provider_id not in comparison['provider_ids']:
       raise ValueError(
         'provider-bound evidence provider_id must match a comparison provider'
       )
+    ####
     for field_name in ('product_id', 'benchmark_id', 'measurement_operator_id'):
       evidence_field = (
         'external_operator_id' if field_name == 'measurement_operator_id'
@@ -726,10 +760,13 @@ def build_comparison_plan(
         raise ValueError(
           f'provider-bound evidence {evidence_field} must match comparison {field_name}'
         )
+      ####
+    ####
     if not set(comparison['metric_ids']) <= set(evidence.metric_ids):
       raise ValueError(
         'provider-bound evidence must include every comparison metric'
       )
+    ####
     if (
       evidence.status is ComparisonEvidenceStatus.ACCEPTED
       and operator_crosswalk_status != 'complete-scoped'
@@ -737,6 +774,7 @@ def build_comparison_plan(
       raise ValueError(
         'accepted provider-bound evidence requires a complete-scoped operator crosswalk'
       )
+    ####
     comparison['evidence_status'] = evidence.status.value
     comparison['provider_bound_evidence'] = evidence.model_dump(mode='json')
     if evidence.status is ComparisonEvidenceStatus.ACCEPTED:
@@ -744,8 +782,10 @@ def build_comparison_plan(
       comparison['claim_status'] = 'accepted'
     elif evidence.status is ComparisonEvidenceStatus.DIAGNOSTIC:
       comparison['comparison_status'] = 'diagnostic'
+    ####
   ####
   return comparisons
+####
 
 
 def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -787,6 +827,7 @@ def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[st
       ],
     },
   ]
+####
 
 
 def build_provider_comparison_preflight(
@@ -820,6 +861,7 @@ def build_provider_comparison_preflight(
       'release_blockers': ['recovered corpus did not pass the structural preflight'],
     })
     return report
+  ####
 
   provider_bound_evidence: dict[str, ProviderBoundComparisonEvidence] | None = None
   if provider_bound_evidence_path is not None:
@@ -837,9 +879,12 @@ def build_provider_comparison_preflight(
         ],
       })
       return report
+    ####
+  ####
 
   with ZipFile(path) as archive:
     observations = summarize_corpus_observations(archive)
+  ####
   providers = _local_provider_inventory()
   operator_status = corpus_report['operator_reconciliation'].get(
     'semantic_crosswalk_status',
@@ -876,6 +921,7 @@ def build_provider_comparison_preflight(
     ],
   })
   return report
+####
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -898,9 +944,12 @@ def main(argv: list[str] | None = None) -> int:
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
+  ####
   print(serialized, end='')
   return 0 if report['status'] == 'comparisons-recorded-pending-provider-bindings' else 1
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

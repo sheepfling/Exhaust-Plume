@@ -397,6 +397,7 @@ class MocMixedRegimeEntropyHandoffMeasurement:
       raise TypeError(
         'status must be a MocMixedRegimeEntropyHandoffMeasurementStatus'
       )
+    ####
     if self.handoff is not None and not isinstance(
       self.handoff,
       MocMixedRegimeEntropyHandoffResult,
@@ -404,6 +405,7 @@ class MocMixedRegimeEntropyHandoffMeasurement:
       raise TypeError(
         'handoff must be a MocMixedRegimeEntropyHandoffResult or None'
       )
+    ####
     for name in (
       'sample_count',
       'expected_sample_count',
@@ -411,6 +413,8 @@ class MocMixedRegimeEntropyHandoffMeasurement:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.terminal_sample_index is not None:
       if (
         isinstance(self.terminal_sample_index, bool)
@@ -420,6 +424,8 @@ class MocMixedRegimeEntropyHandoffMeasurement:
         raise ValueError(
           'terminal_sample_index must be a nonnegative integer when supplied'
         )
+      ####
+    ####
     for name in (
       'maximum_interface_point_residual_m',
       'maximum_cumulative_arc_length_residual_m',
@@ -432,7 +438,10 @@ class MocMixedRegimeEntropyHandoffMeasurement:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     for name in (
       'request_verified',
       'interface_geometry_verified',
@@ -446,6 +455,8 @@ class MocMixedRegimeEntropyHandoffMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -497,6 +508,7 @@ class MocMixedRegimeEntropyHandoffMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _entropy_handoff_measurement_failure(
@@ -545,6 +557,7 @@ def _entropy_handoff_measurement_failure(
     production_claim_allowed=False,
     message=message,
   )
+####
 
 
 def _entropy_close(first: float, second: float, tolerance: float) -> bool:
@@ -553,6 +566,7 @@ def _entropy_close(first: float, second: float, tolerance: float) -> bool:
     abs(float(first)),
     abs(float(second)),
   )
+####
 
 
 def measure_mixed_regime_entropy_handoff(
@@ -569,29 +583,35 @@ def measure_mixed_regime_entropy_handoff(
       MocMixedRegimeEntropyHandoffMeasurementStatus.INVALID_INPUT,
       message='request must be a MocMixedRegimePerimeterRequest',
     )
+  ####
   if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
     return _entropy_handoff_measurement_failure(
       MocMixedRegimeEntropyHandoffMeasurementStatus.INVALID_INPUT,
       message='handoff must be a MocMixedRegimeEntropyHandoffResult',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('pressure_tolerance', pressure_tolerance),
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if handoff.request != request:
     return _entropy_handoff_measurement_failure(
       MocMixedRegimeEntropyHandoffMeasurementStatus.REQUEST_FAILURE,
       handoff=handoff,
       message='entropy handoff did not retain the exact perimeter request',
     )
+  ####
   if handoff.status.value != 'converged-reflected-downstream-entropy-handoff':
     return _entropy_handoff_measurement_failure(
       MocMixedRegimeEntropyHandoffMeasurementStatus.HANDOFF_FAILURE,
       handoff=handoff,
       message=f'entropy handoff is not converged: {handoff.message}',
     )
+  ####
 
   terminal = request.terminal
   terminal_values = (
@@ -608,6 +628,7 @@ def measure_mixed_regime_entropy_handoff(
       handoff=handoff,
       message='request terminal does not expose complete entropy data',
     )
+  ####
   (
     terminal_point,
     terminal_mach,
@@ -631,6 +652,7 @@ def measure_mixed_regime_entropy_handoff(
         handoff=handoff,
         message=f'request patch sample {index} has an invalid type',
       )
+    ####
     try:
       expected.append(MocMixedRegimeEntropyInterfaceSample(
         point_m=patch_sample.point_m,
@@ -647,6 +669,8 @@ def measure_mixed_regime_entropy_handoff(
         handoff=handoff,
         message=f'request patch sample {index} could not be measured: {error}',
       )
+    ####
+  ####
   try:
     expected.append(MocMixedRegimeEntropyInterfaceSample(
       point_m=terminal_point,
@@ -663,6 +687,7 @@ def measure_mixed_regime_entropy_handoff(
       handoff=handoff,
       message=f'request terminal could not be measured: {error}',
     )
+  ####
 
   expected_tuple = tuple(expected)
   measured_tuple = handoff.samples
@@ -683,12 +708,14 @@ def measure_mixed_regime_entropy_handoff(
       ),
       **common,
     )
+  ####
   if handoff.terminal_sample_index != len(expected_tuple) - 1:
     return _entropy_handoff_measurement_failure(
       MocMixedRegimeEntropyHandoffMeasurementStatus.CONSISTENCY_FAILURE,
       message='entropy handoff terminal index is not the final interface sample',
       **common,
     )
+  ####
   maximum_point_residual = max(
     hypot(measured.point_m[0] - expected.point_m[0], measured.point_m[1] - expected.point_m[1])
     for measured, expected in zip(measured_tuple, expected_tuple, strict=True)
@@ -725,6 +752,7 @@ def measure_mixed_regime_entropy_handoff(
       message='entropy handoff samples do not reproduce the request source data',
       **common,
     )
+  ####
 
   points = tuple(sample.point_m for sample in measured_tuple)
   segment_lengths = tuple(
@@ -747,6 +775,7 @@ def measure_mixed_regime_entropy_handoff(
   expected_arc = [0.0]
   for length in segment_lengths:
     expected_arc.append(expected_arc[-1] + length)
+  ####
   maximum_arc_residual: float | None = (
     max(
       abs(measured - expected)
@@ -773,6 +802,7 @@ def measure_mixed_regime_entropy_handoff(
       message='entropy handoff interface path or cumulative arc length failed independent geometry checks',
       **common,
     )
+  ####
 
   pressure_gain = max(
     max(
@@ -867,6 +897,7 @@ def measure_mixed_regime_entropy_handoff(
       message='entropy handoff pressure-loss or terminal-seam checks failed',
       **common,
     )
+  ####
   return MocMixedRegimeEntropyHandoffMeasurement(
     status=MocMixedRegimeEntropyHandoffMeasurementStatus.CONVERGED,
     handoff=handoff,
@@ -978,6 +1009,7 @@ class MocFirstCellCandidateMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _candidate_shock_tangent(
@@ -990,6 +1022,7 @@ def _candidate_shock_tangent(
     first, second = points[-2], points[-1]
   else:
     first, second = points[index - 1], points[index + 1]
+  ####
   return atan2(second[1] - first[1], second[0] - first[0])
 ####
 
@@ -1071,6 +1104,7 @@ def measure_first_cell_geometry_owned_candidate(
       candidate_status='invalid-input',
       message='candidate must be a MocFirstCellCandidateResult',
     )
+  ####
   try:
     shock_tolerance = float(shock_residual_tolerance_rad)
     pressure_tolerance = float(pressure_residual_tolerance)
@@ -1081,11 +1115,13 @@ def measure_first_cell_geometry_owned_candidate(
       candidate_status=candidate.status.value,
       message='measurement tolerances must be numeric',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (shock_tolerance, pressure_tolerance, position_tolerance)
   ):
     raise ValueError('measurement tolerances must be finite and positive')
+  ####
   points = tuple(candidate.shock_points_m)
   fit = candidate.shock_fit
   if (
@@ -1102,6 +1138,7 @@ def measure_first_cell_geometry_owned_candidate(
       sample_count=len(points),
       message='candidate does not retain a complete converged shock fit',
     )
+  ####
   shock_geometry_verified = True
   rh_residuals: list[float] = []
   shock_loss_verified = True
@@ -1132,6 +1169,7 @@ def measure_first_cell_geometry_owned_candidate(
       ))
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       residual = float('inf')
+    ####
     rh_residuals.append(float(residual))
     ratio = (
       sample.downstream_total_pressure_Pa
@@ -1154,6 +1192,7 @@ def measure_first_cell_geometry_owned_candidate(
         and (zero_start_allowed or zero_end_allowed)
       )
     )
+  ####
   maximum_rh = max(rh_residuals, default=None)
   shock_fit_verified = shock_geometry_verified and (
     maximum_rh is not None and maximum_rh <= shock_tolerance
@@ -1177,6 +1216,7 @@ def measure_first_cell_geometry_owned_candidate(
       production_claim_allowed=candidate.production_claim_allowed,
       message='independent shock tangent/RH residual exceeded tolerance',
     )
+  ####
   march = candidate.ambient_march
   if march is None or not march.converged:
     return _first_cell_candidate_measurement_failure(
@@ -1195,6 +1235,7 @@ def measure_first_cell_geometry_owned_candidate(
       production_claim_allowed=candidate.production_claim_allowed,
       message='candidate does not retain a converged ambient boundary march',
     )
+  ####
   ambient = validate_ambient_pressure_boundary(
     march.boundary_samples,
     float(march.ambient_boundary.ambient_pressure_Pa),
@@ -1210,6 +1251,7 @@ def measure_first_cell_geometry_owned_candidate(
       1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach * first.state.mach
     ) ** (first.state.gamma / (first.state.gamma - 1.0))
     attachment_residual = (first_static - ambient_pressure) / ambient_pressure
+  ####
   attachment_verified = (
     attachment_residual is not None
     and abs(attachment_residual) <= pressure_tolerance
@@ -1238,6 +1280,7 @@ def measure_first_cell_geometry_owned_candidate(
       production_claim_allowed=candidate.production_claim_allowed,
       message='independent ambient pressure, tangent, or shock-loss gate failed',
     )
+  ####
   field = candidate.field
   if field is None:
     return _first_cell_candidate_measurement_failure(
@@ -1262,6 +1305,7 @@ def measure_first_cell_geometry_owned_candidate(
       production_claim_allowed=candidate.production_claim_allowed,
       message='candidate does not retain a physical characteristic field',
     )
+  ####
   field_gates = field.physical_closure_gates
   topology_verified = bool(
     field_gates.get('topology_verified', False)
@@ -1375,6 +1419,7 @@ class MocFirstCellFreeBoundaryCorrectionMeasurement:
   def __post_init__(self) -> None:
     if not isinstance(self.selected_field_audit_verified, bool):
       raise TypeError('selected_field_audit_verified must be a bool')
+    ####
   ####
 
   @property
@@ -1422,6 +1467,7 @@ class MocFirstCellFreeBoundaryCorrectionMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _first_cell_free_boundary_measurement_failure(
@@ -1508,8 +1554,10 @@ def _remeasure_correction_axis_closure(
   reported_axis = getattr(trial, 'axis_closure', None)
   if march is None or not march.converged or not march.boundary_samples:
     return None
+  ####
   if reported_axis is None or reported_axis.ambient_pressure_Pa is None:
     return None
+  ####
   source = march.boundary_samples[-1]
   try:
     axis = centerline_characteristic_point(
@@ -1520,6 +1568,7 @@ def _remeasure_correction_axis_closure(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     return None
+  ####
   axis_candidate_verified = bool(
     axis.converged
     and axis.point_m is not None
@@ -1529,6 +1578,7 @@ def _remeasure_correction_axis_closure(
   )
   if not axis_candidate_verified or axis.state is None or axis.point_m is None:
     return None
+  ####
   axis_static = _static_pressure_from_total_pressure_for_measurement(
     axis.state,
     source.total_pressure_Pa,
@@ -1536,6 +1586,7 @@ def _remeasure_correction_axis_closure(
   ambient_pressure = float(reported_axis.ambient_pressure_Pa)
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     return None
+  ####
   residual = (axis_static - ambient_pressure) / ambient_pressure
   try:
     axis_boundary = validate_ambient_pressure_boundary(
@@ -1554,6 +1605,7 @@ def _remeasure_correction_axis_closure(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     return None
+  ####
   return float(residual), bool(axis_boundary.converged), axis_candidate_verified
 ####
 
@@ -1581,6 +1633,7 @@ def measure_first_cell_free_boundary_correction(
       correction_status='invalid-input',
       message='correction must be a MocFirstCellFreeBoundaryCorrectionResult',
     )
+  ####
   try:
     shape_tolerance_value = float(shape_tolerance)
     pressure_tolerance_value = float(pressure_tolerance)
@@ -1592,6 +1645,7 @@ def measure_first_cell_free_boundary_correction(
       correction_status=correction.status.value,
       message='correction measurement tolerances must be numeric',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (
@@ -1602,6 +1656,7 @@ def measure_first_cell_free_boundary_correction(
     )
   ):
     raise ValueError('correction measurement tolerances must be finite and positive')
+  ####
 
   initial_points = correction.initial_shock_points_m
   shape_family_verified = bool(
@@ -1649,9 +1704,11 @@ def measure_first_cell_free_boundary_correction(
           )
         )
       )
+    ####
     if trial.axis_closure is None:
       trial_residuals_verified = trial_residuals_verified and trial.residual is None
       continue
+    ####
     recomputed = _remeasure_correction_axis_closure(
       trial,
       position_tolerance_m=position_tolerance_value,
@@ -1661,6 +1718,7 @@ def measure_first_cell_free_boundary_correction(
     if recomputed is None or trial.residual is None:
       trial_residuals_verified = False
       continue
+    ####
     recomputed_residual, recomputed_axis_boundary, recomputed_axis_candidate = recomputed
     measured_residuals.append(recomputed_residual)
     trial_residuals_verified = trial_residuals_verified and bool(
@@ -1678,6 +1736,7 @@ def measure_first_cell_free_boundary_correction(
         pressure_tolerance_value,
       )
     )
+  ####
 
   selected_trial = None
   if correction.selected_shape_scale is not None:
@@ -1693,6 +1752,7 @@ def measure_first_cell_free_boundary_correction(
       ),
       None,
     )
+  ####
   selected_trial_verified = bool(
     selected_trial is not None
     and (
@@ -1735,6 +1795,7 @@ def measure_first_cell_free_boundary_correction(
       pressure_residual_tolerance=pressure_tolerance_value,
       position_tolerance_m=position_tolerance_value,
     )
+  ####
   selected_field_measurement = None
   if (
     correction.selected_candidate is not None
@@ -1748,6 +1809,7 @@ def measure_first_cell_free_boundary_correction(
       pressure_tolerance=pressure_tolerance_value,
       tangent_tolerance=pressure_tolerance_value,
     )
+  ####
   selected_field_audit_verified = bool(
     selected_field_measurement is not None
     and selected_field_measurement.converged
@@ -1803,6 +1865,7 @@ def measure_first_cell_free_boundary_correction(
         if trial.residual is not None
       )
     )
+  ####
   fidelity_isolation_verified = bool(
     correction.canonical_free_boundary_verified is False
     and correction.canonical_euler_verified is False
@@ -1855,6 +1918,7 @@ def measure_first_cell_free_boundary_correction(
       'measurement passed; a no-bracket result remains an explicit open '
       'free-boundary condition'
     )
+  ####
   return _first_cell_free_boundary_measurement_failure(
     status,
     correction_status=correction.status.value,
@@ -1943,12 +2007,14 @@ class MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
         'status must be a '
         'MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus'
       )
+    ####
     sample_counts = tuple(self.sample_counts)
     if any(
       isinstance(value, bool) or not isinstance(value, int) or value < 0
       for value in sample_counts
     ):
       raise ValueError('sample_counts must contain nonnegative integers')
+    ####
     object.__setattr__(self, 'sample_counts', sample_counts)
     case_measurements = tuple(self.case_measurements)
     if any(
@@ -1961,10 +2027,12 @@ class MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
       raise TypeError(
         'case_measurements must contain correction measurement values'
       )
+    ####
     if len(case_measurements) != len(sample_counts):
       raise ValueError(
         'case_measurements must have one entry per sample count'
       )
+    ####
     object.__setattr__(self, 'case_measurements', case_measurements)
     if self.expected_sample_counts is not None:
       expected_counts = tuple(self.expected_sample_counts)
@@ -1975,13 +2043,16 @@ class MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
         raise ValueError(
           'expected_sample_counts must contain nonnegative integers'
         )
+      ####
       object.__setattr__(self, 'expected_sample_counts', expected_counts)
+    ####
     if self.expected_correction_status is not None:
       object.__setattr__(
         self,
         'expected_correction_status',
         str(self.expected_correction_status),
       )
+    ####
     object.__setattr__(self, 'shape_parameter_name', str(self.shape_parameter_name))
     if self.shape_parameter_bracket is not None:
       bracket = tuple(float(value) for value in self.shape_parameter_bracket)
@@ -1993,10 +2064,13 @@ class MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
         raise ValueError(
           'shape_parameter_bracket must contain two ordered positive values'
         )
+      ####
       object.__setattr__(self, 'shape_parameter_bracket', bracket)
+    ####
     residual_values = tuple(float(value) for value in self.residual_values)
     if any(not isfinite(value) for value in residual_values):
       raise ValueError('residual_values must be finite')
+    ####
     object.__setattr__(self, 'residual_values', residual_values)
     for name in (
       'sample_count_order_verified',
@@ -2015,9 +2089,12 @@ class MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     residual_tolerance = float(self.residual_spread_tolerance)
     if not isfinite(residual_tolerance) or residual_tolerance <= 0.0:
       raise ValueError('residual_spread_tolerance must be finite and positive')
+    ####
     object.__setattr__(self, 'residual_spread_tolerance', residual_tolerance)
     for name in (
       'minimum_absolute_residual',
@@ -2029,7 +2106,10 @@ class MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
         normalized = float(value)
         if not isfinite(normalized) or normalized < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative')
+        ####
         object.__setattr__(self, name, normalized)
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -2076,6 +2156,7 @@ class MocFirstCellFreeBoundaryCorrectionRefinementMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _first_cell_free_boundary_refinement_measurement_failure(
@@ -2164,6 +2245,7 @@ def measure_first_cell_free_boundary_correction_refinement(
       MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
       message='corrections must be an iterable of correction results',
     )
+  ####
   if not items or any(
     not isinstance(item, MocFirstCellFreeBoundaryCorrectionResult)
     for item in items
@@ -2175,6 +2257,7 @@ def measure_first_cell_free_boundary_correction_refinement(
         'MocFirstCellFreeBoundaryCorrectionResult'
       ),
     )
+  ####
   if expected_status is not None and not isinstance(
     expected_status,
     MocFirstCellFreeBoundaryCorrectionStatus,
@@ -2183,6 +2266,7 @@ def measure_first_cell_free_boundary_correction_refinement(
       MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
       message='expected_status must be a correction status or None',
     )
+  ####
   try:
     shape_tolerance_value = float(shape_tolerance)
     pressure_tolerance_value = float(pressure_tolerance)
@@ -2194,6 +2278,7 @@ def measure_first_cell_free_boundary_correction_refinement(
       MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
       message='correction refinement tolerances must be numeric',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (
@@ -2208,6 +2293,7 @@ def measure_first_cell_free_boundary_correction_refinement(
       MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.INVALID_INPUT,
       message='correction refinement tolerances must be finite and positive',
     )
+  ####
   try:
     measured_cases = tuple(
       measure_first_cell_free_boundary_correction(
@@ -2224,6 +2310,7 @@ def measure_first_cell_free_boundary_correction_refinement(
       MocFirstCellFreeBoundaryCorrectionRefinementMeasurementStatus.CASE_FAILURE,
       message=f'independent correction case measurement raised: {error}',
     )
+  ####
   sample_counts = tuple(len(item.initial_shock_points_m) for item in items)
   normalized_expected_counts = None
   if expected_sample_counts is not None:
@@ -2236,6 +2323,7 @@ def measure_first_cell_free_boundary_correction_refinement(
         case_measurements=measured_cases,
         message='expected_sample_counts must be an integer sequence',
       )
+    ####
     if any(
       isinstance(value, bool) or not isinstance(value, int) or value < 0
       for value in normalized_expected_counts
@@ -2246,6 +2334,8 @@ def measure_first_cell_free_boundary_correction_refinement(
         case_measurements=measured_cases,
         message='expected_sample_counts must contain nonnegative integers',
       )
+    ####
+  ####
   sample_count_order_verified = all(
     left < right for left, right in zip(sample_counts, sample_counts[1:])
   )
@@ -2273,6 +2363,7 @@ def measure_first_cell_free_boundary_correction_refinement(
         shape_tolerance_value,
       )
     )
+  ####
   shape_family_verified = bool(
     all(measurement.shape_family_verified for measurement in measured_cases)
   )
@@ -2380,6 +2471,7 @@ def measure_first_cell_free_boundary_correction_refinement(
       'independent correction-case, resolution-order, fixed-shape, residual, '
       'and fidelity audit passed; repeated boundary outcomes remain research-only'
     )
+  ####
   return _first_cell_free_boundary_refinement_measurement_failure(
     status,
     sample_counts=sample_counts,
@@ -2467,10 +2559,13 @@ class MocFirstCellResearchChainMeasurement:
       raise TypeError(
         'status must be a MocFirstCellResearchChainMeasurementStatus'
       )
+    ####
     for name in ('field_count', 'continued_cell_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.candidate_measurement is not None and not isinstance(
       self.candidate_measurement,
       MocFirstCellCandidateMeasurement,
@@ -2478,6 +2573,7 @@ class MocFirstCellResearchChainMeasurement:
       raise TypeError(
         'candidate_measurement must be a MocFirstCellCandidateMeasurement or None'
       )
+    ####
     if self.chain_planner_measurement is not None and not isinstance(
       self.chain_planner_measurement,
       MocChainPlannerMeasurement,
@@ -2485,6 +2581,7 @@ class MocFirstCellResearchChainMeasurement:
       raise TypeError(
         'chain_planner_measurement must be a MocChainPlannerMeasurement or None'
       )
+    ####
     if self.physical_field_chain_measurement is not None and not isinstance(
       self.physical_field_chain_measurement,
       MocPhysicalFieldChainMeasurement,
@@ -2493,6 +2590,7 @@ class MocFirstCellResearchChainMeasurement:
         'physical_field_chain_measurement must be a '
         'MocPhysicalFieldChainMeasurement or None'
       )
+    ####
     for name in (
       'first_cell_field_identity_verified',
       'candidate_handoff_verified',
@@ -2508,11 +2606,14 @@ class MocFirstCellResearchChainMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.handoff_links_verified is not None and not isinstance(
       self.handoff_links_verified,
       bool,
     ):
       raise TypeError('handoff_links_verified must be a bool or None')
+    ####
     object.__setattr__(self, 'planner_kind', (
       None if self.planner_kind is None else str(self.planner_kind)
     ))
@@ -2572,6 +2673,7 @@ class MocFirstCellResearchChainMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _first_cell_research_chain_measurement_failure(
@@ -2643,12 +2745,14 @@ def measure_first_cell_geometry_owned_research_chain(
       MocFirstCellResearchChainMeasurementStatus.INVALID_INPUT,
       message='candidate must be a MocFirstCellCandidateResult',
     )
+  ####
   if planner is not None and not isinstance(planner, MocChainPlannerResult):
     return _first_cell_research_chain_measurement_failure(
       MocFirstCellResearchChainMeasurementStatus.INVALID_INPUT,
       candidate_status=candidate.status.value,
       message='planner must be a MocChainPlannerResult or None',
     )
+  ####
   try:
     fields = tuple(physical_fields)
   except TypeError:
@@ -2658,6 +2762,7 @@ def measure_first_cell_geometry_owned_research_chain(
       candidate_status=candidate.status.value,
       message='physical_fields must be an iterable of physical field results',
     )
+  ####
   if any(not isinstance(field, MocPhysicalPostShockFieldResult) for field in fields):
     return _first_cell_research_chain_measurement_failure(
       MocFirstCellResearchChainMeasurementStatus.INVALID_INPUT,
@@ -2666,6 +2771,7 @@ def measure_first_cell_geometry_owned_research_chain(
       field_count=len(fields),
       message='physical_fields must contain only physical post-shock fields',
     )
+  ####
   for name, value in (
     ('shock_residual_tolerance_rad', shock_residual_tolerance_rad),
     ('pressure_residual_tolerance', pressure_residual_tolerance),
@@ -2675,6 +2781,8 @@ def measure_first_cell_geometry_owned_research_chain(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
 
   candidate_measurement = measure_first_cell_geometry_owned_candidate(
     candidate,
@@ -2688,6 +2796,7 @@ def measure_first_cell_geometry_owned_research_chain(
       planner,
       position_tolerance_m=position_tolerance_m,
     )
+  ####
   physical_field_chain_measurement = None
   if fields:
     physical_field_chain_measurement = measure_moc_ambient_closed_physical_field_chain(
@@ -2698,6 +2807,7 @@ def measure_first_cell_geometry_owned_research_chain(
       pressure_tolerance=pressure_residual_tolerance,
       tangent_tolerance=pressure_residual_tolerance,
     )
+  ####
 
   planner_kind = None if planner is None else planner.planner_kind.value
   candidate_status = candidate.status.value
@@ -2813,6 +2923,7 @@ def measure_first_cell_geometry_owned_research_chain(
       'fresh-domain audits passed; canonical free-boundary and product gates '
       'remain closed'
     )
+  ####
   return _first_cell_research_chain_measurement_failure(
     status,
     planner_kind=planner_kind,
@@ -2860,6 +2971,7 @@ class MocFirstCellResearchChainRefinementCase:
       or self.sample_count < 3
     ):
       raise ValueError('sample_count must be an integer of at least three')
+    ####
     if not isinstance(
       self.planner,
       MocFirstCellResearchChainPlannerResult,
@@ -2867,6 +2979,7 @@ class MocFirstCellResearchChainRefinementCase:
       raise TypeError(
         'planner must be a MocFirstCellResearchChainPlannerResult'
       )
+    ####
     if not isinstance(
       self.repeat_planner,
       MocFirstCellResearchChainPlannerResult,
@@ -2874,6 +2987,7 @@ class MocFirstCellResearchChainRefinementCase:
       raise TypeError(
         'repeat_planner must be a MocFirstCellResearchChainPlannerResult'
       )
+    ####
   ####
 ####
 
@@ -2926,6 +3040,7 @@ class MocFirstCellResearchChainRefinementMeasurement:
       raise ValueError(
         'cases and both chain-measurement sequences must have equal lengths'
       )
+    ####
     if any(
       not isinstance(case, MocFirstCellResearchChainRefinementCase)
       for case in cases
@@ -2933,6 +3048,7 @@ class MocFirstCellResearchChainRefinementMeasurement:
       raise TypeError(
         'cases must contain MocFirstCellResearchChainRefinementCase values'
       )
+    ####
     if any(
       not isinstance(measurement, MocFirstCellResearchChainMeasurement)
       for measurement in (*measurements, *repeat_measurements)
@@ -2941,6 +3057,7 @@ class MocFirstCellResearchChainRefinementMeasurement:
         'chain measurements must contain '
         'MocFirstCellResearchChainMeasurement values'
       )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'chain_measurements', measurements)
     object.__setattr__(self, 'repeat_chain_measurements', repeat_measurements)
@@ -2955,12 +3072,14 @@ class MocFirstCellResearchChainRefinementMeasurement:
       or self.expected_cell_count < 1
     ):
       raise ValueError('expected_cell_count must be positive when supplied')
+    ####
     if self.cell_count is not None and (
       isinstance(self.cell_count, bool)
       or not isinstance(self.cell_count, int)
       or self.cell_count < 1
     ):
       raise ValueError('cell_count must be positive when supplied')
+    ####
     for name in (
       'axial_extent_residuals_m',
       'shock_spacing_residuals_m',
@@ -2972,7 +3091,9 @@ class MocFirstCellResearchChainRefinementMeasurement:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'sample_count_order_verified',
       'expected_sample_counts_verified',
@@ -2987,11 +3108,14 @@ class MocFirstCellResearchChainRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.handoff_links_verified is not None and not isinstance(
       self.handoff_links_verified,
       bool,
     ):
       raise TypeError('handoff_links_verified must be a bool or None')
+    ####
   ####
 
   @property
@@ -3070,6 +3194,7 @@ class MocFirstCellResearchChainRefinementMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _first_cell_research_chain_refinement_failure(
@@ -3121,6 +3246,7 @@ def _first_cell_research_chain_refinement_failure(
     normalized_cases = ()
     normalized_measurements = ()
     normalized_repeat_measurements = ()
+  ####
   return MocFirstCellResearchChainRefinementMeasurement(
     status=status,
     cases=normalized_cases,
@@ -3157,6 +3283,7 @@ def _research_chain_geometry_metrics(
   field_chain = measurement.physical_field_chain_measurement
   if field_chain is None or not field_chain.field_measurements:
     return None
+  ####
   field_measurements = field_chain.field_measurements
   axial_extents: list[float] = []
   shock_starts: list[float] = []
@@ -3170,16 +3297,19 @@ def _research_chain_geometry_metrics(
       or field_measurement.mesh_area_m2 is None
     ):
       return None
+    ####
     axial_extents.extend(float(value) for value in field_measurement.axial_extent_m)
     shock_starts.append(float(field_measurement.shock_start_m[0]))
     maximum_radii.append(float(field_measurement.maximum_radius_m))
     mesh_areas.append(float(field_measurement.mesh_area_m2))
+  ####
   if not all(
     isfinite(value)
     for values in (axial_extents, shock_starts, maximum_radii, mesh_areas)
     for value in values
   ):
     return None
+  ####
   shock_spacing = tuple(
     right - left for left, right in zip(shock_starts, shock_starts[1:])
   )
@@ -3198,6 +3328,7 @@ def _maximum_sequence_residual(
 ) -> float | None:
   if len(left) != len(right):
     return None
+  ####
   values = tuple(abs(float(current) - float(previous)) for previous, current in zip(
     left,
     right,
@@ -3213,6 +3344,7 @@ def _research_chain_step_signature(
   planner = result.chain_planner
   if planner is None:
     return None
+  ####
   return tuple(
     (
       step.current_cell_index,
@@ -3243,6 +3375,7 @@ def _research_chain_repeat_verified(
   repeat_metrics = _research_chain_geometry_metrics(repeat_measurement)
   if primary_metrics is None or repeat_metrics is None:
     return False, None, None
+  ####
   if (
     primary.planner_kind is not repeat.planner_kind
     or primary.termination.reason is not repeat.termination.reason
@@ -3254,15 +3387,20 @@ def _research_chain_repeat_verified(
     or repeat_measurement.handoff_links_verified is not True
   ):
     return False, None, None
+  ####
   primary_signature = _research_chain_step_signature(primary)
   repeat_signature = _research_chain_step_signature(repeat)
   if primary_signature is None or repeat_signature is None:
     return False, None, None
+  ####
   if len(primary_signature) != len(repeat_signature):
     return False, None, None
+  ####
   for left, right in zip(primary_signature, repeat_signature, strict=True):
     if left[:-1] != right[:-1]:
       return False, None, None
+    ####
+  ####
   axial_residual = _maximum_sequence_residual(
     primary_metrics['axial_extents'],
     repeat_metrics['axial_extents'],
@@ -3273,6 +3411,7 @@ def _research_chain_repeat_verified(
   )
   if axial_residual is None or area_residual is None:
     return False, axial_residual, area_residual
+  ####
   endpoint_ok = axial_residual <= position_tolerance_m
   area_ok = area_residual <= area_tolerance_m2
   step_endpoints_match = all(
@@ -3333,12 +3472,15 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if expected_cell_count is not None and (
     isinstance(expected_cell_count, bool)
     or not isinstance(expected_cell_count, int)
     or expected_cell_count < 1
   ):
     raise ValueError('expected_cell_count must be positive when supplied')
+  ####
   try:
     items = tuple(cases)
   except TypeError:
@@ -3347,6 +3489,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       'refinement cases must be iterable',
       expected_cell_count=expected_cell_count,
     )
+  ####
   if len(items) < 2:
     return _first_cell_research_chain_refinement_failure(
       MocFirstCellResearchChainRefinementMeasurementStatus.INVALID_INPUT,
@@ -3354,6 +3497,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       cases=items,
       expected_cell_count=expected_cell_count,
     )
+  ####
   if any(
     not isinstance(case, MocFirstCellResearchChainRefinementCase)
     for case in items
@@ -3365,6 +3509,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       cases=items,
       expected_cell_count=expected_cell_count,
     )
+  ####
   sample_counts = tuple(case.sample_count for case in items)
   sample_count_order_verified = all(
     right > left for left, right in zip(sample_counts, sample_counts[1:])
@@ -3381,6 +3526,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
         expected_cell_count=expected_cell_count,
         sample_count_order_verified=sample_count_order_verified,
       )
+    ####
     if any(
       isinstance(value, bool) or not isinstance(value, int) or value < 3
       for value in expected_counts
@@ -3392,6 +3538,8 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
         expected_cell_count=expected_cell_count,
         sample_count_order_verified=sample_count_order_verified,
       )
+    ####
+  ####
   expected_sample_counts_verified = bool(
     expected_counts is None or sample_counts == expected_counts
   )
@@ -3405,6 +3553,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       sample_count_order_verified=sample_count_order_verified,
       expected_sample_counts_verified=expected_sample_counts_verified,
     )
+  ####
 
   def measure_case(
     result: MocFirstCellResearchChainPlannerResult,
@@ -3417,6 +3566,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       state_tolerance=state_tolerance,
       invariant_tolerance=invariant_tolerance,
     )
+  ####
 
   measurements = tuple(measure_case(case.planner) for case in items)
   repeat_measurements = tuple(
@@ -3440,6 +3590,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       sample_count_order_verified=True,
       expected_sample_counts_verified=True,
     )
+  ####
 
   primary_counts = tuple(measurement.field_count for measurement in measurements)
   repeat_counts = tuple(
@@ -3495,6 +3646,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       planner_kind_consistent=planner_kind_consistent,
       termination_consistency_verified=termination_consistency_verified,
     )
+  ####
   resolved_metrics = tuple(metric for metric in metrics if metric is not None)
   resolved_repeat_metrics = tuple(
     metric for metric in repeat_metrics if metric is not None
@@ -3533,6 +3685,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       termination_consistency_verified=termination_consistency_verified,
       geometry_shape_verified=False,
     )
+  ####
 
   deterministic_results = tuple(
     _research_chain_repeat_verified(
@@ -3565,6 +3718,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       for residual in (_maximum_sequence_residual(left[key], right[key]),)
       if residual is not None
     )
+  ####
 
   axial_extent_residuals = adjacent_residuals('axial_extents')
   shock_spacing_residuals = adjacent_residuals('shock_spacing')
@@ -3672,6 +3826,7 @@ def measure_first_cell_geometry_owned_research_chain_refinement(
       'stable across the declared resolutions; canonical reflected '
       'free-boundary and product gates remain closed'
     )
+  ####
   return _first_cell_research_chain_refinement_failure(
     status,
     message,
@@ -3754,6 +3909,7 @@ class MocMixedRegimeEntropyTransportMeasurement:
         'status must be a '
         'MocMixedRegimeEntropyTransportMeasurementStatus'
       )
+    ####
     if self.transport is not None and not isinstance(
       self.transport,
       MocMixedRegimeEntropyTransportResult,
@@ -3761,10 +3917,13 @@ class MocMixedRegimeEntropyTransportMeasurement:
       raise TypeError(
         'transport must be a MocMixedRegimeEntropyTransportResult or None'
       )
+    ####
     for name in ('sample_count', 'streamline_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.terminal_node_index is not None:
       if (
         isinstance(self.terminal_node_index, bool)
@@ -3774,6 +3933,8 @@ class MocMixedRegimeEntropyTransportMeasurement:
         raise ValueError(
           'terminal_node_index must be a nonnegative integer when supplied'
         )
+      ####
+    ####
     for name in (
       'maximum_total_pressure_residual_Pa',
       'maximum_entropy_coordinate_residual',
@@ -3783,7 +3944,10 @@ class MocMixedRegimeEntropyTransportMeasurement:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     for name in (
       'request_verified',
       'handoff_verified',
@@ -3798,6 +3962,8 @@ class MocMixedRegimeEntropyTransportMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -3850,6 +4016,7 @@ class MocMixedRegimeEntropyTransportMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _entropy_transport_measurement_failure(
@@ -3890,6 +4057,7 @@ def _entropy_transport_measurement_failure(
     production_claim_allowed=False,
     message=message,
   )
+####
 
 
 def _interpolate_entropy_transport_pressure(
@@ -3900,16 +4068,21 @@ def _interpolate_entropy_transport_pressure(
 
   if not isfinite(coordinate):
     raise ValueError('source arc coordinate must be finite')
+  ####
   samples = handoff.samples
   arc = handoff.cumulative_arc_length_m
   if len(samples) < 2 or len(arc) != len(samples):
     raise ValueError('entropy handoff must expose a complete sample arc')
+  ####
   if coordinate < arc[0] or coordinate > arc[-1]:
     raise ValueError('source arc coordinate lies outside the handoff arc')
+  ####
   if coordinate <= arc[0]:
     return samples[0].downstream_total_pressure_Pa
+  ####
   if coordinate >= arc[-1]:
     return samples[-1].downstream_total_pressure_Pa
+  ####
   for first_arc, second_arc, first, second in zip(
     arc,
     arc[1:],
@@ -3926,7 +4099,10 @@ def _interpolate_entropy_transport_pressure(
           - first.downstream_total_pressure_Pa
         )
       )
+    ####
+  ####
   return samples[-1].downstream_total_pressure_Pa
+####
 
 
 def measure_mixed_regime_entropy_transport_boundary(
@@ -3946,21 +4122,25 @@ def measure_mixed_regime_entropy_transport_boundary(
       MocMixedRegimeEntropyTransportMeasurementStatus.INVALID_INPUT,
       message='request must be a MocMixedRegimePerimeterRequest',
     )
+  ####
   if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
     return _entropy_transport_measurement_failure(
       MocMixedRegimeEntropyTransportMeasurementStatus.INVALID_INPUT,
       message='handoff must be a MocMixedRegimeEntropyHandoffResult',
     )
+  ####
   if not isinstance(field, MocMixedRegimeFieldResult):
     return _entropy_transport_measurement_failure(
       MocMixedRegimeEntropyTransportMeasurementStatus.INVALID_INPUT,
       message='field must be a MocMixedRegimeFieldResult',
     )
+  ####
   if not isinstance(transport, MocMixedRegimeEntropyTransportResult):
     return _entropy_transport_measurement_failure(
       MocMixedRegimeEntropyTransportMeasurementStatus.INVALID_INPUT,
       message='transport must be a MocMixedRegimeEntropyTransportResult',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('source_arc_length_tolerance_m', source_arc_length_tolerance_m),
@@ -3968,6 +4148,8 @@ def measure_mixed_regime_entropy_transport_boundary(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   position_tolerance_m = float(position_tolerance_m)
   source_arc_length_tolerance_m = float(source_arc_length_tolerance_m)
   pressure_tolerance = float(pressure_tolerance)
@@ -3978,6 +4160,7 @@ def measure_mixed_regime_entropy_transport_boundary(
       transport=transport,
       message='transport did not retain the exact mixed-regime request',
     )
+  ####
   if transport.handoff != handoff:
     return _entropy_transport_measurement_failure(
       MocMixedRegimeEntropyTransportMeasurementStatus.REQUEST_FAILURE,
@@ -3985,6 +4168,7 @@ def measure_mixed_regime_entropy_transport_boundary(
       request_verified=True,
       message='transport did not retain the exact entropy handoff',
     )
+  ####
   if transport.field != field:
     return _entropy_transport_measurement_failure(
       MocMixedRegimeEntropyTransportMeasurementStatus.REQUEST_FAILURE,
@@ -3993,6 +4177,7 @@ def measure_mixed_regime_entropy_transport_boundary(
       handoff_verified=True,
       message='transport did not retain the exact mixed-regime field',
     )
+  ####
 
   handoff_measurement = measure_mixed_regime_entropy_handoff(
     request,
@@ -4011,6 +4196,7 @@ def measure_mixed_regime_entropy_transport_boundary(
         f'could be checked: {handoff_measurement.message}'
       ),
     )
+  ####
 
   boundary = field.boundary
   field_boundary_verified = bool(
@@ -4041,6 +4227,7 @@ def measure_mixed_regime_entropy_transport_boundary(
         'the exact terminal, patch, and finite subsonic nodes'
       ),
     )
+  ####
 
   source_arc = transport.streamline_source_arc_length_m
   identifiers = transport.streamline_ids
@@ -4062,6 +4249,7 @@ def measure_mixed_regime_entropy_transport_boundary(
         'transport arrays must each contain exactly one entry per field node'
       ),
     )
+  ####
   if any(
     not isfinite(coordinate) or coordinate < 0.0
     for coordinate in source_arc
@@ -4087,6 +4275,7 @@ def measure_mixed_regime_entropy_transport_boundary(
         'nonnegative integer streamline identifiers, and positive pressures'
       ),
     )
+  ####
 
   arc = handoff.cumulative_arc_length_m
   if len(arc) < 2 or any(
@@ -4103,6 +4292,7 @@ def measure_mixed_regime_entropy_transport_boundary(
       streamline_count=len(set(identifiers)),
       message='entropy handoff arc is not a strictly increasing interval',
     )
+  ####
   if any(
     coordinate < arc[0] - source_arc_length_tolerance_m
     or coordinate > arc[-1] + source_arc_length_tolerance_m
@@ -4119,9 +4309,11 @@ def measure_mixed_regime_entropy_transport_boundary(
       streamline_count=len(set(identifiers)),
       message='transport source coordinates require interpolation without extrapolation',
     )
+  ####
   coordinate_groups: dict[int, list[float]] = {}
   for identifier, coordinate in zip(identifiers, source_arc, strict=True):
     coordinate_groups.setdefault(identifier, []).append(coordinate)
+  ####
   streamline_assignment_verified = bool(
     coordinate_groups
     and all(
@@ -4146,6 +4338,7 @@ def measure_mixed_regime_entropy_transport_boundary(
         'one common source coordinate'
       ),
     )
+  ####
 
   try:
     expected_carried = tuple(
@@ -4165,6 +4358,7 @@ def measure_mixed_regime_entropy_transport_boundary(
       streamline_count=len(coordinate_groups),
       message=f'could not independently interpolate entropy source profile: {error}',
     )
+  ####
   pressure_residuals = tuple(
     max(
       abs(sample.total_pressure_Pa - expected_pressure),
@@ -4261,6 +4455,7 @@ def measure_mixed_regime_entropy_transport_boundary(
       maximum_entropy_coordinate_residual=maximum_entropy_residual,
       message='independent entropy transport pressure or terminal seam residual failed',
     )
+  ####
 
   metrics_verified = bool(
     transport.status is MocMixedRegimeEntropyTransportStatus.CONVERGED_REFERENCE
@@ -4307,6 +4502,7 @@ def measure_mixed_regime_entropy_transport_boundary(
       maximum_entropy_coordinate_residual=maximum_entropy_residual,
       message='transport result flags or reported residuals failed independent consistency checks',
     )
+  ####
   return MocMixedRegimeEntropyTransportMeasurement(
     status=MocMixedRegimeEntropyTransportMeasurementStatus.CONVERGED,
     transport=transport,
@@ -4412,6 +4608,7 @@ class MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
         'status must be a '
         'MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus'
       )
+    ####
     if self.reference is not None and not isinstance(
       self.reference,
       MocMixedRegimeVariableEntropyFreeBoundaryResult,
@@ -4420,6 +4617,7 @@ class MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
         'reference must be a '
         'MocMixedRegimeVariableEntropyFreeBoundaryResult or None'
       )
+    ####
     for name in (
       'node_count',
       'cell_count',
@@ -4430,6 +4628,8 @@ class MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     for name in (
       'maximum_source_arc_residual_m',
       'maximum_source_pressure_residual_Pa',
@@ -4450,7 +4650,10 @@ class MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     for name in (
       'request_verified',
       'handoff_verified',
@@ -4472,6 +4675,8 @@ class MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -4582,6 +4787,7 @@ class MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _variable_entropy_measurement_failure(
@@ -4616,12 +4822,16 @@ def _variable_entropy_profile_value(
   samples = handoff.samples
   if len(arc) != len(samples) or len(samples) < 2:
     raise ValueError('entropy handoff must expose a complete ordered profile')
+  ####
   if coordinate < arc[0] or coordinate > arc[-1]:
     raise ValueError('source coordinate lies outside the handoff profile')
+  ####
   if coordinate <= arc[0]:
     return float(getattr(samples[0], attribute))
+  ####
   if coordinate >= arc[-1]:
     return float(getattr(samples[-1], attribute))
+  ####
   for first_arc, second_arc, first, second in zip(
     arc,
     arc[1:],
@@ -4634,6 +4844,8 @@ def _variable_entropy_profile_value(
       first_value = float(getattr(first, attribute))
       second_value = float(getattr(second, attribute))
       return first_value + fraction * (second_value - first_value)
+    ####
+  ####
   return float(getattr(samples[-1], attribute))
 ####
 
@@ -4644,6 +4856,7 @@ def _variable_entropy_triangle_gradients(
 ) -> tuple[float, float, float]:
   if len(points) != 3 or len(values) != 3:
     raise ValueError('variable-entropy residuals require triangular cells')
+  ####
   (x1, y1), (x2, y2), (x3, y3) = points
   denominator = (
     x1 * (y2 - y3)
@@ -4652,6 +4865,7 @@ def _variable_entropy_triangle_gradients(
   )
   if not isfinite(denominator) or abs(denominator) <= 1.0e-20:
     raise ValueError('variable-entropy residual cell has zero area')
+  ####
   gradient_x = (
     values[0] * (y2 - y3)
     + values[1] * (y3 - y1)
@@ -4726,16 +4940,19 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.INVALID_INPUT,
       message='request must be a MocMixedRegimePerimeterRequest',
     )
+  ####
   if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
     return _variable_entropy_measurement_failure(
       MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.INVALID_INPUT,
       message='handoff must be a MocMixedRegimeEntropyHandoffResult',
     )
+  ####
   if not isinstance(control_section, MocMixedRegimeControlSection):
     return _variable_entropy_measurement_failure(
       MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.INVALID_INPUT,
       message='control_section must be a MocMixedRegimeControlSection',
     )
+  ####
   if not isinstance(
     reference,
     MocMixedRegimeVariableEntropyFreeBoundaryResult,
@@ -4747,6 +4964,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
         'MocMixedRegimeVariableEntropyFreeBoundaryResult'
       ),
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -4758,6 +4976,8 @@ def measure_mixed_regime_variable_entropy_free_boundary(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   position_tolerance_m = float(position_tolerance_m)
   state_tolerance = float(state_tolerance)
   pressure_tolerance = float(pressure_tolerance)
@@ -4773,6 +4993,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       reference=reference,
       message='reference did not retain the exact mixed-regime request',
     )
+  ####
   handoff_verified = reference.handoff == handoff
   if not handoff_verified:
     return _variable_entropy_measurement_failure(
@@ -4781,6 +5002,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       request_verified=True,
       message='reference did not retain the exact entropy handoff',
     )
+  ####
   control_identity_verified = reference.control_section == control_section
   if not control_identity_verified:
     return _variable_entropy_measurement_failure(
@@ -4790,6 +5012,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       handoff_verified=True,
       message='reference did not retain the exact control section',
     )
+  ####
 
   handoff_measurement = measure_mixed_regime_entropy_handoff(
     request,
@@ -4808,6 +5031,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
         f'audit: {handoff_measurement.message}'
       ),
     )
+  ####
 
   control_measurement = measure_mixed_regime_control_section(
     request,
@@ -4835,6 +5059,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
         f'{control_measurement.message}'
       ),
     )
+  ####
 
   try:
     terminal_x, terminal_y = request.terminal_point_m
@@ -4869,6 +5094,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       control_section_verified=True,
       message=f'could not reconstruct control-section source geometry: {error}',
     )
+  ####
   if len(fractions) < 3 or inlet_height <= position_tolerance_m:
     return _variable_entropy_measurement_failure(
       MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
@@ -4878,6 +5104,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       control_section_verified=True,
       message='reference measurement requires at least three positive streamlines',
     )
+  ####
 
   axial_count = reference.axial_station_count
   transverse_count = reference.transverse_station_count
@@ -4904,6 +5131,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       transverse_station_count=transverse_count,
       message='reference node/cell counts do not match its declared structured mesh',
     )
+  ####
 
   field = reference.field
   boundary = reference.boundary
@@ -4919,9 +5147,11 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       transverse_station_count=transverse_count,
       message='reference must retain its field, scalar boundary, and downstream condition',
     )
+  ####
 
   def grid_index(station: int, transverse: int) -> int:
     return 1 + station * transverse_count + transverse
+  ####
 
   expected_initial_heights = tuple(
     inlet_height
@@ -4992,6 +5222,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       transverse_station_count=transverse_count,
       message='reported free-boundary geometry does not reproduce the structured map',
     )
+  ####
 
   expected_streamline_ids = (0, *(
     transverse
@@ -5048,6 +5279,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
         section_x + station * dx,
         terminal_y + fractions[transverse] * expected_heights[station],
       )
+    ####
     node_geometry_verified = bool(
       node_geometry_verified
       and hypot(
@@ -5076,6 +5308,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       )
     )
     node_gamma_residuals.append(abs(sample.gamma - expected_gamma))
+  ####
   source_arrays_verified = bool(
     len(reference.source_arc_length_m) == expected_node_count
     and len(reference.streamline_ids) == expected_node_count
@@ -5154,6 +5387,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       maximum_source_gamma_residual=maximum_source_gamma_residual,
       message='independent reverse entropy and streamline mapping audit failed',
     )
+  ####
 
   perimeter_indices = [0, grid_index(0, transverse_count - 1)]
   perimeter_indices.extend(
@@ -5217,6 +5451,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       maximum_source_gamma_residual=maximum_source_gamma_residual,
       message='independent scalar perimeter or field seam audit failed',
     )
+  ####
 
   expected_condition_edges = tuple(range(4, axial_count))
   expected_condition_samples = tuple(range(4, axial_count + 1))
@@ -5263,6 +5498,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       ),
       message='independent ambient free-boundary condition audit failed',
     )
+  ####
 
   topology = validate_moc_mesh(field.cells)
   field_topology_verified = bool(
@@ -5287,6 +5523,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       streamline_count=transverse_count,
       message=f'independent variable-entropy mesh topology failed: {topology.message}',
     )
+  ####
 
   node_indices_by_point = {sample.point_m: index for index, sample in enumerate(field_nodes)}
   connector_continuity: list[float] = []
@@ -5301,11 +5538,13 @@ def measure_mixed_regime_variable_entropy_free_boundary(
     if not isinstance(cell, MocCharacteristicCell) or len(cell.vertices_xr_m) != 3:
       cell_layout_verified = False
       continue
+    ####
     try:
       indices = tuple(node_indices_by_point[point] for point in cell.vertices_xr_m)
     except KeyError:
       cell_layout_verified = False
       continue
+    ####
     samples = tuple(field_nodes[index] for index in indices)
     points = tuple(sample.point_m for sample in samples)
     densities = tuple(
@@ -5381,11 +5620,14 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       entrance_continuity.append(continuity_residual)
     else:
       continuity.append(continuity_residual)
+    ####
     if is_entrance:
       entrance_entropy.append(entropy_residual)
     else:
       entropy.append(entropy_residual)
+    ####
     transverse_momentum.append(transverse_residual)
+  ####
 
   mass_flow: list[float] = []
   entrance_mass_flow: list[float] = []
@@ -5433,6 +5675,9 @@ def measure_mixed_regime_variable_entropy_free_boundary(
         entrance_mass_flow.append(mass_residual)
       else:
         mass_flow.append(mass_residual)
+      ####
+    ####
+  ####
 
   maximum_continuity = max(continuity, default=0.0)
   maximum_connector_continuity = max(connector_continuity, default=0.0)
@@ -5551,6 +5796,7 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       maximum_free_boundary_tangent_residual_rad=maximum_free_boundary_tangent,
       message='independent variable-entropy residual or fidelity audit failed',
     )
+  ####
   return MocMixedRegimeVariableEntropyFreeBoundaryMeasurement(
     status=MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.CONVERGED,
     reference=reference,
@@ -5754,6 +6000,7 @@ class MocTerminalClosureMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocMixedRegimePotentialMeasurementStatus(str, Enum):
@@ -5845,6 +6092,7 @@ class MocMixedRegimePotentialMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocMixedRegimePlanarFreeBoundaryMeasurementStatus(str, Enum):
@@ -5950,6 +6198,7 @@ class MocMixedRegimePlanarFreeBoundaryMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus(str, Enum):
@@ -5983,6 +6232,7 @@ class MocMixedRegimePlanarFreeBoundaryRefinementCase:
       or self.resolution < 4
     ):
       raise ValueError('resolution must be an integer of at least four')
+    ####
     if not isinstance(
       self.result,
       MocMixedRegimePlanarFreeBoundaryResult,
@@ -5990,7 +6240,9 @@ class MocMixedRegimePlanarFreeBoundaryRefinementCase:
       raise TypeError(
         'result must be a MocMixedRegimePlanarFreeBoundaryResult'
       )
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -6040,6 +6292,7 @@ class MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
     measurements = tuple(self.measurements)
     if len(cases) != len(measurements):
       raise ValueError('cases and measurements must have equal lengths')
+    ####
     if any(
       not isinstance(
         case,
@@ -6050,6 +6303,7 @@ class MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
       raise TypeError(
         'cases must contain planar free-boundary refinement cases'
       )
+    ####
     if any(
       not isinstance(
         measurement,
@@ -6060,6 +6314,7 @@ class MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
       raise TypeError(
         'measurements must contain planar free-boundary measurements'
     )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'measurements', measurements)
     results = tuple(case.result for case in cases)
@@ -6102,7 +6357,9 @@ class MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     residuals = tuple(
       None if value is None else float(value)
       for value in self.maximum_normal_velocity_residuals
@@ -6116,6 +6373,7 @@ class MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
         'maximum_normal_velocity_residuals must contain finite nonnegative '
         'values or None'
       )
+    ####
     object.__setattr__(self, 'maximum_normal_velocity_residuals', residuals)
     for name in (
       'resolution_order_verified',
@@ -6136,6 +6394,8 @@ class MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'operator_id', str(self.operator_id))
     object.__setattr__(self, 'claim_status', str(self.claim_status))
     object.__setattr__(self, 'message', str(self.message))
@@ -6200,6 +6460,7 @@ class MocMixedRegimePlanarFreeBoundaryRefinementMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocMixedRegimeFreeBoundaryMeasurementStatus(str, Enum):
@@ -6335,6 +6596,7 @@ class MocMixedRegimeFreeBoundaryMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocMixedRegimeFreeBoundaryRefinementMeasurementStatus(str, Enum):
@@ -6368,10 +6630,13 @@ class MocMixedRegimeFreeBoundaryRefinementCase:
       or self.resolution < 1
     ):
       raise ValueError('resolution must be a positive integer')
+    ####
     if not isinstance(self.result, MocMixedRegimeFreeBoundaryResult):
       raise TypeError(
         'result must be a MocMixedRegimeFreeBoundaryResult'
       )
+    ####
+  ####
 ####
 
 
@@ -6421,6 +6686,7 @@ class MocMixedRegimeFreeBoundaryRefinementMeasurement:
     measurements = tuple(self.measurements)
     if len(cases) != len(measurements):
       raise ValueError('cases and measurements must have equal lengths')
+    ####
     if any(
       not isinstance(case, MocMixedRegimeFreeBoundaryRefinementCase)
       for case in cases
@@ -6428,6 +6694,7 @@ class MocMixedRegimeFreeBoundaryRefinementMeasurement:
       raise TypeError(
         'cases must contain MocMixedRegimeFreeBoundaryRefinementCase values'
       )
+    ####
     if any(
       not isinstance(measurement, MocMixedRegimeFreeBoundaryMeasurement)
       for measurement in measurements
@@ -6435,6 +6702,7 @@ class MocMixedRegimeFreeBoundaryRefinementMeasurement:
       raise TypeError(
         'measurements must contain MocMixedRegimeFreeBoundaryMeasurement values'
       )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'measurements', measurements)
     object.__setattr__(
@@ -6493,7 +6761,9 @@ class MocMixedRegimeFreeBoundaryRefinementMeasurement:
         for value in values
       ):
         raise ValueError(f'{name} must contain finite nonnegative values or None')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'resolution_order_verified',
       'request_consistent',
@@ -6511,6 +6781,8 @@ class MocMixedRegimeFreeBoundaryRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'claim_status', str(self.claim_status))
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -6580,6 +6852,7 @@ class MocMixedRegimeFreeBoundaryRefinementMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocMixedRegimeControlSectionMeasurementStatus(str, Enum):
@@ -6657,6 +6930,7 @@ class MocMixedRegimeControlSectionMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _control_section_measurement_failure(
@@ -6722,6 +6996,7 @@ def measure_mixed_regime_control_section(
       MocMixedRegimeControlSectionMeasurementStatus.INVALID_INPUT,
       message='request must be a MocMixedRegimePerimeterRequest',
     )
+  ####
   if section is None:
     return _control_section_measurement_failure(
       MocMixedRegimeControlSectionMeasurementStatus.INVALID_INPUT,
@@ -6731,12 +7006,14 @@ def measure_mixed_regime_control_section(
         'geometry and scalar samples'
       ),
     )
+  ####
   if not isinstance(section, MocMixedRegimeControlSection):
     return _control_section_measurement_failure(
       MocMixedRegimeControlSectionMeasurementStatus.INVALID_INPUT,
       request_verified=True,
       message='section must be a MocMixedRegimeControlSection or None',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -6745,8 +7022,11 @@ def measure_mixed_regime_control_section(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isinstance(allow_distributed_total_pressure_profile, bool):
     raise TypeError('allow_distributed_total_pressure_profile must be a bool')
+  ####
 
   terminal = request.terminal
   upstream_state = terminal.upstream_state
@@ -6766,6 +7046,7 @@ def measure_mixed_regime_control_section(
       request_verified=False,
       message='request does not retain a complete exact terminal seam',
     )
+  ####
   assert upstream_state is not None
 
   points = section.points_m
@@ -6843,6 +7124,7 @@ def measure_mixed_regime_control_section(
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     minimum_flux_factor = None
     mass_flux = None
+  ####
   flux_verified = bool(
     minimum_flux_factor is not None
     and minimum_flux_factor > float(normal_flux_tolerance)
@@ -6942,6 +7224,7 @@ def measure_mixed_regime_control_section(
       'pressure-lineage, and oriented flux gates passed; this is not a '
       'two-dimensional mixed-regime field or chain acceptance'
     )
+  ####
   return _control_section_measurement_failure(
     status,
     message=message,
@@ -7097,6 +7380,7 @@ class MocCausticRemeshMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocReflectedDomainRemeshMeasurementStatus(str, Enum):
@@ -7197,6 +7481,7 @@ class MocReflectedDomainRemeshMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocReflectedDomainOuterSourceMeasurementStatus(str, Enum):
@@ -7294,6 +7579,7 @@ class MocReflectedDomainOuterSourceMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocReflectedDomainAlternatingSourceMeasurementStatus(str, Enum):
@@ -7386,6 +7672,7 @@ class MocReflectedDomainAlternatingSourceMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocReflectedDomainAlternatingPhysicalFieldMeasurementStatus(str, Enum):
@@ -7480,6 +7767,7 @@ class MocReflectedDomainAlternatingPhysicalFieldMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocReflectedDomainSolverOwnedFirstCellMeasurementStatus(str, Enum):
@@ -7579,6 +7867,7 @@ class MocReflectedDomainSolverOwnedFirstCellMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocReflectedDomainGlobalShockRemeshMeasurementStatus(str, Enum):
@@ -7675,6 +7964,7 @@ class MocReflectedDomainGlobalShockRemeshMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -7703,8 +7993,10 @@ class MocShockCellObservation:
   def __post_init__(self) -> None:
     if isinstance(self.cell_index, bool) or not isinstance(self.cell_index, int):
       raise TypeError('cell_index must be an integer')
+    ####
     if self.cell_index < 1:
       raise ValueError('cell_index must be positive')
+    ####
     object.__setattr__(
       self,
       'shock_boundary_points_m',
@@ -7733,28 +8025,37 @@ class MocShockCellObservation:
         raise TypeError(
           f'{name} must be an iterable of MocChainBoundarySample values'
         ) from error
+      ####
       if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
         raise TypeError(
           f'{name} must contain MocChainBoundarySample values'
         )
+      ####
       if handoff and len(handoff) < 3:
         raise ValueError(
           f'{name} must contain at least three samples when supplied'
         )
+      ####
       object.__setattr__(self, name, handoff)
+    ####
     for name in ('incoming_boundary_kind', 'outgoing_boundary_kind'):
       kind = getattr(self, name)
       if kind is not None and not isinstance(kind, MocChainBoundaryKind):
         raise TypeError(
           f'{name} must be a MocChainBoundaryKind or None'
         )
+      ####
+    ####
     for name in (
       'zero_strength_shock_start_allowed',
       'zero_strength_shock_endpoints_allowed',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -7832,6 +8133,7 @@ class MocShockCellMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -7875,6 +8177,7 @@ class MocShockCellChainMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocPhysicalFieldChainMeasurementStatus(str, Enum):
@@ -7934,6 +8237,7 @@ class MocPhysicalFieldChainMeasurement:
       or self.field_count < 0
     ):
       raise ValueError('field_count must be a nonnegative integer')
+    ####
     measurements = tuple(self.field_measurements)
     if any(
       not isinstance(measurement, MocShockCellMeasurement)
@@ -7942,14 +8246,18 @@ class MocPhysicalFieldChainMeasurement:
       raise TypeError(
         'field_measurements must contain MocShockCellMeasurement values'
       )
+    ####
     if len(measurements) > self.field_count:
       raise ValueError('field_measurements cannot exceed field_count')
+    ####
     object.__setattr__(self, 'field_measurements', measurements)
     statuses = tuple(str(status) for status in self.field_statuses)
     if len(statuses) > self.field_count:
       raise ValueError('field_statuses cannot exceed field_count')
+    ####
     if any(not status for status in statuses):
       raise ValueError('field_statuses must contain non-empty strings')
+    ####
     object.__setattr__(self, 'field_statuses', statuses)
     for name in (
       'field_topology_verified',
@@ -7961,37 +8269,45 @@ class MocPhysicalFieldChainMeasurement:
       values = tuple(getattr(self, name))
       if len(values) > self.field_count:
         raise ValueError(f'{name} cannot exceed field_count')
+      ####
       if any(not isinstance(value, bool) for value in values):
         raise TypeError(f'{name} must contain bool values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     if (
       isinstance(self.handoff_link_count, bool)
       or not isinstance(self.handoff_link_count, int)
       or self.handoff_link_count < 0
     ):
       raise ValueError('handoff_link_count must be a nonnegative integer')
+    ####
     if self.handoff_links_verified is not None and not isinstance(
       self.handoff_links_verified,
       bool,
     ):
       raise TypeError('handoff_links_verified must be a bool or None')
+    ####
     if (
       isinstance(self.intercell_bridge_count, bool)
       or not isinstance(self.intercell_bridge_count, int)
       or self.intercell_bridge_count < 0
     ):
       raise ValueError('intercell_bridge_count must be a nonnegative integer')
+    ####
     bridge_endpoints = tuple(self.intercell_bridge_endpoints_m)
     if len(bridge_endpoints) > self.intercell_bridge_count:
       raise ValueError(
         'intercell_bridge_endpoints_m cannot exceed intercell_bridge_count'
       )
+    ####
     normalized_bridge_endpoints: list[tuple[Point, Point]] = []
     for endpoints in bridge_endpoints:
       if len(endpoints) != 2:
         raise ValueError(
           'intercell_bridge_endpoints_m must contain (start, end) pairs'
         )
+      ####
       start, end = endpoints
       start_point = (float(start[0]), float(start[1]))
       end_point = (float(end[0]), float(end[1]))
@@ -7999,7 +8315,9 @@ class MocPhysicalFieldChainMeasurement:
         raise ValueError(
           'intercell_bridge_endpoints_m must contain finite coordinates'
         )
+      ####
       normalized_bridge_endpoints.append((start_point, end_point))
+    ####
     object.__setattr__(
       self,
       'intercell_bridge_endpoints_m',
@@ -8014,6 +8332,8 @@ class MocPhysicalFieldChainMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
   ####
 
   @property
@@ -8067,6 +8387,7 @@ class MocPhysicalFieldChainMeasurement:
         ),
         'measurement': None if measurement is None else measurement.as_report(),
       })
+    ####
     return {
       'status': self.status.value,
       'operator_id': self.operator_id,
@@ -8094,6 +8415,7 @@ class MocPhysicalFieldChainMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus(str, Enum):
@@ -8151,9 +8473,11 @@ class MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
       or self.field_count < 0
     ):
       raise ValueError('field_count must be a nonnegative integer')
+    ####
     measurements = tuple(self.field_measurements)
     if len(measurements) > self.field_count:
       raise ValueError('field_measurements cannot exceed field_count')
+    ####
     if any(
       not isinstance(
         measurement,
@@ -8165,12 +8489,15 @@ class MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
         'field_measurements must contain '
         'MocReflectedDomainAlternatingPhysicalFieldMeasurement values'
       )
+    ####
     object.__setattr__(self, 'field_measurements', measurements)
     fingerprints = tuple(str(value) for value in self.source_geometry_fingerprints)
     if len(fingerprints) > self.field_count:
       raise ValueError('source_geometry_fingerprints cannot exceed field_count')
+    ####
     if any(not value for value in fingerprints):
       raise ValueError('source_geometry_fingerprints must be non-empty')
+    ####
     object.__setattr__(self, 'source_geometry_fingerprints', fingerprints)
     if (
       isinstance(self.handoff_link_count, bool)
@@ -8178,11 +8505,13 @@ class MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
       or self.handoff_link_count < 0
     ):
       raise ValueError('handoff_link_count must be a nonnegative integer')
+    ####
     if self.handoff_links_verified is not None and not isinstance(
       self.handoff_links_verified,
       bool,
     ):
       raise TypeError('handoff_links_verified must be a bool or None')
+    ####
     for name in (
       'source_geometry_freshness_verified',
       'fresh_domain_verified',
@@ -8192,6 +8521,8 @@ class MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_field_chain_measurement is not None and not isinstance(
       self.physical_field_chain_measurement,
       MocPhysicalFieldChainMeasurement,
@@ -8200,6 +8531,7 @@ class MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
         'physical_field_chain_measurement must be a '
         'MocPhysicalFieldChainMeasurement or None'
       )
+    ####
   ####
 
   @property
@@ -8241,6 +8573,7 @@ class MocReflectedDomainAlternatingPhysicalFieldChainMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 class MocShockCellChainRefinementMeasurementStatus(str, Enum):
@@ -8279,12 +8612,14 @@ class MocShockCellChainRefinementCase:
       or self.resolution < 1
     ):
       raise ValueError('resolution must be a positive integer')
+    ####
     try:
       observations = tuple(self.observations)
     except TypeError as error:
       raise TypeError(
         'observations must contain MocShockCellObservation values'
       ) from error
+    ####
     if not observations or any(
       not isinstance(observation, MocShockCellObservation)
       for observation in observations
@@ -8292,21 +8627,27 @@ class MocShockCellChainRefinementCase:
       raise TypeError(
         'observations must contain at least one MocShockCellObservation value'
       )
+    ####
     object.__setattr__(self, 'observations', observations)
     reason = self.termination_reason
     if reason is not None:
       if isinstance(reason, Enum):
         reason = reason.value
+      ####
       reason = str(reason)
       if not reason:
         raise ValueError('termination_reason must be non-empty when supplied')
+      ####
       object.__setattr__(self, 'termination_reason', reason)
+    ####
     if self.physical_termination is not None and not isinstance(
       self.physical_termination,
       bool,
     ):
       raise TypeError('physical_termination must be a bool or None')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -8346,8 +8687,10 @@ class MocShockCellChainRefinementMeasurement:
     measurements = tuple(self.chain_measurements)
     if len(cases) != len(measurements):
       raise ValueError('cases and chain_measurements must have equal lengths')
+    ####
     if any(not isinstance(case, MocShockCellChainRefinementCase) for case in cases):
       raise TypeError('cases must contain MocShockCellChainRefinementCase values')
+    ####
     if any(
       not isinstance(measurement, MocShockCellChainMeasurement)
       for measurement in measurements
@@ -8355,6 +8698,7 @@ class MocShockCellChainRefinementMeasurement:
       raise TypeError(
         'chain_measurements must contain MocShockCellChainMeasurement values'
       )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'chain_measurements', measurements)
     object.__setattr__(
@@ -8370,10 +8714,14 @@ class MocShockCellChainRefinementMeasurement:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     if self.cell_count is not None:
       if isinstance(self.cell_count, bool) or self.cell_count < 1:
         raise ValueError('cell_count must be positive when supplied')
+      ####
+    ####
     for name in (
       'resolution_order_verified',
       'cell_count_consistent',
@@ -8384,10 +8732,14 @@ class MocShockCellChainRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     for name in ('handoff_links_verified', 'termination_sensitivity_verified'):
       value = getattr(self, name)
       if value is not None and not isinstance(value, bool):
         raise TypeError(f'{name} must be a bool or None')
+      ####
+    ####
   ####
 
   @property
@@ -8410,6 +8762,7 @@ class MocShockCellChainRefinementMeasurement:
         'physical_termination': case.physical_termination,
         'measurement': measurement.as_report(),
       })
+    ####
     return {
       'status': self.status.value,
       'operator_id': self.operator_id,
@@ -8437,6 +8790,7 @@ class MocShockCellChainRefinementMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _chain_refinement_failure(
@@ -8516,6 +8870,8 @@ def measure_moc_shock_cell_chain_refinement(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   try:
     items = tuple(cases)
   except TypeError:
@@ -8523,17 +8879,20 @@ def measure_moc_shock_cell_chain_refinement(
       MocShockCellChainRefinementMeasurementStatus.INVALID_INPUT,
       'refinement cases must be iterable',
     )
+  ####
   if len(items) < 2:
     return _chain_refinement_failure(
       MocShockCellChainRefinementMeasurementStatus.INVALID_INPUT,
       'at least two chain refinement cases are required',
     )
+  ####
   if any(not isinstance(case, MocShockCellChainRefinementCase) for case in items):
     return _chain_refinement_failure(
       MocShockCellChainRefinementMeasurementStatus.INVALID_INPUT,
       'refinement cases must contain MocShockCellChainRefinementCase values',
       cases=items,
     )
+  ####
   resolutions = tuple(case.resolution for case in items)
   resolution_order_verified = all(
     right > left
@@ -8545,6 +8904,7 @@ def measure_moc_shock_cell_chain_refinement(
       'refinement resolutions must be strictly increasing from coarse to fine',
       cases=items,
     )
+  ####
   measurements = tuple(
     measure_moc_shock_cell_chain(
       case.observations,
@@ -8563,6 +8923,7 @@ def measure_moc_shock_cell_chain_refinement(
       chain_measurements=measurements,
       resolution_order_verified=True,
     )
+  ####
   counts = tuple(len(measurement.cells) for measurement in measurements)
   cell_count_consistent = len(set(counts)) == 1 and counts[0] > 0
   spacing_shapes = tuple(
@@ -8579,6 +8940,7 @@ def measure_moc_shock_cell_chain_refinement(
       cell_count_consistent=cell_count_consistent,
       geometry_shape_verified=geometry_shape_verified,
     )
+  ####
   extents = tuple(measurement.axial_extent_m for measurement in measurements)
   if any(extent is None for extent in extents):
     return _chain_refinement_failure(
@@ -8590,6 +8952,7 @@ def measure_moc_shock_cell_chain_refinement(
       cell_count_consistent=True,
       geometry_shape_verified=True,
     )
+  ####
   resolved_extents = tuple(extent for extent in extents if extent is not None)
   axial_extent_residuals = tuple(
     max(
@@ -8636,6 +8999,7 @@ def measure_moc_shock_cell_chain_refinement(
       axial_extent_residuals_m=axial_extent_residuals,
       shock_spacing_residuals_m=shock_spacing_residuals,
     )
+  ####
   pressure_loss_verified = all(
     cell.pressure_loss_verified is True
     for measurement in measurements
@@ -8667,6 +9031,7 @@ def measure_moc_shock_cell_chain_refinement(
     termination_sensitivity_verified = False
   else:
     termination_sensitivity_verified = len(set(termination_metadata)) == 1
+  ####
   refinement_convergence_verified = (
     all(
       residual <= float(endpoint_tolerance_m)
@@ -8703,6 +9068,7 @@ def measure_moc_shock_cell_chain_refinement(
       mesh_area_residuals_m2=mesh_area_residuals,
       refinement_convergence_verified=refinement_convergence_verified,
     )
+  ####
   return MocShockCellChainRefinementMeasurement(
     status=MocShockCellChainRefinementMeasurementStatus.CONVERGED,
     cases=items,
@@ -8812,6 +9178,7 @@ class MocChainPlannerMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _planner_measurement_failure(
@@ -8869,6 +9236,7 @@ def _planner_handoff_fingerprint(
 
   if not boundary:
     return None
+  ####
   payload = '\n'.join(
     '|'.join(
       value.hex()
@@ -8904,11 +9272,13 @@ def measure_moc_chain_planner(
 
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isinstance(planner, MocChainPlannerResult):
     return _planner_measurement_failure(
       MocChainPlannerMeasurementStatus.INVALID_INPUT,
       'planner must be a MocChainPlannerResult',
     )
+  ####
 
   raw_cells = tuple(planner.chain.cells)
   steps = tuple(planner.steps)
@@ -8936,12 +9306,14 @@ def measure_moc_chain_planner(
       'planner trace must contain at least one cell and one callback step',
       **common,
     )
+  ####
   if any(not isinstance(cell, MocChainCell) for cell in raw_cells):
     return _planner_measurement_failure(
       MocChainPlannerMeasurementStatus.INVALID_INPUT,
       'planner chain must contain MocChainCell values',
       **common,
     )
+  ####
   cells = tuple(cell for cell in raw_cells if isinstance(cell, MocChainCell))
   cell_indices = tuple(cell.cell_index for cell in cells)
   chain_cells_contiguous = cell_indices == tuple(range(1, chain_cell_count + 1))
@@ -8952,6 +9324,7 @@ def measure_moc_chain_planner(
       chain_cells_contiguous=False,
       **common,
     )
+  ####
 
   chain_topology_verified = True
   for cell in cells:
@@ -8963,6 +9336,8 @@ def measure_moc_chain_planner(
     ):
       chain_topology_verified = False
       break
+    ####
+  ####
   if not chain_topology_verified:
     return _planner_measurement_failure(
       MocChainPlannerMeasurementStatus.TOPOLOGY_FAILURE,
@@ -8971,6 +9346,7 @@ def measure_moc_chain_planner(
       chain_topology_verified=False,
       **common,
     )
+  ####
 
   fidelity_isolation_verified = (
     planner.production_claim_allowed is False
@@ -8989,6 +9365,7 @@ def measure_moc_chain_planner(
       fidelity_isolation_verified=False,
       **common,
     )
+  ####
 
   domain_freshness_verified = True
   for index, (current, next_cell) in enumerate(
@@ -9001,11 +9378,13 @@ def measure_moc_chain_planner(
         'contiguous'
       )
       break
+    ####
     mesh_extent = next_cell.mesh_x_extent_m
     if mesh_extent is None:
       domain_freshness_verified = False
       domain_message = f'planner cell {index + 2} does not expose finite mesh x extent'
       break
+    ####
     if mesh_extent[0] < current.end_x_m - position_tolerance_m:
       domain_freshness_verified = False
       domain_message = (
@@ -9013,6 +9392,7 @@ def measure_moc_chain_planner(
         f'minimum_x={mesh_extent[0]}, current_end_x={current.end_x_m}'
       )
       break
+    ####
     if mesh_extent[1] <= current.end_x_m + position_tolerance_m:
       domain_freshness_verified = False
       domain_message = (
@@ -9020,6 +9400,7 @@ def measure_moc_chain_planner(
         f'maximum_x={mesh_extent[1]}, current_end_x={current.end_x_m}'
       )
       break
+    ####
     boundary_extent = next_cell.continuation_boundary_x_extent_m
     if boundary_extent is not None and (
       boundary_extent[0] < current.end_x_m - position_tolerance_m
@@ -9031,6 +9412,8 @@ def measure_moc_chain_planner(
         f'current_end_x={current.end_x_m}'
       )
       break
+    ####
+  ####
   if not domain_freshness_verified:
     return _planner_measurement_failure(
       MocChainPlannerMeasurementStatus.DOMAIN_FAILURE,
@@ -9041,6 +9424,7 @@ def measure_moc_chain_planner(
       fidelity_isolation_verified=True,
       **common,
     )
+  ####
 
   expected_current_indices = tuple(range(1, chain_cell_count + 1))
   expected_next_indices = tuple(range(2, chain_cell_count + 2))
@@ -9059,6 +9443,7 @@ def measure_moc_chain_planner(
       fidelity_isolation_verified=True,
       **common,
     )
+  ####
 
   returned_handoffs_verified = True
   previous_returned_fingerprint: str | None = None
@@ -9094,6 +9479,7 @@ def measure_moc_chain_planner(
         fidelity_isolation_verified=True,
         **common,
       )
+    ####
     expected_link_verified = (
       step.incoming_handoff_link_verified is None
       if index == 0
@@ -9116,6 +9502,7 @@ def measure_moc_chain_planner(
         fidelity_isolation_verified=True,
         **common,
       )
+    ####
 
     if step.result_kind in (
       'field-solve-returned',
@@ -9136,6 +9523,7 @@ def measure_moc_chain_planner(
           fidelity_isolation_verified=True,
           **common,
         )
+      ####
       if step.result_kind in (
         'field-solve-returned',
         'physical-field-solve-returned',
@@ -9157,6 +9545,7 @@ def measure_moc_chain_planner(
           fidelity_isolation_verified=True,
           **common,
         )
+      ####
       next_cell = cells[step.next_cell_index - 1]
       next_boundary = next_cell.continuation_boundary
       next_fingerprint = _planner_handoff_fingerprint(next_boundary)
@@ -9192,8 +9581,10 @@ def measure_moc_chain_planner(
           fidelity_isolation_verified=True,
           **common,
         )
+      ####
       previous_returned_fingerprint = next_fingerprint
       continue
+    ####
 
     if step.result_kind in ('termination-returned', 'no-cell-returned'):
       if (
@@ -9220,8 +9611,10 @@ def measure_moc_chain_planner(
           fidelity_isolation_verified=True,
           **common,
         )
+      ####
       previous_returned_fingerprint = None
       continue
+    ####
 
     return _planner_measurement_failure(
       MocChainPlannerMeasurementStatus.STEP_FAILURE,
@@ -9235,6 +9628,7 @@ def measure_moc_chain_planner(
       fidelity_isolation_verified=True,
       **common,
     )
+  ####
 
   last_step = steps[-1]
   termination_verified = False
@@ -9248,6 +9642,7 @@ def measure_moc_chain_planner(
       planner.chain.termination_reason is MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL
       and physical_termination is False
     )
+  ####
   if not termination_verified:
     return _planner_measurement_failure(
       MocChainPlannerMeasurementStatus.TERMINATION_FAILURE,
@@ -9265,6 +9660,7 @@ def measure_moc_chain_planner(
       fidelity_isolation_verified=True,
       **common,
     )
+  ####
 
   return MocChainPlannerMeasurement(
     status=MocChainPlannerMeasurementStatus.CONVERGED,
@@ -9348,14 +9744,19 @@ def _points(value: Sequence[Sequence[float]], name: str) -> tuple[Point, ...]:
     try:
       if len(point) != 2:
         raise ValueError
+      ####
       candidate = (float(point[0]), float(point[1]))
     except (TypeError, ValueError, IndexError) as error:
       raise ValueError(f'{name} point {index} is not a pair of coordinates') from error
+    ####
     if not all(isfinite(coordinate) for coordinate in candidate):
       raise ValueError(f'{name} point {index} is not finite')
+    ####
     points.append(candidate)
+  ####
   if len(points) < 2:
     raise ValueError(f'{name} requires at least two points')
+  ####
   return tuple(points)
 ####
 
@@ -9369,15 +9770,20 @@ def _validate_polyline(
 ) -> str | None:
   if any(point[1] < -position_tolerance_m for point in points):
     return f'{name} must remain on or above the symmetry line'
+  ####
   for first, second in zip(points, points[1:]):
     dx = second[0] - first[0]
     dy = second[1] - first[1]
     if require_strict_x and dx <= position_tolerance_m:
       return f'{name} must be strictly downstream in x'
+    ####
     if not require_strict_x and dx < -position_tolerance_m:
       return f'{name} must not move upstream in x'
+    ####
     if dy > position_tolerance_m:
       return f'{name} must be nonincreasing in y'
+    ####
+  ####
   return None
 ####
 
@@ -9405,9 +9811,12 @@ def _edge_counts(
     keys = tuple(_key(point, vertex_tolerance_m) for point in vertices)
     for key, point in zip(keys, vertices, strict=True):
       points[key] = point
+    ####
     for first, second in zip(keys, (*keys[1:], keys[0])):
       edge = (first, second) if first <= second else (second, first)
       counts[edge] = counts.get(edge, 0) + 1
+    ####
+  ####
   return counts, points
 ####
 
@@ -9416,17 +9825,22 @@ def _cell_vertices(cell: object) -> tuple[Point, ...]:
   raw_vertices = getattr(cell, 'vertices_xr_m', None)
   if raw_vertices is None:
     raise AttributeError('cell does not expose vertices_xr_m')
+  ####
   vertices: list[Point] = []
   for index, point in enumerate(raw_vertices):
     try:
       if len(point) != 2:
         raise ValueError
+      ####
       candidate = (float(point[0]), float(point[1]))
     except (TypeError, ValueError, IndexError) as error:
       raise ValueError(f'cell vertex {index} is not a coordinate pair') from error
+    ####
     if not all(isfinite(coordinate) for coordinate in candidate):
       raise ValueError(f'cell vertex {index} is not finite')
+    ####
     vertices.append(candidate)
+  ####
   return tuple(vertices)
 ####
 
@@ -9447,6 +9861,8 @@ def _polyline_has_boundary_edges(
     )
     if edge_counts.get(edge) != 1:
       return False
+    ####
+  ####
   return True
 ####
 
@@ -9460,8 +9876,10 @@ def _perimeter_points(
   for first, second in boundary_edges:
     graph.setdefault(first, []).append(second)
     graph.setdefault(second, []).append(first)
+  ####
   if not graph or any(len(neighbors) != 2 for neighbors in graph.values()):
     return None
+  ####
   start = next(iter(graph))
   cycle = [start]
   previous: tuple[int, int] | None = None
@@ -9471,12 +9889,16 @@ def _perimeter_points(
     next_vertex = neighbors[0] if neighbors[0] != previous else neighbors[1]
     if next_vertex == start:
       break
+    ####
     if next_vertex in cycle or len(cycle) > len(graph):
       return None
+    ####
     cycle.append(next_vertex)
     previous, current = current, next_vertex
+  ####
   if len(cycle) != len(graph):
     return None
+  ####
   return tuple(vertex_points[key] for key in cycle)
 ####
 
@@ -9500,6 +9922,7 @@ def _pressure_metrics(
 ) -> tuple[int, float | None, float | None, bool | None, str | None]:
   if not upstream and not downstream:
     return 0, None, None, None, None
+  ####
   if len(upstream) != len(downstream) or len(upstream) != expected_count:
     return (
       0,
@@ -9508,11 +9931,13 @@ def _pressure_metrics(
       False,
       'upstream and downstream pressure samples must both match the shock boundary',
     )
+  ####
   if any(
       not isfinite(value) or value <= 0.0
       for value in (*upstream, *downstream)
   ):
     return 0, None, None, False, 'total-pressure samples must be finite and positive'
+  ####
   ratios = tuple(
     downstream_value / upstream_value
     for upstream_value, downstream_value in zip(upstream, downstream, strict=True)
@@ -9534,6 +9959,7 @@ def _pressure_metrics(
       and all(0.0 < ratio < 1.0 for ratio in ratios[1:-1])
     )
     loss_verified = start_allowed or endpoints_allowed
+  ####
   return (
     len(ratios),
     min(ratios),
@@ -9559,6 +9985,7 @@ def measure_moc_shock_cell(
 
   if not isinstance(observation, MocShockCellObservation):
     raise TypeError('observation must be a MocShockCellObservation')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('axis_tolerance_m', axis_tolerance_m),
@@ -9567,6 +9994,8 @@ def measure_moc_shock_cell(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   try:
     shock = _points(observation.shock_boundary_points_m, 'shock boundary')
     centerline = _points(
@@ -9582,6 +10011,7 @@ def measure_moc_shock_cell(
       centerline_boundary_point_count=len(observation.centerline_boundary_points_m),
       message=str(error),
     )
+  ####
   shock_error = _validate_polyline(
     shock,
     'shock boundary',
@@ -9603,6 +10033,7 @@ def measure_moc_shock_cell(
       centerline_boundary_point_count=len(centerline),
       message=shock_error or centerline_error or 'boundary geometry is invalid',
     )
+  ####
   if hypot(
       shock[-1][0] - centerline[0][0],
       shock[-1][1] - centerline[0][1],
@@ -9615,6 +10046,7 @@ def measure_moc_shock_cell(
       centerline_boundary_point_count=len(centerline),
       message='shock and centerline boundaries must share their endpoint',
     )
+  ####
   if abs(centerline[-1][1]) > axis_tolerance_m:
     return _failure(
       MocShockCellMeasurementStatus.GEOMETRY_FAILURE,
@@ -9624,6 +10056,7 @@ def measure_moc_shock_cell(
       centerline_boundary_point_count=len(centerline),
       message='centerline boundary must terminate on y = 0',
     )
+  ####
   for cell_index, cell in enumerate(observation.cells):
     try:
       vertices = _cell_vertices(cell)
@@ -9636,6 +10069,7 @@ def measure_moc_shock_cell(
         centerline_boundary_point_count=len(centerline),
         message=f'cell {cell_index} could not be read: {error}',
       )
+    ####
     if any(
         len(point) != 2
         or not all(isfinite(float(coordinate)) for coordinate in point)
@@ -9650,6 +10084,8 @@ def measure_moc_shock_cell(
         centerline_boundary_point_count=len(centerline),
         message=f'cell {cell_index} leaves the nonnegative-y measurement half-plane',
       )
+    ####
+  ####
   topology = validate_moc_mesh(
     observation.cells,
     vertex_tolerance_m=mesh_vertex_tolerance_m,
@@ -9664,6 +10100,7 @@ def measure_moc_shock_cell(
       topology=topology,
       message=f'MOC cell mesh topology is not one bounded connected zone: {topology.message}',
     )
+  ####
   try:
     edge_counts, vertex_points = _edge_counts(
       observation.cells,
@@ -9679,6 +10116,7 @@ def measure_moc_shock_cell(
       topology=topology,
       message=f'cell mesh could not be measured: {error}',
     )
+  ####
   if not _polyline_has_boundary_edges(
       shock,
       edge_counts,
@@ -9694,6 +10132,7 @@ def measure_moc_shock_cell(
       topology=topology,
       message=message,
     )
+  ####
   if not _polyline_has_boundary_edges(
       centerline,
       edge_counts,
@@ -9708,6 +10147,7 @@ def measure_moc_shock_cell(
       topology=topology,
       message='centerline boundary samples are not explicit perimeter edges in the mesh',
     )
+  ####
   perimeter = _perimeter_points(edge_counts, vertex_points)
   if perimeter is None:
     return _failure(
@@ -9719,6 +10159,7 @@ def measure_moc_shock_cell(
       topology=topology,
       message='mesh perimeter could not be reconstructed as one cycle',
     )
+  ####
   mesh_area = fsum(
     abs(_polygon_area(_cell_vertices(cell)))
     for cell in observation.cells
@@ -9742,6 +10183,7 @@ def measure_moc_shock_cell(
         f'{area_residual}'
       ),
     )
+  ####
   pressure_count, minimum_ratio, maximum_ratio, pressure_loss_verified, pressure_error = _pressure_metrics(
     observation.upstream_total_pressure_Pa,
     observation.downstream_total_pressure_Pa,
@@ -9786,6 +10228,7 @@ def measure_moc_shock_cell(
       claim_status='not_accepted',
       message=pressure_error,
     )
+  ####
   all_points = (*shock, *centerline, *perimeter)
   axial_min = min(point[0] for point in all_points)
   axial_max = max(point[0] for point in all_points)
@@ -9938,6 +10381,7 @@ def _mixed_field_thermodynamic_residual(
 ) -> float | None:
   if not nodes:
     return None
+  ####
   residuals: list[float] = []
   for sample in nodes:
     try:
@@ -9948,9 +10392,11 @@ def _mixed_field_thermodynamic_residual(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       return None
+    ####
     residuals.append(
       _relative_value_residual(total_pressure, sample.total_pressure_Pa)
     )
+  ####
   return max(residuals)
 ####
 
@@ -9974,6 +10420,7 @@ def _mixed_field_velocity_divergence_residual(
 ) -> float | None:
   if not field.cells:
     return None
+  ####
   lookup = _mixed_field_node_lookup(
     field.nodes,
     vertex_tolerance_m=vertex_tolerance_m,
@@ -9984,14 +10431,17 @@ def _mixed_field_velocity_divergence_residual(
       vertices = _cell_vertices(cell)
     except (AttributeError, TypeError, ValueError):
       return None
+    ####
     if len(vertices) != 3:
       return None
+    ####
     samples = tuple(
       lookup.get(_key(point, vertex_tolerance_m))
       for point in vertices
     )
     if any(sample is None for sample in samples):
       return None
+    ####
     first, second, third = samples
     assert first is not None
     assert second is not None
@@ -10002,6 +10452,7 @@ def _mixed_field_velocity_divergence_residual(
     area_twice = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
     if abs(area_twice) <= 1.0e-20:
       return None
+    ####
     velocities = tuple(
       (
         sample.mach * cos(sample.flow_angle_rad),
@@ -10020,6 +10471,7 @@ def _mixed_field_velocity_divergence_residual(
       + velocities[2][1] * (x2 - x1)
     ) / area_twice
     residuals.append(abs(du_dx + dv_dy))
+  ####
   return max(residuals)
 ####
 
@@ -10036,22 +10488,27 @@ def _mixed_field_harmonic_residual(
   samples = boundary.subsonic_samples
   if len(perimeter) < 4 or len(samples) != len(perimeter):
     return None
+  ####
   unique_points = tuple(perimeter[:-1])
   unique_samples = tuple(samples[:-1])
   sample_count = len(unique_points)
   if sample_count < 3:
     return None
+  ####
   if field.interior_point_m is None:
     return None
+  ####
   if field.radial_divisions == 1:
     if len(field.nodes) != sample_count + 1:
       return None
+    ####
     center = field.nodes[-1]
     if hypot(
         center.point_m[0] - field.interior_point_m[0],
         center.point_m[1] - field.interior_point_m[1],
     ) > position_tolerance_m:
       return None
+    ####
     means = (
       fsum(sample.mach for sample in unique_samples) / sample_count,
       fsum(sample.flow_angle_rad for sample in unique_samples) / sample_count,
@@ -10071,10 +10528,12 @@ def _mixed_field_harmonic_residual(
         strict=True,
       )
     )
+  ####
   radial_divisions = field.radial_divisions
   expected_node_count = 1 + radial_divisions * sample_count
   if len(field.nodes) != expected_node_count:
     return None
+  ####
   for level in range(radial_divisions + 1):
     level_points = (
       (field.interior_point_m,)
@@ -10103,6 +10562,8 @@ def _mixed_field_harmonic_residual(
         for node, point in zip(level_nodes, level_points, strict=True)
     ):
       return None
+    ####
+  ####
   residuals: list[float] = []
   components = (
     lambda sample: sample.mach,
@@ -10132,8 +10593,12 @@ def _mixed_field_harmonic_residual(
         right = values[1 + (level - 1) * sample_count + (index + 1) % sample_count]
         center = values[0] if level == 1 else inner
         residuals.append(abs(4.0 * values[row] - center - outer - left - right))
+      ####
+    ####
     if radial_divisions == 1:
       break
+    ####
+  ####
   return max(residuals, default=None)
 ####
 
@@ -10185,6 +10650,7 @@ def _potential_measurement_failure(
     ),
     message=message,
   )
+####
 
 
 def _measurement_potential_primitive(
@@ -10199,6 +10665,7 @@ def _measurement_potential_primitive(
   enthalpy_factor = 1.0 - sonic_factor * speed_squared
   if enthalpy_factor <= 0.0:
     raise ValueError('potential measurement reached a nonphysical enthalpy factor')
+  ####
   mach = sqrt(speed_squared / enthalpy_factor)
   density = enthalpy_factor ** (1.0 / (gamma - 1.0))
   jacobian_scale = density / enthalpy_factor
@@ -10211,6 +10678,7 @@ def _measurement_potential_primitive(
     -jacobian_scale * q_y * q_x,
     density - jacobian_scale * q_y * q_y,
   )
+####
 
 
 def _measurement_polygon_signed_area(points: Sequence[Point]) -> float:
@@ -10218,6 +10686,7 @@ def _measurement_polygon_signed_area(points: Sequence[Point]) -> float:
     first[0] * second[1] - second[0] * first[1]
     for first, second in zip(points, (*points[1:], points[0]), strict=True)
   )
+####
 
 
 def _measure_boundary_normal_velocity_residual(
@@ -10232,11 +10701,13 @@ def _measure_boundary_normal_velocity_residual(
 
   if not condition_edge_indices:
     return None
+  ####
   area = _measurement_polygon_signed_area(unique_points)
   if abs(area) <= position_tolerance_m * position_tolerance_m:
     raise ValueError(
       'potential measurement perimeter has zero signed area for normal-flow measurement'
     )
+  ####
   perimeter_count = len(unique_points)
   orientation = 1.0 if area > 0.0 else -1.0
   residuals: list[float] = []
@@ -10250,6 +10721,7 @@ def _measure_boundary_normal_velocity_residual(
       raise ValueError(
         'potential measurement received an invalid normal-flow edge index'
       )
+    ####
     next_index = (edge_index + 1) % perimeter_count
     displacement = (
       unique_points[next_index][0] - unique_points[edge_index][0],
@@ -10260,6 +10732,7 @@ def _measure_boundary_normal_velocity_residual(
       raise ValueError(
         'potential measurement found a zero-length outer edge for normal-flow measurement'
       )
+    ####
     first_node = outer_start + edge_index
     second_node = outer_start + next_index
     edge = (
@@ -10273,6 +10746,7 @@ def _measure_boundary_normal_velocity_residual(
         'potential measurement could not find the adjacent triangle for '
         f'outer edge {edge_index}'
       )
+    ####
     outward_normal = (
       orientation * displacement[1] / segment_length,
       -orientation * displacement[0] / segment_length,
@@ -10281,7 +10755,9 @@ def _measure_boundary_normal_velocity_residual(
       velocity[0] * outward_normal[0]
       + velocity[1] * outward_normal[1]
     ))
+  ####
   return max(residuals, default=None)
+####
 
 
 def measure_mixed_regime_compressible_potential_field(
@@ -10307,6 +10783,7 @@ def measure_mixed_regime_compressible_potential_field(
 
   if not isinstance(field, MocMixedRegimeFieldResult):
     raise TypeError('field must be a MocMixedRegimeFieldResult')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('thermodynamic_tolerance', thermodynamic_tolerance),
@@ -10318,8 +10795,11 @@ def measure_mixed_regime_compressible_potential_field(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if subsonic_margin >= 1.0:
     raise ValueError('subsonic_margin must be less than one')
+  ####
   if field.model != 'compressible-isentropic-potential-reference':
     return _potential_measurement_failure(
       MocMixedRegimePotentialMeasurementStatus.INVALID_INPUT,
@@ -10329,12 +10809,14 @@ def measure_mixed_regime_compressible_potential_field(
         f'potential model, received {field.model!r}'
       ),
     )
+  ####
   if not field.converged:
     return _potential_measurement_failure(
       MocMixedRegimePotentialMeasurementStatus.FIELD_FAILURE,
       field=field,
       message=f'potential field is not converged: {field.message}',
     )
+  ####
 
   boundary = field.boundary
   boundary_verified = False
@@ -10350,8 +10832,10 @@ def measure_mixed_regime_compressible_potential_field(
         pressure_tolerance=thermodynamic_tolerance,
       )
       boundary_verified = independent_boundary.converged
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     boundary_verified = False
+  ####
   if not boundary_verified:
     return _potential_measurement_failure(
       MocMixedRegimePotentialMeasurementStatus.BOUNDARY_FAILURE,
@@ -10359,6 +10843,7 @@ def measure_mixed_regime_compressible_potential_field(
       boundary_verified=False,
       message='potential measurement could not independently verify the scalar seam',
     )
+  ####
 
   perimeter = boundary.perimeter_points_m
   samples = boundary.subsonic_samples
@@ -10371,6 +10856,7 @@ def measure_mixed_regime_compressible_potential_field(
       boundary_verified=boundary_verified,
       message='potential measurement requires a closed perimeter with unique samples',
     )
+  ####
   perimeter_count = len(unique_points)
   radial_divisions = field.radial_divisions
   expected_node_count = 1 + radial_divisions * perimeter_count
@@ -10386,6 +10872,7 @@ def measure_mixed_regime_compressible_potential_field(
         f'mesh: expected={expected_node_count}, actual={len(field.nodes)}'
       ),
     )
+  ####
   if field.interior_point_m is None:
     return _potential_measurement_failure(
       MocMixedRegimePotentialMeasurementStatus.GEOMETRY_FAILURE,
@@ -10393,6 +10880,7 @@ def measure_mixed_regime_compressible_potential_field(
       boundary_verified=boundary_verified,
       message='potential measurement requires the radial mesh interior point',
     )
+  ####
   expected_points = [field.interior_point_m]
   for level in range(1, radial_divisions + 1):
     scale = level / radial_divisions
@@ -10403,6 +10891,7 @@ def measure_mixed_regime_compressible_potential_field(
       )
       for point in unique_points
     )
+  ####
   potential = tuple(float(value) for value in field.velocity_potential)
   layout_verified = len(potential) == expected_node_count and all(
     hypot(
@@ -10419,6 +10908,7 @@ def measure_mixed_regime_compressible_potential_field(
       potential_layout_verified=False,
       message='potential measurement radial node/potential layout is inconsistent',
     )
+  ####
 
   gamma_reference = unique_samples[0].gamma
   total_pressure_reference = unique_samples[0].total_pressure_Pa
@@ -10445,6 +10935,7 @@ def measure_mixed_regime_compressible_potential_field(
       ),
       message='potential measurement found nonuniform isentropic boundary data',
     )
+  ####
 
   boundary_velocities: list[tuple[float, float]] = []
   try:
@@ -10459,6 +10950,7 @@ def measure_mixed_regime_compressible_potential_field(
           speed * sin(sample.flow_angle_rad),
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _potential_measurement_failure(
       MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE,
@@ -10467,6 +10959,7 @@ def measure_mixed_regime_compressible_potential_field(
       potential_layout_verified=layout_verified,
       message=f'potential measurement boundary velocity conversion failed: {error}',
     )
+  ####
 
   circulation = 0.0
   for index, point in enumerate(unique_points):
@@ -10479,6 +10972,7 @@ def measure_mixed_regime_compressible_potential_field(
       (boundary_velocities[index][0] + boundary_velocities[next_index][0]) * displacement[0]
       + (boundary_velocities[index][1] + boundary_velocities[next_index][1]) * displacement[1]
     )
+  ####
   circulation_residual = abs(circulation)
   node_lookup = {
     _key(sample.point_m, mesh_vertex_tolerance_m): index
@@ -10492,15 +10986,18 @@ def measure_mixed_regime_compressible_potential_field(
       vertices = _cell_vertices(cell)
       if len(vertices) != 3:
         raise ValueError('potential measurement requires triangular cells')
+      ####
       indices = tuple(
         node_lookup.get(_key(point, mesh_vertex_tolerance_m))
         for point in vertices
       )
       if any(index is None for index in indices):
         raise ValueError('potential measurement cell vertex is absent from the field nodes')
+      ####
       resolved_indices = tuple(index for index in indices if index is not None)
       if len(resolved_indices) != 3:
         raise ValueError('potential measurement cell node lookup is incomplete')
+      ####
       first, second, third = vertices
       area_twice = (
         (second[0] - first[0]) * (third[1] - first[1])
@@ -10508,6 +11005,7 @@ def measure_mixed_regime_compressible_potential_field(
       )
       if abs(area_twice) <= 1.0e-20:
         raise ValueError('potential measurement encountered a zero-area cell')
+      ####
       gradients = (
         ((second[1] - third[1]) / area_twice, (third[0] - second[0]) / area_twice),
         ((third[1] - first[1]) / area_twice, (first[0] - third[0]) / area_twice),
@@ -10529,6 +11027,7 @@ def measure_mixed_regime_compressible_potential_field(
       mach, flux_x, flux_y = primitive[:3]
       if mach >= 1.0 - subsonic_margin:
         raise ValueError(f'potential measurement found a sonic cell state: mach={mach}')
+      ####
       maximum_mach = max(maximum_mach, mach)
       outer_nodes = tuple(sorted(
         index for index in resolved_indices if index >= outer_start
@@ -10540,7 +11039,9 @@ def measure_mixed_regime_compressible_potential_field(
             'potential measurement found multiple adjacent triangles for '
             f'outer edge {outer_edge}'
           )
+        ####
         boundary_edge_velocities[outer_edge] = (q_x, q_y)
+      ####
       area = abs(area_twice) * 0.5
       for local, row_index in enumerate(resolved_indices):
         if row_index < unknown_count:
@@ -10548,6 +11049,9 @@ def measure_mixed_regime_compressible_potential_field(
             gradients[local][0] * flux_x
             + gradients[local][1] * flux_y
           )
+        ####
+      ####
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _potential_measurement_failure(
       MocMixedRegimePotentialMeasurementStatus.RESIDUAL_FAILURE,
@@ -10562,6 +11066,7 @@ def measure_mixed_regime_compressible_potential_field(
       maximum_mach=maximum_mach,
       message=f'potential measurement residual reconstruction failed: {error}',
     )
+  ####
 
   boundary_velocity_residual = 0.0
   for index in range(perimeter_count):
@@ -10581,6 +11086,7 @@ def measure_mixed_regime_compressible_potential_field(
         maximum_mach=maximum_mach,
         message='potential measurement found a zero-length perimeter segment',
       )
+    ####
     tangent = (
       displacement[0] / segment_length,
       displacement[1] / segment_length,
@@ -10597,6 +11103,7 @@ def measure_mixed_regime_compressible_potential_field(
       boundary_velocity_residual,
       abs(computed - prescribed),
     )
+  ####
 
   boundary_normal_velocity_residual: float | None = None
   tangency_condition_required = bool(
@@ -10629,6 +11136,8 @@ def measure_mixed_regime_compressible_potential_field(
         maximum_mach=maximum_mach,
         message=f'potential measurement normal-flow reconstruction failed: {error}',
       )
+    ####
+  ####
 
   topology = validate_moc_mesh(
     field.cells,
@@ -10641,6 +11150,7 @@ def measure_mixed_regime_compressible_potential_field(
       maximum_total_pressure_residual,
       maximum_gamma_residual,
     )
+  ####
   mass_residual = max(abs(value) for value in mass_residuals)
   model_verified = bool(
     topology.connected
@@ -10693,6 +11203,7 @@ def measure_mixed_regime_compressible_potential_field(
         f'circulation={circulation_residual}, maximum_mach={maximum_mach}'
       ),
     )
+  ####
   return MocMixedRegimePotentialMeasurement(
     status=MocMixedRegimePotentialMeasurementStatus.CONVERGED,
     operator_id=MOC_MIXED_REGIME_POTENTIAL_OPERATOR_ID,
@@ -10785,6 +11296,7 @@ def _planar_free_boundary_measurement_failure(
     maximum_pressure_residual_Pa=maximum_pressure_residual_Pa,
     message=message,
   )
+####
 
 
 def measure_mixed_regime_planar_free_boundary_reference(
@@ -10818,6 +11330,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         'result must be a MocMixedRegimePlanarFreeBoundaryResult'
       ),
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -10832,6 +11345,8 @@ def measure_mixed_regime_planar_free_boundary_reference(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
 
   expected_model = (
     'parameterized-2d-compressible-potential-free-boundary-reference'
@@ -10845,6 +11360,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         f'research model, received {result.model!r}'
       ),
     )
+  ####
   if not result.converged:
     return _planar_free_boundary_measurement_failure(
       MocMixedRegimePlanarFreeBoundaryMeasurementStatus.FIELD_FAILURE,
@@ -10854,6 +11370,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         f'field and handoff: {result.message}'
       ),
     )
+  ####
 
   request = result.request
   control_section = result.control_section
@@ -10867,6 +11384,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       result=result,
       message='planar free-boundary result did not retain its control section',
     )
+  ####
   try:
     independent_control_section = validate_mixed_regime_control_section(
       request,
@@ -10882,6 +11400,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       result=result,
       message=f'control section could not be independently remeasured: {error}',
     )
+  ####
   control_section_verified = bool(
     independent_control_section.converged
     and independent_control_section.request == request
@@ -10898,6 +11417,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         f'reported validation: {independent_control_section.message}'
       ),
     )
+  ####
 
   if not isinstance(boundary, MocMixedRegimeBoundaryResult):
     return _planar_free_boundary_measurement_failure(
@@ -10906,6 +11426,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       control_section_verified=control_section_verified,
       message='planar free-boundary result did not retain its scalar boundary',
     )
+  ####
   if not isinstance(specification, MocMixedRegimeDownstreamPerimeterSpec):
     return _planar_free_boundary_measurement_failure(
       MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
@@ -10915,6 +11436,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         'planar free-boundary result did not retain its perimeter specification'
       ),
     )
+  ####
   if not isinstance(field, MocMixedRegimeFieldResult):
     return _planar_free_boundary_measurement_failure(
       MocMixedRegimePlanarFreeBoundaryMeasurementStatus.FIELD_FAILURE,
@@ -10922,6 +11444,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       control_section_verified=control_section_verified,
       message='planar free-boundary result did not retain its potential field',
     )
+  ####
   if not isinstance(condition, MocMixedRegimeDownstreamConditionResult):
     return _planar_free_boundary_measurement_failure(
       MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONDITION_FAILURE,
@@ -10931,6 +11454,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         'planar free-boundary result did not retain its downstream condition'
       ),
     )
+  ####
 
   request_verified = bool(
     field.boundary == boundary
@@ -10950,6 +11474,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         'terminal, supersonic patch, and control-section seams'
       ),
     )
+  ####
 
   try:
     independent_boundary = validate_mixed_regime_boundary(
@@ -10970,6 +11495,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       control_section_verified=control_section_verified,
       message=f'scalar perimeter could not be independently remeasured: {error}',
     )
+  ####
   boundary_verified = independent_boundary.converged
   if not boundary_verified:
     return _planar_free_boundary_measurement_failure(
@@ -10983,6 +11509,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         f'{independent_boundary.message}'
       ),
     )
+  ####
 
   def same_points(
     first: Sequence[tuple[float, float]],
@@ -10996,6 +11523,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         for left, right in zip(first, second, strict=True)
       )
     )
+  ####
 
   shape_geometry_verified = False
   expected_points: tuple[tuple[float, float], ...] = ()
@@ -11007,6 +11535,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       raise ValueError(
         'shape_heights_m does not match free_boundary_sample_count'
       )
+    ####
     segment_length = result.downstream_length_m / sample_count
     free_ascending = tuple(
       (
@@ -11049,6 +11578,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
     )
   except (ArithmeticError, FloatingPointError, IndexError, TypeError, ValueError):
     shape_geometry_verified = False
+  ####
   if not shape_geometry_verified:
     return _planar_free_boundary_measurement_failure(
       MocMixedRegimePlanarFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
@@ -11061,6 +11591,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         'terminal/centerline/envelope perimeter'
       ),
     )
+  ####
 
   free_start_index = 1 + result.centerline_sample_count
   expected_condition_edges = tuple(
@@ -11101,6 +11632,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         'free-boundary geometry or selected condition edges'
       ),
     )
+  ####
 
   try:
     independent_condition = validate_mixed_regime_downstream_condition(
@@ -11124,6 +11656,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       shape_geometry_verified=shape_geometry_verified,
       message=f'downstream condition could not be independently remeasured: {error}',
     )
+  ####
   downstream_condition_verified = bool(
     independent_condition.converged
     and condition.converged
@@ -11154,6 +11687,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         f'check: {independent_condition.message}'
       ),
     )
+  ####
 
   try:
     potential_measurement = measure_mixed_regime_compressible_potential_field(
@@ -11183,6 +11717,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       ),
       message=f'independent potential measurement failed: {error}',
     )
+  ####
   topology = potential_measurement.topology
   field_measurement_verified = bool(
     potential_measurement.converged
@@ -11215,6 +11750,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         f'local gates: {potential_measurement.message}'
       ),
     )
+  ####
 
   independent_residual = (
     potential_measurement.maximum_boundary_normal_velocity_residual
@@ -11235,6 +11771,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
       and abs(actual - expected)
       <= residual_tolerance * max(1.0, abs(actual), abs(expected))
     )
+  ####
 
   free_boundary_residual_verified = bool(
     len(stored_residuals) == result.free_boundary_sample_count - 1
@@ -11293,6 +11830,7 @@ def measure_mixed_regime_planar_free_boundary_reference(
         f'normal_residual={free_boundary_residual_verified}'
       ),
     )
+  ####
   return _planar_free_boundary_measurement_failure(
     MocMixedRegimePlanarFreeBoundaryMeasurementStatus.CONVERGED,
     result=result,
@@ -11378,6 +11916,7 @@ def _planar_free_boundary_mesh_area(
   field = result.field
   if field is None or not field.cells:
     return None
+  ####
   try:
     area = fsum(
       abs(_polygon_area(_cell_vertices(cell)))
@@ -11385,6 +11924,7 @@ def _planar_free_boundary_mesh_area(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     return None
+  ####
   return area if isfinite(area) and area > 0.0 else None
 ####
 
@@ -11396,8 +11936,10 @@ def _planar_free_boundary_resampled_shape(
   shape = tuple(result.shape_heights_m)
   if len(shape) < 2 or sample_count < 2:
     return None
+  ####
   if any(not isfinite(value) for value in shape):
     return None
+  ####
   values: list[float] = []
   last_index = len(shape) - 1
   for index in range(sample_count):
@@ -11407,6 +11949,7 @@ def _planar_free_boundary_resampled_shape(
     values.append(
       shape[lower] + fraction * (shape[lower + 1] - shape[lower])
     )
+  ####
   return tuple(values)
 ####
 
@@ -11454,6 +11997,8 @@ def measure_mixed_regime_planar_free_boundary_refinement(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   try:
     items = tuple(cases)
   except TypeError:
@@ -11461,11 +12006,13 @@ def measure_mixed_regime_planar_free_boundary_refinement(
       MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
       'refinement cases must be iterable',
     )
+  ####
   if len(items) < 2:
     return _planar_free_boundary_refinement_failure(
       MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
       'at least two planar free-boundary refinement cases are required',
     )
+  ####
   if any(
     not isinstance(case, MocMixedRegimePlanarFreeBoundaryRefinementCase)
     for case in items
@@ -11475,6 +12022,7 @@ def measure_mixed_regime_planar_free_boundary_refinement(
       'refinement cases must contain planar free-boundary refinement cases',
       cases=items,
     )
+  ####
   resolutions = tuple(case.resolution for case in items)
   resolution_order_verified = all(
     right > left
@@ -11486,6 +12034,7 @@ def measure_mixed_regime_planar_free_boundary_refinement(
       'refinement resolutions must be strictly increasing from coarse to fine',
       cases=items,
     )
+  ####
 
   results = tuple(case.result for case in items)
   measurements = tuple(
@@ -11534,12 +12083,14 @@ def measure_mixed_regime_planar_free_boundary_refinement(
   def _consistent_float(values: Sequence[float]) -> bool:
     if not values:
       return False
+    ####
     reference = float(values[0])
     return all(
       abs(float(value) - reference)
       <= 1.0e-12 * max(1.0, abs(float(value)), abs(reference))
       for value in values[1:]
     )
+  ####
 
   request_consistent = all(
     result.request == results[0].request
@@ -11650,6 +12201,7 @@ def measure_mixed_regime_planar_free_boundary_refinement(
       'one or more planar free-boundary cases failed independent measurement',
       **common,
     )
+  ####
   if not (
     resolution_metadata_verified
     and request_consistent
@@ -11663,6 +12215,7 @@ def measure_mixed_regime_planar_free_boundary_refinement(
       'parameters while increasing the free-boundary resolution',
       **common,
     )
+  ####
   if not refinement_convergence_verified:
     return _planar_free_boundary_refinement_failure(
       MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.SENSITIVITY_FAILURE,
@@ -11670,6 +12223,7 @@ def measure_mixed_regime_planar_free_boundary_refinement(
       'sensitivity exceeded the declared tolerances',
       **common,
     )
+  ####
   return MocMixedRegimePlanarFreeBoundaryRefinementMeasurement(
     status=MocMixedRegimePlanarFreeBoundaryRefinementMeasurementStatus.CONVERGED,
     cases=items,
@@ -11715,6 +12269,7 @@ def _free_boundary_area_ratio_measurement(mach: float, gamma: float) -> float:
     or mach >= 1.0
   ):
     raise ValueError('free-boundary measurement requires a strict subsonic Mach')
+  ####
   factor = 2.0 / (gamma + 1.0) * (
     1.0 + 0.5 * (gamma - 1.0) * mach * mach
   )
@@ -11728,6 +12283,7 @@ def _free_boundary_mach_from_area_measurement(
 ) -> float:
   if not isfinite(float(area_ratio)) or area_ratio < 1.0:
     raise ValueError('free-boundary area ratio must be finite and at least one')
+  ####
   lower = 1.0e-10
   upper = 1.0 - 1.0e-10
   for _ in range(80):
@@ -11736,6 +12292,8 @@ def _free_boundary_mach_from_area_measurement(
       lower = midpoint
     else:
       upper = midpoint
+    ####
+  ####
   return 0.5 * (lower + upper)
 ####
 
@@ -11886,6 +12444,7 @@ def measure_mixed_regime_free_boundary_reference(
       MocMixedRegimeFreeBoundaryMeasurementStatus.INVALID_INPUT,
       message='result must be a MocMixedRegimeFreeBoundaryResult',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -11900,6 +12459,8 @@ def measure_mixed_regime_free_boundary_reference(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   expected_model = 'solver-owned-quasi-1d-ambient-free-boundary-reference'
   expected_field_model = 'solver-owned-subsonic-free-boundary-reference'
   supported_result_models = {
@@ -11917,6 +12478,7 @@ def measure_mixed_regime_free_boundary_reference(
         f'received {result.model!r}'
       ),
     )
+  ####
   integrated_flux_mode = (
     result.model == 'solver-owned-control-section-flux-quasi-1d-reference'
   )
@@ -11934,6 +12496,7 @@ def measure_mixed_regime_free_boundary_reference(
       result=result,
       message='free-boundary result did not retain its scalar boundary',
     )
+  ####
   if not isinstance(field, MocMixedRegimeFieldResult):
     return _free_boundary_measurement_failure(
       MocMixedRegimeFreeBoundaryMeasurementStatus.FIELD_FAILURE,
@@ -11941,12 +12504,14 @@ def measure_mixed_regime_free_boundary_reference(
       boundary_verified=False,
       message='free-boundary result did not retain a scalar field',
     )
+  ####
   if not isinstance(specification, MocMixedRegimeDownstreamPerimeterSpec):
     return _free_boundary_measurement_failure(
       MocMixedRegimeFreeBoundaryMeasurementStatus.GEOMETRY_FAILURE,
       result=result,
       message='free-boundary result did not retain its generated perimeter specification',
     )
+  ####
   request = result.request
   if result.control_section is not None:
     try:
@@ -11966,6 +12531,7 @@ def measure_mixed_regime_free_boundary_reference(
         control_section_flux_verified=(False if integrated_flux_mode else None),
         message=f'control section could not be independently remeasured: {error}',
       )
+    ####
     cached_control_section_verified = bool(
       result.control_section_validation == independent_control_section
     )
@@ -11989,6 +12555,7 @@ def measure_mixed_regime_free_boundary_reference(
             'gamma or its control-section validation'
           ),
         )
+      ####
       terminal_flux = request.terminal_downstream_total_pressure_Pa * (
         _free_boundary_mass_flux_measurement(
           request.terminal_downstream_mach,
@@ -12025,6 +12592,7 @@ def measure_mixed_regime_free_boundary_reference(
         and independent_control_section.maximum_terminal_state_residual
         <= state_tolerance
       )
+    ####
   elif integrated_flux_mode:
     return _free_boundary_measurement_failure(
       MocMixedRegimeFreeBoundaryMeasurementStatus.TERMINAL_FAILURE,
@@ -12033,6 +12601,7 @@ def measure_mixed_regime_free_boundary_reference(
       control_section_flux_verified=False,
       message='integrated-flux free-boundary result did not retain its control section',
     )
+  ####
   request_verified = bool(
     field.boundary == boundary
     and boundary.terminal == request.terminal
@@ -12046,6 +12615,7 @@ def measure_mixed_regime_free_boundary_reference(
       request_verified=False,
       message='free-boundary field does not retain the exact requested terminal seam',
     )
+  ####
   try:
     independent_boundary = validate_mixed_regime_boundary(
       request.terminal,
@@ -12064,6 +12634,7 @@ def measure_mixed_regime_free_boundary_reference(
       request_verified=request_verified,
       message=f'free-boundary scalar seam could not be remeasured: {error}',
     )
+  ####
   boundary_verified = independent_boundary.converged
   if not boundary_verified:
     return _free_boundary_measurement_failure(
@@ -12076,6 +12647,7 @@ def measure_mixed_regime_free_boundary_reference(
         f'{independent_boundary.message}'
       ),
     )
+  ####
   pressure_scale = max(1.0, abs(result.ambient_pressure_Pa))
   perimeter_spec_verified = bool(
     specification.model == expected_model
@@ -12097,6 +12669,7 @@ def measure_mixed_regime_free_boundary_reference(
       boundary_verified=boundary_verified,
       message='free-boundary perimeter specification does not match the returned boundary',
     )
+  ####
   try:
     independent_condition = validate_mixed_regime_downstream_condition(
       independent_boundary,
@@ -12117,6 +12690,7 @@ def measure_mixed_regime_free_boundary_reference(
       boundary_verified=boundary_verified,
       message=f'free-boundary condition could not be remeasured: {error}',
     )
+  ####
   downstream_condition_verified = bool(
     isinstance(condition, MocMixedRegimeDownstreamConditionResult)
     and condition.boundary == boundary
@@ -12136,6 +12710,7 @@ def measure_mixed_regime_free_boundary_reference(
       free_boundary_tangent_residual_rad=independent_condition.maximum_tangent_residual_rad,
       message='free-boundary condition did not pass independent condition measurement',
     )
+  ####
 
   points = boundary.perimeter_points_m
   samples = boundary.subsonic_samples
@@ -12153,6 +12728,7 @@ def measure_mixed_regime_free_boundary_reference(
     upstream_state = request.terminal.upstream_state
     if not isinstance(upstream_state, CharacteristicState):
       raise ValueError('terminal upstream state is not a CharacteristicState')
+    ####
     gamma = upstream_state.gamma
     total_pressure = request.terminal_downstream_total_pressure_Pa
     ambient_mach_squared = 2.0 / (gamma - 1.0) * (
@@ -12175,6 +12751,7 @@ def measure_mixed_regime_free_boundary_reference(
     )
     if result.target_outlet_height_m is None or result.outlet_height_m is None:
       raise ValueError('free-boundary result did not retain its outlet height')
+    ####
     height_residual_m = abs(
       result.target_outlet_height_m - expected_target_height
     )
@@ -12244,6 +12821,7 @@ def measure_mixed_regime_free_boundary_reference(
     )
     if result.outlet_height_m <= 0.0:
       raise ValueError('free-boundary result returned a nonpositive outlet height')
+    ####
     expected_centerline = (x0 + result.downstream_length_m, y0)
     expected_outer = (
       expected_centerline[0],
@@ -12266,10 +12844,12 @@ def measure_mixed_regime_free_boundary_reference(
           - (point[0] - x0) * result.outlet_height_m
         ) / geometry_scale
       )
+    ####
     free_boundary_geometry_residual_m = max(geometry_residuals)
   except (ArithmeticError, FloatingPointError, IndexError, TypeError, ValueError):
     scalar_root_verified = False
     mass_flow_verified = False
+  ####
 
   try:
     topology = validate_moc_mesh(
@@ -12292,6 +12872,7 @@ def measure_mixed_regime_free_boundary_reference(
     maximum_thermodynamic_residual = None
     maximum_harmonic_residual = None
     maximum_velocity_divergence_residual = None
+  ####
   finite_nodes = all(
     isinstance(sample, MocMixedRegimeFieldSample)
     and all(isfinite(float(value)) for value in (
@@ -12406,6 +12987,7 @@ def measure_mixed_regime_free_boundary_reference(
         f'condition_residuals={condition_residuals_verified}'
       ),
     )
+  ####
   return _free_boundary_measurement_failure(
     MocMixedRegimeFreeBoundaryMeasurementStatus.CONVERGED,
     result=result,
@@ -12546,6 +13128,8 @@ def measure_mixed_regime_free_boundary_refinement(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   try:
     items = tuple(cases)
   except TypeError:
@@ -12553,11 +13137,13 @@ def measure_mixed_regime_free_boundary_refinement(
       MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
       'refinement cases must be iterable',
     )
+  ####
   if len(items) < 2:
     return _free_boundary_refinement_failure(
       MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
       'at least two free-boundary refinement cases are required',
     )
+  ####
   if any(
     not isinstance(case, MocMixedRegimeFreeBoundaryRefinementCase)
     for case in items
@@ -12568,6 +13154,7 @@ def measure_mixed_regime_free_boundary_refinement(
       'MocMixedRegimeFreeBoundaryRefinementCase values',
       cases=items,
     )
+  ####
   resolutions = tuple(case.resolution for case in items)
   resolution_order_verified = all(
     right > left
@@ -12579,6 +13166,7 @@ def measure_mixed_regime_free_boundary_refinement(
       'refinement resolutions must be strictly increasing from coarse to fine',
       cases=items,
     )
+  ####
 
   measurements = tuple(
     measure_mixed_regime_free_boundary_reference(
@@ -12638,12 +13226,14 @@ def measure_mixed_regime_free_boundary_refinement(
   def _consistent_float(values: Sequence[float]) -> bool:
     if not values:
       return False
+    ####
     reference = float(values[0])
     return all(
       abs(float(value) - reference)
       <= 1.0e-12 * max(1.0, abs(float(value)), abs(reference))
       for value in values[1:]
     )
+  ####
 
   models = tuple(result.model for result in results)
   ambient_pressures = tuple(result.ambient_pressure_Pa for result in results)
@@ -12693,6 +13283,7 @@ def measure_mixed_regime_free_boundary_refinement(
     )
   else:
     outlet_height_delta_residuals = ()
+  ####
   refinement_convergence_verified = bool(
     case_measurements_verified
     and scalar_root_verified
@@ -12732,6 +13323,7 @@ def measure_mixed_regime_free_boundary_refinement(
       'one or more free-boundary cases failed independent measurement',
       **common,
     )
+  ####
   if not (
     request_consistent
     and solver_parameters_consistent
@@ -12744,6 +13336,7 @@ def measure_mixed_regime_free_boundary_refinement(
       'while increasing the returned perimeter resolution',
       **common,
     )
+  ####
   if not refinement_convergence_verified:
     return _free_boundary_refinement_failure(
       MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.SENSITIVITY_FAILURE,
@@ -12751,6 +13344,7 @@ def measure_mixed_regime_free_boundary_refinement(
       'declared refinement tolerances',
       **common,
     )
+  ####
   return MocMixedRegimeFreeBoundaryRefinementMeasurement(
     status=MocMixedRegimeFreeBoundaryRefinementMeasurementStatus.CONVERGED,
     cases=items,
@@ -12794,8 +13388,11 @@ def _terminal_shock_x_at_y(
     if low - position_tolerance_m <= ordinate <= high + position_tolerance_m:
       if abs(second[1] - first[1]) <= position_tolerance_m:
         return 0.5 * (first[0] + second[0])
+      ####
       fraction = (ordinate - first[1]) / (second[1] - first[1])
       return first[0] + fraction * (second[0] - first[0])
+    ####
+  ####
   return None
 ####
 
@@ -12811,6 +13408,7 @@ def _terminal_shock_coverage(
 
   if len(shock_points) < 2:
     return 0, False, None
+  ####
   edge_counts: dict[tuple[tuple[int, int], tuple[int, int]], int] = {}
   edge_points: dict[
     tuple[tuple[int, int], tuple[int, int]],
@@ -12828,6 +13426,8 @@ def _terminal_shock_coverage(
       )
       edge_counts[edge] = edge_counts.get(edge, 0) + 1
       edge_points.setdefault(edge, (first, second))
+    ####
+  ####
   target_low = min(point[1] for point in shock_points)
   target_high = max(point[1] for point in shock_points)
   covered_edges: list[tuple[float, float]] = []
@@ -12835,11 +13435,13 @@ def _terminal_shock_coverage(
   for edge, count in edge_counts.items():
     if count != 1:
       continue
+    ####
     first, second = edge_points[edge]
     low = min(first[1], second[1])
     high = max(first[1], second[1])
     if high < target_low - position_tolerance_m or low > target_high + position_tolerance_m:
       continue
+    ####
     ordinates = [
       first[1],
       second[1],
@@ -12856,6 +13458,7 @@ def _terminal_shock_coverage(
       else:
         fraction = (ordinate - first[1]) / (second[1] - first[1])
         edge_x = first[0] + fraction * (second[0] - first[0])
+      ####
       shock_x = _terminal_shock_x_at_y(
         shock_points,
         ordinate,
@@ -12864,10 +13467,14 @@ def _terminal_shock_coverage(
       if shock_x is None:
         edge_residual = float('inf')
         break
+      ####
       edge_residual = max(edge_residual, abs(edge_x - shock_x))
+    ####
     if edge_residual <= position_tolerance_m:
       covered_edges.append((low, high))
       residuals.append(edge_residual)
+    ####
+  ####
   covered_edges.sort()
   merged: list[tuple[float, float]] = []
   for low, high in covered_edges:
@@ -12875,6 +13482,8 @@ def _terminal_shock_coverage(
       merged[-1] = (merged[-1][0], max(merged[-1][1], high))
     else:
       merged.append((low, high))
+    ####
+  ####
   covered = bool(merged) and (
     merged[0][0] <= target_low + position_tolerance_m
     and merged[-1][1] >= target_high - position_tolerance_m
@@ -12914,6 +13523,7 @@ def measure_moc_terminal_closure(
       MocTerminalClosureMeasurementStatus.INVALID_INPUT,
       message='observation must be a MocTerminalClosureObservation',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('axis_tolerance_m', axis_tolerance_m),
@@ -12928,12 +13538,15 @@ def measure_moc_terminal_closure(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   field = observation.terminal_field
   if not isinstance(field, MocTerminalShockCellFieldResult):
     return _terminal_measurement_failure(
       MocTerminalClosureMeasurementStatus.INVALID_INPUT,
       message='terminal_field must be a MocTerminalShockCellFieldResult',
     )
+  ####
   terminal_field_status = field.status.value
   closure = observation.mixed_regime_closure
   mixed_regime_status = (
@@ -12955,6 +13568,7 @@ def measure_moc_terminal_closure(
       mixed_regime_status=mixed_regime_status,
       message=f'terminal supersonic mesh could not be measured: {error}',
     )
+  ####
   supersonic_node_count = len(field.nodes)
   supersonic_cell_count = len(field.cells)
   try:
@@ -12972,6 +13586,7 @@ def measure_moc_terminal_closure(
       supersonic_cell_count=supersonic_cell_count,
       message=str(error),
     )
+  ####
   try:
     terminal_shock_edge_count, shock_boundary_edges_verified, _shock_residual = (
       _terminal_shock_coverage(
@@ -12987,6 +13602,7 @@ def measure_moc_terminal_closure(
     edge_error = str(error)
   else:
     edge_error = ''
+  ####
   terminal = field.terminal_normal_shock
   terminal_normal_shock_verified = False
   terminal_ratio: float | None = None
@@ -13053,6 +13669,8 @@ def measure_moc_terminal_closure(
           terminal.shock_point_m[1] - shock_points[-1][1],
         ) <= position_tolerance_m
       )
+    ####
+  ####
   upstream_states = field.terminal_shock_upstream_states
   upstream_pressures = field.terminal_shock_upstream_pressure_Pa
   patch = field.terminal_shock_supersonic_downstream_states
@@ -13084,9 +13702,12 @@ def measure_moc_terminal_closure(
       if not isinstance(state, CharacteristicState) or not isfinite(float(pressure)) or pressure <= 0.0:
         pressure_samples_valid = False
         break
+      ####
       upstream_total_residuals.append(
         _state_total_pressure(state, float(pressure))
       )
+    ####
+  ####
   patch_types_valid = all(
     isinstance(sample, MocPostShockBoundaryState)
     for sample in patch
@@ -13132,6 +13753,7 @@ def measure_moc_terminal_closure(
   )
   if terminal_ratio is not None:
     ratios = (*ratios, terminal_ratio)
+  ####
   minimum_ratio = min(ratios) if ratios else None
   maximum_ratio = max(ratios) if ratios else None
   mixed_regime_topology = _empty_topology()
@@ -13172,10 +13794,12 @@ def measure_moc_terminal_closure(
       mixed_regime_request_verified = closure.request == expected_request
     except (TypeError, ValueError) as error:
       mixed_messages.append(f'mixed-regime terminal request could not be checked: {error}')
+    ####
     if not mixed_regime_request_verified:
       mixed_messages.append(
         'mixed-regime closure request does not retain the exact terminal seam'
       )
+    ####
     mixed_field = closure.field
     if not isinstance(mixed_field, MocMixedRegimeFieldResult):
       mixed_messages.append(
@@ -13192,6 +13816,7 @@ def measure_moc_terminal_closure(
         )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         mixed_messages.append(f'mixed-regime mesh could not be measured: {error}')
+      ####
       try:
         mixed_cells_geometry_valid = bool(mixed_field.cells) and all(
           len(_cell_vertices(cell)) == 3
@@ -13199,6 +13824,7 @@ def measure_moc_terminal_closure(
         )
       except (AttributeError, TypeError, ValueError):
         mixed_cells_geometry_valid = False
+      ####
       samples_valid = all(
         isinstance(sample, MocMixedRegimeFieldSample)
         and all(isfinite(float(value)) for value in (
@@ -13225,12 +13851,15 @@ def measure_moc_terminal_closure(
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         independent_boundary = None
         mixed_messages.append(f'mixed-regime scalar seam could not be measured: {error}')
+      ####
       if independent_boundary is not None:
         mixed_regime_boundary_verified = independent_boundary.converged
+      ####
       if not mixed_regime_boundary_verified:
         mixed_messages.append(
           'mixed-regime scalar perimeter did not pass an independent seam check'
         )
+      ####
       maximum_thermodynamic_residual = _mixed_field_thermodynamic_residual(
         mixed_field.nodes,
       )
@@ -13272,6 +13901,7 @@ def measure_moc_terminal_closure(
           mixed_messages.append(
             f'independent potential reference measurement failed: {error}'
           )
+        ####
         if potential_measurement is not None:
           mixed_regime_potential_model_verified = (
             potential_measurement.reference_model_verified
@@ -13289,6 +13919,7 @@ def measure_moc_terminal_closure(
             common_model_gates
             and potential_measurement.reference_model_verified
           )
+        ####
       elif mixed_field.model == 'solver-owned-subsonic-free-boundary-reference':
         pressure_scale = max(
           1.0,
@@ -13327,10 +13958,12 @@ def measure_moc_terminal_closure(
           and maximum_velocity_divergence_residual is not None
           and maximum_velocity_divergence_residual <= residual_tolerance
         )
+      ####
       if not mixed_regime_model_verified:
         mixed_messages.append(
           'mixed-regime reference mesh or independently recomputed residuals failed'
         )
+      ####
       condition = mixed_field.downstream_condition
       if (
         independent_boundary is not None
@@ -13354,6 +13987,8 @@ def measure_moc_terminal_closure(
               'independent pressure-condition verification requires the '
               'explicit perimeter ambient pressure'
             )
+          ####
+        ####
         if (
           condition.condition_kind is MocMixedRegimeDownstreamConditionKind.SLIP_WALL
           or ambient_pressure is not None
@@ -13369,10 +14004,15 @@ def measure_moc_terminal_closure(
           downstream_condition_verified = bool(
             condition.converged and independent_condition.converged
           )
+        ####
+      ####
       if not downstream_condition_verified:
         mixed_messages.append(
           'mixed-regime downstream condition did not pass an independent check'
         )
+      ####
+    ####
+  ####
   physical_closure_verified = bool(
     field.converged
     and supersonic_topology.connected
@@ -13417,6 +14057,7 @@ def measure_moc_terminal_closure(
       'independent geometry, topology, seam, pressure, and residual checks; '
       'the result remains a terminal stop and is not a production validation claim'
     )
+  ####
   return _terminal_measurement_failure(
     status,
     terminal_field_status=terminal_field_status,
@@ -13551,6 +14192,7 @@ def _caustic_state_matches(
     CharacteristicState,
   ):
     return False
+  ####
   return (
     abs(actual.x_m - expected.x_m) <= position_tolerance_m
     and abs(actual.y_m - expected.y_m) <= position_tolerance_m
@@ -13586,6 +14228,7 @@ def _pressure_matches(
 ) -> bool:
   if not isinstance(actual, (int, float)) or not isinstance(expected, (int, float)):
     return False
+  ####
   actual_value = float(actual)
   expected_value = float(expected)
   return (
@@ -13636,6 +14279,7 @@ def measure_moc_caustic_remesh(
       MocCausticRemeshMeasurementStatus.INVALID_INPUT,
       message='observation must be a MocCausticRemeshObservation',
     )
+  ####
   for name, value in (
     ('target_centerline_y_m', target_centerline_y_m),
     ('position_tolerance_m', position_tolerance_m),
@@ -13649,13 +14293,17 @@ def measure_moc_caustic_remesh(
     if name == 'target_centerline_y_m':
       if not isfinite(float(value)):
         raise ValueError(f'{name} must be finite')
+      ####
     elif not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isinstance(branch, ShockBranch):
     return _caustic_remesh_measurement_failure(
       MocCausticRemeshMeasurementStatus.INVALID_INPUT,
       message='branch must be a ShockBranch',
     )
+  ####
 
   remesh = observation.remesh_result
   if not isinstance(remesh, MocCausticShockRemeshResult):
@@ -13663,6 +14311,7 @@ def measure_moc_caustic_remesh(
       MocCausticRemeshMeasurementStatus.INVALID_INPUT,
       message='remesh_result must be a MocCausticShockRemeshResult',
     )
+  ####
   remesh_status = getattr(remesh.status, 'value', str(remesh.status))
   bridge = observation.upstream_bridge
   if bridge is not None and not isinstance(bridge, MocCausticUpstreamBridge):
@@ -13671,6 +14320,7 @@ def measure_moc_caustic_remesh(
       remesh_status=remesh_status,
       message='upstream_bridge must be a MocCausticUpstreamBridge when supplied',
     )
+  ####
   expected_handoff: tuple[MocChainBoundarySample, ...] | None = None
   incoming_handoff_verified: bool | None = None
   raw_handoff = observation.incoming_handoff
@@ -13683,6 +14333,7 @@ def measure_moc_caustic_remesh(
         remesh_status=remesh_status,
         message='incoming_handoff must be an iterable of MocChainBoundarySample values',
       )
+    ####
     if len(expected_handoff) < 3 or any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in expected_handoff
@@ -13697,7 +14348,9 @@ def measure_moc_caustic_remesh(
           'MocChainBoundarySample values'
         ),
       )
+    ####
     incoming_handoff_verified = False
+  ####
   request = remesh.request
   if not isinstance(request, MocCausticShockRemeshRequest):
     return _caustic_remesh_measurement_failure(
@@ -13705,6 +14358,7 @@ def measure_moc_caustic_remesh(
       remesh_status=remesh_status,
       message='caustic remesh result does not carry a request',
     )
+  ####
   event_point: Point | None = None
   try:
     raw_event_point = request.event_point_m
@@ -13712,6 +14366,7 @@ def measure_moc_caustic_remesh(
       isfinite(float(value)) for value in raw_event_point
     ):
       raise ValueError('event point must contain two finite coordinates')
+    ####
     event_point = (float(raw_event_point[0]), float(raw_event_point[1]))
   except (AttributeError, TypeError, ValueError) as error:
     return _caustic_remesh_measurement_failure(
@@ -13719,6 +14374,7 @@ def measure_moc_caustic_remesh(
       remesh_status=remesh_status,
       message=f'caustic remesh request event point could not be read: {error}',
     )
+  ####
 
   event_point_verified = bool(
     remesh.event_point_m is not None
@@ -13736,6 +14392,7 @@ def measure_moc_caustic_remesh(
       event_point_verified=event_point_verified,
       message='caustic remesh result does not carry a free-boundary shock result',
     )
+  ####
   shock_sample_count = len(shock.shock_points_m)
   try:
     shock_points = tuple(
@@ -13744,11 +14401,13 @@ def measure_moc_caustic_remesh(
     )
     if not shock_points:
       raise ValueError('caustic shock boundary requires at least one point')
+    ####
     if any(
       not all(isfinite(coordinate) for coordinate in point)
       for point in shock_points
     ):
       raise ValueError('caustic shock boundary points must be finite')
+    ####
   except ValueError as error:
     return _caustic_remesh_measurement_failure(
       MocCausticRemeshMeasurementStatus.SHOCK_FAILURE,
@@ -13758,6 +14417,7 @@ def measure_moc_caustic_remesh(
       event_point_verified=event_point_verified,
       message=str(error),
     )
+  ####
 
   arrays_aligned = len(shock_points) == len(shock.upstream_states) == len(
     shock.upstream_pressure_Pa
@@ -13836,6 +14496,7 @@ def measure_moc_caustic_remesh(
       ) > position_tolerance_m
     ):
       bridge_path.append(shock.failed_point_m)
+    ####
     try:
       bridge_audit = sample_caustic_upstream_bridge(
         bridge,
@@ -13872,6 +14533,7 @@ def measure_moc_caustic_remesh(
         if not upstream_bridge_verified
         else ''
       )
+    ####
     if not upstream_bridge_verified:
       return _caustic_remesh_measurement_failure(
         MocCausticRemeshMeasurementStatus.UPSTREAM_FAILURE,
@@ -13899,6 +14561,8 @@ def measure_moc_caustic_remesh(
         upstream_bridge_verified=False,
         message=bridge_message,
       )
+    ####
+  ####
 
   refit: MocShockBoundaryFitResult | None = None
   refit_message = ''
@@ -13915,8 +14579,11 @@ def measure_moc_caustic_remesh(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       refit_message = f'independent attached-shock refit raised: {error}'
+    ####
+  ####
   if refit is not None:
     refit_message = refit.message
+  ####
   shock_fit_sample_count = 0 if refit is None else len(refit.boundary_states)
   reported_fit = shock.shock_fit
   reported_fit_consistent = bool(
@@ -13983,9 +14650,11 @@ def measure_moc_caustic_remesh(
           boundary.downstream_total_pressure_Pa
           / boundary.upstream_total_pressure_Pa
         )
+      ####
     except (ArithmeticError, FloatingPointError, TypeError, ValueError, ZeroDivisionError):
       pressure_consistent = False
       ratio_values = []
+    ####
     ratios = tuple(ratio_values)
     shock_pressure_loss_verified = bool(
       shock_fit_verified
@@ -13995,6 +14664,7 @@ def measure_moc_caustic_remesh(
     )
   else:
     shock_pressure_loss_verified = False
+  ####
   maximum_shock_angle_residual_rad = (
     None
     if refit is None
@@ -14025,6 +14695,7 @@ def measure_moc_caustic_remesh(
         pressure_tolerance=pressure_tolerance,
       )
     )
+  ####
 
   field = shock.field
   field_topology = _empty_topology()
@@ -14033,6 +14704,7 @@ def measure_moc_caustic_remesh(
   incoming_handoff_sample_count = 0
   if expected_handoff is not None:
     incoming_handoff_sample_count = len(expected_handoff)
+  ####
   field_boundary_verified = False
   field_state_carry_verified = False
   field_residuals_verified = False
@@ -14044,6 +14716,7 @@ def measure_moc_caustic_remesh(
     field_cell_count = len(field.cells)
     if expected_handoff is None:
       incoming_handoff_sample_count = len(field.incoming_handoff_states)
+    ####
     try:
       field_topology = validate_moc_mesh(
         field.cells,
@@ -14057,6 +14730,7 @@ def measure_moc_caustic_remesh(
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       field_topology = _empty_topology()
       field_topology_verified = False
+    ####
     try:
       field_shock_points = _points(
         field.shock_boundary_points_m,
@@ -14110,6 +14784,7 @@ def measure_moc_caustic_remesh(
       )
     except (AttributeError, TypeError, ValueError):
       field_boundary_verified = False
+    ####
 
     if refit is not None and refit.converged:
       incoming_handoff_matches = (
@@ -14140,6 +14815,7 @@ def measure_moc_caustic_remesh(
       )
       if expected_handoff is not None:
         incoming_handoff_verified = bool(incoming_handoff_matches)
+      ####
       field_state_carry_verified = bool(
         len(field.shock_boundary_states) == len(refit.boundary_states)
         and len(field.shock_boundary_total_pressure_Pa) == len(refit.boundary_states)
@@ -14207,6 +14883,7 @@ def measure_moc_caustic_remesh(
           for pressure in field.continuation_boundary_total_pressure_Pa
         )
       )
+    ####
 
     geometry_residuals: list[float] = []
     invariant_residuals: list[float] = []
@@ -14250,11 +14927,13 @@ def measure_moc_caustic_remesh(
       )
       if geometry_residual is not None and isfinite(float(geometry_residual)):
         geometry_residuals.append(abs(float(geometry_residual)))
+      ####
       invariant_residuals.extend(
         abs(float(value))
         for value in invariant_values
         if value is not None and isfinite(float(value))
       )
+    ####
     maximum_field_geometry_residual_m = max(geometry_residuals, default=None)
     maximum_field_invariant_residual = max(invariant_residuals, default=None)
     reported_geometry_residual = field.maximum_geometry_residual_m
@@ -14278,6 +14957,7 @@ def measure_moc_caustic_remesh(
     field_residuals_verified = bool(
       node_data_verified and reported_residuals_verified
     )
+  ####
 
   downstream_field_verified = bool(
     isinstance(field, MocPostShockCharacteristicFieldResult)
@@ -14323,6 +15003,7 @@ def measure_moc_caustic_remesh(
       'topology, state-carry, and characteristic-residual checks; physical '
       'old/new-family and ambient closure remain separate pending gates'
     )
+  ####
   return _caustic_remesh_measurement_failure(
     status,
     remesh_status=remesh_status,
@@ -14439,6 +15120,7 @@ def measure_moc_reflected_domain_remesh(
         'remesh must be a MocReflectedDomainRemeshResult'
       ),
     )
+  ####
 
   remesh_status = getattr(remesh.status, 'value', str(remesh.status))
   result_status_verified = (
@@ -14452,6 +15134,7 @@ def measure_moc_reflected_domain_remesh(
       result_status_verified=result_status_verified,
       message='reflected-domain remesh result does not carry a request',
     )
+  ####
 
   incoming = tuple(request.incoming_trace)
   centerline = tuple(request.centerline_source_states)
@@ -14478,6 +15161,7 @@ def measure_moc_reflected_domain_remesh(
       result_status_verified=result_status_verified,
       message=f'incoming reflected trace measurement raised: {error}',
     )
+  ####
   incoming_trace_verified = incoming_validation.converged
 
   try:
@@ -14500,6 +15184,7 @@ def measure_moc_reflected_domain_remesh(
       incoming_trace_verified=incoming_trace_verified,
       message=f'reflected trace polarity measurement raised: {error}',
     )
+  ####
   incoming_trace_polarity = getattr(polarity.status, 'value', str(polarity.status))
   polarity_verified = bool(
     polarity.converged
@@ -14530,6 +15215,7 @@ def measure_moc_reflected_domain_remesh(
         pressure_tolerance=request.pressure_tolerance,
       )
     )
+  ####
 
   centerline_source_verified = bool(
     len(centerline) >= 3
@@ -14608,6 +15294,7 @@ def measure_moc_reflected_domain_remesh(
       source_topology = validate_moc_mesh(source_strip.cells)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       source_topology = _empty_topology()
+    ####
     source_topology_verified = bool(
       source_strip.converged
       and source_topology.connected
@@ -14634,6 +15321,7 @@ def measure_moc_reflected_domain_remesh(
     if not source_samples:
       sampled_states_verified = False
       sampled_pressures_verified = False
+    ####
     for state, expected_total_pressure in source_samples:
       try:
         sampled_state = source_strip.state_at(
@@ -14652,6 +15340,7 @@ def measure_moc_reflected_domain_remesh(
         sampled_state = None
         sampled_pressure = None
         sampled_total_pressure = None
+      ####
       sampled_states_verified = sampled_states_verified and bool(
         _caustic_state_matches(
           sampled_state,
@@ -14673,6 +15362,7 @@ def measure_moc_reflected_domain_remesh(
           pressure_tolerance=request.pressure_tolerance,
         )
       )
+    ####
     source_sampling_verified = bool(
       source_strip.converged
       and sampled_states_verified
@@ -14705,6 +15395,7 @@ def measure_moc_reflected_domain_remesh(
         )
       )
     )
+  ####
   total_pressure_verified = bool(
     incoming_pressure_verified and source_pressure_verified
   )
@@ -14760,6 +15451,7 @@ def measure_moc_reflected_domain_remesh(
       'source-row, pressure, topology, and sampling checks; physical closure '
       'and chain promotion remain separate pending gates'
     )
+  ####
 
   return _reflected_domain_remesh_measurement_failure(
     status,
@@ -14834,6 +15526,7 @@ def _reflected_domain_outer_source_measurement_failure(
     claim_status='independent-reflected-domain-outer-source-audit; not-accepted',
     message=message,
   )
+####
 
 
 def measure_moc_reflected_domain_outer_source_curve(
@@ -14852,6 +15545,7 @@ def measure_moc_reflected_domain_outer_source_curve(
       MocReflectedDomainOuterSourceMeasurementStatus.INVALID_INPUT,
       message='result must be a MocReflectedDomainOuterSourceResult',
     )
+  ####
 
   solver_status = getattr(result.status, 'value', str(result.status))
   centerline = tuple(result.centerline_source_states)
@@ -14997,6 +15691,7 @@ def measure_moc_reflected_domain_outer_source_curve(
       pressure_tolerance=pressure_tolerance,
       tangent_tolerance=pressure_tolerance,
     )
+  ####
   ambient_boundary_verified = bool(
     ambient_boundary is not None and ambient_boundary.converged
   )
@@ -15011,6 +15706,7 @@ def measure_moc_reflected_domain_outer_source_curve(
       position_tolerance_m=tolerance,
       invariant_tolerance=state_tolerance,
     )
+  ####
   source_topology = (
     _empty_topology()
     if recomputed_strip is None
@@ -15083,6 +15779,7 @@ def measure_moc_reflected_domain_outer_source_curve(
       'independent row, pressure, boundary, topology, and sampling checks; '
       'shock-cell closure and promotion remain pending'
     )
+  ####
 
   return _reflected_domain_outer_source_measurement_failure(
     status,
@@ -15177,6 +15874,7 @@ def measure_moc_reflected_domain_alternating_source(
       MocReflectedDomainAlternatingSourceMeasurementStatus.INVALID_INPUT,
       message='result must be a MocReflectedDomainAlternatingSourceResult',
     )
+  ####
 
   solver_status = getattr(result.status, 'value', str(result.status))
   patch = result.reflection_patch
@@ -15202,6 +15900,7 @@ def measure_moc_reflected_domain_alternating_source(
       source_sample_count=source_count,
       message='alternating source result has no valid reflection patch',
     )
+  ####
   incoming = patch.outgoing_trace_samples
   incoming_validation = validate_characteristic_trace(
     incoming,
@@ -15335,9 +16034,11 @@ def measure_moc_reflected_domain_alternating_source(
             state_tolerance=state_tolerance,
           )
         )
+      ####
       if not axis_matches:
         boundary_recomputed_verified = False
         break
+      ####
       boundary_result = solve_ambient_pressure_free_boundary_point(
         centerline[index],
         previous_outer,
@@ -15364,8 +16065,11 @@ def measure_moc_reflected_domain_alternating_source(
       boundary_recomputed_verified = boundary_recomputed_verified and boundary_matches
       if not boundary_matches:
         break
+      ####
       previous_axis = centerline[index]
       previous_outer = outer[index]
+    ####
+  ####
 
   alternating_seam_verified = bool(
     row_shape_verified
@@ -15408,8 +16112,11 @@ def measure_moc_reflected_domain_alternating_source(
             boundary_indices=(index, index + 1),
           ),
         ))
+      ####
     except (TypeError, ValueError):
       recomputed_cells = []
+    ####
+  ####
   source_topology = (
     _empty_topology()
     if not recomputed_cells
@@ -15439,6 +16146,7 @@ def measure_moc_reflected_domain_alternating_source(
       pressure_tolerance=pressure_tolerance,
       tangent_tolerance=pressure_tolerance,
     )
+  ####
   ambient_boundary_verified = bool(
     recomputed_ambient_boundary is not None
     and recomputed_ambient_boundary.converged
@@ -15475,6 +16183,8 @@ def measure_moc_reflected_domain_alternating_source(
       ) and result.state_at(
         (centerline[0].x_m, -max(1.0, 10.0 * tolerance))
       ) is None
+    ####
+  ####
 
   result_status_verified = result.status is MocReflectedDomainAlternatingSourceStatus.CONVERGED
   bounded_source_verified = bool(
@@ -15518,6 +16228,7 @@ def measure_moc_reflected_domain_alternating_source(
       'alternating C-/C+ source band passed independent trace, seam, ambient, '
       'topology, and bounded-sampling checks; shock closure and promotion remain pending'
     )
+  ####
   return _reflected_domain_alternating_source_measurement_failure(
     status,
     solver_status=solver_status,
@@ -15618,6 +16329,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
         'MocReflectedDomainAlternatingPhysicalFieldResult'
       ),
     )
+  ####
 
   solver_status = getattr(result.status, 'value', str(result.status))
   source_band = result.source_band
@@ -15636,6 +16348,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
     field_measurement = measure_moc_ambient_closed_physical_field_chain(
       (physical_field,),
     )
+  ####
 
   attachment = None if field_result is None else field_result.ambient_attachment
   shock = None if attachment is None else attachment.shock
@@ -15665,11 +16378,13 @@ def measure_moc_reflected_domain_alternating_physical_field(
     and 0 <= source_index < len(source_band.outer_source_states)
   ):
     source_state = source_band.outer_source_states[source_index]
+  ####
   if source_band is not None and source_state is not None:
     source_pressure = source_band.static_pressure_at(
       (source_state.x_m, source_state.y_m),
       position_tolerance_m=source_sampling_position_tolerance,
     )
+  ####
 
   if (
     source_band is not None
@@ -15707,6 +16422,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
         pressure_tolerance=source_band.pressure_tolerance,
       )
     )
+  ####
 
   if (
     source_band is not None
@@ -15730,6 +16446,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
             raise ValueError(
               'reflected trace and compression amplitude are required'
             )
+          ####
           compression_profile = build_reflected_trace_compression_profile(
             source_band.reflection_patch.outgoing_trace_samples,
             result.compression_amplitude_rad,
@@ -15748,6 +16465,8 @@ def measure_moc_reflected_domain_alternating_physical_field(
         except (ArithmeticError, FloatingPointError, TypeError, ValueError):
           compression_profile = None
           envelope_verified = False
+        ####
+      ####
       for index, (point, target_angle) in enumerate(zip(
         shock.shock_points_m,
         shock.downstream_flow_angles_rad,
@@ -15759,6 +16478,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
         if fraction < -1.0e-8 or fraction > 1.0 + 1.0e-8:
           envelope_verified = False
           break
+        ####
         fraction = max(0.0, min(1.0, fraction))
         if compression_profile is not None:
           try:
@@ -15766,6 +16486,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
           except (ArithmeticError, FloatingPointError, TypeError, ValueError):
             envelope_verified = False
             break
+          ####
         elif index == len(shock.shock_points_m) - 1:
           expected_angle = source_band.target_centerline_flow_angle_rad
         else:
@@ -15776,11 +16497,13 @@ def measure_moc_reflected_domain_alternating_physical_field(
           if state is None:
             envelope_verified = False
             break
+          ####
           expected_angle = state.theta_rad + float(
             result.compression_amplitude_rad
           ) * 4.0 * fraction * (1.0 - fraction) * (
             1.0 + result.compression_envelope_skew * (2.0 * fraction - 1.0)
           )
+        ####
         if abs(float(target_angle) - expected_angle) > source_band.invariant_tolerance * max(
           1.0,
           abs(float(target_angle)),
@@ -15788,6 +16511,10 @@ def measure_moc_reflected_domain_alternating_physical_field(
         ):
           envelope_verified = False
           break
+        ####
+      ####
+    ####
+  ####
 
   if (
     source_band is not None
@@ -15823,6 +16550,8 @@ def measure_moc_reflected_domain_alternating_physical_field(
           pressure_tolerance=source_band.pressure_tolerance,
         )
       )
+    ####
+  ####
 
   shock_curve_verified = bool(
     shock is not None
@@ -15843,6 +16572,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
       and physical_field.incoming_handoff_total_pressure_Pa
       == expected_incoming_pressures
     )
+  ####
   physical_field_verified = bool(
     field_measurement is not None and field_measurement.converged
   )
@@ -15894,6 +16624,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
       'shock curve, ambient-closed field, and upstream coupling passed independent '
       'measurement; canonical free-boundary validation and promotion remain pending'
     )
+  ####
   measurement = _reflected_domain_alternating_physical_field_measurement_failure(
     status,
     solver_status=solver_status,
@@ -15916,6 +16647,7 @@ def measure_moc_reflected_domain_alternating_physical_field(
   )
   if bounded_physical_field_verified:
     object.__setattr__(measurement, 'physical_closure_verified', True)
+  ####
   return measurement
 ####
 
@@ -15994,6 +16726,8 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isinstance(
     result,
     MocReflectedDomainSolverOwnedFirstCellResult,
@@ -16002,6 +16736,7 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
       MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.INVALID_INPUT,
       'result must be a MocReflectedDomainSolverOwnedFirstCellResult',
     )
+  ####
 
   endpoint_tolerance = float(endpoint_tolerance_m)
   position_tolerance = float(position_tolerance_m)
@@ -16043,6 +16778,7 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
       <= position_tolerance
       and target_state.x_m > outer_state.x_m + position_tolerance
     )
+  ####
 
   amplitude_bracket_verified = False
   bracket = result.compression_amplitude_bracket
@@ -16054,9 +16790,11 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
       and lower > 0.0
       and upper > lower
     )
+  ####
 
   def amplitude_matches(first: float, second: float) -> bool:
     return abs(first - second) <= 1.0e-12 * max(1.0, abs(first), abs(second))
+  ####
 
   trial_amplitudes_verified = bool(
     amplitude_bracket_verified
@@ -16085,6 +16823,7 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
           trial.endpoint_m is None and trial.residual_m is None
         )
         continue
+      ####
       trial_measurement = measure_moc_reflected_domain_alternating_physical_field(
         physical_field
       )
@@ -16101,6 +16840,7 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
           trial.endpoint_m is None and trial.residual_m is None
         )
         continue
+      ####
       trial_profile_verified = bool(
         abs(
           physical_field.compression_envelope_skew
@@ -16123,8 +16863,10 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
         <= endpoint_tolerance
         and abs(trial.residual_m - expected_residual) <= endpoint_tolerance
       )
+    ####
   else:
     trial_residuals_verified = False
+  ####
 
   selected_trial_verified = False
   selected_field_measurement = None
@@ -16174,6 +16916,8 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
         )
         == _alternating_source_geometry_fingerprint(source_band)
       )
+    ####
+  ####
 
   residuals = tuple(
     trial.residual_m
@@ -16249,6 +16993,7 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
   else:
     status = MocReflectedDomainSolverOwnedFirstCellMeasurementStatus.CLOSURE_FAILURE
     message = 'solver-owned endpoint outcome failed independent closure measurement'
+  ####
 
   return _reflected_domain_solver_owned_first_cell_measurement_failure(
     status,
@@ -16339,6 +17084,7 @@ def measure_moc_reflected_domain_global_shock_remesh(
 
   if not isfinite(float(endpoint_tolerance_m)) or float(endpoint_tolerance_m) <= 0.0:
     raise ValueError('endpoint_tolerance_m must be finite and positive')
+  ####
   endpoint_tolerance = float(endpoint_tolerance_m)
   if not isinstance(result, MocReflectedDomainGlobalShockRemeshResult):
     return _reflected_domain_global_shock_remesh_measurement_failure(
@@ -16346,6 +17092,7 @@ def measure_moc_reflected_domain_global_shock_remesh(
       'result must be a MocReflectedDomainGlobalShockRemeshResult',
       endpoint_tolerance_m=endpoint_tolerance,
     )
+  ####
 
   solver_status = getattr(result.status, 'value', str(result.status))
   source_band = result.source_band
@@ -16400,6 +17147,7 @@ def measure_moc_reflected_domain_global_shock_remesh(
       and first_source_fingerprint == expected_source_fingerprint
       and selected_profile_verified
     )
+  ####
 
   attempt_shape_verified = bool(
     attempt_count > 0
@@ -16423,6 +17171,7 @@ def measure_moc_reflected_domain_global_shock_remesh(
     selected_residual = measurement.selected_residual_m
     if selected_residual is not None and isfinite(selected_residual):
       residuals.append(float(selected_residual))
+    ####
     attempt_residuals_verified = attempt_residuals_verified and bool(
       measurement.trial_residuals_verified
       and measurement.selected_field_verified
@@ -16433,6 +17182,7 @@ def measure_moc_reflected_domain_global_shock_remesh(
       <= endpoint_tolerance
       and abs(attempt.residual_m - selected_residual) <= endpoint_tolerance
     )
+  ####
 
   selected_attempt_verified = False
   selected_measurement = None
@@ -16464,6 +17214,7 @@ def measure_moc_reflected_domain_global_shock_remesh(
       and abs(result.selected_residual_m)
       <= min(abs(value) for value in valid_residuals) + endpoint_tolerance
     )
+  ####
 
   global_endpoint_verified = bool(
     result.status is MocReflectedDomainGlobalShockRemeshStatus.CONVERGED_ENDPOINT
@@ -16523,6 +17274,7 @@ def measure_moc_reflected_domain_global_shock_remesh(
   else:
     status = MocReflectedDomainGlobalShockRemeshMeasurementStatus.CLOSURE_FAILURE
     message = 'global reflected-shock remesh outcome failed independent closure measurement'
+  ####
 
   return _reflected_domain_global_shock_remesh_measurement_failure(
     status,
@@ -16616,12 +17368,15 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
       raise TypeError(
         'status must be a MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus'
       )
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     if self.solver_status is not None:
       object.__setattr__(self, 'solver_status', str(self.solver_status))
+    ####
     for name in (
       'shock_sample_count',
       'field_cell_count',
@@ -16630,6 +17385,8 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     for name in (
       'source_field_verified',
       'selected_attempt_verified',
@@ -16653,6 +17410,8 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     for name in (
       'source_frontier_x_m',
       'maximum_source_frontier_state_residual',
@@ -16672,7 +17431,10 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
           name != 'source_frontier_x_m' and numeric < 0.0
         ):
           raise ValueError(f'{name} must be finite and valid when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -16698,6 +17460,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
     field_measurement_report = None
     if self.field_euler_measurement is not None:
       field_measurement_report = self.field_euler_measurement.as_report()
+    ####
     return {
       'status': self.status.value,
       'operator_id': self.operator_id,
@@ -16767,6 +17530,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _reflected_domain_global_euler_shock_boundary_measurement_failure(
@@ -16876,6 +17640,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.INVALID_INPUT,
       'global Euler shock-boundary measurement tolerances must be numeric',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (
@@ -16888,11 +17653,13 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     raise ValueError(
       'global Euler shock-boundary measurement tolerances must be finite and positive'
     )
+  ####
   if not isinstance(result, MocReflectedDomainGlobalEulerShockBoundaryResult):
     return _reflected_domain_global_euler_shock_boundary_measurement_failure(
       MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.INVALID_INPUT,
       'result must be a MocReflectedDomainGlobalEulerShockBoundaryResult',
     )
+  ####
 
   solver_status = result.status.value
   global_remesh = result.global_remesh
@@ -16913,6 +17680,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       source_measurement=source_measurement,
       source_field_verified=False,
     )
+  ####
   if source_band is None or global_remesh is None:
     return _reflected_domain_global_euler_shock_boundary_measurement_failure(
       MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.SOURCE_FAILURE,
@@ -16921,6 +17689,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       source_measurement=source_measurement,
       source_field_verified=True,
     )
+  ####
 
   selected_index = result.selected_attempt_index
   selected_attempt = None
@@ -16930,6 +17699,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     and 0 <= selected_index < len(global_remesh.attempts)
   ):
     selected_attempt = global_remesh.attempts[selected_index]
+  ####
   selected_attempt_verified = bool(
     selected_attempt is not None
     and result.selected_attempt_index == selected_index
@@ -16945,6 +17715,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       source_measurement=source_measurement,
       source_field_verified=True,
     )
+  ####
 
   selected_field = selected_attempt.first_cell_result.selected_physical_field
   candidate_field = None if selected_field is None else selected_field.field
@@ -16984,6 +17755,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       remeshed_geometry_verified=remeshed_geometry_verified,
       shock_sample_count=len(points),
     )
+  ####
 
   outer_index = selected_attempt.outer_source_index
   target_index = selected_attempt.target_centerline_index
@@ -17004,6 +17776,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       remeshed_geometry_verified=True,
       shock_sample_count=len(points),
     )
+  ####
   target_y = source_band.target_centerline_y_m
   target_theta = source_band.target_centerline_flow_angle_rad
   centerline_xs = tuple(
@@ -17120,6 +17893,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
               abs(actual_state.gamma - expected_state.gamma),
             )
           )
+        ####
         if (
           isinstance(actual_static_pressure, (int, float))
           and isinstance(expected_static_pressure, (int, float))
@@ -17129,6 +17903,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
           static_pressure_residuals.append(
             abs(float(actual_static_pressure) - float(expected_static_pressure))
           )
+        ####
         if (
           isinstance(actual_total_pressure, (int, float))
           and isinstance(expected_total_pressure, (int, float))
@@ -17138,6 +17913,8 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
           total_pressure_residuals.append(
             abs(float(actual_total_pressure) - float(expected_total_pressure))
           )
+        ####
+      ####
       maximum_source_frontier_state_residual = max(
         state_residuals,
         default=None,
@@ -17183,11 +17960,13 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
           )
         )
       )
+    ####
     upstream_sampling_verified = (
       upstream_sampling_verified and source_frontier_sampling_verified
     )
   else:
     upstream_sampling_verified = False
+  ####
 
   endpoint_tangents_verified = False
   first_residual = result.first_endpoint_tangent_residual_rad
@@ -17218,6 +17997,8 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError, ZeroDivisionError):
       endpoint_tangents_verified = False
+    ####
+  ####
 
   physical_result = result.physical_field
   physical_field = None if physical_result is None else physical_result.field
@@ -17233,6 +18014,8 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       field_euler_measurement = None
+    ####
+  ####
   shock_boundary_verified = bool(
     curve is not None
     and curve.converged
@@ -17263,6 +18046,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       <= pressure_tolerance_value
       and all(item.converged for item in march.point_results)
     )
+  ####
   physical_field_verified = bool(
     physical_result is not None
     and physical_result.converged
@@ -17378,6 +18162,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       'independent local Euler field audit passed; canonical and external '
       'promotion gates remain pending'
     )
+  ####
   return _reflected_domain_global_euler_shock_boundary_measurement_failure(
     status,
     message,
@@ -17399,6 +18184,7 @@ def _alternating_source_geometry_fingerprint(
       state.mach,
       state.gamma,
     )
+  ####
 
   seed_signature = (
     None
@@ -17485,6 +18271,8 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   try:
     items = tuple(results)
   except TypeError:
@@ -17492,11 +18280,13 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
       'results must be an iterable of alternating physical-field results',
     )
+  ####
   if not items:
     return _alternating_physical_field_chain_measurement_failure(
       MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
       'at least one alternating physical-field result is required',
     )
+  ####
   if any(
     not isinstance(item, MocReflectedDomainAlternatingPhysicalFieldResult)
     for item in items
@@ -17506,6 +18296,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       'results must contain only MocReflectedDomainAlternatingPhysicalFieldResult values',
       field_count=len(items),
     )
+  ####
 
   measurements = tuple(
     measure_moc_reflected_domain_alternating_physical_field(item)
@@ -17535,6 +18326,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       source_geometry_fingerprints=source_fingerprints,
       source_geometry_freshness_verified=source_geometry_freshness_verified,
     )
+  ####
   physical_fields = tuple(item.field for item in items)
   if any(
     not isinstance(field, MocPhysicalPostShockFieldResult)
@@ -17548,6 +18340,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       source_geometry_fingerprints=source_fingerprints,
       source_geometry_freshness_verified=source_geometry_freshness_verified,
     )
+  ####
   resolved_fields = tuple(
     field
     for field in physical_fields
@@ -17582,6 +18375,8 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       handoff_links_verified = (
         handoff_links_verified and current.incoming_handoff == expected_handoff
       )
+    ####
+  ####
 
   fresh_domain_verified = physical_field_chain_measurement.fresh_domain_verified
   physical_closure_verified = bool(
@@ -17604,6 +18399,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       handoff_links_verified=handoff_links_verified,
       fresh_domain_verified=fresh_domain_verified,
     )
+  ####
   if not source_geometry_freshness_verified:
     return _alternating_physical_field_chain_measurement_failure(
       MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.SOURCE_FRESHNESS_FAILURE,
@@ -17617,6 +18413,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       handoff_links_verified=handoff_links_verified,
       fresh_domain_verified=fresh_domain_verified,
     )
+  ####
   if handoff_links_verified is False:
     return _alternating_physical_field_chain_measurement_failure(
       MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.HANDOFF_FAILURE,
@@ -17630,6 +18427,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       handoff_links_verified=False,
       fresh_domain_verified=fresh_domain_verified,
     )
+  ####
   if not physical_field_chain_measurement.converged:
     status = (
       MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.DOMAIN_FAILURE
@@ -17650,6 +18448,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain(
       handoff_links_verified=handoff_links_verified,
       fresh_domain_verified=fresh_domain_verified,
     )
+  ####
   return MocReflectedDomainAlternatingPhysicalFieldChainMeasurement(
     status=MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus.CONVERGED,
     field_count=len(items),
@@ -17706,12 +18505,14 @@ class MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase:
       or self.resolution < 3
     ):
       raise ValueError('resolution must be an integer of at least three')
+    ####
     try:
       results = tuple(self.results)
     except TypeError as error:
       raise TypeError(
         'results must contain MocReflectedDomainAlternatingPhysicalFieldResult values'
       ) from error
+    ####
     if not results or any(
       not isinstance(result, MocReflectedDomainAlternatingPhysicalFieldResult)
       for result in results
@@ -17719,21 +18520,27 @@ class MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase:
       raise TypeError(
         'results must contain at least one alternating physical-field result'
       )
+    ####
     object.__setattr__(self, 'results', results)
     reason = self.termination_reason
     if reason is not None:
       if isinstance(reason, Enum):
         reason = reason.value
+      ####
       reason = str(reason)
       if not reason:
         raise ValueError('termination_reason must be non-empty when supplied')
+      ####
       object.__setattr__(self, 'termination_reason', reason)
+    ####
     if self.physical_termination is not None and not isinstance(
       self.physical_termination,
       bool,
     ):
       raise TypeError('physical_termination must be a bool or None')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -17784,6 +18591,7 @@ class MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
     measurements = tuple(self.chain_measurements)
     if len(cases) != len(measurements):
       raise ValueError('cases and chain_measurements must have equal lengths')
+    ####
     if any(
       not isinstance(
         case,
@@ -17794,6 +18602,7 @@ class MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
       raise TypeError(
         'cases must contain alternating physical-field refinement cases'
       )
+    ####
     if any(
       not isinstance(
         measurement,
@@ -17804,6 +18613,7 @@ class MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
       raise TypeError(
         'chain_measurements must contain alternating physical-field chain measurements'
       )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'chain_measurements', measurements)
     object.__setattr__(
@@ -17820,13 +18630,16 @@ class MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     if self.field_count is not None and (
       isinstance(self.field_count, bool)
       or not isinstance(self.field_count, int)
       or self.field_count < 1
     ):
       raise ValueError('field_count must be positive when supplied')
+    ####
     for name in (
       'resolution_order_verified',
       'resolution_metadata_verified',
@@ -17843,10 +18656,14 @@ class MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     for name in ('handoff_links_verified', 'termination_sensitivity_verified'):
       value = getattr(self, name)
       if value is not None and not isinstance(value, bool):
         raise TypeError(f'{name} must be a bool or None')
+      ####
+    ####
   ####
 
   @property
@@ -17913,6 +18730,7 @@ class MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _alternating_physical_field_chain_refinement_failure(
@@ -17983,6 +18801,7 @@ def _alternating_physical_field_chain_refinement_failure(
     refinement_convergence_verified=refinement_convergence_verified,
     message=message,
   )
+####
 
 
 def _alternating_physical_field_chain_geometry_metrics(
@@ -17993,6 +18812,7 @@ def _alternating_physical_field_chain_geometry_metrics(
   physical = measurement.physical_field_chain_measurement
   if physical is None or len(physical.field_measurements) != measurement.field_count:
     return None
+  ####
   fields = physical.field_measurements
   extents: list[tuple[float, float]] = []
   starts: list[float] = []
@@ -18006,6 +18826,7 @@ def _alternating_physical_field_chain_geometry_metrics(
       or field.mesh_area_m2 is None
     ):
       return None
+    ####
     extent = (float(field.axial_extent_m[0]), float(field.axial_extent_m[1]))
     start_x = float(field.shock_start_m[0])
     radius = float(field.maximum_radius_m)
@@ -18018,22 +18839,26 @@ def _alternating_physical_field_chain_geometry_metrics(
       or area < 0.0
     ):
       return None
+    ####
     extents.append(extent)
     starts.append(start_x)
     radii.append(radius)
     areas.append(area)
+  ####
   spacing = tuple(
     current - previous
     for previous, current in zip(starts, starts[1:])
   )
   if any(not isfinite(value) for value in spacing):
     return None
+  ####
   return (
     (min(extent[0] for extent in extents), max(extent[1] for extent in extents)),
     spacing,
     fsum(areas),
     tuple(radii),
   )
+####
 
 
 def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
@@ -18075,6 +18900,8 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   try:
     items = tuple(cases)
   except TypeError:
@@ -18082,11 +18909,13 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
       MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.INVALID_INPUT,
       'refinement cases must be iterable',
     )
+  ####
   if len(items) < 2:
     return _alternating_physical_field_chain_refinement_failure(
       MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.INVALID_INPUT,
       'at least two alternating physical-field refinement cases are required',
     )
+  ####
   if any(
     not isinstance(
       case,
@@ -18099,6 +18928,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
       'refinement cases must contain alternating physical-field refinement cases',
       cases=items,
     )
+  ####
   resolutions = tuple(case.resolution for case in items)
   resolution_order_verified = all(
     right > left
@@ -18110,6 +18940,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
       'refinement resolutions must be strictly increasing from coarse to fine',
       cases=items,
     )
+  ####
 
   chain_measurements = tuple(
     measure_moc_reflected_domain_alternating_physical_field_chain(
@@ -18131,6 +18962,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
       chain_measurements=chain_measurements,
       resolution_order_verified=True,
     )
+  ####
 
   field_counts = tuple(measurement.field_count for measurement in chain_measurements)
   field_count_consistent = bool(
@@ -18208,6 +19040,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
       measurement.handoff_links_verified is True
       for measurement in chain_measurements
     )
+  ####
   fresh_domain_verified = all(
     measurement.fresh_domain_verified
     for measurement in chain_measurements
@@ -18236,6 +19069,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
       handoff_links_verified=handoff_links_verified,
       fresh_domain_verified=fresh_domain_verified,
     )
+  ####
 
   geometry_metrics = tuple(
     _alternating_physical_field_chain_geometry_metrics(measurement)
@@ -18259,6 +19093,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
       handoff_links_verified=handoff_links_verified,
       fresh_domain_verified=fresh_domain_verified,
     )
+  ####
   resolved_metrics: tuple[
     tuple[tuple[float, float], tuple[float, ...], float, tuple[float, ...]],
     ...
@@ -18329,6 +19164,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
     termination_sensitivity_verified = False
   else:
     termination_sensitivity_verified = len(set(termination_metadata)) == 1
+  ####
 
   refinement_convergence_verified = bool(
     resolution_metadata_verified
@@ -18384,6 +19220,7 @@ def measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
       'alternating physical-field chain geometry, pressure-loss, freshness, or termination sensitivity exceeded the declared tolerances',
       **common,
     )
+  ####
   return MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurement(
     status=MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus.CONVERGED,
     cases=items,
@@ -18462,6 +19299,7 @@ def _handoff_link_audit(
   )
   if not metadata_present:
     return link_count, None, None
+  ####
   for index, (left, right) in enumerate(
     zip(observations, observations[1:]),
   ):
@@ -18471,12 +19309,14 @@ def _handoff_link_audit(
         False,
         f'chain handoff link {index} is missing an incoming or outgoing boundary',
       )
+    ####
     if left.outgoing_handoff != right.incoming_handoff:
       return (
         link_count,
         False,
         f'chain handoff link {index} does not preserve exact state/pressure samples',
       )
+    ####
     if (
       left.outgoing_boundary_kind is None
       or right.incoming_boundary_kind is None
@@ -18486,12 +19326,15 @@ def _handoff_link_audit(
         False,
         f'chain handoff link {index} is missing typed boundary-kind metadata',
       )
+    ####
     if left.outgoing_boundary_kind is not right.incoming_boundary_kind:
       return (
         link_count,
         False,
         f'chain handoff link {index} changes boundary kind',
       )
+    ####
+  ####
   return link_count, True, None
 ####
 
@@ -18509,11 +19352,14 @@ def measure_moc_shock_cell_chain(
   items = tuple(observations)
   if not items:
     return _chain_failure('at least one shock-cell observation is required')
+  ####
   if any(not isinstance(item, MocShockCellObservation) for item in items):
     return _chain_failure('chain observations must be MocShockCellObservation values')
+  ####
   indices = tuple(item.cell_index for item in items)
   if indices != tuple(range(1, len(items) + 1)):
     return _chain_failure('shock-cell observations must have contiguous one-based indices')
+  ####
   handoff_link_count, handoff_links_verified, handoff_error = _handoff_link_audit(items)
   measurements = tuple(
     measure_moc_shock_cell(
@@ -18538,6 +19384,7 @@ def measure_moc_shock_cell_chain(
       handoff_link_count=handoff_link_count,
       handoff_links_verified=handoff_links_verified,
     )
+  ####
   if handoff_error is not None:
     return _chain_failure(
       handoff_error,
@@ -18545,9 +19392,11 @@ def measure_moc_shock_cell_chain(
       handoff_link_count=handoff_link_count,
       handoff_links_verified=False,
     )
+  ####
   extents = tuple(measurement.axial_extent_m for measurement in measurements)
   if any(extent is None for extent in extents):
     return _chain_failure('converged cell measurements must expose axial extents')
+  ####
   resolved_extents = tuple(extent for extent in extents if extent is not None)
   if any(
       right[0] < left[1] - position_tolerance_m
@@ -18566,6 +19415,7 @@ def measure_moc_shock_cell_chain(
       handoff_links_verified=handoff_links_verified,
       fresh_domain_verified=False,
     )
+  ####
   fresh_domain_verified = all(
     right[0] > left[1] + position_tolerance_m
     for left, right in zip(resolved_extents, resolved_extents[1:])
@@ -18579,6 +19429,7 @@ def measure_moc_shock_cell_chain(
       handoff_links_verified=handoff_links_verified,
       fresh_domain_verified=False,
     )
+  ####
   shock_starts = tuple(
     measurement.shock_start_m[0]
     for measurement in measurements
@@ -18642,11 +19493,13 @@ def measure_moc_ambient_closed_physical_field_chain(
       field_count=0,
       message='fields must be an iterable of MocPhysicalPostShockFieldResult values',
     )
+  ####
   if not items:
     return MocPhysicalFieldChainMeasurement(
       status=MocPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
       message='at least one physical post-shock field is required',
     )
+  ####
   if any(not isinstance(field, MocPhysicalPostShockFieldResult) for field in items):
     return MocPhysicalFieldChainMeasurement(
       status=MocPhysicalFieldChainMeasurementStatus.INVALID_INPUT,
@@ -18659,6 +19512,7 @@ def measure_moc_ambient_closed_physical_field_chain(
       field_physical_closure_verified=(False,) * len(items),
       message='fields must contain only MocPhysicalPostShockFieldResult values',
     )
+  ####
   resolved_bridge_endpoints: tuple[tuple[Point, Point], ...] = ()
   if intercell_bridge_endpoints_m is not None:
     try:
@@ -18672,10 +19526,12 @@ def measure_moc_ambient_closed_physical_field_chain(
             'for each adjacent field pair'
           ),
         )
+      ####
       normalized_bridges: list[tuple[Point, Point]] = []
       for endpoints in raw_bridge_endpoints:
         if len(endpoints) != 2:
           raise ValueError('bridge endpoints must be (start, end) pairs')
+        ####
         start, end = endpoints
         start_point = (float(start[0]), float(start[1]))
         end_point = (float(end[0]), float(end[1]))
@@ -18684,7 +19540,9 @@ def measure_moc_ambient_closed_physical_field_chain(
           for value in (*start_point, *end_point)
         ):
           raise ValueError('bridge endpoints must contain finite coordinates')
+        ####
         normalized_bridges.append((start_point, end_point))
+      ####
       resolved_bridge_endpoints = tuple(normalized_bridges)
     except (IndexError, TypeError, ValueError):
       return MocPhysicalFieldChainMeasurement(
@@ -18695,6 +19553,8 @@ def measure_moc_ambient_closed_physical_field_chain(
           'coordinate pairs'
         ),
       )
+    ####
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('state_tolerance', state_tolerance),
@@ -18706,6 +19566,8 @@ def measure_moc_ambient_closed_physical_field_chain(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
 
   statuses: list[str] = []
   topology_verified: list[bool] = []
@@ -18744,6 +19606,7 @@ def measure_moc_ambient_closed_physical_field_chain(
       physical_closure_verified=False,
       message=message,
     )
+  ####
 
   def close(
     actual: float,
@@ -18757,6 +19620,7 @@ def measure_moc_ambient_closed_physical_field_chain(
       if relative else 1.0
     )
     return abs(float(actual) - float(expected)) <= tolerance * scale
+  ####
 
   def state_matches(
     state: object,
@@ -18766,11 +19630,13 @@ def measure_moc_ambient_closed_physical_field_chain(
   ) -> bool:
     if not isinstance(state, CharacteristicState):
       return False
+    ####
     return bool(
       close(state.x_m, point[0], position_tolerance_m)
       and close(state.y_m, point[1], position_tolerance_m)
       and (not require_axis or abs(state.y_m) <= position_tolerance_m)
     )
+  ####
 
   def state_values_match(left: object, right: object) -> bool:
     if not isinstance(left, CharacteristicState) or not isinstance(
@@ -18778,6 +19644,7 @@ def measure_moc_ambient_closed_physical_field_chain(
       CharacteristicState,
     ):
       return False
+    ####
     return bool(
       close(left.x_m, right.x_m, position_tolerance_m)
       and close(left.y_m, right.y_m, position_tolerance_m)
@@ -18785,12 +19652,15 @@ def measure_moc_ambient_closed_physical_field_chain(
       and close(left.mach, right.mach, state_tolerance)
       and close(left.gamma, right.gamma, state_tolerance)
     )
+  ####
 
   def positive_pressures(values: Sequence[float]) -> bool:
     try:
       return all(isfinite(float(value)) and float(value) > 0.0 for value in values)
     except (TypeError, ValueError):
       return False
+    ####
+  ####
 
   def sequence_matches(
     actual: Sequence[float],
@@ -18806,6 +19676,8 @@ def measure_moc_ambient_closed_physical_field_chain(
       )
     except (TypeError, ValueError):
       return False
+    ####
+  ####
 
   for field_index, field in enumerate(items, start=1):
     raw_status = field.status
@@ -18825,6 +19697,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
         f'physical field {field_index} did not report a converged ambient-closed result',
       )
+    ####
 
     try:
       nodes = tuple(field.nodes)
@@ -18843,6 +19716,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
         f'physical field {field_index} raw geometry could not be read: {error}',
       )
+    ####
     if not nodes or not cells or any(
       not isinstance(cell, MocCharacteristicCell) for cell in cells
     ):
@@ -18850,6 +19724,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
         f'physical field {field_index} must retain typed nodes and characteristic cells',
       )
+    ####
     try:
       topology = validate_moc_mesh(
         cells,
@@ -18860,6 +19735,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.TOPOLOGY_FAILURE,
         f'physical field {field_index} topology could not be remeasured: {error}',
       )
+    ####
     if not (
       topology.connected
       and topology.forms_closed_zone
@@ -18870,6 +19746,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         f'physical field {field_index} failed the independent mesh topology check: '
         f'{topology.message}',
       )
+    ####
     topology_verified[-1] = True
 
     if len(shock_points) < 3 or len(ambient_points) != len(shock_points):
@@ -18877,6 +19754,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
         f'physical field {field_index} must pair at least three shock and ambient samples',
       )
+    ####
     shock_error = _validate_polyline(
       shock_points,
       'shock boundary',
@@ -18895,6 +19773,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         f'physical field {field_index} boundary geometry failed: '
         f'{shock_error or centerline_error}',
       )
+    ####
     if (
       hypot(
         shock_points[-1][0] - centerline_points[0][0],
@@ -18910,6 +19789,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
         f'physical field {field_index} shock/ambient/centerline seam is not a valid axis closure',
       )
+    ####
     try:
       edge_counts, _vertex_points = _edge_counts(
         cells,
@@ -18920,6 +19800,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.TOPOLOGY_FAILURE,
         f'physical field {field_index} perimeter could not be remeasured: {error}',
       )
+    ####
     if not all(
       _polyline_has_boundary_edges(
         path,
@@ -18932,6 +19813,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
         f'physical field {field_index} is missing an explicit shock, ambient, or centerline perimeter path',
       )
+    ####
 
     upstream_states = tuple(field.upstream_shock_boundary_states)
     upstream_pressures = tuple(field.upstream_shock_boundary_total_pressure_Pa)
@@ -18951,6 +19833,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
         f'physical field {field_index} does not retain complete boundary state arrays',
       )
+    ####
     if not (
       positive_pressures(upstream_pressures)
       and positive_pressures(post_shock_pressures)
@@ -18977,6 +19860,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
         f'physical field {field_index} boundary state sampling is inconsistent',
       )
+    ####
     upstream_coupling_verified[-1] = True
 
     boundary = field.ambient_boundary
@@ -18985,6 +19869,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
         f'physical field {field_index} did not retain an ambient boundary result',
       )
+    ####
     boundary_points = tuple(boundary.points_m)
     boundary_states = tuple(boundary.states)
     boundary_pressures = tuple(boundary.total_pressure_Pa)
@@ -19015,6 +19900,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
         f'physical field {field_index} ambient boundary samples are inconsistent',
       )
+    ####
     try:
       ambient_samples = tuple(
         MocAmbientBoundarySample(
@@ -19041,6 +19927,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
         f'physical field {field_index} ambient boundary could not be remeasured: {error}',
       )
+    ####
     raw_boundary_consistent = bool(
       independent_boundary.converged
       and sequence_matches(
@@ -19065,6 +19952,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
         f'physical field {field_index} ambient pressure/tangency gates failed independent measurement',
       )
+    ####
     ambient_boundary_verified[-1] = True
     if reference_ambient_pressure is None:
       reference_ambient_pressure = float(ambient_pressure)
@@ -19078,6 +19966,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.BOUNDARY_FAILURE,
         'continued physical fields changed the ambient pressure reference',
       )
+    ####
 
     node_residuals_geometry: list[float] = []
     node_residuals_invariant: list[float] = []
@@ -19086,6 +19975,7 @@ def measure_moc_ambient_closed_physical_field_chain(
       if not isinstance(node, MocCharacteristicNode):
         node_sampling_verified = False
         continue
+      ####
       point_result = node.point_result
       node_pressure = node.total_pressure_Pa
       node_ok = bool(
@@ -19125,7 +20015,12 @@ def measure_moc_ambient_closed_physical_field_chain(
           for value in invariant_residuals:
             if value is not None:
               node_residuals_invariant.append(abs(float(value)))
+            ####
+          ####
+        ####
+      ####
       node_sampling_verified = node_sampling_verified and node_ok
+    ####
     source_samples: list[tuple[Point, CharacteristicState, float]] = [
       ((state.x_m, state.y_m), state, pressure)
       for state, pressure in zip(
@@ -19163,6 +20058,7 @@ def measure_moc_ambient_closed_physical_field_chain(
       except (AttributeError, TypeError, ValueError):
         node_sampling_verified = False
         break
+      ####
       for vertex in vertices:
         if not any(
           hypot(vertex[0] - point[0], vertex[1] - point[1])
@@ -19174,14 +20070,19 @@ def measure_moc_ambient_closed_physical_field_chain(
         ):
           node_sampling_verified = False
           break
+        ####
+      ####
       if not node_sampling_verified:
         break
+      ####
+    ####
     state_sampling_verified[-1] = node_sampling_verified
     if not node_sampling_verified:
       return failure(
         MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
         f'physical field {field_index} does not retain a bounded state and pressure sample for every mesh vertex',
       )
+    ####
 
     summary_residuals_verified = bool(
       field.maximum_geometry_residual_m is not None
@@ -19217,6 +20118,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         and all(0.0 < ratio < 1.0 for ratio in pressure_ratios[1:-1])
       )
       strict_pressure_loss = start_allowed or endpoints_allowed
+    ####
     raw_physical_closure = bool(
       summary_residuals_verified
       and strict_pressure_loss
@@ -19227,6 +20129,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.FIELD_FAILURE,
         f'physical field {field_index} failed independent residual or shock-loss closure gates',
       )
+    ####
 
     try:
       incoming_states = tuple(field.incoming_handoff_states)
@@ -19260,6 +20163,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         MocPhysicalFieldChainMeasurementStatus.HANDOFF_FAILURE,
         f'physical field {field_index} handoff data could not be assembled: {error}',
       )
+    ####
     measurement = measure_moc_shock_cell(
       observation,
       position_tolerance_m=position_tolerance_m,
@@ -19274,6 +20178,7 @@ def measure_moc_ambient_closed_physical_field_chain(
         f'physical field {field_index} failed independent shock-cell measurement: '
         f'{measurement.message}',
       )
+    ####
     physical_closure_verified[-1] = True
 
     if field_index > 1:
@@ -19292,6 +20197,7 @@ def measure_moc_ambient_closed_physical_field_chain(
           f'physical field {field_index} changed the exact previous centerline handoff',
           handoff_links_verified=False,
         )
+      ####
       try:
         previous_end_x = float(previous.ambient_boundary_points_m[-1][0])
         current_vertices = tuple(
@@ -19307,6 +20213,7 @@ def measure_moc_ambient_closed_physical_field_chain(
           f'physical field {field_index} domain extent could not be measured: {error}',
           handoff_links_verified=True,
         )
+      ####
       if explicit_bridge_requested:
         bridge_start, bridge_end = resolved_bridge_endpoints[field_index - 2]
         bridge_ok = bool(
@@ -19338,6 +20245,7 @@ def measure_moc_ambient_closed_physical_field_chain(
             ),
             handoff_links_verified=True,
           )
+        ####
       elif (
         abs(shock_points[0][0] - previous_end_x) > position_tolerance_m
         or abs(ambient_points[0][0] - previous_end_x) > position_tolerance_m
@@ -19349,6 +20257,9 @@ def measure_moc_ambient_closed_physical_field_chain(
           f'physical field {field_index} does not begin at a fresh downstream ambient interface',
           handoff_links_verified=True,
         )
+      ####
+    ####
+  ####
 
   handoff_link_count = max(0, len(items) - 1)
   return MocPhysicalFieldChainMeasurement(

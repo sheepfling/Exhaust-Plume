@@ -40,6 +40,7 @@ class ShockTrainSensitivityPoint:
   cell_count: int
   shock_train_end_x_m: float | None
   pressure_amplitude_final: float | None
+####
 
 
 def _result_outputs(result: Any) -> tuple[float | None, float | None, float | None]:
@@ -49,6 +50,7 @@ def _result_outputs(result: Any) -> tuple[float | None, float | None, float | No
     result.cells[0].metrics.length_m if result.cells else None,
     float(amplitudes[-1]) if amplitudes else None,
   )
+####
 
 
 def _covariance_product(
@@ -68,6 +70,7 @@ def _covariance_product(
     )
     for row in range(len(jacobian))
   )
+####
 
 
 def propagate_shock_train_covariance(
@@ -88,8 +91,10 @@ def propagate_shock_train_covariance(
 
   if not isfinite(relative_step) or relative_step <= 0.0:
     raise ValueError('relative_step must be finite and positive')
+  ####
   if not isfinite(absolute_step) or absolute_step <= 0.0:
     raise ValueError('absolute_step must be finite and positive')
+  ####
   if calibration.parameter_covariance is None:
     return {
       'status': 'not-available-no-calibration-covariance',
@@ -97,14 +102,18 @@ def propagate_shock_train_covariance(
       'output_names': list(_PROPAGATED_OUTPUT_NAMES),
       'reason': 'the calibration does not provide a parameter covariance matrix',
     }
+  ####
   names = calibration.covariance_parameter_names
   if names is None:
     raise ValueError('calibration covariance parameter order is required')
+  ####
   covariance = calibration.parameter_covariance
   if len(names) != len(covariance):
     raise ValueError('covariance parameter order does not match the covariance matrix')
+  ####
   if any(name not in SHOCK_TRAIN_CALIBRATION_PARAMETER_NAMES for name in names):
     raise ValueError('covariance parameter order contains an unsupported parameter')
+  ####
 
   baseline_result = solve_shock_train(first_cell, calibration, policy)
   baseline_outputs = _result_outputs(baseline_result)
@@ -128,6 +137,7 @@ def propagate_shock_train_covariance(
       minus_calibration = replace(calibration, **{parameter_name: lower_value})
       minus_result = solve_shock_train(first_cell, minus_calibration, policy)
       minus_outputs = _result_outputs(minus_result)
+    ####
     perturbations.append({
       'parameter_name': parameter_name,
       'nominal_value': nominal,
@@ -161,6 +171,9 @@ def propagate_shock_train_covariance(
         derivatives[output_index].append(
           (plus - minus) / (2.0 * step)
         )
+      ####
+    ####
+  ####
 
   complete = all(
     value is not None
@@ -171,11 +184,14 @@ def propagate_shock_train_covariance(
   for row in derivatives:
     if not all(value is not None for value in row):
       continue
+    ####
     finite_row: list[float] = []
     for value in row:
       assert value is not None
       finite_row.append(float(value))
+    ####
     jacobian_rows.append(tuple(finite_row))
+  ####
   jacobian = tuple(jacobian_rows)
   output_covariance = (
     _covariance_product(jacobian, covariance)
@@ -234,13 +250,16 @@ def sweep_shock_train_parameter(
   }
   if parameter_name not in allowed:
     raise ValueError(f'unsupported shock-train sensitivity parameter: {parameter_name}')
+  ####
   if not values:
     raise ValueError('values must not be empty')
+  ####
   points: list[ShockTrainSensitivityPoint] = []
   for value in values:
     value = float(value)
     if not isfinite(value) or value < 0.0:
       raise ValueError('sensitivity values must be finite and nonnegative')
+    ####
     varied = replace(calibration, **{parameter_name: value})
     result = solve_shock_train(first_cell, varied, policy)
     amplitudes = result.diagnostics.get('pressure_amplitude_history', ())
@@ -253,5 +272,6 @@ def sweep_shock_train_parameter(
       shock_train_end_x_m=result.shock_train_end_x_m,
       pressure_amplitude_final=(float(amplitudes[-1]) if amplitudes else None),
     ))
+  ####
   return tuple(points)
 ####

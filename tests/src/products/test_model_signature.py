@@ -30,6 +30,7 @@ def _profile() -> GrayRadiationProfile:
         absorption_coefficient_per_m=(0.5, 1.0, 1.5),
         profile_id="test-gray-profile",
     )
+####
 
 
 def _straight_bundles():
@@ -41,6 +42,7 @@ def _straight_bundles():
             (ModelVisualizationLane.STRAIGHT_INTEGRAL, _straight_result()),
         )
     )
+####
 
 
 def test_readiness_requires_an_explicit_optical_profile() -> None:
@@ -52,6 +54,7 @@ def test_readiness_requires_an_explicit_optical_profile() -> None:
     assert without_profile.readiness is ModelSignatureReadiness.BLOCKED_MISSING_OPTICAL_PROFILE
     assert with_profile.readiness is ModelSignatureReadiness.READY
     assert with_profile.production_claim_allowed is False
+####
 
 
 def test_all_three_straight_lanes_reach_gray_signature() -> None:
@@ -71,6 +74,8 @@ def test_all_three_straight_lanes_reach_gray_signature() -> None:
         assert signature.metadata.provenance.metadata["flow_model_lane"] == bundle.lane_id
         assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
         assert any(value > 0.0 for row in signature.spectral_radiant_intensity for value in row)
+    ####
+####
 
 
 def test_curved_lane_reaches_gray_transport_and_planar_moc_remains_blocked() -> None:
@@ -93,6 +98,8 @@ def test_curved_lane_reaches_gray_transport_and_planar_moc_remains_blocked() -> 
     assert curved_signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
     with pytest.raises(ModelSignatureBlockedError, match="planar-MOC field"):
         evaluate_model_signature(moc, _profile())
+    ####
+####
 
 
 def test_profile_and_sampling_reject_invalid_optical_inputs() -> None:
@@ -102,14 +109,18 @@ def test_profile_and_sampling_reject_invalid_optical_inputs() -> None:
             source_function_w_sr_m=(1.0, 1.0),
             absorption_coefficient_per_m=(1.0, 1.0),
         )
+    ####
     with pytest.raises(ValueError, match="matching lengths"):
         GrayRadiationProfile(
             wavelengths_m=(1.0e-6, 2.0e-6),
             source_function_w_sr_m=(1.0,),
             absorption_coefficient_per_m=(1.0, 1.0),
         )
+    ####
     with pytest.raises(ValueError, match=r"in \[3, 128\]"):
         ModelSignatureSampling(transverse_sample_count=2)
+    ####
+####
 
 
 def test_sectioned_gray_profile_builds_planck_sources_and_requires_matching_sections() -> None:
@@ -130,6 +141,8 @@ def test_sectioned_gray_profile_builds_planck_sources_and_requires_matching_sect
             temperatures_K=(900.0,),
             absorption_coefficient_per_m_by_section=((0.5, 0.6), (0.8, 0.9)),
         )
+    ####
+####
 
 
 def test_model_signature_can_use_section_varying_profile_without_promoting_claims() -> None:
@@ -161,6 +174,7 @@ def test_model_signature_can_use_section_varying_profile_without_promoting_claim
     assert signature.metadata.provenance.metadata["optical_profile_mode"] == "piecewise-axial-section"
     assert signature.metadata.provenance.metadata["optical_profile_section_count"] == str(section_count)
     assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
+####
 
 
 def test_sectioned_gray_profile_does_not_enter_curved_transport_lane() -> None:
@@ -178,3 +192,4 @@ def test_sectioned_gray_profile_does_not_enter_curved_transport_lane() -> None:
     assessment = assess_model_signature_readiness(curved, optical_profile=profile)
     assert assessment.readiness is ModelSignatureReadiness.BLOCKED_INVALID_SUPPORT
     assert "straight section support" in assessment.reasons[0]
+####

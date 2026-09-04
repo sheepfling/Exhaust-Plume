@@ -31,6 +31,7 @@ def _observations() -> dict[str, Any]:
     },
     'RP-ALSI-001': {'thermal_comparison': {'row_count': 5}},
   }
+####
 
 
 def _providers() -> dict[str, Any]:
@@ -50,6 +51,7 @@ def _providers() -> dict[str, Any]:
     },
     'focal_plane_array': {'provider_ids': []},
   }
+####
 
 
 def test_provider_comparisons_remain_blocked_without_required_observables() -> None:
@@ -93,6 +95,7 @@ def test_provider_comparisons_remain_blocked_without_required_observables() -> N
     'operating_pressure_or_branch_id',
   ]
   assert any('operator namespace' in blocker for blocker in comparisons[0]['blockers'])
+####
 
 
 def test_downstream_boundaries_do_not_advertise_unimplemented_products() -> None:
@@ -107,6 +110,7 @@ def test_downstream_boundaries_do_not_advertise_unimplemented_products() -> None
   assert boundaries[1]['provider_ids'] == ['plume.curved-gray-ray-transfer']
   assert boundaries[2]['provider_ids'] == []
   assert all(boundary['claim_status'] == 'not_accepted' for boundary in boundaries)
+####
 
 
 def test_operator_execution_diagnostics_do_not_promote_a_blocked_comparison() -> None:
@@ -126,6 +130,7 @@ def test_operator_execution_diagnostics_do_not_promote_a_blocked_comparison() ->
   assert comparison['operator_execution']['status'] == 'partial-overlap-diagnostic'
   assert comparison['comparison_status'] == 'blocked'
   assert comparison['claim_status'] == 'not_accepted'
+####
 
 
 def _accepted_spectral_evidence() -> ProviderBoundComparisonEvidence:
@@ -167,6 +172,7 @@ def _accepted_spectral_evidence() -> ProviderBoundComparisonEvidence:
     applicability_domain={'wavelength_m': [5.0e-7, 8.5e-7]},
     status=ComparisonEvidenceStatus.ACCEPTED,
   )
+####
 
 
 def test_provider_bound_evidence_can_promote_only_a_matching_comparison() -> None:
@@ -185,6 +191,7 @@ def test_provider_bound_evidence_can_promote_only_a_matching_comparison() -> Non
   assert accepted['provider_bound_evidence']['evidence_id'] == 'evidence-064'
   assert blocked['comparison_status'] == 'blocked'
   assert blocked['claim_status'] == 'not_accepted'
+####
 
 
 def test_provider_bound_evidence_requires_a_complete_operator_crosswalk() -> None:
@@ -195,6 +202,8 @@ def test_provider_bound_evidence_requires_a_complete_operator_crosswalk() -> Non
       operator_crosswalk_status='pending',
       provider_bound_evidence={'SIG-MVP-A-064': _accepted_spectral_evidence()},
     )
+  ####
+####
 
 
 def test_provider_bound_evidence_must_bind_to_a_compared_provider() -> None:
@@ -208,6 +217,8 @@ def test_provider_bound_evidence_must_bind_to_a_compared_provider() -> None:
       operator_crosswalk_status='complete-scoped',
       provider_bound_evidence={'SIG-MVP-A-064': evidence},
     )
+  ####
+####
 
 
 def test_provider_bound_evidence_document_loads_by_claim_id(tmp_path) -> None:
@@ -224,6 +235,7 @@ def test_provider_bound_evidence_document_loads_by_claim_id(tmp_path) -> None:
   loaded = load_provider_bound_evidence(path)
 
   assert loaded == {'SIG-MVP-A-064': evidence}
+####
 
 
 def test_provider_bound_evidence_document_rejects_duplicate_claims(tmp_path) -> None:
@@ -240,6 +252,8 @@ def test_provider_bound_evidence_document_rejects_duplicate_claims(tmp_path) -> 
 
   with pytest.raises(ValueError, match='duplicate claim_id'):
     load_provider_bound_evidence(path)
+  ####
+####
 
 
 def test_provider_bound_evidence_document_rejects_unknown_top_level_fields(tmp_path) -> None:
@@ -255,6 +269,8 @@ def test_provider_bound_evidence_document_rejects_unknown_top_level_fields(tmp_p
 
   with pytest.raises(ValueError, match='only schema_id and evidence'):
     load_provider_bound_evidence(path)
+  ####
+####
 
 
 def test_provider_bound_evidence_source_label_is_portable() -> None:
@@ -265,6 +281,7 @@ def test_provider_bound_evidence_source_label_is_portable() -> None:
     Path('/another/machine/provider-evidence.json')
   ) == 'provider-evidence.json'
   assert _provider_bound_evidence_source_label(None) is None
+####
 
 
 def test_visual_feature_probe_reports_missing_feature_and_branch_contract() -> None:
@@ -282,3 +299,4 @@ def test_visual_feature_probe_reports_missing_feature_and_branch_contract() -> N
     'mach_disk_position_m',
     'operating_pressure_or_branch_id',
   ]
+####

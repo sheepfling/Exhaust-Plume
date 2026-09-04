@@ -101,6 +101,7 @@ def _shaped_exact_shock():
         gamma=1.4,
       )
     )
+  ####
   return fit_euler_consistent_shock_boundary(
     tuple(upstream_states),
     (100000.0,) * sample_count,
@@ -110,6 +111,7 @@ def _shaped_exact_shock():
       for state, turn in zip(upstream_states, turns, strict=True)
     ),
   )
+####
 
 
 def _refined_shaped_exact_shock(sample_count: int):
@@ -143,6 +145,7 @@ def _refined_shaped_exact_shock(sample_count: int):
       points[-2][0] - step / tan(terminal_tangent),
       points[-1][1],
     )
+  ####
   turns = []
   for index in range(sample_count):
     position = (index / (sample_count - 1)) ** 0.2 * 8.0
@@ -152,6 +155,7 @@ def _refined_shaped_exact_shock(sample_count: int):
       base_turns[lower] * (1.0 - fraction)
       + base_turns[lower + 1] * fraction
     )
+  ####
   tangent_angles = tuple(
     atan2(second[1] - first[1], second[0] - first[0])
     for first, second in (
@@ -183,6 +187,7 @@ def _refined_shaped_exact_shock(sample_count: int):
         gamma=1.4,
       )
     )
+  ####
   return fit_euler_consistent_shock_boundary(
     tuple(upstream_states),
     (100000.0,) * sample_count,
@@ -192,6 +197,7 @@ def _refined_shaped_exact_shock(sample_count: int):
       for state, turn in zip(upstream_states, turns, strict=True)
     ),
   )
+####
 
 
 def test_geometry_conditioned_euler_shock_reconciliation_closes_local_curve() -> None:
@@ -221,6 +227,7 @@ def test_geometry_conditioned_euler_shock_reconciliation_closes_local_curve() ->
   ) < 1.0e-12
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_geometry_conditioned_euler_shock_reconciliation_rejects_characteristic_geometry() -> None:
@@ -248,6 +255,7 @@ def test_geometry_conditioned_euler_shock_reconciliation_rejects_characteristic_
   assert result.status is MocEulerShockBoundaryStatus.GEOMETRY_FAILURE
   assert not result.converged
   assert result.chain_promotion_blocked
+####
 
 
 def test_exact_ambient_physical_field_closes_local_mesh_but_stops_chain() -> None:
@@ -284,6 +292,7 @@ def test_exact_ambient_physical_field_closes_local_mesh_but_stops_chain() -> Non
   decision = result.as_chain_termination_decision()
   assert decision.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   assert decision.physical_termination is False
+####
 
 
 def test_exact_ambient_physical_field_rejects_short_incoming_handoff() -> None:
@@ -302,6 +311,7 @@ def test_exact_ambient_physical_field_rejects_short_incoming_handoff() -> None:
   assert result.status is MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT
   assert not result.converged
   assert not result.carries_incoming_handoff
+####
 
 
 def test_exact_ambient_physical_field_audit_exposes_cell_gate() -> None:
@@ -325,6 +335,7 @@ def test_exact_ambient_physical_field_audit_exposes_cell_gate() -> None:
   assert audit.maximum_shock_jump_mass_residual < 1.0e-10
   assert audit.maximum_cell_euler_residual is not None
   assert audit.maximum_cell_euler_residual > 1.0e-2
+####
 
 
 def test_exact_ambient_physical_field_refinement_requires_first_wedge_remesh() -> None:
@@ -358,6 +369,7 @@ def test_exact_ambient_physical_field_refinement_requires_first_wedge_remesh() -
   assert not measurement.refinement_convergence_verified
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_first_wedge_remesh_is_bounded_but_not_a_physical_chain_cell() -> None:
@@ -404,6 +416,7 @@ def test_first_wedge_remesh_is_bounded_but_not_a_physical_chain_cell() -> None:
   assert not audit.cell_euler_residuals_verified
   assert audit.maximum_cell_euler_residual is not None
   assert audit.maximum_cell_euler_residual > 1.0e-2
+####
 
 
 def test_first_wedge_remesh_refinement_reduces_residual_without_promotion() -> None:
@@ -454,6 +467,7 @@ def test_first_wedge_remesh_refinement_reduces_residual_without_promotion() -> N
       measurement.maximum_cell_euler_residuals[1:],
     )
   )
+####
 
 
 def test_first_wedge_characteristic_audit_keeps_entropy_gate_explicit() -> None:
@@ -481,6 +495,7 @@ def test_first_wedge_characteristic_audit_keeps_entropy_gate_explicit() -> None:
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_solver_owned_terminal_wedge_reconstructs_cminus_reflection() -> None:
@@ -527,6 +542,7 @@ def test_solver_owned_terminal_wedge_reconstructs_cminus_reflection() -> None:
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
+####
 
 
 def test_terminal_wedge_audit_recomputes_solver_gates_independently() -> None:
@@ -592,6 +608,7 @@ def test_terminal_wedge_audit_recomputes_solver_gates_independently() -> None:
   assert tampered_audit.cell_euler_residual is not None
   assert tampered_audit.cell_euler_residual > 1.0e-2
   assert not tampered_audit.solver_status_consistent
+####
 
 
 def test_terminal_wedge_planner_records_candidate_without_chain_promotion() -> None:
@@ -625,6 +642,7 @@ def test_terminal_wedge_planner_records_candidate_without_chain_promotion() -> N
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+####
 
 
 def test_terminal_characteristic_field_retile_preserves_source_and_blocks_chain() -> None:
@@ -681,6 +699,7 @@ def test_terminal_characteristic_field_retile_preserves_source_and_blocks_chain(
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
+####
 
 
 def test_terminal_characteristic_field_audit_recomputes_raw_retile_and_barrier() -> None:
@@ -739,6 +758,7 @@ def test_terminal_characteristic_field_audit_recomputes_raw_retile_and_barrier()
   assert tampered_audit.topology_verified
   assert tampered_audit.solver_status_consistent
   assert tampered_audit.status is audit.status
+####
 
 
 def test_terminal_characteristic_field_planner_records_retile_without_chain() -> None:
@@ -772,6 +792,7 @@ def test_terminal_characteristic_field_planner_records_retile_without_chain() ->
   assert planner.physical_closure_verified is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+####
 
 
 def test_entropy_carry_solver_closes_source_equations_and_preserves_axis_lineage() -> None:
@@ -810,6 +831,7 @@ def test_entropy_carry_solver_closes_source_equations_and_preserves_axis_lineage
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
+####
 
 
 def test_entropy_carry_audit_recomputes_raw_gates_and_planner_stops() -> None:
@@ -871,6 +893,7 @@ def test_entropy_carry_audit_recomputes_raw_gates_and_planner_stops() -> None:
   assert planner.physical_chain_cell_count == 0
   assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   assert planner.as_report()['diagnostics']['entropy_carry_consumed_as_chain_cell'] is False
+####
 
 
 def test_entropy_carry_refinement_ladder_reduces_residual_without_moc_promotion() -> None:
@@ -957,6 +980,7 @@ def test_entropy_carry_refinement_ladder_reduces_residual_without_moc_promotion(
   assert planner.physical_chain_cell_count == 0
   assert planner.termination.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   assert planner.as_report()['diagnostics']['refinement_consumed_as_chain_cell'] is False
+####
 
 
 def test_entropy_carry_refinement_audit_recomputes_raw_projection() -> None:
@@ -1017,6 +1041,7 @@ def test_entropy_carry_refinement_audit_recomputes_raw_projection() -> None:
     'euler_ambient_first_wedge_entropy_carry_refinement_state_projection_failure',
     'euler_ambient_first_wedge_entropy_carry_refinement_pressure_lineage_failure',
   )
+####
 
 
 def test_first_wedge_remesh_planner_records_ladder_and_stops_before_chain() -> None:
@@ -1055,3 +1080,4 @@ def test_first_wedge_remesh_planner_records_ladder_and_stops_before_chain() -> N
     'independent-remesh-euler-audit-and-solver-owned-terminal-wedge-'
     'characteristic-closure'
   )
+####

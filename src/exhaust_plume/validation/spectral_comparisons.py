@@ -30,6 +30,7 @@ class SpectralMeasurementSpace(str, Enum):
   INTRINSIC_RADIANT_INTENSITY = 'intrinsic-radiant-intensity'
   SENSOR_SPACE_RADIANCE = 'sensor-space-radiance'
   RELATIVE_SHAPE = 'relative-shape'
+####
 
 
 _SPECTRAL_SPACE_UNITS = {
@@ -97,6 +98,7 @@ class SpectralCurve:
     object.__setattr__(self, 'values', values)
     object.__setattr__(self, 'measurement_space', measurement_space)
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +117,7 @@ class SpectralShapeComparison:
   full_domain_relative_shape_rmse: float | None
   full_domain_peak_location_error_m: float | None
   reason: str | None = None
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +131,7 @@ class DeclaredSpectralShapeComparison:
   observed_units: str
   shape_comparison: SpectralShapeComparison | None
   reason: str | None = None
+####
 
 
 def _shape_metrics(

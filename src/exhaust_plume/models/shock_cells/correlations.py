@@ -45,6 +45,7 @@ class FirstCellCorrelationResult:
   def available(self) -> bool:
     return self.status is FirstCellCorrelationStatus.CONVERGED
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +62,7 @@ class FirstCellComparisonResult:
   def available(self) -> bool:
     return self.status is FirstCellCorrelationStatus.CONVERGED
   ####
+####
 
 
 def prandtl_pack_first_cell_spacing(
@@ -77,6 +79,7 @@ def prandtl_pack_first_cell_spacing(
 
   if not isfinite(coefficient) or coefficient <= 0.0:
     raise ValueError('coefficient must be finite and positive')
+  ####
   if fully_expanded.status is not FullyExpandedStatus.CONVERGED:
     return FirstCellCorrelationResult(
       status=FirstCellCorrelationStatus.OUTSIDE_MODEL_VALIDITY,
@@ -86,6 +89,7 @@ def prandtl_pack_first_cell_spacing(
       spacing_m=None,
       message=fully_expanded.message or 'fully-expanded equivalent state is unavailable',
     )
+  ####
   if not fully_expanded.first_cell_claim_allowed:
     return FirstCellCorrelationResult(
       status=FirstCellCorrelationStatus.NO_FIRST_CELL_CLAIM,
@@ -95,6 +99,7 @@ def prandtl_pack_first_cell_spacing(
       spacing_m=None,
       message=fully_expanded.message or 'matched flow has no first-cell claim',
     )
+  ####
   if fully_expanded.mach is None or fully_expanded.diameter_m is None:
     return FirstCellCorrelationResult(
       status=FirstCellCorrelationStatus.INVALID_INPUT,
@@ -115,6 +120,7 @@ def prandtl_pack_first_cell_spacing(
       spacing_m=None,
       message='fully-expanded Mach number is not supersonic for the spacing correlation',
     )
+  ####
   spacing_m = coefficient * fully_expanded.diameter_m * sqrt(radicand)
   if not isfinite(spacing_m) or spacing_m <= 0.0:
     return FirstCellCorrelationResult(
@@ -144,6 +150,7 @@ def compare_first_cell_length(
 
   if not isfinite(solver_length_m) or solver_length_m <= 0.0:
     raise ValueError('solver_length_m must be finite and positive')
+  ####
   if not correlation.available or correlation.spacing_m is None:
     return FirstCellComparisonResult(
       status=correlation.status,

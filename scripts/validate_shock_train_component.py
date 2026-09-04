@@ -18,6 +18,7 @@ from zipfile import ZipFile
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / 'src') not in sys.path:
   sys.path.insert(0, str(REPO_ROOT / 'src'))
+####
 
 from exhaust_plume.models.shock_train import (  # noqa: E402
   ShockTrainCalibrationValidationSplit,
@@ -51,6 +52,7 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution
     _read_json,
     preflight_corpus,
   )
+####
 
 
 BENCHMARK_ID = 'CJ-UEJ-001'
@@ -130,10 +132,12 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
   if preflight.get('status') != 'preflight-valid-pending-release-gates':
     report['errors'] = list(preflight.get('errors', ()))
     return report
+  ####
 
   with ZipFile(corpus_path) as archive_file:
     metadata = _read_json(archive_file, 'data/cj_uej_001_metadata.json')
     profile_rows = _read_csv(archive_file, 'data/cj_uej_001_profiles.csv')
+  ####
   case = metadata['case']
   split = ShockTrainCalibrationValidationSplit(
     unassigned_case_ids=(BENCHMARK_ID,),
@@ -285,9 +289,12 @@ def main(argv: list[str] | None = None) -> int:
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
+  ####
   print(serialized, end='')
   return 0 if report['validation_status'] != 'blocked-invalid-corpus' else 1
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

@@ -89,6 +89,7 @@ def _canonical_field():
   assert result.field is not None
   assert result.field.physical_closure_verified
   return result.field
+####
 
 
 def _euler_companion_field_for_resolution(sample_count: int):
@@ -134,6 +135,7 @@ def _euler_companion_field_for_resolution(sample_count: int):
     shock_boundary,
     companion.samples,
   )
+####
 
 
 def _euler_exact_ambient_fixture(sample_count: int = 6):
@@ -169,6 +171,7 @@ def _euler_exact_ambient_fixture(sample_count: int = 6):
   )
   assert shock_boundary.converged
   return shock_boundary, shock_boundary.downstream_static_pressure_Pa[0]
+####
 
 
 def test_euler_audit_reports_nonconservative_reference_and_retains_cells() -> None:
@@ -187,6 +190,7 @@ def test_euler_audit_reports_nonconservative_reference_and_retains_cells() -> No
   assert audit.physical_closure_verified is False
   assert audit.canonical_euler_verified is False
   assert audit.chain_promotion_blocked
+####
 
 
 def test_euler_audit_rejects_an_open_or_incomplete_field() -> None:
@@ -208,6 +212,7 @@ def test_euler_audit_rejects_an_open_or_incomplete_field() -> None:
   audit = measure_moc_physical_field_euler_audit(shock)
 
   assert audit.status is MocPhysicalFieldEulerAuditStatus.INVALID_INPUT
+####
 
 
 def test_euler_consistent_shock_segment_closes_its_local_jump() -> None:
@@ -233,6 +238,7 @@ def test_euler_consistent_shock_segment_closes_its_local_jump() -> None:
   assert segment.maximum_shock_jump_residual < 1.0e-10
   assert segment.physical_closure_verified is False
   assert segment.chain_promotion_blocked
+####
 
 
 def test_euler_consistent_shock_segment_rejects_the_reference_turn_direction() -> None:
@@ -251,6 +257,7 @@ def test_euler_consistent_shock_segment_rejects_the_reference_turn_direction() -
   assert segment.status is MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN
   assert segment.converged is False
   assert segment.chain_promotion_blocked
+####
 
 
 def test_euler_consistent_shock_curve_records_mach_cone_orientation() -> None:
@@ -299,6 +306,7 @@ def test_euler_consistent_shock_curve_records_mach_cone_orientation() -> None:
   report = curve.as_report()
   assert report['orientation'] == 'mixed-characteristic-boundary'
   assert report['companion_boundary_required'] is True
+####
 
 
 def test_euler_consistent_shock_curve_rejects_reference_turn_direction() -> None:
@@ -316,6 +324,7 @@ def test_euler_consistent_shock_curve_rejects_reference_turn_direction() -> None
   assert result.status is MocEulerShockBoundaryStatus.NONCOMPRESSIVE_TURN
   assert not result.converged
   assert result.chain_promotion_blocked
+####
 
 
 def test_exact_euler_ambient_march_closes_pressure_and_tangent_boundary() -> None:
@@ -338,6 +347,7 @@ def test_exact_euler_ambient_march_closes_pressure_and_tangent_boundary() -> Non
   assert march.as_chain_termination_decision().reason is (
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   )
+####
 
 
 def test_exact_euler_ambient_field_blocks_generic_attachment_stencil() -> None:
@@ -382,6 +392,7 @@ def test_exact_euler_ambient_field_blocks_generic_attachment_stencil() -> None:
   assert audit.as_report()['operator_id'] == (
     'op.moc.euler-ambient-shock-field-audit'
   )
+####
 
 
 def test_exact_euler_ambient_field_planner_retains_attachment_stop() -> None:
@@ -419,6 +430,7 @@ def test_exact_euler_ambient_field_planner_retains_attachment_stop() -> None:
   assert audit.as_report()['operator_id'] == (
     'op.moc.euler-ambient-shock-field-chain-audit'
   )
+####
 
 
 def test_explicit_companion_exact_field_supports_audited_open_chain_mock() -> None:
@@ -464,6 +476,7 @@ def test_explicit_companion_exact_field_supports_audited_open_chain_mock() -> No
   assert chain_audit.local_sequence_verified
   assert not chain.physical_closure_verified
   assert chain.chain_promotion_blocked
+####
 
 
 def test_exact_euler_ambient_march_rejects_reference_ambient_attachment() -> None:
@@ -482,6 +495,7 @@ def test_exact_euler_ambient_march_rejects_reference_ambient_attachment() -> Non
   assert march.attachment_relative_pressure_residual is not None
   assert abs(march.attachment_relative_pressure_residual) > 0.1
   assert march.chain_promotion_blocked
+####
 
 
 def test_exact_euler_ambient_field_requires_entropy_transport_for_variable_p0() -> None:
@@ -519,6 +533,7 @@ def test_exact_euler_ambient_field_requires_entropy_transport_for_variable_p0() 
   assert audit.maximum_entropy_residual is not None
   assert audit.maximum_entropy_residual > 1.0e-3
   assert audit.chain_promotion_blocked
+####
 
 
 def test_solver_owned_ambient_companion_boundary_feeds_the_open_strip() -> None:
@@ -622,6 +637,7 @@ def test_solver_owned_ambient_companion_boundary_feeds_the_open_strip() -> None:
     MocEulerAmbientCompanionBoundaryAuditStatus.GEOMETRY_FAILURE
   )
   assert not spoofed_boundary_audit.local_boundary_consistency_verified
+####
 
 
 def test_euler_companion_strip_uses_explicit_second_characteristic_boundary() -> None:
@@ -728,6 +744,7 @@ def test_euler_companion_strip_uses_explicit_second_characteristic_boundary() ->
   assert rejected.status is MocEulerCompanionFieldStatus.PRESSURE_FAILURE
   assert not rejected.converged
   assert rejected.chain_promotion_blocked
+####
 
 
 def test_euler_companion_field_has_a_typed_planner_boundary_without_chain_promotion() -> None:
@@ -818,6 +835,7 @@ def test_euler_companion_field_has_a_typed_planner_boundary_without_chain_promot
   assert planner_audit.fidelity_isolation_verified
   assert planner_audit.physical_termination is False
   assert planner_audit.production_claim_allowed is False
+####
 
 
 def test_euler_companion_field_chain_mock_repeats_open_frontiers_without_promotion() -> None:
@@ -894,6 +912,7 @@ def test_euler_companion_field_chain_mock_repeats_open_frontiers_without_promoti
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_euler_companion_field_chain_refinement_remeasures_topology_and_shape() -> None:
@@ -966,3 +985,4 @@ def test_euler_companion_field_chain_refinement_remeasures_topology_and_shape() 
     MocEulerCompanionFieldChainRefinementMeasurementStatus.RESOLUTION_FAILURE
   )
   assert not out_of_order.converged
+####

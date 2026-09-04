@@ -53,6 +53,7 @@ class MocTerminalPatchShockCouplingStatus(str, Enum):
   PATCH_FAILURE = 'terminal_reflection_patch_failure'
   OUTSIDE_DOMAIN = 'outside_terminal_reflection_patch_domain'
   PRESSURE_FAILURE = 'terminal_reflection_patch_pressure_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,17 +70,21 @@ class MocTerminalPatchShockCouplingResult:
   @property
   def converged(self) -> bool:
     return self.status is MocTerminalPatchShockCouplingStatus.CONVERGED
+  ####
 
   @property
   def sampled_count(self) -> int:
     return len(self.upstream_states)
+  ####
 
   @property
   def last_valid_point_m(self) -> tuple[float, float] | None:
     if not self.upstream_states:
       return None
+    ####
     state = self.upstream_states[-1]
     return state.x_m, state.y_m
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -91,6 +96,8 @@ class MocTerminalPatchShockCouplingResult:
       'last_valid_point_m': self.last_valid_point_m,
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +114,7 @@ class MocTerminalReflectionPatchShockSolveResult:
   @property
   def converged(self) -> bool:
     return self.shock.converged and self.coupling.converged
+  ####
 
   @property
   def upstream_coupling_verified(self) -> bool:
@@ -134,16 +142,19 @@ class MocTerminalReflectionPatchShockSolveResult:
         )
       )
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The patch and its explicit downstream law are not production closure."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def physical_terminal_verified(self) -> bool:
@@ -156,6 +167,7 @@ class MocTerminalReflectionPatchShockSolveResult:
       and self.shock.normal_shock_terminal.converged
       and self.coupling.sampled_count == self.shock.sample_count
     )
+  ####
 
   def as_physical_termination_decision(self) -> MocChainTerminationDecision:
     """Return a typed chain stop for a verified normal-shock terminal.
@@ -170,6 +182,7 @@ class MocTerminalReflectionPatchShockSolveResult:
         'a physical mixed-regime termination requires complete upstream '
         'coverage and a converged normal-shock terminal'
       )
+    ####
     terminal = self.shock.normal_shock_terminal
     assert terminal is not None
     return MocChainTerminationDecision(
@@ -188,6 +201,7 @@ class MocTerminalReflectionPatchShockSolveResult:
         'upstream_sample_count': self.coupling.sampled_count,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, object]:
     termination_decision = (
@@ -211,6 +225,8 @@ class MocTerminalReflectionPatchShockSolveResult:
       'coupling': self.coupling.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _normalise_points(
@@ -220,9 +236,12 @@ def _normalise_points(
     points = tuple((float(point[0]), float(point[1])) for point in shock_points_m)
   except (IndexError, TypeError, ValueError):
     return None
+  ####
   if any(not all(isfinite(value) for value in point) for point in points):
     return None
+  ####
   return points
+####
 
 
 def sample_terminal_reflection_patch_along_shock_path(
@@ -243,8 +262,10 @@ def sample_terminal_reflection_patch_along_shock_path(
       first_missing_sample_index=None,
       message='shock path coupling requires at least two finite points',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isinstance(patch, MocTerminalReflectionPatchResult):
     return MocTerminalPatchShockCouplingResult(
       status=MocTerminalPatchShockCouplingStatus.INVALID_INPUT,
@@ -254,6 +275,7 @@ def sample_terminal_reflection_patch_along_shock_path(
       first_missing_sample_index=None,
       message='patch must be a MocTerminalReflectionPatchResult',
     )
+  ####
   if not patch.converged:
     return MocTerminalPatchShockCouplingResult(
       status=MocTerminalPatchShockCouplingStatus.PATCH_FAILURE,
@@ -263,6 +285,7 @@ def sample_terminal_reflection_patch_along_shock_path(
       first_missing_sample_index=None,
       message=f'terminal reflection patch is not converged: {patch.message}',
     )
+  ####
   for index, (previous, current) in enumerate(zip(points, points[1:]), start=1):
     if (
       current[0] <= previous[0] + position_tolerance_m
@@ -276,6 +299,8 @@ def sample_terminal_reflection_patch_along_shock_path(
         first_missing_sample_index=index,
         message='shock path must be strictly downstream in x and nonincreasing in y',
       )
+    ####
+  ####
 
   states = []
   pressures: list[float] = []
@@ -291,6 +316,7 @@ def sample_terminal_reflection_patch_along_shock_path(
         first_missing_sample_index=index,
         message=f'terminal reflection patch has no upstream state at shock sample {index}',
       )
+    ####
     if pressure is None or not isfinite(float(pressure)) or pressure <= 0.0:
       return MocTerminalPatchShockCouplingResult(
         status=MocTerminalPatchShockCouplingStatus.PRESSURE_FAILURE,
@@ -300,8 +326,10 @@ def sample_terminal_reflection_patch_along_shock_path(
         first_missing_sample_index=index,
         message=f'terminal reflection patch has no valid pressure at shock sample {index}',
       )
+    ####
     states.append(state)
     pressures.append(float(pressure))
+  ####
   return MocTerminalPatchShockCouplingResult(
     status=MocTerminalPatchShockCouplingStatus.CONVERGED,
     shock_points_m=points,
@@ -310,6 +338,7 @@ def sample_terminal_reflection_patch_along_shock_path(
     first_missing_sample_index=None,
     message='every shock sample lies inside the terminal reflection patch',
   )
+####
 
 
 def _shock_failure(message: str) -> MocFreeBoundaryShockResult:
@@ -326,6 +355,7 @@ def _shock_failure(message: str) -> MocFreeBoundaryShockResult:
     endpoint_m=None,
     message=message,
   )
+####
 
 
 def _partial_coupling(
@@ -345,6 +375,7 @@ def _partial_coupling(
     first_missing_sample_index=len(shock.shock_points_m),
     message=message,
   )
+####
 
 
 def solve_marched_attached_shock_from_terminal_reflection_patch(
@@ -373,6 +404,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
 
   if not isinstance(branch, ShockBranch):
     raise ValueError('branch must be a ShockBranch')
+  ####
   if not isinstance(patch, MocTerminalReflectionPatchResult):
     message = 'patch must be a MocTerminalReflectionPatchResult'
     return MocTerminalReflectionPatchShockSolveResult(
@@ -390,6 +422,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
       message=message,
       shock_branch=branch,
     )
+  ####
   if not patch.converged or len(patch.outgoing_trace_points_m) < 3:
     message = f'terminal reflection patch is not usable: {patch.message}'
     return MocTerminalReflectionPatchShockSolveResult(
@@ -407,6 +440,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
       message=message,
       shock_branch=branch,
     )
+  ####
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
   except (IndexError, TypeError, ValueError):
@@ -426,20 +460,25 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
       message=message,
       shock_branch=branch,
     )
+  ####
   if not all(isfinite(value) for value in start):
     raise ValueError('start_point_m must contain two finite coordinates')
+  ####
   expected_start = patch.outgoing_trace_points_m[0]
   if (
     abs(start[0] - expected_start[0]) > position_tolerance_m
     or abs(start[1] - expected_start[1]) > position_tolerance_m
   ):
     raise ValueError('shock start must equal the outer end of the outgoing C- trace')
+  ####
   expected_handoff = patch.outgoing_trace_samples
   handoff = expected_handoff if incoming_handoff is None else tuple(incoming_handoff)
   if handoff != expected_handoff:
     raise ValueError('incoming_handoff must exactly match the terminal patch outgoing C- trace')
+  ####
   if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
     raise ValueError('supply exactly one downstream flow-angle provider')
+  ####
 
   shock = solve_marched_attached_shock_field(
     patch.state_at,
@@ -474,6 +513,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
     message = coupling.message
   else:
     message = shock.message
+  ####
   return MocTerminalReflectionPatchShockSolveResult(
     shock=shock,
     coupling=coupling,
@@ -482,6 +522,7 @@ def solve_marched_attached_shock_from_terminal_reflection_patch(
     message=message,
     shock_branch=branch,
   )
+####
 
 
 def _validate_terminal_patch_chain_inputs(
@@ -498,38 +539,48 @@ def _validate_terminal_patch_chain_inputs(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   if not current_cell.resolved:
     raise ValueError(
       'terminal-patch continuation requires a closed resolved planar-MOC current cell'
     )
+  ####
   if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.TERMINAL_CHARACTERISTIC_TRACE:
     raise ValueError(
       'terminal-patch continuation requires a terminal-characteristic-trace current boundary'
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError as error:
     raise ValueError(
       'incoming_handoff must be an iterable of MocChainBoundarySample values'
     ) from error
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     raise ValueError('incoming_handoff must contain MocChainBoundarySample values')
+  ####
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('continued terminal-patch shock cells require at least three handoff samples')
+  ####
   if not isinstance(patch, MocTerminalReflectionPatchResult):
     raise TypeError('patch must be a MocTerminalReflectionPatchResult')
+  ####
   if not patch.converged or len(patch.outgoing_trace_points_m) < 3:
     raise ValueError(
       f'terminal reflection patch is not usable: {patch.message}'
     )
+  ####
   if (
     patch.outgoing_trace_validation is None
     or not patch.outgoing_trace_validation.converged
@@ -538,27 +589,35 @@ def _validate_terminal_patch_chain_inputs(
     raise ValueError(
       'terminal reflection patch must expose a converged outgoing C- trace'
     )
+  ####
   if patch.outgoing_trace_samples != handoff:
     raise ValueError(
       'incoming_handoff must exactly match the terminal patch outgoing C- trace'
     )
+  ####
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
     raise ValueError(
       'continued cell end_x_m must be strictly downstream of the current cell'
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
   except (IndexError, TypeError, ValueError) as error:
     raise ValueError('start_point_m must contain two finite coordinates') from error
+  ####
   if not all(isfinite(value) for value in start):
     raise ValueError('start_point_m must contain two finite coordinates')
+  ####
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError(
       'continued shock start point must be downstream of the current cell'
     )
+  ####
   return handoff, start
+####
 
 
 def _solve_terminal_patch_chain_candidate(
@@ -609,6 +668,7 @@ def _solve_terminal_patch_chain_candidate(
     maximum_segment_iterations=maximum_segment_iterations,
   )
   return solved, handoff, float(end_x_m)
+####
 
 
 def _as_terminal_patch_chain_cell_solve(
@@ -624,15 +684,18 @@ def _as_terminal_patch_chain_cell_solve(
       'terminal reflection patch reached a physical normal-shock terminal; '
       'use the or_termination adapter instead of appending a cell'
     )
+  ####
   if not solved.converged or solved.shock.field is None:
     raise ValueError(
       'terminal-patch continued shock cell failed: '
       f'{solved.shock.status.value}: {solved.message}'
     )
+  ####
   if not solved.upstream_coupling_verified:
     raise ValueError(
       'terminal-patch continued shock cell lacks complete upstream state/pressure coupling'
     )
+  ####
   field = solved.shock.field
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -643,11 +706,14 @@ def _as_terminal_patch_chain_cell_solve(
     raise ValueError(
       'terminal-patch continued field did not retain the exact incoming handoff'
     )
+  ####
   if not field.upstream_shock_coupling_verified:
     raise ValueError(
       'terminal-patch continued field did not retain its fitted upstream shock samples'
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=end_x_m)
+####
 
 
 def solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch(
@@ -696,6 +762,7 @@ def solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch(
     maximum_segment_iterations=maximum_segment_iterations,
   )
   return _as_terminal_patch_chain_cell_solve(solved, handoff, end_x_m=end_x)
+####
 
 
 def solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_termination(
@@ -743,6 +810,7 @@ def solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_te
   )
   if solved.physical_terminal_verified:
     return solved.as_physical_termination_decision()
+  ####
   if not solved.converged or solved.shock.field is None:
     reason = (
       MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
@@ -767,6 +835,7 @@ def solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_te
         'message': solved.message,
       },
     )
+  ####
   try:
     return _as_terminal_patch_chain_cell_solve(solved, handoff, end_x_m=end_x)
   except ValueError as error:
@@ -785,3 +854,5 @@ def solve_marched_attached_shock_chain_cell_from_terminal_reflection_patch_or_te
         'message': str(error),
       },
     )
+  ####
+####

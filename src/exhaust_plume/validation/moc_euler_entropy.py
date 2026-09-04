@@ -58,6 +58,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryAuditStatus(str, Enum):
   ENTROPY_FAILURE = 'euler_ambient_first_wedge_entropy_compatibility_failure'
   EULER_RESIDUAL_FAILURE = 'euler_ambient_first_wedge_entropy_euler_residual_failure'
   FLAG_FAILURE = 'euler_ambient_first_wedge_entropy_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,17 +83,21 @@ class MocEulerAmbientFirstWedgeEntropyCarryEdgeAudit:
       or self.edge_index < 0
     ):
       raise ValueError('edge_index must be a nonnegative integer')
+    ####
     if not isinstance(self.family, CharacteristicFamily):
       raise TypeError('family must be a CharacteristicFamily')
+    ####
     for name in ('start_vertex', 'end_vertex'):
       point = getattr(self, name)
       if len(point) != 2 or not all(isfinite(float(value)) for value in point):
         raise ValueError(f'{name} must contain a finite coordinate pair')
+      ####
       object.__setattr__(
         self,
         name,
         (float(point[0]), float(point[1])),
       )
+    ####
     for name in (
       'edge_length_m',
       'forward_margin_m',
@@ -104,7 +109,10 @@ class MocEulerAmbientFirstWedgeEntropyCarryEdgeAudit:
       value = float(getattr(self, name))
       if not isfinite(value) or value < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative')
+      ####
       object.__setattr__(self, name, value)
+    ####
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -119,6 +127,8 @@ class MocEulerAmbientFirstWedgeEntropyCarryEdgeAudit:
       'entropy_source_prediction': self.entropy_source_prediction,
       'compatibility_residual': self.compatibility_residual,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,14 +178,17 @@ class MocEulerAmbientFirstWedgeEntropyCarryAudit:
       raise TypeError(
         'status must be a MocEulerAmbientFirstWedgeEntropyCarryAuditStatus'
       )
+    ####
     if self.solver_status is not None:
       object.__setattr__(self, 'solver_status', str(self.solver_status))
+    ####
     if (
       isinstance(self.vertex_count, bool)
       or not isinstance(self.vertex_count, int)
       or self.vertex_count < 0
     ):
       raise ValueError('vertex_count must be a nonnegative integer')
+    ####
     edges = tuple(self.characteristic_edges)
     if any(
       not isinstance(edge, MocEulerAmbientFirstWedgeEntropyCarryEdgeAudit)
@@ -184,6 +197,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryAudit:
       raise TypeError(
         'characteristic_edges must contain entropy-carrying edge audits'
       )
+    ####
     object.__setattr__(self, 'characteristic_edges', edges)
     for name in (
       'incoming_characteristic_alignment_residual',
@@ -199,10 +213,13 @@ class MocEulerAmbientFirstWedgeEntropyCarryAudit:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'characteristic_residual_tolerance',
       'edge_alignment_tolerance',
@@ -212,7 +229,9 @@ class MocEulerAmbientFirstWedgeEntropyCarryAudit:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'topology_verified',
       'state_samples_finite',
@@ -230,17 +249,22 @@ class MocEulerAmbientFirstWedgeEntropyCarryAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is (
       MocEulerAmbientFirstWedgeEntropyCarryAuditStatus.CONVERGED_LOCAL_AUDIT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -260,6 +284,7 @@ class MocEulerAmbientFirstWedgeEntropyCarryAudit:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -318,6 +343,8 @@ class MocEulerAmbientFirstWedgeEntropyCarryAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -395,6 +422,7 @@ def _failure(
     pressure_lineage_tolerance=pressure_lineage_tolerance,
     message=message,
   )
+####
 
 
 def _average_direction(
@@ -411,7 +439,9 @@ def _average_direction(
   length = hypot(*direction)
   if not isfinite(length) or length <= 0.0:
     return None
+  ####
   return direction[0] / length, direction[1] / length
+####
 
 
 def _log_pressure_gradient(
@@ -420,6 +450,7 @@ def _log_pressure_gradient(
 ) -> tuple[float, float] | None:
   if len(vertices) != 3 or len(pressures) != 3:
     return None
+  ####
   (x1, y1), (x2, y2), (x3, y3) = vertices
   denominator = (
     x1 * (y2 - y3)
@@ -428,8 +459,10 @@ def _log_pressure_gradient(
   )
   if not isfinite(denominator) or abs(denominator) <= 1.0e-24:
     return None
+  ####
   if any(not isfinite(value) or value <= 0.0 for value in pressures):
     return None
+  ####
   values = tuple(log(value) for value in pressures)
   return (
     (
@@ -443,6 +476,7 @@ def _log_pressure_gradient(
       + values[2] * (x2 - x1)
     ) / denominator,
   )
+####
 
 
 def _edge_evidence(
@@ -458,6 +492,7 @@ def _edge_evidence(
   gradient = _log_pressure_gradient(vertices, pressures)
   if direction is None or gradient is None:
     return None
+  ####
   displacement = (
     vertices[end_index][0] - vertices[start_index][0],
     vertices[end_index][1] - vertices[start_index][1],
@@ -465,6 +500,7 @@ def _edge_evidence(
   length = hypot(*displacement)
   if not isfinite(length) or length <= 0.0:
     return None
+  ####
   alignment = abs(
     displacement[0] * direction[1] - displacement[1] * direction[0]
   ) / length
@@ -496,6 +532,7 @@ def _edge_evidence(
     entropy_source_prediction=abs(source),
     compatibility_residual=abs(actual - source),
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_carry(
@@ -514,6 +551,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
       MocEulerAmbientFirstWedgeEntropyCarryAuditStatus.INVALID_INPUT,
       'result must be a MocEulerAmbientFirstWedgeEntropyCarryResult',
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     residual_tolerance = float(characteristic_residual_tolerance)
@@ -526,6 +564,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
       'entropy-carrying audit tolerances must be numeric',
       solver_status=result.status.value,
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('characteristic_residual_tolerance', residual_tolerance),
@@ -535,6 +574,8 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   common = {
     'solver_status': result.status.value,
     'characteristic_residual_tolerance': residual_tolerance,
@@ -553,6 +594,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
       'entropy-carrying result does not retain its source candidate and field',
       **common,
     )
+  ####
   cell = result.cell
   sample = result.cell_sample
   vertices = tuple(
@@ -589,6 +631,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
       topology_verified=False,
       **common,
     )
+  ####
   state_samples_finite = bool(
     len(vertices) == len(states) == len(pressures) == 3
     and len(cell_vertices) == len(sample_vertices) == 3
@@ -662,6 +705,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
       state_samples_finite=False,
       **common,
     )
+  ####
   try:
     ambient_points = source_field.field.ambient_boundary.points_m
     ambient_states = source_field.field.ambient_boundary.states
@@ -681,6 +725,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
       state_samples_finite=True,
       **common,
     )
+  ####
   pressure_lineage_verified = bool(
     abs(pressures[1] - ambient_pressure)
     <= lineage_tolerance * max(1.0, abs(pressures[1]), abs(ambient_pressure))
@@ -711,6 +756,8 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
         + incoming_displacement[1] * incoming_direction[1]
       )
       incoming_k_minus = abs(states[1].k_minus - ambient_state.k_minus)
+    ####
+  ####
   incoming_geometry_verified = bool(
     incoming_alignment is not None
     and incoming_forward is not None
@@ -737,6 +784,8 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
     )
     if evidence is not None:
       edges.append(evidence)
+    ####
+  ####
   maximum_alignment = max(
     (edge.alignment_residual for edge in edges),
     default=None,
@@ -773,6 +822,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
     cell_residual = _cell_flux_residual(vertices, states, pressures)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     cell_residual = None
+  ####
   cell_residual_finite = bool(
     cell_residual is not None and isfinite(cell_residual)
   )
@@ -825,12 +875,14 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
     )
     status = MocEulerAmbientFirstWedgeEntropyCarryAuditStatus.CONVERGED_LOCAL_AUDIT
     message = 'independent entropy-carrying local audit passed; physical closure remains blocked'
+  ####
   solver_status_consistent = result.status.value == expected_status
   if not solver_status_consistent:
     message += (
       f'; solver status {result.status.value!r} does not match the independent '
       f'expected status {expected_status!r}'
     )
+  ####
   return MocEulerAmbientFirstWedgeEntropyCarryAudit(
     status=status,
     solver_status=result.status.value,
@@ -864,3 +916,4 @@ def measure_moc_euler_ambient_first_wedge_entropy_carry(
     pressure_lineage_tolerance=lineage_tolerance,
     message=message,
   )
+####

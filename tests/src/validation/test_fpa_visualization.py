@@ -106,6 +106,7 @@ def test_fpa_projection_preserves_source_identity_and_declared_pixel_coordinates
   assert projection.selected_wavelength_m == 3.0e-6
   assert projection.claim_ceiling == FPA_CLAIM_CEILING
   assert projection.model_dump()['source']['content_sha256'] == 'a' * 64
+####
 
 
 def test_fpa_projection_supports_counts_and_detector_response_views() -> None:
@@ -130,6 +131,7 @@ def test_fpa_projection_supports_counts_and_detector_response_views() -> None:
   assert counts.layer_values[0][0] == float(inputs.digitized.counts[0][0])
   assert response.detector_wavelengths_m == inputs.detector_response.wavelengths_m
   assert response.electron_response_per_joule == inputs.detector_response.electron_response_per_joule
+####
 
 
 def test_fpa_projection_rejects_unbound_specs_and_missing_deterministic_layers() -> None:
@@ -140,6 +142,7 @@ def test_fpa_projection_rejects_unbound_specs_and_missing_deterministic_layers()
       inputs,
       FpaVisualizationSpec.for_source(other_source, view_kind='fpa.overview'),
     )
+  ####
 
   no_counts = FpaVisualizationInput(
     image=inputs.image,
@@ -156,6 +159,8 @@ def test_fpa_projection_rejects_unbound_specs_and_missing_deterministic_layers()
         display_layer=FpaDisplayLayer.DIGITIZED_COUNTS,
       ),
     )
+  ####
+####
 
 
 def test_fpa_projection_rejects_invalid_pixels_when_policy_is_reject() -> None:
@@ -175,3 +180,5 @@ def test_fpa_projection_rejects_invalid_pixels_when_policy_is_reject() -> None:
         invalid_sample_policy=InvalidSamplePolicy.REJECT,
       ),
     )
+  ####
+####

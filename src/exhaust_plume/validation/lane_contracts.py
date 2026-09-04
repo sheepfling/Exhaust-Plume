@@ -51,6 +51,7 @@ class VisualLaneInvariantReport:
   normalized_channels_bounded: bool
   claim_ceiling_preserved: bool
   reasons: tuple[str, ...] = ()
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +67,7 @@ class SignatureLaneInvariantReport:
   no_extrapolation_used: bool
   claim_ceiling_preserved: bool
   reasons: tuple[str, ...] = ()
+####
 
 
 def validate_straight_visual_result(
@@ -142,6 +144,7 @@ def validate_straight_visual_result(
     **checks,
     reasons=reasons,
   )
+####
 
 
 def validate_signature_table_result(
@@ -208,6 +211,7 @@ def validate_signature_table_result(
     **checks,
     reasons=reasons,
   )
+####
 
 
 __all__ = (

@@ -70,6 +70,7 @@ class MocEulerAmbientFirstWedgeCharacteristicStatus(str, Enum):
   ENTROPY_FAILURE = 'euler_ambient_first_wedge_entropy_failure'
   EULER_RESIDUAL_FAILURE = 'euler_ambient_first_wedge_euler_residual_failure'
   TOPOLOGY_FAILURE = 'euler_ambient_first_wedge_topology_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,17 +95,22 @@ class MocEulerAmbientFirstWedgeCharacteristicEdge:
       or self.edge_index < 0
     ):
       raise ValueError('edge_index must be a nonnegative integer')
+    ####
     if not isinstance(self.family, CharacteristicFamily):
       raise TypeError('family must be a CharacteristicFamily')
+    ####
     for name in ('start_vertex', 'end_vertex'):
       point = getattr(self, name)
       try:
         values = (float(point[0]), float(point[1]))
       except (IndexError, TypeError, ValueError) as error:
         raise ValueError(f'{name} must contain two numeric coordinates') from error
+      ####
       if not all(isfinite(value) for value in values):
         raise ValueError(f'{name} must contain finite coordinates')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'edge_length_m',
       'forward_margin_m',
@@ -116,7 +122,10 @@ class MocEulerAmbientFirstWedgeCharacteristicEdge:
       value = float(getattr(self, name))
       if not isfinite(value) or value < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative')
+      ####
       object.__setattr__(self, name, value)
+    ####
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -131,6 +140,8 @@ class MocEulerAmbientFirstWedgeCharacteristicEdge:
       'entropy_source_prediction': self.entropy_source_prediction,
       'compatibility_residual': self.compatibility_residual,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,6 +192,7 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
         'status must be a '
         'MocEulerAmbientFirstWedgeCharacteristicStatus'
       )
+    ####
     if self.source_field is not None and not isinstance(
       self.source_field,
       MocEulerAmbientPhysicalFieldResult,
@@ -188,36 +200,46 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       raise TypeError(
         'source_field must be a MocEulerAmbientPhysicalFieldResult or None'
       )
+    ####
     if self.source_cell_index is not None and (
       isinstance(self.source_cell_index, bool)
       or not isinstance(self.source_cell_index, int)
       or self.source_cell_index < 0
     ):
       raise ValueError('source_cell_index must be a nonnegative integer or None')
+    ####
     if self.source_cell_kind is not None:
       object.__setattr__(self, 'source_cell_kind', str(self.source_cell_kind))
+    ####
     for name in ('original_vertices_xr_m', 'vertices_xr_m'):
       points = tuple(_finite_point(point, name) for point in getattr(self, name))
       object.__setattr__(self, name, points)
+    ####
     states = tuple(self.states)
     pressures = tuple(float(value) for value in self.total_pressure_Pa)
     if len(states) != len(self.vertices_xr_m):
       raise ValueError('states must match vertices_xr_m')
+    ####
     if len(pressures) != len(self.vertices_xr_m):
       raise ValueError('total_pressure_Pa must match vertices_xr_m')
+    ####
     if any(not isinstance(state, CharacteristicState) for state in states):
       raise TypeError('states must contain CharacteristicState values')
+    ####
     if any(not isfinite(value) or value <= 0.0 for value in pressures):
       raise ValueError('total_pressure_Pa must contain finite positive values')
+    ####
     if any(
       hypot(state.x_m - point[0], state.y_m - point[1]) > 1.0e-10
       for point, state in zip(self.vertices_xr_m, states, strict=True)
     ):
       raise ValueError('states must lie on vertices_xr_m')
+    ####
     object.__setattr__(self, 'states', states)
     object.__setattr__(self, 'total_pressure_Pa', pressures)
     if self.cell is not None and not isinstance(self.cell, MocCharacteristicCell):
       raise TypeError('cell must be a MocCharacteristicCell or None')
+    ####
     if self.cell_sample is not None and not isinstance(
       self.cell_sample,
       MocEulerAmbientFirstWedgeCellSample,
@@ -225,8 +247,10 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       raise TypeError(
         'cell_sample must be a MocEulerAmbientFirstWedgeCellSample or None'
       )
+    ####
     if not isinstance(self.topology, MocTopologyResult):
       raise TypeError('topology must be a MocTopologyResult')
+    ####
     if self.reflection_result is not None and not isinstance(
       self.reflection_result,
       CharacteristicPointResult,
@@ -234,6 +258,7 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       raise TypeError(
         'reflection_result must be a CharacteristicPointResult or None'
       )
+    ####
     edges = tuple(self.characteristic_edges)
     if any(
       not isinstance(edge, MocEulerAmbientFirstWedgeCharacteristicEdge)
@@ -242,6 +267,7 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       raise TypeError(
         'characteristic_edges must contain typed characteristic edge values'
       )
+    ####
     object.__setattr__(self, 'characteristic_edges', edges)
     for name in (
       'maximum_edge_alignment_residual',
@@ -253,10 +279,13 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'characteristic_residual_tolerance',
       'edge_alignment_tolerance',
@@ -265,7 +294,9 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'characteristic_geometry_verified',
       'variable_entropy_compatibility_verified',
@@ -276,7 +307,10 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -284,6 +318,7 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       MocEulerAmbientFirstWedgeCharacteristicStatus
       .CONVERGED_CHARACTERISTIC_WEDGE
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -296,6 +331,7 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the hard stop between this candidate and a continued chain."""
@@ -304,6 +340,7 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       reason = MocChainTerminationReason.INVALID_INPUT
     else:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -333,6 +370,7 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -410,6 +448,8 @@ class MocEulerAmbientFirstWedgeCharacteristicResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _finite_point(value: Any, label: str) -> tuple[float, float]:
@@ -417,13 +457,17 @@ def _finite_point(value: Any, label: str) -> tuple[float, float]:
     point = (float(value[0]), float(value[1]))
   except (IndexError, TypeError, ValueError) as error:
     raise ValueError(f'{label} must contain two numeric coordinates') from error
+  ####
   if not all(isfinite(component) for component in point):
     raise ValueError(f'{label} must contain finite coordinates')
+  ####
   return point
+####
 
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _failure(
@@ -485,6 +529,7 @@ def _failure(
     cell_residual_tolerance=cell_residual_tolerance,
     message=message,
   )
+####
 
 
 def _log_pressure_gradient(
@@ -493,8 +538,10 @@ def _log_pressure_gradient(
 ) -> tuple[float, float] | None:
   if len(vertices) != 3 or len(pressures) != 3:
     return None
+  ####
   if any(not isfinite(value) or value <= 0.0 for value in pressures):
     return None
+  ####
   (x1, y1), (x2, y2), (x3, y3) = vertices
   twice_area = (
     x1 * (y2 - y3)
@@ -503,6 +550,7 @@ def _log_pressure_gradient(
   )
   if not isfinite(twice_area) or abs(twice_area) <= 1.0e-24:
     return None
+  ####
   values = tuple(log(value) for value in pressures)
   return (
     (
@@ -516,6 +564,7 @@ def _log_pressure_gradient(
       + values[2] * (x2 - x1)
     ) / twice_area,
   )
+####
 
 
 def _primitive(
@@ -537,7 +586,9 @@ def _primitive(
   values = (density, pressure, velocity_x, velocity_y, total_energy)
   if not all(isfinite(value) for value in values):
     raise ValueError('terminal-wedge Euler primitive contains a non-finite value')
+  ####
   return values
+####
 
 
 def _flux_dot_normal(
@@ -553,6 +604,7 @@ def _flux_dot_normal(
     density * velocity_y * normal_speed + pressure * normal_y,
     (total_energy + pressure) * normal_speed,
   )
+####
 
 
 def _cell_euler_residual(
@@ -562,14 +614,17 @@ def _cell_euler_residual(
 ) -> float:
   if len(vertices) != len(states) or len(vertices) != len(pressures):
     raise ValueError('terminal-wedge vertices, states, and pressures must align')
+  ####
   if len(vertices) < 3:
     raise ValueError('terminal-wedge Euler residual requires a polygon')
+  ####
   signed_area = 0.5 * sum(
     first[0] * second[1] - second[0] * first[1]
     for first, second in zip(vertices, (*vertices[1:], vertices[0]))
   )
   if not isfinite(signed_area) or abs(signed_area) <= 1.0e-24:
     raise ValueError('terminal-wedge Euler residual requires a non-degenerate cell')
+  ####
   orientation = 1.0 if signed_area > 0.0 else -1.0
   primitives = tuple(
     _primitive(state, pressure)
@@ -585,6 +640,7 @@ def _cell_euler_residual(
     length = hypot(dx, dy)
     if not isfinite(length) or length <= 0.0:
       raise ValueError(f'terminal-wedge Euler edge {index} has zero length')
+    ####
     normal_x = orientation * dy / length
     normal_y = -orientation * dx / length
     first_flux = _flux_dot_normal(primitives[index], normal_x, normal_y)
@@ -597,12 +653,15 @@ def _cell_euler_residual(
       residual[component] += 0.5 * length * (
         first_flux[component] + second_flux[component]
       )
+    ####
     scale += length * max(
       1.0,
       max(abs(value) for value in first_flux),
       max(abs(value) for value in second_flux),
     )
+  ####
   return sqrt(sum(value * value for value in residual)) / max(1.0, scale)
+####
 
 
 def _edge(
@@ -625,6 +684,7 @@ def _edge(
   edge_length = hypot(*displacement)
   if direction_length <= 0.0 or edge_length <= 0.0:
     return None
+  ####
   unit_direction = (
     average_direction[0] / direction_length,
     average_direction[1] / direction_length,
@@ -635,6 +695,7 @@ def _edge(
   )
   if forward_margin <= 0.0:
     return None
+  ####
   alignment = abs(
     displacement[0] * unit_direction[1]
     - displacement[1] * unit_direction[0]
@@ -665,6 +726,7 @@ def _edge(
     entropy_source_prediction=abs(signed_source),
     compatibility_residual=abs(actual - signed_source),
   )
+####
 
 
 def solve_euler_ambient_first_wedge_characteristic_remesh(
@@ -690,6 +752,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       None,
       message='source_field must be a MocEulerAmbientPhysicalFieldResult',
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     residual_tolerance = float(characteristic_residual_tolerance)
@@ -701,6 +764,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       source_field,
       message='terminal-wedge tolerances must be numeric',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('characteristic_residual_tolerance', residual_tolerance),
@@ -709,6 +773,8 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   common = {
     'characteristic_residual_tolerance': residual_tolerance,
     'edge_alignment_tolerance': alignment_tolerance,
@@ -729,6 +795,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       ),
       **common,
     )
+  ####
   field = source_field.field
   wedge_indices = tuple(
     index
@@ -745,6 +812,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       ),
       **common,
     )
+  ####
   source_cell_index = wedge_indices[0]
   source_cell = field.cells[source_cell_index]
   try:
@@ -761,6 +829,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message=str(error),
       **common,
     )
+  ####
   if len(original_vertices) != 3:
     return _failure(
       MocEulerAmbientFirstWedgeCharacteristicStatus.WEDGE_REQUIRED,
@@ -771,6 +840,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message='terminal-wedge source cell must be triangular',
       **common,
     )
+  ####
   axis_vertices = tuple(
     point for point in original_vertices
     if abs(point[1]) <= position_tolerance
@@ -792,6 +862,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       ),
       **common,
   )
+  ####
   shock_endpoint = min(axis_vertices, key=lambda point: point[0])
   terminal_node_point = off_axis_vertices[0]
   shock_states = field.post_shock_boundary_states
@@ -806,6 +877,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message='terminal-wedge source field is missing shock state/pressure data',
       **common,
     )
+  ####
   shock_state = shock_states[-1]
   shock_pressure = float(shock_pressures[-1])
   if hypot(
@@ -821,6 +893,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message='terminal shock state does not match the source wedge endpoint',
       **common,
     )
+  ####
   terminal_state = field.state_at(
     terminal_node_point,
     position_tolerance_m=position_tolerance,
@@ -839,6 +912,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message='terminal wedge node has no bounded state/pressure sample',
       **common,
     )
+  ####
   terminal_pressure = float(terminal_pressure)
   try:
     reflection = centerline_characteristic_point(
@@ -857,6 +931,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message=f'terminal C- reflection raised: {error}',
       **common,
     )
+  ####
   if not reflection.converged or reflection.point_m is None or reflection.state is None:
     return _failure(
       MocEulerAmbientFirstWedgeCharacteristicStatus.REFLECTION_FAILURE,
@@ -868,6 +943,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message=f'terminal C- reflection failed: {reflection.message}',
       **common,
     )
+  ####
   reflected_axis_point = _finite_point(
     reflection.point_m,
     'reflected terminal axis point',
@@ -892,6 +968,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       ),
       **common,
     )
+  ####
   vertices = (shock_endpoint, terminal_node_point, reflected_axis_point)
   states = (shock_state, terminal_state, reflected_axis_state)
   pressures = (shock_pressure, terminal_pressure, terminal_pressure)
@@ -910,6 +987,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message='terminal-wedge pressure gradient is not finite and non-degenerate',
       **common,
     )
+  ####
   edges = tuple(
     edge
     for edge in (
@@ -997,6 +1075,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message=f'terminal-wedge cell geometry failed: {error}',
       **common,
     )
+  ####
   topology = validate_moc_mesh((cell,))
   topology_verified = bool(
     topology.connected
@@ -1027,6 +1106,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message=f'terminal-wedge topology failed: {topology.message}',
       **common,
     )
+  ####
   try:
     cell_residual = _cell_euler_residual(vertices, states, pressures)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -1053,6 +1133,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       message=f'terminal-wedge Euler residual reconstruction failed: {error}',
       **common,
     )
+  ####
   cell_residual_verified = bool(cell_residual <= cell_tolerance)
   if not characteristic_geometry_verified:
     status = (
@@ -1088,8 +1169,10 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
       'entropy, and Euler residual gates; global physical closure remains '
       'blocked'
     )
+  ####
   if not cell_residual_verified:
     message += f' (cell Euler residual={cell_residual})'
+  ####
   return MocEulerAmbientFirstWedgeCharacteristicResult(
     status=status,
     source_field=source_field,
@@ -1115,6 +1198,7 @@ def solve_euler_ambient_first_wedge_characteristic_remesh(
     **common,
     message=message,
   )
+####
 
 
 class MocEulerAmbientFirstWedgeCharacteristicFieldStatus(str, Enum):
@@ -1142,6 +1226,7 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldStatus(str, Enum):
   EULER_RESIDUAL_FAILURE = (
     'euler_ambient_first_wedge_characteristic_field_euler_residual_failure'
   )
+####
 
 
 def _field_point_key(
@@ -1149,6 +1234,7 @@ def _field_point_key(
   tolerance_m: float,
 ) -> tuple[int, int]:
   return round(point[0] / tolerance_m), round(point[1] / tolerance_m)
+####
 
 
 def _field_edge_key(
@@ -1163,6 +1249,7 @@ def _field_edge_key(
     if first_key <= second_key
     else (second_key, first_key)
   )
+####
 
 
 def _field_boundary_paths_verified(
@@ -1179,6 +1266,8 @@ def _field_boundary_paths_verified(
     for first, second in zip(vertices, (*vertices[1:], vertices[0])):
       edge = _field_edge_key(first, second, tolerance_m)
       edge_counts[edge] = edge_counts.get(edge, 0) + 1
+    ####
+  ####
   return all(
     all(
       edge_counts.get(_field_edge_key(first, second, tolerance_m), 0) == 1
@@ -1186,6 +1275,7 @@ def _field_boundary_paths_verified(
     )
     for path in paths
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1231,6 +1321,7 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
         'status must be a '
         'MocEulerAmbientFirstWedgeCharacteristicFieldStatus'
       )
+    ####
     if self.source_field is not None and not isinstance(
       self.source_field,
       MocEulerAmbientPhysicalFieldResult,
@@ -1238,6 +1329,7 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
       raise TypeError(
         'source_field must be a MocEulerAmbientPhysicalFieldResult or None'
       )
+    ####
     if self.terminal_wedge is not None and not isinstance(
       self.terminal_wedge,
       MocEulerAmbientFirstWedgeCharacteristicResult,
@@ -1246,6 +1338,7 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
         'terminal_wedge must be a '
         'MocEulerAmbientFirstWedgeCharacteristicResult or None'
       )
+    ####
     if self.retiled_field is not None and not isinstance(
       self.retiled_field,
       MocPhysicalPostShockFieldResult,
@@ -1253,14 +1346,17 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
       raise TypeError(
         'retiled_field must be a MocPhysicalPostShockFieldResult or None'
       )
+    ####
     replaced_indices = tuple(self.replaced_cell_indices)
     if any(
       isinstance(index, bool) or not isinstance(index, int) or index < 0
       for index in replaced_indices
     ):
       raise ValueError('replaced_cell_indices must contain nonnegative integers')
+    ####
     if len(set(replaced_indices)) != len(replaced_indices):
       raise ValueError('replaced_cell_indices must not contain duplicates')
+    ####
     object.__setattr__(self, 'replaced_cell_indices', replaced_indices)
     if self.replaced_centerline_index is not None and (
       isinstance(self.replaced_centerline_index, bool)
@@ -1270,13 +1366,17 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
       raise ValueError(
         'replaced_centerline_index must be a nonnegative integer or None'
       )
+    ####
     for name in ('original_centerline_point', 'retiled_centerline_point'):
       point = getattr(self, name)
       if point is None:
         continue
+      ####
       object.__setattr__(self, name, _finite_point(point, name))
+    ####
     if not isinstance(self.topology, MocTopologyResult):
       raise TypeError('topology must be a MocTopologyResult')
+    ####
     for name in (
       'retiled_field_topology_verified',
       'boundary_paths_verified',
@@ -1289,14 +1389,18 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_closure_verified:
       raise ValueError(
         'a local characteristic field retile cannot claim physical closure'
       )
+    ####
     if self.production_claim_allowed:
       raise ValueError(
         'a local characteristic field retile cannot claim production validity'
       )
+    ####
     for name in (
       'position_tolerance_m',
       'characteristic_residual_tolerance',
@@ -1306,8 +1410,11 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -1317,6 +1424,7 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
       MocEulerAmbientFirstWedgeCharacteristicFieldStatus
       .CONVERGED_LOCAL_RETILE
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -1333,12 +1441,14 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   @property
   def physical_chain_cell_count(self) -> int:
     """Number of physical chain cells contributed by this retile."""
 
     return 0
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the hard stop between the retiled field and a chain."""
@@ -1378,6 +1488,7 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1441,6 +1552,8 @@ class MocEulerAmbientFirstWedgeCharacteristicFieldResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _field_failure(
@@ -1488,6 +1601,7 @@ def _field_failure(
     cell_residual_tolerance=cell_residual_tolerance,
     message=message,
   )
+####
 
 
 def remesh_euler_ambient_first_wedge_characteristic_field(
@@ -1511,6 +1625,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       None,
       message='source_field must be a MocEulerAmbientPhysicalFieldResult',
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     residual_tolerance = float(characteristic_residual_tolerance)
@@ -1522,6 +1637,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       source_field,
       message='characteristic field retile tolerances must be numeric',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('characteristic_residual_tolerance', residual_tolerance),
@@ -1530,6 +1646,8 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   common = {
     'position_tolerance_m': position_tolerance,
     'characteristic_residual_tolerance': residual_tolerance,
@@ -1554,6 +1672,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       ),
       **common,
     )
+  ####
   field = source_field.field
   if field is None or terminal_wedge.source_cell_index is None:
     return _field_failure(
@@ -1563,6 +1682,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       message='terminal-wedge candidate did not retain its source field cell',
       **common,
     )
+  ####
   source_cell_index = terminal_wedge.source_cell_index
   if not 0 <= source_cell_index < len(field.cells):
     return _field_failure(
@@ -1572,6 +1692,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       message='terminal-wedge source cell index is outside the physical field',
       **common,
     )
+  ####
   source_cell = field.cells[source_cell_index]
   original_vertices = tuple(
     _finite_point(point, 'terminal-wedge source cell vertex')
@@ -1595,6 +1716,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       ),
       **common,
     )
+  ####
   original_centerline_point = max(axis_vertices, key=lambda point: point[0])
   off_axis_point = off_axis_vertices[0]
   retiled_centerline_point = _finite_point(
@@ -1632,6 +1754,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       message='reflected terminal characteristic is not a usable axis vertex',
       **common,
     )
+  ####
   adjacent_indices = tuple(
     index
     for index, cell in enumerate(field.cells)
@@ -1665,6 +1788,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       ),
       **common,
     )
+  ####
   adjacent_index = adjacent_indices[0]
   adjacent_cell = field.cells[adjacent_index]
   adjacent_axis_matches = tuple(
@@ -1687,6 +1811,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       message='adjacent centerline strip has an ambiguous original axis vertex',
       **common,
     )
+  ####
   retiled_adjacent_vertices = tuple(
     retiled_centerline_point
     if index == adjacent_axis_matches[0]
@@ -1741,6 +1866,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       ),
       **common,
     )
+  ####
   centerline_index = centerline_matches[0]
   retiled_centerline_points = tuple(
     retiled_centerline_point
@@ -1795,6 +1921,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       message='retiled centerline boundary is not an ordered axis trace',
       **common,
     )
+  ####
   boundary_paths_verified = _field_boundary_paths_verified(
     retiled_cells,
     (
@@ -1846,6 +1973,7 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
       'Euler, topology, and boundary-path gates; physical chain promotion '
       'remains blocked'
     )
+  ####
   return _field_failure(
     status,
     source_field,
@@ -1866,3 +1994,4 @@ def remesh_euler_ambient_first_wedge_characteristic_field(
     message=message,
     **common,
   )
+####

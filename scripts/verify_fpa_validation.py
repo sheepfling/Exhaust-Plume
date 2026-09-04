@@ -19,6 +19,7 @@ from zipfile import ZipFile
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
   sys.path.insert(0, str(REPO_ROOT))
+####
 
 from scripts.verify_validation_corpus import (  # noqa: E402
   ArchiveCheck,
@@ -70,6 +71,7 @@ def _candidate_fpa_members(path: Path) -> tuple[str, ...]:
   ####
   with ZipFile(path) as archive:
     names = tuple(info.filename for info in archive.infolist())
+  ####
   tokens = ('fpa', 'pixel', 'detector', 'camera')
   return tuple(sorted(
     name for name in names
@@ -121,10 +123,13 @@ def build_fpa_validation_readiness_report(
   blockers = []
   if corpus_check.status != 'verified':
     blockers.append('content-addressed Version 8 corpus is not verified')
+  ####
   if alignment_check.status != 'verified':
     blockers.append('separately named MVP alignment archive is not verified')
+  ####
   if not candidate_members:
     blockers.append('no FPA camera/detector/pixel observation dataset is present in the recovered corpus')
+  ####
   blockers.append('no accepted external FPA measurement claim is emitted by this report')
   return {
     'schema': FPA_VALIDATION_READINESS_SCHEMA,
@@ -176,6 +181,7 @@ def main(argv: list[str] | None = None) -> int:
   if arguments.output is not None:
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(serialized, encoding='utf-8')
+  ####
   print(serialized, end='')
   return 0 if report['status'] == 'ready-for-contract-review' else 1
 ####
@@ -183,3 +189,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

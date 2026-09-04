@@ -20,6 +20,7 @@ def _metadata() -> dict[str, object]:
       'nozzle_pressure_ratio': 2.27,
     },
   }
+####
 
 
 def test_polygon_sampling_excludes_ambiguous_boundary_geometry() -> None:
@@ -78,3 +79,4 @@ def test_typed_component_claim_is_proposed_not_accepted() -> None:
   assert claim['measurement_operator_id'] == 'op.field.profile-probe'
   assert claim['evidence_level'] == 3
   assert claim['status'] == 'proposed'
+####

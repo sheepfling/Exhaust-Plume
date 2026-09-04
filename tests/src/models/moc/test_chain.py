@@ -40,6 +40,7 @@ def _mesh(offset_m: float) -> tuple[MocCharacteristicCell, ...]:
       boundary_indices=(0,),
     ),
   )
+####
 
 
 def _cell(
@@ -57,6 +58,7 @@ def _cell(
     geometry_fidelity=fidelity,
     physical_closure=closure,
   )
+####
 
 
 def _stateful_cell(
@@ -90,6 +92,7 @@ def _stateful_cell(
     continuation_boundary=boundary,
     continuation_boundary_kind=boundary_kind,
   )
+####
 
 
 def test_open_seed_does_not_start_moc_chain_continuation() -> None:
@@ -98,6 +101,7 @@ def test_open_seed_does_not_start_moc_chain_continuation() -> None:
   def solver(_current: MocChainCell, index: int) -> MocChainCell:
     calls.append(index)
     return _cell(index, 1.0)
+  ####
 
   result = continue_moc_cell_chain(
     _cell(1, 0.0, closure=MocCellClosureStatus.PENDING),
@@ -108,11 +112,13 @@ def test_open_seed_does_not_start_moc_chain_continuation() -> None:
   assert result.termination_reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   assert result.cell_count == 1
   assert calls == []
+####
 
 
 def test_resolved_moc_chain_requires_explicit_axial_continuity() -> None:
   def solver(_current: MocChainCell, index: int) -> MocChainCell:
     return _cell(index, 1.0)
+  ####
 
   result = continue_moc_cell_chain(_cell(1, 0.0), solver)
 
@@ -121,6 +127,7 @@ def test_resolved_moc_chain_requires_explicit_axial_continuity() -> None:
   # be given the current boundary rather than a hard-coded coordinate.
   assert result.termination_reason is MocChainTerminationReason.INVALID_INPUT
   assert 'share an axial boundary' in result.message
+####
 
 
 def test_resolved_moc_chain_continues_until_solver_returns_none() -> None:
@@ -130,7 +137,9 @@ def test_resolved_moc_chain_continues_until_solver_returns_none() -> None:
     calls.append(index)
     if index == 3:
       return None
+    ####
     return _cell(index, current.end_x_m)
+  ####
 
   result = continue_moc_cell_chain(
     _cell(1, 0.0),
@@ -163,6 +172,7 @@ def test_resolved_moc_chain_continues_until_solver_returns_none() -> None:
       'continuation_boundary_x_extent_m': None,
     },
   ]
+####
 
 
 def test_resolved_moc_chain_rejects_a_candidate_mesh_reused_upstream() -> None:
@@ -171,6 +181,7 @@ def test_resolved_moc_chain_rejects_a_candidate_mesh_reused_upstream() -> None:
       _cell(index, current.end_x_m),
       mesh=_mesh(current.end_x_m - 0.1),
     )
+  ####
 
   result = continue_moc_cell_chain(_cell(1, 0.0), solver)
 
@@ -178,6 +189,7 @@ def test_resolved_moc_chain_rejects_a_candidate_mesh_reused_upstream() -> None:
   assert result.termination_reason is MocChainTerminationReason.INVALID_INPUT
   assert 'begins upstream of the shared axial interface' in result.message
   assert result.cell_count == 1
+####
 
 
 def test_stateful_moc_chain_rejects_a_carried_boundary_reused_upstream() -> None:
@@ -191,6 +203,7 @@ def test_stateful_moc_chain_rejects_a_carried_boundary_reused_upstream() -> None
       for sample in candidate.continuation_boundary
     )
     return replace(candidate, continuation_boundary=boundary)
+  ####
 
   result = continue_moc_cell_chain(
     _stateful_cell(1, 0.0),
@@ -202,6 +215,7 @@ def test_stateful_moc_chain_rejects_a_carried_boundary_reused_upstream() -> None
   assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
   assert 'upstream of the shared axial interface' in result.message
   assert result.cell_count == 1
+####
 
 
 def test_explicit_physical_termination_is_not_inferred_from_none() -> None:
@@ -220,6 +234,7 @@ def test_explicit_physical_termination_is_not_inferred_from_none() -> None:
   assert result.cell_count == 1
   assert result.as_report()['diagnostics'] == {'termination_metric': 2.0e-6}
   assert result.as_report()['termination_reason'] == 'physical-termination'
+####
 
 
 def test_reduced_order_candidate_is_rejected_at_moc_fidelity_boundary() -> None:
@@ -229,6 +244,7 @@ def test_reduced_order_candidate_is_rejected_at_moc_fidelity_boundary() -> None:
       current.end_x_m,
       fidelity=MocChainGeometryFidelity.SCALED_REDUCED_ORDER,
     )
+  ####
 
   result = continue_moc_cell_chain(_cell(1, 0.0), solver)
 
@@ -236,6 +252,7 @@ def test_reduced_order_candidate_is_rejected_at_moc_fidelity_boundary() -> None:
   assert result.termination_reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   assert result.cell_count == 1
   assert 'shock-train lane' in result.message
+####
 
 
 def test_stateful_moc_chain_requires_a_downstream_state_boundary() -> None:
@@ -248,6 +265,7 @@ def test_stateful_moc_chain_requires_a_downstream_state_boundary() -> None:
   assert result.status is MocChainStatus.STATE_BOUNDARY
   assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
   assert 'state carry' in result.message
+####
 
 
 def test_stateful_moc_chain_preserves_boundary_samples_across_cells() -> None:
@@ -257,7 +275,9 @@ def test_stateful_moc_chain_preserves_boundary_samples_across_cells() -> None:
     calls.append((index, len(current.continuation_boundary)))
     if index == 3:
       return None
+    ####
     return _stateful_cell(index, current.end_x_m)
+  ####
 
   result = continue_moc_cell_chain(
     _stateful_cell(1, 0.0),
@@ -274,6 +294,7 @@ def test_stateful_moc_chain_preserves_boundary_samples_across_cells() -> None:
     {'cell_index': 2, 'minimum_Pa': 1.0e6, 'maximum_Pa': 1.0e6},
   ]
   assert calls == [(2, 3), (3, 3)]
+####
 
 
 def test_centerline_trace_is_a_distinct_state_carry_boundary() -> None:
@@ -292,6 +313,7 @@ def test_centerline_trace_is_a_distinct_state_carry_boundary() -> None:
   assert result.status is MocChainStatus.SOLVER_TERMINATED
   assert result.resolved
   assert result.as_report()['continuation_boundary_kinds'] == ['centerline-trace']
+####
 
 
 def test_centerline_trace_rejects_a_non_axis_state_boundary() -> None:
@@ -315,6 +337,7 @@ def test_centerline_trace_rejects_a_non_axis_state_boundary() -> None:
   assert result.status is MocChainStatus.STATE_BOUNDARY
   assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
   assert 'does not lie on the symmetry line' in result.message
+####
 
 
 def test_chain_pressure_report_flags_a_carried_pressure_increase() -> None:
@@ -330,6 +353,7 @@ def test_chain_pressure_report_flags_a_carried_pressure_increase() -> None:
 
   assert result.status is MocChainStatus.SOLVER_TERMINATED
   assert result.as_report()['continuation_boundary_maxima_nonincreasing'] is False
+####
 
 
 def test_axial_section_boundary_rejects_nonplanar_state_samples() -> None:
@@ -359,6 +383,7 @@ def test_axial_section_boundary_rejects_nonplanar_state_samples() -> None:
       continuation_boundary_kind=MocChainBoundaryKind.AXIAL_SECTION,
     )
   ####
+####
 
 
 def test_post_shock_field_perimeter_rejects_samples_below_symmetry() -> None:
@@ -387,7 +412,7 @@ def test_post_shock_field_perimeter_rejects_samples_below_symmetry() -> None:
   assert result.status is MocChainStatus.STATE_BOUNDARY
   assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
   assert 'below the symmetry line' in result.message
-  ####
+####
 
 
 def test_characteristic_trace_validator_accepts_a_forward_c_plus_trace() -> None:
@@ -424,6 +449,7 @@ def test_characteristic_trace_validator_accepts_a_forward_c_plus_trace() -> None
   assert result.maximum_absolute_invariant_residual == 0.0
   assert result.maximum_geometry_residual_m is not None
   assert result.maximum_geometry_residual_m < 1.0e-12
+####
 
 
 def test_characteristic_trace_can_split_short_segment_forward_and_geometry_tolerances() -> None:
@@ -467,6 +493,7 @@ def test_characteristic_trace_can_split_short_segment_forward_and_geometry_toler
   assert split_tolerance_result.converged
   assert split_tolerance_result.maximum_geometry_residual_m is not None
   assert split_tolerance_result.maximum_geometry_residual_m < 1.0e-12
+####
 
 
 def test_characteristic_trace_validator_does_not_hide_a_family_invariant_break() -> None:
@@ -499,3 +526,4 @@ def test_characteristic_trace_validator_does_not_hide_a_family_invariant_break()
   assert result.status is MocCharacteristicTraceStatus.INVARIANT_FAILURE
   assert not result.converged
   assert 'C+ invariant' in result.message
+####

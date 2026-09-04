@@ -145,6 +145,7 @@ class ProviderBoundComparisonEvidence(ValidationModel):
   def validateIdentifiers(cls, values: tuple[str, ...]) -> tuple[str, ...]:
     if any(not value for value in values):
       raise ValueError('evidence identifier collections must not contain empty values')
+    ####
     if len(values) != len(set(values)):
       raise ValueError('evidence identifier collections must not contain duplicates')
     ####
@@ -187,36 +188,46 @@ class ProviderBoundComparisonEvidence(ValidationModel):
     if self.status is ComparisonEvidenceStatus.ACCEPTED:
       if not self.uncertainty:
         raise ValueError('accepted comparison evidence requires uncertainty metadata')
+      ####
       if not self.applicability_domain:
         raise ValueError('accepted comparison evidence requires an applicability domain')
+      ####
       if not self.coverage:
         raise ValueError('accepted comparison evidence requires coverage metadata')
+      ####
+    ####
     missing_results = set(self.metric_ids) - set(self.metric_results)
     if missing_results:
       raise ValueError(
         'comparison evidence must report every declared metric result'
       )
+    ####
     missing_tolerances = set(self.metric_ids) - set(self.metric_tolerances)
     if missing_tolerances:
       raise ValueError(
         'comparison evidence must declare a tolerance for every metric'
       )
+    ####
     if any(
       not isfinite(float(value))
       for values in (self.metric_results.values(), self.metric_tolerances.values())
       for value in values
     ):
       raise ValueError('comparison evidence metric values and tolerances must be finite')
+    ####
     if any(float(value) < 0.0 for value in self.metric_tolerances.values()):
       raise ValueError('comparison evidence metric tolerances must be nonnegative')
+    ####
     if len(self.source_asset_ids) != len(self.source_asset_sha256):
       raise ValueError(
         'source_asset_ids and source_asset_sha256 must have matching lengths'
       )
+    ####
     if len(self.provider_output_ids) != len(self.provider_output_sha256):
       raise ValueError(
         'provider_output_ids and provider_output_sha256 must have matching lengths'
       )
+    ####
     if self.status is ComparisonEvidenceStatus.ACCEPTED:
       exceeded = tuple(
         metric_id
@@ -228,6 +239,7 @@ class ProviderBoundComparisonEvidence(ValidationModel):
         raise ValueError(
           'accepted comparison evidence has metrics outside declared tolerances'
         )
+      ####
     ####
     return self
   ####
@@ -289,6 +301,7 @@ class ValidationClaim(ValidationModel):
       ####
       if self.status is ClaimStatus.ACCEPTED and evidence.status is not ComparisonEvidenceStatus.ACCEPTED:
         raise ValueError('an accepted validation claim requires accepted comparison evidence')
+      ####
     ####
     if self.evidence_level is EvidenceLevel.NONE_OR_NOT_ACQUIRED and self.status is ClaimStatus.ACCEPTED:
       raise ValueError('unacquired evidence cannot be an accepted claim')

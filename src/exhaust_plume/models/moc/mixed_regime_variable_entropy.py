@@ -72,6 +72,7 @@ class MocMixedRegimeVariableEntropyFreeBoundaryStatus(str, Enum):
   FIELD_FAILURE = 'variable-entropy-field-failure'
   FREE_BOUNDARY_FAILURE = 'variable-entropy-free-boundary-failure'
   RESIDUAL_FAILURE = 'variable-entropy-residual-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,8 +144,10 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
         'status must be a '
         'MocMixedRegimeVariableEntropyFreeBoundaryStatus'
       )
+    ####
     if not isinstance(self.request, MocMixedRegimePerimeterRequest):
       raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+    ####
     if self.handoff is not None and not isinstance(
       self.handoff,
       MocMixedRegimeEntropyHandoffResult,
@@ -152,10 +155,12 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
       raise TypeError(
         'handoff must be a MocMixedRegimeEntropyHandoffResult or None'
       )
+    ####
     if not isinstance(self.control_section, MocMixedRegimeControlSection):
       raise TypeError(
         'control_section must be a MocMixedRegimeControlSection'
       )
+    ####
     if self.control_section_validation is not None and not isinstance(
       self.control_section_validation,
       MocMixedRegimeControlSectionResult,
@@ -164,6 +169,7 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
         'control_section_validation must be a '
         'MocMixedRegimeControlSectionResult or None'
       )
+    ####
     for name, value in (
       ('ambient_pressure_Pa', self.ambient_pressure_Pa),
       ('downstream_length_m', self.downstream_length_m),
@@ -173,12 +179,16 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
       numeric = float(value)
       if not isfinite(numeric) or numeric <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     if self.outlet_height_m is not None:
       outlet_height = float(self.outlet_height_m)
       if not isfinite(outlet_height) or outlet_height <= 0.0:
         raise ValueError('outlet_height_m must be finite and positive')
+      ####
       object.__setattr__(self, 'outlet_height_m', outlet_height)
+    ####
     for name, minimum in (
       ('axial_station_count', 5),
       ('transverse_station_count', 3),
@@ -189,6 +199,8 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
         raise ValueError(
           f'{name} must be an integer greater than or equal to {minimum}'
         )
+      ####
+    ####
     for name in (
       'free_boundary_points_m',
       'free_boundary_heights_m',
@@ -208,12 +220,16 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
         )
         if any(not all(isfinite(value) for value in point) for point in normalised):
           raise ValueError('free_boundary_points_m must contain finite points')
+        ####
         object.__setattr__(self, name, normalised)
         continue
+      ####
       normalised_values = tuple(float(value) for value in values)
       if any(not isfinite(value) for value in normalised_values):
         raise ValueError(f'{name} must contain finite values')
+      ####
       object.__setattr__(self, name, normalised_values)
+    ####
     for name in (
       'maximum_free_boundary_pressure_residual_Pa',
       'maximum_free_boundary_tangent_residual_rad',
@@ -234,7 +250,10 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     for name in (
       'source_streamline_mapping_verified',
       'entropy_transport_verified',
@@ -245,6 +264,8 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.boundary is not None and not isinstance(
       self.boundary,
       MocMixedRegimeBoundaryResult,
@@ -252,6 +273,7 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
       raise TypeError(
         'boundary must be a MocMixedRegimeBoundaryResult or None'
       )
+    ####
     if self.downstream_condition is not None and not isinstance(
       self.downstream_condition,
       MocMixedRegimeDownstreamConditionResult,
@@ -260,11 +282,13 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
         'downstream_condition must be a '
         'MocMixedRegimeDownstreamConditionResult or None'
       )
+    ####
     if self.field is not None and not isinstance(
       self.field,
       MocMixedRegimeFieldResult,
     ):
       raise TypeError('field must be a MocMixedRegimeFieldResult or None')
+    ####
     if any(
       isinstance(streamline_id, bool)
       or not isinstance(streamline_id, int)
@@ -272,15 +296,19 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
       for streamline_id in self.streamline_ids
     ):
       raise ValueError('streamline_ids must contain nonnegative integers')
+    ####
     if self.boundary is not None and self.field is not None and (
       self.field.boundary != self.boundary
     ):
       raise ValueError('field must retain the exact variable-entropy boundary')
+    ####
     model = str(self.model)
     if not model:
       raise ValueError('model must be a non-empty string')
+    ####
     object.__setattr__(self, 'model', model)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -302,34 +330,41 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
       and self.free_boundary_condition_verified
       and self.field_topology_verified
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The mapped reference is not canonical reflected-MOC closure."""
 
     return False
+  ####
 
   @property
   def canonical_free_boundary_verified(self) -> bool:
     """The mapped stream-tube envelope is not the canonical free boundary."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   @property
   def node_count(self) -> int:
     return 0 if self.field is None else self.field.node_count
+  ####
 
   @property
   def cell_count(self) -> int:
     return 0 if self.field is None else self.field.cell_count
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -428,6 +463,8 @@ class MocMixedRegimeVariableEntropyFreeBoundaryResult:
         'free-boundary-and-external-validation-pending'
       ),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -451,6 +488,7 @@ class _VariableEntropyCandidate:
   maximum_mass_flow_residual: float
   maximum_entrance_mass_flow_residual: float
   field_topology_verified: bool
+####
 
 
 def _result(
@@ -485,11 +523,13 @@ def _result(
     message=message,
     **kwargs,
   )
+####
 
 
 def _subsonic_mass_flux_factor(mach: float, gamma: float) -> float:
   exponent = (gamma + 1.0) / (2.0 * (gamma - 1.0))
   return mach * (1.0 + 0.5 * (gamma - 1.0) * mach * mach) ** (-exponent)
+####
 
 
 def _subsonic_mach_from_mass_flux_factor(
@@ -500,6 +540,7 @@ def _subsonic_mach_from_mass_flux_factor(
 ) -> float:
   if not isfinite(target) or target <= 0.0:
     raise ValueError('subsonic mass-flux target must be finite and positive')
+  ####
   lower = 1.0e-10
   upper = 1.0 - subsonic_margin
   upper_value = _subsonic_mass_flux_factor(upper, gamma)
@@ -508,13 +549,17 @@ def _subsonic_mach_from_mass_flux_factor(
       'streamline mass-flux target reaches the strict-subsonic limit: '
       f'target={target}, limit={upper_value}'
     )
+  ####
   for _ in range(90):
     midpoint = 0.5 * (lower + upper)
     if _subsonic_mass_flux_factor(midpoint, gamma) < target:
       lower = midpoint
     else:
       upper = midpoint
+    ####
+  ####
   return 0.5 * (lower + upper)
+####
 
 
 def _static_pressure(
@@ -525,6 +570,7 @@ def _static_pressure(
   return total_pressure_Pa / (
     1.0 + 0.5 * (gamma - 1.0) * mach * mach
   ) ** (gamma / (gamma - 1.0))
+####
 
 
 def _normalized_density(
@@ -537,6 +583,7 @@ def _normalized_density(
   return (
     total_pressure_Pa / reference_total_pressure_Pa
   ) ** (1.0 / gamma) * enthalpy_factor ** (-1.0 / (gamma - 1.0))
+####
 
 
 def _triangle_gradients(
@@ -545,6 +592,7 @@ def _triangle_gradients(
 ) -> tuple[float, float, float, float]:
   if len(points) != 3 or len(values) != 3:
     raise ValueError('triangle gradients require three points and values')
+  ####
   (x1, y1), (x2, y2), (x3, y3) = points
   denominator = (
     x1 * (y2 - y3)
@@ -553,6 +601,7 @@ def _triangle_gradients(
   )
   if not isfinite(denominator) or abs(denominator) <= 1.0e-20:
     raise ValueError('triangle gradient has zero area')
+  ####
   gradient_x = (
     values[0] * (y2 - y3)
     + values[1] * (y3 - y1)
@@ -570,6 +619,7 @@ def _triangle_gradients(
     hypot(points[0][0] - points[2][0], points[0][1] - points[2][1]),
   )
   return gradient_x, gradient_y, area, diameter
+####
 
 
 def _profile_at_arc_length(
@@ -581,13 +631,17 @@ def _profile_at_arc_length(
   samples = handoff.samples
   if not arc or len(arc) != len(samples):
     raise ValueError('entropy handoff does not expose a complete arc profile')
+  ####
   if coordinate < arc[0] - 1.0e-12 or coordinate > arc[-1] + 1.0e-12:
     raise ValueError('source arc coordinate lies outside the entropy handoff')
+  ####
   coordinate = min(arc[-1], max(arc[0], coordinate))
   if coordinate <= arc[0]:
     return float(getattr(samples[0], attribute))
+  ####
   if coordinate >= arc[-1]:
     return float(getattr(samples[-1], attribute))
+  ####
   for first_arc, second_arc, first, second in zip(
     arc,
     arc[1:],
@@ -600,7 +654,10 @@ def _profile_at_arc_length(
       first_value = float(getattr(first, attribute))
       second_value = float(getattr(second, attribute))
       return first_value + fraction * (second_value - first_value)
+    ####
+  ####
   return float(getattr(samples[-1], attribute))
+####
 
 
 def _validate_control_geometry(
@@ -617,27 +674,32 @@ def _validate_control_geometry(
     raise ValueError(
       'variable-entropy reference requires a section normal aligned with +x'
     )
+  ####
   if any(
     abs(point[0] - section.points_m[0][0]) > position_tolerance_m
     for point in section.points_m
   ):
     raise ValueError('variable-entropy control section must be vertical')
+  ####
   section_x = section.points_m[0][0]
   if section_x <= terminal_x + position_tolerance_m:
     raise ValueError(
       'variable-entropy control section must lie downstream of the terminal'
     )
+  ####
   height = section.points_m[-1][1] - terminal_y
   if height <= position_tolerance_m:
     raise ValueError(
       'variable-entropy control section must start at the terminal axis and '
       'extend to a positive outer height'
     )
+  ####
   if abs(section.points_m[0][1] - terminal_y) > position_tolerance_m:
     raise ValueError(
       'variable-entropy control section must start at the terminal point '
       'transverse coordinate'
     )
+  ####
   fractions = tuple(
     (point[1] - terminal_y) / height for point in section.points_m
   )
@@ -646,11 +708,13 @@ def _validate_control_geometry(
     or abs(fractions[-1] - 1.0) > position_tolerance_m / max(height, 1.0)
   ):
     raise ValueError('variable-entropy control section has invalid transverse extent')
+  ####
   if any(
     second <= first + position_tolerance_m / max(height, 1.0)
     for first, second in zip(fractions, fractions[1:])
   ):
     raise ValueError('variable-entropy transverse fractions must be increasing')
+  ####
   slopes = tuple(
     tan(sample.flow_angle_rad) / fraction
     for sample, fraction in zip(section.samples[1:], fractions[1:], strict=True)
@@ -668,7 +732,9 @@ def _validate_control_geometry(
       'control-section flow angles do not define one mapped entrance '
       f'streamline slope: residual={angle_residual}'
     )
+  ####
   return fractions, entrance_slope, section_x
+####
 
 
 def _build_candidate(
@@ -695,17 +761,22 @@ def _build_candidate(
   transverse_count = len(fractions)
   if axial_count < 5 or transverse_count < 3:
     raise ValueError('variable-entropy mesh resolution is too small')
+  ####
   if len(source_arc_by_fraction) != transverse_count:
     raise ValueError('source arc and transverse fraction layouts do not match')
+  ####
   if len(source_pressure_by_fraction) != transverse_count:
     raise ValueError('source pressure and transverse fraction layouts do not match')
+  ####
   if len(source_gamma_by_fraction) != transverse_count:
     raise ValueError('source gamma and transverse fraction layouts do not match')
+  ####
   if any(
     not isfinite(float(height)) or float(height) <= 0.0
     for height in heights
   ):
     raise ValueError('variable-entropy free-boundary heights must be positive')
+  ####
   x0, y0 = control_section.points_m[0]
   dx = downstream_length_m / (axial_count - 1)
   x_stations = tuple(x0 + index * dx for index in range(axial_count))
@@ -725,6 +796,8 @@ def _build_candidate(
       slopes.append((height_values[-1] - height_values[-2]) / dx)
     else:
       slopes.append((height_values[index + 1] - height_values[index - 1]) / (2.0 * dx))
+    ####
+  ####
 
   inlet_machs = tuple(sample.mach for sample in control_section.samples)
   node_samples: list[MocMixedRegimeFieldSample] = []
@@ -741,6 +814,7 @@ def _build_candidate(
   )
   if any(value is None for value in terminal_values):
     raise ValueError('terminal does not expose complete scalar values')
+  ####
   terminal_mach, terminal_angle, terminal_pressure, terminal_p0, terminal_state = terminal_values
   assert terminal_mach is not None
   assert terminal_angle is not None
@@ -786,9 +860,12 @@ def _build_candidate(
       source_arc.append(float(source_arc_by_fraction[j]))
       streamline_ids.append(j)
       transported_pressure.append(source_pressure)
+    ####
+  ####
 
   def grid_index(i: int, j: int) -> int:
     return 1 + i * transverse_count + j
+  ####
 
   cells: list[MocCharacteristicCell] = []
   connectivity: list[tuple[int, int, int]] = []
@@ -804,6 +881,7 @@ def _build_candidate(
         boundary_indices=(j, j + 1),
       )
     )
+  ####
   for i in range(axial_count - 1):
     for j in range(transverse_count - 1):
       first = (grid_index(i, j), grid_index(i, j + 1), grid_index(i + 1, j + 1))
@@ -819,9 +897,13 @@ def _build_candidate(
             boundary_indices=(i, j),
           )
         )
+      ####
+    ####
+  ####
   topology = validate_moc_mesh(tuple(cells))
   if not topology.forms_closed_zone or topology.nonmanifold_edge_count:
     raise ValueError(f'variable-entropy mesh topology failed: {topology.message}')
+  ####
 
   boundary_indices = [0, grid_index(0, transverse_count - 1)]
   boundary_indices.extend(
@@ -850,6 +932,7 @@ def _build_candidate(
   )
   if not boundary.converged:
     raise ValueError(f'variable-entropy perimeter seam failed: {boundary.message}')
+  ####
   free_boundary_points = tuple(
     grid_points[i][-1] for i in range(axial_count)
   )
@@ -952,17 +1035,21 @@ def _build_candidate(
       grid_cell_index = cell_index - (transverse_count - 1)
       station_index = grid_cell_index // (2 * (transverse_count - 1))
       entrance_cell = station_index < 3
+    ####
     if cell_index < transverse_count - 1:
       connector_continuity.append(continuity)
     elif entrance_cell:
       entrance_continuity.append(continuity)
     else:
       grid_continuity.append(continuity)
+    ####
     if entrance_cell:
       entrance_entropy_residuals.append(entropy_residual)
     else:
       entropy_residuals.append(entropy_residual)
+    ####
     transverse_residuals.append(transverse)
+  ####
 
   mass_flow_residuals: list[float] = []
   entrance_mass_flow_residuals: list[float] = []
@@ -1008,6 +1095,9 @@ def _build_candidate(
         entrance_mass_flow_residuals.append(mass_flow_residual)
       else:
         mass_flow_residuals.append(mass_flow_residual)
+      ####
+    ####
+  ####
 
   field = MocMixedRegimeFieldResult(
     status=MocMixedRegimeFieldStatus.CONVERGED_ELLIPTIC_FIELD,
@@ -1046,6 +1136,7 @@ def _build_candidate(
   )
   if not pressure_residuals:
     raise ValueError('variable-entropy free boundary produced no pressure samples')
+  ####
   return _VariableEntropyCandidate(
     boundary=boundary,
     downstream_condition=downstream_condition,
@@ -1073,6 +1164,7 @@ def _build_candidate(
     ),
     field_topology_verified=topology.forms_closed_zone and not topology.nonmanifold_edge_count,
   )
+####
 
 
 def solve_mixed_regime_variable_entropy_free_boundary(
@@ -1106,10 +1198,13 @@ def solve_mixed_regime_variable_entropy_free_boundary(
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
     raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  ####
   if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
     raise TypeError('handoff must be a MocMixedRegimeEntropyHandoffResult')
+  ####
   if not isinstance(control_section, MocMixedRegimeControlSection):
     raise TypeError('control_section must be a MocMixedRegimeControlSection')
+  ####
   for name, value in (
     ('ambient_pressure_Pa', ambient_pressure_Pa),
     ('downstream_length_m', downstream_length_m),
@@ -1124,10 +1219,14 @@ def solve_mixed_regime_variable_entropy_free_boundary(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if subsonic_margin >= 1.0:
     raise ValueError('subsonic_margin must be less than one')
+  ####
   if not 0.0 < shape_relaxation <= 1.0:
     raise ValueError('shape_relaxation must lie in the interval (0, 1]')
+  ####
   for name, value, minimum in (
     ('axial_station_count', axial_station_count, 5),
     ('maximum_iterations', maximum_iterations, 1),
@@ -1136,6 +1235,8 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       raise ValueError(
         f'{name} must be an integer greater than or equal to {minimum}'
       )
+    ####
+  ####
   if handoff.request != request:
     return _result(
       MocMixedRegimeVariableEntropyFreeBoundaryStatus.HANDOFF_FAILURE,
@@ -1151,6 +1252,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       handoff=handoff,
       message='entropy handoff must retain the exact mixed-regime request',
     )
+  ####
   if not handoff.converged or not handoff.entropy_transport_verified:
     return _result(
       MocMixedRegimeVariableEntropyFreeBoundaryStatus.HANDOFF_FAILURE,
@@ -1166,6 +1268,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       handoff=handoff,
       message=f'entropy handoff is not converged: {handoff.message}',
     )
+  ####
   control_validation = validate_mixed_regime_control_section(
     request,
     control_section,
@@ -1196,6 +1299,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       ),
       **common,
     )
+  ####
   try:
     fractions, inlet_slope, section_x = _validate_control_geometry(
       request,
@@ -1212,6 +1316,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       message=f'variable-entropy control geometry failed: {error}',
       **common,
     )
+  ####
   if len(fractions) < 3:
     return _result(
       MocMixedRegimeVariableEntropyFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
@@ -1221,6 +1326,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       message='variable-entropy reference requires at least three streamlines',
       **common,
     )
+  ####
   interface_length = handoff.cumulative_arc_length_m[-1]
   source_arc_by_fraction = tuple(interface_length * (1.0 - fraction) for fraction in fractions)
   try:
@@ -1245,6 +1351,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       message=f'variable-entropy source profile failed: {error}',
       **common,
     )
+  ####
   input_pressure_residuals = tuple(
     abs(sample.total_pressure_Pa - expected)
     for sample, expected in zip(
@@ -1292,6 +1399,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       ),
       **common,
     )
+  ####
   outer_gamma = source_gamma_by_fraction[-1]
   outer_source_pressure = source_pressure_by_fraction[-1]
   if ambient_pressure_Pa >= outer_source_pressure:
@@ -1306,6 +1414,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       message='ambient pressure must be below the outer-streamline total pressure',
       **common,
     )
+  ####
   ambient_mach_squared = 2.0 / (outer_gamma - 1.0) * (
     (outer_source_pressure / ambient_pressure_Pa) ** ((outer_gamma - 1.0) / outer_gamma)
     - 1.0
@@ -1326,6 +1435,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       ),
       **common,
     )
+  ####
   outer_inlet_mach = control_section.samples[-1].mach
   target_height = inlet_height * _subsonic_mass_flux_factor(
     outer_inlet_mach,
@@ -1343,6 +1453,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       message='ambient pressure produced an invalid free-boundary height',
       **common,
     )
+  ####
   strict_subsonic_flux_limit = _subsonic_mass_flux_factor(
     1.0 - subsonic_margin,
     outer_gamma,
@@ -1370,6 +1481,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
   )
   for index in range(2, axial_station_count):
     heights[index] = max(heights[index], minimum_streamtube_height)
+  ####
   if heights[1] <= position_tolerance_m:
     return _result(
       MocMixedRegimeVariableEntropyFreeBoundaryStatus.GEOMETRY_FAILURE,
@@ -1383,6 +1495,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       message='control-section entrance slope leaves a nonpositive first height',
       **common,
     )
+  ####
   residual_history: list[float] = []
   candidate: _VariableEntropyCandidate | None = None
   last_error = ''
@@ -1427,6 +1540,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
         message=f'variable-entropy field trial failed: {error}',
         **common,
       )
+    ####
     pressure_residual = max(
       (abs(value) for value in candidate.free_boundary_pressure_residuals_Pa),
       default=float('inf'),
@@ -1434,11 +1548,15 @@ def solve_mixed_regime_variable_entropy_free_boundary(
     residual_history.append(pressure_residual)
     if pressure_residual <= pressure_tolerance * pressure_scale:
       break
+    ####
     for index in range(2, axial_station_count):
       heights[index] += shape_relaxation * (target_height - heights[index])
+    ####
     if any(height <= position_tolerance_m for height in heights):
       last_error = 'free-boundary iteration produced a nonpositive height'
       break
+    ####
+  ####
   if candidate is None:
     return _result(
       MocMixedRegimeVariableEntropyFreeBoundaryStatus.FIELD_FAILURE,
@@ -1453,6 +1571,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       message=f'variable-entropy field produced no candidate: {last_error}',
       **common,
     )
+  ####
   pressure_residual = max(
     (abs(value) for value in candidate.free_boundary_pressure_residuals_Pa),
     default=float('inf'),
@@ -1514,6 +1633,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       ),
       **common_solution,
     )
+  ####
   if not candidate.downstream_condition.converged:
     return _result(
       MocMixedRegimeVariableEntropyFreeBoundaryStatus.FREE_BOUNDARY_FAILURE,
@@ -1526,6 +1646,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       ),
       **common_solution,
     )
+  ####
   if candidate.maximum_entropy_advection_residual > entropy_transport_tolerance:
     return _result(
       MocMixedRegimeVariableEntropyFreeBoundaryStatus.RESIDUAL_FAILURE,
@@ -1538,6 +1659,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       ),
       **common_solution,
     )
+  ####
   if not common_solution['continuity_verified']:
     return _result(
       MocMixedRegimeVariableEntropyFreeBoundaryStatus.RESIDUAL_FAILURE,
@@ -1552,6 +1674,7 @@ def solve_mixed_regime_variable_entropy_free_boundary(
       ),
       **common_solution,
     )
+  ####
   return _result(
     MocMixedRegimeVariableEntropyFreeBoundaryStatus.CONVERGED_REFERENCE,
     request,
@@ -1565,3 +1688,4 @@ def solve_mixed_regime_variable_entropy_free_boundary(
     ),
     **common_solution,
   )
+####

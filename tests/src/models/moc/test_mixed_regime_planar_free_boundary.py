@@ -32,6 +32,7 @@ def _terminal():
     ),
     upstream_pressure_Pa=100000.0,
   )
+####
 
 
 def _supersonic_patch():
@@ -61,6 +62,7 @@ def _supersonic_patch():
       downstream_total_pressure_Pa=1.8e6,
     ),
   )
+####
 
 
 def _request_and_section():
@@ -98,6 +100,7 @@ def _request_and_section():
     samples=section_samples,
     normal_angle_rad=0.0,
   )
+####
 
 
 def _solve(*, ambient_pressure_Pa: float):
@@ -109,6 +112,7 @@ def _solve(*, ambient_pressure_Pa: float):
     downstream_length_m=0.2,
     outlet_height_m=0.1,
   )
+####
 
 
 def _solve_at_resolution(*, ambient_pressure_Pa: float, resolution: int):
@@ -121,6 +125,7 @@ def _solve_at_resolution(*, ambient_pressure_Pa: float, resolution: int):
     outlet_height_m=0.1,
     free_boundary_sample_count=resolution,
   )
+####
 
 
 def test_parameterized_planar_free_boundary_closes_uniform_case_and_measures_independently() -> None:
@@ -157,6 +162,7 @@ def test_parameterized_planar_free_boundary_closes_uniform_case_and_measures_ind
   assert measurement.independent_boundary_normal_velocity_residual <= 1.0e-8
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_parameterized_planar_free_boundary_changes_shape_for_pressure_mismatch() -> None:
@@ -178,6 +184,7 @@ def test_parameterized_planar_free_boundary_changes_shape_for_pressure_mismatch(
   assert measurement.free_boundary_residual_verified
   assert measurement.maximum_tangent_residual_rad is not None
   assert measurement.maximum_tangent_residual_rad <= 2.0e-2
+####
 
 
 def test_planar_free_boundary_refinement_is_independently_stable() -> None:
@@ -221,6 +228,7 @@ def test_planar_free_boundary_refinement_is_independently_stable() -> None:
   assert len(measurement.centerline_speed_delta_residuals) == 2
   assert len(measurement.mesh_area_delta_residuals_m2) == 2
   assert len(measurement.maximum_normal_velocity_residuals) == 3
+####
 
 
 def test_planar_free_boundary_refinement_rejects_resolution_metadata_mismatch() -> None:
@@ -241,6 +249,7 @@ def test_planar_free_boundary_refinement_rejects_resolution_metadata_mismatch() 
   assert not measurement.resolution_metadata_verified
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_planar_free_boundary_refinement_requires_increasing_resolutions() -> None:
@@ -259,6 +268,7 @@ def test_planar_free_boundary_refinement_requires_increasing_resolutions() -> No
   assert not measurement.converged
   assert not measurement.resolution_order_verified
   assert measurement.chain_promotion_blocked
+####
 
 
 def test_parameterized_planar_free_boundary_rejects_unreachable_pressure() -> None:
@@ -268,6 +278,7 @@ def test_parameterized_planar_free_boundary_rejects_unreachable_pressure() -> No
   assert not result.converged
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_parameterized_planar_free_boundary_rejects_nonuniform_control_section() -> None:
@@ -291,6 +302,7 @@ def test_parameterized_planar_free_boundary_rejects_nonuniform_control_section()
 
   assert result.status is MocMixedRegimePlanarFreeBoundaryStatus.CONTROL_SECTION_FAILURE
   assert not result.converged
+####
 
 
 def test_planar_free_boundary_measurement_rejects_tampered_geometry() -> None:
@@ -306,6 +318,7 @@ def test_planar_free_boundary_measurement_rejects_tampered_geometry() -> None:
   assert not measurement.converged
   assert not measurement.shape_geometry_verified
   assert measurement.chain_promotion_blocked
+####
 
 
 def test_planar_free_boundary_measurement_rejects_tampered_potential() -> None:
@@ -329,3 +342,4 @@ def test_planar_free_boundary_measurement_rejects_tampered_potential() -> None:
   assert not measurement.converged
   assert not measurement.field_measurement_verified
   assert measurement.chain_promotion_blocked
+####

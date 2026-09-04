@@ -47,6 +47,7 @@ def test_visual_lane_invariants_reject_transverse_geometry() -> None:
   assert report.status == 'failed'
   assert report.straight_axis_centerline is False
   assert 'straight_axis_centerline' in report.reasons
+####
 
 
 def test_signature_lane_invariants_require_the_declared_asset_digest() -> None:
@@ -75,3 +76,4 @@ def test_signature_lane_invariants_require_the_declared_asset_digest() -> None:
   assert report.asset_provenance_present is True
   assert report.asset_identity_matches is False
   assert 'asset_identity_matches' in report.reasons
+####

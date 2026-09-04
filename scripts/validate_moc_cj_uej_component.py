@@ -23,6 +23,7 @@ from zipfile import ZipFile
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / 'src') not in sys.path:
   sys.path.insert(0, str(REPO_ROOT / 'src'))
+####
 
 from exhaust_plume import (  # noqa: E402
   AmbientInput,
@@ -55,6 +56,7 @@ try:
   )
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus  # noqa: E402
+####
 
 
 CJ_BENCHMARK_ID = 'CJ-UEJ-001'
@@ -87,16 +89,21 @@ class MocCJRunConfiguration:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
+    ####
     if self.gamma <= 1.0:
       raise ValueError('gamma must be greater than one')
+    ####
     if self.near_sonic_exit_mach <= 1.0:
       raise ValueError('near_sonic_exit_mach must be greater than one')
+    ####
     if (
       isinstance(self.characteristic_count, bool)
       or not isinstance(self.characteristic_count, int)
       or self.characteristic_count < 2
     ):
       raise ValueError('characteristic_count must be an integer of at least two')
+    ####
     if not self.refinement_counts or any(
         isinstance(value, bool)
         or not isinstance(value, int)
@@ -104,7 +111,9 @@ class MocCJRunConfiguration:
         for value in self.refinement_counts
     ):
       raise ValueError('refinement_counts must contain integers of at least two')
+    ####
   ####
+####
 
 
 def _score_samples(
@@ -172,8 +181,10 @@ def _sample_centerline_mach(
 
   if len(model_x_over_D) != len(model_mach) or len(model_x_over_D) < 2:
     raise ValueError('the MOC centerline requires matching arrays with at least two points')
+  ####
   if any(right <= left for left, right in zip(model_x_over_D, model_x_over_D[1:])):
     raise ValueError('the MOC centerline x/D support must be strictly increasing')
+  ####
   samples: list[dict[str, float]] = []
   skipped: dict[str, int] = {}
   for row in rows:
@@ -181,6 +192,7 @@ def _sample_centerline_mach(
     if x_over_D < model_x_over_D[0] or x_over_D > model_x_over_D[-1]:
       skipped['outside_open_moc_support'] = skipped.get('outside_open_moc_support', 0) + 1
       continue
+    ####
     upper = bisect_left(model_x_over_D, x_over_D)
     if upper == 0:
       predicted = float(model_mach[0])
@@ -197,12 +209,14 @@ def _sample_centerline_mach(
       predicted = float(model_mach[lower]) + fraction * (
         float(model_mach[upper]) - float(model_mach[lower])
       )
+    ####
     samples.append({
       'x_over_D': x_over_D,
       'observed': float(row['mach_number']),
       'predicted': predicted,
       'uncertainty': max(0.0, float(row['mach_digitization_uncertainty_abs'])),
     })
+  ####
   return samples, skipped
 ####
 
@@ -228,12 +242,16 @@ def _sample_moc_profile(
 
   if quantity not in {'static_pressure_ratio', 'axial_velocity'}:
     raise ValueError(f'unsupported MOC profile quantity {quantity!r}')
+  ####
   if not isfinite(float(diameter_m)) or diameter_m <= 0.0:
     raise ValueError('diameter_m must be finite and positive')
+  ####
   if not isfinite(float(ambient_pressure_Pa)) or ambient_pressure_Pa <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(float(total_temperature_K)) or total_temperature_K <= 0.0:
     raise ValueError('total_temperature_K must be finite and positive')
+  ####
   samples: list[dict[str, float]] = []
   skipped: dict[str, int] = {}
   for row in rows:
@@ -247,11 +265,13 @@ def _sample_moc_profile(
     if state is None:
       skipped['outside_open_moc_support'] = skipped.get('outside_open_moc_support', 0) + 1
       continue
+    ####
     if quantity == 'static_pressure_ratio':
       pressure = zone.static_pressure_at(point_m)
       if pressure is None or not isfinite(float(pressure)) or pressure <= 0.0:
         skipped['missing_total_pressure_lineage'] = skipped.get('missing_total_pressure_lineage', 0) + 1
         continue
+      ####
       predicted = pressure / ambient_pressure_Pa
     else:
       static_temperature = gas.static_temperature_from_total(
@@ -259,9 +279,11 @@ def _sample_moc_profile(
         total_temperature_K,
       )
       predicted = gas.velocity_mps(state.mach, static_temperature) * cos(state.theta_rad)
+    ####
     if not isfinite(float(predicted)):
       skipped['nonfinite_prediction'] = skipped.get('nonfinite_prediction', 0) + 1
       continue
+    ####
     samples.append({
       'x_over_D': x_over_D,
       'radial_position_y_over_D': radial_position_y_over_D,
@@ -269,6 +291,7 @@ def _sample_moc_profile(
       'predicted': float(predicted),
       'uncertainty': max(0.0, float(row['value_digitization_uncertainty'])),
     })
+  ####
   return samples, skipped
 ####
 
@@ -282,6 +305,7 @@ def _group_profile_rows(
   for row in rows:
     key = (str(row.get('profile_id', '')), str(row.get('observable', '')))
     grouped.setdefault(key, []).append(row)
+  ####
   return grouped
 ####
 
@@ -432,6 +456,7 @@ def _refinement_report(
       'physical_closure_status': summary['physical_closure_status'],
       'shock_closure_status': summary['shock_closure_status'],
     })
+  ####
   return {
     'status': 'diagnostic-open-lattice-only',
     'characteristic_counts': list(configuration.refinement_counts),
@@ -451,6 +476,7 @@ def _typed_claim(archive_sha256: str, configuration: MocCJRunConfiguration) -> d
   operator_ids = {operator.operator_id for operator in registry.operators}
   if INTERNAL_OPERATOR_ID not in operator_ids:
     raise ValueError(f'{INTERNAL_OPERATOR_ID!r} is missing from the committed operator registry')
+  ####
   claim = ValidationClaim(
     claim_id='VAL-003-CJ-UEJ-MOC-CENTERLINE-MACH-DIAGNOSTIC',
     benchmark_id=CJ_BENCHMARK_ID,
@@ -529,11 +555,13 @@ def build_moc_cj_uej_component_report(
   if preflight.get('status') != 'preflight-valid-pending-release-gates':
     report['errors'] = list(preflight.get('errors', ()))
     return report
+  ####
 
   with ZipFile(corpus_path) as archive_file:
     metadata = _read_json(archive_file, 'data/cj_uej_001_metadata.json')
     mach_rows = _read_csv(archive_file, 'data/cj_uej_001_mach_estimates.csv')
     profile_rows = _read_csv(archive_file, 'data/cj_uej_001_profiles.csv')
+  ####
   fan, boundary, zone, model_case = _case_from_metadata(metadata, configuration)
   solver = _solver_summary(
     fan,
@@ -553,6 +581,7 @@ def build_moc_cj_uej_component_report(
       'solver': solver,
     })
     return report
+  ####
   observed_rows = [
     row for row in mach_rows
     if row.get('profile_id') == 'centerline' and row.get('method') == MACH_METHOD
@@ -586,6 +615,7 @@ def build_moc_cj_uej_component_report(
   ):
     if observable not in {'static_pressure_ratio', 'axial_velocity'}:
       continue
+    ####
     profile_samples, profile_skipped = _sample_moc_profile(
       rows,
       zone=zone,
@@ -618,6 +648,7 @@ def build_moc_cj_uej_component_report(
         },
       )
     )
+  ####
   report.update({
     'validation_status': 'partial_component_evidence',
     'claim_status': 'not_accepted',
@@ -671,9 +702,12 @@ def main(argv: list[str] | None = None) -> int:
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
+  ####
   print(serialized, end='')
   return 0 if report['validation_status'] != 'blocked-invalid-corpus' else 1
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

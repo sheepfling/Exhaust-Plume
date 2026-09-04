@@ -59,6 +59,7 @@ class MocCompressionResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -75,6 +76,7 @@ class MocLipShockResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -130,6 +132,7 @@ class MocNormalShockTerminalResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +193,7 @@ class MocSubsonicShockBoundaryResult:
       'message': self.message,
     }
   ####
+####
 
 
 def solve_attached_subsonic_compression_to_turn(
@@ -226,6 +230,7 @@ def solve_attached_subsonic_compression_to_turn(
       branch=None,
       message='upstream must be a CharacteristicState',
     )
+  ####
   if shock_point_m is None:
     point = (upstream.x_m, upstream.y_m)
   else:
@@ -248,6 +253,7 @@ def solve_attached_subsonic_compression_to_turn(
         branch=None,
         message='shock_point_m must contain two finite coordinates',
       )
+    ####
     if not all(isfinite(value) for value in point):
       return MocSubsonicShockBoundaryResult(
         status=MocPrimitiveStatus.INVALID_INPUT,
@@ -265,6 +271,8 @@ def solve_attached_subsonic_compression_to_turn(
         branch=None,
         message='shock_point_m must contain two finite coordinates',
       )
+    ####
+  ####
   if not isinstance(branch, ShockBranch):
     return MocSubsonicShockBoundaryResult(
       status=MocPrimitiveStatus.INVALID_INPUT,
@@ -282,6 +290,7 @@ def solve_attached_subsonic_compression_to_turn(
       branch=None,
       message='branch must be a ShockBranch',
     )
+  ####
   compression = solve_attached_compression_to_turn(
     upstream_mach=upstream.mach,
     gamma=upstream.gamma,
@@ -331,6 +340,7 @@ def solve_attached_subsonic_compression_to_turn(
         f'{compression.message}'
       ),
     )
+  ####
   return MocSubsonicShockBoundaryResult(
     status=MocPrimitiveStatus.CONVERGED,
     shock_point_m=point,
@@ -380,6 +390,7 @@ def solve_normal_shock_terminal(
       total_pressure_ratio=None,
       message='upstream must be a CharacteristicState',
     )
+  ####
 
   try:
     pressure = float(upstream_pressure_Pa)
@@ -399,6 +410,7 @@ def solve_normal_shock_terminal(
       total_pressure_ratio=None,
       message='upstream_pressure_Pa must be finite and positive',
     )
+  ####
   if not isfinite(pressure) or pressure <= 0.0:
     return MocNormalShockTerminalResult(
       status=MocPrimitiveStatus.INVALID_INPUT,
@@ -415,12 +427,14 @@ def solve_normal_shock_terminal(
       total_pressure_ratio=None,
       message='upstream_pressure_Pa must be finite and positive',
     )
+  ####
 
   point = (upstream.x_m, upstream.y_m)
   if shock_point_m is not None:
     try:
       if len(shock_point_m) != 2:
         raise ValueError
+      ####
       point = (float(shock_point_m[0]), float(shock_point_m[1]))
     except (IndexError, TypeError, ValueError):
       return MocNormalShockTerminalResult(
@@ -438,6 +452,7 @@ def solve_normal_shock_terminal(
         total_pressure_ratio=None,
         message='shock_point_m must contain two finite coordinates',
       )
+    ####
     if not all(isfinite(value) for value in point):
       return MocNormalShockTerminalResult(
         status=MocPrimitiveStatus.INVALID_INPUT,
@@ -454,6 +469,8 @@ def solve_normal_shock_terminal(
         total_pressure_ratio=None,
         message='shock_point_m must contain two finite coordinates',
       )
+    ####
+  ####
 
   gamma = upstream.gamma
   mach = upstream.mach
@@ -512,6 +529,7 @@ def solve_normal_shock_terminal(
       total_pressure_ratio=total_pressure_ratio,
       message='normal-shock terminal invariants are outside the physical subsonic domain',
     )
+  ####
   return MocNormalShockTerminalResult(
     status=MocPrimitiveStatus.CONVERGED,
     shock_point_m=point,
@@ -559,6 +577,7 @@ class MocTurnCompressionResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -605,6 +624,7 @@ class MocShockToCenterlineResult:
 
     return None if self.compression is None else self.compression.total_pressure_ratio
   ####
+####
 
 
 def solve_overexpanded_lip_shock(
@@ -628,6 +648,7 @@ def solve_overexpanded_lip_shock(
       centerline_point_m=None,
       message='lip-shock primitive requires an overexpanded exit state',
     )
+  ####
   shock = solve_attached_compression_to_pressure(
     upstream_mach=exit_state.mach,
     gamma=exit_state.gas.gamma,
@@ -643,6 +664,7 @@ def solve_overexpanded_lip_shock(
       centerline_point_m=None,
       message=shock.message,
     )
+  ####
   beta = shock.beta_rad
   tangent = tan(beta)
   if not isfinite(tangent) or tangent <= 0.0:
@@ -653,6 +675,7 @@ def solve_overexpanded_lip_shock(
       centerline_point_m=None,
       message='attached lip shock has no finite forward centerline intersection',
     )
+  ####
   centerline_x = float(exit_state.radius_m) / tangent
   if not isfinite(centerline_x) or centerline_x <= 0.0:
     return MocLipShockResult(
@@ -662,6 +685,7 @@ def solve_overexpanded_lip_shock(
       centerline_point_m=None,
       message='attached lip shock centerline intersection is not forward',
     )
+  ####
   return MocLipShockResult(
     status=MocPrimitiveStatus.CONVERGED,
     shock=shock,
@@ -691,12 +715,16 @@ def solve_attached_compression_to_turn(
 
   if not isfinite(float(upstream_mach)) or upstream_mach <= 1.0:
     raise ValueError('upstream_mach must be finite and greater than one')
+  ####
   if not isfinite(float(gamma)) or gamma <= 1.0:
     raise ValueError('gamma must be finite and greater than one')
+  ####
   if not isfinite(float(upstream_pressure_Pa)) or upstream_pressure_Pa <= 0.0:
     raise ValueError('upstream_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(float(target_turn_rad)) or target_turn_rad < 0.0:
     raise ValueError('target_turn_rad must be finite and non-negative')
+  ####
   if not isinstance(branch, ShockBranch):
     raise ValueError('branch must be a ShockBranch')
   ####
@@ -794,6 +822,7 @@ def solve_attached_compression_to_turn(
         else 'attached compression theta-beta-Mach residual exceeded tolerance'
       ),
     )
+  ####
   return MocTurnCompressionResult(
     status=MocPrimitiveStatus.CONVERGED,
     shock_status=solution.status,
@@ -832,10 +861,13 @@ def solve_attached_shock_to_centerline(
 
   if not isfinite(upstream_pressure_Pa) or upstream_pressure_Pa <= 0.0:
     raise ValueError('upstream_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(target_centerline_y_m):
     raise ValueError('target_centerline_y_m must be finite')
+  ####
   if not isfinite(target_centerline_flow_angle_rad):
     raise ValueError('target_centerline_flow_angle_rad must be finite')
+  ####
   if target_centerline_y_m >= upstream.y_m:
     return MocShockToCenterlineResult(
       status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
@@ -924,6 +956,7 @@ def solve_attached_shock_to_centerline(
       downstream_pressure_Pa=compression.downstream_pressure_Pa,
       message='attached shock orientation does not reach the target symmetry line downstream',
     )
+  ####
   shock_parameter = (float(target_centerline_y_m) - upstream.y_m) / shock_sine
   shock_end = (
     upstream.x_m + shock_parameter * cos(shock_angle),
@@ -952,6 +985,7 @@ def solve_attached_shock_to_centerline(
       downstream_pressure_Pa=compression.downstream_pressure_Pa,
       message='attached shock segment does not reach a forward finite endpoint',
     )
+  ####
   return MocShockToCenterlineResult(
     status=MocPrimitiveStatus.CONVERGED,
     shock_status=compression.shock_status,
@@ -995,12 +1029,16 @@ def solve_attached_compression_to_pressure(
 
   if not isfinite(float(upstream_mach)) or upstream_mach <= 1.0:
     raise ValueError('upstream_mach must be finite and greater than one')
+  ####
   if not isfinite(float(gamma)) or gamma <= 1.0:
     raise ValueError('gamma must be finite and greater than one')
+  ####
   if not isfinite(float(upstream_pressure_Pa)) or upstream_pressure_Pa <= 0.0:
     raise ValueError('upstream_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(float(target_pressure_Pa)) or target_pressure_Pa <= 0.0:
     raise ValueError('target_pressure_Pa must be finite and positive')
+  ####
   if not isinstance(branch, ShockBranch):
     raise ValueError('branch must be a ShockBranch')
   ####
@@ -1031,6 +1069,7 @@ def solve_attached_compression_to_pressure(
   theta = float(solution.theta_rad)
   if abs(theta) <= 1.0e-14:
     theta = 0.0
+  ####
   normal_mach_upstream = float(upstream_mach) * sin(beta)
   normal_mach_downstream_squared = (
     1.0 + 0.5 * (float(gamma) - 1.0) * normal_mach_upstream**2
@@ -1061,6 +1100,7 @@ def solve_attached_compression_to_pressure(
       downstream_mach=downstream_mach,
       message='attached compression state is not supersonic downstream',
     )
+  ####
   return MocCompressionResult(
     status=(
       MocPrimitiveStatus.CONVERGED

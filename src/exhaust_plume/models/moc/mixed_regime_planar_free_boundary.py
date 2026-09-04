@@ -62,6 +62,7 @@ class MocMixedRegimePlanarFreeBoundaryStatus(str, Enum):
   CONDITION_FAILURE = 'planar-free-boundary-condition-failure'
   FIELD_FAILURE = 'planar-free-boundary-field-failure'
   ITERATION_FAILURE = 'planar-free-boundary-iteration-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,14 +113,17 @@ class MocMixedRegimePlanarFreeBoundaryResult:
       raise TypeError(
         'status must be a MocMixedRegimePlanarFreeBoundaryStatus'
       )
+    ####
     if not isinstance(self.request, MocMixedRegimePerimeterRequest):
       raise TypeError(
         'request must be a MocMixedRegimePerimeterRequest'
       )
+    ####
     if not isinstance(self.control_section, MocMixedRegimeControlSection):
       raise TypeError(
         'control_section must be a MocMixedRegimeControlSection'
       )
+    ####
     if not isinstance(
       self.control_section_validation,
       MocMixedRegimeControlSectionResult,
@@ -128,6 +132,7 @@ class MocMixedRegimePlanarFreeBoundaryResult:
         'control_section_validation must be a '
         'MocMixedRegimeControlSectionResult'
       )
+    ####
     if self.control_section_validation.section not in (
       None,
       self.control_section,
@@ -135,6 +140,7 @@ class MocMixedRegimePlanarFreeBoundaryResult:
       raise ValueError(
         'control_section_validation must retain the exact control section'
       )
+    ####
     for name, value in (
       ('ambient_pressure_Pa', self.ambient_pressure_Pa),
       ('downstream_length_m', self.downstream_length_m),
@@ -143,7 +149,9 @@ class MocMixedRegimePlanarFreeBoundaryResult:
       numeric = float(value)
       if not isfinite(numeric) or numeric <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name, value, minimum in (
       ('free_boundary_sample_count', self.free_boundary_sample_count, 4),
       ('centerline_sample_count', self.centerline_sample_count, 2),
@@ -158,6 +166,8 @@ class MocMixedRegimePlanarFreeBoundaryResult:
         raise ValueError(
           f'{name} must be an integer greater than or equal to {minimum}'
         )
+      ####
+    ####
     for name in (
       'shape_heights_m',
       'initial_shape_heights_m',
@@ -167,7 +177,9 @@ class MocMixedRegimePlanarFreeBoundaryResult:
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) for value in values):
         raise ValueError(f'{name} must contain finite values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     if self.maximum_boundary_normal_velocity_residual is not None:
       residual = float(self.maximum_boundary_normal_velocity_residual)
       if not isfinite(residual) or residual < 0.0:
@@ -175,11 +187,13 @@ class MocMixedRegimePlanarFreeBoundaryResult:
           'maximum_boundary_normal_velocity_residual must be finite and '
           'nonnegative when supplied'
         )
+      ####
       object.__setattr__(
         self,
         'maximum_boundary_normal_velocity_residual',
         residual,
       )
+    ####
     for name in (
       'centerline_speed_m_s_normalized',
       'control_section_mean_normal_speed_m_s_normalized',
@@ -189,7 +203,10 @@ class MocMixedRegimePlanarFreeBoundaryResult:
         numeric = float(value)
         if not isfinite(numeric):
           raise ValueError(f'{name} must be finite when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     if self.perimeter_spec is not None and not isinstance(
       self.perimeter_spec,
       MocMixedRegimeDownstreamPerimeterSpec,
@@ -198,11 +215,13 @@ class MocMixedRegimePlanarFreeBoundaryResult:
         'perimeter_spec must be a '
         'MocMixedRegimeDownstreamPerimeterSpec or None'
       )
+    ####
     if self.boundary is not None and not isinstance(
       self.boundary,
       MocMixedRegimeBoundaryResult,
     ):
       raise TypeError('boundary must be a MocMixedRegimeBoundaryResult or None')
+    ####
     if self.downstream_condition is not None and not isinstance(
       self.downstream_condition,
       MocMixedRegimeDownstreamConditionResult,
@@ -211,11 +230,13 @@ class MocMixedRegimePlanarFreeBoundaryResult:
         'downstream_condition must be a '
         'MocMixedRegimeDownstreamConditionResult or None'
       )
+    ####
     if self.field is not None and not isinstance(
       self.field,
       MocMixedRegimeFieldResult,
     ):
       raise TypeError('field must be a MocMixedRegimeFieldResult or None')
+    ####
     if self.handoff is not None and not isinstance(
       self.handoff,
       MocMixedRegimePlanarSolveResult,
@@ -223,11 +244,14 @@ class MocMixedRegimePlanarFreeBoundaryResult:
       raise TypeError(
         'handoff must be a MocMixedRegimePlanarSolveResult or None'
       )
+    ####
     model = str(self.model)
     if not model:
       raise ValueError('model must be a non-empty string')
+    ####
     object.__setattr__(self, 'model', model)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -240,28 +264,33 @@ class MocMixedRegimePlanarFreeBoundaryResult:
       and self.field is not None
       and self.field.converged
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """Expose local potential-field closure, not canonical plume closure."""
 
     return bool(self.converged and self.field is not None and self.field.physical_closure_verified)
+  ####
 
   @property
   def canonical_free_boundary_verified(self) -> bool:
     """The canonical reflected-MOC free boundary remains unresolved."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     """A subsonic potential field cannot seed another supersonic cell."""
 
     return True
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   def as_report(self) -> dict[str, object]:
     """Return geometry, iteration, field, and claim-boundary evidence."""
@@ -316,6 +345,8 @@ class MocMixedRegimePlanarFreeBoundaryResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -358,6 +389,8 @@ class MocMixedRegimePlanarFreeBoundaryReference:
         raise ValueError(
           f'{name} must be an integer greater than or equal to {minimum}'
         )
+      ####
+    ####
     for name, value in (
       ('position_tolerance_m', self.position_tolerance_m),
       ('state_tolerance', self.state_tolerance),
@@ -372,18 +405,25 @@ class MocMixedRegimePlanarFreeBoundaryReference:
     ):
       if not isfinite(float(value)) or float(value) <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
+    ####
     if self.subsonic_margin >= 1.0:
       raise ValueError('subsonic_margin must be less than one')
+    ####
     if not 0.0 < self.initial_free_boundary_fraction < 1.0:
       raise ValueError('initial_free_boundary_fraction must lie between zero and one')
+    ####
     model = str(self.model)
     if not model:
       raise ValueError('model must be a non-empty string')
+    ####
     object.__setattr__(self, 'model', model)
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   def solve(
     self,
@@ -422,6 +462,7 @@ class MocMixedRegimePlanarFreeBoundaryReference:
       initial_free_boundary_heights_m=initial_free_boundary_heights_m,
       solver_model=self.model,
     )
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -450,6 +491,8 @@ class MocMixedRegimePlanarFreeBoundaryReference:
         'canonical-reflected-moc-free-boundary-and-external-validation-pending'
       ),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -462,6 +505,7 @@ class _PlanarFreeBoundaryCandidate:
   signed_residuals: tuple[float, ...]
   centerline_speed: float
   control_section_mean_speed: float
+####
 
 
 def _result(
@@ -495,16 +539,19 @@ def _result(
     message=message,
     **kwargs,
   )
+####
 
 
 def _sigmoid(value: float) -> float:
   bounded = max(-40.0, min(40.0, float(value)))
   return 1.0 / (1.0 + exp(-bounded))
+####
 
 
 def _logit(value: float) -> float:
   bounded = max(1.0e-12, min(1.0 - 1.0e-12, float(value)))
   return log(bounded / (1.0 - bounded))
+####
 
 
 def _shape_heights_from_parameters(
@@ -518,11 +565,13 @@ def _shape_heights_from_parameters(
   edge_count = free_boundary_sample_count - 1
   if len(parameters) != edge_count + 1:
     raise ValueError('free-boundary shape parameter vector has an invalid length')
+  ####
   if float(parameters[0]) >= 19.0:
     return tuple(
       float(outlet_height_m)
       for _ in range(free_boundary_sample_count)
     )
+  ####
   first_fraction = _sigmoid(float(parameters[0]))
   first_height = minimum_height_m + (
     outlet_height_m - minimum_height_m
@@ -534,6 +583,7 @@ def _shape_heights_from_parameters(
   total_weight = sum(raw_weights)
   if not isfinite(total_weight) or total_weight <= 0.0:
     raise ValueError('free-boundary shape weights are not finite and positive')
+  ####
   weights = tuple(value / total_weight for value in raw_weights)
   tails_reversed = tuple(accumulate(reversed(weights)))
   tail_weights = tuple(reversed(tails_reversed))
@@ -542,12 +592,15 @@ def _shape_heights_from_parameters(
   rise = outlet_height_m - first_height
   if denominator <= 0.0 or rise < 0.0:
     raise ValueError('free-boundary shape height normalization failed')
+  ####
   slopes = tuple(rise * tail / denominator for tail in tail_weights)
   heights = [first_height]
   for slope in slopes:
     heights.append(heights[-1] + segment_length * slope)
+  ####
   heights[-1] = outlet_height_m
   return tuple(float(value) for value in heights)
+####
 
 
 def _parameters_from_shape_heights(
@@ -565,6 +618,7 @@ def _parameters_from_shape_heights(
       'initial_free_boundary_heights_m must contain one height for each '
       'non-outlet free-boundary sample'
     )
+  ####
   full_heights = tuple(float(value) for value in heights) + (outlet_height_m,)
   if any(
     not isfinite(value)
@@ -576,6 +630,7 @@ def _parameters_from_shape_heights(
       'initial free-boundary heights must be finite and lie between the '
       'minimum and outlet heights'
     )
+  ####
   segment_length = downstream_length_m / free_boundary_sample_count
   slopes = tuple(
     (second - first) / segment_length
@@ -583,6 +638,7 @@ def _parameters_from_shape_heights(
   )
   if any(first < -1.0e-12 for first in slopes):
     raise ValueError('initial free-boundary heights must be nondecreasing')
+  ####
   if any(
     second > first + 1.0e-10 * max(1.0, abs(first), abs(second))
     for first, second in zip(slopes[:-1], slopes[1:], strict=True)
@@ -590,6 +646,7 @@ def _parameters_from_shape_heights(
     raise ValueError(
       'initial free-boundary heights must form a concave discrete envelope'
     )
+  ####
   first_fraction = (
     (full_heights[0] - minimum_height_m)
     / (outlet_height_m - minimum_height_m)
@@ -598,6 +655,7 @@ def _parameters_from_shape_heights(
     abs(slope) <= 1.0e-12 for slope in slopes
   ):
     return (20.0, *(0.0 for _ in range(edge_count)))
+  ####
   parameters = [_logit(first_fraction)]
   weights = [
     max(1.0e-12, slopes[index] - slopes[index + 1])
@@ -606,6 +664,7 @@ def _parameters_from_shape_heights(
   weights.append(max(1.0e-12, slopes[-1]))
   parameters.extend(log(weight) for weight in weights)
   return tuple(parameters)
+####
 
 
 def _normalized_velocity(sample: MocMixedRegimeFieldSample) -> tuple[float, float]:
@@ -615,6 +674,7 @@ def _normalized_velocity(sample: MocMixedRegimeFieldSample) -> tuple[float, floa
     speed * cos(sample.flow_angle_rad),
     speed * sin(sample.flow_angle_rad),
   )
+####
 
 
 def _mean_control_section_normal_speed(
@@ -637,6 +697,7 @@ def _mean_control_section_normal_speed(
   measure = sum(lengths)
   if measure <= 0.0:
     raise ValueError('control section has no positive measure')
+  ####
   integral = sum(
     0.5 * (first + second) * length
     for first, second, length in zip(
@@ -649,7 +710,9 @@ def _mean_control_section_normal_speed(
   result = integral / measure
   if not isfinite(result) or result <= 0.0:
     raise ValueError('control section mean normal speed is not positive')
+  ####
   return result
+####
 
 
 def _signed_boundary_normal_velocity_residuals(
@@ -662,15 +725,18 @@ def _signed_boundary_normal_velocity_residuals(
 
   if len(field.nodes) != len(field.velocity_potential):
     raise ValueError('potential field node/potential layouts do not match')
+  ####
   points = tuple(field.boundary.perimeter_points_m[:-1])
   if len(points) < 3:
     raise ValueError('potential field perimeter has too few unique points')
+  ####
   area = 0.5 * sum(
     first[0] * second[1] - second[0] * first[1]
     for first, second in zip(points, (*points[1:], points[0]), strict=True)
   )
   if abs(area) <= position_tolerance_m * position_tolerance_m:
     raise ValueError('potential field perimeter has zero signed area')
+  ####
   orientation = 1.0 if area > 0.0 else -1.0
   potential_by_point = {
     sample.point_m: field.velocity_potential[index]
@@ -680,6 +746,7 @@ def _signed_boundary_normal_velocity_residuals(
   for edge_index in condition_edge_indices:
     if edge_index < 0 or edge_index >= len(points):
       raise ValueError('selected normal-flow edge lies outside the perimeter')
+    ####
     next_index = (edge_index + 1) % len(points)
     first_point = points[edge_index]
     second_point = points[next_index]
@@ -690,6 +757,7 @@ def _signed_boundary_normal_velocity_residuals(
     segment_length = hypot(*displacement)
     if segment_length <= position_tolerance_m:
       raise ValueError('selected normal-flow edge has zero length')
+    ####
     adjacent = [
       cell
       for cell in field.cells
@@ -700,11 +768,13 @@ def _signed_boundary_normal_velocity_residuals(
       raise ValueError(
         'selected normal-flow edge does not have exactly one adjacent triangle'
       )
+    ####
     triangle = adjacent[0].vertices_xr_m
     try:
       potentials = tuple(potential_by_point[point] for point in triangle)
     except KeyError as error:
       raise ValueError('potential field triangle is missing a nodal potential') from error
+    ####
     (x1, y1), (x2, y2), (x3, y3) = triangle
     denominator = (
       x1 * (y2 - y3)
@@ -713,6 +783,7 @@ def _signed_boundary_normal_velocity_residuals(
     )
     if abs(denominator) <= position_tolerance_m * position_tolerance_m:
       raise ValueError('potential field triangle has zero area')
+    ####
     velocity = (
       (
         potentials[0] * (y2 - y3)
@@ -733,7 +804,9 @@ def _signed_boundary_normal_velocity_residuals(
       velocity[0] * outward_normal[0]
       + velocity[1] * outward_normal[1]
     )
+  ####
   return tuple(residuals)
+####
 
 
 def _build_candidate(
@@ -763,6 +836,7 @@ def _build_candidate(
   upstream_state = request.terminal.upstream_state
   if upstream_state is None:
     raise ValueError('terminal request does not expose an upstream state')
+  ####
   gamma = upstream_state.gamma
   total_pressure = request.terminal_downstream_total_pressure_Pa
   ambient_mach_squared = 2.0 / (gamma - 1.0) * (
@@ -775,12 +849,14 @@ def _build_candidate(
     raise ValueError(
       'ambient pressure does not map to a positive subsonic boundary speed'
     )
+  ####
   ambient_mach = sqrt(ambient_mach_squared)
   if ambient_mach >= 1.0 - subsonic_margin:
     raise ValueError(
       'ambient pressure maps to a Mach number outside the strict-subsonic '
       f'range: mach={ambient_mach}'
     )
+  ####
   sonic_factor = 0.5 * (gamma - 1.0)
   ambient_speed = ambient_mach / sqrt(
     1.0 + sonic_factor * ambient_mach * ambient_mach
@@ -854,6 +930,7 @@ def _build_candidate(
       *free_velocities,
       terminal_velocity,
     )
+  ####
 
   def circulation(centerline_speed: float) -> float:
     values = velocities(centerline_speed)
@@ -872,18 +949,21 @@ def _build_candidate(
         strict=True,
       )
     )
+  ####
 
   circulation_at_zero = circulation(0.0)
   circulation_at_one = circulation(1.0)
   coefficient = circulation_at_one - circulation_at_zero
   if abs(coefficient) <= 1.0e-14:
     raise ValueError('boundary-potential circulation cannot determine the centerline speed')
+  ####
   centerline_speed = -circulation_at_zero / coefficient
   if not isfinite(centerline_speed) or centerline_speed <= 0.0:
     raise ValueError(
       'single-valued potential circulation requires a nonpositive or nonfinite '
       f'centerline speed: {centerline_speed}'
     )
+  ####
   centerline_mach = centerline_speed / sqrt(
     1.0 - sonic_factor * centerline_speed * centerline_speed
   ) if 1.0 - sonic_factor * centerline_speed * centerline_speed > 0.0 else float('inf')
@@ -892,6 +972,7 @@ def _build_candidate(
       'circulation-balanced centerline speed is not strictly subsonic: '
       f'mach={centerline_mach}'
     )
+  ####
   velocity_values = velocities(centerline_speed)
 
   def make_sample(
@@ -908,13 +989,16 @@ def _build_candidate(
         total_pressure_Pa=total_pressure,
         gamma=gamma,
       )
+    ####
     speed_squared = velocity[0] * velocity[0] + velocity[1] * velocity[1]
     enthalpy_factor = 1.0 - sonic_factor * speed_squared
     if enthalpy_factor <= 0.0:
       raise ValueError('boundary velocity crossed its finite enthalpy limit')
+    ####
     mach = sqrt(speed_squared / enthalpy_factor)
     if mach <= 0.0 or mach >= 1.0 - subsonic_margin:
       raise ValueError(f'boundary velocity is not strictly subsonic: mach={mach}')
+    ####
     return MocMixedRegimeFieldSample(
       point_m=point,
       mach=mach,
@@ -926,6 +1010,7 @@ def _build_candidate(
       total_pressure_Pa=total_pressure,
       gamma=gamma,
     )
+  ####
 
   samples = tuple(
     make_sample(index, point, velocity)
@@ -943,6 +1028,7 @@ def _build_candidate(
   )
   if not boundary.converged:
     raise ValueError(f'parameterized perimeter failed scalar seam: {boundary.message}')
+  ####
   free_start_index = 1 + centerline_sample_count
   condition_edges = tuple(
     range(free_start_index, free_start_index + free_boundary_sample_count - 1)
@@ -972,6 +1058,7 @@ def _build_candidate(
   )
   if not condition.converged:
     raise ValueError(f'parameterized perimeter failed physical condition: {condition.message}')
+  ####
   field = solve_mixed_regime_compressible_potential_field(
     boundary,
     position_tolerance_m=position_tolerance_m,
@@ -994,6 +1081,7 @@ def _build_candidate(
     )
   ):
     raise ValueError(f'parameterized potential field did not provide a usable trial: {field.message}')
+  ####
   signed_residuals = _signed_boundary_normal_velocity_residuals(
     field,
     condition_edges,
@@ -1009,6 +1097,7 @@ def _build_candidate(
     centerline_speed=centerline_speed,
     control_section_mean_speed=control_section_mean_speed,
   )
+####
 
 
 def solve_mixed_regime_planar_free_boundary_reference(
@@ -1055,8 +1144,10 @@ def solve_mixed_regime_planar_free_boundary_reference(
 
   if not isinstance(request, MocMixedRegimePerimeterRequest):
     raise TypeError('request must be a MocMixedRegimePerimeterRequest')
+  ####
   if not isinstance(control_section, MocMixedRegimeControlSection):
     raise TypeError('control_section must be a MocMixedRegimeControlSection')
+  ####
   for name, value in (
     ('ambient_pressure_Pa', ambient_pressure_Pa),
     ('downstream_length_m', downstream_length_m),
@@ -1074,8 +1165,11 @@ def solve_mixed_regime_planar_free_boundary_reference(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if subsonic_margin >= 1.0:
     raise ValueError('subsonic_margin must be less than one')
+  ####
   for name, value, minimum in (
     ('free_boundary_sample_count', free_boundary_sample_count, 4),
     ('centerline_sample_count', centerline_sample_count, 2),
@@ -1087,19 +1181,25 @@ def solve_mixed_regime_planar_free_boundary_reference(
       raise ValueError(
         f'{name} must be an integer greater than or equal to {minimum}'
       )
+    ####
+  ####
   if not 0.0 < initial_free_boundary_fraction < 1.0:
     raise ValueError('initial_free_boundary_fraction must lie between zero and one')
+  ####
   solver_model = str(solver_model)
   if not solver_model:
     raise ValueError('solver_model must be a non-empty string')
+  ####
   if outlet_height_m <= 100.0 * position_tolerance_m:
     raise ValueError(
       'outlet_height_m must be materially larger than position_tolerance_m'
     )
+  ####
   if downstream_length_m <= 100.0 * position_tolerance_m:
     raise ValueError(
       'downstream_length_m must be materially larger than position_tolerance_m'
     )
+  ####
   control_section_validation = validate_mixed_regime_control_section(
     request,
     control_section,
@@ -1129,6 +1229,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
       ),
       **common,
     )
+  ####
   terminal_angle = request.terminal_downstream_flow_angle_rad
   if abs(terminal_angle) > tangent_tolerance_rad:
     return _result(
@@ -1142,6 +1243,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
       ),
       **common,
     )
+  ####
   if abs(control_section.normal_angle_rad) > tangent_tolerance_rad:
     return _result(
       MocMixedRegimePlanarFreeBoundaryStatus.INVALID_INPUT,
@@ -1155,6 +1257,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
       ),
       **common,
     )
+  ####
   upstream_state = request.terminal.upstream_state
   if upstream_state is None:
     return _result(
@@ -1165,6 +1268,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
       message='terminal does not expose an upstream state for gamma',
       **common,
     )
+  ####
   total_pressure = request.terminal_downstream_total_pressure_Pa
   total_pressure_residual = max(
     abs(sample.total_pressure_Pa - total_pressure)
@@ -1190,6 +1294,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
       ),
       **common,
     )
+  ####
   ambient_mach_squared = 2.0 / (upstream_state.gamma - 1.0) * (
     (total_pressure / ambient_pressure_Pa)
     ** ((upstream_state.gamma - 1.0) / upstream_state.gamma)
@@ -1212,12 +1317,14 @@ def solve_mixed_regime_planar_free_boundary_reference(
       ),
       **common,
     )
+  ####
   minimum_height_m = max(
     100.0 * position_tolerance_m,
     outlet_height_m * 1.0e-8,
   )
   if minimum_height_m >= outlet_height_m:
     raise ValueError('outlet_height_m leaves no valid free-boundary height interval')
+  ####
   try:
     if initial_free_boundary_heights_m is None:
       initial_parameters = (
@@ -1242,6 +1349,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
       initial_shape_heights = tuple(
         float(value) for value in initial_free_boundary_heights_m
       ) + (float(outlet_height_m),)
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _result(
       MocMixedRegimePlanarFreeBoundaryStatus.GEOMETRY_FAILURE,
@@ -1251,6 +1359,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
       message=f'initial free-boundary envelope is invalid: {error}',
       **common,
     )
+  ####
   # A deliberately loose trial gate lets the outer iteration inspect signed
   # normal velocity even when the current shape is not yet closed.  The final
   # solve below uses the requested strict velocity tolerance.
@@ -1293,13 +1402,16 @@ def solve_mixed_regime_planar_free_boundary_reference(
       last_trial_error = str(error)
       residual_history.append(float('inf'))
       return np.full(free_boundary_sample_count - 1, 10.0, dtype=float)
+    ####
     candidate_residual = max(abs(value) for value in candidate.signed_residuals)
     residual_history.append(candidate_residual)
     if best_candidate is None or candidate_residual < max(
       abs(value) for value in best_candidate.signed_residuals
     ):
       best_candidate = candidate
+    ####
     return np.asarray(candidate.signed_residuals, dtype=float)
+  ####
 
   flat_parameters = (
     20.0,
@@ -1312,6 +1424,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
     initial_maximum = max(abs(float(value)) for value in initial_residual)
   else:
     initial_maximum = flat_maximum
+  ####
   if initial_maximum > velocity_tolerance:
     try:
       optimization = least_squares(
@@ -1329,6 +1442,8 @@ def solve_mixed_regime_planar_free_boundary_reference(
       residual(optimization.x)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       last_trial_error = str(error)
+    ####
+  ####
   if best_candidate is None:
     return _result(
       MocMixedRegimePlanarFreeBoundaryStatus.FIELD_FAILURE,
@@ -1348,6 +1463,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
         if key != 'iteration_count'
       },
     )
+  ####
   best_residual = max(abs(value) for value in best_candidate.signed_residuals)
   common_solution = {
     'iteration_count': evaluation_count,
@@ -1381,6 +1497,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
         **common_solution,
       },
     )
+  ####
   try:
     final_field = solve_mixed_regime_compressible_potential_field(
       best_candidate.boundary,
@@ -1406,6 +1523,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
         **common_solution,
       },
     )
+  ####
   if not final_field.converged:
     return _result(
       MocMixedRegimePlanarFreeBoundaryStatus.FIELD_FAILURE,
@@ -1419,6 +1537,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
         'field': final_field,
       },
     )
+  ####
   final_field = replace(
     final_field,
     control_section=control_section,
@@ -1454,6 +1573,7 @@ def solve_mixed_regime_planar_free_boundary_reference(
         'field': final_field,
       },
     )
+  ####
   return _result(
     MocMixedRegimePlanarFreeBoundaryStatus.CONVERGED_REFERENCE,
     request,
@@ -1475,3 +1595,4 @@ def solve_mixed_regime_planar_free_boundary_reference(
       ),
     },
   )
+####

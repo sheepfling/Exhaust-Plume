@@ -95,6 +95,7 @@ class MocFirstCellCompositeResult:
       raise ValueError(
         'continuation boundary states and total-pressure samples must have equal lengths'
       )
+    ####
     if any(
       not isfinite(float(value)) or value <= 0.0
       for value in self.continuation_boundary_total_pressure_Pa
@@ -102,6 +103,7 @@ class MocFirstCellCompositeResult:
       raise ValueError(
         'continuation boundary total-pressure samples must be finite and positive'
       )
+    ####
   ####
 
   @property
@@ -138,6 +140,7 @@ class MocFirstCellCompositeResult:
       raise ValueError(
         'a first-cell chain decision requires a converged closed composite'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
@@ -166,12 +169,14 @@ class MocFirstCellCompositeResult:
 
     if self.shock_fit is None or not self.shock_fit.converged:
       return False
+    ####
     boundary_count = len(self.shock_fit.boundary_states)
     if (
       len(self.shock_fit.upstream_states) != boundary_count
       or len(self.shock_fit.upstream_total_pressure_Pa) != boundary_count
     ):
       return False
+    ####
     return all(
       abs(state.x_m - sample.point_m[0]) <= 1.0e-10
       and abs(state.y_m - sample.point_m[1]) <= 1.0e-10
@@ -245,10 +250,12 @@ class MocFirstCellCompositeResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _failure(
@@ -299,6 +306,7 @@ def _failure(
     physical_boundary_conditions_verified=physical_boundary_conditions_verified,
     message=message,
   )
+####
 
 
 def _point_key(
@@ -306,6 +314,7 @@ def _point_key(
   position_tolerance_m: float,
 ) -> tuple[int, int]:
   return round(point[0] / position_tolerance_m), round(point[1] / position_tolerance_m)
+####
 
 
 def _edge_key(
@@ -316,6 +325,7 @@ def _edge_key(
   first_key = _point_key(first, position_tolerance_m)
   second_key = _point_key(second, position_tolerance_m)
   return (first_key, second_key) if first_key <= second_key else (second_key, first_key)
+####
 
 
 def _edge_counts(
@@ -328,7 +338,10 @@ def _edge_counts(
     for first, second in zip(vertices, (*vertices[1:], vertices[0])):
       edge = _edge_key(first, second, position_tolerance_m)
       counts[edge] = counts.get(edge, 0) + 1
+    ####
+  ####
   return counts
+####
 
 
 def _path_edges_present(
@@ -340,6 +353,7 @@ def _path_edges_present(
     edge_counts.get(_edge_key(first, second, position_tolerance_m), 0) == 1
     for first, second in zip(points, points[1:])
   )
+####
 
 
 def _same_point(
@@ -351,6 +365,7 @@ def _same_point(
     abs(first[0] - second[0]) <= position_tolerance_m
     and abs(first[1] - second[1]) <= position_tolerance_m
   )
+####
 
 
 def _unique_nodes(
@@ -360,7 +375,9 @@ def _unique_nodes(
   by_point: dict[tuple[int, int], MocCharacteristicNode] = {}
   for node in nodes:
     by_point.setdefault(_point_key(node.point_m, position_tolerance_m), node)
+  ####
   return tuple(by_point.values())
+####
 
 
 def assemble_first_cell_composite(
@@ -384,12 +401,14 @@ def assemble_first_cell_composite(
       MocFirstCellCompositeStatus.INVALID_INPUT,
       message='shock_fit must be a MocShockBoundaryFitResult',
     )
+  ####
   if not isinstance(strip, MocAmbientShockStripResult):
     return _failure(
       MocFirstCellCompositeStatus.INVALID_INPUT,
       shock_fit=shock_fit,
       message='strip must be a MocAmbientShockStripResult',
     )
+  ####
   if not isinstance(patch, MocTerminalReflectionPatchResult):
     return _failure(
       MocFirstCellCompositeStatus.INVALID_INPUT,
@@ -397,12 +416,15 @@ def assemble_first_cell_composite(
       strip=strip,
       message='patch must be a MocTerminalReflectionPatchResult',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   shock_points = tuple(sample.point_m for sample in shock_fit.boundary_states)
   ambient_points = tuple(strip.ambient_boundary_points_m)
   if not shock_fit.converged:
@@ -415,6 +437,7 @@ def assemble_first_cell_composite(
       ambient_points=ambient_points,
       message=f'shock fit is not converged: {shock_fit.message}',
     )
+  ####
   if (
     strip.status is not MocAmbientShockStripStatus.CONVERGED_OPEN
     or not strip.converged
@@ -429,6 +452,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message=f'shock/ambient strip is not converged: {strip.message}',
     )
+  ####
   if (
     patch.status is not MocTerminalReflectionPatchStatus.CONVERGED_OPEN
     or not patch.converged
@@ -443,6 +467,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message=f'terminal reflection patch is not converged: {patch.message}',
     )
+  ####
   if len(shock_points) < 3 or len(shock_points) != len(strip.shock_boundary_points_m):
     return _failure(
       MocFirstCellCompositeStatus.INVALID_INPUT,
@@ -454,6 +479,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message='shock fit and strip must expose the same three-or-more shock points',
     )
+  ####
   if any(
     not _same_point(first, second, position_tolerance_m)
     for first, second in zip(shock_points, strip.shock_boundary_points_m, strict=True)
@@ -468,6 +494,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message='shock fit and strip shock boundary points do not agree',
     )
+  ####
   if patch.input_trace_validation is None:
     return _failure(
       MocFirstCellCompositeStatus.SEAM_FAILURE,
@@ -479,6 +506,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message='terminal reflection patch has no input trace validation',
     )
+  ####
   strip_trace = strip.terminal_trace_samples
   patch_trace = patch.input_trace_validation.samples
   if patch_trace != strip_trace:
@@ -492,6 +520,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message='strip terminal C+ trace and patch input trace are not identical',
     )
+  ####
   if len(patch.outgoing_trace_points_m) < 3:
     return _failure(
       MocFirstCellCompositeStatus.INVALID_INPUT,
@@ -503,6 +532,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message='terminal reflection patch requires at least three outgoing samples',
     )
+  ####
   cells = tuple((*strip.cells, *patch.cells))
   topology = validate_moc_mesh(cells)
   if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
@@ -519,6 +549,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message=f'first-cell strip/patch union topology failed: {topology.message}',
     )
+  ####
   centerline_points = tuple(patch.axis_points_m)
   continuation_points = tuple(patch.outgoing_trace_points_m)
   edge_counts = _edge_counts(cells, position_tolerance_m)
@@ -545,6 +576,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message='first-cell union is missing an explicit physical or continuation boundary path',
     )
+  ####
   if not (
     shock_points
     and ambient_points
@@ -572,6 +604,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message='first-cell boundary paths do not meet at the shared strip/patch corners',
     )
+  ####
   if any(
     abs(point[1]) > position_tolerance_m or abs(state.theta_rad) > invariant_tolerance
     for point, state in zip(patch.axis_points_m, patch.axis_states, strict=True)
@@ -593,6 +626,7 @@ def assemble_first_cell_composite(
       ambient_boundary=strip.ambient_boundary,
       message='first-cell centerline boundary does not satisfy y=0 and theta=0',
     )
+  ####
   pressure_ratios = tuple(
     sample.downstream_total_pressure_Pa / sample.upstream_total_pressure_Pa
     for sample in shock_fit.boundary_states
@@ -616,6 +650,7 @@ def assemble_first_cell_composite(
       pressure_ratios=pressure_ratios,
       message='first-cell shock boundary must carry strict total-pressure loss',
     )
+  ####
   nodes = _unique_nodes((*strip.nodes, *patch.nodes), position_tolerance_m)
   maximum_geometry = max(
     (
@@ -668,3 +703,4 @@ def assemble_first_cell_composite(
       'research continuation boundary'
     ),
   )
+####

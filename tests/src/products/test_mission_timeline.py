@@ -61,6 +61,7 @@ def _pose(
         translation_m=translation_m,
         rotation_xyzw=rotation_xyzw,
     )
+####
 
 
 def _timeline() -> MissionTimeline:
@@ -88,6 +89,7 @@ def _timeline() -> MissionTimeline:
             ),
         )
     )
+####
 
 
 def _profile_for_state(state: MissionState) -> GrayRadiationProfile:
@@ -98,6 +100,7 @@ def _profile_for_state(state: MissionState) -> GrayRadiationProfile:
         absorption_coefficient_per_m=(0.5, 1.0, 1.5),
         profile_id=f"mission-gray-{state.time_s:g}",
     )
+####
 
 
 def _fpa_geometry() -> FpaPixelGeometry:
@@ -114,6 +117,7 @@ def _fpa_geometry() -> FpaPixelGeometry:
             aperture_area_m2=1.0e-4,
         ),
     )
+####
 
 
 def _detector_for_mission() -> DetectorResponse:
@@ -123,6 +127,7 @@ def _detector_for_mission() -> DetectorResponse:
         optical_throughput=(0.8, 0.9, 1.0),
         response_id="mission-detector",
     )
+####
 
 
 def _ray_transfer_for_state(
@@ -160,7 +165,9 @@ def _ray_transfer_for_state(
         )
     finally:
         session.close()
+    ####
     return definition.wavelengths_m, result
+####
 
 
 def _visual_evaluator(visualization) -> MissionVisualizationEvaluator:
@@ -172,6 +179,7 @@ def _visual_evaluator(visualization) -> MissionVisualizationEvaluator:
             sampling=VisualSampling(maximum_section_count=8),
         ),
     )
+####
 
 
 def test_timeline_interpolates_vehicle_state_and_cursor_is_functional() -> None:
@@ -193,8 +201,11 @@ def test_timeline_interpolates_vehicle_state_and_cursor_is_functional() -> None:
     assert advanced.state == midpoint
     with pytest.raises(ValueError, match="cannot advance backward"):
         advanced.advance_to(4.0)
+    ####
     with pytest.raises(MissionTimelineRangeError, match="outside"):
         timeline.sample_at(10.1)
+    ####
+####
 
 
 def test_mission_evaluator_resolves_and_records_prescribed_time_state() -> None:
@@ -222,6 +233,7 @@ def test_mission_evaluator_resolves_and_records_prescribed_time_state() -> None:
     assert final.signature.metadata.snapshot.ambient_state_digest_sha256 != (initial.signature.metadata.snapshot.ambient_state_digest_sha256)
     assert midpoint.signature.spectral_radiant_intensity != initial.signature.spectral_radiant_intensity
     assert final.signature.spectral_radiant_intensity != initial.signature.spectral_radiant_intensity
+####
 
 
 def test_mission_signature_query_re_evaluates_an_arbitrary_time_without_output_interpolation() -> None:
@@ -250,6 +262,7 @@ def test_mission_signature_query_re_evaluates_an_arbitrary_time_without_output_i
     assert query.source_result_id == evaluated.metadata.result_id
     assert query.valid is True
     assert query.status.code is SampleStatusCode.OK
+####
 
 
 def test_mission_fpa_evaluator_composes_explicit_ray_detector_and_adc_at_time() -> None:
@@ -286,6 +299,7 @@ def test_mission_fpa_evaluator_composes_explicit_ray_detector_and_adc_at_time() 
     assert projection.source == midpoint.source
     assert projection.display_layer.value == "expected_electrons"
     assert projection.selected_pixel.valid
+####
 
 
 def test_mission_fpa_evaluator_rejects_a_ray_snapshot_from_another_mission_time() -> None:
@@ -299,6 +313,8 @@ def test_mission_fpa_evaluator_rejects_a_ray_snapshot_from_another_mission_time(
 
     with pytest.raises(ValueError, match="snapshot time_s"):
         evaluator.sample_at(5.0)
+    ####
+####
 
 
 def test_all_five_lanes_emit_canonical_visual_products_at_mission_time() -> None:
@@ -322,6 +338,8 @@ def test_all_five_lanes_emit_canonical_visual_products_at_mission_time() -> None
         assert sample.visual_product.metadata.snapshot.source_pose == sample.state.source_pose
         assert sample.visual_product.metadata.provenance.metadata["mission_timeline_schema"] == "plume.mission-timeline@1"
         assert sample.visual_product.metadata.provenance.metadata["model_lane"] == visualization.lane_id
+    ####
+####
 
 
 def test_combined_mission_product_evaluator_preserves_visual_when_signature_is_blocked() -> None:
@@ -355,6 +373,7 @@ def test_combined_mission_product_evaluator_preserves_visual_when_signature_is_b
     assert curved_sample.signature.metadata.claims.radiation.value == "gray_approximate"
     assert curved_sample.signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
     assert curved_sample.signature_assessment.readiness is ModelSignatureReadiness.READY
+####
 
 
 def test_mission_signature_evaluator_accepts_section_varying_profile_resolver() -> None:
@@ -374,6 +393,7 @@ def test_mission_signature_evaluator_accepts_section_varying_profile_resolver() 
             ),
             profile_id="mission-sectioned-gray",
         )
+    ####
 
     evaluator = MissionSignatureEvaluator(
         timeline=_timeline(),
@@ -389,6 +409,7 @@ def test_mission_signature_evaluator_accepts_section_varying_profile_resolver() 
     assert isinstance(sample.optical_profile, SectionedGrayRadiationProfile)
     assert sample.signature.metadata.provenance.metadata["optical_profile_mode"] == "piecewise-axial-section"
     assert sample.signature.metadata.claims.time_model is TimeModel.PRESCRIBED_TRANSIENT
+####
 
 
 def test_direct_bridge_accepts_explicit_snapshot_state() -> None:
@@ -411,6 +432,7 @@ def test_direct_bridge_accepts_explicit_snapshot_state() -> None:
     assert signature.metadata.snapshot.source_pose == source_pose
     assert signature.metadata.claims.time_model is TimeModel.PRESCRIBED_TRANSIENT
     assert signature.metadata.provenance.metadata["signature_time_model"] == "prescribed_transient"
+####
 
 
 def test_timeline_rejects_partial_scalar_schedule() -> None:
@@ -421,3 +443,5 @@ def test_timeline_rejects_partial_scalar_schedule() -> None:
                 MissionState(time_s=1.0, source_pose=_pose((0.0, 0.0, 1.0))),
             )
         )
+    ####
+####

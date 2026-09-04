@@ -83,6 +83,7 @@ def _canonical_ambient_closed_physical_field():
   )
   assert result.field is not None
   return result.field
+####
 
 
 def _observation(
@@ -102,6 +103,7 @@ def _observation(
       (shock_start_x_m + 2.0, 0.0),
       (shock_start_x_m + 3.0, 0.0),
     )
+  ####
   cells = (
     MocCharacteristicCell(
       cell_index=0,
@@ -124,6 +126,7 @@ def _observation(
     upstream_total_pressure_Pa=(2.0e6,) * len(shock),
     downstream_total_pressure_Pa=(1.8e6 if pressure_loss else 2.0e6,) * len(shock),
   )
+####
 
 
 def _terminal_field():
@@ -162,6 +165,7 @@ def _terminal_field():
   )
   assert transition.terminal_field is not None
   return transition.terminal_field
+####
 
 
 def _potential_terminal_closure(field):
@@ -218,6 +222,7 @@ def _potential_terminal_closure(field):
       ambient_pressure_Pa=request.terminal_downstream_pressure_Pa,
     ),
   )
+####
 
 
 def _planner_fixture():
@@ -255,6 +260,7 @@ def _planner_fixture():
     start_x_m=0.7,
     end_x_m=1.0,
   )
+####
 
 
 def test_moc_measurement_extracts_geometry_and_shock_pressure_loss() -> None:
@@ -269,6 +275,7 @@ def test_moc_measurement_extracts_geometry_and_shock_pressure_loss() -> None:
   assert result.pressure_loss_verified is True
   assert result.minimum_total_pressure_ratio == pytest.approx(0.9)
   assert result.as_report()['claim_status'] == 'not_accepted'
+####
 
 
 def test_moc_measurement_requires_explicit_perimeter_edges() -> None:
@@ -280,6 +287,7 @@ def test_moc_measurement_requires_explicit_perimeter_edges() -> None:
 
   assert result.status is MocShockCellMeasurementStatus.GEOMETRY_FAILURE
   assert 'perimeter edges' in result.message
+####
 
 
 def test_moc_measurement_keeps_pressure_loss_as_a_separate_gate() -> None:
@@ -288,6 +296,7 @@ def test_moc_measurement_keeps_pressure_loss_as_a_separate_gate() -> None:
   assert result.status is MocShockCellMeasurementStatus.PRESSURE_FAILURE
   assert result.pressure_loss_verified is False
   assert 'reduce total pressure' in result.message
+####
 
 
 def test_moc_chain_measurement_preserves_cell_order_and_spacing() -> None:
@@ -303,6 +312,7 @@ def test_moc_chain_measurement_preserves_cell_order_and_spacing() -> None:
   assert result.axial_extent_m == pytest.approx((0.0, 7.0))
   assert result.fresh_domain_verified is True
   assert result.as_report()['cell_count'] == 2
+####
 
 
 def test_moc_chain_measurement_rejects_touching_domains_as_not_fresh() -> None:
@@ -316,6 +326,7 @@ def test_moc_chain_measurement_rejects_touching_domains_as_not_fresh() -> None:
   assert result.status is MocShockCellMeasurementStatus.CHAIN_FAILURE
   assert result.fresh_domain_verified is False
   assert 'strictly downstream' in result.message
+####
 
 
 def test_moc_chain_measurement_verifies_exact_state_pressure_handoff() -> None:
@@ -349,6 +360,7 @@ def test_moc_chain_measurement_verifies_exact_state_pressure_handoff() -> None:
   assert result.handoff_link_count == 1
   assert result.handoff_links_verified is True
   assert result.as_report()['handoff']['links_verified'] is True
+####
 
 
 def test_moc_chain_measurement_rejects_tampered_state_pressure_handoff() -> None:
@@ -383,6 +395,7 @@ def test_moc_chain_measurement_rejects_tampered_state_pressure_handoff() -> None
   assert result.handoff_link_count == 1
   assert result.handoff_links_verified is False
   assert 'exact state/pressure' in result.message
+####
 
 
 def test_moc_chain_measurement_rejects_reordered_indices() -> None:
@@ -395,6 +408,7 @@ def test_moc_chain_measurement_rejects_reordered_indices() -> None:
 
   assert result.status is MocShockCellMeasurementStatus.CHAIN_FAILURE
   assert 'contiguous' in result.message
+####
 
 
 def test_physical_field_chain_measurement_audits_continued_solver_fields() -> None:
@@ -426,6 +440,7 @@ def test_physical_field_chain_measurement_audits_continued_solver_fields() -> No
       end_x_m=solved.end_x_m,
       cell_index=index,
     )
+  ####
 
   planner = plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure(
     seed,
@@ -452,6 +467,7 @@ def test_physical_field_chain_measurement_audits_continued_solver_fields() -> No
   assert report['chain_promotion_blocked'] is True
   assert report['production_claim_allowed'] is False
   assert report['audited_field_count'] == 3
+####
 
 
 def test_physical_field_chain_measurement_rejects_changed_handoff() -> None:
@@ -485,6 +501,7 @@ def test_physical_field_chain_measurement_rejects_changed_handoff() -> None:
   assert result.status is MocPhysicalFieldChainMeasurementStatus.HANDOFF_FAILURE
   assert result.handoff_links_verified is False
   assert 'exact previous centerline handoff' in result.message
+####
 
 
 def test_physical_field_chain_measurement_recomputes_closure_without_cached_flag() -> None:
@@ -495,6 +512,7 @@ def test_physical_field_chain_measurement_recomputes_closure_without_cached_flag
 
   assert result.status is MocPhysicalFieldChainMeasurementStatus.CONVERGED
   assert result.physical_closure_verified is True
+####
 
 
 def test_moc_chain_refinement_measurement_compares_resolutions_without_promotion() -> None:
@@ -534,6 +552,7 @@ def test_moc_chain_refinement_measurement_compares_resolutions_without_promotion
   assert report['claim_status'] == 'not_accepted'
   assert report['checks']['handoff_metadata_complete'] is False
   assert report['checks']['handoff_links_verified'] is None
+####
 
 
 def test_moc_chain_refinement_measurement_requires_increasing_resolutions() -> None:
@@ -549,6 +568,7 @@ def test_moc_chain_refinement_measurement_requires_increasing_resolutions() -> N
   assert result.status is MocShockCellChainRefinementMeasurementStatus.RESOLUTION_FAILURE
   assert not result.converged
   assert result.resolution_order_verified is False
+####
 
 
 def test_moc_chain_planner_measurement_recomputes_trace_handoffs() -> None:
@@ -580,6 +600,7 @@ def test_moc_chain_planner_measurement_recomputes_trace_handoffs() -> None:
     and step.result_consumed_handoff_fingerprint == step.incoming_handoff_fingerprint
     for step in planner.steps[:2]
   )
+####
 
 
 def test_moc_chain_planner_measurement_rejects_a_reused_mesh_domain() -> None:
@@ -600,6 +621,7 @@ def test_moc_chain_planner_measurement_rejects_a_reused_mesh_domain() -> None:
   assert result.domain_freshness_verified is False
   assert result.converged is False
   assert 'reuses an upstream domain' in result.message
+####
 
 
 def test_moc_chain_planner_measurement_rejects_tampered_handoff_metadata() -> None:
@@ -619,6 +641,7 @@ def test_moc_chain_planner_measurement_rejects_tampered_handoff_metadata() -> No
   assert result.converged is False
   assert result.handoff_links_verified is None
   assert 'current-cell handoff' in result.message
+####
 
 
 def test_moc_chain_planner_measurement_rejects_tampered_consumed_handoff_metadata() -> None:
@@ -638,6 +661,7 @@ def test_moc_chain_planner_measurement_rejects_tampered_consumed_handoff_metadat
   assert result.converged is False
   assert result.returned_handoffs_verified is False
   assert 'consumed by its returned field' in result.message
+####
 
 
 def test_moc_chain_planner_measurement_rejects_reduced_order_cell() -> None:
@@ -657,6 +681,7 @@ def test_moc_chain_planner_measurement_rejects_reduced_order_cell() -> None:
   assert result.status is MocChainPlannerMeasurementStatus.FIDELITY_FAILURE
   assert result.fidelity_isolation_verified is False
   assert result.production_claim_allowed is False
+####
 
 
 def test_terminal_measurement_keeps_an_open_mixed_regime_boundary_blocked() -> None:
@@ -675,6 +700,7 @@ def test_terminal_measurement_keeps_an_open_mixed_regime_boundary_blocked() -> N
   assert result.physical_termination_verified is False
   assert result.chain_promotion_blocked
   assert result.as_report()['counts']['terminal_shock_edge_count'] > 0
+####
 
 
 def test_terminal_measurement_rechecks_an_explicit_mixed_regime_attachment() -> None:
@@ -699,6 +725,7 @@ def test_terminal_measurement_rechecks_an_explicit_mixed_regime_attachment() -> 
   assert result.chain_promotion_blocked
   assert result.maximum_thermodynamic_residual == pytest.approx(0.0, abs=1.0e-12)
   assert result.as_report()['mixed_regime_topology']['forms_closed_zone'] is True
+####
 
 
 def test_terminal_measurement_dispatches_to_the_potential_reference_audit() -> None:
@@ -720,6 +747,7 @@ def test_terminal_measurement_dispatches_to_the_potential_reference_audit() -> N
   assert result.potential_circulation_residual is not None
   assert result.potential_circulation_residual <= 1.0e-8
   assert result.as_report()['mixed_regime_potential_model_verified'] is True
+####
 
 
 def test_terminal_measurement_does_not_trust_reported_mixed_regime_status() -> None:
@@ -750,3 +778,4 @@ def test_terminal_measurement_does_not_trust_reported_mixed_regime_status() -> N
   assert result.maximum_thermodynamic_residual > 1.0e-8
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+####

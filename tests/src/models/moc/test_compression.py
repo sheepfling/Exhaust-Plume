@@ -32,6 +32,7 @@ def test_attached_weak_compression_reconstructs_target_pressure() -> None:
   assert result.beta_rad == pytest.approx(0.7064997155064409)
   assert result.downstream_mach == pytest.approx(1.6012815380508714)
   assert result.pressure_residual == pytest.approx(0.0, abs=1.0e-12)
+####
 
 
 def test_compression_preserves_reason_for_unsupported_pressure_branch() -> None:
@@ -46,6 +47,7 @@ def test_compression_preserves_reason_for_unsupported_pressure_branch() -> None:
   assert result.shock_status is ShockSolveStatus.STRONG_BRANCH_REQUIRED
   assert result.beta_rad is not None
   assert result.theta_rad is None
+####
 
 
 def test_compression_rejects_pressure_drop() -> None:
@@ -58,6 +60,7 @@ def test_compression_rejects_pressure_drop() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.shock_status is ShockSolveStatus.PRESSURE_BELOW_UPSTREAM
+####
 
 
 def test_compression_reports_pressure_above_normal_shock_limit() -> None:
@@ -70,6 +73,7 @@ def test_compression_reports_pressure_above_normal_shock_limit() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.shock_status is ShockSolveStatus.PRESSURE_ABOVE_NORMAL_SHOCK_LIMIT
+####
 
 
 def test_attached_turn_compression_reconstructs_supersonic_downstream_state() -> None:
@@ -97,6 +101,7 @@ def test_attached_turn_compression_reconstructs_supersonic_downstream_state() ->
   assert result.total_pressure_ratio == pytest.approx(
     result.downstream_total_pressure_Pa / result.upstream_total_pressure_Pa,
   )
+####
 
 
 def test_strong_attached_compression_is_retained_as_a_typed_subsonic_boundary() -> None:
@@ -123,6 +128,7 @@ def test_strong_attached_compression_is_retained_as_a_typed_subsonic_boundary() 
   assert result.downstream_mach is not None and result.downstream_mach < 1.0
   assert result.downstream_pressure_Pa is not None
   assert result.as_report()['branch'] == 'strong'
+####
 
 
 def test_subsonic_boundary_adapter_does_not_promote_a_weak_supersonic_state() -> None:
@@ -137,6 +143,7 @@ def test_subsonic_boundary_adapter_does_not_promote_a_weak_supersonic_state() ->
   assert not result.converged
   assert not result.subsonic
   assert result.downstream_mach is not None and result.downstream_mach > 1.0
+####
 
 
 def test_normal_shock_terminal_returns_explicit_subsonic_state() -> None:
@@ -166,6 +173,7 @@ def test_normal_shock_terminal_returns_explicit_subsonic_state() -> None:
   assert result.downstream_total_pressure_Pa is not None
   assert result.downstream_total_pressure_Pa < result.upstream_total_pressure_Pa
   assert result.as_report()['subsonic'] is True
+####
 
 
 def test_normal_shock_terminal_rejects_invalid_pressure_without_fabricating_state() -> None:
@@ -178,6 +186,7 @@ def test_normal_shock_terminal_rejects_invalid_pressure_without_fabricating_stat
   assert not result.converged
   assert result.downstream_mach is None
   assert result.downstream_pressure_Pa is None
+####
 
 
 def test_turn_compression_rejects_a_detached_turn() -> None:
@@ -192,6 +201,7 @@ def test_turn_compression_rejects_a_detached_turn() -> None:
   assert result.shock_status is ShockSolveStatus.DETACHED_SHOCK_REQUIRED
   assert result.beta_rad is None
   assert result.downstream_pressure_Pa is None
+####
 
 
 def test_attached_shock_to_centerline_returns_forward_candidate_segment() -> None:
@@ -230,6 +240,7 @@ def test_attached_shock_to_centerline_returns_forward_candidate_segment() -> Non
   assert result.downstream_total_pressure_Pa is not None
   assert result.total_pressure_ratio is not None and result.total_pressure_ratio < 1.0
   assert result.downstream_total_pressure_Pa < result.compression.upstream_total_pressure_Pa
+####
 
 
 def test_shock_to_centerline_rejects_noncompressive_target() -> None:
@@ -241,6 +252,7 @@ def test_shock_to_centerline_rejects_noncompressive_target() -> None:
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.shock_status is None
   assert result.shock_end_m is None
+####
 
 
 def test_mild_overexpanded_lip_shock_reaches_the_centerline() -> None:
@@ -268,6 +280,7 @@ def test_mild_overexpanded_lip_shock_reaches_the_centerline() -> None:
   assert result.shock is not None
   assert result.shock.downstream_mach is not None
   assert result.shock.downstream_mach > 1.0
+####
 
 
 def test_lip_shock_rejects_an_underexpanded_exit() -> None:
@@ -290,3 +303,4 @@ def test_lip_shock_rejects_an_underexpanded_exit() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.shock is None
+####

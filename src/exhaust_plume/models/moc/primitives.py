@@ -70,6 +70,7 @@ class ScalarRootResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -92,10 +93,13 @@ class CharacteristicState:
     values = (self.x_m, self.y_m, self.theta_rad, self.mach, self.gamma)
     if any(not isfinite(float(value)) for value in values):
       raise ValueError('characteristic state values must be finite')
+    ####
     if self.mach <= 1.0:
       raise ValueError('characteristic state Mach number must be greater than one')
+    ####
     if self.gamma <= 1.0:
       raise ValueError('characteristic state gamma must be greater than one')
+    ####
   ####
 
   @property
@@ -149,6 +153,7 @@ class CharacteristicPointResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -156,6 +161,7 @@ def _validate_gamma(gamma: float) -> float:
   value = float(gamma)
   if not isfinite(value) or value <= 1.0:
     raise ValueError(f'gamma must be finite and greater than one; got {gamma!r}')
+  ####
   return value
 ####
 
@@ -164,6 +170,7 @@ def _validate_mach(mach: float) -> float:
   value = float(mach)
   if not isfinite(value) or value < 1.0:
     raise ValueError(f'Mach number must be finite and at least one; got {mach!r}')
+  ####
   return value
 ####
 
@@ -175,6 +182,7 @@ def prandtl_meyer_angle_rad(mach: float, gamma: float) -> float:
   gamma_value = _validate_gamma(gamma)
   if mach_value == 1.0:
     return 0.0
+  ####
   root = sqrt(mach_value * mach_value - 1.0)
   coefficient = sqrt((gamma_value + 1.0) / (gamma_value - 1.0))
   return coefficient * atan(root / coefficient) - atan(root)
@@ -195,6 +203,7 @@ def mach_angle_rad(mach: float) -> float:
   mach_value = float(mach)
   if not isfinite(mach_value) or mach_value <= 1.0:
     raise ValueError(f'Mach angle requires a finite Mach number greater than one; got {mach!r}')
+  ####
   return asin(1.0 / mach_value)
 ####
 
@@ -218,10 +227,13 @@ def inverse_prandtl_meyer_angle_rad(
   target = float(nu_rad)
   if not isfinite(target) or target < 0.0:
     raise ValueError(f'nu_rad must be finite and non-negative; got {nu_rad!r}')
+  ####
   if not isfinite(absolute_tolerance) or absolute_tolerance <= 0.0:
     raise ValueError('absolute_tolerance must be finite and positive')
+  ####
   if not isfinite(relative_tolerance) or relative_tolerance <= 0.0:
     raise ValueError('relative_tolerance must be finite and positive')
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
   ####
@@ -237,6 +249,7 @@ def inverse_prandtl_meyer_angle_rad(
       upper_bound=inf,
       message='the requested angle requires Mach approaching infinity',
     )
+  ####
   if target <= tolerance:
     return ScalarRootResult(
       status=MocPrimitiveStatus.CONVERGED,
@@ -263,6 +276,7 @@ def inverse_prandtl_meyer_angle_rad(
         upper_bound=upper,
         message='could not bracket the requested Prandtl--Meyer angle',
       )
+    ####
   ####
   iterations = bracket_iterations
   midpoint = upper
@@ -280,10 +294,12 @@ def inverse_prandtl_meyer_angle_rad(
         lower_bound=lower,
         upper_bound=upper,
       )
+    ####
     if residual > 0.0:
       upper = midpoint
     else:
       lower = midpoint
+    ####
     if abs(upper - lower) <= absolute_tolerance * max(1.0, abs(midpoint)):
       return ScalarRootResult(
         status=MocPrimitiveStatus.CONVERGED,
@@ -293,6 +309,7 @@ def inverse_prandtl_meyer_angle_rad(
         lower_bound=lower,
         upper_bound=upper,
       )
+    ####
   ####
   return ScalarRootResult(
     status=MocPrimitiveStatus.MAX_ITERATIONS,
@@ -316,6 +333,7 @@ def supersonic_mach_from_stagnation_pressure_ratio(
   ratio = float(pressure_ratio_p0_over_p)
   if not isfinite(ratio) or ratio <= 1.0:
     raise ValueError('pressure_ratio_p0_over_p must be finite and greater than one')
+  ####
   mach_squared = 2.0 / (gamma_value - 1.0) * (
     ratio ** ((gamma_value - 1.0) / gamma_value) - 1.0
   )
@@ -329,6 +347,7 @@ def supersonic_mach_from_stagnation_pressure_ratio(
       upper_bound=inf,
       message='stagnation pressure ratio does not produce a supersonic state',
     )
+  ####
   mach = sqrt(mach_squared)
   reconstructed = (1.0 + 0.5 * (gamma_value - 1.0) * mach * mach) ** (gamma_value / (gamma_value - 1.0))
   return ScalarRootResult(
@@ -359,9 +378,11 @@ def _state_from_compatibility(
 ) -> tuple[CharacteristicState | None, MocPrimitiveStatus, str]:
   if nu_rad < -1.0e-12:
     return None, MocPrimitiveStatus.OUTSIDE_DOMAIN, 'characteristic compatibility produced a negative Prandtl--Meyer angle'
+  ####
   inversion = inverse_prandtl_meyer_angle_rad(max(0.0, nu_rad), gamma)
   if not inversion.converged or inversion.value is None:
     return None, inversion.status, inversion.message
+  ####
   return (
     CharacteristicState(
       x_m=x_m,
@@ -388,6 +409,7 @@ def _characteristic_ray(
     start_angle = state.theta_rad + state.mu_rad if family is CharacteristicFamily.PLUS else state.theta_rad - state.mu_rad
     end_angle = target_state.theta_rad + target_state.mu_rad if family is CharacteristicFamily.PLUS else target_state.theta_rad - target_state.mu_rad
     direction = (cos(0.5 * (start_angle + end_angle)), sin(0.5 * (start_angle + end_angle)))
+  ####
   return Ray2D(
     origin=np.asarray((state.x_m, state.y_m), dtype=float),
     direction=np.asarray(direction, dtype=float),
@@ -399,6 +421,7 @@ def _intersection_failure(result: object) -> tuple[MocPrimitiveStatus, str]:
   status = getattr(result, 'status', None)
   if status is RayIntersectionStatus.BEHIND_FIRST_RAY or status is RayIntersectionStatus.BEHIND_SECOND_RAY or status is RayIntersectionStatus.BEHIND_RAY:
     return MocPrimitiveStatus.GEOMETRY_FAILURE, f'characteristic intersection is not forward: {status.value}'
+  ####
   return MocPrimitiveStatus.GEOMETRY_FAILURE, f'characteristic rays do not intersect robustly: {getattr(status, "value", status)}'
 ####
 
@@ -421,12 +444,16 @@ def interior_characteristic_point(
 
   if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(invariant_tolerance) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if not isfinite(condition_limit) or condition_limit <= 1.0:
     raise ValueError('condition_limit must be finite and greater than one')
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if abs(plus_source.gamma - minus_source.gamma) > invariant_tolerance:
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.INVALID_INPUT,
@@ -490,12 +517,15 @@ def interior_characteristic_point(
         intersection_status=intersection.status.value,
         message=failure_message,
       )
+    ####
     point = (float(intersection.point[0]), float(intersection.point[1]))
     state = replace(state, x_m=point[0], y_m=point[1])
     if previous_point is not None:
       displacement = sqrt((point[0] - previous_point[0]) ** 2 + (point[1] - previous_point[1]) ** 2)
       if displacement <= position_tolerance_m:
         break
+      ####
+    ####
     previous_point = point
   else:
     return CharacteristicPointResult(
@@ -524,6 +554,7 @@ def interior_characteristic_point(
       intersection_status=last_intersection_status,
       message='interior characteristic compatibility residual exceeded tolerance',
     )
+  ####
   return CharacteristicPointResult(
     status=MocPrimitiveStatus.CONVERGED,
     state=state,
@@ -549,12 +580,15 @@ def centerline_characteristic_point(
 
   if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(invariant_tolerance) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if family is CharacteristicFamily.PLUS:
     target_nu = -source.k_plus
   else:
     target_nu = source.k_minus
+  ####
   state, status, message = _state_from_compatibility(
     x_m=source.x_m,
     y_m=0.0,
@@ -616,6 +650,7 @@ def centerline_characteristic_point(
       intersection_status=intersection.status.value,
       message='centerline characteristic compatibility residual exceeded tolerance',
     )
+  ####
   return CharacteristicPointResult(
     status=MocPrimitiveStatus.CONVERGED,
     state=state,

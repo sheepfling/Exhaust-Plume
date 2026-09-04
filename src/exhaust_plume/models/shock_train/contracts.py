@@ -55,8 +55,10 @@ def _case_id_tuple(name: str, values: tuple[str, ...]) -> tuple[str, ...]:
   normalized = tuple(values)
   if any(not isinstance(value, str) or not value for value in normalized):
     raise ValueError(f'{name} must contain nonempty strings')
+  ####
   if len(normalized) != len(set(normalized)):
     raise ValueError(f'{name} must not contain duplicate case IDs')
+  ####
   return normalized
 ####
 
@@ -80,18 +82,20 @@ class ShockTrainCalibrationValidationSplit:
     unassigned = _case_id_tuple('unassigned_case_ids', self.unassigned_case_ids)
     if set(calibration) & set(validation):
       raise ValueError('calibration_case_ids and validation_case_ids must be disjoint')
+    ####
     if (set(calibration) | set(validation)) & set(unassigned):
       raise ValueError('unassigned_case_ids must not overlap assigned case IDs')
+    ####
     object.__setattr__(self, 'calibration_case_ids', calibration)
     object.__setattr__(self, 'validation_case_ids', validation)
     object.__setattr__(self, 'unassigned_case_ids', unassigned)
-    ####
   ####
 
   @property
   def status(self) -> CalibrationValidationSplitStatus:
     if self.calibration_case_ids and self.validation_case_ids:
       return CalibrationValidationSplitStatus.READY
+    ####
     return CalibrationValidationSplitStatus.BLOCKED_INSUFFICIENT_CASES
   ####
 
@@ -113,7 +117,9 @@ class ShockTrainCalibrationValidationSplit:
     }
     if reason is not None:
       report['reason'] = reason
+    ####
     return report
+  ####
 ####
 
 
@@ -133,6 +139,7 @@ def _finite_nonnegative(name: str, value: float) -> float:
   value = float(value)
   if not isfinite(value) or value < 0.0:
     raise ValueError(f'{name} must be finite and nonnegative')
+  ####
   return value
 ####
 
@@ -141,6 +148,7 @@ def _finite_positive(name: str, value: float) -> float:
   value = float(value)
   if not isfinite(value) or value <= 0.0:
     raise ValueError(f'{name} must be finite and positive')
+  ####
   return value
 ####
 
@@ -149,6 +157,7 @@ def _finite_value(name: str, value: float) -> float:
   value = float(value)
   if not isfinite(value):
     raise ValueError(f'{name} must be finite')
+  ####
   return value
 ####
 
@@ -156,10 +165,12 @@ def _finite_value(name: str, value: float) -> float:
 def _range(name: str, value: tuple[float, float]) -> tuple[float, float]:
   if len(value) != 2:
     raise ValueError(f'{name} must contain exactly two values')
+  ####
   lower = _finite_nonnegative(f'{name}[0]', value[0])
   upper = _finite_positive(f'{name}[1]', value[1])
   if lower > upper:
     raise ValueError(f'{name} lower bound must not exceed upper bound')
+  ####
   return (lower, upper)
 ####
 
@@ -210,6 +221,7 @@ class ShockTrainCalibration:
     )
     if minimum_correction > 1.0:
       raise ValueError('minimum_shear_layer_spacing_correction must not exceed one')
+    ####
     object.__setattr__(self, 'minimum_shear_layer_spacing_correction', minimum_correction)
     if self.parameter_covariance is not None:
       rows = tuple(
@@ -218,29 +230,35 @@ class ShockTrainCalibration:
       )
       if not rows or any(len(row) != len(rows) for row in rows):
         raise ValueError('parameter_covariance must be a nonempty square matrix')
+      ####
       if any(
           abs(rows[row][column] - rows[column][row]) > 1.0e-12
           for row in range(len(rows))
           for column in range(len(rows))
       ):
         raise ValueError('parameter_covariance must be symmetric')
+      ####
       object.__setattr__(self, 'parameter_covariance', rows)
       if self.covariance_parameter_names is None:
         raise ValueError(
           'covariance_parameter_names are required when parameter_covariance is supplied'
         )
+      ####
       names = tuple(self.covariance_parameter_names)
       if not names or any(not isinstance(name, str) or not name for name in names):
         raise ValueError(
           'covariance_parameter_names must contain nonempty strings'
         )
+      ####
       if len(names) != len(rows) or len(set(names)) != len(names):
         raise ValueError(
           'covariance_parameter_names must match the covariance dimension without duplicates'
         )
+      ####
       unknown = sorted(set(names) - set(SHOCK_TRAIN_CALIBRATION_PARAMETER_NAMES))
       if unknown:
         raise ValueError(f'unknown shock-train covariance parameters: {unknown!r}')
+      ####
       object.__setattr__(self, 'covariance_parameter_names', names)
     elif self.covariance_parameter_names is not None:
       raise ValueError(
@@ -271,10 +289,13 @@ class ShockTrainTerminationPolicy:
         'epsilon_mean_pressure',
     ):
       object.__setattr__(self, name, _finite_positive(name, getattr(self, name)))
+    ####
     if isinstance(self.persistence_cells, bool) or self.persistence_cells < 1:
       raise ValueError('persistence_cells must be a positive integer')
+    ####
     if isinstance(self.max_cells, bool) or self.max_cells < 1:
       raise ValueError('max_cells must be a positive integer')
+    ####
     if self.max_axial_distance_m is not None:
       object.__setattr__(self, 'max_axial_distance_m', _finite_positive('max_axial_distance_m', self.max_axial_distance_m))
     ####
@@ -321,19 +342,26 @@ class ShockCellMetrics:
     ):
       if not isfinite(float(getattr(self, name))):
         raise ValueError(f'{name} must be finite')
+      ####
     ####
     if self.start_x_m < 0.0 or self.end_x_m < self.start_x_m:
       raise ValueError('cell axial bounds must be ordered and nonnegative')
+    ####
     if self.length_m <= 0.0 or abs((self.end_x_m - self.start_x_m) - self.length_m) > max(1.0e-12, self.length_m * 1.0e-9):
       raise ValueError('length_m must match the ordered axial bounds')
+    ####
     if self.effective_core_diameter_m < 0.0 or self.core_mach < 0.0:
       raise ValueError('core diameter and Mach must be nonnegative')
+    ####
     if self.minimum_pressure_Pa <= 0.0 or self.maximum_pressure_Pa < self.minimum_pressure_Pa:
       raise ValueError('pressure extrema must be positive and ordered')
+    ####
     if self.pressure_oscillation_ratio < 0.0:
       raise ValueError('pressure_oscillation_ratio must be nonnegative')
+    ####
     if self.inlet_total_pressure_Pa <= 0.0 or self.outlet_total_pressure_Pa <= 0.0:
       raise ValueError('total pressures must be positive')
+    ####
     if self.outlet_total_pressure_Pa > self.inlet_total_pressure_Pa * (1.0 + 1.0e-9):
       raise ValueError('a train cell may not increase total pressure')
     ####
@@ -375,12 +403,14 @@ class ShockTrainResult:
       value = getattr(self, name)
       if value is not None and (not isfinite(float(value)) or float(value) < 0.0):
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
     ####
     object.__setattr__(self, 'uncertainty', MappingProxyType(dict(self.uncertainty)))
     object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
     if self.was_domain_truncated and self.termination.is_physical:
       raise ValueError('domain truncation and physical termination cannot both be true')
     ####
+  ####
 
   @property
   def cell_count(self) -> int:

@@ -41,6 +41,7 @@ class MocCausticBridgeSide(str, Enum):
 
   OLD_FAMILY = 'old-family'
   RESTARTED_FAMILY = 'restarted-family'
+####
 
 
 class MocCausticBridgeStatus(str, Enum):
@@ -57,6 +58,7 @@ class MocCausticBridgeStatus(str, Enum):
   PRESSURE_FAILURE = 'caustic_bridge_pressure_failure'
   GEOMETRY_FAILURE = 'caustic_bridge_state_geometry_failure'
   SAMPLER_FAILURE = 'caustic_bridge_sampler_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,19 +77,27 @@ class MocCausticBridgeSample:
       isfinite(float(value)) for value in self.point_m
     ):
       raise ValueError('caustic bridge sample point must contain finite coordinates')
+    ####
     if not isinstance(self.side, MocCausticBridgeSide):
       raise TypeError('caustic bridge sample side must be a MocCausticBridgeSide')
+    ####
     if not isinstance(self.state, CharacteristicState):
       raise TypeError('caustic bridge sample state must be a CharacteristicState')
+    ####
     pressure = float(self.static_pressure_Pa)
     if not isfinite(pressure) or pressure <= 0.0:
       raise ValueError('caustic bridge sample pressure must be finite and positive')
+    ####
     if not isinstance(self.old_family_available, bool):
       raise TypeError('old_family_available must be a bool')
+    ####
     if not isinstance(self.restarted_family_available, bool):
       raise TypeError('restarted_family_available must be a bool')
+    ####
     object.__setattr__(self, 'point_m', (float(self.point_m[0]), float(self.point_m[1])))
     object.__setattr__(self, 'static_pressure_Pa', pressure)
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +109,7 @@ class _MocCausticBridgeResolution:
   old_family_available: bool
   restarted_family_available: bool
   message: str = ''
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,22 +132,28 @@ class MocCausticUpstreamBridge:
       raise TypeError(
         'old_family must be a MocSourceCharacteristicStripResult'
       )
+    ####
     if not isinstance(self.restarted_family, MocCausticFamilyBandResult):
       raise TypeError(
         'restarted_family must be a MocCausticFamilyBandResult'
       )
+    ####
     if self.side_at is not None and not callable(self.side_at):
       raise TypeError('side_at must be callable when supplied')
+    ####
+  ####
 
   @property
   def fields_converged(self) -> bool:
     """Whether both supplied one-sided fields passed their local gates."""
 
     return self.old_family.converged and self.restarted_family.converged
+  ####
 
   @property
   def explicit_side_selection(self) -> bool:
     return self.side_at is not None
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -153,6 +170,7 @@ class MocCausticUpstreamBridge:
       'physical_closure_verified': False,
       'chain_promotion_blocked': True,
     }
+  ####
 
   @staticmethod
   def _state_from_field(
@@ -172,21 +190,26 @@ class MocCausticUpstreamBridge:
         MocCausticBridgeStatus.SAMPLER_FAILURE,
         f'caustic bridge field sampler raised: {error}',
       )
+    ####
     if state is None:
       return None, None, ''
+    ####
     if not isinstance(state, CharacteristicState):
       return (
         None,
         MocCausticBridgeStatus.SAMPLER_FAILURE,
         'caustic bridge field sampler returned a non-CharacteristicState value',
       )
+    ####
     if hypot(state.x_m - point_m[0], state.y_m - point_m[1]) > position_tolerance_m:
       return (
         None,
         MocCausticBridgeStatus.GEOMETRY_FAILURE,
         'caustic bridge field returned a state away from the requested point',
       )
+    ####
     return state, None, ''
+  ####
 
   @staticmethod
   def _pressure_from_field(
@@ -206,16 +229,20 @@ class MocCausticUpstreamBridge:
         MocCausticBridgeStatus.SAMPLER_FAILURE,
         f'caustic bridge pressure sampler raised: {error}',
       )
+    ####
     if pressure is None:
       return None, MocCausticBridgeStatus.PRESSURE_FAILURE, (
         'selected caustic bridge field returned no static pressure'
       )
+    ####
     pressure_value = float(pressure)
     if not isfinite(pressure_value) or pressure_value <= 0.0:
       return None, MocCausticBridgeStatus.PRESSURE_FAILURE, (
         'selected caustic bridge field returned an invalid static pressure'
       )
+    ####
     return pressure_value, None, ''
+  ####
 
   def _resolve(
     self,
@@ -236,6 +263,7 @@ class MocCausticUpstreamBridge:
           'feed a caustic bridge'
         ),
       )
+    ####
 
     old_state, old_status, old_message = self._state_from_field(
       self.old_family,
@@ -258,6 +286,7 @@ class MocCausticUpstreamBridge:
           restarted_family_available=restarted_state is not None,
           message=old_message,
         )
+      ####
       if restarted_status is not None:
         return _MocCausticBridgeResolution(
           status=restarted_status,
@@ -268,6 +297,7 @@ class MocCausticUpstreamBridge:
           restarted_family_available=restarted_state is not None,
           message=restarted_message,
         )
+      ####
       if old_state is not None and restarted_state is not None:
         return _MocCausticBridgeResolution(
           status=MocCausticBridgeStatus.AMBIGUOUS_OVERLAP,
@@ -281,6 +311,7 @@ class MocCausticUpstreamBridge:
             'branch selector is required and no state averaging is allowed'
           ),
         )
+      ####
       if old_state is None and restarted_state is None:
         return _MocCausticBridgeResolution(
           status=MocCausticBridgeStatus.DOMAIN_GAP,
@@ -294,6 +325,7 @@ class MocCausticUpstreamBridge:
             'bridge interpolation or extrapolation is not permitted'
           ),
         )
+      ####
       side = (
         MocCausticBridgeSide.OLD_FAMILY
         if old_state is not None
@@ -312,6 +344,7 @@ class MocCausticUpstreamBridge:
           restarted_family_available=restarted_state is not None,
           message=f'caustic bridge side selector raised: {error}',
         )
+      ####
       if not isinstance(side, MocCausticBridgeSide):
         return _MocCausticBridgeResolution(
           status=MocCausticBridgeStatus.SIDE_SELECTION_FAILURE,
@@ -322,6 +355,8 @@ class MocCausticUpstreamBridge:
           restarted_family_available=restarted_state is not None,
           message='caustic bridge side selector must return a MocCausticBridgeSide',
         )
+      ####
+    ####
 
     selected_state = (
       old_state if side is MocCausticBridgeSide.OLD_FAMILY else restarted_state
@@ -347,6 +382,7 @@ class MocCausticUpstreamBridge:
           'the other side is not used as a fallback'
         ),
       )
+    ####
     selected_field = (
       self.old_family
       if side is MocCausticBridgeSide.OLD_FAMILY
@@ -371,6 +407,7 @@ class MocCausticUpstreamBridge:
         restarted_family_available=restarted_state is not None,
         message=pressure_message,
       )
+    ####
     return _MocCausticBridgeResolution(
       status=MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH,
       side=side,
@@ -379,6 +416,7 @@ class MocCausticUpstreamBridge:
       old_family_available=old_state is not None,
       restarted_family_available=restarted_state is not None,
     )
+  ####
 
   def state_at(
     self,
@@ -390,13 +428,16 @@ class MocCausticUpstreamBridge:
 
     if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     resolution = self._resolve(
       (float(point_m[0]), float(point_m[1])),
       position_tolerance_m=position_tolerance_m,
     )
     return resolution.state if resolution.status is MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH else None
+  ####
 
   def static_pressure_at(
     self,
@@ -408,8 +449,10 @@ class MocCausticUpstreamBridge:
 
     if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     resolution = self._resolve(
       (float(point_m[0]), float(point_m[1])),
       position_tolerance_m=position_tolerance_m,
@@ -419,6 +462,8 @@ class MocCausticUpstreamBridge:
       if resolution.status is MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH
       else None
     )
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -443,6 +488,7 @@ class MocCausticBridgeResult:
         raise ValueError(
           'first_missing_point_m must contain two finite coordinates'
         )
+      ####
       object.__setattr__(
         self,
         'first_missing_point_m',
@@ -451,39 +497,48 @@ class MocCausticBridgeResult:
           float(self.first_missing_point_m[1]),
         ),
       )
+    ####
     if self.first_missing_sample_index is None:
       if self.first_missing_point_m is not None:
         raise ValueError(
           'first_missing_point_m requires first_missing_sample_index'
         )
+      ####
     elif (
       isinstance(self.first_missing_sample_index, bool)
       or not isinstance(self.first_missing_sample_index, int)
       or self.first_missing_sample_index < 0
     ):
       raise ValueError('first_missing_sample_index must be a nonnegative integer')
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH
+  ####
 
   @property
   def sampled_count(self) -> int:
     return len(self.samples)
+  ####
 
   @property
   def last_valid_point_m(self) -> tuple[float, float] | None:
     return None if not self.samples else self.samples[-1].point_m
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The bridge does not solve the caustic branch or downstream closure."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   def as_report(self) -> dict[str, object]:
     side_counts = {
@@ -516,6 +571,8 @@ class MocCausticBridgeResult:
       ],
       'message': self.message,
     }
+  ####
+####
 
 
 def build_caustic_upstream_bridge(
@@ -531,6 +588,7 @@ def build_caustic_upstream_bridge(
     restarted_family=restarted_family,
     side_at=side_at,
   )
+####
 
 
 def _invalid_result(
@@ -554,6 +612,7 @@ def _invalid_result(
     side_transition_indices=(),
     message=message,
   )
+####
 
 
 def sample_caustic_upstream_bridge(
@@ -577,6 +636,7 @@ def sample_caustic_upstream_bridge(
       bridge=None,
       message='bridge must be a MocCausticUpstreamBridge',
     )
+  ####
   try:
     points = tuple(
       (float(point[0]), float(point[1]))
@@ -588,6 +648,7 @@ def sample_caustic_upstream_bridge(
       bridge=bridge,
       message='shock_points_m must contain two-coordinate points',
     )
+  ####
   if not points or any(not all(isfinite(value) for value in point) for point in points):
     return _invalid_result(
       MocCausticBridgeStatus.INVALID_INPUT,
@@ -595,8 +656,10 @@ def sample_caustic_upstream_bridge(
       points=points,
       message='caustic bridge sampling requires at least one finite point',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   for index, (previous, current) in enumerate(
     zip(points[:-1], points[1:], strict=True),
     start=1,
@@ -616,6 +679,8 @@ def sample_caustic_upstream_bridge(
           'nonincreasing in y'
         ),
       )
+    ####
+  ####
 
   samples: list[MocCausticBridgeSample] = []
   transitions: list[int] = []
@@ -649,11 +714,13 @@ def sample_caustic_upstream_bridge(
         side_transition_indices=tuple(transitions),
         message=resolution.message or f'caustic bridge failed at sample {index}',
       )
+    ####
     assert resolution.side is not None
     assert resolution.state is not None
     assert resolution.static_pressure_Pa is not None
     if samples and samples[-1].side is not resolution.side:
       transitions.append(index)
+    ####
     samples.append(
       MocCausticBridgeSample(
         point_m=point,
@@ -664,6 +731,7 @@ def sample_caustic_upstream_bridge(
         restarted_family_available=resolution.restarted_family_available,
       )
     )
+  ####
   return MocCausticBridgeResult(
     status=MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH,
     bridge=bridge,
@@ -677,3 +745,4 @@ def sample_caustic_upstream_bridge(
       'one-sided caustic field; branch and downstream closure remain pending'
     ),
   )
+####

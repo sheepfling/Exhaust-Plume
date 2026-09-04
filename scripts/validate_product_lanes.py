@@ -14,6 +14,7 @@ from typing import Any, Callable
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / 'src') not in sys.path:
   sys.path.insert(0, str(REPO_ROOT / 'src'))
+####
 
 from exhaust_plume import (  # noqa: E402
   AmbientInput,
@@ -98,6 +99,7 @@ try:
   from scripts.validate_external_corpus_alignment import preflight_corpus  # noqa: E402
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import preflight_corpus  # noqa: E402
+####
 
 
 def _fixture() -> dict[str, Any]:
@@ -106,6 +108,7 @@ def _fixture() -> dict[str, Any]:
       encoding='utf-8',
     )
   )
+####
 
 
 def _analytical_components(exit_to_ambient_pressure_ratio: float) -> tuple[Any, Any]:
@@ -134,16 +137,19 @@ def _analytical_components(exit_to_ambient_pressure_ratio: float) -> tuple[Any, 
     gas,
   )
   return exit_state, ambient
+####
 
 
 def _analytical_state(exit_to_ambient_pressure_ratio: float) -> StraightAnalyticalOperatingState:
   exit_state, ambient = _analytical_components(exit_to_ambient_pressure_ratio)
   return StraightAnalyticalOperatingState(nozzle_exit=exit_state, ambient=ambient)
+####
 
 
 def _shock_cell_state(exit_to_ambient_pressure_ratio: float) -> ShockCellVisualOperatingState:
   exit_state, ambient = _analytical_components(exit_to_ambient_pressure_ratio)
   return ShockCellVisualOperatingState(nozzle_exit=exit_state, ambient=ambient)
+####
 
 
 def _visual_request(frame_id: str) -> VisualSectionedTubeRequest:
@@ -155,6 +161,7 @@ def _visual_request(frame_id: str) -> VisualSectionedTubeRequest:
     ),
     requested_channels=('core_radius_fraction', 'opacity_weight'),
   )
+####
 
 
 def _run_visual_lane() -> dict[str, Any]:
@@ -207,6 +214,7 @@ def _run_visual_lane() -> dict[str, Any]:
         'radiation_claim': result.metadata.claims.radiation.value,
         'local_geometry_invariants': asdict(invariant_report),
       })
+    ####
 
     conformance = run_visual_provider_conformance(
       provider.descriptor,
@@ -232,6 +240,7 @@ def _run_visual_lane() -> dict[str, Any]:
         'cases': provider_case_invariants,
       },
     })
+  ####
   all_conformant = all(report['contract_conformance'] for report in provider_reports)
   all_deterministic = all(report['deterministic_serialization'] for report in provider_reports)
   all_geometry_invariants = all(
@@ -256,6 +265,7 @@ def _run_visual_lane() -> dict[str, Any]:
     },
     'claim_ceiling': 'Engineering-approximate straight visual geometry and named display features only.',
   }
+####
 
 
 _SIGNATURE_ASSET_ID = 'repository-synthetic-signature-contract-fixture-v1'
@@ -281,6 +291,7 @@ def _signature_asset_payload() -> dict[str, Any]:
       (0.15, 0.15, 0.15),
     ),
   }
+####
 
 
 def _signature_definition() -> SignatureTableDefinition:
@@ -297,6 +308,7 @@ def _signature_definition() -> SignatureTableDefinition:
     wavelength_interpolation=LookupInterpolationPolicy.LINEAR,
     angular_interpolation=LookupInterpolationPolicy.LINEAR,
   )
+####
 
 
 def _run_sensor_space_operator_probe() -> dict[str, Any]:
@@ -353,6 +365,7 @@ def _run_sensor_space_operator_probe() -> dict[str, Any]:
     'scope': 'synthetic downstream operator math only; no external observer, atmosphere, calibration, or detector asset',
     'claim_status': 'not_accepted',
   }
+####
 
 
 def _run_signature_lane() -> dict[str, Any]:
@@ -505,6 +518,7 @@ def _run_signature_lane() -> dict[str, Any]:
     },
     'claim_ceiling': 'Versioned table and interpolation behavior only; no intrinsic physical validation claim.',
   }
+####
 
 
 def _gray_definition() -> GrayRayTransferDefinition:
@@ -519,6 +533,7 @@ def _gray_definition() -> GrayRayTransferDefinition:
     source_function_w_sr_m=(2.0, 4.0, 8.0),
     absorption_coefficient_per_m=(0.5, 1.0, 2.0),
   )
+####
 
 
 def _run_optical_lane() -> dict[str, Any]:
@@ -625,6 +640,7 @@ def _run_optical_lane() -> dict[str, Any]:
       centers_m=centers,
       radii_m=(0.4,) * section_count,
     )
+  ####
 
   spatial_refinement_lengths = []
   for section_count in (3, 5, 9, 17):
@@ -635,6 +651,7 @@ def _run_optical_lane() -> dict[str, Any]:
       t_max_m=12.0,
     )
     spatial_refinement_lengths.append(sum(interval.t_exit_m - interval.t_enter_m for interval in intervals))
+  ####
   straight_refinement_lengths = []
   for section_count in (2, 3, 5, 9):
     straight_support = SectionedTubeSupport(
@@ -649,6 +666,7 @@ def _run_optical_lane() -> dict[str, Any]:
       t_max_m=10.0,
     )
     straight_refinement_lengths.append(sum(interval.t_exit_m - interval.t_enter_m for interval in straight_intervals))
+  ####
   spatial_refinement_passed = all(isclose(length, 4.0, rel_tol=0.0, abs_tol=1.0e-12) for length in straight_refinement_lengths)
   coarse_request = SpectralRayTransferRequest(
     ray_frame_id='sensor',
@@ -724,6 +742,7 @@ def _run_optical_lane() -> dict[str, Any]:
     },
     'claim_ceiling': 'Homogeneous or piecewise-axial gray transfer through a straight support only; no chemistry, atmosphere, detector, or FPA claim.',
   }
+####
 
 
 def _run_fpa_boundary() -> dict[str, Any]:
@@ -898,6 +917,7 @@ def _run_fpa_boundary() -> dict[str, Any]:
     'source_semantics': image.source_semantics,
     'claim_ceiling': 'Deterministic expected-electron and expected-ADC-count adapters only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim.',
   }
+####
 
 
 def _run_cross_product_consistency() -> dict[str, Any]:
@@ -969,11 +989,13 @@ def _run_cross_product_consistency() -> dict[str, Any]:
     },
     'claim_ceiling': 'Synthetic orthographic ray-to-signature consistency only; no experimental signature, atmosphere, detector, image, or FPA claim.',
   }
+####
 
 
 def _external_summary(path: Path | None) -> dict[str, Any]:
   if path is None:
     return {'status': 'not-provided'}
+  ####
   report = preflight_corpus(path)
   operator_reconciliation = report.get('operator_reconciliation', {})
   archive = {
@@ -990,6 +1012,7 @@ def _external_summary(path: Path | None) -> dict[str, Any]:
     'unreviewed_external_operator_count': len(operator_reconciliation.get('unreviewed_external_only', [])),
     'release_blockers': report.get('release_blockers', []),
   }
+####
 
 
 def _run_check(name: str, function: Callable[[], dict[str, Any]]) -> dict[str, Any]:
@@ -1002,6 +1025,8 @@ def _run_check(name: str, function: Callable[[], dict[str, Any]]) -> dict[str, A
       'error_type': type(error).__name__,
       'error': str(error),
     }
+  ####
+####
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1032,9 +1057,12 @@ def main(argv: list[str] | None = None) -> int:
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
+  ####
   print(serialized, end='')
   return 0 if local_passed else 1
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

@@ -56,6 +56,7 @@ def _candidate_inputs() -> tuple[
     1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
   ) ** (first.state.gamma / (first.state.gamma - 1.0))
   return source, shock_points, ambient_pressure
+####
 
 
 def test_geometry_owned_candidate_closes_local_field_without_angle_callback() -> None:
@@ -106,6 +107,7 @@ def test_geometry_owned_candidate_closes_local_field_without_angle_callback() ->
   assert measurement.external_validation_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_geometry_owned_candidate_stops_at_bounded_source_boundary() -> None:
@@ -136,6 +138,7 @@ def test_geometry_owned_candidate_stops_at_bounded_source_boundary() -> None:
   assert result.as_chain_termination_decision().reason.value == (
     'upstream-field-boundary'
   )
+####
 
 
 def test_geometry_owned_candidate_rejects_ambient_below_upstream_pressure() -> None:
@@ -153,3 +156,4 @@ def test_geometry_owned_candidate_rejects_ambient_below_upstream_pressure() -> N
   assert result.start_attachment_pressure_residual is not None
   assert result.start_attachment_pressure_residual > 0.0
   assert 'cannot reduce' in result.message
+####

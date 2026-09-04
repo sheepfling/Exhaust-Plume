@@ -68,6 +68,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatu
   )
   STATUS_FAILURE = 'entropy_characteristic_remesh_free_boundary_status_failure'
   FLAG_FAILURE = 'entropy_characteristic_remesh_free_boundary_flag_failure'
+####
 
 
 def _state_matches(
@@ -94,6 +95,8 @@ def _state_matches(
     )
   except (AttributeError, TypeError, ValueError):
     return False
+  ####
+####
 
 
 def _triangle_weights(
@@ -105,6 +108,7 @@ def _triangle_weights(
 
   if len(vertices) != 3:
     return None
+  ####
   (ax, ay), (bx, by), (cx, cy) = vertices
   denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
   if not isfinite(denominator) or abs(denominator) <= max(
@@ -112,15 +116,19 @@ def _triangle_weights(
     1.0e-24,
   ):
     return None
+  ####
   px, py = point
   first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
   second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
   third = 1.0 - first - second
   if min(first, second, third) < -1.0e-10:
     return None
+  ####
   if max(first, second, third) > 1.0 + 1.0e-10:
     return None
+  ####
   return first, second, third
+####
 
 
 def _sample_bridge_cell(
@@ -136,6 +144,7 @@ def _sample_bridge_cell(
   )
   if weights is None:
     return None
+  ####
   try:
     theta = sum(
       weight * state.theta_rad
@@ -148,6 +157,7 @@ def _sample_bridge_cell(
     inversion = inverse_prandtl_meyer_angle_rad(nu, sample.states[0].gamma)
     if not inversion.converged or inversion.value is None:
       return None
+    ####
     state = CharacteristicState(
       x_m=point_m[0],
       y_m=point_m[1],
@@ -167,13 +177,16 @@ def _sample_bridge_cell(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     return None
+  ####
   try:
     static_pressure = total_pressure / (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     return None
+  ####
   return state, static_pressure
+####
 
 
 def _combined_diagnostic_sample(
@@ -191,6 +204,8 @@ def _combined_diagnostic_sample(
     )
     if sampled is not None:
       return sampled
+    ####
+  ####
   state = remesh.diagnostic_state_at(
     point_m,
     position_tolerance_m=position_tolerance_m,
@@ -201,13 +216,16 @@ def _combined_diagnostic_sample(
   )
   if state is None or total_pressure is None:
     return None
+  ####
   try:
     static_pressure = total_pressure / (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     return None
+  ####
   return state, static_pressure
+####
 
 
 def _independent_frontier_bridge(
@@ -221,6 +239,7 @@ def _independent_frontier_bridge(
 
   if not result.outgoing_frontier_bridge_enabled:
     return True, None, None
+  ####
   segment = result.outgoing_frontier_bridge
   if (
     not frontier.converged
@@ -238,11 +257,13 @@ def _independent_frontier_bridge(
       None,
       None if segment is None else segment.status.value,
     )
+  ####
   remesh = result.remesh
   gradient = None if remesh is None else remesh.source_pressure_gradient
   ambient_pressure = result.ambient_pressure_Pa
   if gradient is None or ambient_pressure is None:
     return False, None, segment.status.value
+  ####
   outer = frontier.samples[0]
   axis = frontier.samples[-1]
   start = segment.start_state
@@ -366,11 +387,13 @@ def _independent_frontier_bridge(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     return False, None, segment.status.value
+  ####
   return (
     bool(endpoints_match and residuals_match and residuals_pass),
     bridge_sample if endpoints_match and residuals_match else None,
     segment.status.value,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -420,9 +443,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus,
     ):
       raise TypeError('status must be a remesh free-boundary audit status')
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be non-empty')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     for name in (
       'result_status',
@@ -434,20 +459,26 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       value = getattr(self, name)
       if value is not None and not isinstance(value, str):
         raise TypeError(f'{name} must be a string or None')
+      ####
+    ####
     if self.remesh_audit is not None and not isinstance(
       self.remesh_audit,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshAudit,
     ):
       raise TypeError('remesh_audit must be typed or None')
+    ####
     if self.physical_field_euler_audit is not None and not isinstance(
       self.physical_field_euler_audit,
       MocPhysicalFieldEulerAudit,
     ):
       raise TypeError('physical_field_euler_audit must be typed or None')
+    ####
     for name in ('shock_sample_count', 'covered_sample_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.first_missing_sample_index is not None and (
       isinstance(self.first_missing_sample_index, bool)
       or not isinstance(self.first_missing_sample_index, int)
@@ -456,26 +487,33 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       raise ValueError(
         'first_missing_sample_index must be a nonnegative integer or None'
       )
+    ####
     for name in ('maximum_state_residual', 'maximum_pressure_residual'):
       value = getattr(self, name)
       if value is not None:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     if self.frontier_coverage_status is not None and not isinstance(
       self.frontier_coverage_status,
       str,
     ):
       raise TypeError('frontier_coverage_status must be a string or None')
+    ####
     if not isinstance(self.frontier_coverage_verified, bool):
       raise TypeError('frontier_coverage_verified must be a bool')
+    ####
     if (
       isinstance(self.frontier_sample_count, bool)
       or not isinstance(self.frontier_sample_count, int)
       or self.frontier_sample_count < 0
     ):
       raise ValueError('frontier_sample_count must be a nonnegative integer')
+    ####
     if self.frontier_first_exterior_sample_index is not None and (
       isinstance(self.frontier_first_exterior_sample_index, bool)
       or not isinstance(self.frontier_first_exterior_sample_index, int)
@@ -484,26 +522,33 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       raise ValueError(
         'frontier_first_exterior_sample_index must be a nonnegative integer or None'
       )
+    ####
     if self.frontier_first_exterior_signed_offset_m is not None:
       offset = float(self.frontier_first_exterior_signed_offset_m)
       if not isfinite(offset):
         raise ValueError('frontier_first_exterior_signed_offset_m must be finite')
+      ####
       object.__setattr__(
         self,
         'frontier_first_exterior_signed_offset_m',
         offset,
       )
+    ####
     if not isinstance(self.outgoing_frontier_bridge_enabled, bool):
       raise TypeError('outgoing_frontier_bridge_enabled must be a bool')
+    ####
     if not isinstance(self.outgoing_frontier_bridge_verified, bool):
       raise TypeError('outgoing_frontier_bridge_verified must be a bool')
+    ####
     if self.outgoing_frontier_bridge_status is not None and not isinstance(
       self.outgoing_frontier_bridge_status,
       str,
     ):
       raise TypeError('outgoing_frontier_bridge_status must be a string or None')
+    ####
     if not isinstance(self.coupled_handoff_consumption_verified, bool):
       raise TypeError('coupled_handoff_consumption_verified must be a bool')
+    ####
     for name in (
       'incoming_handoff_verified',
       'source_remesh_verified',
@@ -520,13 +565,19 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_closure_verified:
       raise ValueError('remesh free-boundary audit cannot claim physical closure')
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError('remesh free-boundary audit must retain promotion block')
+    ####
     if self.production_claim_allowed:
       raise ValueError('remesh free-boundary audit cannot claim production validity')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -536,6 +587,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus
       .CONVERGED_LOCAL_CLOSED_AUDIT,
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -558,6 +610,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       and self.external_validation_required
       and self.fidelity_flags_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -612,6 +665,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -692,6 +747,7 @@ def _failure(
     coupled_handoff_consumption_verified=coupled_handoff_consumption_verified,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_boundary(
@@ -713,6 +769,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       .INVALID_INPUT,
       'result must be a typed remesh free-boundary result',
     )
+  ####
   tolerances = (
     float(position_tolerance_m),
     float(state_tolerance),
@@ -721,6 +778,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
   )
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('remesh free-boundary audit tolerances must be positive')
+  ####
   remesh = result.remesh
   if remesh is None:
     return _failure(
@@ -729,6 +787,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       'result did not retain its source remesh',
       result_status=result.status.value,
     )
+  ####
   try:
     remesh_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_continuation_remesh(
       remesh,
@@ -744,6 +803,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       f'independent source-remesh audit raised: {error}',
       result_status=result.status.value,
     )
+  ####
   if not remesh_audit.local_consistency_verified:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus
@@ -752,6 +812,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       result_status=result.status.value,
       remesh_audit=remesh_audit,
     )
+  ####
   incoming_handoff_verified = result.incoming_handoff == remesh.continuation_boundary
   if not incoming_handoff_verified:
     return _failure(
@@ -763,6 +824,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       attachment_status=result.attachment_status,
       remesh_audit=remesh_audit,
     )
+  ####
   frontier = extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
     remesh,
     position_tolerance_m=position_tolerance_m,
@@ -800,6 +862,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
         if sampled is None:
           first_missing = index
           break
+        ####
         actual_state, actual_pressure = sampled
         state_residuals.append(max(
           abs(actual_state.x_m - expected_state.x_m),
@@ -821,7 +884,9 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
         ):
           first_missing = index
           break
+        ####
         covered_count += 1
+      ####
     except (TypeError, ValueError):
       return _failure(
         MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus
@@ -834,6 +899,8 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
         remesh_audit=remesh_audit,
         incoming_handoff_verified=True,
       )
+    ####
+  ####
   shock_sample_count = 0 if shock is None else len(shock.shock_points_m)
   if (
     shock is not None
@@ -841,6 +908,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
     and first_missing is None
   ):
     first_missing = shock.failed_sample_index
+  ####
   path_coverage_verified = bool(
     shock is not None
     and shock.converged
@@ -863,8 +931,11 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       for index in (0, 1)
     ):
       frontier_path_points.append(failed_point)
+    ####
+  ####
   if not frontier_path_points and result.start_point_m is not None:
     frontier_path_points.append(result.start_point_m)
+  ####
   if frontier_path_points:
     frontier_path_audit = (
       audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
@@ -897,6 +968,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       and cached_frontier_coverage.first_exterior_sample_index
       == frontier_path_audit.first_exterior_sample_index
     )
+  ####
   physical_field_euler_audit: MocPhysicalFieldEulerAudit | None = None
   if result.physical_field is not None and result.physical_field.field is not None:
     try:
@@ -922,6 +994,8 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
         covered_sample_count=covered_count,
         first_missing_sample_index=first_missing,
       )
+    ####
+  ####
   expected_physical_handoff = (
     frontier.samples
     if result.outgoing_frontier_bridge_enabled
@@ -1033,6 +1107,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       'independent audit confirmed the bounded remesh probe stopped at its upstream remesh boundary',
       **common,
     )
+  ####
   if (
     expected_closed
     and status_consistent
@@ -1046,6 +1121,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
       'independent audit confirmed the local reflected closure probe; source Euler and external validation remain required',
       **common,
     )
+  ####
   audit_status = (
     MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFreeBoundaryAuditStatus
     .ATTACHMENT_FAILURE
@@ -1065,3 +1141,4 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_remesh_free_bou
     'remesh free-boundary result did not pass independent closure-probe evidence gates',
     **common,
   )
+####

@@ -42,6 +42,7 @@ class MocMixedRegimeEntropyInterfaceKind(str, Enum):
 
   OBLIQUE_SHOCK = 'oblique-shock'
   NORMAL_SHOCK_TERMINAL = 'normal-shock-terminal'
+####
 
 
 class MocMixedRegimeEntropyHandoffStatus(str, Enum):
@@ -53,6 +54,7 @@ class MocMixedRegimeEntropyHandoffStatus(str, Enum):
   PATCH_FAILURE = 'entropy-handoff-supersonic-patch-failure'
   GEOMETRY_FAILURE = 'entropy-handoff-interface-geometry-failure'
   PRESSURE_FAILURE = 'entropy-handoff-pressure-lineage-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,12 +82,15 @@ class MocMixedRegimeEntropyInterfaceSample:
       point = (float(self.point_m[0]), float(self.point_m[1]))
     except (IndexError, TypeError, ValueError):
       raise ValueError('entropy interface point must contain two finite coordinates') from None
+    ####
     if not all(isfinite(value) for value in point):
       raise ValueError('entropy interface point must contain two finite coordinates')
+    ####
     if not isinstance(self.interface_kind, MocMixedRegimeEntropyInterfaceKind):
       raise TypeError(
         'interface_kind must be a MocMixedRegimeEntropyInterfaceKind'
       )
+    ####
     values = (
       ('downstream_mach', self.downstream_mach),
       ('downstream_flow_angle_rad', self.downstream_flow_angle_rad),
@@ -97,36 +102,45 @@ class MocMixedRegimeEntropyInterfaceSample:
       value = float(raw_value)
       if not isfinite(value):
         raise ValueError(f'{name} must be finite')
+      ####
+    ####
     mach = float(self.downstream_mach)
     gamma = float(self.gamma)
     upstream_total_pressure = float(self.upstream_total_pressure_Pa)
     downstream_total_pressure = float(self.downstream_total_pressure_Pa)
     if mach <= 0.0:
       raise ValueError('downstream_mach must be positive')
+    ####
     if gamma <= 1.0:
       raise ValueError('gamma must be greater than one')
+    ####
     if upstream_total_pressure <= 0.0 or downstream_total_pressure <= 0.0:
       raise ValueError('entropy interface total pressures must be positive')
+    ####
     if downstream_total_pressure >= upstream_total_pressure:
       raise ValueError(
         'entropy interface total pressure must show a strict shock loss'
       )
+    ####
     if (
       self.interface_kind is MocMixedRegimeEntropyInterfaceKind.OBLIQUE_SHOCK
       and mach <= 1.0
     ):
       raise ValueError('oblique-shock interface samples must remain supersonic')
+    ####
     if (
       self.interface_kind is MocMixedRegimeEntropyInterfaceKind.NORMAL_SHOCK_TERMINAL
       and mach >= 1.0
     ):
       raise ValueError('normal-shock terminal samples must be subsonic')
+    ####
     object.__setattr__(self, 'point_m', point)
     object.__setattr__(self, 'downstream_mach', mach)
     object.__setattr__(self, 'downstream_flow_angle_rad', float(self.downstream_flow_angle_rad))
     object.__setattr__(self, 'gamma', gamma)
     object.__setattr__(self, 'upstream_total_pressure_Pa', upstream_total_pressure)
     object.__setattr__(self, 'downstream_total_pressure_Pa', downstream_total_pressure)
+  ####
 
   @property
   def total_pressure_ratio(self) -> float:
@@ -163,6 +177,7 @@ class MocMixedRegimeEntropyInterfaceSample:
       'downstream_is_supersonic': self.downstream_is_supersonic,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +213,7 @@ class MocMixedRegimeEntropyHandoffResult:
       raise TypeError(
         'status must be a MocMixedRegimeEntropyHandoffStatus'
       )
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocMixedRegimePerimeterRequest,
@@ -205,6 +221,7 @@ class MocMixedRegimeEntropyHandoffResult:
       raise TypeError(
         'request must be a MocMixedRegimePerimeterRequest or None'
       )
+    ####
     samples = tuple(self.samples)
     if any(
       not isinstance(sample, MocMixedRegimeEntropyInterfaceSample)
@@ -213,6 +230,7 @@ class MocMixedRegimeEntropyHandoffResult:
       raise TypeError(
         'samples must contain MocMixedRegimeEntropyInterfaceSample values'
       )
+    ####
     try:
       points = tuple(
         (float(point[0]), float(point[1]))
@@ -222,21 +240,26 @@ class MocMixedRegimeEntropyHandoffResult:
       raise ValueError(
         'interface_points_m must contain two-coordinate numeric points'
       ) from error
+    ####
     if any(not all(isfinite(value) for value in point) for point in points):
       raise ValueError('interface_points_m must contain finite points')
+    ####
     cumulative = tuple(float(value) for value in self.cumulative_arc_length_m)
     if any(not isfinite(value) or value < 0.0 for value in cumulative):
       raise ValueError(
         'cumulative_arc_length_m must contain finite nonnegative values'
       )
+    ####
     if len(points) != len(samples):
       raise ValueError(
         'interface_points_m and samples must have equal lengths'
       )
+    ####
     if cumulative and len(cumulative) != len(points):
       raise ValueError(
         'cumulative_arc_length_m must match the interface sample count'
       )
+    ####
     if self.terminal_sample_index is not None:
       if (
         isinstance(self.terminal_sample_index, bool)
@@ -246,6 +269,8 @@ class MocMixedRegimeEntropyHandoffResult:
         raise ValueError(
           'terminal_sample_index must identify a valid interface sample'
         )
+      ####
+    ####
     for name in (
       'maximum_interface_segment_length_m',
       'minimum_total_pressure_ratio',
@@ -257,7 +282,10 @@ class MocMixedRegimeEntropyHandoffResult:
         numeric = float(value)
         if not isfinite(numeric):
           raise ValueError(f'{name} must be finite when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     for name in (
       'interface_geometry_verified',
       'terminal_seam_verified',
@@ -266,9 +294,12 @@ class MocMixedRegimeEntropyHandoffResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     model = str(self.model)
     if not model:
       raise ValueError('model must be a non-empty string')
+    ####
     object.__setattr__(self, 'samples', samples)
     object.__setattr__(self, 'interface_points_m', points)
     object.__setattr__(self, 'cumulative_arc_length_m', cumulative)
@@ -315,19 +346,24 @@ class MocMixedRegimeEntropyHandoffResult:
       raise ValueError(
         'a verified entropy handoff with at least two samples is required'
       )
+    ####
     coordinate = float(arc_length_m)
     if not isfinite(coordinate):
       raise ValueError('arc_length_m must be finite')
+    ####
     arc = self.cumulative_arc_length_m
     if coordinate < arc[0] or coordinate > arc[-1]:
       raise ValueError(
         'arc_length_m lies outside the carried shock-interface profile; '
         'extrapolation is disabled'
       )
+    ####
     if coordinate <= arc[0]:
       return self.samples[0].downstream_total_pressure_Pa
+    ####
     if coordinate >= arc[-1]:
       return self.samples[-1].downstream_total_pressure_Pa
+    ####
     for first_arc, second_arc, first, second in zip(
       arc,
       arc[1:],
@@ -344,6 +380,8 @@ class MocMixedRegimeEntropyHandoffResult:
             - first.downstream_total_pressure_Pa
           )
         )
+      ####
+    ####
     return self.samples[-1].downstream_total_pressure_Pa
   ####
 
@@ -353,6 +391,7 @@ class MocMixedRegimeEntropyHandoffResult:
     pressure = self.total_pressure_at_arc_length(arc_length_m)
     if self.samples[-1].downstream_total_pressure_Pa <= 0.0:
       raise ValueError('entropy handoff has a nonpositive downstream pressure')
+    ####
     # The interpolation is intentionally tied to the local pressure profile;
     # it never substitutes the terminal pressure for an uncovered point.
     upstream = self._upstream_total_pressure_at_arc_length(arc_length_m)
@@ -366,6 +405,7 @@ class MocMixedRegimeEntropyHandoffResult:
       raise ValueError(
         'a verified entropy handoff with at least two samples is required'
       )
+    ####
     coordinate = float(arc_length_m)
     arc = self.cumulative_arc_length_m
     if coordinate < arc[0] or coordinate > arc[-1]:
@@ -373,10 +413,13 @@ class MocMixedRegimeEntropyHandoffResult:
         'arc_length_m lies outside the carried shock-interface profile; '
         'extrapolation is disabled'
       )
+    ####
     if coordinate <= arc[0]:
       return self.samples[0].upstream_total_pressure_Pa
+    ####
     if coordinate >= arc[-1]:
       return self.samples[-1].upstream_total_pressure_Pa
+    ####
     for first_arc, second_arc, first, second in zip(
       arc,
       arc[1:],
@@ -393,6 +436,8 @@ class MocMixedRegimeEntropyHandoffResult:
             - first.upstream_total_pressure_Pa
           )
         )
+      ####
+    ####
     return self.samples[-1].upstream_total_pressure_Pa
   ####
 
@@ -424,6 +469,7 @@ class MocMixedRegimeEntropyHandoffResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _handoff_failure(
@@ -446,6 +492,7 @@ def _handoff_failure(
     interface_points_m=points,
     message=message,
   )
+####
 
 
 def build_mixed_regime_entropy_handoff(
@@ -465,9 +512,11 @@ def build_mixed_regime_entropy_handoff(
       MocMixedRegimeEntropyHandoffStatus.INVALID_INPUT,
       message='request must be a MocMixedRegimePerimeterRequest',
     )
+  ####
   tolerance = float(position_tolerance_m)
   if not isfinite(tolerance) or tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
 
   terminal = request.terminal
   if not isinstance(
@@ -479,6 +528,7 @@ def build_mixed_regime_entropy_handoff(
       request=request,
       message='request terminal is not a supported scalar shock terminal',
     )
+  ####
   terminal_values = (
     terminal.shock_point_m,
     terminal.downstream_mach,
@@ -493,6 +543,7 @@ def build_mixed_regime_entropy_handoff(
       request=request,
       message='terminal does not expose complete entropy-interface values',
     )
+  ####
   (
     terminal_point,
     terminal_mach,
@@ -525,6 +576,7 @@ def build_mixed_regime_entropy_handoff(
       request=request,
       message=f'terminal entropy-interface sample failed: {error}',
     )
+  ####
 
   samples: list[MocMixedRegimeEntropyInterfaceSample] = []
   for index, boundary_state in enumerate(request.supersonic_patch):
@@ -535,6 +587,7 @@ def build_mixed_regime_entropy_handoff(
         samples=tuple(samples),
         message=f'supersonic patch sample {index} has an invalid type',
       )
+    ####
     try:
       sample = MocMixedRegimeEntropyInterfaceSample(
         point_m=boundary_state.point_m,
@@ -552,7 +605,9 @@ def build_mixed_regime_entropy_handoff(
         samples=tuple(samples),
         message=f'supersonic patch sample {index} failed: {error}',
       )
+    ####
     samples.append(sample)
+  ####
   samples.append(terminal_sample)
   sample_tuple = tuple(samples)
   points = tuple(sample.point_m for sample in sample_tuple)
@@ -564,6 +619,7 @@ def build_mixed_regime_entropy_handoff(
       interface_points_m=points,
       message='entropy interface requires at least one oblique sample and a terminal sample',
     )
+  ####
 
   segment_lengths = tuple(
     hypot(second[0] - first[0], second[1] - first[1])
@@ -580,9 +636,11 @@ def build_mixed_regime_entropy_handoff(
         'oblique patch to the terminal; zero-length segments are not allowed'
       ),
     )
+  ####
   cumulative = [0.0]
   for length in segment_lengths:
     cumulative.append(cumulative[-1] + length)
+  ####
   ratios = tuple(sample.total_pressure_ratio for sample in sample_tuple)
   entropy = tuple(
     sample.entropy_production_nondimensional for sample in sample_tuple
@@ -608,6 +666,7 @@ def build_mixed_regime_entropy_handoff(
       interface_points_m=points,
       message='shock-interface entropy handoff contains a total-pressure gain',
     )
+  ####
   return MocMixedRegimeEntropyHandoffResult(
     status=MocMixedRegimeEntropyHandoffStatus.CONVERGED,
     request=request,
@@ -635,3 +694,4 @@ def build_mixed_regime_entropy_handoff(
       'pending'
     ),
   )
+####

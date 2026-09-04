@@ -25,8 +25,10 @@ def _axis(wavelengths_m: Sequence[float]) -> tuple[float, ...]:
   values = tuple(float(value) for value in wavelengths_m)
   if not values:
     raise ValueError('wavelengths_m must not be empty')
+  ####
   if any(not isfinite(value) or value <= 0.0 for value in values):
     raise ValueError('wavelengths_m must be finite and positive')
+  ####
   return values
 ####
 
@@ -48,9 +50,11 @@ def planck_spectral_radiance_W_m2_sr_m(
   temperature = float(temperature_K)
   if not isfinite(temperature) or temperature <= 0.0:
     raise ValueError('temperature_K must be finite and positive')
+  ####
   gray_emissivity = float(emissivity)
   if not isfinite(gray_emissivity) or not 0.0 <= gray_emissivity <= 1.0:
     raise ValueError('emissivity must be finite and in [0, 1]')
+  ####
   radiance: list[float] = []
   for wavelength in wavelengths:
     exponent = PLANCK_C2_M_K / (wavelength * temperature)
@@ -58,6 +62,8 @@ def planck_spectral_radiance_W_m2_sr_m(
       value = 0.0
     else:
       value = PLANCK_C1_W_M2 / (wavelength**5 * expm1(exponent))
+    ####
     radiance.append(gray_emissivity * value)
+  ####
   return tuple(radiance)
 ####

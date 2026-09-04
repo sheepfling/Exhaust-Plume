@@ -64,12 +64,14 @@ def test_visualization_spec_rejects_rebinding_to_a_different_result() -> None:
 
   with pytest.raises(ValueError, match='different product result'):
     spec.validate_for_result(different_result)
+  ####
 ####
 
 
 def test_visualization_spec_validates_selection_and_view_names() -> None:
   with pytest.raises(ValueError, match='greater than or equal to 0'):
     ViewSelection(station_index=-1)
+  ####
   with pytest.raises(ValueError, match='String should match pattern'):
     VisualizationSpec(
       capability_id='plume.visual.sectioned-tube@1',
@@ -80,4 +82,5 @@ def test_visualization_spec_validates_selection_and_view_names() -> None:
       frame_id='world',
       view_kind='Not A View',
     )
+  ####
 ####

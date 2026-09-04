@@ -69,6 +69,7 @@ def _seed():
   )
   assert seed.converged
   return seed, exit_state.total_pressure_Pa
+####
 
 
 def _conditioned_traces(
@@ -117,6 +118,7 @@ def _conditioned_traces(
       )
     else:
       centerline_x = 0.5191348811250018 + 0.027 * index
+    ####
     centerline_states.append(
       CharacteristicState(
         x_m=centerline_x,
@@ -139,6 +141,8 @@ def _conditioned_traces(
           gamma=selected.gamma,
         )
       )
+    ####
+  ####
   # Keep this helper tied to the actual source-strip primitive.  If the
   # numerical construction changes, the test should fail before the remesh
   # wrapper can hide a geometry regression.
@@ -149,6 +153,7 @@ def _conditioned_traces(
   )
   assert strip.converged
   return tuple(centerline_states), tuple(outer_states)
+####
 
 
 def _request(*, invariant_step=0.004, theta_step=-0.006):
@@ -166,6 +171,7 @@ def _request(*, invariant_step=0.004, theta_step=-0.006):
     outer_source_states=outer,
     total_pressure_Pa=total_pressure,
   )
+####
 
 
 def test_caustic_upstream_remesh_request_preserves_legacy_positional_defaults():
@@ -188,6 +194,7 @@ def test_caustic_upstream_remesh_request_preserves_legacy_positional_defaults():
   assert legacy.position_tolerance_m == request.position_tolerance_m
   assert legacy.invariant_tolerance == request.invariant_tolerance
   assert legacy.incoming_handoff == ()
+####
 
 
 def test_caustic_upstream_remesh_assembles_an_explicit_bounded_cauchy_field():
@@ -219,6 +226,7 @@ def test_caustic_upstream_remesh_assembles_an_explicit_bounded_cauchy_field():
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   )
+####
 
 
 def test_caustic_upstream_remesh_rejects_an_event_trace_that_does_not_seam():
@@ -241,6 +249,7 @@ def test_caustic_upstream_remesh_rejects_an_event_trace_that_does_not_seam():
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
   )
+####
 
 
 def test_caustic_upstream_remesh_rejects_centerline_data_after_the_event():
@@ -265,6 +274,7 @@ def test_caustic_upstream_remesh_rejects_centerline_data_after_the_event():
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
   )
+####
 
 
 def test_caustic_upstream_remesh_is_a_bounded_source_for_one_chain_attempt():
@@ -320,6 +330,7 @@ def test_caustic_upstream_remesh_is_a_bounded_source_for_one_chain_attempt():
   assert planner.diagnostics['caustic_upstream_remesh']['status'] == (
     MocCausticUpstreamRemeshStatus.CONVERGED_BOUNDED_FIELD.value
   )
+####
 
 
 def test_caustic_upstream_remesh_sequence_requires_fresh_domains_per_cell(
@@ -381,6 +392,7 @@ def test_caustic_upstream_remesh_sequence_requires_fresh_domains_per_cell(
       field=field,
       end_x_m=current.end_x_m + 0.02,
     )
+  ####
 
   monkeypatch.setattr(
     'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
@@ -398,6 +410,7 @@ def test_caustic_upstream_remesh_sequence_requires_fresh_domains_per_cell(
         incoming_handoff=tuple(incoming_handoff),
       ),
     )
+  ####
 
   def remesh_at(current, next_cell_index, incoming_handoff):
     provider_calls.append((current.cell_index, next_cell_index, incoming_handoff))
@@ -405,6 +418,7 @@ def test_caustic_upstream_remesh_sequence_requires_fresh_domains_per_cell(
     # source strip.  The first call is valid only because it records the exact
     # prior handoff; the second call must still be rejected as source reuse.
     return remesh_for_handoff(incoming_handoff)
+  ####
 
   planner = plan_caustic_upstream_remesh_shock_chain_sequence(
     reference.field,
@@ -472,3 +486,4 @@ def test_caustic_upstream_remesh_sequence_requires_fresh_domains_per_cell(
   assert missing_provenance.chain.diagnostics['remesh_reuse_policy'] == (
     'require-exact-incoming-handoff-provenance'
   )
+####

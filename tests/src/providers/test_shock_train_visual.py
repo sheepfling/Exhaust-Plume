@@ -112,6 +112,7 @@ def test_reduced_order_provider_is_visual_only_and_requires_explicit_calibration
       dynamic_state={'nozzle_exit': exit_state},
       ambient_state={'ambient': ambient},
     )
+  ####
 ####
 
 
@@ -141,6 +142,7 @@ def test_matched_flow_requires_a_consumer_display_extent() -> None:
   _, snapshot = _snapshot(matched=True)
   with pytest.raises(InvalidProductRequestError, match='maximum_axial_extent_m'):
     snapshot.evaluate(VISUAL_SECTIONED_TUBE_V1, _request())
+  ####
   result = snapshot.evaluate(
     VISUAL_SECTIONED_TUBE_V1,
     _request(maximum_axial_extent_m=0.1),

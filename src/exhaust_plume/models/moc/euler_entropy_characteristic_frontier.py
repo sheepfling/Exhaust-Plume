@@ -48,6 +48,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierStatus(
   GEOMETRY_FAILURE = (
     'entropy_characteristic_remesh_outgoing_frontier_geometry_failure'
   )
+####
 
 
 class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus(
@@ -69,6 +70,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
   )
   DOMAIN_GAP = 'entropy_characteristic_remesh_frontier_domain_gap'
   SAMPLER_FAILURE = 'entropy_characteristic_remesh_frontier_sampler_failure'
+####
 
 
 def _state_close(
@@ -87,6 +89,7 @@ def _state_close(
     and abs(actual.mach - expected.mach) <= state_tolerance
     and abs(actual.gamma - expected.gamma) <= state_tolerance
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,30 +113,39 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierResult:
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierStatus,
     ):
       raise TypeError('status must be a remesh frontier status')
+    ####
     if self.remesh is not None and not isinstance(
       self.remesh,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRemeshResult,
     ):
       raise TypeError('remesh must be a typed continuation remesh or None')
+    ####
     if self.edge is not None and not isinstance(
       self.edge,
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshEdge,
     ):
       raise TypeError('edge must be a typed remesh edge or None')
+    ####
     samples = tuple(self.samples)
     if any(not isinstance(sample, MocChainBoundarySample) for sample in samples):
       raise TypeError('samples must contain MocChainBoundarySample values')
+    ####
     if self.edge is None and samples:
       raise ValueError('frontier samples require a resolved edge')
+    ####
     if self.edge is not None and len(samples) != len(self.edge.states):
       raise ValueError('frontier samples must match the resolved edge states')
+    ####
     for name in ('position_tolerance_m', 'state_tolerance'):
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     object.__setattr__(self, 'samples', samples)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -141,30 +153,37 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierResult:
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierStatus
       .CONVERGED_BOUNDED_FRONTIER
     )
+  ####
 
   @property
   def sample_count(self) -> int:
     return len(self.samples)
+  ####
 
   @property
   def edge_index(self) -> int | None:
     return None if self.edge is None else self.edge.edge_index
+  ####
 
   @property
   def family(self) -> CharacteristicFamily | None:
     return None if self.edge is None else self.edge.family
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -183,6 +202,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierResult:
       'production_claim_allowed': False,
       'message': self.message,
     }
+  ####
+####
 
 
 def _frontier_failure(
@@ -200,6 +221,7 @@ def _frontier_failure(
     samples=(),
     message=message,
   )
+####
 
 
 def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
@@ -225,6 +247,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       None,
       'remesh must be a typed continuation remesh result',
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     resolved_state_tolerance = float(state_tolerance)
@@ -235,6 +258,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       remesh,
       'frontier tolerances must be numeric',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (position_tolerance, resolved_state_tolerance)
@@ -245,6 +269,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       remesh,
       'frontier tolerances must be finite and positive',
     )
+  ####
   source = remesh.source_continuation
   if not remesh.local_characteristic_remesh_verified or source is None:
     return _frontier_failure(
@@ -254,6 +279,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       'a locally verified remesh and source continuation are required before '
       'the outgoing frontier can be exposed',
     )
+  ####
   terminal = source.terminal_centerline_state
   if terminal is None or not source.outer_states:
     return _frontier_failure(
@@ -263,6 +289,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       'the source continuation does not retain a terminal centerline and '
       'outer state pair',
     )
+  ####
   expected_outer = source.outer_states[-1]
   expected_outer_pressure = source.outer_total_pressure_Pa[-1]
   expected_terminal_pressure = source.terminal_centerline_total_pressure_Pa
@@ -273,6 +300,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       remesh,
       'the source continuation does not retain terminal pressure lineage',
     )
+  ####
   candidates = tuple(
     edge
     for edge in reversed(remesh.characteristic_edges)
@@ -298,6 +326,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       'no solved C- edge connects the final outer state to the terminal '
       'centerline state',
     )
+  ####
   edge = candidates[0]
   if (
     abs(edge.start_total_pressure_Pa - expected_outer_pressure)
@@ -311,6 +340,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       remesh,
       'the terminal C- edge does not preserve the source pressure lineage',
     )
+  ####
   points = edge.points_xr_m
   if any(
     second[0] <= first[0] + position_tolerance
@@ -324,6 +354,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       'the solved outgoing C- frontier is not downstream and nonincreasing '
       'toward the centerline',
     )
+  ####
   if (
     points[0][1] <= source.target_centerline_y_m + position_tolerance
     or abs(points[-1][1] - source.target_centerline_y_m)
@@ -335,6 +366,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       remesh,
       'the solved outgoing C- frontier does not span the declared centerline',
     )
+  ####
   if (
     edge.maximum_geometry_residual
     > remesh.characteristic_residual_tolerance
@@ -349,6 +381,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
       'the terminal C- frontier did not retain its local characteristic or '
       'pressure-lineage residual gates',
     )
+  ####
   samples = tuple(
     MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
     for state, pressure in zip(edge.states, edge.total_pressure_Pa, strict=True)
@@ -368,6 +401,7 @@ def extract_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier(
     position_tolerance_m=position_tolerance,
     state_tolerance=resolved_state_tolerance,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -396,11 +430,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus,
     ):
       raise TypeError('status must be a frontier coverage status')
+    ####
     if self.frontier is not None and not isinstance(
       self.frontier,
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierResult,
     ):
       raise TypeError('frontier must be a typed frontier result or None')
+    ####
     requested = tuple(
       (float(point[0]), float(point[1])) for point in self.requested_points_m
     )
@@ -412,6 +448,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
       for point in (*requested, *covered)
     ):
       raise ValueError('frontier coverage points must be finite')
+    ####
     object.__setattr__(self, 'requested_points_m', requested)
     object.__setattr__(self, 'covered_points_m', covered)
     for name in (
@@ -423,6 +460,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
         isinstance(value, bool) or not isinstance(value, int) or value < 0
       ):
         raise ValueError(f'{name} must be a nonnegative integer or None')
+      ####
+    ####
     for name in (
       'first_missing_point_m',
       'first_exterior_point_m',
@@ -431,15 +470,20 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
       point = getattr(self, name)
       if point is None:
         continue
+      ####
       resolved = (float(point[0]), float(point[1]))
       if not all(isfinite(value) for value in resolved):
         raise ValueError(f'{name} must contain finite coordinates')
+      ####
       object.__setattr__(self, name, resolved)
+    ####
     if self.first_exterior_signed_offset_m is not None:
       offset = float(self.first_exterior_signed_offset_m)
       if not isfinite(offset):
         raise ValueError('first_exterior_signed_offset_m must be finite')
+      ####
       object.__setattr__(self, 'first_exterior_signed_offset_m', offset)
+    ####
     if (
       self.first_missing_sample_index is None
       and self.first_missing_point_m is not None
@@ -450,6 +494,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
       raise ValueError(
         'first missing sample index and point must be supplied together'
       )
+    ####
     if (
       self.first_exterior_sample_index is None
       and any(
@@ -465,7 +510,9 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
       and self.first_exterior_point_m is None
     ):
       raise ValueError('exterior sample metadata is incomplete')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -473,26 +520,32 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
       .CONVERGED_BOUNDED_PATH
     )
+  ####
 
   @property
   def covered_sample_count(self) -> int:
     return len(self.covered_points_m)
+  ####
 
   @property
   def requested_sample_count(self) -> int:
     return len(self.requested_points_m)
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -514,6 +567,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageResult
       'production_claim_allowed': False,
       'message': self.message,
     }
+  ####
+####
 
 
 def _coverage_result(
@@ -544,6 +599,7 @@ def _coverage_result(
     first_exterior_signed_offset_m=first_exterior_signed_offset_m,
     message=message,
   )
+####
 
 
 def _frontier_point_at_y(
@@ -555,20 +611,26 @@ def _frontier_point_at_y(
   for sample in samples:
     if abs(sample.state.y_m - y_m) <= position_tolerance_m:
       return sample.point_m
+    ####
+  ####
   for first, second in zip(samples, samples[1:]):
     first_y = first.state.y_m
     second_y = second.state.y_m
     if not second_y - position_tolerance_m <= y_m <= first_y + position_tolerance_m:
       continue
+    ####
     denominator = first_y - second_y
     if denominator <= 0.0:
       continue
+    ####
     fraction = (first_y - y_m) / denominator
     return (
       first.state.x_m + fraction * (second.state.x_m - first.state.x_m),
       float(y_m),
     )
+  ####
   return None
+####
 
 
 def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
@@ -588,6 +650,7 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
     points = tuple((float(point[0]), float(point[1])) for point in path_points_m)
   except (IndexError, TypeError, ValueError):
     points = ()
+  ####
   if not points or any(not all(isfinite(value) for value in point) for point in points):
     return _coverage_result(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
@@ -600,6 +663,7 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
       (),
       message='path_points_m must contain at least one finite point',
     )
+  ####
   if not isinstance(
     frontier,
     MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierResult,
@@ -612,10 +676,12 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
       (),
       message='frontier must be a typed remesh frontier result',
     )
+  ####
   try:
     tolerance = float(position_tolerance_m)
   except (TypeError, ValueError):
     tolerance = float('nan')
+  ####
   if not isfinite(tolerance) or tolerance <= 0.0:
     return _coverage_result(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
@@ -625,6 +691,7 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
       (),
       message='position_tolerance_m must be finite and positive',
     )
+  ####
   if not frontier.converged or frontier.remesh is None:
     return _coverage_result(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
@@ -634,6 +701,7 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
       (),
       message='a converged bounded frontier is required for path coverage',
     )
+  ####
   if any(
     second[0] <= first[0] + tolerance
     or second[1] > first[1] + tolerance
@@ -652,6 +720,7 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
         'in y'
       ),
     )
+  ####
   covered: list[tuple[float, float]] = []
   for index, point in enumerate(points):
     try:
@@ -674,9 +743,11 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
         first_missing_point_m=point,
         message=f'bounded frontier sampler failed at sample {index}: {error}',
       )
+    ####
     if state is not None and pressure is not None:
       covered.append(point)
       continue
+    ####
     frontier_point = _frontier_point_at_y(
       frontier.samples,
       point[1],
@@ -703,6 +774,7 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
           'the solved outgoing C- frontier; no upstream state was extrapolated'
         ),
       )
+    ####
     return _coverage_result(
       MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
       .DOMAIN_GAP,
@@ -716,6 +788,7 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
         'missing point cannot be attributed to the retained frontier'
       ),
     )
+  ####
   return _coverage_result(
     MocEulerAmbientFirstWedgeEntropyCharacteristicRemeshFrontierCoverageStatus
     .CONVERGED_BOUNDED_PATH,
@@ -727,3 +800,4 @@ def audit_euler_ambient_first_wedge_entropy_characteristic_remesh_frontier_path(
       'global reflected/free-boundary and physical chain closure remain pending'
     ),
   )
+####

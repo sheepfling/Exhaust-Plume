@@ -20,6 +20,7 @@ def test_planck_radiance_matches_the_declared_si_formula() -> None:
   )
   value = planck_spectral_radiance_W_m2_sr_m((wavelength,), temperature)[0]
   assert value == pytest.approx(expected, rel=1.0e-14)
+####
 
 
 def test_planck_gray_emissivity_scales_the_source_and_overflow_is_finite() -> None:
@@ -28,15 +29,20 @@ def test_planck_gray_emissivity_scales_the_source_and_overflow_is_finite() -> No
   short_wave = planck_spectral_radiance_W_m2_sr_m((1.0e-12,), 200.0)[0]
   assert half == pytest.approx(0.5 * full)
   assert short_wave == 0.0
+####
 
 
 def test_planck_rejects_invalid_thermal_inputs() -> None:
   with pytest.raises(ValueError, match='wavelengths_m'):
     planck_spectral_radiance_W_m2_sr_m((0.0,), 1_000.0)
+  ####
   with pytest.raises(ValueError, match='temperature_K'):
     planck_spectral_radiance_W_m2_sr_m((5.0e-6,), 0.0)
+  ####
   with pytest.raises(ValueError, match='emissivity'):
     planck_spectral_radiance_W_m2_sr_m((5.0e-6,), 1_000.0, emissivity=1.1)
+  ####
+####
 
 
 def test_gray_profile_can_be_constructed_from_explicit_thermal_source() -> None:
@@ -52,3 +58,4 @@ def test_gray_profile_can_be_constructed_from_explicit_thermal_source() -> None:
     planck_spectral_radiance_W_m2_sr_m(profile.wavelengths_m, 1_000.0, emissivity=0.7),
   )
   assert profile.absorption_coefficient_per_m == (0.5, 1.0)
+####

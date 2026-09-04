@@ -79,6 +79,7 @@ class ModelVisualizationLane(str, Enum):
   STRAIGHT_INTEGRAL = 'straight-integral-v1'
   CURVED_INTEGRAL = 'washed-integral-v1'
   PLANAR_MOC = 'planar-moc-primitives-v1'
+####
 
 
 MODEL_VISUALIZATION_LANES = (
@@ -103,25 +104,32 @@ def _finite(name: str, value: object) -> float:
     numeric = float(cast(Any, value))
   except (TypeError, ValueError) as error:
     raise ValueError(f'{name} must be numeric') from error
+  ####
   if not isfinite(numeric):
     raise ValueError(f'{name} must be finite')
+  ####
   return numeric
+####
 
 
 def _vector2(name: str, value: Sequence[float]) -> Vector2:
   if len(value) != 2:
     raise ValueError(f'{name} must contain two coordinates')
+  ####
   return (_finite(f'{name}[0]', value[0]), _finite(f'{name}[1]', value[1]))
+####
 
 
 def _vector3(name: str, value: Sequence[float]) -> Vector3:
   if len(value) != 3:
     raise ValueError(f'{name} must contain three coordinates')
+  ####
   return (
     _finite(f'{name}[0]', value[0]),
     _finite(f'{name}[1]', value[1]),
     _finite(f'{name}[2]', value[2]),
   )
+####
 
 
 def _status_value(result: object) -> str:
@@ -129,20 +137,26 @@ def _status_value(result: object) -> str:
   if status is not None:
     value = getattr(status, 'value', status)
     return str(value)
+  ####
   termination = getattr(result, 'termination_reason', None)
   if termination is not None:
     value = getattr(termination, 'value', termination)
     return str(value)
+  ####
   return 'available'
+####
 
 
 def _coerce_lane(value: ModelVisualizationLane | str) -> ModelVisualizationLane:
   if isinstance(value, ModelVisualizationLane):
     return value
+  ####
   try:
     return ModelVisualizationLane(str(value))
   except ValueError as error:
     raise ValueError(f'unknown model visualization lane: {value!r}') from error
+  ####
+####
 
 
 def _normalized(values: Sequence[float], *, zero_value: float = 0.0) -> tuple[float, ...]:
@@ -150,20 +164,26 @@ def _normalized(values: Sequence[float], *, zero_value: float = 0.0) -> tuple[fl
   maximum = max(finite_values, default=0.0)
   if maximum <= 0.0:
     return tuple(zero_value for _ in finite_values)
+  ####
   return tuple(min(1.0, max(0.0, value / maximum)) for value in finite_values)
+####
 
 
 def _sample_indices(total_count: int, maximum_count: int) -> tuple[int, ...]:
   if total_count < 2:
     raise ValueError('a visualization sequence requires at least two samples')
+  ####
   if isinstance(maximum_count, bool) or maximum_count < 2:
     raise ValueError('section_count must be an integer at least two')
+  ####
   if total_count <= maximum_count:
     return tuple(range(total_count))
+  ####
   return tuple(
     int(round(index * (total_count - 1) / (maximum_count - 1)))
     for index in range(maximum_count)
   )
+####
 
 
 def _clip_sequence(
@@ -174,16 +194,21 @@ def _clip_sequence(
   values = tuple(_finite('axis value', value) for value in axis)
   if len(values) < 2:
     raise ValueError('a visualization sequence requires at least two samples')
+  ####
   if maximum_extent_m is None:
     return tuple(range(len(values)))
+  ####
   extent = _finite('maximum_axial_extent_m', maximum_extent_m)
   if extent <= 0.0:
     raise ValueError('maximum_axial_extent_m must be positive')
+  ####
   limit = values[0] + extent
   indices = tuple(index for index, value in enumerate(values) if value <= limit + 1.0e-12)
   if len(indices) < 2:
     raise ValueError('maximum_axial_extent_m leaves fewer than two visualization samples')
+  ####
   return indices
+####
 
 
 def _quaternion_from_frames(
@@ -231,11 +256,15 @@ def _quaternion_from_frames(
         0.25 * scale,
         (matrix[1, 0] - matrix[0, 1]) / scale,
       )
+    ####
+  ####
   norm = sqrt(sum(component * component for component in quaternion))
   if not isfinite(norm) or norm <= 0.0:
     raise ValueError('visual frame produced an invalid quaternion')
+  ####
   normalized = tuple(component / norm for component in quaternion)
   return normalized  # type: ignore[return-value]
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,11 +280,15 @@ class ModelVisualizationClaims:
   def __post_init__(self) -> None:
     if not self.model_fidelity or not self.validation_level:
       raise ValueError('model_fidelity and validation_level must not be empty')
+    ####
     if not isinstance(self.geometry_claim, GeometryClaim):
       raise TypeError('geometry_claim must be a GeometryClaim')
+    ####
     if not isinstance(self.production_claim_allowed, bool):
       raise TypeError('production_claim_allowed must be a bool')
+    ####
     object.__setattr__(self, 'claim_notes', tuple(str(note) for note in self.claim_notes))
+  ####
 
   def model_dump(self) -> dict[str, object]:
     return {
@@ -265,6 +298,8 @@ class ModelVisualizationClaims:
       'production_claim_allowed': self.production_claim_allowed,
       'claim_notes': list(self.claim_notes),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -280,14 +315,19 @@ class ModelVisualChannel:
   def __post_init__(self) -> None:
     if not _CHANNEL_NAME.fullmatch(self.channel_id):
       raise ValueError(f'invalid model visualization channel: {self.channel_id!r}')
+    ####
     if not self.semantic or not self.unit:
       raise ValueError('model visualization channel semantic and unit are required')
+    ####
     if self.association != 'section':
       raise ValueError('model visualization channels must be section-associated')
+    ####
     values = tuple(_finite(f'{self.channel_id} value', value) for value in self.values)
     if len(values) < 2:
       raise ValueError('model visualization channels require at least two samples')
+    ####
     object.__setattr__(self, 'values', values)
+  ####
 
   def model_dump(self) -> dict[str, object]:
     return {
@@ -297,6 +337,8 @@ class ModelVisualChannel:
       'association': self.association,
       'values': list(self.values),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,10 +352,13 @@ class ModelVisualPath:
   def __post_init__(self) -> None:
     if not self.path_id or not self.semantic:
       raise ValueError('model visualization paths require an id and semantic')
+    ####
     points = tuple(_vector3('path point', point) for point in self.points_m)
     if len(points) < 2:
       raise ValueError('model visualization paths require at least two points')
+    ####
     object.__setattr__(self, 'points_m', points)
+  ####
 
   def model_dump(self) -> dict[str, object]:
     return {
@@ -321,6 +366,8 @@ class ModelVisualPath:
       'semantic': self.semantic,
       'points_m': [list(point) for point in self.points_m],
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -337,39 +384,47 @@ class ModelVisualField:
   def __post_init__(self) -> None:
     if not self.field_id or not self.semantic:
       raise ValueError('model visualization fields require an id and semantic')
+    ####
     polygons = tuple(
       tuple(_vector2('field polygon point', point) for point in polygon)
       for polygon in self.polygons_xr_m
     )
     if not polygons or any(len(polygon) < 3 for polygon in polygons):
       raise ValueError('model visualization fields require nondegenerate polygons')
+    ####
     normalized_channels: dict[str, tuple[Scalar, ...]] = {}
     normalized_units: dict[str, str] = {}
     normalized_semantics: dict[str, str] = {}
     for channel_id, values in self.channels.items():
       if not _CHANNEL_NAME.fullmatch(channel_id):
         raise ValueError(f'invalid field channel: {channel_id!r}')
+      ####
       normalized_values = tuple(
         None if value is None else _finite(f'{channel_id} field value', value)
         for value in values
       )
       if len(normalized_values) != len(polygons):
         raise ValueError(f'field channel {channel_id!r} must match polygon count')
+      ####
       normalized_channels[channel_id] = normalized_values
       unit = str(self.channel_units.get(channel_id, '1'))
       semantic = str(self.channel_semantics.get(channel_id, channel_id))
       if not unit or not semantic:
         raise ValueError(f'field channel {channel_id!r} requires a unit and semantic')
+      ####
       normalized_units[channel_id] = unit
       normalized_semantics[channel_id] = semantic
+    ####
     unknown_units = set(self.channel_units) - set(normalized_channels)
     unknown_semantics = set(self.channel_semantics) - set(normalized_channels)
     if unknown_units or unknown_semantics:
       raise ValueError('field channel metadata must describe declared channels only')
+    ####
     object.__setattr__(self, 'polygons_xr_m', polygons)
     object.__setattr__(self, 'channels', normalized_channels)
     object.__setattr__(self, 'channel_units', normalized_units)
     object.__setattr__(self, 'channel_semantics', normalized_semantics)
+  ####
 
   def model_dump(self) -> dict[str, object]:
     return {
@@ -385,6 +440,8 @@ class ModelVisualField:
         for channel_id, values in self.channels.items()
       },
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -409,52 +466,69 @@ class StandardizedModelVisualization:
   def __post_init__(self) -> None:
     if self.schema != MODEL_VISUALIZATION_SCHEMA:
       raise ValueError(f'unsupported model visualization schema: {self.schema!r}')
+    ####
     if not isinstance(self.lane, ModelVisualizationLane):
       raise TypeError('lane must be a ModelVisualizationLane')
+    ####
     if not self.model_id or not self.model_version or not self.source_status:
       raise ValueError('model identity and source status are required')
+    ####
     if not isinstance(self.applicability_status, ApplicabilityStatus):
       raise TypeError('applicability_status must be an ApplicabilityStatus')
+    ####
     if self.applicability_status is ApplicabilityStatus.OUTSIDE and not self.applicability_reasons:
       raise ValueError('outside applicability requires reasons')
+    ####
     section_count = len(self.sectioned_tube.sections)
     channels = tuple(self.section_channels)
     if len({channel.channel_id for channel in channels}) != len(channels):
       raise ValueError('section channel IDs must be unique')
+    ####
     definition_channels = set(self.sectioned_tube.channels)
     if definition_channels != {channel.channel_id for channel in channels}:
       raise ValueError('section channel metadata must match the sectioned-tube channels')
+    ####
     if any(len(channel.values) != section_count for channel in channels):
       raise ValueError('section channel values must match section count')
+    ####
     paths = tuple(self.paths)
     fields = tuple(self.fields)
     if len({path.path_id for path in paths}) != len(paths):
       raise ValueError('model visualization path IDs must be unique')
+    ####
     if len({field.field_id for field in fields}) != len(fields):
       raise ValueError('model visualization field IDs must be unique')
+    ####
     diagnostics: dict[str, DiagnosticValue] = {}
     for key, value in self.diagnostics.items():
       if not key:
         raise ValueError('diagnostic keys must not be empty')
+      ####
       if isinstance(value, float) and not isfinite(value):
         raise ValueError(f'diagnostic {key!r} must be finite')
+      ####
       if not isinstance(value, (bool, float, int, str)) and value is not None:
         raise ValueError(f'diagnostic {key!r} must be a JSON scalar')
+      ####
       diagnostics[str(key)] = value
+    ####
     object.__setattr__(self, 'section_channels', channels)
     object.__setattr__(self, 'paths', paths)
     object.__setattr__(self, 'fields', fields)
     object.__setattr__(self, 'applicability_reasons', tuple(str(reason) for reason in self.applicability_reasons))
     object.__setattr__(self, 'diagnostics', diagnostics)
     object.__setattr__(self, 'warnings', tuple(str(warning) for warning in self.warnings))
+  ####
 
   @property
   def lane_id(self) -> str:
     return self.lane.value
+  ####
 
   @property
   def frame_id(self) -> str:
     return self.sectioned_tube.frame_id
+  ####
 
   def model_dump(self) -> dict[str, object]:
     """Return a JSON-compatible evaluation artifact."""
@@ -480,11 +554,14 @@ class StandardizedModelVisualization:
       'diagnostics': dict(self.diagnostics),
       'warnings': list(self.warnings),
     }
+  ####
 
   def digest_sha256(self) -> str:
     """Return the deterministic identity of this complete model bundle."""
 
     return canonical_digest(self.model_dump())
+  ####
+####
 
 
 def _section_channel(
@@ -499,6 +576,7 @@ def _section_channel(
     unit=unit,
     values=tuple(float(value) for value in values),
   )
+####
 
 
 def _definition(
@@ -511,6 +589,7 @@ def _definition(
     sections=tuple(sections),
     channels={channel.channel_id: channel.values for channel in channels},
   )
+####
 
 
 def _bundle(
@@ -545,6 +624,7 @@ def _bundle(
     diagnostics={} if diagnostics is None else diagnostics,
     warnings=tuple(warnings),
   )
+####
 
 
 def _basic_visualization(
@@ -580,6 +660,9 @@ def _basic_visualization(
         maximum = float(np.max(vertices[:, 0]))
         if minimum - 1.0e-10 <= section.center_m[0] <= maximum + 1.0e-10:
           candidates.append(zone)
+        ####
+      ####
+    ####
     selected = max(candidates, key=lambda zone: float(np.max(zone.vertices_xr_m[:, 1]))) if candidates else zones[0]
     flow = selected.flow
     station_values['temperature'].append(float(flow.static_temperature))
@@ -587,6 +670,7 @@ def _basic_visualization(
     station_values['density'].append(float(flow.static_density))
     station_values['mach'].append(float(flow.mach))
     station_values['total_pressure'].append(float(flow.total_pressure))
+  ####
   channels = (
     _section_channel('core_radius_fraction', 'display envelope radius normalized by the maximum zone radius', '1', _normalized(radii, zero_value=1.0)),
     _section_channel('opacity_weight', 'display occupancy weight for the modeled zone envelope', '1', tuple(1.0 for _ in radii)),
@@ -642,6 +726,7 @@ def _basic_visualization(
       'zone geometry is not a conservative or optical medium between samples',
     ),
   )
+####
 
 
 def _field_from_zones(
@@ -658,18 +743,24 @@ def _field_from_zones(
     if raw is None:
       coordinates = getattr(zone, 'coordinates', None)
       raw = None if coordinates is None else getattr(coordinates, 'corners_ru', None)
+    ####
     if raw is None:
       continue
+    ####
     polygon = tuple(_vector2('zone vertex', point) for point in np.asarray(raw, dtype=float))
     if len(polygon) < 3:
       continue
+    ####
     polygons.append(polygon)
     flow = getattr(zone, 'flow', None)
     for channel_id, (attribute, _unit, _semantic) in flow_values.items():
       value = getattr(flow, attribute, None)
       channel_values[channel_id].append(_finite(f'{channel_id} zone value', value))
+    ####
+  ####
   if not polygons:
     raise ValueError(f'{field_id} contains no finite polygons')
+  ####
   units = {name: values[1] for name, values in flow_values.items()}
   semantics = {name: values[2] for name, values in flow_values.items()}
   return ModelVisualField(
@@ -680,6 +771,7 @@ def _field_from_zones(
     channel_units=units,
     channel_semantics=semantics,
   )
+####
 
 
 def _reduced_order_visualization(
@@ -690,10 +782,12 @@ def _reduced_order_visualization(
 ) -> StandardizedModelVisualization:
   if not result.cells:
     raise ValueError('reduced-order shock-train visualization requires at least one cell')
+  ####
   raw_stations: list[tuple[float, Any]] = []
   for cell in result.cells:
     metrics = cell.metrics
     raw_stations.extend(((float(metrics.start_x_m), metrics), (float(metrics.end_x_m), metrics)))
+  ####
   raw_stations.sort(key=lambda item: item[0])
   stations: list[tuple[float, Any]] = []
   for station in raw_stations:
@@ -701,15 +795,21 @@ def _reduced_order_visualization(
       stations[-1] = station
     else:
       stations.append(station)
+    ####
+  ####
   if stations[0][0] > 0.0:
     stations.insert(0, (0.0, stations[0][1]))
+  ####
   if maximum_axial_extent_m is not None:
     limit = _finite('maximum_axial_extent_m', maximum_axial_extent_m)
     if limit <= 0.0:
       raise ValueError('maximum_axial_extent_m must be positive')
+    ####
     stations = [station for station in stations if station[0] <= limit + 1.0e-12]
+  ####
   if len(stations) < 2:
     raise ValueError('maximum_axial_extent_m leaves fewer than two shock-train stations')
+  ####
   x_values = tuple(station[0] for station in stations)
   radius_values = tuple(max(1.0e-9, float(station[1].effective_core_diameter_m) / 2.0) for station in stations)
   maximum_amplitude = max(float(station[1].pressure_oscillation_ratio) for station in stations)
@@ -748,12 +848,16 @@ def _reduced_order_visualization(
           field = getattr(zone, 'flow', None)
           field_pressure.append(float(getattr(field, 'static_pressure', cell.metrics.mean_pressure_Pa)))
           field_mach.append(float(getattr(field, 'mach', cell.metrics.core_mach)))
+        ####
+      ####
     else:
       item = cell.metrics
       radius = max(1.0e-9, float(item.effective_core_diameter_m) / 2.0)
       polygons.append(((item.start_x_m, -radius), (item.end_x_m, -radius), (item.end_x_m, radius), (item.start_x_m, radius)))
       field_pressure.append(float(item.mean_pressure_Pa))
       field_mach.append(float(item.core_mach))
+    ####
+  ####
   fields = (
     ModelVisualField(
       field_id='reduced-order-shock-train-cells',
@@ -801,6 +905,7 @@ def _reduced_order_visualization(
       'pressure and opacity channels are display diagnostics, not spectral radiance',
     ),
   )
+####
 
 
 def _straight_integral_visualization(
@@ -895,6 +1000,7 @@ def _straight_integral_visualization(
       'straight top-hat geometry has no resolved shear layer or shock-diamond field',
     ),
   )
+####
 
 
 def _curved_integral_visualization(
@@ -974,6 +1080,7 @@ def _curved_integral_visualization(
       'the swept tube is a visualization envelope and does not replace a transport operator',
     ),
   )
+####
 
 
 def _moc_field_from_result(result: object) -> tuple[object | None, object]:
@@ -983,28 +1090,39 @@ def _moc_field_from_result(result: object) -> tuple[object | None, object]:
   candidate_field = getattr(result, 'candidate_field', None)
   if candidate_field is not None:
     candidates.append(candidate_field)
+  ####
   physical_field = getattr(result, 'physical_field', None)
   if physical_field is not None:
     candidates.append(physical_field)
+  ####
   global_euler = getattr(result, 'global_euler', None)
   if global_euler is not None:
     candidates.append(global_euler)
     global_physical = getattr(global_euler, 'physical_field', None)
     if global_physical is not None:
       candidates.append(global_physical)
+    ####
+  ####
   nested_candidates: list[object] = []
   for candidate in candidates:
     field_value = getattr(candidate, 'field', None)
     if field_value is not None:
       nested_candidates.append(field_value)
+    ####
+  ####
   candidates.extend(nested_candidates)
   for candidate in candidates:
     if all(hasattr(candidate, name) for name in ('cells', 'shock_boundary_points_m', 'ambient_boundary_points_m', 'centerline_boundary_points_m')):
       return candidate, result
+    ####
+  ####
   for candidate in candidates:
     if hasattr(candidate, 'cells') and hasattr(candidate, 'centerline_boundary_points_m'):
       return candidate, result
+    ####
+  ####
   return None, result
+####
 
 
 def _finite_path(value: object) -> tuple[Vector2, ...]:
@@ -1012,13 +1130,17 @@ def _finite_path(value: object) -> tuple[Vector2, ...]:
     points = tuple(_vector2('MOC path point', point) for point in value)  # type: ignore[arg-type]
   except (TypeError, ValueError, IndexError) as error:
     raise ValueError('MOC boundary paths must contain finite 2-D points') from error
+  ####
   return points
+####
 
 
 def _path3(path_id: str, semantic: str, points: Sequence[Sequence[float]]) -> ModelVisualPath | None:
   if len(points) < 2:
     return None
+  ####
   return ModelVisualPath(path_id, semantic, tuple((float(point[0]), float(point[1]), 0.0) for point in points))
+####
 
 
 def _interpolated_y(points: Sequence[Vector2], x_value: float) -> float | None:
@@ -1034,7 +1156,11 @@ def _interpolated_y(points: Sequence[Vector2], x_value: float) -> float | None:
       else:
         fraction = (x_value - x0) / (x1 - x0)
         candidates.append(y0 + fraction * (y1 - y0))
+      ####
+    ####
+  ####
   return max((abs(value) for value in candidates), default=None)
+####
 
 
 def _moc_visualization(
@@ -1048,18 +1174,23 @@ def _moc_visualization(
   field: Any = field_value
   if field is None:
     raise ValueError('planar-MOC visualization requires a retained field with cells and boundaries')
+  ####
   cell_polygons: list[tuple[Vector2, ...]] = []
   all_points: list[Vector2] = []
   for cell in getattr(field, 'cells', ()):
     raw = getattr(cell, 'vertices_xr_m', None)
     if raw is None:
       continue
+    ####
     polygon = tuple(_vector2('MOC cell vertex', point) for point in raw)
     if len(polygon) >= 3:
       cell_polygons.append(polygon)
       all_points.extend(polygon)
+    ####
+  ####
   if not cell_polygons:
     raise ValueError('planar-MOC field contains no finite cell polygons')
+  ####
 
   boundary_specs = (
     ('moc-shock-boundary', 'fitted shock boundary', getattr(field, 'shock_boundary_points_m', ())),
@@ -1076,6 +1207,9 @@ def _moc_visualization(
       path = _path3(path_id, semantic, points)
       if path is not None:
         paths.append(path)
+      ####
+    ####
+  ####
   incoming_states = getattr(field, 'incoming_handoff_states', ())
   if len(incoming_states) >= 2:
     points = tuple((float(state.x_m), float(state.y_m)) for state in incoming_states)
@@ -1083,22 +1217,29 @@ def _moc_visualization(
     if path is not None:
       paths.append(path)
       all_points.extend(points)
+    ####
+  ####
 
   centerline = boundary_points.get('moc-centerline-boundary', ())
   if len(centerline) < 2:
     x_values = sorted({point[0] for point in all_points})
     centerline = tuple((x_value, 0.0) for x_value in x_values)
+  ####
   if len(centerline) < 2:
     raise ValueError('planar-MOC visualization requires at least two centerline stations')
+  ####
   centerline = tuple(sorted(centerline, key=lambda point: point[0]))
   centerline = tuple(point for index, point in enumerate(centerline) if index == 0 or point[0] > centerline[index - 1][0] + 1.0e-12)
   if maximum_axial_extent_m is not None:
     limit = centerline[0][0] + _finite('maximum_axial_extent_m', maximum_axial_extent_m)
     centerline = tuple(point for point in centerline if point[0] <= limit + 1.0e-12)
+  ####
   if len(centerline) < 2:
     raise ValueError('maximum_axial_extent_m leaves fewer than two MOC stations')
+  ####
   if len(centerline) > section_count:
     centerline = tuple(centerline[index] for index in _sample_indices(len(centerline), section_count))
+  ####
   radii: list[float] = []
   for point in centerline:
     candidates = [abs(other[1]) for other in all_points if abs(other[0] - point[0]) <= 1.0e-10]
@@ -1106,9 +1247,13 @@ def _moc_visualization(
       interpolated = _interpolated_y(path_points, point[0])
       if interpolated is not None:
         candidates.append(interpolated)
+      ####
+    ####
     if not candidates:
       candidates = [abs(other[1]) for other in all_points]
+    ####
     radii.append(max(1.0e-9, max(candidates, default=1.0e-9)))
+  ####
   sections = tuple(
     VisualSection(
       arc_length_m=point[0] - centerline[0][0],
@@ -1128,17 +1273,22 @@ def _moc_visualization(
     for index, state in enumerate(centerline_states):
       pressure = centerline_pressures[index] if index < len(centerline_pressures) else None
       state_by_x.append((float(centerline_points[index][0]), state, None if pressure is None else float(pressure)))
+    ####
+  ####
   def sample_axis_state(x_value: float) -> tuple[Any | None, float | None]:
     if state_by_x:
       nearest = min(state_by_x, key=lambda item: abs(item[0] - x_value))
       return nearest[1], nearest[2]
+    ####
     sampler = getattr(field, 'state_at', None)
     if callable(sampler):
       state = sampler((x_value, 0.0))
       pressure_sampler = getattr(field, 'total_pressure_at', None)
       pressure: Any = pressure_sampler((x_value, 0.0)) if callable(pressure_sampler) else None
       return state, None if pressure is None else float(pressure)
+    ####
     return None, None
+  ####
   axis_states = tuple(sample_axis_state(point[0]) for point in centerline)
   base_channels: list[ModelVisualChannel] = [
     _section_channel('core_radius_fraction', 'planar field envelope radius normalized by the maximum displayed radius', '1', _normalized(radii, zero_value=1.0)),
@@ -1150,10 +1300,13 @@ def _moc_visualization(
   pressure_values = [pressure for _state, pressure in axis_states if pressure is not None]
   if len(mach_values) == len(centerline):
     optional_channels.append(_section_channel('mach', 'centerline MOC Mach number', '1', mach_values))
+  ####
   if len(theta_values) == len(centerline):
     optional_channels.append(_section_channel('flow_angle', 'centerline MOC flow angle', 'rad', theta_values))
+  ####
   if len(pressure_values) == len(centerline):
     optional_channels.append(_section_channel('total_pressure', 'centerline MOC total pressure', 'Pa', pressure_values))
+  ####
   channels = tuple(base_channels + optional_channels)
 
   field_channel_values: dict[str, list[Scalar]] = {
@@ -1180,6 +1333,8 @@ def _moc_visualization(
       pressure_ratio = (1.0 + 0.5 * (float(state.gamma) - 1.0) * float(state.mach) ** 2) ** (float(state.gamma) / (float(state.gamma) - 1.0))
       field_channel_values['static_pressure'].append(float(total_pressure) / pressure_ratio)
       field_channel_values['total_pressure'].append(float(total_pressure))
+    ####
+  ####
   moc_field = ModelVisualField(
     field_id='planar-moc-cells',
     semantic='retained planar characteristic field cells',
@@ -1204,6 +1359,8 @@ def _moc_visualization(
   if isinstance(gates, Mapping):
     for key, value in gates.items():
       diagnostics[f'gate_{key}'] = bool(value)
+    ####
+  ####
   warnings = [
     'planar-MOC geometry is retained as 2-D field polygons and boundary paths',
     'the sectioned-tube view is a display envelope projected from the planar field, not an axisymmetric claim',
@@ -1215,6 +1372,7 @@ def _moc_visualization(
     for value in values
   ):
     warnings.append('state samples were unavailable on the centerline; field values remain masked where unavailable')
+  ####
   return _bundle(
     lane=ModelVisualizationLane.PLANAR_MOC,
     model_id='planar-moc-reflected-domain',
@@ -1240,11 +1398,13 @@ def _moc_visualization(
     diagnostics=diagnostics,
     warnings=warnings,
   )
+####
 
 
 def _looks_like_moc_result(result: object) -> bool:
   field, _source = _moc_field_from_result(result)
   return field is not None
+####
 
 
 def standardize_model_visualization(
@@ -1259,56 +1419,68 @@ def standardize_model_visualization(
 
   if not frame_id:
     raise ValueError('frame_id must not be empty')
+  ####
   resolved_lane = None if lane is None else _coerce_lane(lane)
   source = result.result if isinstance(result, AnalyticalFirstCellSolution) else result
   if isinstance(source, ShockCellSolveResult):
     if resolved_lane not in (None, ModelVisualizationLane.BASIC_SHOCK_CELL):
       raise TypeError(f'{resolved_lane.value} does not accept ShockCellSolveResult')
+    ####
     return _basic_visualization(
       source,
       frame_id=frame_id,
       section_count=section_count,
       maximum_axial_extent_m=maximum_axial_extent_m,
     )
+  ####
   if isinstance(source, ShockTrainResult):
     if resolved_lane not in (None, ModelVisualizationLane.REDUCED_ORDER_SHOCK_TRAIN):
       raise TypeError(f'{resolved_lane.value} does not accept ShockTrainResult')
+    ####
     return _reduced_order_visualization(
       source,
       frame_id=frame_id,
       maximum_axial_extent_m=maximum_axial_extent_m,
     )
+  ####
   if isinstance(source, IntegralStraightResult):
     if resolved_lane not in (None, ModelVisualizationLane.STRAIGHT_INTEGRAL):
       raise TypeError(f'{resolved_lane.value} does not accept IntegralStraightResult')
+    ####
     return _straight_integral_visualization(
       source,
       frame_id=frame_id,
       section_count=section_count,
       maximum_axial_extent_m=maximum_axial_extent_m,
     )
+  ####
   if isinstance(source, CurvedPlumeResult):
     if resolved_lane not in (None, ModelVisualizationLane.CURVED_INTEGRAL):
       raise TypeError(f'{resolved_lane.value} does not accept CurvedPlumeResult')
+    ####
     return _curved_integral_visualization(
       source,
       frame_id=frame_id,
       section_count=section_count,
       maximum_axial_extent_m=maximum_axial_extent_m,
     )
+  ####
   if _looks_like_moc_result(source):
     if resolved_lane not in (None, ModelVisualizationLane.PLANAR_MOC):
       raise TypeError(f'{resolved_lane.value} does not accept a planar-MOC result')
+    ####
     return _moc_visualization(
       source,
       frame_id=frame_id,
       section_count=section_count,
       maximum_axial_extent_m=maximum_axial_extent_m,
     )
+  ####
   raise TypeError(
     'result must be a ShockCellSolveResult, ShockTrainResult, '
     'IntegralStraightResult, CurvedPlumeResult, or retained planar-MOC result'
   )
+####
 
 
 standardize_model_result = standardize_model_visualization
@@ -1328,16 +1500,21 @@ def standardize_all_model_visualizations(
     lane = _coerce_lane(key)
     if lane in normalized:
       raise ValueError(f'duplicate model visualization lane: {lane.value}')
+    ####
     normalized[lane] = result
+  ####
   missing = tuple(lane.value for lane in MODEL_VISUALIZATION_LANES if lane not in normalized)
   unexpected = tuple(lane.value for lane in normalized if lane not in MODEL_VISUALIZATION_LANES)
   if missing or unexpected:
     details = []
     if missing:
       details.append(f'missing={missing!r}')
+    ####
     if unexpected:
       details.append(f'unexpected={unexpected!r}')
+    ####
     raise ValueError('all five model visualization lanes are required: ' + ', '.join(details))
+  ####
   return tuple(
     standardize_model_visualization(
       normalized[lane],
@@ -1348,6 +1525,7 @@ def standardize_all_model_visualizations(
     )
     for lane in MODEL_VISUALIZATION_LANES
   )
+####
 
 
 def evaluate_standardized_model_visualization(
@@ -1363,11 +1541,14 @@ def evaluate_standardized_model_visualization(
 
   if not isinstance(visualization, StandardizedModelVisualization):
     raise TypeError('visualization must be a StandardizedModelVisualization')
+  ####
   if not isinstance(time_model, TimeModel):
     raise TypeError('time_model must be TimeModel')
+  ####
   resolved_provider_id = provider_id or f'plume.visual.model-lane.{visualization.lane.value}'
   if not resolved_provider_id or not provider_version:
     raise ProviderConfigurationError('provider identity and version must not be empty')
+  ####
   configuration = PrescribedVisualConfiguration(
     provider_id=resolved_provider_id,
     provider_version=provider_version,
@@ -1399,3 +1580,4 @@ def evaluate_standardized_model_visualization(
   return result.model_copy(update={
     'metadata': result.metadata.model_copy(update={'provenance': provenance}),
   })
+####

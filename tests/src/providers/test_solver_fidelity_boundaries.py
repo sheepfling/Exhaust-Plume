@@ -68,6 +68,8 @@ def test_active_provider_capabilities_match_their_fidelity_lane() -> None:
       assert actual == advertised
       assert actual.isdisjoint(forbidden)
       assert f"fidelity profile: {lane['lane_id']}" in descriptor.notes
+    ####
+  ####
 ####
 
 

@@ -78,6 +78,7 @@ class MocFirstCellFreeBoundaryCorrectionTrial:
     scale = float(self.shape_scale)
     if not isfinite(scale) or scale <= 0.0:
       raise ValueError('shape_scale must be finite and positive')
+    ####
     object.__setattr__(self, 'shape_scale', scale)
     object.__setattr__(
       self,
@@ -91,6 +92,7 @@ class MocFirstCellFreeBoundaryCorrectionTrial:
       raise TypeError(
         'candidate must be a MocFirstCellCandidateResult or None'
       )
+    ####
     if self.axis_closure is not None and not isinstance(
       self.axis_closure,
       MocAmbientAxisClosureResult,
@@ -98,11 +100,14 @@ class MocFirstCellFreeBoundaryCorrectionTrial:
       raise TypeError(
         'axis_closure must be a MocAmbientAxisClosureResult or None'
       )
+    ####
     if self.residual is not None:
       residual = float(self.residual)
       if not isfinite(residual):
         raise ValueError('residual must be finite when supplied')
+      ####
       object.__setattr__(self, 'residual', residual)
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -143,6 +148,7 @@ class MocFirstCellFreeBoundaryCorrectionTrial:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +185,7 @@ class MocFirstCellFreeBoundaryCorrectionResult:
       raise TypeError(
         'status must be a MocFirstCellFreeBoundaryCorrectionStatus'
       )
+    ####
     object.__setattr__(
       self,
       'initial_shock_points_m',
@@ -189,6 +196,7 @@ class MocFirstCellFreeBoundaryCorrectionResult:
     )
     if not isinstance(self.shape_parameter_name, str) or not self.shape_parameter_name:
       raise ValueError('shape_parameter_name must be a non-empty string')
+    ####
     if self.shape_parameter_bracket is not None:
       bracket = tuple(float(value) for value in self.shape_parameter_bracket)
       if (
@@ -199,12 +207,16 @@ class MocFirstCellFreeBoundaryCorrectionResult:
         raise ValueError(
           'shape_parameter_bracket must contain two ordered positive values'
         )
+      ####
       object.__setattr__(self, 'shape_parameter_bracket', bracket)
+    ####
     if self.selected_shape_scale is not None:
       selected_scale = float(self.selected_shape_scale)
       if not isfinite(selected_scale) or selected_scale <= 0.0:
         raise ValueError('selected_shape_scale must be finite and positive')
+      ####
       object.__setattr__(self, 'selected_shape_scale', selected_scale)
+    ####
     for name in (
       'initial_candidate',
       'selected_candidate',
@@ -217,6 +229,8 @@ class MocFirstCellFreeBoundaryCorrectionResult:
         raise TypeError(
           f'{name} must be a MocFirstCellCandidateResult or None'
         )
+      ####
+    ####
     if self.selected_axis_closure is not None and not isinstance(
       self.selected_axis_closure,
       MocAmbientAxisClosureResult,
@@ -224,6 +238,7 @@ class MocFirstCellFreeBoundaryCorrectionResult:
       raise TypeError(
         'selected_axis_closure must be a MocAmbientAxisClosureResult or None'
       )
+    ####
     object.__setattr__(self, 'trials', tuple(self.trials))
     if any(
       not isinstance(trial, MocFirstCellFreeBoundaryCorrectionTrial)
@@ -232,8 +247,10 @@ class MocFirstCellFreeBoundaryCorrectionResult:
       raise TypeError(
         'trials must contain MocFirstCellFreeBoundaryCorrectionTrial values'
       )
+    ####
     if not isinstance(self.source_model, str) or not self.source_model:
       raise ValueError('source_model must be a non-empty string')
+    ####
     for name in (
       'closure_pressure_tolerance',
       'shape_parameter_tolerance',
@@ -241,13 +258,16 @@ class MocFirstCellFreeBoundaryCorrectionResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     if (
       isinstance(self.maximum_iterations, bool)
       or not isinstance(self.maximum_iterations, int)
       or self.maximum_iterations < 1
     ):
       raise ValueError('maximum_iterations must be a positive integer')
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -349,6 +369,7 @@ class MocFirstCellFreeBoundaryCorrectionResult:
         'first-cell free-boundary correction did not close its bounded scalar '
         'or local physical residual; continued-cell promotion remains blocked'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -407,6 +428,7 @@ class MocFirstCellFreeBoundaryCorrectionResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _source_model(upstream_source: object) -> str:
@@ -428,21 +450,26 @@ def _normalize_seed_points(
     )
   except (IndexError, TypeError, ValueError):
     return None
+  ####
   if len(points) < 3 or any(
     not all(isfinite(value) for value in point)
     for point in points
   ):
     return None
+  ####
   if any(
     second[0] <= first[0] + position_tolerance_m
     or second[1] > first[1] + position_tolerance_m
     for first, second in zip(points, points[1:])
   ):
     return None
+  ####
   if any(point[1] < target_centerline_y_m - position_tolerance_m for point in points):
     return None
+  ####
   if abs(points[-1][1] - target_centerline_y_m) > position_tolerance_m:
     return None
+  ####
   return (*points[:-1], (points[-1][0], target_centerline_y_m))
 ####
 
@@ -552,6 +579,7 @@ def solve_first_cell_free_boundary_correction(
       maximum_iterations=1,
       message='ambient pressure and centerline targets must be numeric',
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     invariant = float(invariant_tolerance)
@@ -579,6 +607,7 @@ def solve_first_cell_free_boundary_correction(
       maximum_iterations=1,
       message='correction tolerances and shape bracket must be numeric',
     )
+  ####
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     return _result(
       MocFirstCellFreeBoundaryCorrectionStatus.INVALID_INPUT,
@@ -595,6 +624,7 @@ def solve_first_cell_free_boundary_correction(
       maximum_iterations=max(1, maximum_iterations) if isinstance(maximum_iterations, int) else 1,
       message='ambient_pressure_Pa must be finite and positive',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (
@@ -630,6 +660,7 @@ def solve_first_cell_free_boundary_correction(
         'positive, with lower <= 1 <= upper'
       ),
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _result(
       MocFirstCellFreeBoundaryCorrectionStatus.INVALID_INPUT,
@@ -646,6 +677,7 @@ def solve_first_cell_free_boundary_correction(
       maximum_iterations=max(1, maximum_iterations) if isinstance(maximum_iterations, int) else 1,
       message='branch must be a ShockBranch',
     )
+  ####
   if (
     isinstance(maximum_iterations, bool)
     or not isinstance(maximum_iterations, int)
@@ -657,10 +689,13 @@ def solve_first_cell_free_boundary_correction(
     raise ValueError(
       'maximum_iterations and candidate_maximum_iterations must be positive integers'
     )
+  ####
   if not isinstance(allow_zero_strength_attachment, bool):
     raise TypeError('allow_zero_strength_attachment must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise TypeError('allow_zero_strength_endpoints must be a bool')
+  ####
   initial_points = _normalize_seed_points(
     shock_points_m,
     target_centerline_y_m=target_y,
@@ -685,6 +720,7 @@ def solve_first_cell_free_boundary_correction(
         'ending on the target centerline'
       ),
     )
+  ####
 
   trials: list[MocFirstCellFreeBoundaryCorrectionTrial] = []
 
@@ -718,6 +754,7 @@ def solve_first_cell_free_boundary_correction(
         residual=None,
         message=f'candidate trial raised: {error}',
       )
+    ####
     axis: MocAmbientAxisClosureResult | None = None
     residual: float | None = None
     message = candidate.message
@@ -735,7 +772,10 @@ def solve_first_cell_free_boundary_correction(
       else:
         if axis.axis_candidate_verified:
           residual = axis.relative_pressure_residual
+        ####
         message = axis.message
+      ####
+    ####
     return MocFirstCellFreeBoundaryCorrectionTrial(
       shape_scale=scale,
       shock_points_m=points,
@@ -744,6 +784,7 @@ def solve_first_cell_free_boundary_correction(
       residual=residual,
       message=message,
     )
+  ####
 
   lower_trial = evaluate(lower_scale)
   trials.append(lower_trial)
@@ -758,6 +799,7 @@ def solve_first_cell_free_boundary_correction(
   )
   if baseline_trial is not lower_trial and baseline_trial is not upper_trial:
     trials.append(baseline_trial)
+  ####
 
   initial_candidate = baseline_trial.candidate
   usable_endpoints = (
@@ -790,6 +832,7 @@ def solve_first_cell_free_boundary_correction(
         'bracket endpoints; bounded upstream or candidate closure failed'
       ),
     )
+  ####
   lower_residual = lower_trial.residual
   upper_residual = upper_trial.residual
   assert lower_residual is not None and upper_residual is not None
@@ -803,6 +846,7 @@ def solve_first_cell_free_boundary_correction(
   ) -> MocFirstCellFreeBoundaryCorrectionResult | None:
     if trial.residual is None or abs(trial.residual) > closure_tolerance:
       return None
+    ####
     if not trial.local_candidate_verified:
       return _result(
         MocFirstCellFreeBoundaryCorrectionStatus.CANDIDATE_FAILURE,
@@ -822,6 +866,7 @@ def solve_first_cell_free_boundary_correction(
           'not retain a locally closed characteristic field'
         ),
       )
+    ####
     status = (
       MocFirstCellFreeBoundaryCorrectionStatus.CONVERGED_LOCAL_PHYSICAL_BOUNDARY
       if trial.axis_closure is not None and trial.axis_closure.axis_boundary_verified
@@ -850,11 +895,13 @@ def solve_first_cell_free_boundary_correction(
         )
       ),
     )
+  ####
 
   for endpoint in (lower_trial, upper_trial):
     result = converged_result(endpoint)
     if result is not None:
       return result
+    ####
     if endpoint.residual is not None and abs(endpoint.residual) <= closure_tolerance:
       return result if result is not None else _result(
         MocFirstCellFreeBoundaryCorrectionStatus.CANDIDATE_FAILURE,
@@ -871,6 +918,8 @@ def solve_first_cell_free_boundary_correction(
         maximum_iterations=maximum_iterations,
         message='endpoint residual reached tolerance without local field closure',
       )
+    ####
+  ####
 
   if lower_residual * upper_residual > 0.0:
     return _result(
@@ -892,12 +941,14 @@ def solve_first_cell_free_boundary_correction(
         f'upper={upper_residual}'
       ),
     )
+  ####
 
   current_lower = lower_trial
   current_upper = upper_trial
   for _iteration in range(1, maximum_iterations + 1):
     if abs(current_upper.shape_scale - current_lower.shape_scale) <= shape_tolerance:
       break
+    ####
     midpoint_scale = 0.5 * (
       current_lower.shape_scale + current_upper.shape_scale
     )
@@ -926,11 +977,14 @@ def solve_first_cell_free_boundary_correction(
         maximum_iterations=maximum_iterations,
         message='shape correction midpoint left the bounded residual domain',
       )
+    ####
     if abs(midpoint_trial.residual) < abs(best_trial.residual):
       best_trial = midpoint_trial
+    ####
     result = converged_result(midpoint_trial)
     if result is not None:
       return result
+    ####
     if abs(midpoint_trial.residual) <= closure_tolerance:
       return _result(
         MocFirstCellFreeBoundaryCorrectionStatus.CANDIDATE_FAILURE,
@@ -947,10 +1001,13 @@ def solve_first_cell_free_boundary_correction(
         maximum_iterations=maximum_iterations,
         message='midpoint residual reached tolerance without local field closure',
       )
+    ####
     if current_lower.residual * midpoint_trial.residual <= 0.0:
       current_upper = midpoint_trial
     else:
       current_lower = midpoint_trial
+    ####
+  ####
 
   return _result(
     MocFirstCellFreeBoundaryCorrectionStatus.ITERATION_LIMIT,
@@ -970,3 +1027,4 @@ def solve_first_cell_free_boundary_correction(
       f'parameter-width limit; best residual={best_trial.residual}'
     ),
   )
+####

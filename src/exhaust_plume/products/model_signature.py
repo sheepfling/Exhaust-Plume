@@ -86,35 +86,46 @@ def _finite(name: str, value: object) -> float:
         numeric = float(cast(Any, value))
     except (TypeError, ValueError) as error:
         raise ValueError(f"{name} must be numeric") from error
+    ####
     if not isfinite(numeric):
         raise ValueError(f"{name} must be finite")
+    ####
     return numeric
+####
 
 
 def _unit_vector(name: str, value: Sequence[float]) -> Vector3:
     if len(value) != 3:
         raise ValueError(f"{name} must contain three coordinates")
+    ####
     vector = tuple(_finite(f"{name}[{index}]", component) for index, component in enumerate(value))
     norm = sqrt(sum(component * component for component in vector))
     if abs(norm - 1.0) > 1.0e-6:
         raise ValueError(f"{name} must be unit length")
+    ####
     return tuple(component / norm for component in vector)  # type: ignore[return-value]
+####
 
 
 def _strict_axis(name: str, values: Sequence[float]) -> tuple[float, ...]:
     axis = tuple(_finite(f"{name}[{index}]", value) for index, value in enumerate(values))
     if len(axis) < 2 or any(value <= 0.0 for value in axis):
         raise ValueError(f"{name} must contain at least two positive values")
+    ####
     if any(next_value <= value for value, next_value in zip(axis, axis[1:])):
         raise ValueError(f"{name} must be strictly increasing")
+    ####
     return axis
+####
 
 
 def _nonnegative_spectrum(name: str, values: Sequence[float]) -> tuple[float, ...]:
     spectrum = tuple(_finite(f"{name}[{index}]", value) for index, value in enumerate(values))
     if not spectrum or any(value < 0.0 for value in spectrum):
         raise ValueError(f"{name} must be finite and nonnegative")
+    ####
     return spectrum
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,11 +146,14 @@ class GrayRadiationProfile:
         )
         if len(wavelengths) != len(source) or len(wavelengths) != len(absorption):
             raise ValueError("gray optical profile arrays must have matching lengths")
+        ####
         if not self.profile_id:
             raise ValueError("profile_id must not be empty")
+        ####
         object.__setattr__(self, "wavelengths_m", wavelengths)
         object.__setattr__(self, "source_function_w_sr_m", source)
         object.__setattr__(self, "absorption_coefficient_per_m", absorption)
+    ####
 
     @classmethod
     def from_blackbody(
@@ -169,8 +183,9 @@ class GrayRadiationProfile:
             absorption_coefficient_per_m=tuple(absorption_coefficient_per_m),
             profile_id=profile_id,
         )
-
     ####
+####
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,16 +221,20 @@ class SectionedGrayRadiationProfile:
         )
         if not source_sections or len(source_sections) != len(absorption_sections):
             raise ValueError("sectioned gray source and absorption arrays must have matching nonzero lengths")
+        ####
         if any(
             len(spectrum) != len(wavelengths)
             for spectrum in source_sections + absorption_sections
         ):
             raise ValueError("sectioned gray optical arrays must match wavelengths_m")
+        ####
         if not self.profile_id:
             raise ValueError("profile_id must not be empty")
+        ####
         object.__setattr__(self, "wavelengths_m", wavelengths)
         object.__setattr__(self, "source_function_w_sr_m_by_section", source_sections)
         object.__setattr__(self, "absorption_coefficient_per_m_by_section", absorption_sections)
+    ####
 
     @classmethod
     def from_blackbody(
@@ -237,6 +256,7 @@ class SectionedGrayRadiationProfile:
         )
         if len(temperatures) != len(absorption_sections):
             raise ValueError("temperatures_K must match absorption section count")
+        ####
         source_sections = tuple(
             planck_spectral_radiance_W_m2_sr_m(
                 wavelengths,
@@ -251,8 +271,9 @@ class SectionedGrayRadiationProfile:
             absorption_coefficient_per_m_by_section=absorption_sections,
             profile_id=profile_id,
         )
-
     ####
+####
+
 
 
 GrayOpticalProfile: TypeAlias = GrayRadiationProfile | SectionedGrayRadiationProfile
@@ -273,13 +294,17 @@ class ModelSignatureSampling:
         directions = tuple(_unit_vector(f"source_to_observer_directions[{index}]", direction) for index, direction in enumerate(self.source_to_observer_directions))
         if not directions:
             raise ValueError("source_to_observer_directions must not be empty")
+        ####
         if isinstance(self.transverse_sample_count, bool) or not 3 <= self.transverse_sample_count <= 128:
             raise ValueError("transverse_sample_count must be an integer in [3, 128]")
+        ####
         if not isfinite(self.plane_margin_fraction) or not 0.0 <= self.plane_margin_fraction <= 1.0:
             raise ValueError("plane_margin_fraction must be finite and in [0, 1]")
+        ####
         object.__setattr__(self, "source_to_observer_directions", directions)
-
     ####
+####
+
 
 
 class ModelSignatureReadiness(str, Enum):
@@ -289,6 +314,7 @@ class ModelSignatureReadiness(str, Enum):
     BLOCKED_PLANAR_TRANSPORT = "blocked-planar-transport"
     BLOCKED_INVALID_SUPPORT = "blocked-invalid-support"
     BLOCKED_UNSUPPORTED_LANE = "blocked-unsupported-lane"
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,8 +336,8 @@ class ModelSignatureAssessment:
     @property
     def ready(self) -> bool:
         return self.readiness is ModelSignatureReadiness.READY
-
     ####
+
 
     def model_dump(self) -> dict[str, object]:
         return {
@@ -327,12 +353,14 @@ class ModelSignatureAssessment:
             "claim_ceiling": self.claim_ceiling,
             "reasons": list(self.reasons),
         }
-
     ####
+####
+
 
 
 class ModelSignatureBlockedError(ValueError):
     """Raised when a flow lane cannot honestly enter the current signature path."""
+####
 
 
 def _support_from_visualization(visualization: StandardizedModelVisualization) -> SectionedTubeSupport:
@@ -342,6 +370,7 @@ def _support_from_visualization(visualization: StandardizedModelVisualization) -
         centers_m=tuple(section.center_m for section in sections),
         radii_m=tuple(section.radius_major_m for section in sections),
     )
+####
 
 
 def _support_readiness(
@@ -353,9 +382,12 @@ def _support_readiness(
         support = _support_from_visualization(visualization)
     except (TypeError, ValueError) as error:
         return False, None, str(error)
+    ####
     if not support.is_straight and not allow_curved:
         return False, support, "the standardized section support is not straight"
+    ####
     return True, support, None
+####
 
 
 def assess_model_signature_readiness(
@@ -367,6 +399,7 @@ def assess_model_signature_readiness(
 
     if not isinstance(visualization, StandardizedModelVisualization):
         raise TypeError("visualization must be StandardizedModelVisualization")
+    ####
     lane = visualization.lane
     profile_ready = optical_profile is not None
     common_ceiling = "gray-approximate; no chemistry, atmosphere, detector, or external validation"
@@ -378,20 +411,25 @@ def assess_model_signature_readiness(
         if isinstance(optical_profile, SectionedGrayRadiationProfile) and _support is not None and not _support.is_straight:
             support_ready = False
             support_reason = "section-varying gray profiles require a straight section support"
+        ####
         if lane in _CURVED_SIGNATURE_LANES and _support is not None and _support.is_straight:
             support_ready = False
             support_reason = "the curved signature lane requires a non-straight section support"
+        ####
         reasons: list[str] = []
         if support_reason is not None:
             reasons.append(support_reason)
+        ####
         if not profile_ready:
             reasons.append("an explicit wavelength-resolved gray source/absorption profile is required")
+        ####
         if not support_ready:
             readiness = ModelSignatureReadiness.BLOCKED_INVALID_SUPPORT
         elif not profile_ready:
             readiness = ModelSignatureReadiness.BLOCKED_MISSING_OPTICAL_PROFILE
         else:
             readiness = ModelSignatureReadiness.READY
+        ####
         return ModelSignatureAssessment(
             schema=GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
             lane_id=visualization.lane_id,
@@ -405,6 +443,7 @@ def assess_model_signature_readiness(
             claim_ceiling=common_ceiling,
             reasons=tuple(reasons) if reasons else ("straight section support and explicit gray optical profile are available",),
         )
+    ####
     planar_reasons = (
         "planar-MOC field requires a planar field/ray transport provider",
         "the sectioned-tube envelope is illustrative and cannot stand in for the MOC field",
@@ -422,6 +461,7 @@ def assess_model_signature_readiness(
         claim_ceiling=common_ceiling,
         reasons=planar_reasons,
     )
+####
 
 
 def _cross(first: np.ndarray, second: np.ndarray) -> np.ndarray:
@@ -429,7 +469,9 @@ def _cross(first: np.ndarray, second: np.ndarray) -> np.ndarray:
     norm = float(np.linalg.norm(vector))
     if norm <= 1.0e-14:
         raise ValueError("observer direction does not admit a transverse basis")
+    ####
     return vector / norm
+####
 
 
 def _transverse_basis(direction: Vector3) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -438,6 +480,7 @@ def _transverse_basis(direction: Vector3) -> tuple[np.ndarray, np.ndarray, np.nd
     first = _cross(observer, reference)
     second = _cross(observer, first)
     return observer, first, second
+####
 
 
 def _bounds_for_direction(
@@ -467,6 +510,7 @@ def _bounds_for_direction(
     second_upper += margin
     depth = float(np.max(np.abs(longitudinal_projection) + radii)) + margin + 1.0e-9
     return reference, observer, first_lower, first_upper, second_lower, second_upper, depth
+####
 
 
 def _build_ray_grid(
@@ -503,6 +547,9 @@ def _build_ray_grid(
                 t_max.append(2.0 * depth)
                 direction_indices.append(direction_index)
                 weights.append(weight)
+            ####
+        ####
+    ####
     request = SpectralRayTransferRequest(
         ray_frame_id=support.frame_id,
         ray_origins_m=tuple(origins),
@@ -518,6 +565,7 @@ def _build_ray_grid(
         ray_projected_area_weights_m2=tuple(weights),
     )
     return request, integration
+####
 
 
 def _attach_flow_lineage(
@@ -575,6 +623,7 @@ def _attach_flow_lineage(
     if visualization.applicability_status is not ApplicabilityStatus.INSIDE:
         applicability_status = ApplicabilityStatus.MARGINAL
         reasons.append(f"flow lane applicability is {visualization.applicability_status.value}")
+    ####
     metadata = parent.model_copy(
         update={
             "claims": ProductClaims(
@@ -600,6 +649,7 @@ def _attach_flow_lineage(
         }
     )
     return signature.model_copy(update={"metadata": metadata})
+####
 
 
 def evaluate_model_signature(
@@ -625,19 +675,26 @@ def evaluate_model_signature(
 
     if not isinstance(visualization, StandardizedModelVisualization):
         raise TypeError("visualization must be StandardizedModelVisualization")
+    ####
     if not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
         raise TypeError("optical_profile must be GrayRadiationProfile or SectionedGrayRadiationProfile")
+    ####
     if not isinstance(allow_partial_results, bool):
         raise TypeError("allow_partial_results must be bool")
+    ####
     resolved_time_s = _finite("time_s", time_s)
     if source_pose is not None and not isinstance(source_pose, Pose):
         raise TypeError("source_pose must be Pose or None")
+    ####
     if dynamic_state is not None and not isinstance(dynamic_state, Mapping):
         raise TypeError("dynamic_state must be a mapping or None")
+    ####
     if ambient_state is not None and not isinstance(ambient_state, Mapping):
         raise TypeError("ambient_state must be a mapping or None")
+    ####
     if not isinstance(time_model, TimeModel):
         raise TypeError("time_model must be TimeModel")
+    ####
     selected_sampling = sampling or ModelSignatureSampling()
     assessment = assess_model_signature_readiness(
         visualization,
@@ -645,6 +702,7 @@ def evaluate_model_signature(
     )
     if not assessment.ready:
         raise ModelSignatureBlockedError(f"{visualization.lane_id} cannot enter the gray signature bridge ({assessment.readiness.value}): {'; '.join(assessment.reasons)}")
+    ####
     support_ready, support, support_reason = _support_readiness(
         visualization,
         allow_curved=visualization.lane in _CURVED_SIGNATURE_LANES,
@@ -652,8 +710,10 @@ def evaluate_model_signature(
     if visualization.lane in _CURVED_SIGNATURE_LANES and support is not None and support.is_straight:
         support_ready = False
         support_reason = "the curved signature lane requires a non-straight section support"
+    ####
     if not support_ready or support is None:
         raise ModelSignatureBlockedError(support_reason or "flow support is not transport-ready")
+    ####
     request, integration = _build_ray_grid(support, selected_sampling, optical_profile.wavelengths_m)
     if isinstance(optical_profile, SectionedGrayRadiationProfile):
         definition = GrayRayTransferDefinition(
@@ -674,6 +734,7 @@ def evaluate_model_signature(
             asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
             allow_curved_support=visualization.lane in _CURVED_SIGNATURE_LANES,
         )
+    ####
     if visualization.lane in _CURVED_SIGNATURE_LANES:
         provider = CurvedGrayRayTransferProvider()
     else:
@@ -683,6 +744,7 @@ def evaluate_model_signature(
                 provider_version="1.0.0",
             )
         )
+    ####
     session = provider.create_session(definition=definition)
     try:
         snapshot = session.create_snapshot(
@@ -704,6 +766,7 @@ def evaluate_model_signature(
         ray_result = snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
     finally:
         session.close()
+    ####
     signature = far_field_from_rays(
         request,
         ray_result,
@@ -718,3 +781,4 @@ def evaluate_model_signature(
         selected_sampling,
         time_model,
     )
+####

@@ -63,6 +63,7 @@ def _request() -> MocMixedRegimePerimeterRequest:
       ),
     ),
   )
+####
 
 
 def test_entropy_handoff_carries_patch_and_terminal_loss_without_subsonic_state() -> None:
@@ -98,8 +99,10 @@ def test_entropy_handoff_carries_patch_and_terminal_loss_without_subsonic_state(
   ) == pytest.approx(request.terminal_downstream_total_pressure_Pa)
   with pytest.raises(ValueError, match='extrapolation'):
     handoff.total_pressure_at_arc_length(-1.0e-6)
+  ####
 
   assert request.entropy_handoff() == handoff
+####
 
 
 def test_entropy_handoff_is_measured_from_the_exact_request() -> None:
@@ -122,6 +125,7 @@ def test_entropy_handoff_is_measured_from_the_exact_request() -> None:
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_entropy_measurement_rejects_changed_pressure_lineage() -> None:
@@ -141,3 +145,4 @@ def test_entropy_measurement_rejects_changed_pressure_lineage() -> None:
   assert measurement.status is MocMixedRegimeEntropyHandoffMeasurementStatus.SAMPLE_FAILURE
   assert not measurement.converged
   assert not measurement.handoff_verified
+####

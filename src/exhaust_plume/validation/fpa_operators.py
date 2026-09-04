@@ -105,6 +105,7 @@ def _bool_matrix(
 def _positive_dimension(value: int, field_name: str) -> int:
   if isinstance(value, bool) or not isinstance(value, int) or value < 1:
     raise ValueError(f'{field_name} must be a positive integer')
+  ####
   return value
 ####
 
@@ -112,6 +113,7 @@ def _positive_dimension(value: int, field_name: str) -> int:
 def _optional_identity(value: str | None, field_name: str) -> str | None:
   if value is not None and (not isinstance(value, str) or not value):
     raise ValueError(f'{field_name} must be a nonempty string when supplied')
+  ####
   return value
 ####
 
@@ -191,7 +193,9 @@ class FpaPixelGeometry:
           or not isinstance(column, int)
       ):
         raise ValueError('ray pixel indices must contain integers')
+      ####
       normalized_indices.append((row, column))
+    ####
     indices: tuple[tuple[int, int], ...] = tuple(normalized_indices)
     if not indices:
       raise ValueError('ray_pixel_indices_row_col must not be empty')
@@ -228,6 +232,7 @@ class FpaPixelGeometry:
   def camera_mapping_model_id(self) -> str | None:
     return None if self.camera_optics is None else self.camera_optics.mapping_model_id
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,6 +373,7 @@ class FpaPixelImage:
     object.__setattr__(self, 'camera_optics_id', _optional_identity(self.camera_optics_id, 'camera_optics_id'))
     object.__setattr__(self, 'camera_mapping_model_id', _optional_identity(self.camera_mapping_model_id, 'camera_mapping_model_id'))
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -412,6 +418,7 @@ class FpaDigitizationPolicy:
     if not self.policy_id:
       raise ValueError('policy_id must not be empty')
     ####
+  ####
 
   @property
   def full_scale_counts(self) -> int:
@@ -477,6 +484,7 @@ class FpaDigitizedExpectation:
     object.__setattr__(self, 'camera_optics_id', _optional_identity(self.camera_optics_id, 'camera_optics_id'))
     object.__setattr__(self, 'camera_mapping_model_id', _optional_identity(self.camera_mapping_model_id, 'camera_mapping_model_id'))
   ####
+####
 
 
 def _trapezoid_integral(axis: tuple[float, ...], values: tuple[float, ...]) -> float:
@@ -668,6 +676,7 @@ def integrate_spectral_ray_result_to_fpa(
 
   if not isinstance(result, SpectralRayTransferResult):
     raise TypeError('result must be SpectralRayTransferResult')
+  ####
   return integrate_ray_transfer_to_fpa(
     wavelengths_m,
     result.source_spectral_radiance,
@@ -676,6 +685,7 @@ def integrate_spectral_ray_result_to_fpa(
     exposure_s=exposure_s,
     validity_mask=result.validity_mask,
   )
+####
 
 
 def digitize_expected_electrons(

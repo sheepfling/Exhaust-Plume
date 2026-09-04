@@ -81,6 +81,7 @@ def _bundle() -> StandardizedModelVisualization:
     diagnostics={'cell_count': 2, 'production_claim_allowed': False},
     warnings=('fixture warning',),
   )
+####
 
 
 def test_model_gallery_writes_bundle_bound_views_and_metadata(tmp_path: Path) -> None:
@@ -116,6 +117,7 @@ def test_model_gallery_writes_bundle_bound_views_and_metadata(tmp_path: Path) ->
   }
   assert all((tmp_path / 'gallery' / artifact['path']).exists() for artifact in payload['artifacts'])
   assert json.loads((tmp_path / 'gallery' / 'model_bundle.json').read_text(encoding='utf-8'))['lane_id'] == 'shock-cell-basic-v1'
+####
 
 
 def test_model_gallery_can_export_json_without_plot_dependency(tmp_path: Path) -> None:
@@ -123,6 +125,7 @@ def test_model_gallery_can_export_json_without_plot_dependency(tmp_path: Path) -
   manifest = render_model_visualization_gallery(bundle, tmp_path / 'json-only', render_plots=False)
   assert len(manifest.artifacts) == 2
   assert all((tmp_path / 'json-only' / artifact.path).exists() for artifact in manifest.artifacts)
+####
 
 
 def test_model_gallery_set_renders_exactly_one_independent_bundle_per_lane(tmp_path: Path) -> None:
@@ -147,18 +150,22 @@ def test_model_gallery_set_renders_exactly_one_independent_bundle_per_lane(tmp_p
     for lane in payload['lanes']
   )
   assert any('independently rendered bundle' in guardrail for guardrail in payload['guardrails'])
+####
 
 
 def test_model_gallery_set_rejects_missing_or_rebound_lanes(tmp_path: Path) -> None:
   bundle = _bundle()
   with pytest.raises(ValueError, match='exactly the five model lanes'):
     render_model_visualization_gallery_set((bundle,), tmp_path / 'missing', render_plots=False)
+  ####
   with pytest.raises(ValueError, match='does not match bundle lane'):
     render_model_visualization_gallery_set(
       {ModelVisualizationLane.CURVED_INTEGRAL: bundle},
       tmp_path / 'rebound',
       render_plots=False,
     )
+  ####
+####
 
 
 @pytest.mark.parametrize('lane', ModelVisualizationLane)
@@ -171,6 +178,7 @@ def test_model_gallery_accepts_each_declared_model_lane(lane: ModelVisualization
   )
   assert manifest.lane_id == lane.value
   assert manifest.source['bundle_digest_sha256'] == bundle.digest_sha256()
+####
 
 
 def test_model_gallery_rejects_rebound_and_unknown_field_or_path(tmp_path: Path) -> None:
@@ -184,6 +192,7 @@ def test_model_gallery_rejects_rebound_and_unknown_field_or_path(tmp_path: Path)
       ),
       render_plots=False,
     )
+  ####
   with pytest.raises(KeyError, match='unknown field_id'):
     render_model_visualization_gallery(
       bundle,
@@ -191,6 +200,7 @@ def test_model_gallery_rejects_rebound_and_unknown_field_or_path(tmp_path: Path)
       spec=ModelVisualizationGallerySpec.for_bundle(bundle, field_id='missing'),
       render_plots=False,
     )
+  ####
   with pytest.raises(KeyError, match='unknown model visualization path'):
     render_model_visualization_gallery(
       bundle,
@@ -198,3 +208,5 @@ def test_model_gallery_rejects_rebound_and_unknown_field_or_path(tmp_path: Path)
       spec=ModelVisualizationGallerySpec.for_bundle(bundle, path_ids=('missing',)),
       render_plots=False,
     )
+  ####
+####

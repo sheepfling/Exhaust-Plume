@@ -56,6 +56,7 @@ class HomogeneousSegment:
     object.__setattr__(self, 'absorption_coefficient_per_m', absorption)
     object.__setattr__(self, 'length_m', float(self.length_m))
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +81,7 @@ class GrayTransferResult:
     object.__setattr__(self, 'background_transmittance', transmittance)
     object.__setattr__(self, 'optical_depth', depth)
   ####
+####
 
 
 def homogeneous_segment_transfer(

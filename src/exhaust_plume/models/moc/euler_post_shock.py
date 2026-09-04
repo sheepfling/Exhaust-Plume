@@ -61,10 +61,12 @@ class MocEulerPostShockFieldStatus(str, Enum):
   CENTERLINE_FAILURE = 'post_shock_centerline_failure'
   GEOMETRY_FAILURE = 'post_shock_geometry_failure'
   TOPOLOGY_FAILURE = 'post_shock_topology_failure'
+####
 
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _finite_point(value: Sequence[float], name: str) -> tuple[float, float]:
@@ -72,9 +74,12 @@ def _finite_point(value: Sequence[float], name: str) -> tuple[float, float]:
     point = (float(value[0]), float(value[1]))
   except (IndexError, TypeError, ValueError) as error:
     raise ValueError(f'{name} must contain two numeric coordinates') from error
+  ####
   if not all(isfinite(component) for component in point):
     raise ValueError(f'{name} must contain finite coordinates')
+  ####
   return point
+####
 
 
 def _triangle_interpolation_weights(
@@ -87,15 +92,19 @@ def _triangle_interpolation_weights(
   denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
   if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
     return None
+  ####
   px, py = point
   first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
   second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
   third = 1.0 - first - second
   if min(first, second, third) < -1.0e-10:
     return None
+  ####
   if max(first, second, third) > 1.0 + 1.0e-10:
     return None
+  ####
   return first, second, third
+####
 
 
 def _polygon_contains(
@@ -110,8 +119,10 @@ def _polygon_contains(
       vertices,
       tolerance_m=tolerance_m,
     ) is not None
+  ####
   if len(vertices) != 4:
     return False
+  ####
   return (
     _triangle_interpolation_weights(
       point,
@@ -124,6 +135,7 @@ def _polygon_contains(
       tolerance_m=tolerance_m,
     ) is not None
   )
+####
 
 
 def _forward_margin(
@@ -140,11 +152,13 @@ def _forward_margin(
   norm = hypot(*averaged)
   if norm <= 0.0 or not isfinite(norm):
     return None
+  ####
   displacement = (target.x_m - source.x_m, target.y_m - source.y_m)
   return (
     displacement[0] * averaged[0] / norm
     + displacement[1] * averaged[1] / norm
   )
+####
 
 
 def _maximum_result_value(
@@ -157,6 +171,7 @@ def _maximum_result_value(
     if (value := getattr(result, attribute)) is not None
   ]
   return max(values, default=None)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +215,7 @@ class MocEulerPostShockFieldResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocEulerPostShockFieldStatus):
       raise TypeError('status must be a MocEulerPostShockFieldStatus')
+    ####
     if self.shock_boundary is not None and not isinstance(
       self.shock_boundary,
       MocEulerShockBoundaryCurveResult,
@@ -207,8 +223,10 @@ class MocEulerPostShockFieldResult:
       raise TypeError(
         'shock_boundary must be a MocEulerShockBoundaryCurveResult or None'
       )
+    ####
     if not isinstance(self.topology, MocTopologyResult):
       raise TypeError('topology must be a MocTopologyResult')
+    ####
     for name in ('nodes', 'cells'):
       values = tuple(getattr(self, name))
       expected_type = (
@@ -216,7 +234,9 @@ class MocEulerPostShockFieldResult:
       )
       if any(not isinstance(value, expected_type) for value in values):
         raise TypeError(f'{name} must contain {expected_type.__name__} values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     point_fields = (
       'shock_boundary_points_m',
       'centerline_boundary_points_m',
@@ -225,6 +245,7 @@ class MocEulerPostShockFieldResult:
     for name in point_fields:
       points = tuple(_finite_point(point, name) for point in getattr(self, name))
       object.__setattr__(self, name, points)
+    ####
     for name in (
       'shock_boundary_states',
       'centerline_boundary_states',
@@ -232,7 +253,9 @@ class MocEulerPostShockFieldResult:
       states = tuple(getattr(self, name))
       if any(not isinstance(state, CharacteristicState) for state in states):
         raise TypeError(f'{name} must contain CharacteristicState values')
+      ####
       object.__setattr__(self, name, states)
+    ####
     pressure_fields = (
       'shock_boundary_total_pressure_Pa',
       'centerline_boundary_total_pressure_Pa',
@@ -241,29 +264,36 @@ class MocEulerPostShockFieldResult:
       pressures = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value <= 0.0 for value in pressures):
         raise ValueError(f'{name} must contain finite positive values')
+      ####
       object.__setattr__(self, name, pressures)
+    ####
     if len(self.shock_boundary_points_m) != len(self.shock_boundary_states):
       raise ValueError('shock boundary points and states must have equal lengths')
+    ####
     if len(self.shock_boundary_points_m) != len(
       self.shock_boundary_total_pressure_Pa
     ):
       raise ValueError(
         'shock boundary points and total pressures must have equal lengths'
       )
+    ####
     if len(self.centerline_boundary_points_m) != len(
       self.centerline_boundary_states
     ):
       raise ValueError(
         'centerline boundary points and states must have equal lengths'
       )
+    ####
     if len(self.centerline_boundary_points_m) != len(
       self.centerline_boundary_total_pressure_Pa
     ):
       raise ValueError(
         'centerline boundary points and total pressures must have equal lengths'
       )
+    ####
     if len(self.attachment_boundary_points_m) not in (0, 2):
       raise ValueError('attachment_boundary_points_m must be empty or contain two points')
+    ####
     if self.uniform_downstream_state is not None and not isinstance(
       self.uniform_downstream_state,
       CharacteristicState,
@@ -271,13 +301,16 @@ class MocEulerPostShockFieldResult:
       raise TypeError(
         'uniform_downstream_state must be a CharacteristicState or None'
       )
+    ####
     if self.uniform_downstream_total_pressure_Pa is not None:
       pressure = float(self.uniform_downstream_total_pressure_Pa)
       if not isfinite(pressure) or pressure <= 0.0:
         raise ValueError(
           'uniform_downstream_total_pressure_Pa must be finite and positive'
         )
+      ####
       object.__setattr__(self, 'uniform_downstream_total_pressure_Pa', pressure)
+    ####
     for name in (
       'maximum_geometry_residual_m',
       'maximum_absolute_invariant_residual',
@@ -286,12 +319,16 @@ class MocEulerPostShockFieldResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
       if name != 'minimum_forward_margin_m' and numeric < 0.0:
         raise ValueError(f'{name} must be nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'position_tolerance_m',
       'invariant_tolerance',
@@ -301,7 +338,9 @@ class MocEulerPostShockFieldResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'uniform_state_verified',
       'characteristic_geometry_verified',
@@ -309,21 +348,27 @@ class MocEulerPostShockFieldResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'physical_closure_status', str(self.physical_closure_status))
     object.__setattr__(self, 'shock_closure_status', str(self.shock_closure_status))
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocEulerPostShockFieldStatus.CONVERGED_LOCAL_CLOSED
+  ####
 
   @property
   def node_count(self) -> int:
     return len(self.nodes)
+  ####
 
   @property
   def cell_count(self) -> int:
     return len(self.cells)
+  ####
 
   @property
   def closed_topology_verified(self) -> bool:
@@ -332,20 +377,24 @@ class MocEulerPostShockFieldResult:
       and self.topology.forms_closed_zone
       and self.topology.nonmanifold_edge_count == 0
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """This local field never claims ambient/free-boundary closure."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   @property
   def state_sampling_available(self) -> bool:
@@ -356,6 +405,7 @@ class MocEulerPostShockFieldResult:
       and self.uniform_downstream_total_pressure_Pa is not None
       and self.closed_topology_verified
     )
+  ####
 
   @property
   def domain_x_extent_m(self) -> tuple[float, float] | None:
@@ -366,10 +416,13 @@ class MocEulerPostShockFieldResult:
     )
     if not points:
       return None
+    ####
     values = tuple(float(point[0]) for point in points)
     if not all(isfinite(value) for value in values):
       return None
+    ####
     return min(values), max(values)
+  ####
 
   @property
   def domain_y_extent_m(self) -> tuple[float, float] | None:
@@ -380,10 +433,13 @@ class MocEulerPostShockFieldResult:
     )
     if not points:
       return None
+    ####
     values = tuple(float(point[1]) for point in points)
     if not all(isfinite(value) for value in values):
       return None
+    ####
     return min(values), max(values)
+  ####
 
   def _contains(
     self,
@@ -399,6 +455,7 @@ class MocEulerPostShockFieldResult:
       )
       for cell in self.cells
     )
+  ####
 
   def state_at(
     self,
@@ -411,21 +468,25 @@ class MocEulerPostShockFieldResult:
     tolerance = float(position_tolerance_m)
     if not isfinite(tolerance) or tolerance <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     try:
       point = _finite_point(point_m, 'point_m')
     except ValueError:
       return None
+    ####
     if not self.state_sampling_available or not self._contains(
       point,
       position_tolerance_m=tolerance,
     ):
       return None
+    ####
     assert self.uniform_downstream_state is not None
     return replace(
       self.uniform_downstream_state,
       x_m=point[0],
       y_m=point[1],
     )
+  ####
 
   def total_pressure_at(
     self,
@@ -441,7 +502,9 @@ class MocEulerPostShockFieldResult:
     )
     if state is None:
       return None
+    ####
     return self.uniform_downstream_total_pressure_Pa
+  ####
 
   def static_pressure_at(
     self,
@@ -461,10 +524,12 @@ class MocEulerPostShockFieldResult:
     )
     if state is None or pressure is None:
       return None
+    ####
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
     return pressure / pressure_ratio
+  ####
 
   @property
   def downstream_handoff(self) -> tuple[MocChainBoundarySample, ...]:
@@ -472,6 +537,7 @@ class MocEulerPostShockFieldResult:
 
     if not self.state_sampling_available:
       return ()
+    ####
     return tuple(
       MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
       for state, pressure in zip(
@@ -480,6 +546,7 @@ class MocEulerPostShockFieldResult:
         strict=True,
       )
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Map the local field result to an explicit non-physical chain stop."""
@@ -506,6 +573,7 @@ class MocEulerPostShockFieldResult:
     else:
       reason = MocChainTerminationReason.STATE_NOT_CARRIED
       message = self.message
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -521,6 +589,7 @@ class MocEulerPostShockFieldResult:
         'production_claim_allowed': False,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -561,6 +630,8 @@ class MocEulerPostShockFieldResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -612,6 +683,7 @@ def _failure(
     shock_closure_status='shock-retained; ambient-free-boundary-open',
     message=message,
   )
+####
 
 
 def assemble_euler_post_shock_field(
@@ -638,6 +710,7 @@ def assemble_euler_post_shock_field(
       shock_boundary=None,
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
     )
+  ####
   try:
     position_tolerance_value = float(position_tolerance_m)
     invariant_tolerance_value = float(invariant_tolerance)
@@ -649,6 +722,7 @@ def assemble_euler_post_shock_field(
       shock_boundary=shock_boundary,
       message='post-shock field tolerances must be numeric',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_value),
     ('invariant_tolerance', invariant_tolerance_value),
@@ -657,6 +731,8 @@ def assemble_euler_post_shock_field(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
 
   points = tuple(shock_boundary.shock_points_m)
   states = tuple(shock_boundary.downstream_states)
@@ -678,6 +754,7 @@ def assemble_euler_post_shock_field(
         f'characteristic shock boundary: {shock_boundary.message}'
       ),
     )
+  ####
   if len(points) < 3 or len(states) != len(points) or len(pressures) != len(points):
     return _failure(
       MocEulerPostShockFieldStatus.INVALID_INPUT,
@@ -690,6 +767,7 @@ def assemble_euler_post_shock_field(
         'downstream states, and total-pressure samples'
       ),
     )
+  ####
   for index, (point, state) in enumerate(zip(points, states, strict=True)):
     if hypot(state.x_m - point[0], state.y_m - point[1]) > 10.0 * position_tolerance_value:
       return _failure(
@@ -700,6 +778,8 @@ def assemble_euler_post_shock_field(
         shock_pressures=pressures,
         message=f'downstream shock state {index} is not located at its shock point',
       )
+    ####
+  ####
   for index, (previous, current) in enumerate(
     zip(points[:-1], points[1:], strict=True),
     start=1,
@@ -713,6 +793,7 @@ def assemble_euler_post_shock_field(
         shock_pressures=pressures,
         message=f'shock point {index} is not strictly downstream in x',
       )
+    ####
     if current[1] > previous[1] + position_tolerance_value:
       return _failure(
         MocEulerPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -722,6 +803,8 @@ def assemble_euler_post_shock_field(
         shock_pressures=pressures,
         message='shock points must be nonincreasing in y toward the centerline',
       )
+    ####
+  ####
   if points[0][1] <= position_tolerance_value or abs(points[-1][1]) > 10.0 * position_tolerance_value:
     return _failure(
       MocEulerPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -731,6 +814,7 @@ def assemble_euler_post_shock_field(
       shock_pressures=pressures,
       message='shock boundary must start above and end on the y=0 centerline',
     )
+  ####
 
   reference_state = states[0]
   state_residuals = tuple(
@@ -754,6 +838,7 @@ def assemble_euler_post_shock_field(
         f'maximum state residual is {max(state_residuals, default=None)}'
       ),
     )
+  ####
   if abs(reference_state.theta_rad) > state_tolerance_value:
     return _failure(
       MocEulerPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -764,6 +849,7 @@ def assemble_euler_post_shock_field(
       uniform_state=reference_state,
       message='uniform downstream state must be aligned with the centerline',
     )
+  ####
   if any(not isfinite(value) or value <= 0.0 for value in pressures):
     return _failure(
       MocEulerPostShockFieldStatus.INVARIANT_FAILURE,
@@ -774,6 +860,7 @@ def assemble_euler_post_shock_field(
       uniform_state=reference_state,
       message='downstream shock total pressures must be finite and positive',
     )
+  ####
   pressure_residuals = tuple(abs(value - pressures[0]) for value in pressures)
   if max(pressure_residuals, default=float('inf')) > pressure_tolerance_value * max(
     1.0,
@@ -789,6 +876,7 @@ def assemble_euler_post_shock_field(
       uniform_total_pressure=pressures[0],
       message='downstream total pressure is not constant along the local field',
     )
+  ####
 
   centerline_results: list[CharacteristicPointResult] = []
   centerline_points: list[tuple[float, float]] = []
@@ -832,9 +920,11 @@ def assemble_euler_post_shock_field(
         uniform_total_pressure=pressures[0],
         message=f'centerline characteristic {index} failed: {result.message}',
       )
+    ####
     centerline_results.append(result)
     centerline_points.append(result.point_m)
     centerline_states.append(result.state)
+  ####
 
   for index, (previous, current) in enumerate(
     zip(centerline_points[:-1], centerline_points[1:], strict=True),
@@ -858,6 +948,8 @@ def assemble_euler_post_shock_field(
         ),
         message=f'centerline characteristic {index} is not ordered downstream',
       )
+    ####
+  ####
   if centerline_points[0][0] <= points[0][0] + position_tolerance_value:
     return _failure(
       MocEulerPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -876,6 +968,7 @@ def assemble_euler_post_shock_field(
       ),
       message='first centerline characteristic does not advance from the shock',
     )
+  ####
   if hypot(centerline_points[-1][0] - points[-1][0], centerline_points[-1][1] - points[-1][1]) > 10.0 * position_tolerance_value:
     return _failure(
       MocEulerPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -894,6 +987,7 @@ def assemble_euler_post_shock_field(
       ),
       message='terminal centerline characteristic does not meet the shock endpoint',
     )
+  ####
 
   nodes_by_key: dict[tuple[int, int], MocCharacteristicNode] = {}
   nodes: list[MocCharacteristicNode] = []
@@ -945,6 +1039,7 @@ def assemble_euler_post_shock_field(
             f'{result.message}'
           ),
         )
+      ####
       interior_results.append(result)
       margin_plus = _forward_margin(
         centerline_states[column],
@@ -971,6 +1066,7 @@ def assemble_euler_post_shock_field(
           uniform_total_pressure=pressures[0],
           message='interior characteristic direction is undefined',
         )
+      ####
       forward_margins.extend((margin_plus, margin_minus))
       node = MocCharacteristicNode(
         centerline_index=column,
@@ -982,6 +1078,7 @@ def assemble_euler_post_shock_field(
       )
       nodes_by_key[row, column] = node
       nodes.append(node)
+    ####
     node = MocCharacteristicNode(
       centerline_index=row,
       boundary_index=row,
@@ -992,6 +1089,7 @@ def assemble_euler_post_shock_field(
     )
     nodes_by_key[row, row] = node
     nodes.append(node)
+  ####
 
   cells: list[MocCharacteristicCell] = []
   try:
@@ -1024,6 +1122,7 @@ def assemble_euler_post_shock_field(
             nodes_by_key[row, column + 1].point_m,
             nodes_by_key[row - 1, column + 1].point_m,
           )
+        ####
         cells.append(
           MocCharacteristicCell(
             cell_index=len(cells) + 1,
@@ -1037,6 +1136,8 @@ def assemble_euler_post_shock_field(
             boundary_indices=(column, row),
           )
         )
+      ####
+    ####
 
     terminal_row = len(points) - 2
     terminal_boundary = [
@@ -1095,6 +1196,7 @@ def assemble_euler_post_shock_field(
           boundary_indices=(terminal_row,),
         )
       )
+    ####
   except (TypeError, ValueError) as error:
     topology = validate_moc_mesh(cells)
     return _failure(
@@ -1114,6 +1216,7 @@ def assemble_euler_post_shock_field(
       uniform_total_pressure=pressures[0],
       message=f'post-shock characteristic cell geometry failed: {error}',
     )
+  ####
 
   topology = validate_moc_mesh(cells)
   if not topology.forms_closed_zone or topology.nonmanifold_edge_count:
@@ -1158,6 +1261,7 @@ def assemble_euler_post_shock_field(
       minimum_forward_margin_m=min(forward_margins, default=None),
       message=f'post-shock characteristic topology failed: {topology.message}',
     )
+  ####
   return MocEulerPostShockFieldResult(
     status=MocEulerPostShockFieldStatus.CONVERGED_LOCAL_CLOSED,
     shock_boundary=shock_boundary,
@@ -1212,3 +1316,4 @@ def assemble_euler_post_shock_field(
       'remain intentionally blocked'
     ),
   )
+####

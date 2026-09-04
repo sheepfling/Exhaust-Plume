@@ -180,6 +180,7 @@ def test_signature_table_rejects_extrapolation_by_default() -> None:
       wavelengths_m=(2.0e-6,),
     ))
   ####
+####
 
 
 def test_signature_table_supports_single_exact_direction_node() -> None:
@@ -200,6 +201,7 @@ def test_signature_table_supports_single_exact_direction_node() -> None:
   )
   assert result.spectral_radiant_intensity == ((2.0, 4.0),)
   assert result.validity_mask == ((True, True),)
+####
 
 
 def test_signature_table_rejects_single_direction_interpolation() -> None:
@@ -210,6 +212,7 @@ def test_signature_table_rejects_single_direction_interpolation() -> None:
       direction_cosine_nodes=(0.9,),
       spectral_radiant_intensity_w_sr_m=((2.0, 4.0),),
     )
+  ####
 ####
 
 

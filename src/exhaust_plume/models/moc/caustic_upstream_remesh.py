@@ -50,6 +50,7 @@ class MocCausticUpstreamRemeshStatus(str, Enum):
   CENTERLINE_TRACE_FAILURE = 'caustic_upstream_remesh_centerline_trace_failure'
   OUTER_TRACE_FAILURE = 'caustic_upstream_remesh_outer_trace_failure'
   FIELD_FAILURE = 'caustic_upstream_remesh_field_failure'
+####
 
 
 def _state_matches(
@@ -71,6 +72,7 @@ def _state_matches(
     and abs(actual.gamma - expected.gamma)
     <= state_tolerance * max(1.0, abs(actual.gamma), abs(expected.gamma))
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,45 +105,55 @@ class MocCausticUpstreamRemeshRequest:
       raise TypeError(
         'seed must be a MocSourceStripCausticShockSeedResult'
       )
+    ####
     if not self.seed.converged:
       raise ValueError(
         'caustic upstream remesh requires a converged one-sided seed'
       )
+    ####
     if (
       isinstance(self.upstream_edge_index, bool)
       or not isinstance(self.upstream_edge_index, int)
       or self.upstream_edge_index not in (0, 1)
     ):
       raise ValueError('upstream_edge_index must be 0 or 1')
+    ####
     try:
       centerline = tuple(self.centerline_source_states)
       outer = tuple(self.outer_source_states)
     except TypeError as error:
       raise TypeError('source traces must be iterable') from error
+    ####
     if len(centerline) < 3 or len(outer) < 3:
       raise ValueError(
         'caustic upstream remesh requires at least three samples on each trace'
       )
+    ####
     if len(centerline) != len(outer):
       raise ValueError(
         'caustic upstream remesh requires equal-length source traces'
       )
+    ####
     if any(
       not isinstance(state, CharacteristicState)
       for state in (*centerline, *outer)
     ):
       raise TypeError('source traces must contain CharacteristicState values')
+    ####
     event = self.seed.event
     if event is None or event.caustic_point_m is None:
       raise ValueError(
         'caustic upstream remesh requires a bounded detected caustic event'
       )
+    ####
     pressure = float(self.total_pressure_Pa)
     if not isfinite(pressure) or pressure <= 0.0:
       raise ValueError('total_pressure_Pa must be finite and positive')
+    ####
     seed_pressure = self.seed.total_pressure_Pa
     if seed_pressure is None or not isfinite(float(seed_pressure)) or seed_pressure <= 0.0:
       raise ValueError('seed must retain a finite positive total pressure')
+    ####
     if abs(pressure - float(seed_pressure)) > 1.0e-12 * max(
       1.0,
       abs(pressure),
@@ -150,10 +162,12 @@ class MocCausticUpstreamRemeshRequest:
       raise ValueError(
         'total_pressure_Pa must match the caustic seed total pressure'
       )
+    ####
     try:
       incoming_handoff = tuple(self.incoming_handoff)
     except TypeError as error:
       raise TypeError('incoming_handoff must be iterable') from error
+    ####
     if any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in incoming_handoff
@@ -161,29 +175,37 @@ class MocCausticUpstreamRemeshRequest:
       raise TypeError(
         'incoming_handoff must contain MocChainBoundarySample values'
       )
+    ####
     if incoming_handoff and len(incoming_handoff) < 3:
       raise ValueError(
         'incoming_handoff requires at least three samples when supplied'
       )
+    ####
     centerline_y = float(self.centerline_y_m)
     if not isfinite(centerline_y):
       raise ValueError('centerline_y_m must be finite')
+    ####
     tolerance = float(self.position_tolerance_m)
     invariant_tolerance = float(self.invariant_tolerance)
     if not isfinite(tolerance) or tolerance <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     if not isfinite(invariant_tolerance) or invariant_tolerance <= 0.0:
       raise ValueError('invariant_tolerance must be finite and positive')
+    ####
     if abs(centerline_y) > tolerance:
       raise ValueError(
         'the current planar source-strip assembler requires centerline_y_m=0'
       )
+    ####
     boundary_kind = str(self.outer_boundary_kind)
     if not boundary_kind:
       raise ValueError('outer_boundary_kind must be a non-empty string')
+    ####
     edge = self.seed.edge_states[self.upstream_edge_index]
     if edge.state is None or edge.static_pressure_Pa is None:
       raise ValueError('selected seed edge must retain state and pressure')
+    ####
     object.__setattr__(self, 'centerline_source_states', centerline)
     object.__setattr__(self, 'outer_source_states', outer)
     object.__setattr__(self, 'total_pressure_Pa', pressure)
@@ -245,6 +267,7 @@ class MocCausticUpstreamRemeshRequest:
       'outer_trace_generation': 'caller-supplied-coupled-remesher-data',
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -263,6 +286,7 @@ class MocCausticUpstreamRemeshResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocCausticUpstreamRemeshStatus):
       raise TypeError('status must be a MocCausticUpstreamRemeshStatus')
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocCausticUpstreamRemeshRequest,
@@ -270,6 +294,7 @@ class MocCausticUpstreamRemeshResult:
       raise TypeError(
         'request must be a MocCausticUpstreamRemeshRequest or None'
       )
+    ####
     if self.strip is not None and not isinstance(
       self.strip,
       MocSourceCharacteristicStripResult,
@@ -277,6 +302,7 @@ class MocCausticUpstreamRemeshResult:
       raise TypeError(
         'strip must be a MocSourceCharacteristicStripResult or None'
       )
+    ####
     for name in (
       'event_seam_verified',
       'centerline_trace_verified',
@@ -285,6 +311,8 @@ class MocCausticUpstreamRemeshResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
   ####
 
   @property
@@ -330,6 +358,7 @@ class MocCausticUpstreamRemeshResult:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
     else:
       reason = MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -372,6 +401,7 @@ class MocCausticUpstreamRemeshResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -395,6 +425,7 @@ def _failure(
     source_field_verified=source_field_verified,
     message=message,
   )
+####
 
 
 def solve_caustic_upstream_remesh(
@@ -413,6 +444,7 @@ def solve_caustic_upstream_remesh(
       MocCausticUpstreamRemeshStatus.INVALID_INPUT,
       message='request must be a MocCausticUpstreamRemeshRequest',
     )
+  ####
   event = request.event_point_m
   selected_state = request.selected_upstream_state
   outer = request.outer_source_states
@@ -442,6 +474,7 @@ def solve_caustic_upstream_remesh(
         'caustic point and state'
       ),
     )
+  ####
 
   centerline_trace_verified = bool(
     all(
@@ -465,6 +498,7 @@ def solve_caustic_upstream_remesh(
         'whose final source remains upstream of the caustic outer trace'
       ),
     )
+  ####
 
   outer_trace_verified = bool(
     all(
@@ -487,6 +521,7 @@ def solve_caustic_upstream_remesh(
         'centerline and progress strictly downstream'
       ),
     )
+  ####
 
   strip = assemble_source_characteristic_strip(
     centerline,
@@ -505,6 +540,7 @@ def solve_caustic_upstream_remesh(
       outer_trace_verified=outer_trace_verified,
       message=f'caustic upstream Cauchy remesh field failed: {strip.message}',
     )
+  ####
 
   sampled_state = strip.state_at(
     event,
@@ -547,6 +583,7 @@ def solve_caustic_upstream_remesh(
         'event state and isentropic static pressure'
       ),
     )
+  ####
   return MocCausticUpstreamRemeshResult(
     status=MocCausticUpstreamRemeshStatus.CONVERGED_BOUNDED_FIELD,
     request=request,
@@ -561,3 +598,4 @@ def solve_caustic_upstream_remesh(
       'remain separate gates'
     ),
   )
+####

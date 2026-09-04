@@ -35,6 +35,7 @@ def _definition() -> GrayRayTransferDefinition:
     source_function_w_sr_m=(2.0, 4.0, 8.0),
     absorption_coefficient_per_m=(0.5, 1.0, 2.0),
   )
+####
 
 
 def _snapshot():
@@ -48,6 +49,7 @@ def _snapshot():
     dynamic_state={},
     ambient_state={},
   )
+####
 
 
 def test_gray_provider_solves_cylinder_chord_and_interpolates_wavelengths() -> None:
@@ -69,6 +71,7 @@ def test_gray_provider_solves_cylinder_chord_and_interpolates_wavelengths() -> N
   assert result.background_transmittance[0] == pytest.approx((exp(-1.5), exp(-3.0)))
   assert result.source_spectral_radiance[0] == pytest.approx((3.0 * (1.0 - exp(-1.5)), 6.0 * (1.0 - exp(-3.0))))
   assert result.metadata.claims.radiation.value == 'gray_approximate'
+####
 
 
 def test_gray_provider_distinguishes_miss_and_unsupported_capability() -> None:
@@ -97,6 +100,8 @@ def test_gray_provider_distinguishes_miss_and_unsupported_capability() -> None:
         wavelengths_m=(1.0e-6, 2.0e-6),
       ),
     )
+  ####
+####
 
 
 def test_gray_provider_rejects_frame_and_wavelength_outside_domain() -> None:
@@ -111,6 +116,7 @@ def test_gray_provider_rejects_frame_and_wavelength_outside_domain() -> None:
   )
   with pytest.raises(ProductOutsideApplicabilityError):
     snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+  ####
 
   outside = SpectralRayTransferRequest(
     ray_frame_id='sensor',
@@ -122,6 +128,8 @@ def test_gray_provider_rejects_frame_and_wavelength_outside_domain() -> None:
   )
   with pytest.raises(ProductOutsideApplicabilityError):
     snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, outside)
+  ####
+####
 
 
 def test_gray_provider_rejects_curved_support_until_curve_transfer_gate_exists() -> None:
@@ -138,6 +146,8 @@ def test_gray_provider_rejects_curved_support_until_curve_transfer_gate_exists()
   )
   with pytest.raises(ProviderConfigurationError, match='straight support'):
     GrayRayTransferProvider().create_session(definition=definition)
+  ####
+####
 
 
 def test_gray_provider_composes_section_varying_properties_in_ray_order() -> None:
@@ -182,6 +192,7 @@ def test_gray_provider_composes_section_varying_properties_in_ray_order() -> Non
   )
   assert result.metadata.provenance.metadata['optical_property_mode'] == 'piecewise-axial-section'
   assert result.metadata.provenance.metadata['optical_property_section_count'] == '2'
+####
 
 
 def test_gray_definition_rejects_incomplete_section_properties() -> None:
@@ -196,6 +207,7 @@ def test_gray_definition_rejects_incomplete_section_properties() -> None:
       support=support,
       wavelengths_m=(1.0e-6, 2.0e-6),
     )
+  ####
   with pytest.raises(ProviderConfigurationError, match='require 1 support sections'):
     GrayRayTransferDefinition(
       frame_id='sensor',
@@ -204,6 +216,7 @@ def test_gray_definition_rejects_incomplete_section_properties() -> None:
       source_function_w_sr_m_by_section=((1.0, 1.0), (2.0, 2.0)),
       absorption_coefficient_per_m_by_section=((1.0, 1.0), (1.0, 1.0)),
     )
+  ####
   with pytest.raises(ProviderConfigurationError, match='advance along the support axis'):
     GrayRayTransferDefinition(
       frame_id='sensor',
@@ -216,3 +229,5 @@ def test_gray_definition_rejects_incomplete_section_properties() -> None:
       source_function_w_sr_m_by_section=((1.0, 1.0), (2.0, 2.0)),
       absorption_coefficient_per_m_by_section=((1.0, 1.0), (1.0, 1.0)),
     )
+  ####
+####

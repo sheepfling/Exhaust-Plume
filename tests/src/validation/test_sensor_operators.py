@@ -97,6 +97,7 @@ def test_atmospheric_layers_reject_mismatched_wavelength_rows() -> None:
         ),
       ),
     )
+  ####
 ####
 
 
@@ -180,3 +181,5 @@ def test_bandpass_detector_rejects_response_extrapolation() -> None:
       band_min_m=1.0e-6,
       band_max_m=3.0e-6,
     )
+  ####
+####

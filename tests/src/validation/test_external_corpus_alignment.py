@@ -33,6 +33,7 @@ def test_operator_reconciliation_does_not_guess_namespace_aliases() -> None:
   assert report['reviewed_semantic_crosswalks'][0]['internal_operator_ids'] == [
     'op.field.profile-probe'
   ]
+####
 
 
 def test_primary_gate_crosswalk_is_explicit_but_does_not_reconcile_namespace() -> None:
@@ -71,6 +72,7 @@ def test_primary_gate_crosswalk_is_explicit_but_does_not_reconcile_namespace() -
     'operator.image.integrate_alsi_band_and_area',
   ]
   assert report['unreviewed_external_only'] == ['operator.unreviewed']
+####
 
 
 def test_complete_scoped_crosswalk_covers_the_external_namespace_without_exact_aliasing() -> None:
@@ -90,3 +92,4 @@ def test_complete_scoped_crosswalk_covers_the_external_namespace_without_exact_a
   assert report['semantic_crosswalk']['status'] == 'valid'
   assert report['unreviewed_external_only'] == []
   assert report['exact_namespace_match'] is False
+####

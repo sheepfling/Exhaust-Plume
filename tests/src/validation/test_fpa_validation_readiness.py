@@ -12,6 +12,8 @@ def _zip(path: Path, members: tuple[str, ...]) -> str:
   with ZipFile(path, 'w') as archive:
     for member in members:
       archive.writestr(member, 'fixture')
+    ####
+  ####
   digest = sha256(path.read_bytes()).hexdigest()
   return digest
 ####
@@ -50,6 +52,7 @@ def test_fpa_readiness_keeps_missing_measurements_blocked(tmp_path: Path) -> Non
   assert report['intake']['alignment']['status'] == 'missing'
   assert report['measurement_contract']['dataset_status'] == 'not-present-in-corpus'
   assert report['accepted_external_claim'] is False
+####
 
 
 def test_fpa_readiness_only_reaches_contract_review_when_all_inputs_are_declared(tmp_path: Path) -> None:
@@ -67,3 +70,4 @@ def test_fpa_readiness_only_reaches_contract_review_when_all_inputs_are_declared
   assert report['measurement_contract']['measurement_operator_id'] == 'operator.sensor.fpa-detector-counts'
   assert report['measurement_contract']['candidate_observation_members'] == ['data/fpa_detector_counts.csv']
   assert report['accepted_external_claim'] is False
+####

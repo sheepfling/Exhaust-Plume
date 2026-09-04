@@ -428,6 +428,7 @@ def render_sectioned_tube_gallery(
   _apply_camera(axis, resolved)
   if normalizer is not None:
     figure.colorbar(plt.cm.ScalarMappable(norm=normalizer, cmap=resolved.color_map), ax=axis, label=projection.selected_channel.unit if projection.selected_channel else '')
+  ####
   _save(figure, overview_path, title='Sectioned-tube geometry overview', result=result, spec=resolved)
   plt.close(figure)
 
@@ -604,6 +605,7 @@ def render_spectral_radiant_intensity_gallery(
     color = '#d62728' if direction_index == projection.direction_index else '#4c78a8'
     linewidth = 2.2 if direction_index == projection.direction_index else 1.0
     axis.plot(wavelengths, values, marker='o', color=color, linewidth=linewidth, label=f'direction {direction_index}: ({direction[0]:.3f}, {direction[1]:.3f}, {direction[2]:.3f})')
+  ####
   _apply_x_scale(axis, resolved, wavelengths)
   all_values = tuple(value for row in rows for value in row)
   _apply_y_scale(axis, resolved, all_values)
@@ -655,6 +657,7 @@ def render_spectral_radiant_intensity_gallery(
   axis.legend(loc='upper left', fontsize=8)
   if normalizer is not None:
     figure.colorbar(plt.cm.ScalarMappable(norm=normalizer, cmap=resolved.color_map), ax=axis, label=f'Jλ at {wavelengths[projection.wavelength_index]:g}')
+  ####
   _save(figure, sphere_path, title='Direction-unit-sphere view at selected wavelength', result=result, spec=resolved)
   plt.close(figure)
 
@@ -802,6 +805,7 @@ def render_spectral_ray_transfer_gallery(
     axis.set_xticklabels([f'{value:g}' for value in wavelengths], rotation=35, ha='right')
     axis.set_yticks(range(len(data.lines)))
     axis.set_yticklabels([line.ray_id for line in data.lines])
+  ####
   axes[0].set_title('Source radiance heatmap')
   axes[1].set_title('Background transmittance heatmap')
   figure.colorbar(source_image, ax=axes[0], label='source radiance')
@@ -856,6 +860,7 @@ def _flux_values_table(glyph: PlumeFluxSectionGlyph, output: Path) -> Path:
     writer.writerow(('pressure_match_relative_residual', '', glyph.pressure_match_relative_residual, '1'))
     for component, value in enumerate(glyph.momentum_flux_N):
       writer.writerow(('momentum_flux', component, value, 'N'))
+    ####
     for species_id, value in glyph.species_mass_flows_kgps:
       writer.writerow(('species_mass_flow', species_id, value, 'kg/s'))
     ####

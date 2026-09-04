@@ -68,6 +68,7 @@ def _caustic_band_fixtures():
   )
   assert seed.converged
   return exit_state, ambient, seed
+####
 
 
 def test_caustic_band_grows_open_post_shock_zone_to_typed_terminal() -> None:
@@ -128,6 +129,8 @@ def test_caustic_band_grows_open_post_shock_zone_to_typed_terminal() -> None:
     assert mixed_boundary.supersonic_patch_verified
     assert mixed_boundary.physical_closure_verified is False
     assert mixed_boundary.chain_promotion_blocked
+  ####
+####
 
 
 def test_caustic_origin_envelope_retains_the_bounded_remesh_seam() -> None:
@@ -163,6 +166,8 @@ def test_caustic_origin_envelope_retains_the_bounded_remesh_seam() -> None:
       'weak-attached-zero-turn-forward-envelope'
     )
     assert report['chain_termination_decision']['reason'] == 'characteristic-caustic'
+  ####
+####
 
 
 def test_caustic_origin_envelope_planner_carries_the_prior_perimeter() -> None:
@@ -207,6 +212,7 @@ def test_caustic_origin_envelope_planner_carries_the_prior_perimeter() -> None:
   assert planner.chain.diagnostics['termination_model'] == (
     'caustic-forward-envelope-domain-boundary'
   )
+####
 
 
 def test_caustic_band_shock_solver_does_not_extrapolate_outside_input_domain() -> None:
@@ -227,6 +233,7 @@ def test_caustic_band_shock_solver_does_not_extrapolate_outside_input_domain() -
   assert result.converged is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
+####
 
 
 def test_caustic_band_chain_planner_carries_handoff_and_stops_at_open_mixed_regime() -> None:
@@ -302,6 +309,8 @@ def test_caustic_band_chain_planner_carries_handoff_and_stops_at_open_mixed_regi
       start_point_m=start,
       end_x_m=1.4,
     )
+  ####
+####
 
 
 def test_invariant_caustic_band_chain_reports_the_first_missing_upstream_sample() -> None:
@@ -384,3 +393,4 @@ def test_invariant_caustic_band_chain_reports_the_first_missing_upstream_sample(
   assert planner.steps[0].incoming_handoff_sample_count == len(
     current.continuation_boundary
   )
+####

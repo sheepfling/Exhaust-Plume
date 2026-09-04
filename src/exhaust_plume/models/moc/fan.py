@@ -40,11 +40,14 @@ class MocExpansionFanCell:
   def __post_init__(self) -> None:
     if len(self.vertices_xr_m) != 3:
       raise ValueError('fan cells must be triangular')
+    ####
     validation = validate_polygon(np.asarray(self.vertices_xr_m, dtype=float))
     if not validation.is_valid:
       raise ValueError(f'fan cell polygon is invalid: {validation.status.value}')
+    ####
     object.__setattr__(self, 'geometry_status', GeometryStatus.VALID)
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +81,7 @@ class MocExpansionFanResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -131,14 +135,17 @@ def solve_underexpanded_expansion_fan(
       status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
       message='the expansion-fan foundation requires an underexpanded exit state',
     )
+  ####
   if (
     isinstance(characteristic_count, bool)
     or not isinstance(characteristic_count, int)
     or characteristic_count < 2
   ):
     raise ValueError('characteristic_count must be an integer of at least two')
+  ####
   if not isfinite(geometric_tolerance_m) or geometric_tolerance_m <= 0.0:
     raise ValueError('geometric_tolerance_m must be finite and positive')
+  ####
   if not isfinite(pressure_tolerance) or pressure_tolerance <= 0.0:
     raise ValueError('pressure_tolerance must be finite and positive')
   ####
@@ -154,6 +161,7 @@ def solve_underexpanded_expansion_fan(
       status=pressure_inverse.status,
       message=pressure_inverse.message,
     )
+  ####
   terminal_mach = pressure_inverse.value
   if terminal_mach <= exit_state.mach:
     return _invalid(
@@ -191,6 +199,7 @@ def solve_underexpanded_expansion_fan(
         status=inversion.status,
         message=f'fan state {index} could not invert Prandtl-Meyer angle: {inversion.message}',
       )
+    ####
     mach = inversion.value
     theta = float(exit_state.flow_angle_rad) + fraction * total_turn
     mu = mach_angle_rad(mach)
@@ -214,6 +223,7 @@ def solve_underexpanded_expansion_fan(
         status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
         message=f'fan characteristic {index} does not travel toward the centerline',
       )
+    ####
     x = lip[0] + (0.0 - lip[1]) * cos(characteristic_angle) / vertical_component
     if not isfinite(x) or x <= 0.0:
       return _invalid(
@@ -222,6 +232,7 @@ def solve_underexpanded_expansion_fan(
         status=MocPrimitiveStatus.GEOMETRY_FAILURE,
         message=f'fan characteristic {index} produced a non-forward centerline point',
       )
+    ####
     lip_ray_centerline_points.append((x, 0.0))
     states.append(
       CharacteristicState(
@@ -248,6 +259,7 @@ def solve_underexpanded_expansion_fan(
           f'{centerline_result.message}'
         ),
       )
+    ####
     centerline_states.append(centerline_result.state)
     centerline_points.append(centerline_result.point_m)
   ####
@@ -277,6 +289,7 @@ def solve_underexpanded_expansion_fan(
         status=midpoint_inverse.status,
         message=f'fan cell {index} midpoint state failed inversion',
       )
+    ####
     midpoint = MocExpansionFanCell(
       cell_index=index,
       vertices_xr_m=(lip, left_point, right_point),

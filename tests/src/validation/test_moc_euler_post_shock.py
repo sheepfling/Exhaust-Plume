@@ -53,6 +53,7 @@ def _axis_aligned_exact_shock(sample_count: int = 6):
   )
   assert result.converged
   return result
+####
 
 
 def test_local_post_shock_field_closes_topology_and_carries_centerline_frontier() -> None:
@@ -87,6 +88,7 @@ def test_local_post_shock_field_closes_topology_and_carries_centerline_frontier(
   assert audit.topology_verified
   assert audit.cell_euler_residuals_verified
   assert audit.fidelity_flags_verified
+####
 
 
 def test_local_post_shock_chain_reassembles_fresh_fields_and_stops_typed() -> None:
@@ -121,6 +123,7 @@ def test_local_post_shock_chain_reassembles_fresh_fields_and_stops_typed() -> No
   assert audit.handoff_links_verified
   assert audit.termination_verified
   assert audit.fidelity_flags_verified
+####
 
 
 def test_local_post_shock_field_rejects_nonuniform_downstream_state() -> None:
@@ -144,3 +147,4 @@ def test_local_post_shock_field_rejects_nonuniform_downstream_state() -> None:
   assert field.status is MocEulerPostShockFieldStatus.NONUNIFORM_DOWNSTREAM_STATE
   assert not field.converged
   assert not field.downstream_handoff
+####

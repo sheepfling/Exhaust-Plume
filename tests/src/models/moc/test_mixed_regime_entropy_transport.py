@@ -73,6 +73,7 @@ def _request() -> MocMixedRegimePerimeterRequest:
     terminal_total_pressure_ratio=terminal.total_pressure_ratio,
     supersonic_patch=patch,
   )
+####
 
 
 def _request_handoff_field():
@@ -102,6 +103,7 @@ def _request_handoff_field():
   field = solve_mixed_regime_subsonic_field(boundary, radial_divisions=2)
   handoff = build_mixed_regime_entropy_handoff(request)
   return request, handoff, field
+####
 
 
 def _terminal_source_map(handoff, field):
@@ -111,6 +113,7 @@ def _terminal_source_map(handoff, field):
     tuple(terminal_arc for _ in field.nodes),
     tuple(0 for _ in field.nodes),
   )
+####
 
 
 def test_entropy_transport_binds_an_explicit_source_map_without_promotion() -> None:
@@ -163,6 +166,7 @@ def test_entropy_transport_binds_an_explicit_source_map_without_promotion() -> N
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_entropy_transport_disables_source_extrapolation() -> None:
@@ -181,6 +185,7 @@ def test_entropy_transport_disables_source_extrapolation() -> None:
   assert not result.converged
   assert not result.entropy_transport_verified
   assert 'extrapolation' in result.message
+####
 
 
 def test_entropy_transport_rejects_pressure_lineage_residuals() -> None:
@@ -227,6 +232,7 @@ def test_entropy_transport_rejects_pressure_lineage_residuals() -> None:
   assert measurement.status is MocMixedRegimeEntropyTransportMeasurementStatus.CONSISTENCY_FAILURE
   assert not measurement.converged
   assert not measurement.transport_verified
+####
 
 
 def test_entropy_transport_requires_two_nodes_per_explicit_streamline() -> None:
@@ -244,3 +250,4 @@ def test_entropy_transport_requires_two_nodes_per_explicit_streamline() -> None:
   assert result.status is MocMixedRegimeEntropyTransportStatus.MAPPING_FAILURE
   assert not result.converged
   assert 'at least two nodes' in result.message
+####

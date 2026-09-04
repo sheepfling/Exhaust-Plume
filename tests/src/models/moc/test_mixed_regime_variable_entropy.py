@@ -73,6 +73,7 @@ def _request() -> MocMixedRegimePerimeterRequest:
     terminal_total_pressure_ratio=terminal.total_pressure_ratio,
     supersonic_patch=patch,
   )
+####
 
 
 def _request_handoff_and_section():
@@ -101,12 +102,14 @@ def _request_handoff_and_section():
         gamma=gamma,
       )
     )
+  ####
   section = MocMixedRegimeControlSection(
     points_m=tuple(sample.point_m for sample in samples),
     samples=tuple(samples),
     normal_angle_rad=0.0,
   )
   return request, handoff, section
+####
 
 
 def _solve(*, axial_station_count: int = 7):
@@ -121,6 +124,7 @@ def _solve(*, axial_station_count: int = 7):
     axial_station_count=axial_station_count,
   )
   return request, handoff, section, result
+####
 
 
 def test_variable_entropy_reference_closes_local_mesh_and_measures_independently() -> None:
@@ -179,6 +183,7 @@ def test_variable_entropy_reference_closes_local_mesh_and_measures_independently
   assert measurement.canonical_euler_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_variable_entropy_reference_refines_without_changing_source_lineage() -> None:
@@ -204,6 +209,7 @@ def test_variable_entropy_reference_refines_without_changing_source_lineage() ->
   assert measurement.cell_count == fine.cell_count
   assert measurement.maximum_continuity_residual is not None
   assert measurement.maximum_continuity_residual <= 0.25
+####
 
 
 def test_variable_entropy_reference_requires_solver_owned_source_pressure() -> None:
@@ -239,6 +245,7 @@ def test_variable_entropy_reference_requires_solver_owned_source_pressure() -> N
   )
   assert not result.converged
   assert 'reverse entropy mapping' in result.message
+####
 
 
 def test_variable_entropy_measurement_rejects_promotion_flag_mutation() -> None:
@@ -257,3 +264,4 @@ def test_variable_entropy_measurement_rejects_promotion_flag_mutation() -> None:
   )
   assert not measurement.reference_verified
   assert not measurement.canonical_euler_verified
+####

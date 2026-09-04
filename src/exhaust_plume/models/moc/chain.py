@@ -124,15 +124,18 @@ class MocChainBoundarySample:
   def __post_init__(self) -> None:
     if not isinstance(self.state, CharacteristicState):
       raise TypeError('chain boundary state must be a CharacteristicState')
+    ####
     pressure = float(self.total_pressure_Pa)
     if not isfinite(pressure) or pressure <= 0.0:
       raise ValueError('chain boundary total pressure must be finite and positive')
+    ####
     object.__setattr__(self, 'total_pressure_Pa', pressure)
   ####
 
   @property
   def point_m(self) -> tuple[float, float]:
     return self.state.x_m, self.state.y_m
+  ####
 ####
 
 
@@ -176,6 +179,7 @@ class MocCharacteristicTraceResult:
       'message': self.message,
     }
   ####
+####
 
 
 def validate_characteristic_trace(
@@ -207,6 +211,7 @@ def validate_characteristic_trace(
       minimum_forward_margin_m=None,
       message='family must be a CharacteristicFamily',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -214,6 +219,8 @@ def validate_characteristic_trace(
     numeric_value = float(value)
     if not isfinite(numeric_value) or numeric_value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   position_tolerance_m = float(position_tolerance_m)
   invariant_tolerance = float(invariant_tolerance)
   if forward_position_tolerance_m is None:
@@ -224,6 +231,8 @@ def validate_characteristic_trace(
       raise ValueError(
         'forward_position_tolerance_m must be finite and positive'
       )
+    ####
+  ####
   try:
     trace = tuple(samples)
   except TypeError:
@@ -236,6 +245,7 @@ def validate_characteristic_trace(
       minimum_forward_margin_m=None,
       message='samples must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if len(trace) < 2:
     return MocCharacteristicTraceResult(
       status=MocCharacteristicTraceStatus.INVALID_INPUT,
@@ -246,6 +256,7 @@ def validate_characteristic_trace(
       minimum_forward_margin_m=None,
       message='a characteristic trace requires at least two samples',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in trace):
     return MocCharacteristicTraceResult(
       status=MocCharacteristicTraceStatus.INVALID_INPUT,
@@ -256,6 +267,7 @@ def validate_characteristic_trace(
       minimum_forward_margin_m=None,
       message='samples must contain MocChainBoundarySample values',
     )
+  ####
   gamma = trace[0].state.gamma
   reference_invariant = (
     trace[0].state.k_plus if family is CharacteristicFamily.PLUS
@@ -277,6 +289,7 @@ def validate_characteristic_trace(
         minimum_forward_margin_m=min(forward_margins, default=None),
         message=f'trace sample {index + 1} uses a different gamma',
       )
+    ####
     invariant = (
       second_state.k_plus if family is CharacteristicFamily.PLUS
       else second_state.k_minus
@@ -295,6 +308,7 @@ def validate_characteristic_trace(
           f'{family.value} invariant'
         ),
       )
+    ####
     displacement = (
       second_state.x_m - first_state.x_m,
       second_state.y_m - first_state.y_m,
@@ -311,6 +325,7 @@ def validate_characteristic_trace(
           f'trace sample {index + 1} is not strictly downstream in x'
         ),
       )
+    ####
     first_direction = first_state.direction(family)
     second_direction = second_state.direction(family)
     averaged_direction = (
@@ -330,6 +345,7 @@ def validate_characteristic_trace(
         minimum_forward_margin_m=min(forward_margins, default=None),
         message=f'trace segment {index} has an undefined averaged direction',
       )
+    ####
     unit_direction = (
       averaged_direction[0] / direction_norm,
       averaged_direction[1] / direction_norm,
@@ -354,6 +370,7 @@ def validate_characteristic_trace(
         minimum_forward_margin_m=min(forward_margins),
         message=f'trace segment {index} is not a forward {family.value} characteristic',
       )
+    ####
   ####
   return MocCharacteristicTraceResult(
     status=MocCharacteristicTraceStatus.CONVERGED,
@@ -386,14 +403,17 @@ class MocChainTerminationDecision:
   def __post_init__(self) -> None:
     if not isinstance(self.physical_termination, bool):
       raise TypeError('physical_termination must be a bool')
+    ####
     if not isinstance(self.reason, MocChainTerminationReason):
       raise TypeError('reason must be a MocChainTerminationReason')
+    ####
     if self.physical_termination != (
         self.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
     ):
       raise ValueError(
         'physical termination decisions must use the physical-termination reason'
       )
+    ####
     object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
   ####
 
@@ -406,6 +426,8 @@ class MocChainTerminationDecision:
       'message': self.message,
       'diagnostics': dict(self.diagnostics),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,23 +459,31 @@ class MocChainCell:
   def __post_init__(self) -> None:
     if isinstance(self.cell_index, bool) or self.cell_index < 1:
       raise ValueError('cell_index must be a positive integer')
+    ####
     for name in ('start_x_m', 'end_x_m'):
       value = float(getattr(self, name))
       if not isfinite(value) or value < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative')
+      ####
+    ####
     if self.end_x_m <= self.start_x_m:
       raise ValueError('cell end_x_m must be strictly downstream of start_x_m')
+    ####
     if not isinstance(self.geometry_fidelity, MocChainGeometryFidelity):
       raise TypeError('geometry_fidelity must be a MocChainGeometryFidelity')
+    ####
     if not isinstance(self.physical_closure, MocCellClosureStatus):
       raise TypeError('physical_closure must be a MocCellClosureStatus')
+    ####
     if not isinstance(self.continuation_boundary_kind, MocChainBoundaryKind):
       raise TypeError(
         'continuation_boundary_kind must be a MocChainBoundaryKind'
       )
+    ####
     mesh = tuple(self.mesh)
     if not mesh:
       raise ValueError('mesh must contain at least one polygon-like cell')
+    ####
     object.__setattr__(self, 'mesh', mesh)
     object.__setattr__(self, 'diagnostics', MappingProxyType(dict(self.diagnostics)))
     boundary = tuple(self.continuation_boundary)
@@ -461,12 +491,15 @@ class MocChainCell:
       raise TypeError(
         'continuation_boundary must contain MocChainBoundarySample values'
       )
+    ####
     if self.continuation_boundary_kind is MocChainBoundaryKind.AXIAL_SECTION and boundary:
       section_x = boundary[0].state.x_m
       if any(abs(sample.state.x_m - section_x) > 1.0e-10 for sample in boundary[1:]):
         raise ValueError(
           'an axial-section continuation boundary must lie on one x plane'
         )
+      ####
+    ####
     object.__setattr__(self, 'continuation_boundary', boundary)
   ####
 
@@ -486,15 +519,21 @@ class MocChainCell:
       vertices = getattr(polygon, 'vertices_xr_m', None)
       if vertices is None:
         continue
+      ####
       try:
         for point in vertices:
           if len(point) != 2 or not all(isfinite(float(value)) for value in point):
             return None
+          ####
           points.append((float(point[0]), float(point[1])))
+        ####
       except (TypeError, ValueError):
         return None
+      ####
+    ####
     if not points:
       return None
+    ####
     return min(point[0] for point in points), max(point[0] for point in points)
   ####
 
@@ -507,15 +546,21 @@ class MocChainCell:
       vertices = getattr(polygon, 'vertices_xr_m', None)
       if vertices is None:
         continue
+      ####
       try:
         for point in vertices:
           if len(point) != 2 or not all(isfinite(float(value)) for value in point):
             return None
+          ####
           points.append((float(point[0]), float(point[1])))
+        ####
       except (TypeError, ValueError):
         return None
+      ####
+    ####
     if not points:
       return None
+    ####
     return min(point[1] for point in points), max(point[1] for point in points)
   ####
 
@@ -525,9 +570,11 @@ class MocChainCell:
 
     if not self.continuation_boundary:
       return None
+    ####
     x_values = tuple(sample.state.x_m for sample in self.continuation_boundary)
     if not all(isfinite(value) for value in x_values):
       return None
+    ####
     return min(x_values), max(x_values)
   ####
 
@@ -548,14 +595,14 @@ class MocChainCell:
       and self.physical_closure is MocCellClosureStatus.CLOSED
       and self.mesh_is_well_formed
     )
-####
+  ####
 
   @property
   def carries_state(self) -> bool:
     """Whether this cell has a typed downstream boundary for re-solving."""
 
     return bool(self.continuation_boundary)
-####
+  ####
 
   @property
   def continuation_total_pressure_range_Pa(self) -> tuple[float, float] | None:
@@ -568,10 +615,12 @@ class MocChainCell:
 
     if not self.continuation_boundary:
       return None
+    ####
     pressures = tuple(
       sample.total_pressure_Pa for sample in self.continuation_boundary
     )
     return min(pressures), max(pressures)
+  ####
 ####
 
 
@@ -591,23 +640,29 @@ class MocChainContinuationPolicy:
   def __post_init__(self) -> None:
     if isinstance(self.max_cells, bool) or self.max_cells < 1:
       raise ValueError('max_cells must be a positive integer')
+    ####
     if self.max_axial_distance_m is not None and (
         not isfinite(float(self.max_axial_distance_m))
         or self.max_axial_distance_m <= 0.0
     ):
       raise ValueError('max_axial_distance_m must be finite and positive when supplied')
+    ####
     if not isfinite(float(self.position_tolerance_m)) or self.position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     if not isfinite(float(self.state_tolerance)) or self.state_tolerance <= 0.0:
       raise ValueError('state_tolerance must be finite and positive')
+    ####
     fidelities = tuple(self.allowed_fidelities)
     if not fidelities or any(
         not isinstance(fidelity, MocChainGeometryFidelity)
         for fidelity in fidelities
     ):
       raise ValueError('allowed_fidelities must contain at least one valid fidelity')
+    ####
     if len(set(fidelities)) != len(fidelities):
       raise ValueError('allowed_fidelities must not contain duplicates')
+    ####
     if any(
         fidelity is not MocChainGeometryFidelity.RESOLVED_PLANAR_MOC
         for fidelity in fidelities
@@ -616,10 +671,13 @@ class MocChainContinuationPolicy:
         'a resolved planar-MOC chain may allow only '
         'RESOLVED_PLANAR_MOC fidelity'
       )
+    ####
     if not isinstance(self.require_state_carry, bool):
       raise TypeError('require_state_carry must be a bool')
+    ####
     object.__setattr__(self, 'allowed_fidelities', fidelities)
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -658,6 +716,7 @@ class MocChainResult:
     for cell in self.cells:
       key = cell.geometry_fidelity.value
       fidelity_counts[key] = fidelity_counts.get(key, 0) + 1
+    ####
     pressure_ranges = tuple(
       (cell.cell_index, cell.continuation_total_pressure_range_Pa)
       for cell in self.cells
@@ -674,6 +733,7 @@ class MocChainResult:
         current <= previous + 1.0e-12 * max(1.0, abs(previous), abs(current))
         for previous, current in zip(pressure_maxima, pressure_maxima[1:])
       )
+    ####
     return {
       'status': self.status.value,
       'termination_reason': self.termination_reason.value,
@@ -724,6 +784,7 @@ class MocChainResult:
       'diagnostics': dict(self.diagnostics),
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -756,12 +817,16 @@ def _validate_cell_mesh(cell: MocChainCell) -> str | None:
   topology = cell.topology
   if topology.status.value == 'invalid_input':
     return topology.message
+  ####
   if not topology.connected:
     return topology.message
+  ####
   if topology.nonmanifold_edge_count:
     return topology.message
+  ####
   if not topology.forms_closed_zone:
     return topology.message
+  ####
   return None
 ####
 
@@ -787,15 +852,21 @@ def _validate_candidate_domain(
     vertices = getattr(polygon, 'vertices_xr_m', None)
     if vertices is None:
       continue
+    ####
     try:
       for point in vertices:
         if len(point) != 2 or not all(isfinite(float(value)) for value in point):
           return 'continued MOC cell mesh contains non-finite geometry'
+        ####
         points.append((float(point[0]), float(point[1])))
+      ####
     except (TypeError, ValueError):
       return 'continued MOC cell mesh contains invalid vertex geometry'
+    ####
+  ####
   if not points:
     return None
+  ####
   minimum_x = min(point[0] for point in points)
   maximum_x = max(point[0] for point in points)
   if minimum_x < current_end_x_m - position_tolerance_m:
@@ -803,11 +874,13 @@ def _validate_candidate_domain(
       'continued MOC cell mesh begins upstream of the shared axial interface: '
       f'minimum_x={minimum_x}, current_end_x={current_end_x_m}'
     )
+  ####
   if maximum_x <= current_end_x_m + position_tolerance_m:
     return (
       'continued MOC cell mesh does not advance downstream of the shared '
       f'axial interface: maximum_x={maximum_x}, current_end_x={current_end_x_m}'
     )
+  ####
   return None
 ####
 
@@ -821,17 +894,23 @@ def _validate_state_carry(
 ) -> str | None:
   if not cell.continuation_boundary:
     return 'cell does not carry a downstream characteristic state boundary'
+  ####
   if len(cell.continuation_boundary) < 3:
     return 'state-carrying MOC cells require at least three boundary samples'
+  ####
   if minimum_x_m is not None:
     if not isfinite(float(minimum_x_m)):
       return 'the downstream state-carry reference x coordinate must be finite'
+    ####
     for index, sample in enumerate(cell.continuation_boundary):
       if sample.state.x_m < float(minimum_x_m) - position_tolerance_m:
         return (
           f'continuation boundary sample {index} lies upstream of the '
           f'shared axial interface x={minimum_x_m}'
         )
+      ####
+    ####
+  ####
   if cell.continuation_boundary_kind is MocChainBoundaryKind.AXIAL_SECTION:
     section_x = cell.continuation_boundary[0].state.x_m
     if any(
@@ -839,7 +918,9 @@ def _validate_state_carry(
         for sample in cell.continuation_boundary[1:]
     ):
       return 'axial-section continuation samples do not lie on one x plane'
+    ####
     return None
+  ####
   if cell.continuation_boundary_kind is MocChainBoundaryKind.CENTERLINE_TRACE:
     for index, sample in enumerate(cell.continuation_boundary):
       if abs(sample.state.y_m) > position_tolerance_m:
@@ -847,21 +928,28 @@ def _validate_state_carry(
           f'centerline trace sample {index} does not lie on the symmetry '
           'line'
         )
+      ####
       if abs(sample.state.theta_rad) > state_tolerance:
         return (
           f'centerline trace sample {index} does not satisfy theta = 0'
         )
+      ####
+    ####
+  ####
   previous_x: float | None = None
   for index, sample in enumerate(cell.continuation_boundary):
     x_value = sample.state.x_m
     if previous_x is not None and x_value <= previous_x + position_tolerance_m:
       return f'continuation boundary sample {index} is not strictly downstream in x'
+    ####
     if (
       cell.continuation_boundary_kind is MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
       and sample.state.y_m < -position_tolerance_m
     ):
       return f'post-shock field perimeter sample {index} lies below the symmetry line'
+    ####
     previous_x = x_value
+  ####
   return None
 ####
 
@@ -886,6 +974,7 @@ def continue_moc_cell_chain(
       reason=MocChainTerminationReason.INVALID_INPUT,
       message='seed must be a MocChainCell',
     )
+  ####
   if not callable(solve_next):
     return _result(
       (),
@@ -893,8 +982,10 @@ def continue_moc_cell_chain(
       reason=MocChainTerminationReason.INVALID_INPUT,
       message='solve_next must be callable',
     )
+  ####
   if policy is None:
     policy = MocChainContinuationPolicy()
+  ####
   if seed.cell_index != 1:
     return _result(
       (seed,),
@@ -902,6 +993,7 @@ def continue_moc_cell_chain(
       reason=MocChainTerminationReason.INVALID_INPUT,
       message='MOC chain seed must have cell_index=1',
     )
+  ####
   if seed.geometry_fidelity not in policy.allowed_fidelities:
     return _result(
       (seed,),
@@ -912,6 +1004,7 @@ def continue_moc_cell_chain(
         'the resolved planar-MOC chain'
       ),
     )
+  ####
   mesh_error = _validate_cell_mesh(seed)
   if mesh_error is not None:
     return _result(
@@ -920,6 +1013,7 @@ def continue_moc_cell_chain(
       reason=MocChainTerminationReason.TOPOLOGY_INVALID,
       message=f'MOC chain seed mesh is not a connected bounded patch: {mesh_error}',
     )
+  ####
   if seed.physical_closure is not MocCellClosureStatus.CLOSED:
     return _result(
       (seed,),
@@ -930,6 +1024,7 @@ def continue_moc_cell_chain(
         f'physical closure; received {seed.physical_closure.value!r}'
       ),
     )
+  ####
   if policy.require_state_carry:
     state_error = _validate_state_carry(
       seed,
@@ -943,6 +1038,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.STATE_NOT_CARRIED,
         message=f'MOC chain seed has no usable state carry: {state_error}',
       )
+    ####
   ####
 
   cells = [seed]
@@ -955,6 +1051,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.MAX_CELL_LIMIT,
         message='MOC chain reached the configured maximum cell count',
       )
+    ####
     if policy.max_axial_distance_m is not None and current.end_x_m >= policy.max_axial_distance_m:
       return _result(
         tuple(cells),
@@ -962,6 +1059,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.AXIAL_DOMAIN_LIMIT,
         message='MOC chain reached the configured axial domain limit',
       )
+    ####
     try:
       candidate = solve_next(current, current.cell_index + 1)
     except (ArithmeticError, FloatingPointError, ValueError) as error:
@@ -971,6 +1069,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.SOLVER_ERROR,
         message=f'next MOC cell solver failed: {error}',
       )
+    ####
     if isinstance(candidate, MocChainTerminationDecision):
       return _result(
         tuple(cells),
@@ -991,6 +1090,7 @@ def continue_moc_cell_chain(
         ),
         diagnostics=dict(candidate.diagnostics),
       )
+    ####
     if candidate is None:
       return _result(
         tuple(cells),
@@ -1001,6 +1101,7 @@ def continue_moc_cell_chain(
           'termination was not inferred'
         ),
       )
+    ####
     if not isinstance(candidate, MocChainCell):
       return _result(
         tuple(cells),
@@ -1008,6 +1109,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.INVALID_INPUT,
         message='MOC continuation callback must return MocChainCell or None',
       )
+    ####
     if candidate.cell_index != current.cell_index + 1:
       return _result(
         tuple(cells),
@@ -1015,6 +1117,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.INVALID_INPUT,
         message='continued MOC cell indices must increase by one',
       )
+    ####
     if abs(candidate.start_x_m - current.end_x_m) > policy.position_tolerance_m:
       return _result(
         tuple(cells),
@@ -1022,6 +1125,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.INVALID_INPUT,
         message='continued MOC cells must share an axial boundary',
       )
+    ####
     domain_error = _validate_candidate_domain(
       candidate,
       current.end_x_m,
@@ -1034,6 +1138,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.INVALID_INPUT,
         message=domain_error,
       )
+    ####
     if policy.max_axial_distance_m is not None and candidate.end_x_m > policy.max_axial_distance_m + policy.position_tolerance_m:
       return _result(
         tuple(cells),
@@ -1041,6 +1146,7 @@ def continue_moc_cell_chain(
         reason=MocChainTerminationReason.AXIAL_DOMAIN_LIMIT,
         message='next MOC cell exceeds the configured axial domain limit',
       )
+    ####
     if candidate.geometry_fidelity not in policy.allowed_fidelities:
       return _result(
         tuple(cells),
@@ -1052,6 +1158,7 @@ def continue_moc_cell_chain(
           'belongs to the shock-train lane'
         ),
       )
+    ####
     if policy.require_state_carry:
       state_error = _validate_state_carry(
         candidate,
@@ -1069,6 +1176,8 @@ def continue_moc_cell_chain(
             f'state boundary: {state_error}'
           ),
         )
+      ####
+    ####
     mesh_error = _validate_cell_mesh(candidate)
     cells.append(candidate)
     if mesh_error is not None:
@@ -1081,6 +1190,7 @@ def continue_moc_cell_chain(
           f'patch: {mesh_error}'
         ),
       )
+    ####
     if candidate.physical_closure is not MocCellClosureStatus.CLOSED:
       return _result(
         tuple(cells),
@@ -1091,4 +1201,6 @@ def continue_moc_cell_chain(
           f'{candidate.physical_closure.value!r} physical closure'
         ),
       )
+    ####
   ####
+####

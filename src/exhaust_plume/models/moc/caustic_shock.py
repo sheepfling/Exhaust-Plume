@@ -133,6 +133,7 @@ class MocSourceStripCausticShockCandidateResult:
       },
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -257,6 +258,7 @@ class MocCausticShockBridgeResult:
       'iterations': self.iterations,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -306,6 +308,7 @@ class MocSourceStripCausticShockResolutionResult:
       ),
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -372,62 +375,75 @@ def solve_caustic_shock_bridge(
       iterations=iterations,
       message=message,
     )
+  ####
 
   if seed_value is None:
     return failure(
       MocCausticShockBridgeStatus.INVALID_INPUT,
       'seed must be a MocSourceStripCausticShockSeedResult',
     )
+  ####
   if not isinstance(downstream_invariant_family, CharacteristicFamily):
     return failure(
       MocCausticShockBridgeStatus.INVALID_INPUT,
       'downstream_invariant_family must be a CharacteristicFamily',
     )
+  ####
   try:
     invariant_target = float(downstream_invariant_target)
   except (TypeError, ValueError):
     invariant_target = float('nan')
+  ####
   if not isfinite(invariant_target):
     return failure(
       MocCausticShockBridgeStatus.INVALID_INPUT,
       'downstream_invariant_target must be finite',
     )
+  ####
   if not isinstance(upstream_edge_index, int) or isinstance(upstream_edge_index, bool):
     return failure(
       MocCausticShockBridgeStatus.INVALID_INPUT,
       'upstream_edge_index must be 0 or 1',
     )
+  ####
   if upstream_edge_index not in (0, 1):
     return failure(
       MocCausticShockBridgeStatus.INVALID_INPUT,
       'upstream_edge_index must be 0 or 1',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return failure(
       MocCausticShockBridgeStatus.INVALID_INPUT,
       'branch must be a ShockBranch',
     )
+  ####
   if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if not isfinite(float(maximum_turn_rad)) or maximum_turn_rad <= 0.0:
     raise ValueError('maximum_turn_rad must be finite and positive')
+  ####
   if (
     isinstance(scan_samples, bool)
     or not isinstance(scan_samples, int)
     or scan_samples < 4
   ):
     raise ValueError('scan_samples must be an integer greater than or equal to four')
+  ####
   if (
     isinstance(maximum_iterations, bool)
     or not isinstance(maximum_iterations, int)
     or maximum_iterations < 1
   ):
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if not seed_value.converged or len(seed_value.edge_states) != 2:
     return failure(
       MocCausticShockBridgeStatus.SEED_FAILURE,
       f'caustic seed is not usable: {seed_value.message}',
     )
+  ####
 
   upstream_edge = seed_value.edge_states[upstream_edge_index]
   if (
@@ -439,6 +455,7 @@ def solve_caustic_shock_bridge(
       MocCausticShockBridgeStatus.SEED_FAILURE,
       'selected caustic edge lacks a converged state and static pressure',
     )
+  ####
   upstream = upstream_edge.state
   upstream_pressure = float(upstream_edge.static_pressure_Pa)
   if not isfinite(upstream_pressure) or upstream_pressure <= 0.0:
@@ -447,6 +464,7 @@ def solve_caustic_shock_bridge(
       'selected caustic edge lacks a finite positive static pressure',
       upstream_state=upstream,
     )
+  ####
 
   lower_turn = max(1.0e-8, float(invariant_tolerance))
   upper_turn = float(maximum_turn_rad)
@@ -457,6 +475,7 @@ def solve_caustic_shock_bridge(
       upstream_state=upstream,
       turn_bracket_rad=(lower_turn, upper_turn),
     )
+  ####
 
   def evaluate(
     turn_rad: float,
@@ -471,6 +490,7 @@ def solve_caustic_shock_bridge(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       return None
+    ####
     if (
       not compression.converged
       or compression.downstream_mach is None
@@ -478,6 +498,7 @@ def solve_caustic_shock_bridge(
       or compression.total_pressure_ratio is None
     ):
       return None
+    ####
     downstream_theta = upstream.theta_rad + turn_rad
     downstream_nu = prandtl_meyer_angle_rad(
       compression.downstream_mach,
@@ -491,7 +512,9 @@ def solve_caustic_shock_bridge(
     residual = invariant_value - invariant_target
     if not isfinite(residual):
       return None
+    ####
     return residual, compression
+  ####
 
   lower_evaluation = evaluate(lower_turn)
   if lower_evaluation is None:
@@ -501,6 +524,7 @@ def solve_caustic_shock_bridge(
       upstream_state=upstream,
       turn_bracket_rad=(lower_turn, upper_turn),
     )
+  ####
 
   def success(
     turn_rad: float,
@@ -520,6 +544,7 @@ def solve_caustic_shock_bridge(
       or compression.beta_rad is None
     ):
       return None
+    ####
     downstream_state = CharacteristicState(
       x_m=upstream.x_m,
       y_m=upstream.y_m,
@@ -547,6 +572,7 @@ def solve_caustic_shock_bridge(
         'and physical closure remain pending'
       ),
     )
+  ####
 
   if abs(lower_evaluation[0]) <= invariant_tolerance:
     result = success(
@@ -557,6 +583,7 @@ def solve_caustic_shock_bridge(
     )
     if result is not None:
       return result
+    ####
     return failure(
       MocCausticShockBridgeStatus.ATTACHED_BRANCH_FAILURE,
       'the lower invariant match did not pass the strict entropy gate',
@@ -566,6 +593,7 @@ def solve_caustic_shock_bridge(
       invariant_residual=lower_evaluation[0],
       turn_bracket_rad=(lower_turn, lower_turn),
     )
+  ####
 
   previous_turn = lower_turn
   previous_evaluation = lower_evaluation
@@ -575,6 +603,7 @@ def solve_caustic_shock_bridge(
     current_evaluation = evaluate(current_turn)
     if current_evaluation is None:
       break
+    ####
     last_valid_turn = current_turn
     if abs(current_evaluation[0]) <= invariant_tolerance:
       result = success(
@@ -585,6 +614,7 @@ def solve_caustic_shock_bridge(
       )
       if result is not None:
         return result
+      ####
       return failure(
         MocCausticShockBridgeStatus.ATTACHED_BRANCH_FAILURE,
         'the scan-point invariant match did not pass the strict entropy gate',
@@ -594,6 +624,7 @@ def solve_caustic_shock_bridge(
         invariant_residual=current_evaluation[0],
         turn_bracket_rad=(current_turn, current_turn),
       )
+    ####
     if previous_evaluation[0] * current_evaluation[0] < 0.0:
       bracket_lower = previous_turn
       bracket_upper = current_turn
@@ -610,6 +641,7 @@ def solve_caustic_shock_bridge(
             turn_bracket_rad=(bracket_lower, bracket_upper),
             iterations=iteration,
           )
+        ####
         midpoint_residual = midpoint_evaluation[0]
         if abs(midpoint_residual) <= invariant_tolerance:
           result = success(
@@ -620,6 +652,7 @@ def solve_caustic_shock_bridge(
           )
           if result is not None:
             return result
+          ####
           return failure(
             MocCausticShockBridgeStatus.ATTACHED_BRANCH_FAILURE,
             'invariant bisection match did not pass the strict entropy gate',
@@ -630,12 +663,15 @@ def solve_caustic_shock_bridge(
             turn_bracket_rad=(bracket_lower, bracket_upper),
             iterations=iteration,
           )
+        ####
         if lower_residual * midpoint_residual <= 0.0:
           bracket_upper = midpoint
           upper_evaluation = midpoint_evaluation
         else:
           bracket_lower = midpoint
           lower_residual = midpoint_residual
+        ####
+      ####
       return failure(
         MocCausticShockBridgeStatus.INVARIANT_SOLVE_FAILURE,
         'invariant bisection did not meet its residual tolerance',
@@ -646,8 +682,10 @@ def solve_caustic_shock_bridge(
         turn_bracket_rad=(bracket_lower, bracket_upper),
         iterations=maximum_iterations,
       )
+    ####
     previous_turn = current_turn
     previous_evaluation = current_evaluation
+  ####
 
   return failure(
     MocCausticShockBridgeStatus.INVARIANT_BRACKET_FAILURE,
@@ -715,6 +753,7 @@ def _solve_orientation(
       downstream_edge_index=downstream_index,
       message='caustic shock orientation lacks two reconstructed states and pressures',
     )
+  ####
   if (
     seed.total_pressure_Pa is None
     or not isfinite(seed.total_pressure_Pa)
@@ -728,6 +767,7 @@ def _solve_orientation(
       downstream_one_sided_state=downstream_edge.state,
       message='caustic shock seed lacks a finite positive total pressure',
     )
+  ####
   upstream = upstream_edge.state
   downstream = downstream_edge.state
   flow_turn = downstream.theta_rad - upstream.theta_rad
@@ -741,6 +781,7 @@ def _solve_orientation(
       flow_turn_rad=flow_turn,
       message='orientation does not provide a positive compression turn',
     )
+  ####
   compression = solve_attached_compression_to_turn(
     upstream_mach=upstream.mach,
     gamma=upstream.gamma,
@@ -765,6 +806,7 @@ def _solve_orientation(
       flow_turn_rad=flow_turn,
       message=f'attached compression candidate failed: {compression.message}',
     )
+  ####
   mach_residual = (
     compression.downstream_mach - downstream.mach
   ) / max(1.0, abs(downstream.mach))
@@ -800,6 +842,7 @@ def _solve_orientation(
         'state'
       ),
     )
+  ####
   return MocSourceStripCausticShockCandidateResult(
     status=MocCausticShockCandidateStatus.CONVERGED_ENTROPY_ADMISSIBLE,
     upstream_edge_index=upstream_index,
@@ -841,6 +884,7 @@ def resolve_caustic_shock_seed(
       selected_candidate=None,
       message='seed must be a MocSourceStripCausticShockSeedResult',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return MocSourceStripCausticShockResolutionResult(
       status=MocCausticShockResolutionStatus.INVALID_INPUT,
@@ -849,8 +893,10 @@ def resolve_caustic_shock_seed(
       selected_candidate=None,
       message='branch must be a ShockBranch',
     )
+  ####
   if not isfinite(float(state_tolerance)) or state_tolerance <= 0.0:
     raise ValueError('state_tolerance must be finite and positive')
+  ####
   if not seed.converged or len(seed.edge_states) != 2:
     return MocSourceStripCausticShockResolutionResult(
       status=MocCausticShockResolutionStatus.SEED_FAILURE,
@@ -859,6 +905,7 @@ def resolve_caustic_shock_seed(
       selected_candidate=None,
       message=f'caustic seed is not usable: {seed.message}',
     )
+  ####
   first, second = seed.edge_states
   candidates = (
     _solve_orientation(
@@ -888,6 +935,7 @@ def resolve_caustic_shock_seed(
         'shock geometry and downstream field remain unclosed'
       ),
     )
+  ####
   return MocSourceStripCausticShockResolutionResult(
     status=MocCausticShockResolutionStatus.NO_ENTROPY_ADMISSIBLE_CANDIDATE,
     seed=seed,

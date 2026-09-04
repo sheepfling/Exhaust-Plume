@@ -28,6 +28,7 @@ __all__ = (
 def _vector3(value: Sequence[float], field_name: str) -> Vector3:
   if len(value) != 3 or not all(isfinite(float(component)) for component in value):
     raise ValueError(f'{field_name} must be a finite three-vector')
+  ####
   return tuple(float(component) for component in value)  # type: ignore[return-value]
 ####
 
@@ -49,6 +50,7 @@ class RayInterval:
       raise ValueError('ray interval must satisfy 0 <= t_enter_m < t_exit_m')
     ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +100,7 @@ class SectionedTubeSupport:
     axis_norm = float(np.linalg.norm(axis))
     if axis_norm == 0.0:
       return False
+    ####
     axis /= axis_norm
     for center in self.centers_m[1:-1]:
       displacement = np.subtract(center, self.centers_m[0])
@@ -107,6 +110,7 @@ class SectionedTubeSupport:
     ####
     return True
   ####
+####
 
 
 def _clip_interval(
@@ -177,11 +181,13 @@ def _intersect_finite_cylinder(
   if quadratic <= tolerance * tolerance:
     if constant > radial_tolerance:
       return None
+    ####
     side_interval: tuple[float, float] | None = (-float('inf'), float('inf'))
   else:
     discriminant = linear * linear - 4.0 * quadratic * constant
     if discriminant <= radial_tolerance:
       return None
+    ####
     root = sqrt(discriminant)
     side_interval = (
       (-linear - root) / (2.0 * quadratic),
@@ -192,6 +198,7 @@ def _intersect_finite_cylinder(
   if abs(direction_parallel) <= tolerance:
     if offset_parallel < -tolerance or offset_parallel > length + tolerance:
       return None
+    ####
     axial_interval: tuple[float, float] | None = (-float('inf'), float('inf'))
   else:
     first = (0.0 - offset_parallel) / direction_parallel
@@ -225,7 +232,6 @@ def _merge_intervals(
         max(previous_exit, exit),
         previous_segment_index if previous_segment_index == segment_index else None,
       )
-      ####
       continue
     ####
     merged.append((enter, exit, segment_index))

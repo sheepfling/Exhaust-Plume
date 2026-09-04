@@ -243,6 +243,7 @@ def test_gallery_reject_policy_never_converts_invalid_samples_to_zero(tmp_path: 
   )
   with pytest.raises(ValueError, match='invalid sample'):
     render_product_gallery(result, tmp_path, spec=spec)
+  ####
 ####
 
 
@@ -251,6 +252,7 @@ def test_ray_gallery_manifest_records_non_inference_guardrails(tmp_path: Path) -
   manifest = render_product_gallery(result, tmp_path)
   assert any('hit_miss_intersections' in guardrail for guardrail in manifest.guardrails)
   assert all('hit' not in artifact.view_id for artifact in manifest.artifacts)
+####
 
 
 @pytest.mark.parametrize(
@@ -266,6 +268,7 @@ def test_interactive_gallery_embeds_linked_state_without_network_dependencies(re
   assert 'Export current view spec' in html
   assert result.envelope.content_sha256 in html
   assert 'fetch(' not in html
+####
 
 
 def test_comparison_report_preserves_lineage_masks_and_diagnostic_guardrails(tmp_path: Path) -> None:
@@ -291,6 +294,7 @@ def test_comparison_report_preserves_lineage_masks_and_diagnostic_guardrails(tmp
   payload = json.loads(path.read_text(encoding='utf-8'))
   assert payload['schema'] == 'plume.visualization.comparison@1'
   assert payload['right_source']['content_sha256'] == '4' * 64
+####
 
 
 @pytest.mark.parametrize(
@@ -303,6 +307,7 @@ def test_comparison_report_dispatches_all_standard_products(result_factory) -> N
   assert report.status == 'computed-diagnostic'
   assert report.left_source['capability_id'] == result.envelope.capability_id
   assert report.right_view_spec.digest_sha256() == report.left_view_spec.digest_sha256()
+####
 
 
 def test_comparison_renderer_emits_overlay_and_report(tmp_path: Path) -> None:
@@ -317,3 +322,4 @@ def test_comparison_renderer_emits_overlay_and_report(tmp_path: Path) -> None:
   assert artifacts.image_path.exists()
   assert artifacts.report_path.exists()
   assert artifacts.report.status == 'computed-diagnostic'
+####

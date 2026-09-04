@@ -40,6 +40,7 @@ class MocEulerShockBoundaryStatus(str, Enum):
   GEOMETRY_FAILURE = 'geometry_failure'
   EULER_RESIDUAL_FAILURE = 'euler_residual_failure'
   CHARACTERISTIC_ORIENTATION_FAILURE = 'characteristic_orientation_failure'
+####
 
 
 class MocEulerShockBoundaryOrientation(str, Enum):
@@ -48,6 +49,7 @@ class MocEulerShockBoundaryOrientation(str, Enum):
   MIXED_CHARACTERISTIC_BOUNDARY = 'mixed-characteristic-boundary'
   TWO_FAMILY_FORWARD_CAUCHY = 'two-family-forward-cauchy'
   CHARACTERISTIC_DEGENERATE = 'characteristic-degenerate'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,9 +91,11 @@ class MocEulerShockBoundaryResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocEulerShockBoundaryStatus):
       raise TypeError('status must be a MocEulerShockBoundaryStatus')
+    ####
     tolerance = float(self.residual_tolerance)
     if not isfinite(tolerance) or tolerance <= 0.0:
       raise ValueError('residual_tolerance must be finite and positive')
+    ####
     object.__setattr__(self, 'residual_tolerance', tolerance)
     for name in (
       'shock_angle_rad',
@@ -110,22 +114,30 @@ class MocEulerShockBoundaryResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
       if 'residual' in name and 'geometry' not in name and numeric < 0.0:
         raise ValueError(f'{name} must be nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     if self.shock_start_m is not None:
       start = (float(self.shock_start_m[0]), float(self.shock_start_m[1]))
       if not all(isfinite(value) for value in start):
         raise ValueError('shock_start_m must contain finite coordinates')
+      ####
       object.__setattr__(self, 'shock_start_m', start)
+    ####
     if self.shock_end_m is not None:
       end = (float(self.shock_end_m[0]), float(self.shock_end_m[1]))
       if not all(isfinite(value) for value in end):
         raise ValueError('shock_end_m must contain finite coordinates')
+      ####
       object.__setattr__(self, 'shock_end_m', end)
+    ####
     for name in (
       'canonical_free_boundary_verified',
       'canonical_euler_verified',
@@ -135,13 +147,17 @@ class MocEulerShockBoundaryResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     """Whether the local shock segment and its Euler jump passed."""
 
     return self.status is MocEulerShockBoundaryStatus.CONVERGED_LOCAL_SHOCK
+  ####
 
   @property
   def local_euler_verified(self) -> bool:
@@ -152,6 +168,7 @@ class MocEulerShockBoundaryResult:
       and self.maximum_shock_jump_residual is not None
       and self.maximum_shock_jump_residual <= self.residual_tolerance
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     def state_report(state: CharacteristicState | None) -> dict[str, float] | None:
@@ -166,6 +183,7 @@ class MocEulerShockBoundaryResult:
           'gamma': state.gamma,
         }
       )
+    ####
 
     return {
       'status': self.status.value,
@@ -195,6 +213,8 @@ class MocEulerShockBoundaryResult:
       'production_claim_allowed': self.production_claim_allowed,
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,11 +260,14 @@ class MocEulerShockBoundaryCurveResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocEulerShockBoundaryStatus):
       raise TypeError('status must be a MocEulerShockBoundaryStatus')
+    ####
     for name in ('residual_tolerance', 'shock_angle_tolerance_rad'):
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     state_sequences = (
       ('upstream_states', self.upstream_states),
       ('downstream_states', self.downstream_states),
@@ -255,6 +278,7 @@ class MocEulerShockBoundaryCurveResult:
       for state in states
     ):
       raise TypeError('shock curve states must contain CharacteristicState values')
+    ####
     sequence_fields = (
       ('downstream_states', self.downstream_states),
       ('shock_points_m', self.shock_points_m),
@@ -275,11 +299,15 @@ class MocEulerShockBoundaryCurveResult:
       expected = len(self.upstream_states)
       if any(len(values) != expected for _name, values in sequence_fields):
         raise ValueError('shock curve evidence sequences must have equal lengths')
+      ####
     elif any(values for _name, values in sequence_fields):
       raise ValueError('shock curve evidence cannot exist without upstream states')
+    ####
     for point in self.shock_points_m:
       if len(point) != 2 or not all(isfinite(float(value)) for value in point):
         raise ValueError('shock curve points must contain finite coordinate pairs')
+      ####
+    ####
     for name, values in (
       ('upstream_static_pressure_Pa', self.upstream_static_pressure_Pa),
       ('upstream_total_pressure_Pa', self.upstream_total_pressure_Pa),
@@ -288,6 +316,8 @@ class MocEulerShockBoundaryCurveResult:
     ):
       if any(not isfinite(float(value)) or value <= 0.0 for value in values):
         raise ValueError(f'{name} must contain finite positive values')
+      ####
+    ####
     for name, values in (
       ('shock_jump_mass_residuals', self.shock_jump_mass_residuals),
       ('shock_jump_momentum_residuals', self.shock_jump_momentum_residuals),
@@ -295,6 +325,8 @@ class MocEulerShockBoundaryCurveResult:
     ):
       if any(not isfinite(float(value)) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
+    ####
     for name, values in (
       ('shock_angles_rad', self.shock_angles_rad),
       ('beta_rad', self.beta_rad),
@@ -303,21 +335,28 @@ class MocEulerShockBoundaryCurveResult:
     ):
       if any(not isfinite(float(value)) for value in values):
         raise ValueError(f'{name} must contain finite values')
+      ####
+    ####
     if any(not isinstance(value, MocEulerShockBoundaryOrientation) for value in self.orientations):
       raise TypeError('orientations must contain MocEulerShockBoundaryOrientation values')
+    ####
     if self.orientation is not None and not isinstance(
       self.orientation,
       MocEulerShockBoundaryOrientation,
     ):
       raise TypeError('orientation must be a MocEulerShockBoundaryOrientation')
+    ####
     for name in ('maximum_shock_jump_residual', 'maximum_tangent_residual_rad'):
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'canonical_free_boundary_verified',
       'canonical_euler_verified',
@@ -328,13 +367,17 @@ class MocEulerShockBoundaryCurveResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     """Whether every sampled shock segment passed its local checks."""
 
     return self.status is MocEulerShockBoundaryStatus.CONVERGED_LOCAL_SHOCK
+  ####
 
   @property
   def local_euler_verified(self) -> bool:
@@ -345,12 +388,14 @@ class MocEulerShockBoundaryCurveResult:
       and self.maximum_shock_jump_residual is not None
       and self.maximum_shock_jump_residual <= self.residual_tolerance
     )
+  ####
 
   @property
   def companion_boundary_required(self) -> bool:
     """Whether shock data alone cannot seed both forward characteristic families."""
 
     return self.orientation is MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY
+  ####
 
   @property
   def two_family_cauchy_geometry_verified(self) -> bool:
@@ -360,6 +405,7 @@ class MocEulerShockBoundaryCurveResult:
       self.converged
       and self.orientation is MocEulerShockBoundaryOrientation.TWO_FAMILY_FORWARD_CAUCHY
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     def state_report(state: CharacteristicState) -> dict[str, float]:
@@ -370,6 +416,7 @@ class MocEulerShockBoundaryCurveResult:
         'mach': state.mach,
         'gamma': state.gamma,
       }
+    ####
 
     return {
       'status': self.status.value,
@@ -406,6 +453,8 @@ class MocEulerShockBoundaryCurveResult:
       'zero_strength_endpoints_allowed': self.zero_strength_endpoints_allowed,
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -415,6 +464,7 @@ class _Primitive:
   velocity_x: float
   velocity_y: float
   total_energy: float
+####
 
 
 def _primitive(state: CharacteristicState, total_pressure_Pa: float) -> _Primitive:
@@ -433,7 +483,9 @@ def _primitive(state: CharacteristicState, total_pressure_Pa: float) -> _Primiti
   values = (density, pressure, velocity_x, velocity_y, total_energy)
   if not all(isfinite(value) for value in values):
     raise ValueError('normalized Euler primitive contains a non-finite value')
+  ####
   return _Primitive(*values)
+####
 
 
 def _normal_flux(
@@ -453,10 +505,12 @@ def _normal_flux(
     + primitive.pressure * normal_y,
     (primitive.total_energy + primitive.pressure) * normal_speed,
   )
+####
 
 
 def _relative(actual: float, scale: float) -> float:
   return abs(float(actual)) / max(1.0, abs(float(scale)))
+####
 
 
 def _jump_residuals(
@@ -495,15 +549,19 @@ def _jump_residuals(
       max(abs(upstream_flux[3]), abs(downstream_flux[3])),
     ),
   )
+####
 
 
 def _wrapped_angle_difference(first: float, second: float) -> float:
   difference = float(first) - float(second)
   while difference > pi:
     difference -= 2.0 * pi
+  ####
   while difference < -pi:
     difference += 2.0 * pi
+  ####
   return difference
+####
 
 
 def _classify_characteristic_orientation(
@@ -519,9 +577,12 @@ def _classify_characteristic_orientation(
   mach_angle = downstream_state.mu_rad
   if abs(abs(relative_angle) - mach_angle) <= tolerance_rad:
     return MocEulerShockBoundaryOrientation.CHARACTERISTIC_DEGENERATE
+  ####
   if -mach_angle < relative_angle < mach_angle:
     return MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY
+  ####
   return MocEulerShockBoundaryOrientation.TWO_FAMILY_FORWARD_CAUCHY
+####
 
 
 def _failure(
@@ -537,6 +598,7 @@ def _failure(
     message=message,
     **values,
   )
+####
 
 
 def _curve_failure(
@@ -554,6 +616,7 @@ def _curve_failure(
     message=message,
     **values,
   )
+####
 
 
 def solve_euler_consistent_attached_shock_segment(
@@ -579,6 +642,7 @@ def solve_euler_consistent_attached_shock_segment(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
       'upstream_state must be a CharacteristicState',
     )
+  ####
   try:
     upstream_pressure = float(upstream_pressure_Pa)
     target_angle = float(target_downstream_flow_angle_rad)
@@ -589,26 +653,31 @@ def solve_euler_consistent_attached_shock_segment(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
       'shock segment pressures, angles, ordinate, and tolerance must be numeric',
     )
+  ####
   if not isfinite(upstream_pressure) or upstream_pressure <= 0.0:
     return _failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
       'upstream_pressure_Pa must be finite and positive',
       residual_tolerance=tolerance,
     )
+  ####
   if not isfinite(target_angle) or not isfinite(target_y):
     return _failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
       'target downstream angle and ordinate must be finite',
       residual_tolerance=tolerance,
     )
+  ####
   if not isfinite(tolerance) or tolerance <= 0.0:
     raise ValueError('residual_tolerance must be finite and positive')
+  ####
   if not isinstance(branch, ShockBranch):
     return _failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
       'branch must be a ShockBranch',
       residual_tolerance=tolerance,
     )
+  ####
   start = (upstream_state.x_m, upstream_state.y_m)
   if target_y >= start[1]:
     return _failure(
@@ -620,6 +689,7 @@ def solve_euler_consistent_attached_shock_segment(
       target_downstream_flow_angle_rad=target_angle,
       upstream_pressure_Pa=upstream_pressure,
     )
+  ####
   turn = upstream_state.theta_rad - target_angle
   if turn <= 0.0:
     return _failure(
@@ -631,6 +701,7 @@ def solve_euler_consistent_attached_shock_segment(
       target_downstream_flow_angle_rad=target_angle,
       upstream_pressure_Pa=upstream_pressure,
     )
+  ####
   try:
     compression = solve_attached_compression_to_turn(
       upstream_mach=upstream_state.mach,
@@ -649,6 +720,7 @@ def solve_euler_consistent_attached_shock_segment(
       target_downstream_flow_angle_rad=target_angle,
       upstream_pressure_Pa=upstream_pressure,
     )
+  ####
   if (
     not compression.converged
     or compression.beta_rad is None
@@ -670,6 +742,7 @@ def solve_euler_consistent_attached_shock_segment(
       downstream_pressure_Pa=compression.downstream_pressure_Pa,
       downstream_total_pressure_Pa=compression.downstream_total_pressure_Pa,
     )
+  ####
   beta = float(compression.beta_rad)
   shock_angle = upstream_state.theta_rad - beta
   shock_sine = sin(shock_angle)
@@ -689,6 +762,7 @@ def solve_euler_consistent_attached_shock_segment(
       downstream_pressure_Pa=compression.downstream_pressure_Pa,
       downstream_total_pressure_Pa=compression.downstream_total_pressure_Pa,
     )
+  ####
   segment_parameter = (target_y - start[1]) / shock_sine
   end = (
     start[0] + segment_parameter * cos(shock_angle),
@@ -716,6 +790,7 @@ def solve_euler_consistent_attached_shock_segment(
       downstream_total_pressure_Pa=compression.downstream_total_pressure_Pa,
       geometry_residual_m=end[1] - target_y,
     )
+  ####
   downstream_state = CharacteristicState(
     x_m=end[0],
     y_m=end[1],
@@ -749,6 +824,7 @@ def solve_euler_consistent_attached_shock_segment(
       downstream_total_pressure_Pa=compression.downstream_total_pressure_Pa,
       geometry_residual_m=end[1] - target_y,
     )
+  ####
   maximum = max(mass, momentum, energy)
   status = (
     MocEulerShockBoundaryStatus.CONVERGED_LOCAL_SHOCK
@@ -781,6 +857,7 @@ def solve_euler_consistent_attached_shock_segment(
       else 'local Euler shock-jump residual exceeded tolerance'
     ),
   )
+####
 
 
 def fit_euler_consistent_shock_boundary(
@@ -829,12 +906,16 @@ def fit_euler_consistent_shock_boundary(
       residual_tolerance=1.0e-8,
       shock_angle_tolerance_rad=1.0e-8,
     )
+  ####
   if not isfinite(position_tolerance) or position_tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(angle_tolerance) or angle_tolerance <= 0.0:
     raise ValueError('shock_angle_tolerance_rad must be finite and positive')
+  ####
   if not isfinite(tolerance) or tolerance <= 0.0:
     raise ValueError('residual_tolerance must be finite and positive')
+  ####
   if not isinstance(branch, ShockBranch):
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -842,6 +923,7 @@ def fit_euler_consistent_shock_boundary(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -849,6 +931,7 @@ def fit_euler_consistent_shock_boundary(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   if len(samples) < 2:
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -856,6 +939,7 @@ def fit_euler_consistent_shock_boundary(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   if not (
     len(samples)
     == len(pressures)
@@ -868,6 +952,7 @@ def fit_euler_consistent_shock_boundary(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   if not all(isinstance(state, CharacteristicState) for state in samples):
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -875,6 +960,7 @@ def fit_euler_consistent_shock_boundary(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   gamma = samples[0].gamma
   for index, (state, pressure, point, target_angle) in enumerate(
     zip(samples, pressures, points, target_angles, strict=True)
@@ -886,6 +972,7 @@ def fit_euler_consistent_shock_boundary(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if not all(isfinite(value) for value in point):
       return _curve_failure(
         MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -893,6 +980,7 @@ def fit_euler_consistent_shock_boundary(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if (
       abs(state.x_m - point[0]) > position_tolerance
       or abs(state.y_m - point[1]) > position_tolerance
@@ -903,6 +991,7 @@ def fit_euler_consistent_shock_boundary(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if not isfinite(pressure) or pressure <= 0.0:
       return _curve_failure(
         MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -910,6 +999,7 @@ def fit_euler_consistent_shock_boundary(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if not isfinite(target_angle):
       return _curve_failure(
         MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -917,6 +1007,7 @@ def fit_euler_consistent_shock_boundary(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if index:
       previous = points[index - 1]
       if (
@@ -929,6 +1020,8 @@ def fit_euler_consistent_shock_boundary(
           residual_tolerance=tolerance,
           shock_angle_tolerance_rad=angle_tolerance,
         )
+      ####
+    ####
   ####
 
   completed_upstream: list[CharacteristicState] = []
@@ -986,6 +1079,7 @@ def fit_euler_consistent_shock_boundary(
         default=None,
       ),
     )
+  ####
 
   for index, (state, pressure, point, target_angle) in enumerate(
     zip(samples, pressures, points, target_angles, strict=True)
@@ -1023,6 +1117,7 @@ def fit_euler_consistent_shock_boundary(
           MocEulerShockBoundaryStatus.COMPRESSION_FAILURE,
           f'shock curve sample {index} compression raised: {error}',
         )
+      ####
       if (
         not compression.converged
         or compression.beta_rad is None
@@ -1035,10 +1130,12 @@ def fit_euler_consistent_shock_boundary(
           MocEulerShockBoundaryStatus.COMPRESSION_FAILURE,
           f'shock curve sample {index} compression did not converge: {compression.message}',
         )
+      ####
       beta = float(compression.beta_rad)
       downstream_mach = float(compression.downstream_mach)
       upstream_total_pressure = float(compression.upstream_total_pressure_Pa)
       downstream_total_pressure = float(compression.downstream_total_pressure_Pa)
+    ####
     shock_angle = state.theta_rad - beta
     if index == 0:
       tangent_angle = atan2(
@@ -1055,6 +1152,7 @@ def fit_euler_consistent_shock_boundary(
         points[index + 1][1] - points[index - 1][1],
         points[index + 1][0] - points[index - 1][0],
       )
+    ####
     tangent_residual = _wrapped_angle_difference(tangent_angle, shock_angle)
     downstream_state = CharacteristicState(
       x_m=point[0],
@@ -1084,6 +1182,7 @@ def fit_euler_consistent_shock_boundary(
         MocEulerShockBoundaryStatus.EULER_RESIDUAL_FAILURE,
         f'shock curve sample {index} Euler reconstruction raised: {error}',
       )
+    ####
     orientation = _classify_characteristic_orientation(
       downstream_state,
       shock_angle,
@@ -1109,11 +1208,13 @@ def fit_euler_consistent_shock_boundary(
         MocEulerShockBoundaryStatus.GEOMETRY_FAILURE,
         f'shock curve sample {index} tangent disagrees with attached shock angle by {tangent_residual}',
       )
+    ####
     if max(mass, momentum, energy) > tolerance:
       return failure(
         MocEulerShockBoundaryStatus.EULER_RESIDUAL_FAILURE,
         f'shock curve sample {index} Rankine--Hugoniot residual exceeded tolerance',
       )
+    ####
   ####
   nondegenerate_orientations = tuple(
     value
@@ -1132,6 +1233,7 @@ def fit_euler_consistent_shock_boundary(
       MocEulerShockBoundaryStatus.CHARACTERISTIC_ORIENTATION_FAILURE,
       'shock curve contains a characteristic-degenerate tangent; field orientation is not robust',
     )
+  ####
   if nondegenerate_orientations and not all(
     value is nondegenerate_orientations[0]
     for value in nondegenerate_orientations
@@ -1140,6 +1242,7 @@ def fit_euler_consistent_shock_boundary(
       MocEulerShockBoundaryStatus.CHARACTERISTIC_ORIENTATION_FAILURE,
       'shock curve crosses downstream characteristic orientations',
     )
+  ####
   orientation = (
     nondegenerate_orientations[0]
     if nondegenerate_orientations
@@ -1180,6 +1283,7 @@ def fit_euler_consistent_shock_boundary(
       )
     ),
   )
+####
 
 
 def fit_euler_consistent_shock_boundary_from_geometry(
@@ -1229,12 +1333,16 @@ def fit_euler_consistent_shock_boundary_from_geometry(
       residual_tolerance=1.0e-8,
       shock_angle_tolerance_rad=1.0e-8,
     )
+  ####
   if not isfinite(position_tolerance) or position_tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(angle_tolerance) or angle_tolerance <= 0.0:
     raise ValueError('shock_angle_tolerance_rad must be finite and positive')
+  ####
   if not isfinite(tolerance) or tolerance <= 0.0:
     raise ValueError('residual_tolerance must be finite and positive')
+  ####
   if not isinstance(branch, ShockBranch):
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -1242,6 +1350,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -1249,6 +1358,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   if len(samples) < 2:
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -1256,6 +1366,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   if not (
     len(samples)
     == len(pressures)
@@ -1267,6 +1378,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
   if not all(isinstance(state, CharacteristicState) for state in samples):
     return _curve_failure(
       MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -1274,6 +1386,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
       residual_tolerance=tolerance,
       shock_angle_tolerance_rad=angle_tolerance,
     )
+  ####
 
   gamma = samples[0].gamma
   for index, (state, pressure, point) in enumerate(
@@ -1286,6 +1399,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if (
       not all(isfinite(value) for value in point)
       or abs(state.x_m - point[0]) > position_tolerance
@@ -1297,6 +1411,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if not isfinite(pressure) or pressure <= 0.0:
       return _curve_failure(
         MocEulerShockBoundaryStatus.INVALID_INPUT,
@@ -1304,6 +1419,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if index:
       previous = points[index - 1]
       if (
@@ -1316,6 +1432,9 @@ def fit_euler_consistent_shock_boundary_from_geometry(
           residual_tolerance=tolerance,
           shock_angle_tolerance_rad=angle_tolerance,
         )
+      ####
+    ####
+  ####
 
   target_angles: list[float] = []
   for index, state in enumerate(samples):
@@ -1335,6 +1454,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
         points[index + 1][1] - points[index - 1][1],
         points[index + 1][0] - points[index - 1][0],
       )
+    ####
     shock_angle = float(tangent_angle)
     beta = state.theta_rad - shock_angle
     mach_angle = state.mu_rad
@@ -1357,6 +1477,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
         residual_tolerance=tolerance,
         shock_angle_tolerance_rad=angle_tolerance,
       )
+    ####
     if is_zero_strength_endpoint:
       turn = 0.0
     else:
@@ -1373,6 +1494,7 @@ def fit_euler_consistent_shock_boundary_from_geometry(
           residual_tolerance=tolerance,
           shock_angle_tolerance_rad=angle_tolerance,
         )
+      ####
       turn = atan(numerator / denominator)
       if not isfinite(turn) or turn <= 0.0:
         return _curve_failure(
@@ -1381,7 +1503,10 @@ def fit_euler_consistent_shock_boundary_from_geometry(
           residual_tolerance=tolerance,
           shock_angle_tolerance_rad=angle_tolerance,
         )
+      ####
+    ####
     target_angles.append(state.theta_rad - turn)
+  ####
 
   return fit_euler_consistent_shock_boundary(
     samples,
@@ -1394,3 +1519,4 @@ def fit_euler_consistent_shock_boundary_from_geometry(
     residual_tolerance=tolerance,
     allow_zero_strength_endpoints=allow_zero_strength_endpoints,
   )
+####

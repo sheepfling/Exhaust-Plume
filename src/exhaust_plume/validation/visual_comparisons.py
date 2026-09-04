@@ -33,20 +33,25 @@ class MachDiskPressureComparison:
   position_rmse_m: float | None
   position_max_abs_error_m: float | None
   reason: str | None = None
+####
 
 
 def _axis(values: Sequence[float], field_name: str) -> tuple[float, ...]:
   axis = tuple(float(value) for value in values)
   if not axis or any(not isfinite(value) or value <= 0.0 for value in axis):
     raise ValueError(f'{field_name} must contain finite positive values')
+  ####
   return axis
+####
 
 
 def _positions(values: Sequence[float], field_name: str) -> tuple[float, ...]:
   positions = tuple(float(value) for value in values)
   if not positions or any(not isfinite(value) or value < 0.0 for value in positions):
     raise ValueError(f'{field_name} must contain finite nonnegative values')
+  ####
   return positions
+####
 
 
 def _branches(
@@ -57,14 +62,18 @@ def _branches(
 ) -> tuple[str, ...] | None:
   if values is None:
     return None
+  ####
   branches = tuple(str(value) for value in values)
   if len(branches) != count or any(not value for value in branches):
     raise ValueError(f'{field_name} must contain one non-empty ID per point')
+  ####
   return branches
+####
 
 
 def _domain(values: tuple[float, ...]) -> tuple[float, float]:
   return min(values), max(values)
+####
 
 
 def _blocked(
@@ -90,6 +99,7 @@ def _blocked(
     position_max_abs_error_m=None,
     reason=reason,
   )
+####
 
 
 def _interpolate(
@@ -99,10 +109,13 @@ def _interpolate(
 ) -> float:
   if pressure_bar < model_pressures[0] or pressure_bar > model_pressures[-1]:
     raise ValueError('pressure is outside the model branch domain')
+  ####
   if pressure_bar == model_pressures[0]:
     return model_positions[0]
+  ####
   if pressure_bar == model_pressures[-1]:
     return model_positions[-1]
+  ####
   upper = bisect_right(model_pressures, pressure_bar)
   lower = upper - 1
   fraction = (pressure_bar - model_pressures[lower]) / (
@@ -111,6 +124,7 @@ def _interpolate(
   return model_positions[lower] + fraction * (
     model_positions[upper] - model_positions[lower]
   )
+####
 
 
 def compare_mach_disk_pressure_relation(
@@ -136,8 +150,10 @@ def compare_mach_disk_pressure_relation(
   observed_positions = _positions(observed_position_m, 'observed_position_m')
   if len(model_pressures) != len(model_positions):
     raise ValueError('model pressure and position arrays must have matching lengths')
+  ####
   if len(observed_pressures) != len(observed_positions):
     raise ValueError('observed pressure and position arrays must have matching lengths')
+  ####
   model_domain = _domain(model_pressures)
   observed_domain = _domain(observed_pressures)
   model_branches = _branches(
@@ -162,12 +178,15 @@ def compare_mach_disk_pressure_relation(
         'branch IDs; row order, run ID, and pixel-cluster labels are not inferred'
       ),
     )
+  ####
   model_by_branch: dict[str, list[tuple[float, float]]] = {}
   observed_by_branch: dict[str, list[tuple[float, float]]] = {}
   for pressure, position, branch in zip(model_pressures, model_positions, model_branches, strict=True):
     model_by_branch.setdefault(branch, []).append((pressure, position))
+  ####
   for pressure, position, branch in zip(observed_pressures, observed_positions, observed_branches, strict=True):
     observed_by_branch.setdefault(branch, []).append((pressure, position))
+  ####
   if set(model_by_branch) != set(observed_by_branch):
     return _blocked(
       status='branch-set-mismatch',
@@ -178,6 +197,7 @@ def compare_mach_disk_pressure_relation(
       branch_count=len(set(model_by_branch) & set(observed_by_branch)),
       reason='model and observation branch IDs do not have the same set',
     )
+  ####
   residuals: list[float] = []
   matched_point_count = 0
   has_out_of_domain_observation = False
@@ -197,6 +217,7 @@ def compare_mach_disk_pressure_relation(
         matched_point_count=matched_point_count,
         reason=f'model branch {branch!r} has fewer than two pressure samples',
       )
+    ####
     if any(right <= left for left, right in zip(model_branch_pressures, model_branch_pressures[1:])):
       return _blocked(
         status='ambiguous-model-branch-pressure',
@@ -208,10 +229,12 @@ def compare_mach_disk_pressure_relation(
         matched_point_count=matched_point_count,
         reason=f'model branch {branch!r} contains duplicate pressure samples',
       )
+    ####
     for pressure, observed_position in observed_points:
       if pressure < model_branch_pressures[0] or pressure > model_branch_pressures[-1]:
         has_out_of_domain_observation = True
         continue
+      ####
       predicted_position = _interpolate(
         pressure,
         model_branch_pressures,
@@ -219,6 +242,8 @@ def compare_mach_disk_pressure_relation(
       )
       residuals.append(predicted_position - observed_position)
       matched_point_count += 1
+    ####
+  ####
   if not residuals:
     return _blocked(
       status='no-overlap',
@@ -229,6 +254,7 @@ def compare_mach_disk_pressure_relation(
       branch_count=len(model_by_branch),
       reason='no observed branch point lies inside its model pressure domain',
     )
+  ####
   status = 'partial-overlap-diagnostic' if has_out_of_domain_observation else 'full-domain-computed'
   return MachDiskPressureComparison(
     status=status,
@@ -245,6 +271,7 @@ def compare_mach_disk_pressure_relation(
       if has_out_of_domain_observation else None
     ),
   )
+####
 
 
 __all__ = (

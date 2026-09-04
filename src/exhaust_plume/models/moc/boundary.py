@@ -49,6 +49,7 @@ class MocFreeBoundaryPointResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -69,6 +70,7 @@ class MocFreeBoundaryResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -94,6 +96,7 @@ class MocReflectedBoundaryResult:
   @property
   def converged(self) -> bool:
     return self.status is MocPrimitiveStatus.CONVERGED
+  ####
 ####
 
 
@@ -129,10 +132,13 @@ def solve_ambient_pressure_free_boundary_point(
       iterations=0,
       message='incoming and previous boundary states must use the same gamma',
     )
+  ####
   if not isfinite(total_pressure_Pa) or total_pressure_Pa <= 0.0:
     raise ValueError('total_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(ambient_pressure_Pa) or ambient_pressure_Pa <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
   if total_pressure_Pa <= ambient_pressure_Pa:
     return MocFreeBoundaryPointResult(
       status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
@@ -145,10 +151,13 @@ def solve_ambient_pressure_free_boundary_point(
       iterations=0,
       message='ambient-pressure boundary state is not supersonic for p0/pa <= 1',
     )
+  ####
   if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(pressure_tolerance) or pressure_tolerance <= 0.0:
     raise ValueError('pressure_tolerance must be finite and positive')
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
   ####
@@ -169,6 +178,7 @@ def solve_ambient_pressure_free_boundary_point(
       iterations=0,
       message=terminal_inverse.message,
     )
+  ####
   terminal_mach = terminal_inverse.value
   terminal_nu = prandtl_meyer_angle_rad(terminal_mach, gamma)
   boundary_theta = (
@@ -234,6 +244,7 @@ def solve_ambient_pressure_free_boundary_point(
         intersection_status=last_intersection_status,
         message=f'free-boundary characteristic intersection failed: {last_intersection_status}',
       )
+    ####
     point = (float(intersection.point[0]), float(intersection.point[1]))
     displacement = (
       (point[0] - boundary_state.x_m) ** 2
@@ -242,6 +253,7 @@ def solve_ambient_pressure_free_boundary_point(
     boundary_state = replace(boundary_state, x_m=point[0], y_m=point[1])
     if displacement <= position_tolerance_m:
       break
+    ####
   else:
     return MocFreeBoundaryPointResult(
       status=MocPrimitiveStatus.MAX_ITERATIONS,
@@ -316,6 +328,7 @@ def solve_reflected_free_boundary(
       boundary_points_m=(),
       message=f'lip fan is not converged: {fan.message}',
     )
+  ####
   if exit_state.static_pressure_Pa <= ambient.pressure_Pa:
     return MocReflectedBoundaryResult(
       status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
@@ -327,14 +340,19 @@ def solve_reflected_free_boundary(
       boundary_points_m=(),
       message='reflected free-boundary march requires an underexpanded exit state',
     )
+  ####
   if not isfinite(position_tolerance_m) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(invariant_tolerance) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if not isfinite(pressure_tolerance) or pressure_tolerance <= 0.0:
     raise ValueError('pressure_tolerance must be finite and positive')
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   source_states = fan.lip_states
   if not source_states:
     return MocReflectedBoundaryResult(
@@ -411,6 +429,7 @@ def solve_reflected_free_boundary(
         boundary_points_m=tuple(boundary_points),
         message=f'centerline reflection source {index} failed: {centerline_result.message}',
       )
+    ####
     centerline_states.append(centerline_result.state)
     point_result = solve_ambient_pressure_free_boundary_point(
       centerline_result.state,
@@ -434,6 +453,7 @@ def solve_reflected_free_boundary(
         boundary_points_m=tuple(boundary_points),
         message=f'reflected free-boundary point {index} failed: {point_result.message}',
       )
+    ####
     if point_result.point_m[0] <= previous_boundary.x_m + position_tolerance_m:
       return MocReflectedBoundaryResult(
         status=MocPrimitiveStatus.GEOMETRY_FAILURE,
@@ -445,6 +465,7 @@ def solve_reflected_free_boundary(
         boundary_points_m=tuple(boundary_points),
         message=f'reflected free-boundary point {index} is not strictly downstream',
       )
+    ####
     boundary_states.append(point_result.state)
     boundary_points.append(point_result.point_m)
     previous_boundary = point_result.state
@@ -480,8 +501,10 @@ def solve_ambient_pressure_free_boundary(
   ambient_pressure = float(ambient.pressure_Pa)
   if not isfinite(extent_m) or extent_m <= 0.0:
     raise ValueError('extent_m must be finite and positive')
+  ####
   if not isfinite(pressure_tolerance) or pressure_tolerance <= 0.0:
     raise ValueError('pressure_tolerance must be finite and positive')
+  ####
   if exit_pressure <= ambient_pressure:
     return MocFreeBoundaryResult(
       status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
@@ -512,6 +535,7 @@ def solve_ambient_pressure_free_boundary(
       points_m=(),
       message=terminal_inverse.message,
     )
+  ####
   terminal_mach = terminal_inverse.value
   terminal_angle = float(exit_state.flow_angle_rad) + (
     prandtl_meyer_angle_rad(terminal_mach, gamma)

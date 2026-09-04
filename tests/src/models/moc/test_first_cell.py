@@ -79,6 +79,7 @@ def _first_cell_inputs():
   )
   assert patch.converged
   return shock.shock_fit, strip, patch
+####
 
 
 def test_first_cell_composite_closes_physical_boundary_and_retains_downstream_trace() -> None:
@@ -132,6 +133,7 @@ def test_first_cell_composite_closes_physical_boundary_and_retains_downstream_tr
   )
   assert measurement.converged
   assert measurement.pressure_loss_verified is True
+####
 
 
 def test_first_cell_composite_rejects_a_changed_shared_terminal_trace() -> None:
@@ -155,6 +157,7 @@ def test_first_cell_composite_rejects_a_changed_shared_terminal_trace() -> None:
   assert result.status is MocFirstCellCompositeStatus.SEAM_FAILURE
   assert not result.converged
   assert 'terminal C+ trace' in result.message
+####
 
 
 def test_first_cell_terminal_closure_fits_a_shock_from_the_exact_outgoing_trace() -> None:
@@ -195,6 +198,7 @@ def test_first_cell_terminal_closure_fits_a_shock_from_the_exact_outgoing_trace(
   request = result.mixed_regime_perimeter_request()
   assert request.perimeter_supplied is False
   assert request.open_supersonic_zone_is_a_perimeter is False
+####
 
 
 def test_first_cell_terminal_closure_attaches_a_separate_mixed_regime_field() -> None:
@@ -266,6 +270,7 @@ def test_first_cell_terminal_closure_attaches_a_separate_mixed_regime_field() ->
   decision = attached.as_chain_termination_decision()
   assert decision.physical_termination
   assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
+####
 
 
 def test_first_cell_terminal_planner_mock_attaches_exact_seam_and_typed_stop() -> None:
@@ -314,6 +319,7 @@ def test_first_cell_terminal_planner_mock_attaches_exact_seam_and_typed_stop() -
   assert report['production_claim_allowed'] is False
   assert report['termination']['physical_termination'] is True
   assert report['chain_promotion_blocked'] is True
+####
 
 
 def test_first_cell_terminal_planner_can_audit_an_explicit_entropy_source_map() -> None:
@@ -356,6 +362,7 @@ def test_first_cell_terminal_planner_can_audit_an_explicit_entropy_source_map() 
   assert report['mixed_regime_entropy_transport_verified'] is True
   assert report['mixed_regime_entropy_transport']['chain_promotion_blocked'] is True
   assert report['mixed_regime_entropy_transport']['production_claim_allowed'] is False
+####
 
 
 def test_first_cell_terminal_planner_preserves_open_boundary_without_solver() -> None:
@@ -385,6 +392,7 @@ def test_first_cell_terminal_planner_preserves_open_boundary_without_solver() ->
   assert planner.termination is not None
   assert planner.termination.reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   assert planner.diagnostics['mixed_regime_solver_supplied'] is False
+####
 
 
 def test_first_cell_terminal_planner_keeps_solver_generated_free_boundary_separate_from_mock() -> None:
@@ -425,6 +433,7 @@ def test_first_cell_terminal_planner_keeps_solver_generated_free_boundary_separa
   free_boundary = planner.diagnostics['solver_generated_mixed_regime_result']
   assert free_boundary['converged'] is True
   assert free_boundary['production_claim_allowed'] is False
+####
 
 
 def test_first_cell_terminal_planner_accepts_only_terminal_equivalent_control_section() -> None:
@@ -527,6 +536,7 @@ def test_first_cell_terminal_planner_accepts_only_terminal_equivalent_control_se
   )
   assert flux_free_boundary['control_section_projection_verified'] is False
   assert flux_free_boundary['control_section_flux_verified'] is True
+####
 
 
 def test_first_cell_terminal_closure_uses_the_explicit_perimeter_solver_seam() -> None:
@@ -575,6 +585,7 @@ def test_first_cell_terminal_closure_uses_the_explicit_perimeter_solver_seam() -
   assert closure.perimeter_spec is specification
   assert closure.downstream_condition is not None
   assert closure.downstream_condition.converged
+####
 
 
 def test_first_cell_planner_records_planar_handoff_without_promoting_it() -> None:
@@ -643,6 +654,7 @@ def test_first_cell_planner_records_planar_handoff_without_promoting_it() -> Non
       total_pressure_Pa=received.terminal_downstream_total_pressure_Pa,
       gamma=received.terminal.upstream_state.gamma,
     )
+  ####
 
   scalar_closure = terminal_closure.solve_mixed_regime_downstream_perimeter(
     specification,
@@ -676,6 +688,7 @@ def test_first_cell_planner_records_planar_handoff_without_promoting_it() -> Non
   assert planner.mixed_regime_planar_handoff.physical_closure_verified is False
   assert planner.diagnostics['mixed_regime_planar_handoff_attached'] is False
   assert planner.diagnostics['mixed_regime_planar_handoff_verified'] is True
+####
 
 
 def test_first_cell_planner_records_builtin_planar_potential_reference_without_promotion() -> None:
@@ -749,6 +762,7 @@ def test_first_cell_planner_records_builtin_planar_potential_reference_without_p
   )
   assert planner.diagnostics['mixed_regime_planar_handoff_attached'] is False
   assert planner.diagnostics['mixed_regime_planar_projection_verified'] is True
+####
 
 
 def test_first_cell_planner_records_non_affine_planar_reference_without_promotion() -> None:
@@ -853,6 +867,7 @@ def test_first_cell_planner_records_non_affine_planar_reference_without_promotio
   assert planner.diagnostics[
     'mixed_regime_planar_frozen_profile_reference'
   ]['extrapolation_allowed'] is False
+####
 
 
 def test_first_cell_terminal_closure_rejects_a_changed_outgoing_handoff() -> None:
@@ -877,6 +892,7 @@ def test_first_cell_terminal_closure_rejects_a_changed_outgoing_handoff() -> Non
   assert result.status is MocFirstCellTerminalClosureStatus.SEAM_FAILURE
   assert not result.converged
   assert 'exact first-cell outgoing' in result.message
+####
 
 
 def test_terminal_boundary_graph_keeps_downstream_geometry_separate_from_closure() -> None:
@@ -934,3 +950,4 @@ def test_terminal_boundary_graph_keeps_downstream_geometry_separate_from_closure
   assert malformed.upstream_graph_closed
   assert malformed.downstream_boundary_geometry_supplied
   assert not malformed.downstream_boundary_geometry_verified
+####

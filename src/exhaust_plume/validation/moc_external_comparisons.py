@@ -32,7 +32,7 @@ class MocExternalValidationSplit(str, Enum):
 
   CALIBRATION = 'calibration'
   VALIDATION = 'validation'
-  ####
+####
 
 
 class MocShockCellExternalFeature(str, Enum):
@@ -43,7 +43,7 @@ class MocShockCellExternalFeature(str, Enum):
   SHOCK_START_X_M = 'shock_start_x_m'
   SHOCK_END_X_M = 'shock_end_x_m'
   CENTERLINE_END_X_M = 'centerline_end_x_m'
-  ####
+####
 
 
 class MocShockCellExternalComparisonStatus(str, Enum):
@@ -55,7 +55,7 @@ class MocShockCellExternalComparisonStatus(str, Enum):
   BLOCKED_COORDINATE_METADATA = 'blocked-coordinate-metadata'
   BLOCKED_NO_OVERLAP = 'blocked-no-overlap'
   BLOCKED_NO_COMMON_FEATURE = 'blocked-no-common-feature'
-  ####
+####
 
 
 class MocExternalValidationSplitAuditStatus(str, Enum):
@@ -66,7 +66,7 @@ class MocExternalValidationSplitAuditStatus(str, Enum):
   MISSING_SPLIT = 'blocked-missing-split'
   DUPLICATE_DATASET = 'blocked-duplicate-dataset'
   CASE_OVERLAP = 'blocked-case-overlap'
-  ####
+####
 
 
 class MocShockCellExternalPromotionReviewStatus(str, Enum):
@@ -87,13 +87,15 @@ class MocShockCellExternalPromotionReviewStatus(str, Enum):
   BLOCKED_REQUIRED_FEATURE = 'blocked-required-feature'
   BLOCKED_TOLERANCE_CONFIGURATION = 'blocked-tolerance-configuration'
   BLOCKED_RESIDUAL = 'blocked-external-residual'
-  ####
+####
 
 
 def _nonempty_text(name: str, value: str) -> str:
   if not isinstance(value, str) or not value.strip():
     raise ValueError(f'{name} must be a non-empty string')
+  ####
   return value.strip()
+####
 
 
 def _finite_optional(
@@ -104,12 +106,16 @@ def _finite_optional(
 ) -> float | None:
   if value is None:
     return None
+  ####
   resolved = float(value)
   if not isfinite(resolved):
     raise ValueError(f'{name} must be finite when supplied')
+  ####
   if nonnegative and resolved < 0.0:
     raise ValueError(f'{name} must be nonnegative when supplied')
+  ####
   return resolved
+####
 
 
 _FEATURE_FIELDS = tuple(feature.value for feature in MocShockCellExternalFeature)
@@ -143,8 +149,10 @@ class MocShockCellExternalObservation:
   def __post_init__(self) -> None:
     if isinstance(self.cell_index, bool) or not isinstance(self.cell_index, int):
       raise TypeError('cell_index must be an integer')
+    ####
     if self.cell_index < 1:
       raise ValueError('cell_index must be positive')
+    ####
     for name in _FEATURE_FIELDS:
       nonnegative = name in ('axial_length_m', 'maximum_radius_m')
       object.__setattr__(
@@ -152,12 +160,14 @@ class MocShockCellExternalObservation:
         name,
         _finite_optional(name, getattr(self, name), nonnegative=nonnegative),
       )
+    ####
     for name in _UNCERTAINTY_FIELDS:
       object.__setattr__(
         self,
         name,
         _finite_optional(name, getattr(self, name), nonnegative=True),
       )
+    ####
     for feature_name, uncertainty_name in zip(
       _FEATURE_FIELDS,
       _UNCERTAINTY_FIELDS,
@@ -170,15 +180,19 @@ class MocShockCellExternalObservation:
         raise ValueError(
           f'{uncertainty_name} cannot be supplied without {feature_name}'
         )
+      ####
+    ####
     if not any(getattr(self, name) is not None for name in _FEATURE_FIELDS):
       raise ValueError('at least one external shock-cell feature is required')
     ####
+  ####
 
   def value_for(self, feature: MocShockCellExternalFeature) -> float | None:
     """Return the supplied scalar for ``feature`` without deriving it."""
 
     if not isinstance(feature, MocShockCellExternalFeature):
       raise TypeError('feature must be a MocShockCellExternalFeature')
+    ####
     return getattr(self, feature.value)
   ####
 
@@ -190,8 +204,10 @@ class MocShockCellExternalObservation:
 
     if not isinstance(feature, MocShockCellExternalFeature):
       raise TypeError('feature must be a MocShockCellExternalFeature')
+    ####
     return getattr(self, f'{feature.value.removesuffix("_m")}_uncertainty_m')
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,9 +240,11 @@ class MocShockCellExternalDataset:
     object.__setattr__(self, 'units', _nonempty_text('units', self.units))
     if not isinstance(self.split, MocExternalValidationSplit):
       raise TypeError('split must be a MocExternalValidationSplit')
+    ####
     observations = tuple(self.observations)
     if not observations:
       raise ValueError('observations must contain at least one external cell')
+    ####
     if any(
       not isinstance(observation, MocShockCellExternalObservation)
       for observation in observations
@@ -234,11 +252,13 @@ class MocShockCellExternalDataset:
       raise TypeError(
         'observations must contain MocShockCellExternalObservation values'
       )
+    ####
     indices = tuple(observation.cell_index for observation in observations)
     if len(set(indices)) != len(indices):
       raise ValueError('observations must have unique cell indices')
-    object.__setattr__(self, 'observations', observations)
     ####
+    object.__setattr__(self, 'observations', observations)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     """Return a JSON-compatible external dataset manifest."""
@@ -268,6 +288,7 @@ class MocShockCellExternalDataset:
       ],
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,8 +320,10 @@ class MocShockCellExternalPromotionPolicy:
       raise ValueError(
         'required_features must contain at least one external feature'
       )
+    ####
     if len(set(features)) != len(features):
       raise ValueError('required_features must not contain duplicates')
+    ####
     object.__setattr__(self, 'required_features', features)
     tolerances = tuple(self.maximum_rmse_m)
     seen_features: set[MocShockCellExternalFeature] = set()
@@ -310,20 +333,26 @@ class MocShockCellExternalPromotionPolicy:
         raise TypeError(
           'maximum_rmse_m keys must be MocShockCellExternalFeature values'
         )
+      ####
       if feature in seen_features:
         raise ValueError('maximum_rmse_m must not contain duplicate features')
+      ####
       numeric = float(tolerance)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError('maximum_rmse_m values must be finite and nonnegative')
+      ####
       seen_features.add(feature)
       normalized_tolerances.append((feature, numeric))
+    ####
     object.__setattr__(self, 'maximum_rmse_m', tuple(normalized_tolerances))
     fraction = float(self.minimum_matched_cell_fraction)
     if not isfinite(fraction) or not 0.0 < fraction <= 1.0:
       raise ValueError('minimum_matched_cell_fraction must be in (0, 1]')
+    ####
     object.__setattr__(self, 'minimum_matched_cell_fraction', fraction)
     if not isinstance(self.require_exact_cell_indices, bool):
       raise TypeError('require_exact_cell_indices must be a bool')
+    ####
     weighted = self.maximum_uncertainty_weighted_rmse
     if weighted is not None:
       weighted_value = float(weighted)
@@ -331,8 +360,10 @@ class MocShockCellExternalPromotionPolicy:
         raise ValueError(
           'maximum_uncertainty_weighted_rmse must be finite and nonnegative'
         )
+      ####
       object.__setattr__(self, 'maximum_uncertainty_weighted_rmse', weighted_value)
     ####
+  ####
 
   def tolerance_for(
     self,
@@ -342,11 +373,12 @@ class MocShockCellExternalPromotionPolicy:
 
     if not isinstance(feature, MocShockCellExternalFeature):
       raise TypeError('feature must be a MocShockCellExternalFeature')
+    ####
     return next(
       (tolerance for key, tolerance in self.maximum_rmse_m if key is feature),
       None,
     )
-    ####
+  ####
 
   def as_report(self) -> dict[str, Any]:
     """Return the review policy without deriving any thresholds."""
@@ -364,6 +396,7 @@ class MocShockCellExternalPromotionPolicy:
       ),
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -393,6 +426,7 @@ class MocShockCellExternalFeatureComparison:
       'uncertainty_weighted_rmse': self.uncertainty_weighted_rmse,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -450,6 +484,7 @@ class MocShockCellExternalComparison:
       'reason': self.reason,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -487,6 +522,7 @@ class MocExternalValidationSplitAudit:
       'message': self.message,
   }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -524,12 +560,16 @@ class MocShockCellExternalPromotionReview:
       raise TypeError(
         'status must be a MocShockCellExternalPromotionReviewStatus'
       )
+    ####
     if not isinstance(self.operator_id, str) or not self.operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     for name in ('model_cell_count', 'dataset_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if not isinstance(
       self.policy,
       MocShockCellExternalPromotionPolicy,
@@ -537,10 +577,12 @@ class MocShockCellExternalPromotionReview:
       raise TypeError(
         'policy must be a MocShockCellExternalPromotionPolicy'
       )
+    ####
     if not isinstance(self.split_audit, MocExternalValidationSplitAudit):
       raise TypeError(
         'split_audit must be a MocExternalValidationSplitAudit'
       )
+    ####
     comparisons = tuple(self.comparisons)
     if any(
       not isinstance(comparison, MocShockCellExternalComparison)
@@ -549,10 +591,12 @@ class MocShockCellExternalPromotionReview:
       raise TypeError(
         'comparisons must contain MocShockCellExternalComparison values'
       )
+    ####
     object.__setattr__(self, 'comparisons', comparisons)
     failed_dataset_ids = tuple(str(value) for value in self.failed_dataset_ids)
     if any(not value for value in failed_dataset_ids):
       raise ValueError('failed_dataset_ids must contain non-empty strings')
+    ####
     object.__setattr__(self, 'failed_dataset_ids', failed_dataset_ids)
     missing_features = tuple(self.missing_features)
     if any(
@@ -562,6 +606,7 @@ class MocShockCellExternalPromotionReview:
       raise TypeError(
         'missing_features must contain MocShockCellExternalFeature values'
       )
+    ####
     object.__setattr__(self, 'missing_features', missing_features)
     missing_tolerances = tuple(self.missing_tolerances)
     if any(
@@ -571,6 +616,7 @@ class MocShockCellExternalPromotionReview:
       raise TypeError(
         'missing_tolerances must contain MocShockCellExternalFeature values'
       )
+    ####
     object.__setattr__(self, 'missing_tolerances', missing_tolerances)
     failures = tuple(self.residual_failures)
     if any(
@@ -583,6 +629,7 @@ class MocShockCellExternalPromotionReview:
       raise TypeError(
         'residual_failures must contain (dataset_id, feature) pairs'
       )
+    ####
     object.__setattr__(self, 'residual_failures', failures)
     for name in (
       'external_validation_verified',
@@ -591,9 +638,11 @@ class MocShockCellExternalPromotionReview:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'claim_status', str(self.claim_status))
     object.__setattr__(self, 'message', str(self.message))
-    ####
+  ####
 
   @property
   def converged(self) -> bool:
@@ -630,6 +679,7 @@ class MocShockCellExternalPromotionReview:
       'message': self.message,
     }
   ####
+####
 
 
 def _model_feature_value(
@@ -638,8 +688,10 @@ def _model_feature_value(
 ) -> float | None:
   if feature is MocShockCellExternalFeature.AXIAL_LENGTH_M:
     return measurement.axial_length_m
+  ####
   if feature is MocShockCellExternalFeature.MAXIMUM_RADIUS_M:
     return measurement.maximum_radius_m
+  ####
   point: tuple[float, float] | None
   if feature is MocShockCellExternalFeature.SHOCK_START_X_M:
     point = measurement.shock_start_m
@@ -647,7 +699,9 @@ def _model_feature_value(
     point = measurement.shock_end_m
   else:
     point = measurement.centerline_end_m
+  ####
   return None if point is None else point[0]
+####
 
 
 def _feature_comparison(
@@ -662,14 +716,17 @@ def _feature_comparison(
     observed_value = observations[cell_index].value_for(feature)
     if model_value is None or observed_value is None or not isfinite(model_value):
       continue
+    ####
     pairs.append((
       cell_index,
       float(model_value),
       float(observed_value),
       observations[cell_index].uncertainty_for(feature),
     ))
+  ####
   if not pairs:
     return None
+  ####
   indices = tuple(pair[0] for pair in pairs)
   model_values = tuple(pair[1] for pair in pairs)
   observed_values = tuple(pair[2] for pair in pairs)
@@ -699,6 +756,7 @@ def _feature_comparison(
     rmse_m=rmse,
     uncertainty_weighted_rmse=weighted_rmse,
   )
+####
 
 
 def compare_moc_shock_cell_chain_to_external(
@@ -718,8 +776,10 @@ def compare_moc_shock_cell_chain_to_external(
     raise TypeError(
       'chain_measurement must be a MocShockCellChainMeasurement'
     )
+  ####
   if not isinstance(dataset, MocShockCellExternalDataset):
     raise TypeError('dataset must be a MocShockCellExternalDataset')
+  ####
   model_indices = tuple(sorted(cell.cell_index for cell in chain_measurement.cells))
   observed_indices = tuple(
     sorted(observation.cell_index for observation in dataset.observations)
@@ -748,6 +808,7 @@ def compare_moc_shock_cell_chain_to_external(
       ),
       **base,
     )
+  ####
   if dataset.coordinate_frame != 'axial-transverse-m' or dataset.units != 'm':
     return MocShockCellExternalComparison(
       status=MocShockCellExternalComparisonStatus.BLOCKED_COORDINATE_METADATA,
@@ -757,6 +818,7 @@ def compare_moc_shock_cell_chain_to_external(
       ),
       **base,
     )
+  ####
   if not matched_indices:
     return MocShockCellExternalComparison(
       status=MocShockCellExternalComparisonStatus.BLOCKED_NO_OVERLAP,
@@ -766,6 +828,7 @@ def compare_moc_shock_cell_chain_to_external(
       ),
       **base,
     )
+  ####
   measurements = {cell.cell_index: cell for cell in chain_measurement.cells}
   observations = {
     observation.cell_index: observation
@@ -792,6 +855,7 @@ def compare_moc_shock_cell_chain_to_external(
       ),
       **base,
     )
+  ####
   exact_domain = model_indices == observed_indices
   status = (
     MocShockCellExternalComparisonStatus.FULL_DOMAIN_COMPUTED
@@ -816,6 +880,7 @@ def compare_moc_shock_cell_chain_to_external(
     ),
     **{**base, 'feature_comparisons': comparisons},
   )
+####
 
 
 def _split_audit_failure(
@@ -850,6 +915,7 @@ def _split_audit_failure(
     claim_status='not_accepted',
     message=message,
   )
+####
 
 
 def audit_moc_external_validation_splits(
@@ -869,11 +935,13 @@ def audit_moc_external_validation_splits(
       MocExternalValidationSplitAuditStatus.INVALID_INPUT,
       'datasets must be an iterable of MocShockCellExternalDataset values',
     )
+  ####
   if any(not isinstance(dataset, MocShockCellExternalDataset) for dataset in items):
     return _split_audit_failure(
       MocExternalValidationSplitAuditStatus.INVALID_INPUT,
       'datasets must contain MocShockCellExternalDataset values',
     )
+  ####
   dataset_ids = tuple(dataset.dataset_id for dataset in items)
   duplicate_dataset_ids = tuple(sorted({
     dataset_id
@@ -887,6 +955,7 @@ def audit_moc_external_validation_splits(
       datasets=items,
       duplicate_dataset_ids=duplicate_dataset_ids,
     )
+  ####
   calibration_ids = {
     dataset.case_id
     for dataset in items
@@ -903,6 +972,7 @@ def audit_moc_external_validation_splits(
       'at least one calibration dataset and one validation dataset are required',
       datasets=items,
     )
+  ####
   overlapping_case_ids = tuple(sorted(calibration_ids & validation_ids))
   if overlapping_case_ids:
     return _split_audit_failure(
@@ -911,6 +981,7 @@ def audit_moc_external_validation_splits(
       datasets=items,
       overlapping_case_ids=overlapping_case_ids,
     )
+  ####
   return _split_audit_failure(
     MocExternalValidationSplitAuditStatus.VERIFIED,
     (
@@ -919,6 +990,7 @@ def audit_moc_external_validation_splits(
     ),
     datasets=items,
   )
+####
 
 
 def review_moc_shock_cell_external_promotion(
@@ -940,12 +1012,15 @@ def review_moc_shock_cell_external_promotion(
     raise TypeError(
       'chain_measurement must be a MocShockCellChainMeasurement'
     )
+  ####
   if policy is None:
     policy = MocShockCellExternalPromotionPolicy()
+  ####
   if not isinstance(policy, MocShockCellExternalPromotionPolicy):
     raise TypeError(
       'policy must be a MocShockCellExternalPromotionPolicy or None'
     )
+  ####
   try:
     items = tuple(datasets)
   except TypeError:
@@ -956,6 +1031,7 @@ def review_moc_shock_cell_external_promotion(
       isinstance(dataset, MocShockCellExternalDataset)
       for dataset in items
     )
+  ####
   split_audit = audit_moc_external_validation_splits(items)
   base = {
     'operator_id': MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -974,6 +1050,7 @@ def review_moc_shock_cell_external_promotion(
       ),
       **base,
     )
+  ####
   if not items:
     return MocShockCellExternalPromotionReview(
       status=MocShockCellExternalPromotionReviewStatus.BLOCKED_MISSING_DATA,
@@ -983,6 +1060,7 @@ def review_moc_shock_cell_external_promotion(
       ),
       **base,
     )
+  ####
   if not split_audit.verified:
     return MocShockCellExternalPromotionReview(
       status=MocShockCellExternalPromotionReviewStatus.BLOCKED_SPLIT_AUDIT,
@@ -992,6 +1070,7 @@ def review_moc_shock_cell_external_promotion(
       ),
       **base,
     )
+  ####
   if not chain_measurement.converged:
     return MocShockCellExternalPromotionReview(
       status=MocShockCellExternalPromotionReviewStatus.BLOCKED_MODEL_MEASUREMENT,
@@ -1001,6 +1080,7 @@ def review_moc_shock_cell_external_promotion(
       ),
       **base,
     )
+  ####
 
   comparisons = tuple(
     compare_moc_shock_cell_chain_to_external(chain_measurement, dataset)
@@ -1037,6 +1117,9 @@ def review_moc_shock_cell_external_promotion(
         coverage_failures.append(comparison.dataset_id)
       else:
         comparison_failures.append(comparison.dataset_id)
+      ####
+    ####
+  ####
   failed_dataset_ids = tuple(
     dict.fromkeys((*coverage_failures, *comparison_failures))
   )
@@ -1056,6 +1139,7 @@ def review_moc_shock_cell_external_promotion(
       ),
       **base,
     )
+  ####
 
   missing_tolerances = tuple(
     feature
@@ -1075,6 +1159,7 @@ def review_moc_shock_cell_external_promotion(
       ),
       **base,
     )
+  ####
 
   missing_features = tuple(
     feature
@@ -1098,6 +1183,7 @@ def review_moc_shock_cell_external_promotion(
       ),
       **base,
     )
+  ####
 
   residual_failures: list[tuple[str, MocShockCellExternalFeature]] = []
   for comparison in comparisons:
@@ -1110,6 +1196,7 @@ def review_moc_shock_cell_external_promotion(
       assert tolerance is not None
       if item.rmse_m > tolerance:
         residual_failures.append((comparison.dataset_id, feature))
+      ####
       weighted_tolerance = policy.maximum_uncertainty_weighted_rmse
       if (
         weighted_tolerance is not None
@@ -1117,6 +1204,9 @@ def review_moc_shock_cell_external_promotion(
         and item.uncertainty_weighted_rmse > weighted_tolerance
       ):
         residual_failures.append((comparison.dataset_id, feature))
+      ####
+    ####
+  ####
   if residual_failures:
     return MocShockCellExternalPromotionReview(
       status=MocShockCellExternalPromotionReviewStatus.BLOCKED_RESIDUAL,
@@ -1128,6 +1218,7 @@ def review_moc_shock_cell_external_promotion(
       ),
       **base,
     )
+  ####
   return MocShockCellExternalPromotionReview(
     status=MocShockCellExternalPromotionReviewStatus.EXTERNAL_EVIDENCE_VERIFIED,
     comparisons=comparisons,
@@ -1141,6 +1232,7 @@ def review_moc_shock_cell_external_promotion(
     ),
     **base,
   )
+####
 
 
 __all__ = (

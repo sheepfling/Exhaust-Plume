@@ -28,6 +28,7 @@ class TestLane:
     purpose: str
     claim_boundary: str
     patterns: tuple[str, ...]
+####
 
 
 TEST_LANES = (
@@ -179,8 +180,11 @@ def lane_by_id(lane_id: str) -> TestLane:
     for lane in TEST_LANES:
         if lane.lane_id == lane_id:
             return lane
+        ####
+    ####
     available = ", ".join(lane.lane_id for lane in TEST_LANES)
     raise ValueError(f"unknown test lane {lane_id!r}; expected one of: {available}")
+####
 
 
 def lane_test_paths(lane: TestLane, *, root: Path = REPO_ROOT) -> tuple[Path, ...]:
@@ -188,6 +192,7 @@ def lane_test_paths(lane: TestLane, *, root: Path = REPO_ROOT) -> tuple[Path, ..
 
     paths = {path for pattern in lane.patterns for path in root.glob(pattern) if path.is_file()}
     return tuple(sorted(paths))
+####
 
 
 def all_test_paths(*, root: Path = REPO_ROOT) -> tuple[Path, ...]:
@@ -197,7 +202,9 @@ def all_test_paths(*, root: Path = REPO_ROOT) -> tuple[Path, ...]:
     installed_smoke = root / "tests" / "installed_smoke.py"
     if installed_smoke.is_file():
         paths.add(installed_smoke)
+    ####
     return tuple(sorted(path for path in paths if path.is_file()))
+####
 
 
 def lane_partition_report(*, root: Path = REPO_ROOT) -> dict[str, object]:
@@ -209,9 +216,12 @@ def lane_partition_report(*, root: Path = REPO_ROOT) -> dict[str, object]:
         lane_paths = lane_test_paths(lane, root=root)
         for path in lane_paths:
             assignments.setdefault(path, []).append(lane.lane_id)
+        ####
         unmatched = [pattern for pattern in lane.patterns if not tuple(root.glob(pattern))]
         if unmatched:
             empty_patterns[lane.lane_id] = unmatched
+        ####
+    ####
     expected = set(all_test_paths(root=root))
     assigned = set(assignments)
     return {
@@ -223,6 +233,7 @@ def lane_partition_report(*, root: Path = REPO_ROOT) -> dict[str, object]:
         "overlaps": {str(path.relative_to(root)): tuple(lane_ids) for path, lane_ids in assignments.items() if len(lane_ids) != 1},
         "unassigned": tuple(str(path.relative_to(root)) for path in sorted(expected - assigned)),
     }
+####
 
 
 def assert_lane_partition(*, root: Path = REPO_ROOT) -> None:
@@ -235,12 +246,17 @@ def assert_lane_partition(*, root: Path = REPO_ROOT) -> None:
     unassigned = report["unassigned"]
     if empty_patterns:
         problems.append(f"empty patterns: {empty_patterns}")
+    ####
     if overlaps:
         problems.append(f"overlapping test assignments: {overlaps}")
+    ####
     if unassigned:
         problems.append(f"unassigned tests: {unassigned}")
+    ####
     if problems:
         raise ValueError("test-lane manifest is invalid: " + "; ".join(problems))
+    ####
+####
 
 
 def pytest_command(
@@ -254,8 +270,10 @@ def pytest_command(
     selected = tuple(lane_by_id(lane_id) for lane_id in lane_ids)
     if not selected:
         raise ValueError("at least one test lane is required")
+    ####
     targets = tuple(str(path.relative_to(REPO_ROOT)) for lane in selected for path in lane_test_paths(lane))
     return (python, "-m", "pytest", "-q", *extra_pytest_args, *targets)
+####
 
 
 def _print_lanes() -> None:
@@ -263,6 +281,8 @@ def _print_lanes() -> None:
         print(f"{lane.lane_id}: {lane.purpose}")
         print(f"  boundary: {lane.claim_boundary}")
         print(f"  tests: {len(lane_test_paths(lane))}")
+    ####
+####
 
 
 def main(argv: Sequence[str] = ()) -> int:
@@ -278,19 +298,25 @@ def main(argv: Sequence[str] = ()) -> int:
         assert_lane_partition()
     except ValueError as error:
         parser.error(str(error))
+    ####
     if args.list:
         _print_lanes()
         return 0
+    ####
     if args.check:
         print(f"{TEST_LANE_SCHEMA}: {len(TEST_LANES)} lanes partition {len(all_test_paths())} test modules")
         return 0
+    ####
     lane_ids = tuple(lane.lane_id for lane in TEST_LANES) if args.all else tuple(args.lane or ())
     if not lane_ids:
         parser.error("choose --lane, --all, --list, or --check")
+    ####
     command = pytest_command(lane_ids, extra_pytest_args=tuple(args.pytest_args))
     print("$ " + " ".join(command))
     return subprocess.run(command, cwd=REPO_ROOT, check=False).returncode
+####
 
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+####

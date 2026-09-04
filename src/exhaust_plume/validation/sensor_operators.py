@@ -120,15 +120,21 @@ class AtmosphericPathLayer:
     absorption = tuple(float(value) for value in self.absorption_coefficient_per_m)
     if not source or len(source) != len(absorption):
       raise ValueError('atmospheric layer spectra must have matching nonzero lengths')
+    ####
     if any(not isfinite(value) or value < 0.0 for value in source + absorption):
       raise ValueError('atmospheric layer spectra must be finite and nonnegative')
+    ####
     if not isfinite(self.length_m) or self.length_m < 0.0:
       raise ValueError('atmospheric layer length_m must be finite and nonnegative')
+    ####
     if not self.layer_id:
       raise ValueError('atmospheric layer_id must not be empty')
+    ####
     object.__setattr__(self, 'source_function_w_sr_m', source)
     object.__setattr__(self, 'absorption_coefficient_per_m', absorption)
     object.__setattr__(self, 'length_m', float(self.length_m))
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +147,7 @@ class AtmosphericPathTransfer:
   optical_depth: tuple[float, ...]
   layer_ids: tuple[str, ...]
   operator_id: str = ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID
+####
 
 
 def compose_atmospheric_path_layers(
@@ -158,6 +165,7 @@ def compose_atmospheric_path_layers(
   selected_layers = tuple(layers)
   if not selected_layers:
     raise ValueError('atmospheric path requires at least one layer')
+  ####
   if not all(isinstance(layer, AtmosphericPathLayer) for layer in selected_layers):
     raise TypeError('layers must contain AtmosphericPathLayer values')
   ####
@@ -165,11 +173,13 @@ def compose_atmospheric_path_layers(
   for index, layer in enumerate(selected_layers):
     if len(layer.source_function_w_sr_m) != len(wavelengths):
       raise ValueError(f'atmospheric layer {index} spectrum does not match wavelengths_m')
+    ####
     segments.append(HomogeneousSegment(
       source_function_w_sr_m=layer.source_function_w_sr_m,
       absorption_coefficient_per_m=layer.absorption_coefficient_per_m,
       length_m=layer.length_m,
     ))
+  ####
   transfer = compose_homogeneous_segments(tuple(segments))
   return AtmosphericPathTransfer(
     wavelengths_m=wavelengths,
@@ -178,6 +188,7 @@ def compose_atmospheric_path_layers(
     optical_depth=transfer.optical_depth,
     layer_ids=tuple(layer.layer_id for layer in selected_layers),
   )
+####
 
 
 def apply_atmospheric_path_layers(
@@ -208,6 +219,7 @@ def apply_atmospheric_path_layers(
     validity_mask=validity_mask,
     path_radiance=(transfer.path_radiance_w_sr_m,) * len(source),
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,6 +231,7 @@ class PathTransferredSpectrum:
   validity_mask: BoolMatrix
   source_semantics: str
   operator_id: str = ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID
+####
 
 
 def apply_atmospheric_path_transfer(
@@ -278,6 +291,7 @@ def apply_atmospheric_path_transfer(
     )
     if len(path) != len(source):
       raise ValueError('path_radiance must have the same row count as the source')
+    ####
   ####
   output: list[tuple[float, ...]] = []
   output_mask: list[tuple[bool, ...]] = []
@@ -315,6 +329,7 @@ class SensorFovSpectrum:
   output_units: str
   source_semantics: str
   operator_id: str = LOS_FOV_SPECTRUM_OPERATOR_ID
+####
 
 
 def integrate_los_fov_spectrum(
@@ -434,6 +449,7 @@ class BandpassDetectorSpectrum:
   normalized_response: bool
   response_id: str
   operator_id: str = BANDPASS_DETECTOR_OPERATOR_ID
+####
 
 
 def integrate_bandpass_detector_rows(
@@ -465,6 +481,7 @@ def integrate_bandpass_detector_rows(
   response_axis = _axis(response_wavelengths_m, 'response_wavelengths_m')
   if len(response_axis) != len(response):
     raise ValueError('response_wavelengths_m and response must have matching lengths')
+  ####
   response_values = tuple(float(value) for value in response)
   if any(not isfinite(value) or value < 0.0 for value in response_values):
     raise ValueError('response must be finite and nonnegative')
@@ -473,8 +490,10 @@ def integrate_bandpass_detector_rows(
   upper = float(band_max_m)
   if not isfinite(lower) or not isfinite(upper) or lower <= 0.0 or upper <= lower:
     raise ValueError('band bounds must be finite, positive, and strictly increasing')
+  ####
   if lower < source_axis[0] or upper > source_axis[-1]:
     raise ValueError('band is outside the source spectral domain')
+  ####
   if lower < response_axis[0] or upper > response_axis[-1]:
     raise ValueError('band is outside the detector response domain')
   ####
@@ -532,6 +551,7 @@ def integrate_bandpass_detector_rows(
   ####
   if not response_id:
     raise ValueError('response_id must not be empty')
+  ####
   return BandpassDetectorSpectrum(
     band_min_m=lower,
     band_max_m=upper,

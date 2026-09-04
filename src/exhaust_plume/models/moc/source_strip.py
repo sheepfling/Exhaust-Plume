@@ -120,6 +120,7 @@ class MocSourceStripFrontierResult:
       'maximum_geometry_residual_m': self.maximum_geometry_residual_m,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -189,6 +190,7 @@ class MocSourceStripCausticEventResult:
         'caustic crossing edge states must contain pairs of '
         'CharacteristicState values'
       )
+    ####
   ####
 
   @property
@@ -231,6 +233,7 @@ class MocSourceStripCausticEventResult:
       'caustic_point_m': self.caustic_point_m,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -283,6 +286,7 @@ class MocSourceStripCausticEdgeStateResult:
       'geometry_residual_m': self.geometry_residual_m,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -338,6 +342,7 @@ class MocSourceStripCausticShockSeedResult:
       'edge_states': [edge.as_report() for edge in self.edge_states],
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -406,6 +411,7 @@ class MocSourceStripRemeshResult:
         'a chain caustic stop requires a detected caustic event in a '
         'new-family remesh result'
       )
+    ####
     assert self.caustic_event is not None
     assert self.frontier is not None
     return MocChainTerminationDecision(
@@ -459,6 +465,7 @@ class MocSourceStripRemeshResult:
       ),
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -513,6 +520,7 @@ class MocSourceCharacteristicStripResult:
   def __post_init__(self) -> None:
     if not isfinite(float(self.total_pressure_Pa)) or self.total_pressure_Pa <= 0.0:
       raise ValueError('total_pressure_Pa must be finite and positive')
+    ####
     plus_pressures = _normalize_source_pressure_values(
       self.plus_source_total_pressure_Pa,
       len(self.plus_source_states),
@@ -539,6 +547,7 @@ class MocSourceCharacteristicStripResult:
         else self.total_pressure_Pa
         for node in self.nodes
       )
+    ####
     object.__setattr__(self, 'plus_source_total_pressure_Pa', plus_pressures)
     object.__setattr__(self, 'minus_source_total_pressure_Pa', minus_pressures)
     object.__setattr__(self, 'node_total_pressure_Pa', node_pressures)
@@ -548,10 +557,12 @@ class MocSourceCharacteristicStripResult:
       or self.source_window_start_index < 0
     ):
       raise ValueError('source_window_start_index must be a non-negative integer')
+    ####
     total_count = self.source_window_total_count
     if total_count is None:
       total_count = self.source_window_start_index + len(self.plus_source_states)
       object.__setattr__(self, 'source_window_total_count', total_count)
+    ####
     if (
       isinstance(total_count, bool)
       or not isinstance(total_count, int)
@@ -560,6 +571,7 @@ class MocSourceCharacteristicStripResult:
       raise ValueError(
         'source_window_total_count must cover the supplied source window'
       )
+    ####
     object.__setattr__(
       self,
       '_node_by_key',
@@ -594,6 +606,7 @@ class MocSourceCharacteristicStripResult:
       origin = (0.0, 0.0)
       bins_per_axis = 1
       bin_size = 1.0
+    ####
     bins: dict[tuple[int, int], list[int]] = {}
     for index, bounds in enumerate(cell_bounds):
       lower_x = max(
@@ -627,6 +640,9 @@ class MocSourceCharacteristicStripResult:
       for bin_x in range(lower_x, upper_x + 1):
         for bin_y in range(lower_y, upper_y + 1):
           bins.setdefault((bin_x, bin_y), []).append(index)
+        ####
+      ####
+    ####
     object.__setattr__(
       self,
       '_cell_bins',
@@ -687,6 +703,7 @@ class MocSourceCharacteristicStripResult:
     point = _finite_point(point_m, 'point_m')
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     for state in (*self.plus_source_states, *self.minus_source_states):
       if _distance(point, (state.x_m, state.y_m)) <= position_tolerance_m:
         return CharacteristicState(
@@ -696,8 +713,11 @@ class MocSourceCharacteristicStripResult:
           mach=state.mach,
           gamma=state.gamma,
         )
+      ####
+    ####
     if not self._cell_bounds_m:
       return None
+    ####
     bin_x = floor(
       (point[0] - self._spatial_origin_m[0]) / self._spatial_bin_size_m
     )
@@ -708,6 +728,8 @@ class MocSourceCharacteristicStripResult:
     for candidate_x in range(bin_x - 1, bin_x + 2):
       for candidate_y in range(bin_y - 1, bin_y + 2):
         candidate_indices.update(self._cell_bins.get((candidate_x, candidate_y), ()))
+      ####
+    ####
     for index in sorted(candidate_indices):
       bounds = self._cell_bounds_m[index]
       if (
@@ -717,10 +739,12 @@ class MocSourceCharacteristicStripResult:
         or point[1] > bounds[3] + position_tolerance_m
       ):
         continue
+      ####
       cell = self.cells[index]
       samples = _cell_samples(self, cell, self._node_by_key)
       if samples is None:
         continue
+      ####
       vertices, states = samples
       weights = _polygon_interpolation_weights(
         point,
@@ -729,6 +753,7 @@ class MocSourceCharacteristicStripResult:
       )
       if weights is None:
         continue
+      ####
       theta = sum(
         weight * state.theta_rad
         for weight, state in zip(weights, states, strict=True)
@@ -740,6 +765,7 @@ class MocSourceCharacteristicStripResult:
       inverse = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
       if not inverse.converged or inverse.value is None:
         return None
+      ####
       return CharacteristicState(
         x_m=point[0],
         y_m=point[1],
@@ -747,6 +773,7 @@ class MocSourceCharacteristicStripResult:
         mach=inverse.value,
         gamma=states[0].gamma,
       )
+    ####
     return None
   ####
 
@@ -765,6 +792,7 @@ class MocSourceCharacteristicStripResult:
     )
     if state is None or total_pressure is None:
       return None
+    ####
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
@@ -782,6 +810,7 @@ class MocSourceCharacteristicStripResult:
     point = _finite_point(point_m, 'point_m')
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     for state, pressure in zip(
       self.plus_source_states,
       self.plus_source_total_pressure_Pa,
@@ -789,6 +818,8 @@ class MocSourceCharacteristicStripResult:
     ):
       if _distance(point, (state.x_m, state.y_m)) <= position_tolerance_m:
         return pressure
+      ####
+    ####
     for state, pressure in zip(
       self.minus_source_states,
       self.minus_source_total_pressure_Pa,
@@ -796,8 +827,11 @@ class MocSourceCharacteristicStripResult:
     ):
       if _distance(point, (state.x_m, state.y_m)) <= position_tolerance_m:
         return pressure
+      ####
+    ####
     if not self._cell_bounds_m:
       return None
+    ####
     bin_x = floor(
       (point[0] - self._spatial_origin_m[0]) / self._spatial_bin_size_m
     )
@@ -808,6 +842,8 @@ class MocSourceCharacteristicStripResult:
     for candidate_x in range(bin_x - 1, bin_x + 2):
       for candidate_y in range(bin_y - 1, bin_y + 2):
         candidate_indices.update(self._cell_bins.get((candidate_x, candidate_y), ()))
+      ####
+    ####
     for index in sorted(candidate_indices):
       bounds = self._cell_bounds_m[index]
       if (
@@ -817,11 +853,13 @@ class MocSourceCharacteristicStripResult:
         or point[1] > bounds[3] + position_tolerance_m
       ):
         continue
+      ####
       cell = self.cells[index]
       samples = _cell_samples(self, cell, self._node_by_key)
       pressures = _cell_pressure_samples(self, cell, self._node_by_key)
       if samples is None or pressures is None:
         continue
+      ####
       vertices, _states = samples
       weights = _polygon_interpolation_weights(
         point,
@@ -830,10 +868,12 @@ class MocSourceCharacteristicStripResult:
       )
       if weights is None:
         continue
+      ####
       return sum(
         weight * pressure
         for weight, pressure in zip(weights, pressures, strict=True)
       )
+    ####
     return None
   ####
 
@@ -871,6 +911,7 @@ class MocSourceCharacteristicStripResult:
       'total_pressure_model': self.total_pressure_model,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -925,17 +966,21 @@ class MocSourceStripContinuationResult:
       ),
       'message': self.message,
     }
+  ####
 ####
 
 
 def _empty_topology() -> MocTopologyResult:
   return validate_moc_mesh(())
+####
 
 
 def _finite_point(point_m: tuple[float, float], name: str) -> tuple[float, float]:
   if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
     raise ValueError(f'{name} must contain two finite coordinates')
+  ####
   return float(point_m[0]), float(point_m[1])
+####
 
 
 def _normalize_source_pressure_values(
@@ -950,15 +995,20 @@ def _normalize_source_pressure_values(
     normalized = tuple(float(value) for value in values)
   except (TypeError, ValueError) as error:
     raise ValueError(f'{name} must contain finite positive values') from error
+  ####
   if not normalized:
     normalized = (float(fallback),) * expected_count
+  ####
   if len(normalized) != expected_count:
     raise ValueError(
       f'{name} must contain exactly {expected_count} values'
     )
+  ####
   if any(not isfinite(value) or value <= 0.0 for value in normalized):
     raise ValueError(f'{name} must contain finite positive values')
+  ####
   return normalized
+####
 
 
 def _source_pressures_are_uniform(
@@ -967,10 +1017,12 @@ def _source_pressures_are_uniform(
 ) -> bool:
   values = tuple(float(value) for value in (*plus_pressures, *minus_pressures))
   return not values or all(value == values[0] for value in values[1:])
+####
 
 
 def _distance(first: tuple[float, float], second: tuple[float, float]) -> float:
   return ((first[0] - second[0]) ** 2 + (first[1] - second[1]) ** 2) ** 0.5
+####
 
 
 def _cross_2d(
@@ -978,6 +1030,7 @@ def _cross_2d(
   second: tuple[float, float],
 ) -> float:
   return first[0] * second[1] - first[1] * second[0]
+####
 
 
 def _segment_intersection_point(
@@ -1008,6 +1061,7 @@ def _segment_intersection_point(
   )
   if abs(denominator) <= tolerance_m * scale:
     return None
+  ####
   offset = (
     second_start[0] - first_start[0],
     second_start[1] - first_start[1],
@@ -1020,11 +1074,13 @@ def _segment_intersection_point(
     and -parameter_tolerance <= second_parameter <= 1.0 + parameter_tolerance
   ):
     return None
+  ####
   bounded_parameter = max(0.0, min(1.0, first_parameter))
   return (
     first_start[0] + bounded_parameter * first_direction[0],
     first_start[1] + bounded_parameter * first_direction[1],
   )
+####
 
 
 def _caustic_event_for_cell(
@@ -1055,6 +1111,7 @@ def _caustic_event_for_cell(
       cell_vertices_m=cell_vertices,
       message='local remesh failure was not a four-sided characteristic crossing',
     )
+  ####
   edges = tuple(
     (
       cell_vertices[index],
@@ -1093,6 +1150,8 @@ def _caustic_event_for_cell(
           'is retained as a handoff point and no shock state is fabricated'
         ),
       )
+    ####
+  ####
   return MocSourceStripCausticEventResult(
     status=MocSourceStripCausticStatus.NOT_DETECTED,
     source_index=source_index,
@@ -1104,6 +1163,7 @@ def _caustic_event_for_cell(
       'could be isolated'
     ),
   )
+####
 
 
 def _caustic_edge_failure(
@@ -1155,6 +1215,7 @@ def _reconstruct_caustic_edge_state(
       edge_index=edge_index,
       message='caustic edge endpoints must be CharacteristicState values',
     )
+  ####
   if (
     abs(first_state.x_m - first_point[0]) > position_tolerance_m
     or abs(first_state.y_m - first_point[1]) > position_tolerance_m
@@ -1167,6 +1228,7 @@ def _reconstruct_caustic_edge_state(
       point_m=crossing_point,
       message='caustic edge endpoint states must lie on their edge segment',
     )
+  ####
   if abs(first_state.gamma - second_state.gamma) > invariant_tolerance:
     return _caustic_edge_failure(
       MocSourceStripCausticEdgeStatus.INVALID_INPUT,
@@ -1174,6 +1236,7 @@ def _reconstruct_caustic_edge_state(
       point_m=crossing_point,
       message='caustic edge endpoint states use different gamma values',
     )
+  ####
   if not isfinite(float(total_pressure_Pa)) or total_pressure_Pa <= 0.0:
     return _caustic_edge_failure(
       MocSourceStripCausticEdgeStatus.INVALID_INPUT,
@@ -1181,6 +1244,7 @@ def _reconstruct_caustic_edge_state(
       point_m=crossing_point,
       message='total_pressure_Pa must be finite and positive',
     )
+  ####
   direction = (
     second_point[0] - first_point[0],
     second_point[1] - first_point[1],
@@ -1194,6 +1258,7 @@ def _reconstruct_caustic_edge_state(
       point_m=crossing_point,
       message='caustic crossing edge has zero or unresolved length',
     )
+  ####
   offset = (
     crossing_point[0] - first_point[0],
     crossing_point[1] - first_point[1],
@@ -1216,6 +1281,7 @@ def _reconstruct_caustic_edge_state(
       geometry_residual_m=geometry_residual,
       message='caustic point does not lie on the bounded crossing edge',
     )
+  ####
   fraction = max(0.0, min(1.0, fraction))
   k_plus_residual = abs(first_state.k_plus - second_state.k_plus)
   k_minus_residual = abs(first_state.k_minus - second_state.k_minus)
@@ -1239,6 +1305,7 @@ def _reconstruct_caustic_edge_state(
         f'(K+ residual={k_plus_residual}, K- residual={k_minus_residual})'
       ),
     )
+  ####
   theta = first_state.theta_rad + fraction * (
     second_state.theta_rad - first_state.theta_rad
   )
@@ -1255,6 +1322,7 @@ def _reconstruct_caustic_edge_state(
       geometry_residual_m=geometry_residual,
       message=f'caustic edge Prandtl-Meyer reconstruction failed: {inverse.message}',
     )
+  ####
   state = CharacteristicState(
     x_m=float(crossing_point[0]),
     y_m=float(crossing_point[1]),
@@ -1292,6 +1360,7 @@ def _reconstruct_caustic_edge_state(
         f'{family.value} invariant'
       ),
     )
+  ####
   static_pressure = float(total_pressure_Pa) / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
@@ -1343,10 +1412,12 @@ def build_caustic_shock_seed(
       static_pressure_jump_Pa=None,
       message='event must be a MocSourceStripCausticEventResult',
     )
+  ####
   try:
     total_pressure = float(total_pressure_Pa)
   except (TypeError, ValueError):
     total_pressure = float('nan')
+  ####
   if not isfinite(total_pressure) or total_pressure <= 0.0:
     return MocSourceStripCausticShockSeedResult(
       status=MocSourceStripCausticSeedStatus.INVALID_INPUT,
@@ -1357,12 +1428,15 @@ def build_caustic_shock_seed(
       static_pressure_jump_Pa=None,
       message='total_pressure_Pa must be finite and positive',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not event.detected:
     return MocSourceStripCausticShockSeedResult(
       status=MocSourceStripCausticSeedStatus.EVENT_FAILURE,
@@ -1373,6 +1447,7 @@ def build_caustic_shock_seed(
       static_pressure_jump_Pa=None,
       message='caustic shock seed requires a detected caustic event',
     )
+  ####
   if event.caustic_point_m is None:
     return MocSourceStripCausticShockSeedResult(
       status=MocSourceStripCausticSeedStatus.EVENT_FAILURE,
@@ -1383,6 +1458,7 @@ def build_caustic_shock_seed(
       static_pressure_jump_Pa=None,
       message='detected caustic event has no bounded crossing point',
     )
+  ####
   if (
     len(event.crossing_edge_indices) != 1
     or len(event.crossing_segments_m) != 2
@@ -1400,6 +1476,7 @@ def build_caustic_shock_seed(
         'bounded segments and two endpoint-state pairs'
       ),
     )
+  ####
   edge_indices = event.crossing_edge_indices[0]
   edges = tuple(
     _reconstruct_caustic_edge_state(
@@ -1424,6 +1501,7 @@ def build_caustic_shock_seed(
     status = MocSourceStripCausticSeedStatus.EDGE_FAILURE
   else:
     status = MocSourceStripCausticSeedStatus.CONVERGED_ONE_SIDED_SEED
+  ####
   if (
     len(edges) == 2
     and isinstance(edges[0].state, CharacteristicState)
@@ -1435,6 +1513,7 @@ def build_caustic_shock_seed(
     )
   else:
     flow_angle_jump = None
+  ####
   pressures = tuple(
     edge.static_pressure_Pa
     for edge in edges
@@ -1484,16 +1563,20 @@ def probe_source_strip_frontier(
       maximum_geometry_residual_m=None,
       message='plus_source must be a CharacteristicState',
     )
+  ####
   if (
     isinstance(source_index, bool)
     or not isinstance(source_index, int)
     or source_index < 0
   ):
     raise ValueError('source_index must be a non-negative integer')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   try:
     minus = tuple(minus_source_states)
   except TypeError:
@@ -1507,6 +1590,7 @@ def probe_source_strip_frontier(
       maximum_geometry_residual_m=None,
       message='minus_source_states must be an iterable of CharacteristicState values',
     )
+  ####
   if not minus or any(not isinstance(state, CharacteristicState) for state in minus):
     return MocSourceStripFrontierResult(
       status=MocSourceStripFrontierStatus.INVALID_INPUT,
@@ -1518,6 +1602,7 @@ def probe_source_strip_frontier(
       maximum_geometry_residual_m=None,
       message='minus_source_states must contain CharacteristicState values',
     )
+  ####
   if any(abs(state.gamma - plus_source.gamma) > invariant_tolerance for state in minus):
     return MocSourceStripFrontierResult(
       status=MocSourceStripFrontierStatus.INVALID_INPUT,
@@ -1529,6 +1614,7 @@ def probe_source_strip_frontier(
       maximum_geometry_residual_m=None,
       message='source states must use one common gamma',
     )
+  ####
   valid_indices: list[int] = []
   first_invalid_index: int | None = None
   geometry_residuals: list[float] = []
@@ -1548,14 +1634,19 @@ def probe_source_strip_frontier(
       valid_indices.append(index)
       if point_result.geometry_residual is not None:
         geometry_residuals.append(abs(point_result.geometry_residual))
+      ####
     elif first_invalid_index is None:
       first_invalid_index = index
+    ####
+  ####
   ranges: list[tuple[int, int]] = []
   for index in valid_indices:
     if not ranges or index != ranges[-1][1] + 1:
       ranges.append((index, index))
     else:
       ranges[-1] = (ranges[-1][0], index)
+    ####
+  ####
   if not valid_indices:
     status = MocSourceStripFrontierStatus.NO_FORWARD_SEGMENTS
     message = 'the candidate source row has no forward characteristic intersections'
@@ -1568,6 +1659,7 @@ def probe_source_strip_frontier(
   else:
     status = MocSourceStripFrontierStatus.CONVERGED
     message = 'candidate source row has one connected forward interval'
+  ####
   return MocSourceStripFrontierResult(
     status=status,
     source_index=source_index,
@@ -1578,6 +1670,7 @@ def probe_source_strip_frontier(
     maximum_geometry_residual_m=max(geometry_residuals, default=None),
     message=message,
   )
+####
 
 
 def remesh_source_strip_frontier(
@@ -1608,6 +1701,7 @@ def remesh_source_strip_frontier(
       failed_boundary_index=None,
       message='frontier must be a MocSourceStripFrontierResult',
     )
+  ####
   source_index = frontier.source_index
   if not isinstance(base_strip, MocSourceCharacteristicStripResult):
     return MocSourceStripRemeshResult(
@@ -1620,6 +1714,7 @@ def remesh_source_strip_frontier(
       failed_boundary_index=None,
       message='base_strip must be a MocSourceCharacteristicStripResult',
     )
+  ####
   if not base_strip.converged:
     return MocSourceStripRemeshResult(
       status=MocSourceStripRemeshStatus.INVALID_INPUT,
@@ -1631,6 +1726,7 @@ def remesh_source_strip_frontier(
       failed_boundary_index=None,
       message='base_strip must be a converged open source strip',
     )
+  ####
   if not isinstance(plus_source, CharacteristicState):
     return MocSourceStripRemeshResult(
       status=MocSourceStripRemeshStatus.INVALID_INPUT,
@@ -1642,10 +1738,12 @@ def remesh_source_strip_frontier(
       failed_boundary_index=None,
       message='plus_source must be a CharacteristicState',
     )
+  ####
   try:
     minus = tuple(minus_source_states)
   except TypeError:
     minus = ()
+  ####
   if (
     source_index != len(base_strip.plus_source_states)
     or len(minus) != source_index + 1
@@ -1664,10 +1762,13 @@ def remesh_source_strip_frontier(
         'the converged base strip'
       ),
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   valid_indices = set(frontier.valid_boundary_indices)
   if any(index < 0 or index >= len(minus) for index in valid_indices):
     return MocSourceStripRemeshResult(
@@ -1680,6 +1781,7 @@ def remesh_source_strip_frontier(
       failed_boundary_index=None,
       message='frontier contains an out-of-range boundary index',
     )
+  ####
   base_nodes = {
     (node.centerline_index, node.boundary_index): node
     for node in base_strip.nodes
@@ -1712,6 +1814,7 @@ def remesh_source_strip_frontier(
           f'forward characteristic: {point_result.message}'
         ),
       )
+    ####
     new_nodes[boundary_index] = MocCharacteristicNode(
       centerline_index=source_index,
       boundary_index=boundary_index,
@@ -1720,6 +1823,7 @@ def remesh_source_strip_frontier(
       point_result=point_result,
       total_pressure_Pa=base_strip.total_pressure_Pa,
     )
+  ####
   old_index = source_index - 1
   patch_cells: list[MocCharacteristicCell] = []
   failed_boundary_indices: list[int] = []
@@ -1745,6 +1849,7 @@ def remesh_source_strip_frontier(
       caustic_event=caustic_event,
       failed_boundary_indices=tuple(failed_boundary_indices),
     )
+  ####
 
   axis_vertices = (
     (base_strip.plus_source_states[-1].x_m, base_strip.plus_source_states[-1].y_m),
@@ -1761,6 +1866,7 @@ def remesh_source_strip_frontier(
   try:
     if not axis_vertices:
       raise KeyError('axis remesh vertices are not available')
+    ####
     patch_cells.append(
       MocCharacteristicCell(
         cell_index=len(patch_cells),
@@ -1789,6 +1895,7 @@ def remesh_source_strip_frontier(
       0,
       caustic_event,
     )
+  ####
 
   for start, end in frontier.valid_index_ranges:
     for boundary_index in range(start, end):
@@ -1799,6 +1906,7 @@ def remesh_source_strip_frontier(
         if boundary_index == old_index:
           if boundary_index not in new_nodes or source_index not in new_nodes:
             raise KeyError('outer remesh diagonal is not available')
+          ####
           cell_kind = 'source-boundary-remesh'
           cell_vertices = (
             base_nodes[(old_index, old_index)].point_m,
@@ -1826,6 +1934,7 @@ def remesh_source_strip_frontier(
           )
         else:
           continue
+        ####
         patch_cells.append(
           MocCharacteristicCell(
             cell_index=len(patch_cells),
@@ -1854,6 +1963,9 @@ def remesh_source_strip_frontier(
           vertex_states=cell_states,
         ) if caustic_event is None else caustic_event
         continue
+      ####
+    ####
+  ####
   combined_topology = validate_moc_mesh((*base_strip.cells, *patch_cells))
   if failed_boundary_indices or frontier.has_disjoint_ranges:
     first_failed_boundary_index = (
@@ -1876,6 +1988,7 @@ def remesh_source_strip_frontier(
         'contains a caustic/new-family seam; no disconnected bridge was invented'
       ),
     )
+  ####
   if not combined_topology.connected or combined_topology.nonmanifold_edge_count:
     return MocSourceStripRemeshResult(
       status=MocSourceStripRemeshStatus.TOPOLOGY_FAILURE,
@@ -1889,6 +2002,7 @@ def remesh_source_strip_frontier(
       failed_boundary_indices=(),
       message=f'remeshed source patch topology failed: {combined_topology.message}',
     )
+  ####
   return MocSourceStripRemeshResult(
     status=MocSourceStripRemeshStatus.CONVERGED_OPEN_PATCH,
     source_index=source_index,
@@ -1904,6 +2018,7 @@ def remesh_source_strip_frontier(
       'upstream and physical-boundary closure remain separate gates'
     ),
   )
+####
 
 
 def _latest_converged_source_strip(
@@ -1930,6 +2045,7 @@ def _latest_converged_source_strip(
   upper = min(len(plus), len(minus))
   if upper <= lower:
     return initial_strip
+  ####
   candidate = assemble_source_characteristic_strip(
     plus[:upper],
     minus[:upper],
@@ -1939,6 +2055,7 @@ def _latest_converged_source_strip(
   )
   if candidate.converged:
     return candidate
+  ####
   last = initial_strip
   failing_count = upper
   while failing_count - lower > 1:
@@ -1955,6 +2072,8 @@ def _latest_converged_source_strip(
       lower = midpoint
     else:
       failing_count = midpoint
+    ####
+  ####
   return last
 ####
 
@@ -1974,6 +2093,7 @@ def _source_strip_continuation_frontier(
   minus = tuple(minus_source_states)
   if source_index >= len(plus) or source_index >= len(minus):
     return None, None
+  ####
   frontier = probe_source_strip_frontier(
     plus[source_index],
     minus[:source_index + 1],
@@ -1990,6 +2110,7 @@ def _source_strip_continuation_frontier(
     invariant_tolerance=invariant_tolerance,
   )
   return frontier, remesh
+####
 
 
 def _failure(
@@ -2017,6 +2138,7 @@ def _failure(
     maximum_absolute_invariant_residual=maximum_absolute_invariant_residual,
     message=message,
   )
+####
 
 
 def assemble_source_characteristic_strip(
@@ -2044,6 +2166,7 @@ def assemble_source_characteristic_strip(
     pressure = float(total_pressure_Pa)
   except (TypeError, ValueError):
     pressure = float('nan')
+  ####
   if not isfinite(pressure) or pressure <= 0.0:
     return _failure(
       MocSourceStripStatus.INVALID_INPUT,
@@ -2052,6 +2175,7 @@ def assemble_source_characteristic_strip(
       total_pressure_Pa=1.0,
       message='total_pressure_Pa must be finite and positive',
     )
+  ####
   if len(plus) != len(minus) or len(plus) < 3:
     return _failure(
       MocSourceStripStatus.INVALID_INPUT,
@@ -2060,6 +2184,7 @@ def assemble_source_characteristic_strip(
       total_pressure_Pa=pressure,
       message='source strips require equal arrays with at least three states',
     )
+  ####
   if (
     isinstance(source_window_start_index, bool)
     or not isinstance(source_window_start_index, int)
@@ -2072,6 +2197,7 @@ def assemble_source_characteristic_strip(
       total_pressure_Pa=pressure,
       message='source_window_start_index must be a non-negative integer',
     )
+  ####
   if source_window_total_count is None:
     source_total_count = source_window_start_index + len(plus)
   elif (
@@ -2090,6 +2216,7 @@ def assemble_source_characteristic_strip(
     )
   else:
     source_total_count = source_window_total_count
+  ####
   if any(not isinstance(state, CharacteristicState) for state in (*plus, *minus)):
     return _failure(
       MocSourceStripStatus.INVALID_INPUT,
@@ -2098,10 +2225,13 @@ def assemble_source_characteristic_strip(
       total_pressure_Pa=pressure,
       message='source arrays must contain CharacteristicState values',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   gamma = plus[0].gamma
   if any(abs(state.gamma - gamma) > invariant_tolerance for state in (*plus, *minus)):
     return _failure(
@@ -2111,6 +2241,7 @@ def assemble_source_characteristic_strip(
       total_pressure_Pa=pressure,
       message='source arrays must use one common gamma',
     )
+  ####
   if any(abs(state.y_m) > position_tolerance_m for state in plus):
     return _failure(
       MocSourceStripStatus.INVALID_INPUT,
@@ -2142,6 +2273,7 @@ def assemble_source_characteristic_strip(
             f'{point_result.message}'
           ),
         )
+      ####
       point = point_result.point_m
       if centerline_index == boundary_index:
         expected = minus[boundary_index]
@@ -2159,7 +2291,9 @@ def assemble_source_characteristic_strip(
               f'does not reproduce its minus source point; residual={discrepancy}'
             ),
           )
+        ####
         point = (expected.x_m, expected.y_m)
+      ####
       nodes_by_index[(centerline_index, boundary_index)] = MocCharacteristicNode(
         centerline_index=centerline_index,
         boundary_index=boundary_index,
@@ -2168,12 +2302,14 @@ def assemble_source_characteristic_strip(
         point_result=point_result,
         total_pressure_Pa=pressure,
       )
+    ####
   ####
 
   nodes = tuple(nodes_by_index.values())
 
   def node_point(centerline_index: int, boundary_index: int) -> tuple[float, float]:
     return nodes_by_index[(centerline_index, boundary_index)].point_m
+  ####
 
   cells_list: list[MocCharacteristicCell] = []
   try:
@@ -2192,6 +2328,7 @@ def assemble_source_characteristic_strip(
           boundary_indices=(0,),
         )
       )
+    ####
     for row in range(1, len(plus) - 1):
       for column in range(row):
         cells_list.append(
@@ -2208,6 +2345,8 @@ def assemble_source_characteristic_strip(
             boundary_indices=(column, column + 1),
           )
         )
+      ####
+    ####
     for index in range(len(plus) - 1):
       cells_list.append(
         MocCharacteristicCell(
@@ -2222,6 +2361,7 @@ def assemble_source_characteristic_strip(
           boundary_indices=(index, index + 1),
         )
       )
+    ####
   except (KeyError, ValueError) as error:
     return _failure(
       MocSourceStripStatus.GEOMETRY_FAILURE,
@@ -2336,6 +2476,7 @@ def assemble_source_characteristic_strip_with_source_pressures(
       total_pressure_Pa=1.0,
       message=str(error),
     )
+  ####
   base = assemble_source_characteristic_strip(
     plus,
     minus,
@@ -2347,6 +2488,7 @@ def assemble_source_characteristic_strip_with_source_pressures(
   )
   if not base.converged:
     return base
+  ####
   try:
     node_pressures = tuple(
       minus_pressures[node.boundary_index]
@@ -2365,6 +2507,7 @@ def assemble_source_characteristic_strip_with_source_pressures(
       total_pressure_Pa=plus_pressures[0],
       message='source node boundary indices do not match the C- pressure row',
     )
+  ####
   nodes = tuple(
     replace(node, total_pressure_Pa=pressure)
     for node, pressure in zip(base.nodes, node_pressures, strict=True)
@@ -2450,6 +2593,7 @@ def extend_source_characteristic_strip_constant_k_plus(
       continuation_k_plus=None,
       message='pressures must be finite numeric values',
     )
+  ####
   if (
     not isfinite(total_pressure)
     or total_pressure <= 0.0
@@ -2467,6 +2611,7 @@ def extend_source_characteristic_strip_constant_k_plus(
       continuation_k_plus=None,
       message='total pressure must exceed a finite positive ambient pressure',
     )
+  ####
   if (
     isinstance(additional_sample_count, bool)
     or not isinstance(additional_sample_count, int)
@@ -2476,6 +2621,7 @@ def extend_source_characteristic_strip_constant_k_plus(
       reported_axis_step = float(axis_step_m)
     except (TypeError, ValueError):
       reported_axis_step = float('nan')
+    ####
     return MocSourceStripContinuationResult(
       status=MocSourceStripContinuationStatus.INVALID_INPUT,
       strip=None,
@@ -2486,10 +2632,12 @@ def extend_source_characteristic_strip_constant_k_plus(
       continuation_k_plus=None,
       message='additional_sample_count must be a positive integer',
     )
+  ####
   try:
     axis_step = float(axis_step_m)
   except (TypeError, ValueError):
     axis_step = float('nan')
+  ####
   if not isfinite(axis_step) or axis_step <= 0.0:
     return MocSourceStripContinuationResult(
       status=MocSourceStripContinuationStatus.INVALID_INPUT,
@@ -2501,20 +2649,24 @@ def extend_source_characteristic_strip_constant_k_plus(
       continuation_k_plus=None,
       message='axis_step_m must be finite and positive',
     )
+  ####
   if not isfinite(float(pressure_tolerance)) or pressure_tolerance <= 0.0:
     raise ValueError('pressure_tolerance must be finite and positive')
+  ####
   if (
     isinstance(maximum_iterations, bool)
     or not isinstance(maximum_iterations, int)
     or maximum_iterations < 1
   ):
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if (
     isinstance(source_window_start_index, bool)
     or not isinstance(source_window_start_index, int)
     or source_window_start_index < 0
   ):
     raise ValueError('source_window_start_index must be a non-negative integer')
+  ####
 
   initial_strip = assemble_source_characteristic_strip(
     plus,
@@ -2534,6 +2686,7 @@ def extend_source_characteristic_strip_constant_k_plus(
       continuation_k_plus=None,
       message=f'initial source strip is not converged: {initial_strip.message}',
     )
+  ####
 
   continuation_k_plus = minus[-1].k_plus
   target_nu = -continuation_k_plus
@@ -2548,6 +2701,7 @@ def extend_source_characteristic_strip_constant_k_plus(
       continuation_k_plus=continuation_k_plus,
       message='constant-K+ continuation requires a strictly positive axis Prandtl-Meyer angle',
     )
+  ####
   axis_inverse = inverse_prandtl_meyer_angle_rad(target_nu, plus[-1].gamma)
   if not axis_inverse.converged or axis_inverse.value is None:
     return MocSourceStripContinuationResult(
@@ -2563,6 +2717,7 @@ def extend_source_characteristic_strip_constant_k_plus(
         f'{axis_inverse.message}'
       ),
     )
+  ####
 
   extended_plus = list(plus)
   extended_minus = list(minus)
@@ -2595,6 +2750,7 @@ def extend_source_characteristic_strip_constant_k_plus(
       last_converged_strip=last_converged_strip,
       message=message,
     )
+  ####
 
   for _ in range(additional_sample_count):
     previous_plus = extended_plus[-1]
@@ -2626,12 +2782,15 @@ def extend_source_characteristic_strip_constant_k_plus(
         f'{len(extended_minus) - len(minus)} added samples: '
         f'{boundary_result.message}'
       )
+    ####
     if boundary_result.state.x_m <= previous_minus.x_m + position_tolerance_m:
       return continuation_failure(
         'constant-K+ ambient boundary continuation stopped without downstream progress'
       )
+    ####
     extended_plus.append(incoming)
     extended_minus.append(boundary_result.state)
+  ####
 
   full_strip = assemble_source_characteristic_strip(
     extended_plus,
@@ -2661,6 +2820,7 @@ def extend_source_characteristic_strip_constant_k_plus(
       position_tolerance_m=position_tolerance_m,
       invariant_tolerance=invariant_tolerance,
     )
+  ####
   if source_window_start_index == 0 and full_strip.converged:
     return MocSourceStripContinuationResult(
       status=MocSourceStripContinuationStatus.CONVERGED_EXTENDED,
@@ -2679,6 +2839,7 @@ def extend_source_characteristic_strip_constant_k_plus(
         'upstream strip; physical shock fitting and downstream closure remain pending'
       ),
     )
+  ####
 
   if source_window_start_index >= len(extended_plus) - 2:
     return MocSourceStripContinuationResult(
@@ -2700,6 +2861,7 @@ def extend_source_characteristic_strip_constant_k_plus(
         'the requested terminal source window has fewer than three samples'
       ),
     )
+  ####
 
   selected_strip = assemble_source_characteristic_strip_window(
     extended_plus[source_window_start_index:],
@@ -2744,6 +2906,7 @@ def extend_source_characteristic_strip_constant_k_plus(
         )
       ),
     )
+  ####
 
   if not full_strip.converged:
     return MocSourceStripContinuationResult(
@@ -2766,6 +2929,7 @@ def extend_source_characteristic_strip_constant_k_plus(
         f'the selected terminal window also failed: {selected_strip.message}'
       ),
     )
+  ####
   return MocSourceStripContinuationResult(
     status=MocSourceStripContinuationStatus.STRIP_FAILURE,
     strip=selected_strip,
@@ -2832,6 +2996,7 @@ def _finish_centerline_reflection_continuation(
         message=message,
         **common,
       )
+    ####
     return MocSourceStripContinuationResult(
       status=MocSourceStripContinuationStatus.STRIP_FAILURE,
       strip=full_strip,
@@ -2839,6 +3004,7 @@ def _finish_centerline_reflection_continuation(
       message=f'{message}; extended strip failed: {full_strip.message}',
       **common,
     )
+  ####
   if source_window_start_index >= len(plus) - 2:
     return MocSourceStripContinuationResult(
       status=MocSourceStripContinuationStatus.STRIP_FAILURE,
@@ -2850,6 +3016,7 @@ def _finish_centerline_reflection_continuation(
       ),
       **common,
     )
+  ####
   selected_strip = assemble_source_characteristic_strip_window(
     plus[source_window_start_index:],
     minus[source_window_start_index:],
@@ -2868,6 +3035,7 @@ def _finish_centerline_reflection_continuation(
       ),
       **common,
     )
+  ####
   return MocSourceStripContinuationResult(
     status=MocSourceStripContinuationStatus.STRIP_FAILURE,
     strip=selected_strip,
@@ -2925,6 +3093,7 @@ def extend_source_characteristic_strip_centerline_reflection(
       message='pressures must be finite numeric values',
       continuation_law='centerline-c-minus-reflection-plus-ambient-pressure',
     )
+  ####
   if (
     not isfinite(total_pressure)
     or total_pressure <= 0.0
@@ -2943,6 +3112,7 @@ def extend_source_characteristic_strip_centerline_reflection(
       message='total pressure must exceed a finite positive ambient pressure',
       continuation_law='centerline-c-minus-reflection-plus-ambient-pressure',
     )
+  ####
   if (
     isinstance(additional_sample_count, bool)
     or not isinstance(additional_sample_count, int)
@@ -2959,6 +3129,7 @@ def extend_source_characteristic_strip_centerline_reflection(
       message='additional_sample_count must be a positive integer',
       continuation_law='centerline-c-minus-reflection-plus-ambient-pressure',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -2966,14 +3137,18 @@ def extend_source_characteristic_strip_centerline_reflection(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if (
     isinstance(source_window_start_index, bool)
     or not isinstance(source_window_start_index, int)
     or source_window_start_index < 0
   ):
     raise ValueError('source_window_start_index must be a non-negative integer')
+  ####
   initial_strip = assemble_source_characteristic_strip(
     plus,
     minus,
@@ -2994,6 +3169,7 @@ def extend_source_characteristic_strip_centerline_reflection(
       message=f'initial source strip is not converged: {initial_strip.message}',
       continuation_law=law,
     )
+  ####
   extended_plus = list(plus)
   extended_minus = list(minus)
 
@@ -3030,6 +3206,7 @@ def extend_source_characteristic_strip_centerline_reflection(
       remesh=remesh,
       last_converged_strip=last_converged_strip,
     )
+  ####
 
   for step in range(additional_sample_count):
     previous_plus = extended_plus[-1]
@@ -3044,11 +3221,13 @@ def extend_source_characteristic_strip_centerline_reflection(
       return continuation_failure(
         f'centerline reflection failed at step {step}: {axis_result.message}'
       )
+    ####
     axis_state = axis_result.state
     if axis_state.x_m <= previous_plus.x_m + position_tolerance_m:
       return continuation_failure(
         f'centerline reflection step {step} has no downstream axis progress'
       )
+    ####
     boundary_result = solve_ambient_pressure_free_boundary_point(
       axis_state,
       previous_minus,
@@ -3068,18 +3247,22 @@ def extend_source_characteristic_strip_centerline_reflection(
         'ambient boundary after centerline reflection failed at step '
         f'{step}: {boundary_result.message}'
       )
+    ####
     if boundary_result.point_m[0] <= previous_minus.x_m + position_tolerance_m:
       return continuation_failure(
         f'ambient boundary after centerline reflection step {step} '
         'has no downstream progress'
       )
+    ####
     if abs(boundary_result.state.k_plus - axis_state.k_plus) > invariant_tolerance:
       return continuation_failure(
         f'ambient boundary after centerline reflection step {step} '
         'did not preserve the reflected C+ invariant'
       )
+    ####
     extended_plus.append(axis_state)
     extended_minus.append(boundary_result.state)
+  ####
   full_strip = assemble_source_characteristic_strip(
     extended_plus,
     extended_minus,
@@ -3132,6 +3315,7 @@ def _cell_samples(
   def node_sample(key: tuple[int, int]) -> tuple[tuple[float, float], CharacteristicState] | None:
     node = node_by_key.get(key)
     return None if node is None else (node.point_m, node.state)
+  ####
 
   if cell.cell_kind == 'source-axis-strip':
     first, second = cell.centerline_indices
@@ -3159,10 +3343,13 @@ def _cell_samples(
     )
   else:
     return None
+  ####
   if any(sample is None for sample in samples):
     return None
+  ####
   resolved = tuple(sample for sample in samples if sample is not None)
   return tuple(cell.vertices_xr_m), tuple(sample[1] for sample in resolved)
+####
 
 
 def _cell_pressure_samples(
@@ -3176,8 +3363,10 @@ def _cell_pressure_samples(
     node = node_by_key.get(key)
     if node is None:
       return None
+    ####
     if node.total_pressure_Pa is not None:
       return float(node.total_pressure_Pa)
+    ####
     for index, candidate in enumerate(strip.nodes):
       if candidate is node or (
         candidate.centerline_index == key[0]
@@ -3185,8 +3374,12 @@ def _cell_pressure_samples(
       ):
         if index < len(strip.node_total_pressure_Pa):
           return strip.node_total_pressure_Pa[index]
+        ####
         break
+      ####
+    ####
     return None
+  ####
 
   if cell.cell_kind == 'source-axis-strip':
     first, second = cell.centerline_indices
@@ -3220,9 +3413,12 @@ def _cell_pressure_samples(
     )
   else:
     return None
+  ####
   if any(pressure is None for pressure in pressures):
     return None
+  ####
   return tuple(float(pressure) for pressure in pressures if pressure is not None)
+####
 
 
 def _triangle_weights(
@@ -3235,13 +3431,16 @@ def _triangle_weights(
   denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
   if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
     return None
+  ####
   px, py = point
   first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
   second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
   third = 1.0 - first - second
   if min(first, second, third) < -1.0e-10 or max(first, second, third) > 1.0 + 1.0e-10:
     return None
+  ####
   return first, second, third
+####
 
 
 def _polygon_interpolation_weights(
@@ -3252,6 +3451,7 @@ def _polygon_interpolation_weights(
 ) -> tuple[float, ...] | None:
   if len(vertices) == 3:
     return _triangle_weights(point, vertices, tolerance_m=tolerance_m)
+  ####
   first = _triangle_weights(
     point,
     (vertices[0], vertices[1], vertices[2]),
@@ -3259,6 +3459,7 @@ def _polygon_interpolation_weights(
   )
   if first is not None:
     return first[0], first[1], first[2], 0.0
+  ####
   second = _triangle_weights(
     point,
     (vertices[0], vertices[2], vertices[3]),
@@ -3266,5 +3467,6 @@ def _polygon_interpolation_weights(
   )
   if second is not None:
     return second[0], 0.0, second[1], second[2]
+  ####
   return None
 ####

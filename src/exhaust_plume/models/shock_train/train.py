@@ -32,6 +32,7 @@ def _expanded_mach(total_pressure_Pa: float, ambient_pressure_Pa: float, gamma: 
   pressure_ratio = total_pressure_Pa / ambient_pressure_Pa
   if pressure_ratio <= 1.0:
     return 0.0
+  ####
   term = 2.0 / (gamma - 1.0) * (
     pressure_ratio ** ((gamma - 1.0) / gamma) - 1.0
   )
@@ -43,11 +44,13 @@ def _first_cell_metrics(first_cell: ShockCellSolveResult) -> ShockCellMetrics | 
   zones = first_cell.zones
   if not zones:
     return None
+  ####
   start_x_m = min(float(zone.vertices_xr_m[:, 0].min()) for zone in zones)
   end_x_m = max(float(zone.vertices_xr_m[:, 0].max()) for zone in zones)
   length_m = end_x_m - start_x_m
   if length_m <= 0.0:
     return None
+  ####
   pressures = [float(zone.flow.static_pressure) for zone in zones]
   maximum_pressure_Pa = max(pressures)
   minimum_pressure_Pa = min(pressures)
@@ -142,6 +145,7 @@ def _scaled_zones(
   first_core_diameter = first_metrics.effective_core_diameter_m
   if first_length <= 0.0 or first_core_diameter <= 0.0:
     return ()
+  ####
   radial_scale = metrics.effective_core_diameter_m / first_core_diameter
   axial_scale = length_m / first_length
   pressure_range = first_metrics.maximum_pressure_Pa - first_metrics.minimum_pressure_Pa
@@ -156,6 +160,7 @@ def _scaled_zones(
       fraction = (template.flow.static_pressure - first_metrics.minimum_pressure_Pa) / pressure_range
     else:
       fraction = 0.5
+    ####
     pressure = metrics.minimum_pressure_Pa + fraction * (
       metrics.maximum_pressure_Pa - metrics.minimum_pressure_Pa
     )
@@ -180,6 +185,8 @@ def _scaled_zones(
       ))
     except ValueError:
       return ()
+    ####
+  ####
   return tuple(scaled)
 ####
 
@@ -198,12 +205,14 @@ def _physical_termination(
       'coherent core diameter reached the configured axis threshold',
       weak_persistence_count,
     )
+  ####
   if metrics.core_mach <= 1.0 + policy.epsilon_mach:
     return (
       TerminationReason.CORE_BECAME_SUBSONIC,
       'coherent core Mach number reached the configured supersonic threshold',
       weak_persistence_count,
     )
+  ####
   weak = (
     metrics.pressure_oscillation_ratio <= policy.epsilon_oscillation
     and abs(metrics.mean_pressure_residual) <= policy.epsilon_mean_pressure
@@ -215,6 +224,7 @@ def _physical_termination(
       'pressure oscillation and mean pressure residual stayed below thresholds',
       next_persistence_count,
     )
+  ####
   return None
 ####
 
@@ -518,3 +528,4 @@ def solve_shock_train(
     diagnostics['core_diameter_history_m'].append(core_diameter)
     diagnostics['cell_spacing_history_m'].append(length_m)
   ####
+####

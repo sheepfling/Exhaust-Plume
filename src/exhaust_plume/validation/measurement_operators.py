@@ -162,6 +162,7 @@ def sample_spectral_rows(
       value, valid = _sample_value(source_wavelengths, row, row_mask, wavelength)
       row_values.append(value if valid else 0.0)
       row_validity.append(valid)
+    ####
     sampled_values.append(tuple(row_values))
     sampled_mask.append(tuple(row_validity))
   ####

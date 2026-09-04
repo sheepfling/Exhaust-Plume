@@ -102,16 +102,20 @@ class MocFirstCellCandidateResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocFirstCellCandidateStatus):
       raise TypeError('status must be a MocFirstCellCandidateStatus')
+    ####
     if (
       isinstance(self.iteration_count, bool)
       or not isinstance(self.iteration_count, int)
       or self.iteration_count < 0
     ):
       raise ValueError('iteration_count must be a nonnegative integer')
+    ####
     if not isfinite(float(self.shock_angle_tolerance_rad)) or self.shock_angle_tolerance_rad <= 0.0:
       raise ValueError('shock_angle_tolerance_rad must be finite and positive')
+    ####
     if not self.upstream_source_model:
       raise ValueError('upstream_source_model must be non-empty')
+    ####
     for name, value in (
       ('start_attachment_pressure_residual', self.start_attachment_pressure_residual),
       ('centerline_flow_angle_residual_rad', self.centerline_flow_angle_residual_rad),
@@ -121,6 +125,8 @@ class MocFirstCellCandidateResult:
     ):
       if value is not None and not isfinite(float(value)):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
+    ####
     object.__setattr__(
       self,
       'initial_shock_points_m',
@@ -248,6 +254,7 @@ class MocFirstCellCandidateResult:
         'geometry-owned first-cell candidate did not produce a complete local '
         'physical field; chain promotion remains blocked'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -310,6 +317,7 @@ class MocFirstCellCandidateResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -392,18 +400,23 @@ def _finite_points(
     )
   except (IndexError, TypeError, ValueError):
     return None
+  ####
   if len(points) < 3 or any(not all(isfinite(value) for value in point) for point in points):
     return None
+  ####
   if any(
     second[0] <= first[0] + position_tolerance_m
     or second[1] > first[1] + position_tolerance_m
     for first, second in zip(points, points[1:])
   ):
     return None
+  ####
   if any(point[1] < target_centerline_y_m - position_tolerance_m for point in points):
     return None
+  ####
   if abs(points[-1][1] - target_centerline_y_m) > position_tolerance_m:
     return None
+  ####
   return (*points[:-1], (points[-1][0], float(target_centerline_y_m)))
 ####
 
@@ -419,9 +432,11 @@ def _source_callbacks(
   pressure_at = getattr(upstream_source, 'static_pressure_at', None)
   if not callable(state_at) or not callable(pressure_at):
     return None
+  ####
   model = str(getattr(upstream_source, 'model', type(upstream_source).__name__))
   if not model:
     return None
+  ####
   return state_at, pressure_at, model
 ####
 
@@ -439,13 +454,16 @@ def _sample_upstream(
     pressure = pressure_at(point)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return None, None, f'upstream source failed at shock sample {index}: {error}'
+  ####
   if not isinstance(state, CharacteristicState):
     return None, None, f'upstream source returned no CharacteristicState at sample {index}'
+  ####
   if (
     abs(state.x_m - point[0]) > position_tolerance_m
     or abs(state.y_m - point[1]) > position_tolerance_m
   ):
     return None, None, f'upstream state {index} does not lie at the candidate shock point'
+  ####
   state = CharacteristicState(
     x_m=point[0],
     y_m=point[1],
@@ -455,6 +473,7 @@ def _sample_upstream(
   )
   if pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0:
     return None, None, f'upstream pressure {index} is not finite and positive'
+  ####
   return state, float(pressure), None
 ####
 
@@ -469,6 +488,7 @@ def _shock_tangent(
     first, second = points[-2], points[-1]
   else:
     first, second = points[index - 1], points[index + 1]
+  ####
   return atan2(second[1] - first[1], second[0] - first[0])
 ####
 
@@ -493,6 +513,7 @@ def _adjust_attachment_segment(
         'ambient attachment is zero strength; enable '
         'allow_zero_strength_attachment for a Mach-wave start'
       )
+    ####
     beta = asin(1.0 / state.mach)
   else:
     if ambient_pressure_Pa < pressure_Pa:
@@ -500,6 +521,7 @@ def _adjust_attachment_segment(
         'an attached compression cannot reduce the upstream static pressure '
         'to the requested ambient value'
       )
+    ####
     try:
       compression = solve_attached_compression_to_pressure(
         upstream_mach=state.mach,
@@ -510,24 +532,30 @@ def _adjust_attachment_segment(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return False, pressure_difference, f'ambient attachment compression raised: {error}'
+    ####
     if not compression.converged or compression.beta_rad is None:
       return False, pressure_difference, (
         f'ambient attachment compression failed: {compression.message}'
       )
+    ####
     beta = float(compression.beta_rad)
     # The pressure-inversion primitive has already solved the requested
     # downstream static pressure; retain the normalized residual explicitly
     # rather than recovering it from a total-pressure sample.
     pressure_difference = 0.0
+  ####
   tangent = state.theta_rad - beta
   if not isfinite(tangent) or abs(tan(tangent)) <= position_tolerance_m:
     return False, pressure_difference, 'ambient-matched shock tangent is not finite'
+  ####
   dy = points[1][1] - points[0][1]
   if dy >= -position_tolerance_m:
     return False, pressure_difference, 'candidate shock must descend on its first segment'
+  ####
   next_x = points[0][0] + dy / tan(tangent)
   if not isfinite(next_x) or next_x <= points[0][0] + position_tolerance_m:
     return False, pressure_difference, 'ambient-matched first shock segment has no forward margin'
+  ####
   points[1] = (float(next_x), points[1][1])
   return True, pressure_difference, ''
 ####
@@ -550,12 +578,14 @@ def _adjust_centerline_endpoint(
   target_turn = target_centerline_flow_angle_rad - state.theta_rad
   if target_turn < -invariant_tolerance:
     return False, target_turn, None, 'centerline target requires an expansion at the shock endpoint'
+  ####
   if abs(target_turn) <= invariant_tolerance:
     if not allow_zero_strength_endpoints:
       return False, target_turn, None, (
         'centerline endpoint is zero strength; enable '
         'allow_zero_strength_endpoints for a Mach-wave endpoint'
       )
+    ####
     beta = asin(1.0 / state.mach)
   else:
     try:
@@ -568,21 +598,27 @@ def _adjust_centerline_endpoint(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return False, target_turn, None, f'centerline endpoint compression raised: {error}'
+    ####
     if not compression.converged or compression.beta_rad is None:
       return False, target_turn, None, (
         f'centerline endpoint compression failed: {compression.message}'
       )
+    ####
     beta = float(compression.beta_rad)
+  ####
   tangent = state.theta_rad - beta
   previous = points[-2]
   dy = target_centerline_y_m - previous[1]
   if dy >= -position_tolerance_m:
     return False, target_turn, None, 'candidate shock has no descending final segment'
+  ####
   if abs(tan(tangent)) <= position_tolerance_m:
     return False, target_turn, None, 'centerline-matched shock tangent is not finite'
+  ####
   end_x = previous[0] + dy / tan(tangent)
   if not isfinite(end_x) or end_x <= previous[0] + position_tolerance_m:
     return False, target_turn, None, 'centerline-matched endpoint has no forward margin'
+  ####
   old_x = points[-1][0]
   points[-1] = (float(end_x), float(target_centerline_y_m))
   return True, target_turn, abs(end_x - old_x), ''
@@ -613,11 +649,13 @@ def _fit_from_geometry(
         f'candidate shock sample {index} has an invalid attached angle '
         f'beta={beta}; expected [{mach_angle}, {pi / 2.0}]'
       )
+    ####
     beta = min(pi / 2.0, max(mach_angle, beta))
     try:
       turn = _turn_from_shock_angle(beta, state.mach, state.gamma)
     except (ArithmeticError, FloatingPointError, ValueError) as error:
       return None, tuple(angles), f'candidate shock sample {index} turn failed: {error}'
+    ####
     zero_strength = (
       (allow_zero_strength_attachment and index == 0)
       or (allow_zero_strength_endpoints and index == len(states) - 1)
@@ -626,6 +664,7 @@ def _fit_from_geometry(
       return None, tuple(angles), (
         f'candidate shock sample {index} does not carry a positive compression turn'
       )
+    ####
     if zero_strength:
       downstream_angle = state.theta_rad
     else:
@@ -639,12 +678,16 @@ def _fit_from_geometry(
         )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         return None, tuple(angles), f'candidate shock sample {index} compression raised: {error}'
+      ####
       if not compression.converged or compression.downstream_flow_angle_rad is None:
         return None, tuple(angles), (
           f'candidate shock sample {index} compression failed: {compression.message}'
         )
+      ####
       downstream_angle = float(compression.downstream_flow_angle_rad) + state.theta_rad
+    ####
     angles.append(float(downstream_angle))
+  ####
   fit = fit_attached_shock_boundary(
     states,
     pressures,
@@ -703,6 +746,7 @@ def solve_first_cell_geometry_owned_candidate(
   else:
     _state_at = None
     _pressure_at = None
+  ####
   try:
     requested_ambient = float(ambient_pressure_Pa)
     target_y = float(target_centerline_y_m)
@@ -715,6 +759,7 @@ def solve_first_cell_geometry_owned_candidate(
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
       message='ambient pressure and centerline targets must be numeric',
     )
+  ####
   initial_points = _finite_points(
     shock_points_m,
     target_centerline_y_m=target_y,
@@ -731,6 +776,7 @@ def solve_first_cell_geometry_owned_candidate(
         'ending on the target centerline'
       ),
     )
+  ####
   if callbacks is None:
     return _failure(
       MocFirstCellCandidateStatus.INVALID_INPUT,
@@ -739,6 +785,7 @@ def solve_first_cell_geometry_owned_candidate(
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
       message='upstream_source must expose callable state_at and static_pressure_at methods',
     )
+  ####
   if not isfinite(requested_ambient) or requested_ambient <= 0.0:
     return _failure(
       MocFirstCellCandidateStatus.INVALID_INPUT,
@@ -747,6 +794,7 @@ def solve_first_cell_geometry_owned_candidate(
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
       message='ambient_pressure_Pa must be finite and positive',
     )
+  ####
   if not isfinite(target_angle):
     return _failure(
       MocFirstCellCandidateStatus.INVALID_INPUT,
@@ -755,6 +803,7 @@ def solve_first_cell_geometry_owned_candidate(
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
       message='target_centerline_flow_angle_rad must be finite',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _failure(
       MocFirstCellCandidateStatus.INVALID_INPUT,
@@ -763,6 +812,7 @@ def solve_first_cell_geometry_owned_candidate(
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
       message='branch must be a ShockBranch',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -773,20 +823,26 @@ def solve_first_cell_geometry_owned_candidate(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if (
     isinstance(maximum_iterations, bool)
     or not isinstance(maximum_iterations, int)
     or maximum_iterations < 1
   ):
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if not isinstance(allow_zero_strength_attachment, bool):
     raise TypeError('allow_zero_strength_attachment must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise TypeError('allow_zero_strength_endpoints must be a bool')
+  ####
   try:
     incoming_samples = () if incoming_handoff is None else tuple(incoming_handoff)
   except TypeError:
     incoming_samples = ()
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in incoming_samples):
     return _failure(
       MocFirstCellCandidateStatus.INVALID_INPUT,
@@ -795,6 +851,7 @@ def solve_first_cell_geometry_owned_candidate(
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
       message='incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if incoming_handoff is not None and len(incoming_samples) < 3:
     return _failure(
       MocFirstCellCandidateStatus.INVALID_INPUT,
@@ -803,6 +860,7 @@ def solve_first_cell_geometry_owned_candidate(
       shock_angle_tolerance_rad=shock_angle_tolerance_rad,
       message='incoming_handoff requires at least three state samples',
     )
+  ####
 
   points = list(initial_points)
   history: list[dict[str, object]] = []
@@ -840,8 +898,10 @@ def solve_first_cell_geometry_owned_candidate(
           shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
           message=error or f'upstream source failed at shock sample {index}',
         )
+      ####
       sampled_states.append(state)
       sampled_pressures.append(pressure)
+    ####
     states = tuple(sampled_states)
     pressures = tuple(sampled_pressures)
     first_ok, attachment_residual, attachment_error = _adjust_attachment_segment(
@@ -868,6 +928,7 @@ def solve_first_cell_geometry_owned_candidate(
         shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
         message=attachment_error,
       )
+    ####
     # The first point is fixed, but the corrected first segment changes the
     # second sampling point.  Re-sample before deriving any shock states.
     if points[1] != initial_points[1]:
@@ -892,8 +953,10 @@ def solve_first_cell_geometry_owned_candidate(
           shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
           message=error or 'upstream source failed after ambient attachment correction',
         )
+      ####
       states = (states[0], state, *states[2:])
       pressures = (pressures[0], pressure, *pressures[2:])
+    ####
 
     endpoint_ok, endpoint_residual, endpoint_delta, endpoint_error = _adjust_centerline_endpoint(
       points,
@@ -921,6 +984,7 @@ def solve_first_cell_geometry_owned_candidate(
         shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
         message=endpoint_error,
       )
+    ####
     # Correcting the final point changes only its source sample in the usual
     # bounded field, but re-sample it unconditionally so no stale state can
     # enter the fit.
@@ -946,6 +1010,7 @@ def solve_first_cell_geometry_owned_candidate(
         shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
         message=error or 'upstream source failed after centerline endpoint correction',
       )
+    ####
     states = (*states[:-1], state)
     pressures = (*pressures[:-1], pressure)
 
@@ -984,6 +1049,7 @@ def solve_first_cell_geometry_owned_candidate(
         shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
         message=fit_error or (fit.message if fit is not None else 'shock fit failed'),
       )
+    ####
     try:
       march = march_post_shock_ambient_boundary(
         fit,
@@ -1012,6 +1078,7 @@ def solve_first_cell_geometry_owned_candidate(
         shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
         message=f'ambient boundary march raised: {error}',
       )
+    ####
     field: MocPhysicalPostShockFieldResult | None = None
     field_error: str | None = None
     if march.converged:
@@ -1031,6 +1098,8 @@ def solve_first_cell_geometry_owned_candidate(
         )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         field_error = f'physical field assembly raised: {error}'
+      ####
+    ####
     history.append({
       'iteration': iteration,
       'shock_points_m': tuple(points),
@@ -1073,6 +1142,7 @@ def solve_first_cell_geometry_owned_candidate(
         shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
         message=f'ambient boundary did not converge: {march.message}',
       )
+    ####
     if field is not None and field.physical_closure_verified:
       return _failure(
         MocFirstCellCandidateStatus.CONVERGED_LOCAL_PHYSICAL_FIELD,
@@ -1098,6 +1168,7 @@ def solve_first_cell_geometry_owned_candidate(
           'canonical reflected free-boundary and external validation remain pending'
         ),
       )
+    ####
     if iteration == maximum_iterations:
       return _failure(
         MocFirstCellCandidateStatus.ITERATION_LIMIT,
@@ -1122,6 +1193,8 @@ def solve_first_cell_geometry_owned_candidate(
           'closure gate passed'
         ),
       )
+    ####
+  ####
 
   return _failure(
     MocFirstCellCandidateStatus.ITERATION_LIMIT,
@@ -1143,3 +1216,4 @@ def solve_first_cell_geometry_owned_candidate(
     shock_angle_tolerance_rad=float(shock_angle_tolerance_rad),
     message='candidate iteration limit reached',
   )
+####

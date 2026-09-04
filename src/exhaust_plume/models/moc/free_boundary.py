@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Callable, Sequence
 
 if TYPE_CHECKING:
   from exhaust_plume.models.moc.coupled import MocAmbientClosureResult
+####
 
 from exhaust_plume.models.moc.compression import (
   MocNormalShockTerminalResult,
@@ -153,20 +154,25 @@ class MocFreeBoundaryShockResult:
       or self.failed_sample_index < 0
     ):
       raise ValueError('failed_sample_index must be a nonnegative integer')
+    ####
     if self.failed_point_m is not None:
       if len(self.failed_point_m) != 2 or not all(
         isfinite(float(value)) for value in self.failed_point_m
       ):
         raise ValueError('failed_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(
         self,
         'failed_point_m',
         (float(self.failed_point_m[0]), float(self.failed_point_m[1])),
       )
+    ####
     if (self.failed_sample_index is None) != (self.failed_point_m is None):
       raise ValueError(
         'failed_sample_index and failed_point_m must be supplied together'
       )
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
@@ -239,6 +245,7 @@ class MocFreeBoundaryShockResult:
       'failed_point_m': self.failed_point_m,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -295,6 +302,7 @@ class MocReflectedZoneShockSolveResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -348,6 +356,7 @@ class MocPostShockZoneShockSolveResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,6 +417,7 @@ class MocCausticBridgeShockSolveResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,6 +470,7 @@ class MocReflectedZoneAmbientClosureResult:
         'only a converged reflected-zone ambient closure can become a '
         'continued MOC chain cell'
       )
+    ####
     assert self.coupling.converged
     coupled_diagnostics: dict[str, object] = {
       'reflected_zone_upstream_coupling_verified': True,
@@ -471,7 +482,9 @@ class MocReflectedZoneAmbientClosureResult:
         raise ValueError(
           f'diagnostics cannot override reserved reflected-zone keys: {sorted(reserved)!r}'
         )
+      ####
       coupled_diagnostics.update(diagnostics)
+    ####
     return self.closure.as_coupled_chain_cell(
       start_x_m=start_x_m,
       end_x_m=end_x_m,
@@ -479,6 +492,7 @@ class MocReflectedZoneAmbientClosureResult:
       diagnostics=coupled_diagnostics,
     )
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -533,6 +547,7 @@ def _failure(
 def _finite_point(point_m: tuple[float, float], name: str) -> tuple[float, float]:
   if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
     raise ValueError(f'{name} must contain two finite coordinates')
+  ####
   return float(point_m[0]), float(point_m[1])
 ####
 
@@ -547,20 +562,25 @@ def _zero_strength_trace_sample_at_y(
 
   if not trace:
     return None
+  ####
   for sample in trace:
     if abs(sample.state.y_m - y_m) <= position_tolerance_m:
       return MocChainBoundarySample(
         state=replace(sample.state, y_m=float(y_m)),
         total_pressure_Pa=sample.total_pressure_Pa,
       )
+    ####
+  ####
   for first, second in zip(trace, trace[1:]):
     first_y = first.state.y_m
     second_y = second.state.y_m
     if not (second_y <= y_m <= first_y):
       continue
+    ####
     denominator = first_y - second_y
     if denominator <= 0.0:
       continue
+    ####
     fraction = (first_y - y_m) / denominator
     point_x = first.state.x_m + fraction * (
       second.state.x_m - first.state.x_m
@@ -581,7 +601,9 @@ def _zero_strength_trace_sample_at_y(
       state=state,
       total_pressure_Pa=total_pressure,
     )
+  ####
   return None
+####
 
 
 def _static_pressure_from_total(
@@ -627,6 +649,7 @@ def _solve_downstream_angle_for_invariant(
       residual=None,
       message='downstream invariant search interval is empty for the local state',
     )
+  ####
 
   def evaluate(angle_rad: float) -> tuple[float, object] | None:
     try:
@@ -639,12 +662,14 @@ def _solve_downstream_angle_for_invariant(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       return None
+    ####
     if (
       not compression.converged
       or compression.downstream_mach is None
       or compression.downstream_mach <= 1.0
     ):
       return None
+    ####
     residual = (
       _characteristic_invariant_value(
         family,
@@ -656,7 +681,9 @@ def _solve_downstream_angle_for_invariant(
     )
     if not isfinite(residual):
       return None
+    ####
     return residual, compression
+  ####
 
   zero_turn_evaluation = evaluate(state.theta_rad)
   if (
@@ -668,6 +695,7 @@ def _solve_downstream_angle_for_invariant(
       residual=zero_turn_evaluation[0],
       message='',
     )
+  ####
   lower_evaluation = evaluate(lower)
   if lower_evaluation is None:
     return _InvariantBoundaryAngleResult(
@@ -675,6 +703,7 @@ def _solve_downstream_angle_for_invariant(
       residual=None,
       message='local attached-compression branch is unavailable at the lower angle',
     )
+  ####
   lower_residual = lower_evaluation[0]
   if abs(lower_residual) <= invariant_tolerance:
     return _InvariantBoundaryAngleResult(
@@ -682,6 +711,7 @@ def _solve_downstream_angle_for_invariant(
       residual=lower_residual,
       message='',
     )
+  ####
 
   previous_angle = lower
   previous_residual = lower_residual
@@ -691,7 +721,9 @@ def _solve_downstream_angle_for_invariant(
     if current_evaluation is None:
       if scan_index == 1:
         continue
+      ####
       break
+    ####
     current_residual = current_evaluation[0]
     if abs(current_residual) <= invariant_tolerance:
       return _InvariantBoundaryAngleResult(
@@ -699,6 +731,7 @@ def _solve_downstream_angle_for_invariant(
         residual=current_residual,
         message='',
       )
+    ####
     if previous_residual * current_residual < 0.0:
       bracket_lower = previous_angle
       bracket_upper = current_angle
@@ -713,6 +746,7 @@ def _solve_downstream_angle_for_invariant(
             residual=None,
             message='local invariant bisection left the attached-compression branch',
           )
+        ####
         midpoint_residual = midpoint_evaluation[0]
         if abs(midpoint_residual) <= invariant_tolerance:
           return _InvariantBoundaryAngleResult(
@@ -720,11 +754,14 @@ def _solve_downstream_angle_for_invariant(
             residual=midpoint_residual,
             message='',
           )
+        ####
         if bracket_residual * midpoint_residual <= 0.0:
           bracket_upper = midpoint
         else:
           bracket_lower = midpoint
           bracket_residual = midpoint_residual
+        ####
+      ####
       return _InvariantBoundaryAngleResult(
         angle_rad=None,
         residual=midpoint_residual,
@@ -733,6 +770,7 @@ def _solve_downstream_angle_for_invariant(
           f'after {maximum_iterations} iterations'
         ),
       )
+    ####
     previous_angle = current_angle
     previous_residual = current_residual
   ####
@@ -796,30 +834,37 @@ def solve_marched_attached_shock_field(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='start point and target centerline ordinate must be finite',
     )
+  ####
   if not isfinite(target_y) or target_y >= start[1]:
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='target centerline ordinate must be below the shock start',
     )
+  ####
   if not callable(upstream_state_at) or not callable(upstream_pressure_at):
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='upstream state and pressure providers must be callable',
     )
+  ####
   if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='supply exactly one downstream flow-angle provider',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='branch must be a ShockBranch',
     )
+  ####
   if not isinstance(allow_zero_strength_start, bool):
     raise ValueError('allow_zero_strength_start must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise ValueError('allow_zero_strength_endpoints must be a bool')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -828,6 +873,8 @@ def solve_marched_attached_shock_field(
     numeric_value = float(value)
     if not isfinite(numeric_value) or numeric_value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   start_trace: tuple[MocChainBoundarySample, ...] | None = None
   if zero_strength_start_trace is not None:
     try:
@@ -837,11 +884,13 @@ def solve_marched_attached_shock_field(
         MocFreeBoundaryShockStatus.INVALID_INPUT,
         message='zero_strength_start_trace must be an iterable of chain samples',
       )
+    ####
     if not allow_zero_strength_start:
       return _failure(
         MocFreeBoundaryShockStatus.INVALID_INPUT,
         message='zero_strength_start_trace requires allow_zero_strength_start',
       )
+    ####
     if len(start_trace) < 2 or any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in start_trace
@@ -850,6 +899,7 @@ def solve_marched_attached_shock_field(
         MocFreeBoundaryShockStatus.INVALID_INPUT,
         message='zero_strength_start_trace requires at least two chain samples',
       )
+    ####
     if any(
       second.state.x_m <= first.state.x_m + position_tolerance_m
       or second.state.y_m >= first.state.y_m - position_tolerance_m
@@ -859,6 +909,7 @@ def solve_marched_attached_shock_field(
         MocFreeBoundaryShockStatus.INVALID_INPUT,
         message='zero_strength_start_trace must move downstream and downward',
       )
+    ####
     if any(
       abs(value - expected) > position_tolerance_m
       for value, expected in zip(
@@ -871,8 +922,11 @@ def solve_marched_attached_shock_field(
         MocFreeBoundaryShockStatus.INVALID_INPUT,
         message='zero_strength_start_trace must begin at start_point_m',
       )
+    ####
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
@@ -912,35 +966,46 @@ def solve_marched_attached_shock_field(
         )
       else:
         return None, f'upstream field callback failed at sample {index}: {error}', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+      ####
+    ####
     if state is None and trace_sample is not None:
       state = trace_sample.state
       pressure = _static_pressure_from_total(
         trace_sample.state,
         trace_sample.total_pressure_Pa,
       )
+    ####
     if state is None:
       return None, f'upstream field callback returned no CharacteristicState at sample {index}', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    ####
     if not isinstance(state, CharacteristicState):
       return None, f'upstream field callback returned no CharacteristicState at sample {index}', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    ####
     if state.x_m != point[0] or state.y_m != point[1]:
       if (
         abs(state.x_m - point[0]) > position_tolerance_m
         or abs(state.y_m - point[1]) > position_tolerance_m
       ):
         return None, f'upstream state {index} does not lie at the marched shock point', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+      ####
       state = replace(state, x_m=point[0], y_m=point[1])
+    ####
     if pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0:
       return None, f'upstream pressure provider returned an invalid value at sample {index}', MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
+    ####
     if downstream_flow_angle_at is not None:
       try:
         target_angle = float(downstream_flow_angle_at(index, point))
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         return None, f'downstream angle callback failed at sample {index}: {error}', MocFreeBoundaryShockStatus.INVALID_INPUT
+      ####
     else:
       assert downstream_flow_angle_rad is not None
       target_angle = float(downstream_flow_angle_rad)
+    ####
     if not isfinite(target_angle):
       return None, f'downstream flow angle {index} must be finite', MocFreeBoundaryShockStatus.INVALID_INPUT
+    ####
     turn = target_angle - state.theta_rad
     # A Mach-wave endpoint is a zero-strength boundary condition.  Normalize
     # round-off-sized signed turns before the strict compression gate so that
@@ -948,6 +1013,7 @@ def solve_marched_attached_shock_field(
     # implementations on different CI platforms.
     if abs(turn) <= float(invariant_tolerance):
       turn = 0.0
+    ####
     zero_strength_start = (
       allow_zero_strength_start
       and index == 0
@@ -978,7 +1044,9 @@ def solve_marched_attached_shock_field(
           f'sample {index} reaches the symmetry line with zero flow turn; '
           'the typed subsonic terminal model is outside the supersonic MOC lane'
         ), MocFreeBoundaryShockStatus.SUBSONIC_TERMINAL_REQUIRED
+      ####
       return None, f'sample {index} does not require a positive compression turn', MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
+    ####
     if zero_strength_start or zero_strength_end:
       beta = asin(1.0 / state.mach)
       downstream_mach = state.mach
@@ -1014,14 +1082,18 @@ def solve_marched_attached_shock_field(
             branch=branch,
             shock_point_m=point,
           )
+        ####
         return None, f'attached compression failed at sample {index}: {compression.message}', failure_status
+      ####
       beta = float(compression.beta_rad)
       downstream_mach = float(compression.downstream_mach)
       upstream_total_pressure = float(compression.upstream_total_pressure_Pa)
       downstream_total_pressure = float(compression.downstream_total_pressure_Pa)
+    ####
     shock_angle = state.theta_rad - beta
     if not isfinite(shock_angle) or sin(shock_angle) >= -position_tolerance_m:
       return None, f'shock tangent at sample {index} does not travel toward the centerline', MocFreeBoundaryShockStatus.GEOMETRY_FAILURE
+    ####
     try:
       boundary_state = MocPostShockBoundaryState(
         point_m=point,
@@ -1037,6 +1109,7 @@ def solve_marched_attached_shock_field(
       )
     except (TypeError, ValueError) as error:
       return None, f'downstream shock state {index} is invalid: {error}', MocFreeBoundaryShockStatus.COMPRESSION_FAILURE
+    ####
     return (
       _MarchSample(
         point_m=point,
@@ -1049,6 +1122,7 @@ def solve_marched_attached_shock_field(
       None,
       MocFreeBoundaryShockStatus.CONVERGED_FIELD,
     )
+  ####
 
   current_point = start
   current_sample, error, error_status = evaluate(current_point, 0)
@@ -1061,11 +1135,11 @@ def solve_marched_attached_shock_field(
       subsonic_shock_boundary=subsonic_shock_boundary,
       message=error or 'initial shock sample failed',
     )
+  ####
   points.append(current_sample.point_m)
   upstream_states.append(current_sample.upstream_state)
   upstream_pressures.append(current_sample.upstream_pressure_Pa)
   downstream_angles.append(current_sample.downstream_flow_angle_rad)
-  ####
 
   for index in range(1, sample_count):
     next_y = start[1] + index * dy
@@ -1102,6 +1176,7 @@ def solve_marched_attached_shock_field(
           failed_point_m=candidate_point,
           message=error or f'shock sample {index} failed',
         )
+      ####
       next_sample = candidate_sample
       next_tangent = candidate_sample.shock_angle_rad
       updated_x = current_point[0] + dy * 0.5 * (1.0 / tan(tangent) + 1.0 / tan(next_tangent))
@@ -1125,8 +1200,10 @@ def solve_marched_attached_shock_field(
             failed_point_m=(float(next_x), float(next_y)),
             message=final_error or f'shock sample {index} failed at its converged endpoint',
           )
+        ####
         next_sample = final_sample
         break
+      ####
       next_x = updated_x
     else:
       return _failure(
@@ -1140,6 +1217,7 @@ def solve_marched_attached_shock_field(
         failed_point_m=(float(next_x), float(next_y)),
         message=f'shock segment {index - 1} did not converge to a tangent-consistent endpoint',
       )
+    ####
     if next_sample is None:
       return _failure(
         MocFreeBoundaryShockStatus.GEOMETRY_FAILURE,
@@ -1152,6 +1230,7 @@ def solve_marched_attached_shock_field(
         failed_point_m=(float(next_x), float(next_y)),
         message=f'shock segment {index - 1} produced no endpoint sample',
       )
+    ####
     current_point = (float(next_x), float(next_y))
     if current_point[0] <= points[-1][0] + position_tolerance_m:
       return _failure(
@@ -1165,6 +1244,7 @@ def solve_marched_attached_shock_field(
         failed_point_m=current_point,
         message=f'shock sample {index} is not strictly downstream',
       )
+    ####
     points.append(current_point)
     upstream_states.append(replace(next_sample.upstream_state, x_m=current_point[0], y_m=current_point[1]))
     upstream_pressures.append(next_sample.upstream_pressure_Pa)
@@ -1212,6 +1292,7 @@ def solve_marched_attached_shock_field(
       endpoint_m=points[-1],
       message=f'generated shock boundary failed attached-shock verification: {shock_fit.message}',
     )
+  ####
   field = assemble_post_shock_characteristic_field(
     shock_fit,
     incoming_handoff=incoming_handoff,
@@ -1250,6 +1331,7 @@ def solve_marched_attached_shock_field(
           'assembly'
         ),
       )
+    ####
     return _failure(
       MocFreeBoundaryShockStatus.FIELD_FAILURE,
       shock_fit=shock_fit,
@@ -1262,6 +1344,7 @@ def solve_marched_attached_shock_field(
       endpoint_m=points[-1],
       message=f'generated shock boundary did not close its characteristic field: {field.message}',
     )
+  ####
   field = replace(
     field,
     shock_closure_status='solver-generated-marched-attached-shock',
@@ -1324,11 +1407,13 @@ def solve_marched_attached_shock_with_invariant_boundary(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='downstream_invariant_family must be a CharacteristicFamily',
     )
+  ####
   if not callable(downstream_invariant_at):
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='downstream_invariant_at must be callable',
     )
+  ####
   invariant_errors: dict[int, str] = {}
 
   def downstream_angle_at(index: int, point_m: tuple[float, float]) -> float:
@@ -1339,24 +1424,29 @@ def solve_marched_attached_shock_with_invariant_boundary(
       message = f'invariant boundary upstream sample {index} failed: {error}'
       invariant_errors[index] = message
       return float('nan')
+    ####
     if not isinstance(state, CharacteristicState):
       message = f'invariant boundary upstream sample {index} returned no state'
       invariant_errors[index] = message
       return float('nan')
+    ####
     if pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0:
       message = f'invariant boundary upstream sample {index} returned invalid pressure'
       invariant_errors[index] = message
       return float('nan')
+    ####
     try:
       target = float(downstream_invariant_at(index, point_m))
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       message = f'downstream invariant callback failed at sample {index}: {error}'
       invariant_errors[index] = message
       return float('nan')
+    ####
     if not isfinite(target):
       message = f'downstream invariant target at sample {index} must be finite'
       invariant_errors[index] = message
       return float('nan')
+    ####
     local = _solve_downstream_angle_for_invariant(
       state,
       float(pressure),
@@ -1375,7 +1465,9 @@ def solve_marched_attached_shock_with_invariant_boundary(
       )
       invariant_errors[index] = message
       return float('nan')
+    ####
     return local.angle_rad
+  ####
 
   shock = solve_marched_attached_shock_field(
     upstream_state_at,
@@ -1407,6 +1499,7 @@ def solve_marched_attached_shock_with_invariant_boundary(
       subsonic_shock_boundary=shock.subsonic_shock_boundary,
       message=first_error,
     )
+  ####
   return shock
 ####
 
@@ -1438,11 +1531,13 @@ def solve_marched_attached_shock_from_source_strip(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='upstream_strip must be a MocSourceCharacteristicStripResult',
     )
+  ####
   if not upstream_strip.converged:
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message=f'upstream source strip is not converged: {upstream_strip.message}',
     )
+  ####
   return solve_marched_attached_shock_field(
     upstream_strip.state_at,
     upstream_strip.static_pressure_at,
@@ -1475,45 +1570,57 @@ def _validate_source_strip_chain_inputs(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   if not isinstance(upstream_strip, MocSourceCharacteristicStripResult):
     raise TypeError(
       'upstream_strip must be a MocSourceCharacteristicStripResult'
     )
+  ####
   if not upstream_strip.converged:
     raise ValueError(
       f'upstream source strip is not converged: {upstream_strip.message}'
     )
+  ####
   if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER:
     raise ValueError(
       'source-strip continuation requires a post-shock field perimeter handoff'
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError as error:
     raise ValueError(
       'incoming_handoff must be an iterable of MocChainBoundarySample values'
     ) from error
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     raise ValueError('incoming_handoff must contain MocChainBoundarySample values')
+  ####
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('source-strip continuation requires at least three handoff samples')
+  ####
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
     raise ValueError(
       'continued cell end_x_m must be strictly downstream of the current cell'
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   start = _finite_point(start_point_m, 'start_point_m')
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError('continued shock start point must be downstream of the current cell')
+  ####
   return handoff, start
 ####
 
@@ -1560,14 +1667,17 @@ def solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
     or sample_count < 3
   ):
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
     or maximum_segment_iterations < 1
   ):
     raise ValueError('maximum_segment_iterations must be a positive integer')
+  ####
   if (downstream_flow_angle_at is None) == (downstream_flow_angle_rad is None):
     raise ValueError('supply exactly one downstream flow-angle provider')
+  ####
 
   solved = solve_marched_attached_shock_from_source_strip(
     upstream_strip,
@@ -1597,6 +1707,7 @@ def solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
         'source-strip shock reached an incomplete normal-shock terminal '
         'and cannot provide a physical chain stop'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=True,
       reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
@@ -1616,6 +1727,7 @@ def solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   if solved.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
     last_valid = solved.upstream_states[-1] if solved.upstream_states else None
     return MocChainTerminationDecision(
@@ -1643,6 +1755,7 @@ def solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   if not solved.converged or solved.field is None:
     return MocChainTerminationDecision(
       physical_termination=False,
@@ -1660,6 +1773,7 @@ def solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   field = solved.field
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -1682,6 +1796,7 @@ def solve_marched_attached_shock_chain_cell_from_source_strip_or_termination(
         'incoming_handoff_sample_count': len(handoff),
       },
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=float(end_x_m))
 ####
 
@@ -1725,6 +1840,7 @@ def solve_marched_attached_shock_chain_cell_from_source_strip(
   )
   if isinstance(solved, MocChainTerminationDecision):
     raise ValueError(solved.message)
+  ####
   return solved
 ####
 
@@ -1749,6 +1865,7 @@ def _caustic_bridge_coupling_for_shock_path(
     missing_index = shock.failed_sample_index
     if missing_index is None:
       missing_index = shock.sample_count
+    ####
     return replace(
       coupling,
       status=MocCausticBridgeStatus.DOMAIN_GAP,
@@ -1759,7 +1876,9 @@ def _caustic_bridge_coupling_for_shock_path(
         'sampled from the bounded caustic bridge; no extrapolation was used'
       ),
     )
+  ####
   return coupling
+####
 
 
 def _caustic_bridge_shock_result(
@@ -1784,11 +1903,13 @@ def _caustic_bridge_shock_result(
     message = f'caustic upstream bridge did not cover the shock path: {coupling.message}'
   else:
     message = shock.message
+  ####
   return MocCausticBridgeShockSolveResult(
     shock=shock,
     coupling=coupling,
     message=message,
   )
+####
 
 
 def solve_marched_attached_shock_from_caustic_upstream_bridge(
@@ -1826,6 +1947,7 @@ def solve_marched_attached_shock_from_caustic_upstream_bridge(
       coupling=coupling,
       message='caustic bridge shock solve rejected an invalid bridge',
     )
+  ####
   if not bridge.fields_converged:
     shock = _failure(
       MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
@@ -1840,6 +1962,7 @@ def solve_marched_attached_shock_from_caustic_upstream_bridge(
       coupling=coupling,
       message='caustic bridge shock solve stopped at its field-input boundary',
     )
+  ####
 
   shock = solve_marched_attached_shock_field(
     bridge.state_at,
@@ -1900,6 +2023,7 @@ def solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_bou
       coupling=coupling,
       message='caustic bridge invariant shock solve rejected an invalid bridge',
     )
+  ####
   if not bridge.fields_converged:
     shock = _failure(
       MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
@@ -1914,6 +2038,7 @@ def solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_bou
       coupling=coupling,
       message='caustic bridge invariant shock solve stopped at its field-input boundary',
     )
+  ####
   shock = solve_marched_attached_shock_with_invariant_boundary(
     bridge.state_at,
     bridge.static_pressure_at,
@@ -1974,6 +2099,7 @@ def solve_marched_attached_shock_from_post_shock_zone(
       coupling=coupling,
       message='post-shock-zone shock solve rejected an invalid upstream zone',
     )
+  ####
   if not post_shock_zone.converged or not post_shock_zone.state_sampling_available:
     shock = _failure(
       MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
@@ -1988,6 +2114,7 @@ def solve_marched_attached_shock_from_post_shock_zone(
       coupling=coupling,
       message='post-shock-zone shock solve stopped at the upstream field boundary',
     )
+  ####
 
   shock = solve_marched_attached_shock_field(
     post_shock_zone.state_at,
@@ -2022,6 +2149,7 @@ def solve_marched_attached_shock_from_post_shock_zone(
     missing_index = shock.failed_sample_index
     if missing_index is None:
       missing_index = shock.sample_count
+    ####
     coupling = replace(
       coupling,
       status=MocPostShockZoneSamplingStatus.OUTSIDE_DOMAIN,
@@ -2032,6 +2160,7 @@ def solve_marched_attached_shock_from_post_shock_zone(
         'extrapolation was used'
       ),
     )
+  ####
   if shock.converged and coupling.converged:
     message = (
       'attached shock and post-shock field converged with complete bounded '
@@ -2042,6 +2171,7 @@ def solve_marched_attached_shock_from_post_shock_zone(
     message = f'post-shock zone coupling did not cover the shock path: {coupling.message}'
   else:
     message = shock.message
+  ####
   return MocPostShockZoneShockSolveResult(
     shock=shock,
     coupling=coupling,
@@ -2064,6 +2194,7 @@ def _coupling_result_for_shock_path(
       shock.shock_points_m,
       position_tolerance_m=position_tolerance_m,
     )
+  ####
   status = (
     MocReflectedZoneShockCouplingStatus.OUTSIDE_DOMAIN
     if shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
@@ -2127,6 +2258,7 @@ def solve_marched_attached_shock_from_reflected_zone(
       coupling=coupling,
       message='reflected-zone shock solve rejected an invalid upstream zone',
     )
+  ####
   if not reflected_zone.converged:
     shock = _failure(
       MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
@@ -2138,6 +2270,7 @@ def solve_marched_attached_shock_from_reflected_zone(
       coupling=coupling,
       message='reflected-zone shock solve stopped at the upstream field boundary',
     )
+  ####
   if not reflected_zone.state_sampling_available:
     shock = _failure(
       MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
@@ -2155,6 +2288,7 @@ def solve_marched_attached_shock_from_reflected_zone(
         'geometry-only or otherwise missing bounded pressure samples'
       ),
     )
+  ####
 
   shock = solve_marched_attached_shock_field(
     reflected_zone.state_at,
@@ -2186,6 +2320,7 @@ def solve_marched_attached_shock_from_reflected_zone(
     message = f'reflected upstream coupling did not cover the shock path: {coupling.message}'
   else:
     message = shock.message
+  ####
   return MocReflectedZoneShockSolveResult(
     shock=shock,
     coupling=coupling,
@@ -2233,6 +2368,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zo
     requested_pressure = float(ambient_pressure_Pa)
   except (TypeError, ValueError):
     requested_pressure = None
+  ####
   try:
     requested_bracket = (
       float(outer_downstream_flow_angle_lower_rad),
@@ -2240,6 +2376,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zo
     )
   except (TypeError, ValueError):
     requested_bracket = None
+  ####
 
   if not isinstance(reflected_zone, MocReflectedCharacteristicZoneResult):
     shock = _failure(
@@ -2263,6 +2400,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zo
       coupling=coupling,
       message='reflected-zone ambient closure stopped before generating a shock path',
     )
+  ####
   if not reflected_zone.converged:
     shock = _failure(
       MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
@@ -2285,6 +2423,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zo
       coupling=coupling,
       message='reflected-zone ambient closure stopped before generating a shock path',
     )
+  ####
   if not reflected_zone.state_sampling_available:
     shock = _failure(
       MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE,
@@ -2316,6 +2455,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zo
         'does not expose a bounded state/pressure field'
       ),
     )
+  ####
 
   closure = solve_marched_attached_shock_with_ambient_pressure_closure(
     reflected_zone.state_at,
@@ -2346,6 +2486,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zo
       closure.shock,
       position_tolerance_m=position_tolerance_m,
     )
+  ####
   if not coupling.converged:
     message = (
       'reflected upstream coupling did not cover the ambient-closure shock '
@@ -2358,6 +2499,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure_from_reflected_zo
       'ambient-pressure closure and reflected upstream state/pressure coupling '
       'both converged on the generated shock path'
     )
+  ####
   return MocReflectedZoneAmbientClosureResult(
     closure=closure,
     coupling=coupling,
@@ -2393,11 +2535,13 @@ def solve_reflected_boundary_trace_extension(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='reflected_boundary must be a MocReflectedBoundaryResult',
     )
+  ####
   if not reflected_boundary.converged or not reflected_boundary.boundary_states:
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message=f'reflected boundary is not converged: {reflected_boundary.message}',
     )
+  ####
   try:
     pressure = float(upstream_pressure_Pa)
   except (TypeError, ValueError):
@@ -2405,11 +2549,13 @@ def solve_reflected_boundary_trace_extension(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='upstream_pressure_Pa must be finite and positive',
     )
+  ####
   if not isfinite(pressure) or pressure <= 0.0:
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='upstream_pressure_Pa must be finite and positive',
     )
+  ####
   start = reflected_boundary.boundary_points_m[-1]
   anchor = reflected_boundary.boundary_states[-1]
   if start[1] <= float(target_centerline_y_m):
@@ -2417,14 +2563,17 @@ def solve_reflected_boundary_trace_extension(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='terminal reflected-boundary trace must be above the target centerline',
     )
+  ####
   denominator = start[1] - float(target_centerline_y_m)
 
   def state_at(point: tuple[float, float]) -> CharacteristicState:
     return replace(anchor, x_m=point[0], y_m=point[1])
+  ####
 
   def angle_at(_index: int, point: tuple[float, float]) -> float:
     fraction = (point[1] - float(target_centerline_y_m)) / denominator
     return outer_downstream_flow_angle_rad * max(0.0, min(1.0, fraction))
+  ####
 
   result = solve_marched_attached_shock_field(
     state_at,
@@ -2440,6 +2589,7 @@ def solve_reflected_boundary_trace_extension(
   )
   if not result.converged or result.field is None:
     return result
+  ####
   return replace(
     result,
     field=replace(
@@ -2488,24 +2638,31 @@ def solve_marched_attached_shock_chain_cell(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   handoff = tuple(incoming_handoff)
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('continued marched shock cells require at least three handoff samples')
+  ####
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
     raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   start = _finite_point(start_point_m, 'start_point_m')
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError('continued shock start point must be downstream of the current cell')
+  ####
 
   result = solve_marched_attached_shock_field(
     upstream_state_at,
@@ -2525,6 +2682,7 @@ def solve_marched_attached_shock_chain_cell(
     raise ValueError(
       f'continued marched shock cell failed: {result.status.value}: {result.message}'
     )
+  ####
   return MocPostShockChainCellSolve(field=result.field, end_x_m=float(end_x_m))
 ####
 
@@ -2560,24 +2718,31 @@ def solve_marched_attached_shock_chain_cell_or_termination(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   handoff = tuple(incoming_handoff)
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('continued marched shock cells require at least three handoff samples')
+  ####
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
     raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   start = _finite_point(start_point_m, 'start_point_m')
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError('continued shock start point must be downstream of the current cell')
+  ####
 
   result = solve_marched_attached_shock_field(
     upstream_state_at,
@@ -2607,6 +2772,7 @@ def solve_marched_attached_shock_chain_cell_or_termination(
         'continued marched shock reached an incomplete normal-shock terminal '
         'and cannot provide a physical chain stop'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=True,
       reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
@@ -2625,10 +2791,12 @@ def solve_marched_attached_shock_chain_cell_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   if not result.converged or result.field is None:
     raise ValueError(
       f'continued marched shock cell failed: {result.status.value}: {result.message}'
     )
+  ####
   return MocPostShockChainCellSolve(field=result.field, end_x_m=float(end_x_m))
 ####
 
@@ -2647,40 +2815,50 @@ def _validate_post_shock_field_chain_inputs(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   if not isinstance(upstream_field, MocPostShockCharacteristicFieldResult):
     raise TypeError(
       'upstream_field must be a MocPostShockCharacteristicFieldResult'
     )
+  ####
   if not upstream_field.converged:
     raise ValueError(
       f'upstream post-shock field is not converged: {upstream_field.message}'
     )
+  ####
   if not upstream_field.upstream_shock_coupling_verified:
     raise ValueError(
       'field-coupled continuation requires upstream shock state/pressure carry'
     )
+  ####
   if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER:
     raise ValueError(
       'field-coupled continuation requires a post-shock field perimeter handoff'
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError as error:
     raise ValueError(
       'incoming_handoff must be an iterable of MocChainBoundarySample values'
     ) from error
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     raise ValueError('incoming_handoff must contain MocChainBoundarySample values')
+  ####
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('field-coupled continuation requires at least three handoff samples')
+  ####
   expected_handoff = tuple(
     MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
     for state, pressure in zip(
@@ -2693,15 +2871,19 @@ def _validate_post_shock_field_chain_inputs(
     raise ValueError(
       'current cell handoff does not match the supplied upstream post-shock field'
     )
+  ####
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
     raise ValueError(
       'continued cell end_x_m must be strictly downstream of the current cell'
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   start = _finite_point(start_point_m, 'start_point_m')
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError('continued shock start point must be downstream of the current cell')
+  ####
   return handoff, start
 ####
 
@@ -2745,12 +2927,14 @@ def _solve_marched_attached_shock_chain_cell_from_post_shock_field(
     or sample_count < 3
   ):
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
     or maximum_segment_iterations < 1
   ):
     raise ValueError('maximum_segment_iterations must be a positive integer')
+  ####
   result = solve_marched_attached_shock_field(
     upstream_field.state_at,
     upstream_field.static_pressure_at,
@@ -2816,6 +3000,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field(
   )
   if isinstance(solved, MocChainTerminationDecision):
     raise ValueError(solved.message)
+  ####
   return solved
 ####
 
@@ -2842,6 +3027,7 @@ def _invariant_post_shock_field_chain_result_or_termination(
       raise ValueError(
         'field-coupled invariant shock reached an incomplete normal-shock terminal'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=True,
       reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
@@ -2861,6 +3047,7 @@ def _invariant_post_shock_field_chain_result_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   if solved.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
     last_valid = solved.upstream_states[-1] if solved.upstream_states else None
     return MocChainTerminationDecision(
@@ -2884,6 +3071,7 @@ def _invariant_post_shock_field_chain_result_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   if not solved.converged or solved.field is None:
     return MocChainTerminationDecision(
       physical_termination=False,
@@ -2900,6 +3088,7 @@ def _invariant_post_shock_field_chain_result_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   field = solved.field
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -2922,6 +3111,7 @@ def _invariant_post_shock_field_chain_result_or_termination(
         'incoming_handoff_sample_count': len(handoff),
       },
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=end_x)
 ####
 
@@ -2976,6 +3166,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination
       raise ValueError(
         'field-coupled shock reached an incomplete normal-shock terminal'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=True,
       reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
@@ -2995,6 +3186,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   if solved.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
     last_valid = solved.upstream_states[-1] if solved.upstream_states else None
     return MocChainTerminationDecision(
@@ -3017,6 +3209,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   if not solved.converged or solved.field is None:
     return MocChainTerminationDecision(
       physical_termination=False,
@@ -3032,6 +3225,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   field = solved.field
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -3053,6 +3247,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field_or_termination
         'incoming_handoff_sample_count': len(handoff),
       },
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=end_x)
 ####
 
@@ -3112,6 +3307,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant
   )
   if isinstance(solved, MocChainTerminationDecision):
     raise ValueError(solved.message)
+  ####
   return solved
 ####
 
@@ -3185,6 +3381,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant
         ),
       ),
     )
+  ####
   return _invariant_post_shock_field_chain_result_or_termination(
     current_cell,
     next_cell_index,
@@ -3222,29 +3419,37 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   handoff = tuple(incoming_handoff)
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER:
     raise ValueError(
       'post-shock-zone continuation requires a post-shock field perimeter '
       'handoff; a characteristic trace is a different solver boundary'
     )
+  ####
   if len(handoff) < 3:
     raise ValueError('continued post-shock-zone cells require at least three handoff samples')
+  ####
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
     raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   start = _finite_point(start_point_m, 'start_point_m')
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError('continued shock start point must be downstream of the current cell')
+  ####
 
   solved = solve_marched_attached_shock_from_post_shock_zone(
     post_shock_zone,
@@ -3274,6 +3479,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
       raise ValueError(
         'post-shock-zone shock reached an incomplete normal-shock terminal'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=True,
       reason=MocChainTerminationReason.PHYSICAL_TERMINATION,
@@ -3293,6 +3499,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   if solved.coupling.status in (
     MocPostShockZoneSamplingStatus.OUTSIDE_DOMAIN,
     MocPostShockZoneSamplingStatus.PRESSURE_FAILURE,
@@ -3316,6 +3523,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
         'message': solved.message,
       },
     )
+  ####
   if not solved.converged or not solved.shock.field:
     return MocChainTerminationDecision(
       physical_termination=False,
@@ -3332,6 +3540,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
         'next_cell_index': next_cell_index,
       },
     )
+  ####
   field = solved.shock.field
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -3353,6 +3562,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_zone_or_termination(
         'incoming_handoff_sample_count': len(handoff),
       },
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=float(end_x_m))
 ####
 
@@ -3396,6 +3606,7 @@ def solve_marched_attached_shock_chain_cell_from_post_shock_zone(
   )
   if isinstance(solved, MocChainTerminationDecision):
     raise ValueError(solved.message)
+  ####
   return solved
 ####
 
@@ -3428,24 +3639,31 @@ def solve_marched_attached_shock_chain_cell_from_reflected_zone(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   handoff = tuple(incoming_handoff)
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('continued reflected-zone shock cells require at least three handoff samples')
+  ####
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
     raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   start = _finite_point(start_point_m, 'start_point_m')
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError('continued shock start point must be downstream of the current cell')
+  ####
 
   solved = solve_marched_attached_shock_from_reflected_zone(
     reflected_zone,
@@ -3466,6 +3684,7 @@ def solve_marched_attached_shock_chain_cell_from_reflected_zone(
       'continued reflected-zone shock cell did not converge: '
       f'{solved.shock.status.value}; {solved.message}'
     )
+  ####
   field = solved.shock.field
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -3476,6 +3695,7 @@ def solve_marched_attached_shock_chain_cell_from_reflected_zone(
     raise ValueError(
       'continued reflected-zone field did not retain the exact incoming handoff'
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=float(end_x_m))
 ####
 
@@ -3509,24 +3729,31 @@ def solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   handoff = tuple(incoming_handoff)
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('continued reflected-zone shock cells require at least three handoff samples')
+  ####
   if not isfinite(float(end_x_m)) or end_x_m <= current_cell.end_x_m:
     raise ValueError('continued cell end_x_m must be strictly downstream of the current cell')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   start = _finite_point(start_point_m, 'start_point_m')
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError('continued shock start point must be downstream of the current cell')
+  ####
 
   solved = solve_marched_attached_shock_from_reflected_zone(
     reflected_zone,
@@ -3566,6 +3793,7 @@ def solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination(
         'message': solved.message,
       },
     )
+  ####
   field = solved.shock.field
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -3583,6 +3811,7 @@ def solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination(
         'message': 'incoming state or total-pressure samples changed during the solve',
       },
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=float(end_x_m))
 ####
 
@@ -3608,6 +3837,7 @@ def solve_uniform_attached_shock_field(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='upstream_state must be a CharacteristicState',
     )
+  ####
   try:
     start = _finite_point(start_point_m, 'start_point_m')
     pressure = float(upstream_pressure_Pa)
@@ -3617,23 +3847,29 @@ def solve_uniform_attached_shock_field(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='uniform reference inputs must be finite',
     )
+  ####
   if not isfinite(pressure) or pressure <= 0.0:
     raise ValueError('upstream_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(outer_angle):
     raise ValueError('outer_downstream_flow_angle_rad must be finite')
+  ####
   if start[1] <= float(target_centerline_y_m):
     return _failure(
       MocFreeBoundaryShockStatus.INVALID_INPUT,
       message='uniform reference start point must be above the target centerline',
     )
+  ####
   denominator = start[1] - float(target_centerline_y_m)
 
   def state_at(point: tuple[float, float]) -> CharacteristicState:
     return replace(upstream_state, x_m=point[0], y_m=point[1])
+  ####
 
   def angle_at(_index: int, point: tuple[float, float]) -> float:
     fraction = (point[1] - float(target_centerline_y_m)) / denominator
     return outer_angle * max(0.0, min(1.0, fraction))
+  ####
 
   return solve_marched_attached_shock_field(
     state_at,

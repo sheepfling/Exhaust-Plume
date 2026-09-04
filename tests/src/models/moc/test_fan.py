@@ -25,6 +25,7 @@ def _case(*, exit_mach: float = 2.0, exit_total_pressure: float = 2000000.0):
     gas,
   )
   return exit_state, ambient
+####
 
 
 def test_underexpanded_fan_reaches_ambient_pressure_and_validates_cells() -> None:
@@ -53,6 +54,7 @@ def test_underexpanded_fan_reaches_ambient_pressure_and_validates_cells() -> Non
   )
   assert isclose(result.states[-1].theta_rad - result.states[0].theta_rad, result.terminal_turn_rad)
   assert result.lip_ray_centerline_points_m[-1][0] > result.centerline_points_m[-1][0]
+####
 
 
 def test_fan_rejects_matched_or_overexpanded_exit() -> None:
@@ -61,9 +63,12 @@ def test_fan_rejects_matched_or_overexpanded_exit() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert not result.cells
+####
 
 
 def test_fan_requires_multiple_characteristics() -> None:
   exit_state, ambient = _case()
   with pytest.raises(ValueError, match='at least two'):
     solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=1)
+  ####
+####

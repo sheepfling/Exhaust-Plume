@@ -214,6 +214,7 @@ class MocAmbientClosureResult:
         'only a converged ambient-pressure-closed shock field can become a '
         'continued MOC chain cell'
       )
+    ####
     assert self.ambient_boundary is not None
     reserved_diagnostics: dict[str, object] = {
       'ambient_pressure_closure_verified': True,
@@ -231,7 +232,9 @@ class MocAmbientClosureResult:
         raise ValueError(
           f'diagnostics cannot override reserved ambient-closure keys: {sorted(reserved)!r}'
         )
+      ####
       reserved_diagnostics.update(diagnostics)
+    ####
     return self.shock.field.as_chain_cell(
       start_x_m=start_x_m,
       end_x_m=end_x_m,
@@ -254,11 +257,13 @@ class MocAmbientClosureResult:
       raise ValueError(
         'ambient closure is not physically verified; chain promotion is blocked'
       )
+    ####
     if not self.upstream_coupling_verified:
       raise ValueError(
         'ambient closure lacks verified upstream shock-state coupling; '
         'strict chain promotion is blocked'
       )
+    ####
     assert self.shock is not None
     assert self.shock.field is not None
     return self.shock.field.as_coupled_chain_cell(
@@ -268,6 +273,7 @@ class MocAmbientClosureResult:
       diagnostics=diagnostics,
     )
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,6 +344,7 @@ class MocAmbientAttachmentResult:
       'message': self.message,
     }
   ####
+####
 
 
 class MocAmbientAxisClosureShootStatus(str, Enum):
@@ -366,21 +373,25 @@ class MocAmbientAxisClosureShootTrial:
   def __post_init__(self) -> None:
     if not isfinite(float(self.parameter)):
       raise ValueError('parameter must be finite')
+    ####
     if self.start_point_m is not None:
       if len(self.start_point_m) != 2 or not all(
         isfinite(float(value)) for value in self.start_point_m
       ):
         raise ValueError('start_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(
         self,
         'start_point_m',
         (float(self.start_point_m[0]), float(self.start_point_m[1])),
       )
+    ####
     if self.attachment is not None and not isinstance(
         self.attachment,
         MocAmbientAttachmentResult,
     ):
       raise TypeError('attachment must be a MocAmbientAttachmentResult or None')
+    ####
     if self.axis_closure is not None and not isinstance(
         self.axis_closure,
         MocAmbientAxisClosureResult,
@@ -388,8 +399,10 @@ class MocAmbientAxisClosureShootTrial:
       raise TypeError(
         'axis_closure must be a MocAmbientAxisClosureResult or None'
       )
+    ####
     if self.residual is not None and not isfinite(float(self.residual)):
       raise ValueError('residual must be finite when supplied')
+    ####
   ####
 
   @property
@@ -424,6 +437,7 @@ class MocAmbientAxisClosureShootTrial:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,6 +474,7 @@ class MocAmbientAxisClosureShootResult:
       raise TypeError(
         'status must be a MocAmbientAxisClosureShootStatus'
       )
+    ####
     for name, value in (
       ('selected_parameter', self.selected_parameter),
       ('ambient_pressure_Pa', self.ambient_pressure_Pa),
@@ -467,12 +482,17 @@ class MocAmbientAxisClosureShootResult:
     ):
       if value is not None and not isfinite(float(value)):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
+    ####
     for name, point in (
       ('selected_start_point_m', self.selected_start_point_m),
     ):
       if point is not None:
         if len(point) != 2 or not all(isfinite(float(value)) for value in point):
           raise ValueError(f'{name} must contain two finite coordinates')
+        ####
+      ####
+    ####
     for name, bracket in (
       ('parameter_bracket', self.parameter_bracket),
       ('outer_flow_angle_bracket', self.outer_flow_angle_bracket),
@@ -480,16 +500,21 @@ class MocAmbientAxisClosureShootResult:
       if bracket is not None:
         if len(bracket) != 2 or not all(isfinite(float(value)) for value in bracket):
           raise ValueError(f'{name} must contain two finite values')
+        ####
+      ####
+    ####
     if isinstance(self.shooting_iterations, bool) or (
       not isinstance(self.shooting_iterations, int)
       or self.shooting_iterations < 0
     ):
       raise ValueError('shooting_iterations must be a nonnegative integer')
+    ####
     if self.attachment is not None and not isinstance(
         self.attachment,
         MocAmbientAttachmentResult,
     ):
       raise TypeError('attachment must be a MocAmbientAttachmentResult or None')
+    ####
     if self.axis_closure is not None and not isinstance(
         self.axis_closure,
         MocAmbientAxisClosureResult,
@@ -497,6 +522,7 @@ class MocAmbientAxisClosureShootResult:
       raise TypeError(
         'axis_closure must be a MocAmbientAxisClosureResult or None'
       )
+    ####
     if not all(
       isinstance(trial, MocAmbientAxisClosureShootTrial)
       for trial in self.trials
@@ -504,6 +530,7 @@ class MocAmbientAxisClosureShootResult:
       raise TypeError(
         'trials must contain only MocAmbientAxisClosureShootTrial values'
       )
+    ####
   ####
 
   @property
@@ -578,6 +605,7 @@ class MocAmbientAxisClosureShootResult:
       'message': self.message,
     }
   ####
+####
 
 
 class MocAmbientPhysicalFieldStatus(str, Enum):
@@ -612,6 +640,7 @@ class MocAmbientPhysicalFieldResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocAmbientPhysicalFieldStatus):
       raise TypeError('status must be a MocAmbientPhysicalFieldStatus')
+    ####
     if self.axis_closure_shoot is not None and not isinstance(
         self.axis_closure_shoot,
         MocAmbientAxisClosureShootResult,
@@ -619,6 +648,7 @@ class MocAmbientPhysicalFieldResult:
       raise TypeError(
         'axis_closure_shoot must be a MocAmbientAxisClosureShootResult or None'
       )
+    ####
     if self.field is not None and not isinstance(
         self.field,
         MocPhysicalPostShockFieldResult,
@@ -626,6 +656,7 @@ class MocAmbientPhysicalFieldResult:
       raise TypeError(
         'field must be a MocPhysicalPostShockFieldResult or None'
       )
+    ####
     if self.ambient_attachment is not None and not isinstance(
       self.ambient_attachment,
       MocAmbientAttachmentResult,
@@ -633,6 +664,7 @@ class MocAmbientPhysicalFieldResult:
       raise TypeError(
         'ambient_attachment must be a MocAmbientAttachmentResult or None'
       )
+    ####
   ####
 
   @property
@@ -698,6 +730,7 @@ class MocAmbientPhysicalFieldResult:
       raise ValueError(
         'ambient physical-field result is not eligible for coupled chain promotion'
       )
+    ####
     return self.field.as_coupled_chain_cell(
       start_x_m=start_x_m,
       end_x_m=end_x_m,
@@ -728,6 +761,7 @@ class MocAmbientPhysicalFieldResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _ambient_attachment_failure(
@@ -819,15 +853,20 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       MocAmbientAttachmentStatus.INVALID_INPUT,
       message='upstream state and pressure providers must be callable',
     )
+  ####
   if not isinstance(allow_zero_strength_attachment, bool):
     raise ValueError('allow_zero_strength_attachment must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise ValueError('allow_zero_strength_endpoints must be a bool')
+  ####
   if downstream_flow_angle_at is not None and not callable(downstream_flow_angle_at):
     raise ValueError('downstream_flow_angle_at must be callable when supplied')
+  ####
   continuation_law = str(continuation_law)
   if not continuation_law:
     raise ValueError('continuation_law must be a non-empty string')
+  ####
   if continuation_polarity is not None and not isinstance(
     continuation_polarity,
     MocReflectedTracePolarity,
@@ -835,12 +874,15 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
     raise ValueError(
       'continuation_polarity must be a MocReflectedTracePolarity when supplied'
     )
+  ####
   if compression_amplitude_rad is not None:
     compression_amplitude_rad = float(compression_amplitude_rad)
     if not isfinite(compression_amplitude_rad) or compression_amplitude_rad <= 0.0:
       raise ValueError(
         'compression_amplitude_rad must be finite and positive when supplied'
       )
+    ####
+  ####
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
     ambient_pressure = float(ambient_pressure_Pa)
@@ -853,6 +895,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       MocAmbientAttachmentStatus.INVALID_INPUT,
       message='ambient attachment coordinates, pressure, and angle bracket must be numeric',
     )
+  ####
   bracket = (lower_angle, upper_angle)
   if not all(
     isfinite(value)
@@ -864,6 +907,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message='ambient attachment inputs must be finite',
     )
+  ####
   if ambient_pressure <= 0.0:
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.INVALID_INPUT,
@@ -871,6 +915,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message='ambient_pressure_Pa must be finite and positive',
     )
+  ####
   if target_y >= start[1]:
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.INVALID_INPUT,
@@ -878,6 +923,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message='target centerline ordinate must be below the shock start',
     )
+  ####
   if lower_angle >= upper_angle:
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.INVALID_INPUT,
@@ -885,6 +931,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message='outer downstream flow-angle lower bound must be below its upper bound',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.INVALID_INPUT,
@@ -892,26 +939,31 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message='branch must be a ShockBranch',
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
     or maximum_segment_iterations < 1
   ):
     raise ValueError('maximum_segment_iterations must be a positive integer')
+  ####
   if (
     isinstance(maximum_boundary_iterations, bool)
     or not isinstance(maximum_boundary_iterations, int)
     or maximum_boundary_iterations < 1
   ):
     raise ValueError('maximum_boundary_iterations must be a positive integer')
+  ####
   if (
     isinstance(maximum_shooting_iterations, bool)
     or not isinstance(maximum_shooting_iterations, int)
     or maximum_shooting_iterations < 1
   ):
     raise ValueError('maximum_shooting_iterations must be a positive integer')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -922,6 +974,8 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
 
   try:
     upstream_state = upstream_state_at(start)
@@ -933,6 +987,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message=f'upstream attachment callback failed: {error}',
     )
+  ####
   if not isinstance(upstream_state, CharacteristicState):
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.SHOCK_FAILURE,
@@ -940,6 +995,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message='upstream attachment callback returned no CharacteristicState',
     )
+  ####
   if (
     abs(upstream_state.x_m - start[0]) > position_tolerance_m
     or abs(upstream_state.y_m - start[1]) > position_tolerance_m
@@ -950,6 +1006,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message='upstream attachment state does not lie at the shock start',
     )
+  ####
   if upstream_pressure is None or not isfinite(float(upstream_pressure)) or upstream_pressure <= 0.0:
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.SHOCK_FAILURE,
@@ -957,6 +1014,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       outer_flow_angle_bracket=bracket,
       message='upstream attachment pressure must be finite and positive',
     )
+  ####
   upstream_pressure_value = float(upstream_pressure)
 
   zero_strength_attachment = bool(
@@ -980,11 +1038,13 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
         'ambient-matched zero-strength attachment at the trace start'
       ),
     )
+  ####
 
   def attachment_residual(angle_rad: float) -> tuple[float | None, str]:
     turn = angle_rad - upstream_state.theta_rad
     if turn <= 0.0:
       return None, 'attachment angle does not provide a positive compression turn'
+    ####
     try:
       compression = solve_attached_compression_to_turn(
         upstream_mach=upstream_state.mach,
@@ -995,14 +1055,18 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return None, f'attachment compression raised: {error}'
+    ####
     if not compression.converged or compression.downstream_pressure_Pa is None:
       return None, f'attachment compression failed: {compression.message}'
+    ####
     residual = (
       compression.downstream_pressure_Pa - ambient_pressure
     ) / ambient_pressure
     if not isfinite(residual):
       return None, 'attachment pressure residual is not finite'
+    ####
     return float(residual), ''
+  ####
 
   if zero_strength_attachment:
     lower_residual = None
@@ -1022,6 +1086,8 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
           f'attached compression; lower={lower_error}; upper={upper_error}'
         ),
       )
+    ####
+  ####
   selected_angle: float | None = None
   selected_residual: float | None = None
   shooting_iterations = 0
@@ -1066,17 +1132,21 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
             f'{midpoint_error}'
           ),
         )
+      ####
       shooting_iterations = iteration
       last_residual = midpoint_residual
       if abs(midpoint_residual) <= attachment_pressure_tolerance:
         selected_angle = midpoint
         selected_residual = midpoint_residual
         break
+      ####
       if current_lower_residual * midpoint_residual <= 0.0:
         current_upper = midpoint
       else:
         current_lower = midpoint
         current_lower_residual = midpoint_residual
+      ####
+    ####
     if selected_angle is None:
       return _ambient_attachment_failure(
         MocAmbientAttachmentStatus.SHOOTING_FAILURE,
@@ -1089,6 +1159,8 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
           f'pressure tolerance passed: residual={last_residual}'
         ),
       )
+    ####
+  ####
   assert selected_residual is not None
   denominator = start[1] - target_y
 
@@ -1098,9 +1170,11 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
   ) -> float:
     if downstream_flow_angle_at is not None:
       return float(downstream_flow_angle_at(index, point_m))
+    ####
     fraction = (point_m[1] - target_y) / denominator
     fraction = max(0.0, min(1.0, fraction))
     return target_angle + (selected_angle - target_angle) * fraction
+  ####
 
   try:
     shock = solve_marched_attached_shock_field(
@@ -1132,6 +1206,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       shooting_iterations=shooting_iterations,
       message=f'ambient attachment shock march raised: {error}',
     )
+  ####
   if not shock.converged or shock.shock_fit is None:
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.SHOCK_FAILURE,
@@ -1143,6 +1218,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       shock=shock,
       message=f'ambient attachment shock march did not converge: {shock.message}',
     )
+  ####
   try:
     ambient_march = march_post_shock_ambient_boundary(
       shock.shock_fit,
@@ -1164,6 +1240,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       shock=shock,
       message=f'ambient boundary march raised: {error}',
     )
+  ####
   if not ambient_march.converged:
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.AMBIENT_BOUNDARY_FAILURE,
@@ -1176,6 +1253,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       ambient_march=ambient_march,
       message=f'ambient boundary march did not converge: {ambient_march.message}',
     )
+  ####
   try:
     strip = assemble_ambient_shock_characteristic_strip(
       shock.shock_fit,
@@ -1203,6 +1281,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       ambient_march=ambient_march,
       message=f'ambient shock/ambient strip assembly raised: {error}',
     )
+  ####
   if not strip.converged:
     return _ambient_attachment_failure(
       MocAmbientAttachmentStatus.STRIP_FAILURE,
@@ -1216,6 +1295,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       strip=strip,
       message=f'ambient shock/ambient strip did not converge: {strip.message}',
     )
+  ####
   return MocAmbientAttachmentResult(
     status=MocAmbientAttachmentStatus.CONVERGED_OPEN_STRIP,
     shock=shock,
@@ -1298,6 +1378,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
       field=None,
       message='centerline target coordinates and flow angle must be numeric',
     )
+  ####
   try:
     target_is_centerline = (
       abs(target_y) <= float(position_tolerance_m)
@@ -1305,6 +1386,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
     )
   except (TypeError, ValueError):
     target_is_centerline = False
+  ####
   if not target_is_centerline:
     return MocAmbientPhysicalFieldResult(
       status=MocAmbientPhysicalFieldStatus.INVALID_INPUT,
@@ -1315,6 +1397,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
         'centerline y=0 and flow angle theta=0'
       ),
     )
+  ####
 
   try:
     attachment = solve_marched_attached_shock_with_ambient_attachment_closure(
@@ -1353,12 +1436,14 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
       field=None,
       message=f'ambient centerline physical-field solve raised: {error}',
     )
+  ####
   if attachment.status is MocAmbientAttachmentStatus.INVALID_INPUT:
     status = MocAmbientPhysicalFieldStatus.INVALID_INPUT
   elif not attachment.converged:
     status = MocAmbientPhysicalFieldStatus.AMBIENT_ATTACHMENT_FAILURE
   else:
     status = None
+  ####
   if status is not None:
     return MocAmbientPhysicalFieldResult(
       status=status,
@@ -1370,6 +1455,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
         f'for centerline reflection: {attachment.message}'
       ),
     )
+  ####
 
   shock = attachment.shock
   ambient_march = attachment.ambient_march
@@ -1392,6 +1478,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
         'converged shock fit and ambient boundary march'
       ),
     )
+  ####
 
   try:
     field = assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
@@ -1416,6 +1503,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
       ambient_attachment=attachment,
       message=f'ambient centerline physical-field assembly raised: {error}',
     )
+  ####
   if not field.converged or not field.physical_closure_verified:
     return MocAmbientPhysicalFieldResult(
       status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
@@ -1427,6 +1515,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
         f'pass immutable closure gates: {field.message}'
       ),
     )
+  ####
   if not field.state_sampling_available or not field.upstream_shock_coupling_verified:
     return MocAmbientPhysicalFieldResult(
       status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
@@ -1439,6 +1528,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
         'continuation'
       ),
     )
+  ####
   return MocAmbientPhysicalFieldResult(
     status=MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED,
     axis_closure_shoot=None,
@@ -1494,6 +1584,7 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
       raise TypeError(
         'status must be a MocTerminalReflectionPatchPhysicalFieldStatus'
       )
+    ####
     if self.patch is not None and not isinstance(
       self.patch,
       MocTerminalReflectionPatchResult,
@@ -1501,6 +1592,7 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
       raise TypeError(
         'patch must be a MocTerminalReflectionPatchResult or None'
       )
+    ####
     if self.field_result is not None and not isinstance(
       self.field_result,
       MocAmbientPhysicalFieldResult,
@@ -1508,11 +1600,13 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
       raise TypeError(
         'field_result must be a MocAmbientPhysicalFieldResult or None'
       )
+    ####
     if self.ambient_pressure_Pa is not None and (
       not isfinite(float(self.ambient_pressure_Pa))
       or self.ambient_pressure_Pa <= 0.0
     ):
       raise ValueError('ambient_pressure_Pa must be finite and positive')
+    ####
     if self.outer_flow_angle_bracket is not None:
       if len(self.outer_flow_angle_bracket) != 2 or not all(
         isfinite(float(value)) for value in self.outer_flow_angle_bracket
@@ -1520,11 +1614,15 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
         raise ValueError(
           'outer_flow_angle_bracket must contain two finite values'
         )
+      ####
+    ####
     if self.start_point_m is not None:
       if len(self.start_point_m) != 2 or not all(
         isfinite(float(value)) for value in self.start_point_m
       ):
         raise ValueError('start_point_m must contain two finite coordinates')
+      ####
+    ####
     if any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in self.incoming_handoff
@@ -1532,6 +1630,7 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
       raise TypeError(
         'incoming_handoff must contain MocChainBoundarySample values'
       )
+    ####
     if any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in self.patch_handoff
@@ -1539,8 +1638,10 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
       raise TypeError(
         'patch_handoff must contain MocChainBoundarySample values'
     )
+    ####
     if not isinstance(self.continuation_law, str) or not self.continuation_law:
       raise ValueError('continuation_law must be a non-empty string')
+    ####
     if self.reflected_trace_polarity is not None and not isinstance(
       self.reflected_trace_polarity,
       MocReflectedTracePolarityResult,
@@ -1549,13 +1650,16 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
         'reflected_trace_polarity must be a MocReflectedTracePolarityResult '
         'or None'
       )
+    ####
     if self.compression_amplitude_rad is not None:
       amplitude = float(self.compression_amplitude_rad)
       if not isfinite(amplitude) or amplitude <= 0.0:
         raise ValueError(
           'compression_amplitude_rad must be finite and positive when supplied'
         )
+      ####
       object.__setattr__(self, 'compression_amplitude_rad', amplitude)
+    ####
     object.__setattr__(self, 'incoming_handoff', tuple(self.incoming_handoff))
     object.__setattr__(self, 'patch_handoff', tuple(self.patch_handoff))
   ####
@@ -1625,6 +1729,7 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
       raise ValueError(
         'terminal-reflection-patch physical field is not eligible for chain promotion'
       )
+    ####
     return self.field_result.as_coupled_chain_cell(
       start_x_m=start_x_m,
       end_x_m=end_x_m,
@@ -1660,6 +1765,7 @@ class MocTerminalReflectionPatchPhysicalFieldResult:
       'message': self.message,
     }
   ####
+####
 
 
 def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch(
@@ -1714,6 +1820,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       start_point_m=None,
       message='patch must be a MocTerminalReflectionPatchResult',
     )
+  ####
   if not patch.converged or len(patch.outgoing_trace_points_m) < 3:
     return MocTerminalReflectionPatchPhysicalFieldResult(
       status=MocTerminalReflectionPatchPhysicalFieldStatus.PATCH_FAILURE,
@@ -1724,6 +1831,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       start_point_m=None,
       message=f'terminal reflection patch is not usable: {patch.message}',
     )
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     lower_angle = float(outer_downstream_flow_angle_lower_rad)
@@ -1738,6 +1846,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       start_point_m=None,
       message='ambient pressure and outer flow-angle bracket must be numeric',
     )
+  ####
   bracket = (lower_angle, upper_angle)
   if (
     not all(isfinite(value) for value in (*bracket, ambient_pressure))
@@ -1753,6 +1862,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       start_point_m=None,
       message='ambient pressure and outer flow-angle bracket must be finite and valid',
     )
+  ####
   if not isinstance(allow_zero_strength_attachment, bool):
     return MocTerminalReflectionPatchPhysicalFieldResult(
       status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
@@ -1763,6 +1873,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       start_point_m=None,
       message='allow_zero_strength_attachment must be a bool',
     )
+  ####
   expected_start = patch.outgoing_trace_points_m[0]
   if start_point_m is None:
     start = expected_start
@@ -1779,8 +1890,10 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
         start_point_m=None,
         message='start_point_m must contain two finite coordinates',
       )
+    ####
     if not all(isfinite(value) for value in start):
       raise ValueError('start_point_m must contain two finite coordinates')
+    ####
     if any(
       abs(first - second) > position_tolerance_m
       for first, second in zip(start, expected_start, strict=True)
@@ -1794,6 +1907,8 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
         start_point_m=start,
         message='start_point_m must equal the first outgoing patch point',
       )
+    ####
+  ####
   expected_patch_handoff = patch.outgoing_trace_samples
   handoff = (
     expected_patch_handoff
@@ -1810,6 +1925,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       start_point_m=start,
       message='incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   source_handoff = (
     expected_patch_handoff
     if patch_handoff is None
@@ -1830,6 +1946,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       patch_handoff=source_handoff,
       message='patch_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if source_handoff != expected_patch_handoff:
     return MocTerminalReflectionPatchPhysicalFieldResult(
       status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
@@ -1842,6 +1959,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       patch_handoff=source_handoff,
       message='patch_handoff must exactly match the outgoing patch trace',
     )
+  ####
 
   try:
     field_result = solve_marched_attached_shock_with_ambient_centerline_physical_field(
@@ -1892,6 +2010,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       compression_amplitude_rad=compression_amplitude_rad,
       message=f'terminal-patch physical-field solve raised: {error}',
     )
+  ####
   status = (
     MocTerminalReflectionPatchPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
     if (
@@ -1970,6 +2089,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       continuation_law='reflected-trace-referenced-compression-envelope',
       compression_amplitude_rad=None,
     )
+  ####
   try:
     polarity = classify_reflected_trace_polarity(
       patch.outgoing_trace_samples,
@@ -1991,6 +2111,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       continuation_law='reflected-trace-referenced-compression-envelope',
       compression_amplitude_rad=None,
     )
+  ####
   if not polarity.converged:
     return MocTerminalReflectionPatchPhysicalFieldResult(
       status=MocTerminalReflectionPatchPhysicalFieldStatus.PATCH_FAILURE,
@@ -2004,6 +2125,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       reflected_trace_polarity=polarity,
       compression_amplitude_rad=None,
     )
+  ####
   try:
     profile: MocReflectedTraceCompressionProfile = build_reflected_trace_compression_profile(
       patch.outgoing_trace_samples,
@@ -2016,6 +2138,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       amplitude = float(compression_amplitude_rad)
     except (TypeError, ValueError):
       amplitude = None
+    ####
     return MocTerminalReflectionPatchPhysicalFieldResult(
       status=MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT,
       patch=patch,
@@ -2028,6 +2151,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       reflected_trace_polarity=polarity,
       compression_amplitude_rad=amplitude,
     )
+  ####
   result = solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch(
     patch,
     ambient_pressure_Pa,
@@ -2061,7 +2185,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
     reflected_trace_polarity=polarity,
     compression_amplitude_rad=profile.compression_amplitude_rad,
   )
-  ####
+####
 
 
 def _ambient_axis_shoot_failure(
@@ -2146,11 +2270,13 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       MocAmbientAxisClosureShootStatus.INVALID_INPUT,
       message='upstream state and pressure providers must be callable',
     )
+  ####
   if not callable(shock_start_point_at):
     return _ambient_axis_shoot_failure(
       MocAmbientAxisClosureShootStatus.INVALID_INPUT,
       message='shock_start_point_at must be callable',
     )
+  ####
   try:
     lower_parameter = float(start_parameter_lower)
     upper_parameter = float(start_parameter_upper)
@@ -2162,6 +2288,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       MocAmbientAxisClosureShootStatus.INVALID_INPUT,
       message='axis-closure parameters, pressure, and angle bracket must be numeric',
     )
+  ####
   parameter_bracket = (lower_parameter, upper_parameter)
   outer_bracket = (lower_angle, upper_angle)
   if not all(
@@ -2175,6 +2302,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       outer_flow_angle_bracket=outer_bracket,
       message='axis-closure inputs must be finite',
     )
+  ####
   if ambient_pressure <= 0.0:
     return _ambient_axis_shoot_failure(
       MocAmbientAxisClosureShootStatus.INVALID_INPUT,
@@ -2183,6 +2311,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       outer_flow_angle_bracket=outer_bracket,
       message='ambient_pressure_Pa must be finite and positive',
     )
+  ####
   if lower_parameter >= upper_parameter:
     return _ambient_axis_shoot_failure(
       MocAmbientAxisClosureShootStatus.INVALID_INPUT,
@@ -2191,6 +2320,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       outer_flow_angle_bracket=outer_bracket,
       message='start-parameter lower bound must be below its upper bound',
     )
+  ####
   if lower_angle >= upper_angle:
     return _ambient_axis_shoot_failure(
       MocAmbientAxisClosureShootStatus.INVALID_INPUT,
@@ -2199,6 +2329,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       outer_flow_angle_bracket=outer_bracket,
       message='outer downstream flow-angle lower bound must be below its upper bound',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _ambient_axis_shoot_failure(
       MocAmbientAxisClosureShootStatus.INVALID_INPUT,
@@ -2207,8 +2338,10 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       outer_flow_angle_bracket=outer_bracket,
       message='branch must be a ShockBranch',
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -2220,6 +2353,8 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   for name, value in (
     ('maximum_segment_iterations', maximum_segment_iterations),
     ('maximum_boundary_iterations', maximum_boundary_iterations),
@@ -2228,6 +2363,8 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
   ):
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
       raise ValueError(f'{name} must be a positive integer')
+    ####
+  ####
 
   trials: list[MocAmbientAxisClosureShootTrial] = []
 
@@ -2244,6 +2381,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
         residual=None,
         message=f'shock start point callback failed: {error}',
       )
+    ####
     if not all(isfinite(value) for value in start_point):
       return MocAmbientAxisClosureShootTrial(
         parameter=parameter,
@@ -2253,6 +2391,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
         residual=None,
         message='shock start point callback returned non-finite coordinates',
       )
+    ####
     try:
       attachment = solve_marched_attached_shock_with_ambient_attachment_closure(
         upstream_state_at,
@@ -2285,6 +2424,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
         residual=None,
         message=f'ambient attachment trial raised: {error}',
       )
+    ####
     if not attachment.converged or attachment.ambient_march is None:
       return MocAmbientAxisClosureShootTrial(
         parameter=parameter,
@@ -2294,6 +2434,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
         residual=None,
         message=f'ambient attachment trial did not converge: {attachment.message}',
       )
+    ####
     try:
       axis_closure = probe_post_shock_ambient_axis_closure(
         attachment.ambient_march,
@@ -2311,6 +2452,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
         residual=None,
         message=f'ambient axis trial raised: {error}',
       )
+    ####
     residual = (
       axis_closure.relative_pressure_residual
       if axis_closure.axis_candidate_verified
@@ -2320,6 +2462,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       message = f'ambient axis candidate did not converge: {axis_closure.message}'
     else:
       message = axis_closure.message
+    ####
     return MocAmbientAxisClosureShootTrial(
       parameter=parameter,
       start_point_m=start_point,
@@ -2328,6 +2471,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       residual=residual,
       message=message,
     )
+  ####
 
   def result_for(
     status: MocAmbientAxisClosureShootStatus,
@@ -2346,6 +2490,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       trials=trials,
       message=message,
     )
+  ####
 
   lower_trial = evaluate(lower_parameter)
   trials.append(lower_trial)
@@ -2357,6 +2502,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       0,
       'ambient attachment and axis-pressure closure converged at the lower parameter bound; downstream physical closure remains pending',
     )
+  ####
   upper_trial = evaluate(upper_parameter)
   trials.append(upper_trial)
   if upper_trial.converged:
@@ -2367,6 +2513,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       0,
       'ambient attachment and axis-pressure closure converged at the upper parameter bound; downstream physical closure remains pending',
     )
+  ####
   if lower_trial.residual is None or upper_trial.residual is None:
     missing = lower_trial if lower_trial.residual is None else upper_trial
     preferred = upper_trial if upper_trial.residual is not None else lower_trial
@@ -2383,6 +2530,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       'both attachment-coordinate bracket endpoints must produce a valid '
       f'axis candidate: lower={lower_trial.message}; upper={upper_trial.message}',
     )
+  ####
   if lower_trial.residual * upper_trial.residual > 0.0:
     return result_for(
       MocAmbientAxisClosureShootStatus.BRACKET_FAILURE,
@@ -2392,6 +2540,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
       'attachment-coordinate bracket does not straddle the signed axis-pressure residual: '
       f'lower={lower_trial.residual}, upper={upper_trial.residual}',
     )
+  ####
 
   current_lower = lower_trial
   current_upper = upper_trial
@@ -2400,6 +2549,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
   for iteration in range(1, maximum_shooting_iterations + 1):
     if abs(current_upper.parameter - current_lower.parameter) <= parameter_tolerance:
       break
+    ####
     midpoint_parameter = 0.5 * (
       current_lower.parameter + current_upper.parameter
     )
@@ -2415,6 +2565,7 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
         iteration,
         'ambient attachment and axis-pressure closure converged in the bounded parameter shoot; downstream physical closure remains pending',
       )
+    ####
     if midpoint_trial.residual is None:
       return result_for(
         MocAmbientAxisClosureShootStatus.SHOOTING_FAILURE,
@@ -2424,12 +2575,15 @@ def solve_marched_attached_shock_with_ambient_axis_closure(
         'axis-pressure shooting encountered a trial without a valid residual and stopped without extrapolating the upstream field: '
         f'{midpoint_trial.message}',
       )
+    ####
     lower_residual = current_lower.residual
     assert lower_residual is not None
     if lower_residual * midpoint_trial.residual <= 0.0:
       current_upper = midpoint_trial
     else:
       current_lower = midpoint_trial
+    ####
+  ####
   return result_for(
     MocAmbientAxisClosureShootStatus.SHOOTING_FAILURE,
     last_trial,
@@ -2516,6 +2670,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
       field=None,
       message=f'ambient axis physical-field solve raised: {error}',
     )
+  ####
   if shoot.status is MocAmbientAxisClosureShootStatus.INVALID_INPUT:
     return MocAmbientPhysicalFieldResult(
       status=MocAmbientPhysicalFieldStatus.INVALID_INPUT,
@@ -2523,6 +2678,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
       field=None,
       message=f'ambient axis shoot rejected its inputs: {shoot.message}',
     )
+  ####
   if not shoot.converged:
     return MocAmbientPhysicalFieldResult(
       status=MocAmbientPhysicalFieldStatus.AXIS_SHOOT_FAILURE,
@@ -2533,6 +2689,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
         f'{shoot.message}'
       ),
     )
+  ####
 
   axis_closure = shoot.axis_closure
   axis_boundary = None if axis_closure is None else axis_closure.axis_boundary
@@ -2553,6 +2710,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
         'validation; no physical field was assembled'
       ),
     )
+  ####
 
   attachment = shoot.attachment
   shock = None if attachment is None else attachment.shock
@@ -2574,6 +2732,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
         'physical-field assembly'
       ),
     )
+  ####
 
   boundary_points = tuple(axis_boundary.points_m)
   boundary_states = tuple(axis_boundary.states)
@@ -2591,6 +2750,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
         'and total-pressure samples'
       ),
     )
+  ####
   try:
     ambient_samples = tuple(
       MocAmbientBoundarySample(
@@ -2622,6 +2782,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
       field=None,
       message=f'ambient physical-field assembly raised: {error}',
     )
+  ####
   if not field.converged or not field.physical_closure_verified:
     return MocAmbientPhysicalFieldResult(
       status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
@@ -2632,6 +2793,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
         f'physical field did not pass immutable closure gates: {field.message}'
       ),
     )
+  ####
   if not field.state_sampling_available or not field.upstream_shock_coupling_verified:
     return MocAmbientPhysicalFieldResult(
       status=MocAmbientPhysicalFieldStatus.FIELD_FAILURE,
@@ -2642,6 +2804,7 @@ def solve_marched_attached_shock_with_ambient_physical_field(
         'bounded state and upstream-shock samples required for chain continuation'
       ),
     )
+  ####
   return MocAmbientPhysicalFieldResult(
     status=MocAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED,
     axis_closure_shoot=shoot,
@@ -2734,6 +2897,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       MocAmbientClosureStatus.INVALID_INPUT,
       message='upstream state and pressure providers must be callable',
     )
+  ####
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
     ambient_pressure = float(ambient_pressure_Pa)
@@ -2746,6 +2910,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       MocAmbientClosureStatus.INVALID_INPUT,
       message='ambient closure coordinates, pressure, and angle bracket must be numeric',
     )
+  ####
   bracket = (lower_angle, upper_angle)
   if not all(
     isfinite(value)
@@ -2757,6 +2922,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       outer_flow_angle_bracket=bracket,
       message='ambient closure inputs must be finite',
     )
+  ####
   if ambient_pressure <= 0.0:
     return _ambient_closure_failure(
       MocAmbientClosureStatus.INVALID_INPUT,
@@ -2764,6 +2930,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       outer_flow_angle_bracket=bracket,
       message='ambient_pressure_Pa must be finite and positive',
     )
+  ####
   if target_y >= start[1]:
     return _ambient_closure_failure(
       MocAmbientClosureStatus.INVALID_INPUT,
@@ -2771,6 +2938,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       outer_flow_angle_bracket=bracket,
       message='target centerline ordinate must be below the shock start',
     )
+  ####
   if lower_angle >= upper_angle:
     return _ambient_closure_failure(
       MocAmbientClosureStatus.INVALID_INPUT,
@@ -2778,6 +2946,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       outer_flow_angle_bracket=bracket,
       message='outer downstream flow-angle lower bound must be below its upper bound',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _ambient_closure_failure(
       MocAmbientClosureStatus.INVALID_INPUT,
@@ -2785,20 +2954,24 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       outer_flow_angle_bracket=bracket,
       message='branch must be a ShockBranch',
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if (
     isinstance(maximum_segment_iterations, bool)
     or not isinstance(maximum_segment_iterations, int)
     or maximum_segment_iterations < 1
   ):
     raise ValueError('maximum_segment_iterations must be a positive integer')
+  ####
   if (
     isinstance(maximum_shooting_iterations, bool)
     or not isinstance(maximum_shooting_iterations, int)
     or maximum_shooting_iterations < 1
   ):
     raise ValueError('maximum_shooting_iterations must be a positive integer')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -2809,6 +2982,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
   ####
 
   denominator = start[1] - target_y
@@ -2818,6 +2992,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       fraction = (point_m[1] - target_y) / denominator
       fraction = max(0.0, min(1.0, fraction))
       return target_angle + (angle_rad - target_angle) * fraction
+    ####
 
     try:
       shock = solve_marched_attached_shock_field(
@@ -2849,6 +3024,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
         message=f'ambient closure trial raised while generating the shock: {error}',
       )
       return _AmbientClosureEvaluation(angle_rad, shock, None, None, shock.message)
+    ####
     if not shock.converged or shock.field is None or shock.shock_fit is None:
       return _AmbientClosureEvaluation(
         angle_rad,
@@ -2857,6 +3033,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
         None,
         f'generated shock/field did not converge: {shock.message}',
       )
+    ####
     try:
       ambient_boundary = validate_post_shock_ambient_boundary(
         shock.field,
@@ -2874,6 +3051,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
         None,
         f'ambient perimeter validation raised: {error}',
       )
+    ####
     if not ambient_boundary.pressure_residuals:
       return _AmbientClosureEvaluation(
         angle_rad,
@@ -2882,6 +3060,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
         None,
         f'ambient perimeter has no scalar pressure residual: {ambient_boundary.message}',
       )
+    ####
     residual = sum(ambient_boundary.pressure_residuals) / len(ambient_boundary.pressure_residuals)
     if not isfinite(residual):
       return _AmbientClosureEvaluation(
@@ -2891,6 +3070,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
         None,
         'ambient perimeter scalar pressure residual is not finite',
       )
+    ####
     return _AmbientClosureEvaluation(
       angle_rad,
       shock,
@@ -2898,6 +3078,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       float(residual),
       ambient_boundary.message or 'ambient perimeter pressure residual evaluated',
     )
+  ####
 
   lower = evaluate(lower_angle)
   upper = evaluate(upper_angle)
@@ -2909,6 +3090,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
   ) -> MocAmbientClosureResult | None:
     if trial.residual is None or abs(trial.residual) > closure_tolerance:
       return None
+    ####
     if trial.ambient_boundary is not None and trial.ambient_boundary.converged:
       return _ambient_closure_failure(
         MocAmbientClosureStatus.CONVERGED_AMBIENT_CLOSED,
@@ -2924,6 +3106,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
           'perimeter; all pressure and streamline-tangency gates passed'
         ),
       )
+    ####
     return _ambient_closure_failure(
       MocAmbientClosureStatus.AMBIENT_BOUNDARY_FAILURE,
       ambient_pressure_Pa=ambient_pressure,
@@ -2939,13 +3122,16 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
         f'{trial.ambient_boundary.message if trial.ambient_boundary is not None else trial.message}'
       ),
     )
+  ####
 
   endpoint = accepted(lower, 0, bracket)
   if endpoint is not None:
     return endpoint
+  ####
   endpoint = accepted(upper, 0, bracket)
   if endpoint is not None:
     return endpoint
+  ####
 
   if lower.residual is None or upper.residual is None:
     preferred = upper if upper.shock.converged else lower
@@ -2968,6 +3154,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
         f'lower={lower.message}; upper={upper.message}'
       ),
     )
+  ####
   if lower.residual * upper.residual > 0.0:
     return _ambient_closure_failure(
       MocAmbientClosureStatus.BOUNDARY_BRACKET_FAILURE,
@@ -2983,6 +3170,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
         f'lower={lower.residual}, upper={upper.residual}'
       ),
     )
+  ####
 
   current_lower = lower
   current_upper = upper
@@ -3006,6 +3194,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
           f'{midpoint.message}'
         ),
       )
+    ####
     last = midpoint
     endpoint = accepted(
       midpoint,
@@ -3014,6 +3203,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
     )
     if endpoint is not None:
       return endpoint
+    ####
     midpoint_residual = midpoint.residual
     lower_residual = current_lower.residual
     assert lower_residual is not None
@@ -3022,6 +3212,7 @@ def solve_marched_attached_shock_with_ambient_pressure_closure(
       current_upper = midpoint
     else:
       current_lower = midpoint
+    ####
   ####
   return _ambient_closure_failure(
     MocAmbientClosureStatus.SHOOTING_FAILURE,
@@ -3097,6 +3288,7 @@ class MocInvariantClosureResult:
       'shock': None if self.shock is None else self.shock.as_report(),
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -3166,6 +3358,7 @@ def _solve_downstream_angle(
       residual=None,
       message='downstream invariant search interval is empty for the local state',
     )
+  ####
 
   def evaluate(angle_rad: float) -> tuple[float | None, str] | None:
     try:
@@ -3178,8 +3371,10 @@ def _solve_downstream_angle(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return None, f'local attached-compression inversion failed: {error}'
+    ####
     if not compression.converged or compression.downstream_mach is None:
       return None, f'local attached-compression inversion failed: {compression.message}'
+    ####
     value = _invariant_value(
       family,
       angle_rad,
@@ -3187,21 +3382,25 @@ def _solve_downstream_angle(
       state.gamma,
     )
     return value - invariant_target, ''
+  ####
 
   try:
     lower_value = evaluate(lower)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _InvariantEvaluation(None, None, f'local invariant evaluation failed: {error}')
+  ####
   if lower_value is None or lower_value[0] is None:
     return _InvariantEvaluation(
       None,
       None,
       'local invariant evaluation returned no result at the lower angle',
     )
+  ####
   previous_angle = lower
   previous_residual = lower_value[0]
   if abs(previous_residual) <= invariant_tolerance:
     return _InvariantEvaluation(previous_angle, previous_residual, '')
+  ####
 
   for index in range(1, maximum_scan_samples + 1):
     angle = lower + (upper - lower) * index / maximum_scan_samples
@@ -3209,10 +3408,13 @@ def _solve_downstream_angle(
     if current is None or current[0] is None:
       if index == 1:
         continue
+      ####
       break
+    ####
     current_residual = current[0]
     if abs(current_residual) <= invariant_tolerance:
       return _InvariantEvaluation(angle, current_residual, '')
+    ####
     if previous_residual * current_residual < 0.0:
       bracket_lower = previous_angle
       bracket_upper = angle
@@ -3226,21 +3428,27 @@ def _solve_downstream_angle(
             None,
             'local invariant bisection left the attached-compression branch',
           )
+        ####
         midpoint_residual = midpoint_result[0]
         if abs(midpoint_residual) <= invariant_tolerance:
           return _InvariantEvaluation(midpoint, midpoint_residual, '')
+        ####
         if bracket_residual * midpoint_residual <= 0.0:
           bracket_upper = midpoint
         else:
           bracket_lower = midpoint
           bracket_residual = midpoint_residual
+        ####
+      ####
       return _InvariantEvaluation(
         0.5 * (bracket_lower + bracket_upper),
         midpoint_residual,
         'local invariant bisection did not meet its residual tolerance',
       )
+    ####
     previous_angle = angle
     previous_residual = current_residual
+  ####
   return _InvariantEvaluation(
     None,
     None,
@@ -3282,6 +3490,7 @@ def _run_invariant_target(
       message = f'upstream source strip has no state/pressure at shock sample {index}'
       boundary_errors.append(message)
       return float('nan')
+    ####
     evaluation = _solve_downstream_angle(
       state,
       pressure,
@@ -3298,7 +3507,9 @@ def _run_invariant_target(
         f'{evaluation.message}'
       )
       return float('nan')
+    ####
     return evaluation.angle_rad
+  ####
 
   shock = solve_marched_attached_shock_from_source_strip(
     upstream_strip,
@@ -3321,6 +3532,7 @@ def _run_invariant_target(
       if boundary_errors
       else f'invariant-conditioned shock stopped at {shock.sample_count}/{sample_count} samples',
     )
+  ####
   if shock.shock_fit is None or not shock.shock_fit.converged:
     return (
       None,
@@ -3329,12 +3541,15 @@ def _run_invariant_target(
       if boundary_errors
       else f'invariant-conditioned shock fit did not converge: {shock.message}',
     )
+  ####
   if len(shock.downstream_flow_angles_rad) != sample_count:
     return None, shock, 'invariant-conditioned shock returned an incomplete downstream angle trace'
+  ####
   terminal_angle = shock.downstream_flow_angles_rad[-1]
   residual = float(terminal_angle) - float(target_centerline_flow_angle_rad)
   if not isfinite(residual):
     return None, shock, 'invariant-conditioned shock produced a non-finite centerline closure residual'
+  ####
   return residual, shock, None
 ####
 
@@ -3380,12 +3595,14 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
       family,
       message='upstream_strip must be a MocSourceCharacteristicStripResult',
     )
+  ####
   if not isinstance(invariant_family, MocInvariantClosureFamily):
     return _failure(
       MocInvariantClosureStatus.INVALID_INPUT,
       MocInvariantClosureFamily.K_PLUS,
       message='invariant_family must be a MocInvariantClosureFamily',
     )
+  ####
   if not upstream_strip.converged:
     return _failure(
       MocInvariantClosureStatus.INVALID_INPUT,
@@ -3393,6 +3610,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
       source_window_start_index=upstream_strip.source_window_start_index,
       message=f'upstream source strip is not converged: {upstream_strip.message}',
     )
+  ####
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
     target_y = float(target_centerline_y_m)
@@ -3406,6 +3624,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
       source_window_start_index=upstream_strip.source_window_start_index,
       message='shock closure coordinates, target angle, and invariant bracket must be numeric',
     )
+  ####
   if not all(isfinite(value) for value in (*start, target_y, target_angle, lower_target, upper_target)):
     return _failure(
       MocInvariantClosureStatus.INVALID_INPUT,
@@ -3413,6 +3632,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
       source_window_start_index=upstream_strip.source_window_start_index,
       message='shock closure inputs must be finite',
     )
+  ####
   if target_y >= start[1]:
     return _failure(
       MocInvariantClosureStatus.INVALID_INPUT,
@@ -3420,6 +3640,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
       source_window_start_index=upstream_strip.source_window_start_index,
       message='target centerline ordinate must be below the shock start',
     )
+  ####
   if lower_target >= upper_target:
     return _failure(
       MocInvariantClosureStatus.INVALID_INPUT,
@@ -3427,6 +3648,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
       source_window_start_index=upstream_strip.source_window_start_index,
       message='invariant bracket lower target must be below upper target',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _failure(
       MocInvariantClosureStatus.INVALID_INPUT,
@@ -3434,14 +3656,19 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
       source_window_start_index=upstream_strip.source_window_start_index,
       message='branch must be a ShockBranch',
     )
+  ####
   if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 3:
     raise ValueError('sample_count must be an integer of at least three')
+  ####
   if isinstance(maximum_shooting_iterations, bool) or not isinstance(maximum_shooting_iterations, int) or maximum_shooting_iterations < 1:
     raise ValueError('maximum_shooting_iterations must be a positive integer')
+  ####
   if isinstance(maximum_segment_iterations, bool) or not isinstance(maximum_segment_iterations, int) or maximum_segment_iterations < 1:
     raise ValueError('maximum_segment_iterations must be a positive integer')
+  ####
   if isinstance(maximum_invariant_scan_samples, bool) or not isinstance(maximum_invariant_scan_samples, int) or maximum_invariant_scan_samples < 4:
     raise ValueError('maximum_invariant_scan_samples must be an integer of at least four')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -3451,6 +3678,8 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if maximum_downstream_angle_rad <= target_angle:
     raise ValueError('maximum_downstream_angle_rad must exceed the target flow angle')
   ####
@@ -3503,6 +3732,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
         f'lower={lower_error or "valid"}; upper={upper_error or "valid"}'
       ),
     )
+  ####
 
   def accept(
     residual: float,
@@ -3512,6 +3742,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
   ) -> MocInvariantClosureResult | None:
     if abs(residual) > closure_tolerance_rad:
       return None
+    ####
     if shock.converged and shock.field is not None and shock.field.converged:
       return _failure(
         MocInvariantClosureStatus.CONVERGED_CLOSED,
@@ -3528,6 +3759,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
           'a boundary-conditioned research result'
         ),
       )
+    ####
     return _failure(
       MocInvariantClosureStatus.FIELD_FAILURE,
       invariant_family,
@@ -3542,13 +3774,16 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
         f'generated shock field did not close: {shock.message}'
       ),
     )
+  ####
 
   endpoint = accept(lower_residual, lower_shock, lower_target, 0)
   if endpoint is not None:
     return endpoint
+  ####
   endpoint = accept(upper_residual, upper_shock, upper_target, 0)
   if endpoint is not None:
     return endpoint
+  ####
   if lower_residual * upper_residual > 0.0:
     return _failure(
       MocInvariantClosureStatus.SHOOTING_FAILURE,
@@ -3562,6 +3797,7 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
         f'closure: lower residual={lower_residual}, upper residual={upper_residual}'
       ),
     )
+  ####
 
   current_lower = lower_target
   current_upper = upper_target
@@ -3601,16 +3837,19 @@ def solve_marched_attached_shock_with_constant_invariant_closure(
           f'{midpoint_error or midpoint_shock.message}'
         ),
       )
+    ####
     last_shock = midpoint_shock
     last_residual = midpoint_residual
     endpoint = accept(midpoint_residual, midpoint_shock, midpoint, iteration)
     if endpoint is not None:
       return endpoint
+    ####
     if current_lower_residual * midpoint_residual <= 0.0:
       current_upper = midpoint
     else:
       current_lower = midpoint
       current_lower_residual = midpoint_residual
+    ####
   ####
   return _failure(
     MocInvariantClosureStatus.SHOOTING_FAILURE,
@@ -3664,28 +3903,36 @@ def solve_marched_attached_shock_chain_cell_with_constant_invariant_closure(
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   handoff = tuple(incoming_handoff)
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError('continued invariant-conditioned cells require at least three handoff samples')
+  ####
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
     end_x = float(end_x_m)
   except (IndexError, TypeError, ValueError) as error:
     raise ValueError('continued invariant-conditioned cell geometry must be numeric') from error
+  ####
   if not all(isfinite(value) for value in (*start, end_x)):
     raise ValueError('continued invariant-conditioned cell geometry must be finite')
+  ####
   if start[0] <= current_cell.end_x_m + position_tolerance_m:
     raise ValueError('continued invariant-conditioned shock must start downstream of the current cell')
+  ####
   if end_x <= current_cell.end_x_m:
     raise ValueError('continued invariant-conditioned cell end_x_m must be downstream of the current cell')
+  ####
 
   result = solve_marched_attached_shock_with_constant_invariant_closure(
     upstream_strip,
@@ -3712,6 +3959,7 @@ def solve_marched_attached_shock_chain_cell_with_constant_invariant_closure(
       'continued invariant-conditioned shock cell did not converge: '
       f'{result.status.value}: {result.message}'
     )
+  ####
   field = result.shock.field
   expected_states = tuple(sample.state for sample in handoff)
   expected_pressures = tuple(sample.total_pressure_Pa for sample in handoff)
@@ -3722,6 +3970,7 @@ def solve_marched_attached_shock_chain_cell_with_constant_invariant_closure(
     raise ValueError(
       'continued invariant-conditioned field did not retain the exact incoming handoff'
     )
+  ####
   return MocPostShockChainCellSolve(field=field, end_x_m=end_x)
 ####
 
@@ -3763,34 +4012,42 @@ def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_ter
 
   if not isinstance(current_cell, MocChainCell):
     raise TypeError('current_cell must be a MocChainCell')
+  ####
   if (
     isinstance(next_cell_index, bool)
     or not isinstance(next_cell_index, int)
     or next_cell_index != current_cell.cell_index + 1
   ):
     raise ValueError('next_cell_index must immediately follow current_cell.cell_index')
+  ####
   if not callable(upstream_state_at) or not callable(upstream_pressure_at):
     raise TypeError('upstream state and pressure providers must be callable')
+  ####
   if current_cell.continuation_boundary_kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER:
     raise ValueError(
       'ambient-pressure field-coupled continuation requires a post-shock '
       'field perimeter handoff'
     )
+  ####
   try:
     handoff = tuple(incoming_handoff)
   except TypeError as error:
     raise ValueError(
       'incoming_handoff must be an iterable of MocChainBoundarySample values'
     ) from error
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in handoff):
     raise ValueError('incoming_handoff must contain MocChainBoundarySample values')
+  ####
   if handoff != current_cell.continuation_boundary:
     raise ValueError('incoming_handoff must exactly match the current cell boundary')
+  ####
   if len(handoff) < 3:
     raise ValueError(
       'ambient-pressure field-coupled continuation requires at least three '
       'handoff samples'
     )
+  ####
   try:
     start = (float(start_point_m[0]), float(start_point_m[1]))
     end_x = float(end_x_m)
@@ -3799,18 +4056,23 @@ def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_ter
     raise ValueError(
       'continued ambient-pressure cell geometry and tolerance must be numeric'
     ) from error
+  ####
   if not all(isfinite(value) for value in (*start, end_x, tolerance)):
     raise ValueError('continued ambient-pressure cell geometry must be finite')
+  ####
   if tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if start[0] <= current_cell.end_x_m + tolerance:
     raise ValueError(
       'continued ambient-pressure shock must start downstream of the current cell'
     )
+  ####
   if end_x <= current_cell.end_x_m:
     raise ValueError(
       'continued ambient-pressure cell end_x_m must be downstream of the current cell'
     )
+  ####
 
   result = solve_marched_attached_shock_with_ambient_pressure_closure(
     upstream_state_at,
@@ -3868,6 +4130,7 @@ def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_ter
         ),
         diagnostics=diagnostics,
       )
+    ####
     diagnostics['accepted_field_status'] = field.status.value
     diagnostics['physical_closure_verified'] = True
     # Preserve the field's numerical evidence while keeping the research
@@ -3879,6 +4142,7 @@ def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_ter
       ),
       end_x_m=end_x,
     )
+  ####
 
   if shock is not None and shock.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE:
     diagnostics['sampled_count'] = len(shock.upstream_states)
@@ -3896,6 +4160,7 @@ def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_ter
       ),
       diagnostics=diagnostics,
     )
+  ####
 
   if result.status in (
     MocAmbientClosureStatus.BOUNDARY_BRACKET_FAILURE,
@@ -3911,6 +4176,7 @@ def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_ter
       ),
       diagnostics=diagnostics,
     )
+  ####
   if (
     result.converged
     and result.physical_closure_verified
@@ -3925,6 +4191,7 @@ def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure_or_ter
       ),
       diagnostics=diagnostics,
     )
+  ####
   return MocChainTerminationDecision(
     physical_termination=False,
     reason=MocChainTerminationReason.SOLVER_ERROR,
@@ -3990,5 +4257,6 @@ def solve_marched_attached_shock_chain_cell_with_ambient_pressure_closure(
   )
   if isinstance(solved, MocChainTerminationDecision):
     raise ValueError(solved.message)
+  ####
   return solved
 ####

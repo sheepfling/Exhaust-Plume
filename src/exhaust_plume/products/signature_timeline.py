@@ -49,21 +49,28 @@ SIGNATURE_ANGULAR_TIMELINE_SCHEMA = "plume.signature.angular-timeline@1"
 def _integer_in_range(name: str, value: object, *, minimum: int, maximum: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError(f"{name} must be an integer")
+    ####
     if not minimum <= value <= maximum:
         raise ValueError(f"{name} must lie in [{minimum}, {maximum}]")
+    ####
     return value
+####
 
 
 def _finite(name: str, value: object) -> float:
     if isinstance(value, bool):
         raise TypeError(f"{name} must be numeric")
+    ####
     try:
         numeric = float(cast(Any, value))
     except (TypeError, ValueError) as error:
         raise TypeError(f"{name} must be numeric") from error
+    ####
     if not isfinite(numeric):
         raise ValueError(f"{name} must be finite")
+    ####
     return numeric
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +80,7 @@ class AngularCoordinates:
     direction: tuple[float, float, float]
     azimuth_deg: float
     elevation_deg: float
+####
 
 
 def direction_to_azimuth_elevation(direction: tuple[float, float, float]) -> AngularCoordinates:
@@ -85,19 +93,23 @@ def direction_to_azimuth_elevation(direction: tuple[float, float, float]) -> Ang
 
     if not isinstance(direction, tuple) or len(direction) != 3:
         raise TypeError("direction must be a three-coordinate tuple")
+    ####
     x, y, z = tuple(_finite(f"direction[{index}]", value) for index, value in enumerate(direction))
     azimuth_deg = degrees(atan2(y, x))
     if azimuth_deg >= 180.0:
         azimuth_deg = -180.0
+    ####
     horizontal_norm = hypot(x, y)
     elevation_deg = degrees(atan2(z, horizontal_norm))
     if horizontal_norm == 0.0:
         azimuth_deg = 0.0
+    ####
     return AngularCoordinates(
         direction=(x, y, z),
         azimuth_deg=azimuth_deg,
         elevation_deg=elevation_deg,
     )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,26 +122,35 @@ class SignatureTimelineSample:
     def __post_init__(self) -> None:
         if not isinstance(self.request, SpectralSignatureRequest):
             raise TypeError("request must be SpectralSignatureRequest")
+        ####
         if not isinstance(self.result, SpectralSignatureResult):
             raise TypeError("result must be SpectralSignatureResult")
+        ####
         if self.request.direction_frame_id != self.result.metadata.output_frame_id:
             raise ValueError("request direction_frame_id must equal the signature result output frame")
+        ####
         direction_count = len(self.request.source_to_observer_directions)
         wavelength_count = len(self.request.wavelengths_m)
         if len(self.result.spectral_radiant_intensity) != direction_count:
             raise ValueError("signature result direction count must match the request")
+        ####
         if any(len(row) != wavelength_count for row in self.result.spectral_radiant_intensity):
             raise ValueError("signature result wavelength count must match the request")
+        ####
+    ####
 
     @property
     def time_s(self) -> float:
         """Return the immutable snapshot time carried by the source result."""
 
         return self.result.metadata.snapshot.time_s
+    ####
+####
 
 
 class SignatureTimelineSelectionError(ValueError):
     """Raised when a display requests an unavailable exact sample or axis."""
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +175,7 @@ class SignatureTimelineQuery:
     absolute_standard_uncertainty_w_sr_m: float | None
     valid: bool
     status: SampleStatus
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,36 +194,48 @@ class SignatureTimeline:
         samples = tuple(self.samples)
         if not samples:
             raise ValueError("signature timeline requires at least one sample")
+        ####
         if any(not isinstance(sample, SignatureTimelineSample) for sample in samples):
             raise TypeError("signature timeline samples must be SignatureTimelineSample")
+        ####
         if any(second.time_s <= first.time_s for first, second in zip(samples, samples[1:])):
             raise ValueError("signature timeline sample times must be strictly increasing")
+        ####
         reference = samples[0].request
         for sample in samples[1:]:
             request = sample.request
             if request.direction_frame_id != reference.direction_frame_id:
                 raise ValueError("signature timeline samples must use one direction_frame_id")
+            ####
             if request.source_to_observer_directions != reference.source_to_observer_directions:
                 raise ValueError("signature timeline samples must use identical direction vectors")
+            ####
             if request.wavelengths_m != reference.wavelengths_m:
                 raise ValueError("signature timeline samples must use one wavelength axis")
+            ####
+        ####
         object.__setattr__(self, "samples", samples)
+    ####
 
     @property
     def direction_frame_id(self) -> str:
         return self.samples[0].request.direction_frame_id
+    ####
 
     @property
     def directions(self) -> tuple[tuple[float, float, float], ...]:
         return self.samples[0].request.source_to_observer_directions
+    ####
 
     @property
     def wavelengths_m(self) -> tuple[float, ...]:
         return self.samples[0].request.wavelengths_m
+    ####
 
     @property
     def times_s(self) -> tuple[float, ...]:
         return tuple(sample.time_s for sample in self.samples)
+    ####
 
     def sample_at(self, time_s: float) -> SignatureTimelineSample:
         """Return one exact sampled time; no temporal interpolation is implied."""
@@ -210,9 +244,12 @@ class SignatureTimeline:
         for sample in self.samples:
             if sample.time_s == selected_time_s:
                 return sample
+            ####
+        ####
         raise SignatureTimelineSelectionError(
             f"time_s={selected_time_s} is not an exact signature timeline sample"
         )
+    ####
 
     def query_at(
         self,
@@ -258,6 +295,7 @@ class SignatureTimeline:
             valid=valid,
             status=sample.result.direction_status[selected_direction_index],
         )
+    ####
 
     def source_trajectory(self) -> "SignatureSourceTrajectory":
         """Return the declared source-pose samples when they share one frame."""
@@ -268,11 +306,14 @@ class SignatureTimeline:
             raise SignatureTimelineSelectionError(
                 "source trajectory requires one source-pose frame_id; no transform is available"
             )
+        ####
         return SignatureSourceTrajectory(
             frame_id=frame_id,
             times_s=self.times_s,
             source_poses=poses,
         )
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,6 +334,7 @@ class SignatureAngularBinning:
             "elevation_bin_count",
             _integer_in_range("elevation_bin_count", self.elevation_bin_count, minimum=1, maximum=360),
         )
+    ####
 
     def indices_for(self, coordinates: AngularCoordinates) -> tuple[int, int]:
         """Return the equirectangular display bin for exact coordinates."""
@@ -302,6 +344,7 @@ class SignatureAngularBinning:
         azimuth_index = min(self.azimuth_bin_count - 1, int(azimuth_fraction * self.azimuth_bin_count))
         elevation_index = min(self.elevation_bin_count - 1, int(elevation_fraction * self.elevation_bin_count))
         return azimuth_index, elevation_index
+    ####
 
     def azimuth_bounds_deg(self, index: int) -> tuple[float, float]:
         resolved_index = _integer_in_range(
@@ -313,6 +356,7 @@ class SignatureAngularBinning:
         width = 360.0 / self.azimuth_bin_count
         lower = -180.0 + resolved_index * width
         return lower, lower + width
+    ####
 
     def elevation_bounds_deg(self, index: int) -> tuple[float, float]:
         resolved_index = _integer_in_range(
@@ -324,6 +368,8 @@ class SignatureAngularBinning:
         height = 180.0 / self.elevation_bin_count
         lower = -90.0 + resolved_index * height
         return lower, lower + height
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,6 +389,8 @@ class SignatureAngularHeatmapCell:
     @property
     def has_sample(self) -> bool:
         return bool(self.sampled_direction_indices)
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -378,6 +426,8 @@ class SignatureAngularHeatmap:
         return self.cells[
             resolved_elevation_index * self.binning.azimuth_bin_count + resolved_azimuth_index
         ]
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -395,6 +445,7 @@ class SignatureDirectionSeries:
     absolute_standard_uncertainty_w_sr_m: tuple[float | None, ...]
     validity_mask: tuple[bool, ...]
     result_ids: tuple[str, ...]
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,6 +459,8 @@ class SignatureSourceTrajectory:
     @property
     def positions_m(self) -> tuple[tuple[float, float, float], ...]:
         return tuple(pose.translation_m for pose in self.source_poses)
+    ####
+####
 
 
 def _wavelength_index(timeline: SignatureTimeline, index: object) -> int:
@@ -417,6 +470,7 @@ def _wavelength_index(timeline: SignatureTimeline, index: object) -> int:
         minimum=0,
         maximum=len(timeline.wavelengths_m) - 1,
     )
+####
 
 
 def _direction_index(timeline: SignatureTimeline, index: object) -> int:
@@ -426,6 +480,7 @@ def _direction_index(timeline: SignatureTimeline, index: object) -> int:
         minimum=0,
         maximum=len(timeline.directions) - 1,
     )
+####
 
 
 def build_signature_angular_heatmap(
@@ -444,15 +499,18 @@ def build_signature_angular_heatmap(
 
     if not isinstance(timeline, SignatureTimeline):
         raise TypeError("timeline must be SignatureTimeline")
+    ####
     selected_binning = binning or SignatureAngularBinning()
     if not isinstance(selected_binning, SignatureAngularBinning):
         raise TypeError("binning must be SignatureAngularBinning or None")
+    ####
     selected_wavelength_index = _wavelength_index(timeline, wavelength_index)
     sample = timeline.sample_at(time_s)
     buckets: dict[tuple[int, int], list[int]] = {}
     for direction_index, direction in enumerate(timeline.directions):
         coordinates = direction_to_azimuth_elevation(direction)
         buckets.setdefault(selected_binning.indices_for(coordinates), []).append(direction_index)
+    ####
 
     cells: list[SignatureAngularHeatmapCell] = []
     valid_direction_count = 0
@@ -486,9 +544,11 @@ def build_signature_angular_heatmap(
                         for direction_index in valid_indices
                     )
                     mean_uncertainty = sum(uncertainties) / len(uncertainties)
+                ####
             else:
                 mean_intensity = None
                 mean_uncertainty = None
+            ####
             cells.append(
                 SignatureAngularHeatmapCell(
                     azimuth_index=azimuth_index,
@@ -502,6 +562,8 @@ def build_signature_angular_heatmap(
                     mean_absolute_standard_uncertainty_w_sr_m=mean_uncertainty,
                 )
             )
+        ####
+    ####
     return SignatureAngularHeatmap(
         schema=SIGNATURE_ANGULAR_TIMELINE_SCHEMA,
         source_result_id=sample.result.metadata.result_id,
@@ -514,6 +576,7 @@ def build_signature_angular_heatmap(
         valid_direction_count=valid_direction_count,
         invalid_direction_count=invalid_direction_count,
     )
+####
 
 
 def build_signature_direction_series(
@@ -526,6 +589,7 @@ def build_signature_direction_series(
 
     if not isinstance(timeline, SignatureTimeline):
         raise TypeError("timeline must be SignatureTimeline")
+    ####
     selected_direction_index = _direction_index(timeline, direction_index)
     selected_wavelength_index = _wavelength_index(timeline, wavelength_index)
     values: list[float | None] = []
@@ -545,6 +609,8 @@ def build_signature_direction_series(
             )
         else:
             uncertainties.append(None)
+        ####
+    ####
     direction = timeline.directions[selected_direction_index]
     return SignatureDirectionSeries(
         direction_frame_id=timeline.direction_frame_id,
@@ -559,3 +625,4 @@ def build_signature_direction_series(
         validity_mask=tuple(validity),
         result_ids=tuple(sample.result.metadata.result_id for sample in timeline.samples),
     )
+####

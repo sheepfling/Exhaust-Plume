@@ -177,6 +177,7 @@ class MocTerminalBoundaryGraphResult:
       'maximum_upstream_join_residual_m': self.maximum_upstream_join_residual_m,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -268,6 +269,7 @@ class MocTerminalShockCellFieldResult:
     """A terminal mixed-regime cell stops the supersonic chain."""
 
     return True
+  ####
 
   @property
   def physical_termination_verified(self) -> bool:
@@ -278,6 +280,7 @@ class MocTerminalShockCellFieldResult:
       and self.terminal_normal_shock is not None
       and self.terminal_normal_shock.converged
     )
+  ####
 
   def validate_mixed_regime_boundary(
     self,
@@ -323,6 +326,7 @@ class MocTerminalShockCellFieldResult:
         'a mixed-regime perimeter request requires a converged terminal field '
         'with a typed normal-shock result'
       )
+    ####
     terminal = self.terminal_normal_shock
     values = (
       terminal.shock_point_m,
@@ -337,6 +341,7 @@ class MocTerminalShockCellFieldResult:
         'a mixed-regime perimeter request requires complete terminal scalar '
         'state and pressure data'
       )
+    ####
     point, mach, angle, pressure, total_pressure, total_pressure_ratio = values
     assert point is not None
     assert mach is not None
@@ -372,6 +377,7 @@ class MocTerminalShockCellFieldResult:
     result = request.entropy_handoff()
     if not isinstance(result, MocMixedRegimeEntropyHandoffResult):
       raise TypeError('mixed-regime entropy handoff returned an invalid result')
+    ####
     return result
   ####
 
@@ -457,11 +463,13 @@ class MocTerminalShockCellFieldResult:
 
     if self.physical_termination_verified:
       return self.as_physical_termination_decision()
+    ####
     if not self.converged or self.terminal_normal_shock is None:
       raise ValueError(
         'a terminal shock-cell chain decision requires a converged terminal '
         'field with a typed normal-shock result'
       )
+    ####
     terminal = self.terminal_normal_shock
     return MocChainTerminationDecision(
       physical_termination=False,
@@ -495,14 +503,19 @@ class MocTerminalShockCellFieldResult:
 
     if not isinstance(mixed_regime_field, MocMixedRegimeFieldResult):
       raise TypeError('mixed_regime_field must be a MocMixedRegimeFieldResult')
+    ####
     if not self.supersonic_region_closed:
       raise ValueError('a mixed-regime field requires a closed supersonic terminal region')
+    ####
     if not mixed_regime_field.physical_closure_verified:
       raise ValueError('only a converged mixed-regime field can be attached')
+    ####
     if self.terminal_normal_shock is None:
       raise ValueError('a mixed-regime field requires the verified normal-shock terminal')
+    ####
     if mixed_regime_field.boundary.terminal != self.terminal_normal_shock:
       raise ValueError('mixed-regime field terminal does not match the terminal composite')
+    ####
     if (
       mixed_regime_field.boundary.supersonic_patch_sample_count
       != len(self.terminal_shock_supersonic_downstream_states)
@@ -511,6 +524,7 @@ class MocTerminalShockCellFieldResult:
         'mixed-regime field does not retain the complete supersonic terminal '
         'patch sample count'
       )
+    ####
     if (
       mixed_regime_field.boundary.supersonic_patch
       != self.terminal_shock_supersonic_downstream_states
@@ -519,7 +533,9 @@ class MocTerminalShockCellFieldResult:
         'mixed-regime field does not retain the exact supersonic terminal '
         'patch states and pressure-loss samples'
       )
+    ####
     return replace(self, mixed_regime_field=mixed_regime_field)
+  ####
 
   def as_physical_termination_decision(self) -> MocChainTerminationDecision:
     """Return a physical stop only after the mixed-regime field is closed."""
@@ -529,6 +545,7 @@ class MocTerminalShockCellFieldResult:
         'a physical terminal decision requires a closed supersonic region and '
         'a converged mixed-regime field'
       )
+    ####
     terminal = self.terminal_normal_shock
     assert terminal is not None
     assert self.mixed_regime_field is not None
@@ -674,6 +691,7 @@ class MocTerminalShockCellFieldResult:
       ),
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -687,9 +705,12 @@ def _normalise_terminal_boundary_path(
     )
   except (IndexError, TypeError, ValueError):
     return None
+  ####
   if any(not all(isfinite(value) for value in point) for point in normalised):
     return None
+  ####
   return normalised
+####
 
 
 def _terminal_path_has_distinct_segments(
@@ -701,6 +722,7 @@ def _terminal_path_has_distinct_segments(
     > position_tolerance_m
     for first, second in zip(points[:-1], points[1:], strict=True)
   )
+####
 
 
 def _terminal_boundary_graph_result(
@@ -735,6 +757,7 @@ def _terminal_boundary_graph_result(
     downstream_boundary_geometry_verified=downstream_verified,
     message=message,
   )
+####
 
 
 def validate_terminal_boundary_graph(
@@ -757,8 +780,10 @@ def validate_terminal_boundary_graph(
       downstream_supplied=downstream_boundary_points_m is not None,
       message='field must be a MocTerminalShockCellFieldResult',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
 
   raw_paths = (
     ('initial shock', field.initial_shock_boundary_points_m),
@@ -775,7 +800,9 @@ def validate_terminal_boundary_graph(
         downstream_supplied=downstream_boundary_points_m is not None,
         message=f'{name} boundary path contains an invalid coordinate',
       )
+    ####
     paths.append(path)
+  ####
   initial_shock, ambient, centerline, terminal_shock = paths
 
   if not field.converged or not field.supersonic_region_closed:
@@ -791,6 +818,7 @@ def validate_terminal_boundary_graph(
         f'field: {field.message}'
       ),
     )
+  ####
   if any(len(path) < 2 for path in paths):
     missing = next(
       name for (name, _), path in zip(raw_paths, paths, strict=True)
@@ -805,6 +833,7 @@ def validate_terminal_boundary_graph(
       downstream_supplied=downstream_boundary_points_m is not None,
       message=f'{missing} boundary path requires at least two points',
     )
+  ####
   if any(
     not _terminal_path_has_distinct_segments(path, position_tolerance_m)
     for path in paths
@@ -818,6 +847,7 @@ def validate_terminal_boundary_graph(
       downstream_supplied=downstream_boundary_points_m is not None,
       message='terminal boundary graph contains a zero-length path segment',
     )
+  ####
 
   terminal = field.terminal_normal_shock
   terminal_point = None if terminal is None else terminal.shock_point_m
@@ -831,6 +861,7 @@ def validate_terminal_boundary_graph(
       downstream_supplied=downstream_boundary_points_m is not None,
       message='terminal boundary graph requires a finite normal-shock point',
     )
+  ####
   joins = (
     ('initial_shock_to_ambient_streamline', initial_shock[0], ambient[0]),
     ('initial_shock_to_centerline', initial_shock[-1], centerline[0]),
@@ -861,6 +892,7 @@ def validate_terminal_boundary_graph(
         f'maximum residual={maximum_join_residual}'
       ),
     )
+  ####
 
   if downstream_boundary_points_m is None:
     return _terminal_boundary_graph_result(
@@ -876,6 +908,7 @@ def validate_terminal_boundary_graph(
         'geometry and its physical boundary condition remain unsupplied'
       ),
     )
+  ####
 
   downstream = _normalise_terminal_boundary_path(downstream_boundary_points_m)
   if downstream is None:
@@ -890,6 +923,7 @@ def validate_terminal_boundary_graph(
       downstream_supplied=True,
       message='downstream boundary path contains an invalid coordinate',
     )
+  ####
   if len(downstream) < 4:
     return _terminal_boundary_graph_result(
       MocTerminalBoundaryGraphStatus.DOWNSTREAM_BOUNDARY_FAILURE,
@@ -903,6 +937,7 @@ def validate_terminal_boundary_graph(
       downstream_supplied=True,
       message='downstream boundary path requires at least four points',
     )
+  ####
   downstream_closed = (
     hypot(
       downstream[-1][0] - downstream[0][0],
@@ -958,6 +993,7 @@ def validate_terminal_boundary_graph(
         f'area_m2={downstream_area}'
       ),
     )
+  ####
   return _terminal_boundary_graph_result(
     MocTerminalBoundaryGraphStatus.CONVERGED_EXPLICIT_DOWNSTREAM_GEOMETRY,
     initial_shock=initial_shock,
@@ -1054,8 +1090,11 @@ def _clean_clipped_polygon(
     canonical = (round(float(point[0]), 12), round(float(point[1]), 12))
     if not cleaned or canonical != cleaned[-1]:
       cleaned.append(canonical)
+    ####
+  ####
   if len(cleaned) > 1 and cleaned[0] == cleaned[-1]:
     cleaned.pop()
+  ####
   return tuple(cleaned)
 ####
 
@@ -1068,18 +1107,24 @@ def _terminal_shock_x_at_y(
 ) -> float | None:
   if not shock_points:
     return None
+  ####
   if y_value >= shock_points[0][1] - tolerance_m:
     return shock_points[0][0]
+  ####
   if y_value <= shock_points[-1][1] + tolerance_m:
     return shock_points[-1][0]
+  ####
   for first, second in zip(shock_points, shock_points[1:], strict=True):
     lower = min(first[1], second[1])
     upper = max(first[1], second[1])
     if lower - tolerance_m <= y_value <= upper + tolerance_m:
       if abs(second[1] - first[1]) <= tolerance_m:
         return 0.5 * (first[0] + second[0])
+      ####
       fraction = (y_value - first[1]) / (second[1] - first[1])
       return first[0] + fraction * (second[0] - first[0])
+    ####
+  ####
   return None
 ####
 
@@ -1097,6 +1142,7 @@ def _terminal_shock_signed_distance(
   )
   if shock_x is None:
     raise ValueError('point lies outside the terminal shock ordinate range')
+  ####
   return point[0] - shock_x
 ####
 
@@ -1120,8 +1166,10 @@ def _terminal_shock_boundary_intersection(
   )
   if abs(first_value) <= tolerance_m:
     return first
+  ####
   if abs(second_value) <= tolerance_m:
     return second
+  ####
   left = 0.0
   right = 1.0
   left_value = first_value
@@ -1138,11 +1186,14 @@ def _terminal_shock_boundary_intersection(
     )
     if abs(midpoint_value) <= tolerance_m:
       return point
+    ####
     if left_value * midpoint_value <= 0.0:
       right = midpoint
     else:
       left = midpoint
       left_value = midpoint_value
+    ####
+  ####
   midpoint = 0.5 * (left + right)
   return (
     first[0] + midpoint * (second[0] - first[0]),
@@ -1167,6 +1218,7 @@ def _clip_polygon_to_terminal_shock_upstream_side(
 
   if not vertices:
     return ()
+  ####
   output: list[tuple[float, float]] = []
   previous = vertices[-1]
   previous_value = _terminal_shock_signed_distance(
@@ -1192,6 +1244,7 @@ def _clip_polygon_to_terminal_shock_upstream_side(
             tolerance_m=tolerance_m,
           )
         )
+      ####
       output.append(current)
     elif previous_inside:
       output.append(
@@ -1202,9 +1255,11 @@ def _clip_polygon_to_terminal_shock_upstream_side(
           tolerance_m=tolerance_m,
         )
       )
+    ####
     previous = current
     previous_value = current_value
     previous_inside = current_inside
+  ####
   if len(output) >= 2:
     expanded: list[tuple[float, float]] = []
     for first, second in zip(output, (*output[1:], output[0])):
@@ -1232,7 +1287,10 @@ def _clip_polygon_to_terminal_shock_upstream_side(
           key=lambda point: abs(point[1] - first[1])
         )
         expanded.extend(corners)
+      ####
+    ####
     output = expanded
+  ####
   return _clean_clipped_polygon(output)
 ####
 
@@ -1252,6 +1310,7 @@ def _triangulate_clipped_polygon(
 ) -> tuple[tuple[tuple[float, float], ...], ...]:
   if len(vertices) <= 4:
     return (vertices,)
+  ####
   return tuple(
     (vertices[0], vertices[index], vertices[index + 1])
     for index in range(1, len(vertices) - 1)
@@ -1281,6 +1340,7 @@ def _retain_terminal_region_nodes(
   )
   if not retained_points:
     return ()
+  ####
   retained: list[MocCharacteristicNode] = []
   seen: set[tuple[int, int]] = set()
   for node in source_nodes:
@@ -1290,14 +1350,17 @@ def _retain_terminal_region_nodes(
       for point in retained_points
     ):
       continue
+    ####
     key = (
       round(node.point_m[0] / mesh_vertex_tolerance_m),
       round(node.point_m[1] / mesh_vertex_tolerance_m),
     )
     if key in seen:
       continue
+    ####
     seen.add(key)
     retained.append(node)
+  ####
   return tuple(retained)
 ####
 
@@ -1313,6 +1376,7 @@ def _terminal_shock_boundary_coverage(
 
   if len(shock_points) < 2:
     return 0, False, None
+  ####
   edge_counts: dict[
     tuple[tuple[int, int], tuple[int, int]],
     int,
@@ -1339,6 +1403,8 @@ def _terminal_shock_boundary_coverage(
       )
       edge_counts[key] = edge_counts.get(key, 0) + 1
       edge_points.setdefault(key, (first, second))
+    ####
+  ####
 
   target_low = min(point[1] for point in shock_points)
   target_high = max(point[1] for point in shock_points)
@@ -1347,11 +1413,13 @@ def _terminal_shock_boundary_coverage(
   for key, count in edge_counts.items():
     if count != 1:
       continue
+    ####
     first, second = edge_points[key]
     low = min(first[1], second[1])
     high = max(first[1], second[1])
     if high < target_low - position_tolerance_m or low > target_high + position_tolerance_m:
       continue
+    ####
     ordinates = [first[1], second[1]]
     ordinates.extend(
       point[1]
@@ -1365,6 +1433,7 @@ def _terminal_shock_boundary_coverage(
       else:
         fraction = (ordinate - first[1]) / (second[1] - first[1])
         edge_x = first[0] + fraction * (second[0] - first[0])
+      ####
       shock_x = _terminal_shock_x_at_y(
         shock_points,
         ordinate,
@@ -1373,10 +1442,14 @@ def _terminal_shock_boundary_coverage(
       if shock_x is None:
         edge_residual = float('inf')
         break
+      ####
       edge_residual = max(edge_residual, abs(edge_x - shock_x))
+    ####
     if edge_residual <= position_tolerance_m:
       shock_edges.append((low, high))
       residuals.append(edge_residual)
+    ####
+  ####
 
   shock_edges.sort()
   merged: list[tuple[float, float]] = []
@@ -1385,6 +1458,8 @@ def _terminal_shock_boundary_coverage(
       merged[-1] = (merged[-1][0], max(merged[-1][1], high))
     else:
       merged.append((low, high))
+    ####
+  ####
   covered = bool(merged) and (
     merged[0][0] <= target_low + position_tolerance_m
     and merged[-1][1] >= target_high - position_tolerance_m
@@ -1422,16 +1497,19 @@ def assemble_terminal_shock_cell_field(
       MocTerminalShockCellFieldStatus.INVALID_INPUT,
       message='strip must be a MocAmbientShockStripResult',
     )
+  ####
   if not isinstance(reflection_patch, MocTerminalReflectionPatchResult):
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.INVALID_INPUT,
       message='reflection_patch must be a MocTerminalReflectionPatchResult',
     )
+  ####
   if not isinstance(downstream_shock, MocTerminalReflectionPatchShockSolveResult):
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.INVALID_INPUT,
       message='downstream_shock must be a MocTerminalReflectionPatchShockSolveResult',
     )
+  ####
   for name, value in (
     ('target_centerline_y_m', target_centerline_y_m),
     ('position_tolerance_m', position_tolerance_m),
@@ -1440,23 +1518,28 @@ def assemble_terminal_shock_cell_field(
   ):
     if not isfinite(float(value)):
       raise ValueError(f'{name} must be finite')
+    ####
+  ####
   if (
     position_tolerance_m <= 0.0
     or mesh_vertex_tolerance_m <= 0.0
     or shock_angle_tolerance_rad <= 0.0
   ):
     raise ValueError('terminal shock tolerances must be positive')
+  ####
   if not strip.converged:
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.STRIP_FAILURE,
       message=f'shock/ambient strip is not converged: {strip.message}',
     )
+  ####
   if not reflection_patch.converged:
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.PATCH_FAILURE,
       source_strip_cell_count=strip.cell_count,
       message=f'centerline reflection patch is not converged: {reflection_patch.message}',
     )
+  ####
   if (
     not downstream_shock.physical_terminal_verified
     or downstream_shock.shock.normal_shock_terminal is None
@@ -1470,6 +1553,7 @@ def assemble_terminal_shock_cell_field(
         'normal-shock terminal'
       ),
     )
+  ####
 
   terminal = downstream_shock.shock.normal_shock_terminal
   shock_samples = tuple(downstream_shock.shock.shock_points_m)
@@ -1491,6 +1575,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message='terminal shock does not carry a complete domain-bounded upstream path',
     )
+  ####
   terminal_point = terminal.shock_point_m
   if terminal_point is None or not all(isfinite(float(value)) for value in terminal_point):
     return _terminal_field_failure(
@@ -1502,6 +1587,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message='normal-shock terminal does not expose a finite shock point',
     )
+  ####
   if (
     terminal.upstream_state is None
     or terminal.upstream_pressure_Pa is None
@@ -1522,6 +1608,7 @@ def assemble_terminal_shock_cell_field(
         'pressure at its boundary point'
       ),
     )
+  ####
   downstream_angles = tuple(downstream_shock.shock.downstream_flow_angles_rad)
   if len(downstream_angles) != len(shock_samples):
     return _terminal_field_failure(
@@ -1536,6 +1623,7 @@ def assemble_terminal_shock_cell_field(
         'its supersonic boundary samples'
       ),
     )
+  ####
   try:
     supersonic_downstream_fit = fit_attached_shock_boundary(
       upstream_states,
@@ -1556,6 +1644,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message=f'terminal supersonic downstream state fit raised: {error}',
     )
+  ####
   if not supersonic_downstream_fit.converged:
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.SHOCK_FAILURE,
@@ -1573,6 +1662,7 @@ def assemble_terminal_shock_cell_field(
         f'boundary verification: {supersonic_downstream_fit.message}'
       ),
     )
+  ####
   supersonic_downstream_states = supersonic_downstream_fit.boundary_states
   supersonic_downstream_maximum_angle_residual_rad = (
     supersonic_downstream_fit.maximum_shock_angle_residual_rad
@@ -1600,6 +1690,8 @@ def assemble_terminal_shock_cell_field(
         position_tolerance_m=position_tolerance_m,
         invariant_tolerance=1.0e-10,
       )
+    ####
+  ####
   upstream_states = (*upstream_states, terminal.upstream_state)
   upstream_pressures = (*upstream_pressures, float(terminal.upstream_pressure_Pa))
   terminal_shock_points = (*shock_samples, terminal_point)
@@ -1625,6 +1717,7 @@ def assemble_terminal_shock_cell_field(
       terminal_shock_supersonic_downstream_zone=supersonic_downstream_zone,
       message='terminal shock does not start at the reflected outgoing trace',
     )
+  ####
   if abs(terminal_point[1] - float(target_centerline_y_m)) > position_tolerance_m:
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.GEOMETRY_FAILURE,
@@ -1643,6 +1736,7 @@ def assemble_terminal_shock_cell_field(
       terminal_shock_supersonic_downstream_zone=supersonic_downstream_zone,
       message='normal-shock terminal does not lie on the requested centerline',
     )
+  ####
   if any(
     second[0] <= first[0] + position_tolerance_m
     or second[1] > first[1] + position_tolerance_m
@@ -1666,6 +1760,7 @@ def assemble_terminal_shock_cell_field(
       terminal_shock_supersonic_downstream_zone=supersonic_downstream_zone,
       message='terminal shock path is not strictly downstream and centerline-bounded',
     )
+  ####
   if reflection_patch.axis_points_m and (
     terminal_point[0] < reflection_patch.axis_points_m[0][0] - position_tolerance_m
     or terminal_point[0] > reflection_patch.axis_points_m[-1][0] + position_tolerance_m
@@ -1680,6 +1775,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message='normal-shock terminal lies outside the reflected centerline interval',
     )
+  ####
 
   input_trace = reflection_patch.input_trace_validation
   if input_trace is None or not input_trace.converged:
@@ -1693,6 +1789,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message='reflection patch does not expose a converged input trace',
     )
+  ####
   if len(input_trace.samples) != len(strip.terminal_trace_points_m) or any(
     abs(sample.state.x_m - point[0]) > position_tolerance_m
     or abs(sample.state.y_m - point[1]) > position_tolerance_m
@@ -1708,6 +1805,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message='reflection patch input trace does not match the strip terminal trace',
     )
+  ####
 
   cells: list[MocCharacteristicCell] = []
   try:
@@ -1719,6 +1817,7 @@ def assemble_terminal_shock_cell_field(
         centerline_indices=source.centerline_indices,
         boundary_indices=source.boundary_indices,
       ))
+    ####
     clipped_count = 0
     for source in reflection_patch.cells:
       clipped = _clip_polygon_to_terminal_shock_upstream_side(
@@ -1728,9 +1827,11 @@ def assemble_terminal_shock_cell_field(
       )
       if len(clipped) < 3 or abs(_polygon_signed_area(clipped)) <= position_tolerance_m**2:
         continue
+      ####
       for polygon in _triangulate_clipped_polygon(clipped):
         if len(polygon) not in (3, 4) or abs(_polygon_signed_area(polygon)) <= position_tolerance_m**2:
           continue
+        ####
         cells.append(MocCharacteristicCell(
           cell_index=len(cells),
           cell_kind=f'terminal-composite-patch-{source.cell_kind}',
@@ -1739,6 +1840,8 @@ def assemble_terminal_shock_cell_field(
           boundary_indices=source.boundary_indices,
         ))
         clipped_count += 1
+      ####
+    ####
   except (TypeError, ValueError) as error:
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.GEOMETRY_FAILURE,
@@ -1752,6 +1855,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message=f'terminal shock cell clipping produced invalid geometry: {error}',
     )
+  ####
   if not cells:
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.GEOMETRY_FAILURE,
@@ -1763,6 +1867,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message='terminal shock clipping produced no characteristic cells',
     )
+  ####
   nodes = _retain_terminal_region_nodes(
     (*strip.nodes, *reflection_patch.nodes),
     cells,
@@ -1784,6 +1889,7 @@ def assemble_terminal_shock_cell_field(
         'characteristic nodes'
       ),
     )
+  ####
   topology = validate_moc_mesh(
     cells,
     vertex_tolerance_m=mesh_vertex_tolerance_m,
@@ -1816,6 +1922,7 @@ def assemble_terminal_shock_cell_field(
       upstream_pressures=upstream_pressures,
       message=f'terminal composite topology failed: {topology.message}',
     )
+  ####
   if not terminal_shock_coverage_verified:
     return _terminal_field_failure(
       MocTerminalShockCellFieldStatus.GEOMETRY_FAILURE,
@@ -1837,12 +1944,14 @@ def assemble_terminal_shock_cell_field(
         'complete solver-generated terminal-shock boundary'
       ),
     )
+  ####
   centerline_points = tuple(
     point for point in reflection_patch.axis_points_m
     if point[0] <= terminal_point[0] + position_tolerance_m
   )
   if not centerline_points or abs(centerline_points[-1][0] - terminal_point[0]) > position_tolerance_m:
     centerline_points = (*centerline_points, terminal_point)
+  ####
   return MocTerminalShockCellFieldResult(
     status=MocTerminalShockCellFieldStatus.CONVERGED_CLOSED_SUPERSONIC_REGION,
     cells=tuple(cells),
@@ -1945,6 +2054,7 @@ class MocShockCellTransitionResult:
 
     if self.reflection_patch is None:
       return ()
+    ####
     return self.reflection_patch.outgoing_trace_samples
   ####
 
@@ -1956,6 +2066,7 @@ class MocShockCellTransitionResult:
         'a physical shock-cell termination requires a verified downstream '
         'normal-shock terminal'
       )
+    ####
     return self.downstream_shock.as_physical_termination_decision()
   ####
 
@@ -1994,6 +2105,7 @@ class MocShockCellTransitionResult:
       ),
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -2065,6 +2177,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       downstream_condition_status='centerline-normal-shock-reference',
       message=attachment.message,
     )
+  ####
   if not isfinite(downstream_angle) or not isfinite(trace_tolerance) or trace_tolerance <= 0.0:
     attachment = _invalid_attachment(
       'downstream flow angle must be finite and trace tolerance must be positive',
@@ -2078,6 +2191,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       downstream_condition_status='centerline-normal-shock-reference',
       message=attachment.message,
     )
+  ####
 
   try:
     attachment = solve_marched_attached_shock_with_ambient_attachment_closure(
@@ -2103,6 +2217,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     attachment = _invalid_attachment(f'ambient attachment raised: {error}')
+  ####
   if not attachment.converged or attachment.strip is None:
     return MocShockCellTransitionResult(
       status=MocShockCellTransitionStatus.ATTACHMENT_FAILURE,
@@ -2113,6 +2228,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       downstream_condition_status='centerline-normal-shock-reference',
       message=f'ambient attachment did not converge: {attachment.message}',
     )
+  ####
 
   try:
     reflection_patch = assemble_terminal_trace_centerline_patch(
@@ -2130,6 +2246,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       downstream_condition_status='centerline-normal-shock-reference',
       message=f'centerline reflection patch raised: {error}',
     )
+  ####
   if not reflection_patch.converged or not reflection_patch.outgoing_trace_points_m:
     return MocShockCellTransitionResult(
       status=MocShockCellTransitionStatus.REFLECTION_FAILURE,
@@ -2140,6 +2257,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       downstream_condition_status='centerline-normal-shock-reference',
       message=f'centerline reflection patch did not converge: {reflection_patch.message}',
     )
+  ####
 
   try:
     downstream_shock = solve_marched_attached_shock_from_terminal_reflection_patch(
@@ -2165,6 +2283,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
       downstream_condition_status='centerline-normal-shock-reference',
       message=f'downstream shock probe raised: {error}',
     )
+  ####
 
   terminal_field = None
   if downstream_shock.physical_terminal_verified:
@@ -2187,6 +2306,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
     else:
       status = MocShockCellTransitionStatus.DOWNSTREAM_SHOCK_FAILURE
       message = f'terminal supersonic topology did not close: {terminal_field.message}'
+    ####
   elif downstream_shock.converged:
     status = MocShockCellTransitionStatus.CONVERGED_OPEN_TRANSITION
     message = (
@@ -2196,6 +2316,7 @@ def solve_marched_ambient_attachment_shock_cell_transition(
   else:
     status = MocShockCellTransitionStatus.DOWNSTREAM_SHOCK_FAILURE
     message = f'downstream shock probe did not converge: {downstream_shock.message}'
+  ####
   return MocShockCellTransitionResult(
     status=status,
     attachment=attachment,

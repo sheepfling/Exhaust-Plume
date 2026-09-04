@@ -99,6 +99,7 @@ class SectionedTubeGeometrySeries:
     ):
       if any(len(vector) != 3 or not all(isfinite(value) for value in vector) for vector in vectors):
         raise ValueError(f'geometry series {name} must contain finite 3-vectors')
+      ####
     ####
     if any(
       not isfinite(value) or value <= 0.
@@ -121,6 +122,7 @@ class SectionedTubeGeometrySeries:
           for vector in getattr(self, name)
         ),
       )
+    ####
     object.__setattr__(self, 'semi_axis_1_m', tuple(float(value) for value in self.semi_axis_1_m))
     object.__setattr__(self, 'semi_axis_2_m', tuple(float(value) for value in self.semi_axis_2_m))
   ####
@@ -513,6 +515,7 @@ class SpectralRadiantIntensityGrid:
       ####
       if any(value is not None and (not isfinite(value) or value < 0.) for value in values):
         raise ValueError('spectral-intensity values must be finite and nonnegative')
+      ####
     ####
     object.__setattr__(self, 'directions', tuple(_as_vector3(direction) for direction in self.directions))
     object.__setattr__(self, 'wavelengths_m', tuple(float(value) for value in self.wavelengths_m))
@@ -960,6 +963,7 @@ def _validate_view_spec(
     raise ValueError(
       f'view spec {spec.view_kind!r} is not valid for the {product_prefix} product'
     )
+  ####
 ####
 
 

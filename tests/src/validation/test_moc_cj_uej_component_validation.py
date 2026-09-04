@@ -22,6 +22,7 @@ def test_moc_configuration_keeps_explicit_adapter_and_refinement_counts() -> Non
   assert configuration.near_sonic_exit_mach == approx(1.000001)
   assert configuration.characteristic_count == 64
   assert configuration.refinement_counts == (16, 32, 64)
+####
 
 
 def test_moc_centerline_sampling_does_not_extrapolate_open_support() -> None:
@@ -45,6 +46,7 @@ def test_moc_centerline_sampling_does_not_extrapolate_open_support() -> None:
   assert len(samples) == 1
   assert samples[0]['predicted'] == approx(1.15)
   assert skipped == {'outside_open_moc_support': 1}
+####
 
 
 def test_moc_profile_sampling_is_bounded_and_uses_declared_state_assumptions() -> None:
@@ -111,6 +113,7 @@ def test_moc_profile_sampling_is_bounded_and_uses_declared_state_assumptions() -
       gas.static_temperature_from_total(state.mach, configuration.total_temperature_K),
     ) * cos(state.theta_rad)
   )
+####
 
 
 def test_moc_component_score_retains_partial_coverage_and_nonacceptance() -> None:
@@ -129,6 +132,7 @@ def test_moc_component_score_retains_partial_coverage_and_nonacceptance() -> Non
   assert result['metrics']['rmse'] == approx(0.1)
   assert result['metrics']['digitization_uncertainty_weighted_rmse'] == approx(0.7905694150)
   assert result['claim_status'] == 'not_accepted'
+####
 
 
 def test_moc_typed_component_claim_is_proposed_not_accepted() -> None:
@@ -138,3 +142,4 @@ def test_moc_typed_component_claim_is_proposed_not_accepted() -> None:
   assert claim['measurement_operator_id'] == 'op.field.profile-probe'
   assert claim['evidence_level'] == 3
   assert claim['status'] == 'proposed'
+####

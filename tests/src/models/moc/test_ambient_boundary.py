@@ -32,6 +32,7 @@ def _matched_samples() -> tuple[MocAmbientBoundarySample, ...]:
     )
     for index in range(3)
   )
+####
 
 
 def test_ambient_pressure_boundary_requires_pressure_and_tangency() -> None:
@@ -43,6 +44,7 @@ def test_ambient_pressure_boundary_requires_pressure_and_tangency() -> None:
   assert result.maximum_absolute_pressure_residual is not None
   assert result.maximum_absolute_pressure_residual < 1.0e-12
   assert result.maximum_absolute_tangent_residual == 0.0
+####
 
 
 def test_ambient_pressure_boundary_rejects_pressure_mismatch() -> None:
@@ -61,6 +63,7 @@ def test_ambient_pressure_boundary_rejects_pressure_mismatch() -> None:
   assert not result.converged
   assert result.maximum_absolute_pressure_residual is not None
   assert result.maximum_absolute_pressure_residual > 0.0
+####
 
 
 def test_ambient_pressure_boundary_rejects_non_tangent_perimeter() -> None:
@@ -89,6 +92,7 @@ def test_ambient_pressure_boundary_rejects_non_tangent_perimeter() -> None:
   assert not result.converged
   assert result.maximum_absolute_tangent_residual is not None
   assert result.maximum_absolute_tangent_residual > 0.0
+####
 
 
 def test_ambient_pressure_boundary_rejects_a_reversed_flow_tangent() -> None:
@@ -113,6 +117,7 @@ def test_ambient_pressure_boundary_rejects_a_reversed_flow_tangent() -> None:
   assert not result.converged
   assert result.maximum_absolute_tangent_residual is not None
   assert result.maximum_absolute_tangent_residual < 1.0e-12
+####
 
 
 def test_ambient_pressure_boundary_rejects_a_first_sample_below_axis() -> None:
@@ -138,3 +143,4 @@ def test_ambient_pressure_boundary_rejects_a_first_sample_below_axis() -> None:
   assert result.status is MocAmbientBoundaryStatus.GEOMETRY_FAILURE
   assert not result.converged
   assert 'below the symmetry line' in result.message
+####

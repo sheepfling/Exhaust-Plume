@@ -122,10 +122,13 @@ def test_contract_visualization_rejects_failed_or_unsupported_results() -> None:
 
   with pytest.raises(ValueError, match='FAILED'):
     extract_sectioned_tube_geometry(failed)
+  ####
   with pytest.raises(ValueError, match='out-of-applicability'):
     build_sectioned_tube_render_mesh(unsupported)
+  ####
   with pytest.raises(KeyError, match='unknown feature channel'):
     extract_sectioned_tube_channel_lines(result, channel_id='not-present')
+  ####
 ####
 
 
@@ -134,6 +137,8 @@ def test_contract_mesh_rejects_non_integer_or_undersized_ring_resolution() -> No
 
   with pytest.raises(TypeError, match='integer'):
     build_sectioned_tube_render_mesh(result, radial_segments=True)
+  ####
   with pytest.raises(ValueError, match='at least three'):
     build_sectioned_tube_render_mesh(result, radial_segments=2)
+  ####
 ####

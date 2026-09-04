@@ -28,11 +28,14 @@ def test_moc_visual_provider_exposes_research_envelope() -> None:
   assert result.metadata.provenance.metadata['validation_level'] == 'RESEARCH_ONLY'
   assert result.metadata.provenance.metadata['production_claim_allowed'] == 'false'
   assert len(result.sections) <= 8
+####
 
 
 def test_moc_visual_provider_rejects_non_moc_result() -> None:
   with pytest.raises(ProviderConfigurationError, match='retained planar-MOC'):
     MocVisualDefinition(frame_id='source-local', result=object())
+  ####
+####
 
 
 def test_moc_visual_provider_rejects_invalid_snapshot_inputs() -> None:
@@ -44,3 +47,5 @@ def test_moc_visual_provider_rejects_invalid_snapshot_inputs() -> None:
       dynamic_state={},
       ambient_state={},
     )
+  ####
+####

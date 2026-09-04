@@ -82,6 +82,7 @@ def _uniform_reference(sample_count: int):
     outer_downstream_flow_angle_rad=0.05,
     sample_count=sample_count,
   )
+####
 
 
 def _fresh_uniform_field(current_end_x_m: float, incoming_handoff) -> MocPostShockCharacteristicFieldResult:
@@ -101,6 +102,7 @@ def _fresh_uniform_field(current_end_x_m: float, incoming_handoff) -> MocPostSho
   )
   assert result.field is not None
   return result.field
+####
 
 
 def _broad_bounded_field_reference() -> MocPostShockCharacteristicFieldResult:
@@ -166,6 +168,7 @@ def _broad_bounded_field_reference() -> MocPostShockCharacteristicFieldResult:
     shock_boundary_states=states,
     shock_boundary_total_pressure_Pa=(90000.0,) * len(states),
   )
+####
 
 
 def test_closed_post_shock_field_exposes_a_bounded_state_pressure_sampler() -> None:
@@ -187,10 +190,12 @@ def test_closed_post_shock_field_exposes_a_bounded_state_pressure_sampler() -> N
     assert state.mach > 1.0
     assert pressure is not None and pressure > 0.0
     assert total_pressure is not None and total_pressure > 0.0
+  ####
 
   assert field.state_at((2.0, 0.2)) is None
   assert field.total_pressure_at((2.0, 0.2)) is None
   assert field.static_pressure_at((2.0, 0.2)) is None
+####
 
 
 def test_field_coupled_next_shock_returns_a_typed_terminal_without_extrapolation() -> None:
@@ -231,6 +236,8 @@ def test_field_coupled_next_shock_returns_a_typed_terminal_without_extrapolation
       sample_count=9,
       position_tolerance_m=1.0e-8,
     )
+  ####
+####
 
 
 def test_field_coupled_next_shock_reports_the_prior_field_domain_boundary() -> None:
@@ -257,6 +264,7 @@ def test_field_coupled_next_shock_reports_the_prior_field_domain_boundary() -> N
   )
   assert decision.diagnostics['first_missing_sample_index'] == 0
   assert decision.diagnostics['last_valid_point_m'] is None
+####
 
 
 def test_invariant_field_coupled_next_shock_re_solves_a_state_carrying_cell() -> None:
@@ -282,6 +290,7 @@ def test_invariant_field_coupled_next_shock_re_solves_a_state_carrying_cell() ->
       compression.downstream_mach,
       state.gamma,
     )
+  ####
 
   solved = solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination(
     current,
@@ -311,6 +320,7 @@ def test_invariant_field_coupled_next_shock_re_solves_a_state_carrying_cell() ->
   )
   assert solved.field.upstream_shock_coupling_verified
   assert len(solved.field.shock_boundary_points_m) == 9
+####
 
 
 def test_invariant_field_coupled_next_shock_preserves_physical_terminal() -> None:
@@ -337,6 +347,7 @@ def test_invariant_field_coupled_next_shock_preserves_physical_terminal() -> Non
       compression.downstream_mach,
       state.gamma,
     )
+  ####
 
   decision = solve_marched_attached_shock_chain_cell_from_post_shock_field_with_invariant_boundary_or_termination(
     current,
@@ -359,6 +370,7 @@ def test_invariant_field_coupled_next_shock_preserves_physical_terminal() -> Non
   assert decision.diagnostics['shock_condition_model'] == (
     'explicit-downstream-characteristic-invariant'
   )
+####
 
 
 def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
@@ -370,6 +382,7 @@ def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
   def start_point_at(field, current, cell_index):
     seen.append((field is result.field, current.cell_index, cell_index))
     return start
+  ####
 
   planner = plan_post_shock_field_chain(
     result.field,
@@ -395,6 +408,7 @@ def test_field_coupled_planner_audits_the_resolved_field_handoff() -> None:
   assert planner.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert planner.steps[0].result_physical_termination is True
   assert seen == [(True, 1, 2)]
+####
 
 
 def test_invariant_field_coupled_planner_replaces_only_complete_fields() -> None:
@@ -408,6 +422,7 @@ def test_invariant_field_coupled_planner_replaces_only_complete_fields() -> None
   ) -> tuple[float, float]:
     seen_fields.append(field)
     return (current.end_x_m + 0.05, 0.25)
+  ####
 
   def invariant_target(
     field: MocPostShockCharacteristicFieldResult,
@@ -431,6 +446,7 @@ def test_invariant_field_coupled_planner_replaces_only_complete_fields() -> None
       compression.downstream_mach,
       state.gamma,
     )
+  ####
 
   planner = plan_post_shock_field_invariant_chain(
     seed,
@@ -455,6 +471,7 @@ def test_invariant_field_coupled_planner_replaces_only_complete_fields() -> None
   assert seen_fields[1] is not seed
   assert planner.steps[0].result_status == 'converged_closed'
   assert planner.steps[1].result_termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
+####
 
 
 def test_field_coupled_planner_re_solves_a_cell_then_stops_at_field_boundary() -> None:
@@ -486,6 +503,7 @@ def test_field_coupled_planner_re_solves_a_cell_then_stops_at_field_boundary() -
   assert planner.diagnostics['field_coupled_chain_reference']['upstream_pressure_model'] == (
     'bounded-previous-post-shock-field'
   )
+####
 
 
 def test_ambient_pressure_field_chain_adapter_reports_bounded_upstream_stop() -> None:
@@ -538,6 +556,8 @@ def test_ambient_pressure_field_chain_adapter_reports_bounded_upstream_stop() ->
       sample_count=9,
       position_tolerance_m=1.0e-8,
     )
+  ####
+####
 
 
 def test_ambient_pressure_field_chain_planner_preserves_field_on_typed_stop() -> None:
@@ -548,6 +568,7 @@ def test_ambient_pressure_field_chain_planner_preserves_field_on_typed_stop() ->
   def start_point_at(field, current, cell_index):
     seen.append((field is result.field, current.cell_index, cell_index))
     return (1.2, 0.1)
+  ####
 
   planner = plan_ambient_pressure_field_chain(
     result.field,
@@ -574,6 +595,7 @@ def test_ambient_pressure_field_chain_planner_preserves_field_on_typed_stop() ->
   assert planner.steps[0].result_kind == 'termination-returned'
   assert planner.steps[0].result_termination_reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
   assert seen == [(True, 1, 2)]
+####
 
 
 def _reflected_boundary_reference():
@@ -593,6 +615,7 @@ def _reflected_boundary_reference():
   )
   fan = solve_underexpanded_expansion_fan(exit_state, ambient, characteristic_count=8)
   return solve_reflected_free_boundary(fan, exit_state, ambient), ambient
+####
 
 
 def test_marched_attached_shock_generates_and_closes_the_field() -> None:
@@ -621,6 +644,7 @@ def test_marched_attached_shock_generates_and_closes_the_field() -> None:
     result.field.domain_x_extent_m
   )
   assert report['field']['state_sampling_available'] is True
+####
 
 
 def test_marched_attached_shock_refines_endpoint_and_tangent_residual() -> None:
@@ -640,6 +664,7 @@ def test_marched_attached_shock_refines_endpoint_and_tangent_residual() -> None:
   assert abs(fine.endpoint_m[0] - medium.endpoint_m[0]) < abs(
     medium.endpoint_m[0] - coarse.endpoint_m[0]
   )
+####
 
 
 def test_reflected_boundary_trace_extension_is_explicitly_labeled() -> None:
@@ -657,6 +682,7 @@ def test_reflected_boundary_trace_extension_is_explicitly_labeled() -> None:
   assert result.field.physical_closure_verified
   assert result.endpoint_m is not None
   assert result.endpoint_m[1] == pytest.approx(0.0, abs=1.0e-12)
+####
 
 
 def test_reflected_zone_shock_solver_keeps_upstream_coverage_domain_bounded() -> None:
@@ -696,6 +722,7 @@ def test_reflected_zone_shock_solver_keeps_upstream_coverage_domain_bounded() ->
   assert result.coupling.sampled_count == 1
   assert result.coupling.first_missing_sample_index == 1
   assert result.as_report()['downstream_condition_status'] == 'caller-supplied'
+####
 
 
 def test_reflected_zone_shock_solvers_reject_geometry_only_upstream_zone() -> None:
@@ -744,6 +771,7 @@ def test_reflected_zone_shock_solvers_reject_geometry_only_upstream_zone() -> No
   assert 'bounded state/pressure field' in closure_result.message
   assert 'geometry-only' in closure_result.closure.message
   assert 'bounded pressure samples' in closure_result.closure.message
+####
 
 
 def test_ambient_pressure_closure_rejects_a_non_straddling_outer_angle_bracket() -> None:
@@ -776,6 +804,7 @@ def test_ambient_pressure_closure_rejects_a_non_straddling_outer_angle_bracket()
   assert result.ambient_boundary is not None
   assert result.ambient_boundary.status.value == 'pressure_failure'
   assert 'does not straddle' in result.message
+####
 
 
 def test_ambient_pressure_closure_does_not_promote_a_pressure_root_without_tangency() -> None:
@@ -805,6 +834,7 @@ def test_ambient_pressure_closure_does_not_promote_a_pressure_root_without_tange
   assert result.ambient_boundary.maximum_absolute_tangent_residual is not None
   assert result.ambient_boundary.maximum_absolute_tangent_residual > 1.0e-2
   assert not result.physical_closure_verified
+####
 
 
 def test_ambient_attachment_closure_matches_shock_attachment_and_keeps_strip_open() -> None:
@@ -841,6 +871,7 @@ def test_ambient_attachment_closure_matches_shock_attachment_and_keeps_strip_ope
   assert result.strip.physical_closure_verified is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked is True
+####
 
 
 def test_ambient_attachment_closure_rejects_a_non_straddling_pressure_bracket() -> None:
@@ -858,6 +889,7 @@ def test_ambient_attachment_closure_rejects_a_non_straddling_pressure_bracket() 
   assert not result.converged
   assert result.chain_promotion_blocked is True
   assert 'does not straddle' in result.message
+####
 
 
 def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal() -> None:
@@ -963,6 +995,7 @@ def test_ambient_attachment_transition_carries_a_next_shock_handoff_to_terminal(
   assert report['downstream_condition_status'] == 'centerline-normal-shock-reference'
   assert report['next_shock_handoff_sample_count'] == len(result.next_shock_handoff)
   assert report['physical_closure_verified'] is False
+####
 
 
 def test_reflected_zone_ambient_closure_keeps_upstream_coverage_domain_bounded() -> None:
@@ -1004,11 +1037,14 @@ def test_reflected_zone_ambient_closure_keeps_upstream_coverage_domain_bounded()
   assert result.as_report()['physical_closure_verified'] is False
   with pytest.raises(ValueError, match='ambient closure'):
     result.as_chain_cell(start_x_m=start[0], end_x_m=start[0] + 0.5)
+  ####
   with pytest.raises(ValueError, match='ambient closure'):
     result.closure.as_coupled_chain_cell(
       start_x_m=start[0],
       end_x_m=start[0] + 0.5,
     )
+  ####
+####
 
 
 def test_reflected_zone_chain_adapter_rejects_a_shock_outside_the_solved_zone() -> None:
@@ -1044,6 +1080,7 @@ def test_reflected_zone_chain_adapter_rejects_a_shock_outside_the_solved_zone() 
       downstream_flow_angle_rad=0.05,
       sample_count=9,
     )
+  ####
 
   decision = solve_marched_attached_shock_chain_cell_from_reflected_zone_or_termination(
     current,
@@ -1063,6 +1100,7 @@ def test_reflected_zone_chain_adapter_rejects_a_shock_outside_the_solved_zone() 
   )
   assert decision.diagnostics['coupling_status'] == 'outside_reflected_zone_domain'
   assert decision.diagnostics['first_missing_sample_index'] == 0
+####
 
 
 def test_source_strip_march_stops_at_the_first_missing_upstream_sample() -> None:
@@ -1088,6 +1126,7 @@ def test_source_strip_march_stops_at_the_first_missing_upstream_sample() -> None
   assert result.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
   assert result.sample_count == 1
   assert result.endpoint_m == pytest.approx(reflected_boundary.boundary_points_m[-1])
+####
 
 
 def test_source_strip_chain_adapter_preserves_bounded_upstream_stop() -> None:
@@ -1140,6 +1179,8 @@ def test_source_strip_chain_adapter_preserves_bounded_upstream_stop() -> None:
       downstream_flow_angle_rad=0.05,
       sample_count=9,
     )
+  ####
+####
 
 
 def test_source_strip_chain_planner_records_caustic_before_shock_attempt() -> None:
@@ -1182,6 +1223,7 @@ def test_source_strip_chain_planner_records_caustic_before_shock_attempt() -> No
   assert planner.diagnostics['source_strip_reuse_policy'] == (
     'never-reuse-after-one-next-cell-attempt'
   )
+####
 
 
 def test_source_strip_chain_planner_uses_a_converged_strip_once() -> None:
@@ -1222,6 +1264,7 @@ def test_source_strip_chain_planner_uses_a_converged_strip_once() -> None:
     'converged_constant_k_plus_extension'
   )
   assert planner.diagnostics['one_step_domain'] is True
+####
 
 
 def test_source_strip_sequence_planner_requires_fresh_domains_per_cell(
@@ -1275,6 +1318,7 @@ def test_source_strip_sequence_planner_requires_fresh_domains_per_cell(
       field=field,
       end_x_m=current.end_x_m + 0.1,
     )
+  ####
 
   monkeypatch.setattr(
     'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
@@ -1286,7 +1330,9 @@ def test_source_strip_sequence_planner_requires_fresh_domains_per_cell(
     provider_calls.append((current.cell_index, next_cell_index, incoming_handoff))
     if next_cell_index == 3:
       return replacement
+    ####
     return None
+  ####
 
   planner = plan_source_strip_shock_chain_sequence(
     seed_field,
@@ -1320,6 +1366,7 @@ def test_source_strip_sequence_planner_requires_fresh_domains_per_cell(
   assert planner.diagnostics['source_strip_reuse_policy'] == (
     'fresh-bounded-source-strip-required-per-cell'
   )
+####
 
 
 def test_source_strip_sequence_planner_rejects_reused_strip(
@@ -1356,6 +1403,7 @@ def test_source_strip_sequence_planner_rejects_reused_strip(
       field=field,
       end_x_m=current.end_x_m + 0.1,
     )
+  ####
 
   monkeypatch.setattr(
     'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
@@ -1387,6 +1435,7 @@ def test_source_strip_sequence_planner_rejects_reused_strip(
   assert planner.chain.diagnostics['source_strip_reuse_policy'] == (
     'reject-reused-source-continuation-or-strip'
   )
+####
 
 
 def test_invariant_boundary_march_solves_local_turns_before_field_assembly() -> None:
@@ -1398,6 +1447,7 @@ def test_invariant_boundary_march_solves_local_turns_before_field_assembly() -> 
       mach=2.0,
       gamma=1.4,
     )
+  ####
 
   def invariant_target(_index: int, point: tuple[float, float]) -> float:
     downstream_angle = 0.05 * point[1] / 0.5
@@ -1412,6 +1462,7 @@ def test_invariant_boundary_march_solves_local_turns_before_field_assembly() -> 
       compression.downstream_mach,
       1.4,
     )
+  ####
 
   result = solve_marched_attached_shock_with_invariant_boundary(
     upstream,
@@ -1429,6 +1480,7 @@ def test_invariant_boundary_march_solves_local_turns_before_field_assembly() -> 
   assert result.field is not None and result.field.converged
   assert result.upstream_states
   assert result.downstream_flow_angles_rad[-1] == pytest.approx(0.0, abs=1.0e-8)
+####
 
 
 def test_constant_k_plus_source_strip_extension_advances_the_shock_probe() -> None:
@@ -1465,6 +1517,7 @@ def test_constant_k_plus_source_strip_extension_advances_the_shock_probe() -> No
   assert probe.sample_count > 1
   assert probe.endpoint_m is not None
   assert probe.endpoint_m[0] > reflected_boundary.boundary_points_m[-1][0]
+####
 
 
 def test_source_continuation_can_select_an_explicit_terminal_window() -> None:
@@ -1488,6 +1541,7 @@ def test_source_continuation_can_select_an_explicit_terminal_window() -> None:
   assert result.strip.source_window_start_index == 2
   assert result.strip.source_window_total_count == 21
   assert result.strip.node_count < result.full_strip.node_count
+####
 
 
 def test_source_continuation_retains_caustic_bounded_prefix_on_full_strip_failure() -> None:
@@ -1518,6 +1572,7 @@ def test_source_continuation_retains_caustic_bounded_prefix_on_full_strip_failur
   assert result.remesh.caustic_event.detected
   assert result.remesh.chain_termination_available
   assert result.remesh.as_chain_termination_decision().physical_termination is False
+####
 
 
 def test_invariant_closure_rejects_a_non_bracket_before_marching() -> None:
@@ -1540,6 +1595,7 @@ def test_invariant_closure_rejects_a_non_bracket_before_marching() -> None:
   assert result.status is MocInvariantClosureStatus.INVALID_INPUT
   assert not result.converged
   assert 'lower target' in result.message
+####
 
 
 def test_uniform_constant_turn_rejects_zero_area_field() -> None:
@@ -1555,6 +1611,7 @@ def test_uniform_constant_turn_rejects_zero_area_field() -> None:
   assert not result.converged
   assert result.field is not None
   assert 'zero_area' in result.message
+####
 
 
 def test_zero_turn_symmetry_endpoint_reports_subsonic_terminal_boundary() -> None:
@@ -1575,6 +1632,7 @@ def test_zero_turn_symmetry_endpoint_reports_subsonic_terminal_boundary() -> Non
   assert result.normal_shock_terminal.subsonic
   assert result.terminal_model_verified
   assert result.normal_shock_terminal.shock_point_m is not None
+####
 
 
 def test_zero_turn_above_symmetry_line_is_not_classified_as_a_terminal() -> None:
@@ -1591,6 +1649,7 @@ def test_zero_turn_above_symmetry_line_is_not_classified_as_a_terminal() -> None
   assert result.normal_shock_terminal is None
   assert result.sample_count == 1
   assert 'does not require a positive compression turn' in result.message
+####
 
 
 def test_zero_turn_is_terminal_only_at_the_requested_symmetry_ordinate() -> None:
@@ -1607,6 +1666,7 @@ def test_zero_turn_is_terminal_only_at_the_requested_symmetry_ordinate() -> None
   assert result.normal_shock_terminal is not None
   assert result.normal_shock_terminal.shock_point_m is not None
   assert result.normal_shock_terminal.shock_point_m[1] == pytest.approx(0.0)
+####
 
 
 def test_strong_branch_retains_subsonic_boundary_without_fabricating_moc_state() -> None:
@@ -1627,6 +1687,7 @@ def test_strong_branch_retains_subsonic_boundary_without_fabricating_moc_state()
   assert result.normal_shock_terminal is None
   assert result.field is None
   assert result.as_report()['subsonic_boundary_verified'] is True
+####
 
 
 def test_marched_shock_rejects_an_upstream_state_not_at_the_shock_point() -> None:
@@ -1641,6 +1702,7 @@ def test_marched_shock_rejects_an_upstream_state_not_at_the_shock_point() -> Non
   assert result.status is MocFreeBoundaryShockStatus.UPSTREAM_FIELD_FAILURE
   assert not result.converged
   assert 'does not lie' in result.message
+####
 
 
 def test_marched_chain_cell_consumes_the_prior_terminal_trace() -> None:
@@ -1676,6 +1738,7 @@ def test_marched_chain_cell_consumes_the_prior_terminal_trace() -> None:
   assert continued.field.incoming_handoff_total_pressure_Pa == tuple(
     sample.total_pressure_Pa for sample in seed_cell.continuation_boundary
   )
+####
 
 
 def test_marched_chain_cell_adapter_returns_a_typed_physical_terminal() -> None:
@@ -1705,6 +1768,7 @@ def test_marched_chain_cell_adapter_returns_a_typed_physical_terminal() -> None:
   assert terminal.reason.value == 'physical-termination'
   assert terminal.diagnostics['termination_model'] == 'normal-shock-terminal'
   assert terminal.diagnostics['upstream_sample_count'] == 8
+####
 
 
 def test_generated_chain_continues_cells_with_exact_state_pressure_handoff() -> None:
@@ -1722,6 +1786,7 @@ def test_generated_chain_continues_cells_with_exact_state_pressure_handoff() -> 
         reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
         message='generated chain test exhausted its two-cell fixture',
       )
+    ####
     upstream_mach = 2.0
     upstream_gamma = 1.4
     pressure_ratio = (1.0 + 0.2 * upstream_mach * upstream_mach) ** (
@@ -1745,6 +1810,7 @@ def test_generated_chain_continues_cells_with_exact_state_pressure_handoff() -> 
       downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
       sample_count=9,
     )
+  ####
 
   result = continue_post_shock_characteristic_chain(
     seed.field,
@@ -1764,3 +1830,4 @@ def test_generated_chain_continues_cells_with_exact_state_pressure_handoff() -> 
   assert [item[0] for item in observations] == [2, 3]
   assert observations[0][1] == len(result.cells[0].continuation_boundary)
   assert observations[1][1] == len(result.cells[1].continuation_boundary)
+####

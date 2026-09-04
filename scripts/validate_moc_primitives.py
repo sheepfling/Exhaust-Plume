@@ -14,6 +14,7 @@ from unittest.mock import patch
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / 'src') not in sys.path:
   sys.path.insert(0, str(REPO_ROOT / 'src'))
+####
 
 from exhaust_plume.models.moc import (  # noqa: E402
   CharacteristicFamily,
@@ -453,11 +454,14 @@ def _observed_refinement_order(
   values = (float(coarse), float(medium), float(fine))
   if not all(isfinite(value) for value in values):
     return None
+  ####
   coarse_delta = abs(values[1] - values[0])
   fine_delta = abs(values[2] - values[1])
   if coarse_delta <= 0.0 or fine_delta <= 0.0:
     return None
+  ####
   return log(coarse_delta / fine_delta, 2.0)
+####
 
 
 def _refinement_diagnostic(
@@ -476,6 +480,7 @@ def _refinement_diagnostic(
       'minimum_resolution_count': 3,
       'metrics': {},
     }
+  ####
   specs = {
     'coverage_area_m2': 'increasing',
     'maximum_radius_m': 'decreasing',
@@ -492,6 +497,7 @@ def _refinement_diagnostic(
       monotone = all(right > left for left, right in zip(values, values[1:]))
     else:
       monotone = all(right < left for left, right in zip(values, values[1:]))
+    ####
     order = _observed_refinement_order(values[0], values[1], values[2])
     all_monotone = all_monotone and monotone
     all_orders_finite = all_orders_finite and order is not None and isfinite(order)
@@ -503,6 +509,7 @@ def _refinement_diagnostic(
       'observed_order': order,
       'monotone': monotone,
     }
+  ####
   return {
     'status': (
       'diagnostic-monotone-finite-open-lattice'
@@ -512,6 +519,7 @@ def _refinement_diagnostic(
     'interpretation': 'open-lattice-only; physical first-cell closure remains pending',
     'metrics': metrics,
   }
+####
 
 
 def _euler_companion_field_fixture(sample_count: int) -> Any:
@@ -523,6 +531,7 @@ def _euler_companion_field_fixture(sample_count: int) -> Any:
     or sample_count < 2
   ):
     raise ValueError('sample_count must be an integer of at least two')
+  ####
   compression = solve_attached_compression_to_turn(
     upstream_mach=2.0,
     gamma=1.4,
@@ -531,6 +540,7 @@ def _euler_companion_field_fixture(sample_count: int) -> Any:
   )
   if compression.beta_rad is None:
     raise RuntimeError('Euler companion refinement fixture could not resolve beta')
+  ####
   shock_angle = 0.2 - compression.beta_rad
   points = tuple(
     (
@@ -567,6 +577,7 @@ def _euler_companion_field_fixture(sample_count: int) -> Any:
     shock_boundary,
     companion.samples,
   )
+####
 
 
 def _euler_ambient_physical_field_fixture(sample_count: int = 9) -> Any:
@@ -590,6 +601,7 @@ def _euler_ambient_physical_field_fixture(sample_count: int = 9) -> Any:
       points[-2][0] - step / tan(terminal_tangent),
       points[-1][1],
     )
+  ####
   turns = []
   for index in range(sample_count):
     position = (index / (sample_count - 1)) ** 0.2 * 8.0
@@ -599,6 +611,7 @@ def _euler_ambient_physical_field_fixture(sample_count: int = 9) -> Any:
       base_turns[lower] * (1.0 - fraction)
       + base_turns[lower + 1] * fraction
     )
+  ####
   tangent_angles = tuple(
     atan2(second[1] - first[1], second[0] - first[0])
     for first, second in (
@@ -624,6 +637,7 @@ def _euler_ambient_physical_field_fixture(sample_count: int = 9) -> Any:
       raise RuntimeError(
         'exact ambient physical-field fixture could not resolve beta'
       )
+    ####
     upstream_states.append(
       CharacteristicState(
         x_m=point[0],
@@ -633,6 +647,7 @@ def _euler_ambient_physical_field_fixture(sample_count: int = 9) -> Any:
         gamma=1.4,
       )
     )
+  ####
   return fit_euler_consistent_shock_boundary(
     tuple(upstream_states),
     (100000.0,) * sample_count,
@@ -642,6 +657,7 @@ def _euler_ambient_physical_field_fixture(sample_count: int = 9) -> Any:
       for state, turn in zip(upstream_states, turns, strict=True)
     ),
   )
+####
 
 
 def _sampled_attached_shock_gate() -> tuple[Any, Any, Any]:
@@ -655,6 +671,7 @@ def _sampled_attached_shock_gate() -> tuple[Any, Any, Any]:
   )
   if compression.beta_rad is None:
     raise RuntimeError('synthetic attached-shock validation could not obtain beta')
+  ####
   shock_angle = -0.2 - compression.beta_rad
   start = (0.5, 0.5)
   step = 0.5 / (3.0 * abs(sin(shock_angle)))
@@ -697,6 +714,7 @@ def _sampled_attached_shock_gate() -> tuple[Any, Any, Any]:
     open_zone.cells,
   )
   return shock_fit, continuation, closed_gate
+####
 
 
 def _shock_seeded_field_fit() -> MocShockBoundaryFitResult:
@@ -729,6 +747,7 @@ def _shock_seeded_field_fit() -> MocShockBoundaryFitResult:
     shock_angle_residuals_rad=(0.0,) * len(samples),
     maximum_shock_angle_residual_rad=0.0,
   )
+####
 
 
 def _shock_seeded_field_fixture() -> MocPostShockCharacteristicFieldResult:
@@ -741,6 +760,7 @@ def _shock_seeded_field_fixture() -> MocPostShockCharacteristicFieldResult:
   """
 
   return assemble_post_shock_characteristic_field(_shock_seeded_field_fit())
+####
 
 
 def _shock_seeded_field_refinement_probe() -> list[dict[str, Any]]:
@@ -789,7 +809,9 @@ def _shock_seeded_field_refinement_probe() -> list[dict[str, Any]]:
       'minimum_forward_margin_m': field.minimum_forward_margin_m,
       'pressure_loss_verified': field.pressure_loss_verified,
     })
+  ####
   return probe
+####
 
 
 def _solver_generated_shock_fixture() -> MocFreeBoundaryShockResult:
@@ -808,6 +830,7 @@ def _solver_generated_shock_fixture() -> MocFreeBoundaryShockResult:
     outer_downstream_flow_angle_rad=0.05,
     sample_count=17,
   )
+####
 
 
 def _reflected_domain_source_request(
@@ -820,6 +843,7 @@ def _reflected_domain_source_request(
 
   if not reflection_patch.converged:
     raise ValueError('reflected-domain fixture requires a converged patch')
+  ####
   anchor = reflection_patch.outgoing_trace_states[-1]
   total_pressure = reflection_patch.outgoing_trace_total_pressure_Pa[-1]
   centerline: list[CharacteristicState] = []
@@ -833,6 +857,7 @@ def _reflected_domain_source_request(
     inversion = inverse_prandtl_meyer_angle_rad(-k_plus, anchor.gamma)
     if inversion.value is None:
       raise ValueError('reflected-domain axis fixture inversion failed')
+    ####
     axis_x = anchor.x_m + axis_step * index
     axis_state = CharacteristicState(
       x_m=axis_x,
@@ -848,6 +873,7 @@ def _reflected_domain_source_request(
     )
     if outer_inversion.value is None:
       raise ValueError('reflected-domain outer fixture inversion failed')
+    ####
     outer_probe = CharacteristicState(
       x_m=axis_x,
       y_m=0.0,
@@ -873,6 +899,7 @@ def _reflected_domain_source_request(
       )
     )
     centerline.append(axis_state)
+  ####
   return MocReflectedDomainRemeshRequest(
     reflection_patch=reflection_patch,
     centerline_source_states=tuple(centerline),
@@ -880,6 +907,7 @@ def _reflected_domain_source_request(
     total_pressure_Pa=total_pressure,
     incoming_handoff=incoming_handoff,
   )
+####
 
 
 def _reflected_domain_remesh_probe(
@@ -896,6 +924,7 @@ def _reflected_domain_remesh_probe(
       'message': 'terminal reflection patch did not converge',
       'claim_status': 'reflected-domain-remesh-pending',
     }
+  ####
   try:
     request = _reflected_domain_source_request(reflection_patch)
     remesh = solve_reflected_domain_remesh(request)
@@ -913,6 +942,7 @@ def _reflected_domain_remesh_probe(
       'message': f'reflected-domain fixture failed: {error}',
       'claim_status': 'reflected-domain-remesh-pending',
     }
+  ####
   remesh_measurement = measure_moc_reflected_domain_remesh(remesh)
   reused_front_measurement = measure_moc_reflected_domain_remesh(reused_front)
 
@@ -949,6 +979,7 @@ def _reflected_domain_remesh_probe(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     outer_source_error = f'{type(error).__name__}: {error}'
+  ####
 
   alternating_source = None
   alternating_source_measurement = None
@@ -986,6 +1017,7 @@ def _reflected_domain_remesh_probe(
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     alternating_source_error = f'{type(error).__name__}: {error}'
     alternating_physical_field_error = f'{type(error).__name__}: {error}'
+  ####
 
   solver_owned_first_cell = None
   solver_owned_first_cell_measurement = None
@@ -993,6 +1025,7 @@ def _reflected_domain_remesh_probe(
   try:
     if alternating_source is None:
       raise ValueError('alternating source fixture did not converge')
+    ####
     solver_owned_first_cell = solve_reflected_domain_solver_owned_first_cell(
       alternating_source,
       outer_source_index=2,
@@ -1009,6 +1042,7 @@ def _reflected_domain_remesh_probe(
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     solver_owned_first_cell_error = f'{type(error).__name__}: {error}'
+  ####
 
   global_shock_remesh = None
   global_shock_remesh_measurement = None
@@ -1039,6 +1073,7 @@ def _reflected_domain_remesh_probe(
   try:
     if alternating_source is None:
       raise ValueError('alternating source fixture did not converge')
+    ####
     global_shock_remesh = solve_reflected_domain_global_shock_remesh(
       alternating_source,
       outer_source_indices=(2,),
@@ -1067,6 +1102,7 @@ def _reflected_domain_remesh_probe(
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     global_shock_remesh_error = f'{type(error).__name__}: {error}'
     global_euler_shock_boundary_error = f'{type(error).__name__}: {error}'
+  ####
 
   # The original global-Euler result above remains the audit fixture for the
   # reflected-domain lane.  The fresh-source continuation lane needs a
@@ -1085,6 +1121,7 @@ def _reflected_domain_remesh_probe(
       )
       if not seed_patch.converged:
         raise ValueError('physical seed field terminal patch did not converge')
+      ####
       seed_handoff = tuple(
         MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
         for state, pressure in zip(
@@ -1096,6 +1133,7 @@ def _reflected_domain_remesh_probe(
       seed_ambient_pressure = physical_seed_field.ambient_boundary.ambient_pressure_Pa
       if seed_ambient_pressure is None:
         raise ValueError('physical seed field has no ambient pressure')
+      ####
       # Recompute the scalar ambient reference from the same nine-point
       # attached-shock contract used by the focused chain regression.  The
       # existing sample-17 fixture differs only at floating-point roundoff,
@@ -1108,6 +1146,7 @@ def _reflected_domain_remesh_probe(
         or not physical_seed_field.shock_boundary_points_m
       ):
         raise ValueError('physical seed field lacks upstream shock provenance')
+      ####
       seed_upstream_reference = physical_seed_field.upstream_shock_boundary_states[0]
       seed_upstream_total_pressure = (
         physical_seed_field.upstream_shock_boundary_total_pressure_Pa[0]
@@ -1141,6 +1180,7 @@ def _reflected_domain_remesh_probe(
         or not seed_pressure_shock.shock_fit.boundary_states
       ):
         raise ValueError('canonical nine-point seed pressure fit did not converge')
+      ####
       seed_pressure_state = seed_pressure_shock.shock_fit.boundary_states[0]
       seed_ambient_pressure = seed_pressure_state.downstream_total_pressure_Pa / (
         1.0
@@ -1169,6 +1209,7 @@ def _reflected_domain_remesh_probe(
         raise ValueError(
           'reconciled fresh-chain source failed its independent audit'
         )
+      ####
       seed_remesh = solve_reflected_domain_global_shock_remesh(
         seed_source_anchor,
         outer_source_indices=(2,),
@@ -1187,6 +1228,7 @@ def _reflected_domain_remesh_probe(
         raise ValueError(
           'reconciled fresh-chain global remesh failed its independent audit'
         )
+      ####
       seed_euler = solve_reflected_domain_global_euler_shock_boundary(
         seed_remesh
       )
@@ -1198,6 +1240,7 @@ def _reflected_domain_remesh_probe(
         raise ValueError(
           'reconciled fresh-chain global Euler seed failed its independent audit'
         )
+      ####
       global_euler_continued_chain_seed = seed_euler
       global_euler_continued_chain_seed_model = (
         'accepted-physical-field-exact-handoff-fresh-source-global-euler-seed'
@@ -1212,6 +1255,8 @@ def _reflected_domain_remesh_probe(
       global_euler_continued_chain_seed_euler_error = (
         global_euler_continued_chain_seed_source_error
       )
+    ####
+  ####
 
   if global_euler_continued_chain_seed is None:
     global_euler_continued_chain_seed = global_euler_shock_boundary
@@ -1219,14 +1264,18 @@ def _reflected_domain_remesh_probe(
       global_euler_continued_chain_seed_model = (
         'existing-reflected-domain-global-euler-seed'
       )
+    ####
+  ####
 
   if global_euler_shock_boundary is not None:
     try:
       if global_euler_shock_boundary.physical_field is None:
         raise ValueError('global Euler closure did not retain its physical field')
+      ####
       global_seed_field = global_euler_shock_boundary.physical_field.field
       if global_seed_field is None:
         raise ValueError('global Euler closure retained no physical field mesh')
+      ####
       global_seed_end_x_m = global_seed_field.ambient_boundary_points_m[-1][0]
       global_euler_continued_chain_reference = (
         plan_reflected_domain_global_euler_continued_chain_reference(
@@ -1246,17 +1295,20 @@ def _reflected_domain_remesh_probe(
       global_euler_continued_chain_reference_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
     if global_euler_continued_chain_seed is not None:
       try:
         if global_euler_continued_chain_seed.physical_field is None:
           raise ValueError(
             'fresh-chain global Euler seed did not retain its physical field'
           )
+        ####
         global_seed_field = global_euler_continued_chain_seed.physical_field.field
         if global_seed_field is None:
           raise ValueError(
             'fresh-chain global Euler seed retained no physical field mesh'
           )
+        ####
         global_seed_end_x_m = global_seed_field.ambient_boundary_points_m[-1][0]
         global_euler_continued_chain = (
           plan_reflected_domain_global_euler_continued_chain(
@@ -1280,6 +1332,9 @@ def _reflected_domain_remesh_probe(
         global_euler_continued_chain_error = (
           f'{type(error).__name__}: {error}'
         )
+      ####
+    ####
+  ####
 
   if (
     alternating_source is not None
@@ -1311,6 +1366,7 @@ def _reflected_domain_remesh_probe(
             ),
           )
         )
+      ####
       refinement_cases.sort(key=lambda case: case.resolution)
       global_euler_shock_boundary_refinement = (
         measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
@@ -1321,6 +1377,8 @@ def _reflected_domain_remesh_probe(
       global_euler_shock_boundary_refinement_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
+  ####
 
   solver_owned_first_cell_planner = None
   solver_owned_first_cell_planner_error = None
@@ -1364,6 +1422,8 @@ def _reflected_domain_remesh_probe(
       solver_owned_first_cell_planner_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
+  ####
 
   global_shock_remesh_planner = None
   global_shock_remesh_planner_error = None
@@ -1408,6 +1468,8 @@ def _reflected_domain_remesh_probe(
       global_shock_remesh_planner_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
+  ####
 
   (
     alternating_physical_field_chain_refinement,
@@ -1435,6 +1497,8 @@ def _reflected_domain_remesh_probe(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       alternating_source_planner_error = f'{type(error).__name__}: {error}'
+    ####
+  ####
 
   one_step_planner = None
   one_step_error = None
@@ -1461,6 +1525,7 @@ def _reflected_domain_remesh_probe(
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       one_step_error = f'{type(error).__name__}: {error}'
+    ####
 
     def fake_source_solver(
       current,
@@ -1485,6 +1550,7 @@ def _reflected_domain_remesh_probe(
       )
       if next_field_result.field is None:
         raise ValueError('sequence fixture could not build its next field')
+      ####
       incoming = tuple(incoming_handoff)
       next_field = replace(
         next_field_result.field,
@@ -1500,6 +1566,7 @@ def _reflected_domain_remesh_probe(
         field=next_field,
         end_x_m=current.end_x_m + 0.2,
       )
+    ####
 
     def remesh_at(current, next_cell_index, incoming_handoff):
       sequence_calls.append({
@@ -1509,6 +1576,7 @@ def _reflected_domain_remesh_probe(
       })
       if len(sequence_calls) > 1:
         return None
+      ####
       return solve_reflected_domain_remesh(
         _reflected_domain_source_request(
           reflection_patch,
@@ -1516,6 +1584,7 @@ def _reflected_domain_remesh_probe(
           variation_index=1,
         )
       )
+    ####
 
     try:
       with patch(
@@ -1540,8 +1609,11 @@ def _reflected_domain_remesh_probe(
             require_state_carry=True,
           ),
         )
+      ####
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       sequence_error = f'{type(error).__name__}: {error}'
+    ####
+  ####
 
   one_step_report = (
     None if one_step_planner is None else one_step_planner.as_report()
@@ -1997,6 +2069,7 @@ def _reflected_domain_remesh_probe(
       'canonical-free-boundary-mixed-regime-and-physical-closure-pending'
     ),
   }
+####
 
 
 def _ambient_shock_strip_probe(
@@ -2012,6 +2085,7 @@ def _ambient_shock_strip_probe(
       'message': 'solver-generated shock fixture did not provide a converged shock fit',
       'claim_status': 'shock-plus-ambient-strip-pending',
     }
+  ####
   first = shock_fit.boundary_states[0]
   state = first.state
   ambient_pressure = first.downstream_total_pressure_Pa / (
@@ -2030,6 +2104,7 @@ def _ambient_shock_strip_probe(
       'message': march.message,
       'claim_status': 'shock-plus-ambient-strip-pending',
     }
+  ####
   ambient_axis_closure = probe_post_shock_ambient_axis_closure(
     march,
     ambient_pressure,
@@ -2207,6 +2282,7 @@ def _ambient_shock_strip_probe(
           sample_count=refinement_sample_count,
         )
       )
+    ####
     ambient_centerline_physical_field_refinement_results[refinement_sample_count] = (
       refinement_result
     )
@@ -2232,6 +2308,7 @@ def _ambient_shock_strip_probe(
       ),
       'message': refinement_result.message,
     })
+  ####
   ambient_centerline_physical_field_refinement_accepted = (
     len(ambient_centerline_physical_field_refinement) == 3
     and all(
@@ -2277,11 +2354,13 @@ def _ambient_shock_strip_probe(
         or point[1] > shock_start_y_m
       ):
         return None
+      ####
       return replace(
         upstream_reference,
         x_m=point[0],
         y_m=point[1],
       )
+    ####
 
     def candidate_pressure_at(point):
       if (
@@ -2291,7 +2370,9 @@ def _ambient_shock_strip_probe(
         or point[1] > shock_start_y_m
       ):
         return None
+      ####
       return upstream_reference_pressure
+    ####
 
     candidate_source = MocBoundedUpstreamFieldSource(
       state_at=candidate_state_at,
@@ -2374,6 +2455,7 @@ def _ambient_shock_strip_probe(
         refinement_measurement = measure_first_cell_geometry_owned_candidate(
           refinement_candidate,
         )
+      ####
       refinement_field = None if refinement_candidate is None else refinement_candidate.field
       geometry_owned_first_cell_candidate_refinement_results[
         candidate_sample_count
@@ -2443,6 +2525,7 @@ def _ambient_shock_strip_probe(
           else refinement_candidate.production_claim_allowed
         ),
       })
+    ####
     geometry_owned_first_cell_candidate_refinement_accepted = (
       len(geometry_owned_first_cell_candidate_refinement) == 3
       and all(
@@ -2463,6 +2546,7 @@ def _ambient_shock_strip_probe(
         for case in geometry_owned_first_cell_candidate_refinement
       )
     )
+  ####
   geometry_owned_first_cell_research_chain = None
   geometry_owned_first_cell_research_chain_error = None
   geometry_owned_first_cell_research_chain_accepted = False
@@ -2517,6 +2601,8 @@ def _ambient_shock_strip_probe(
       geometry_owned_first_cell_research_chain_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
+  ####
   if geometry_owned_first_cell_candidate_accepted:
     chain_refinement_cases = []
     try:
@@ -2533,6 +2619,7 @@ def _ambient_shock_strip_probe(
             'geometry-owned first-cell candidate refinement did not retain '
             f'a field at sample_count={candidate_sample_count}'
           )
+        ####
         if (
           candidate_sample_count == 9
           and geometry_owned_first_cell_research_chain is not None
@@ -2552,6 +2639,7 @@ def _ambient_shock_strip_probe(
               require_state_carry=True,
             ),
           )
+        ####
         repeat_chain = plan_first_cell_geometry_owned_research_chain(
           refinement_candidate,
           start_x_m=refinement_candidate.initial_shock_points_m[0][0],
@@ -2572,6 +2660,7 @@ def _ambient_shock_strip_probe(
             repeat_planner=repeat_chain,
           )
         )
+      ####
       refinement_measurement = (
         measure_first_cell_geometry_owned_research_chain_refinement(
           tuple(chain_refinement_cases),
@@ -2610,6 +2699,8 @@ def _ambient_shock_strip_probe(
       geometry_owned_first_cell_research_chain_refinement_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
+  ####
   geometry_owned_first_cell_alternating_research_chain = None
   geometry_owned_first_cell_alternating_research_chain_error = None
   geometry_owned_first_cell_alternating_research_chain_accepted = False
@@ -2675,6 +2766,8 @@ def _ambient_shock_strip_probe(
       geometry_owned_first_cell_alternating_research_chain_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
+  ####
   if geometry_owned_first_cell_candidate_accepted:
     alternating_chain_refinement_cases = []
     try:
@@ -2691,6 +2784,7 @@ def _ambient_shock_strip_probe(
             'geometry-owned first-cell candidate refinement did not retain '
             f'a field at sample_count={candidate_sample_count}'
           )
+        ####
         refinement_start_x_m = refinement_candidate.initial_shock_points_m[0][0]
         if (
           candidate_sample_count == 9
@@ -2710,6 +2804,7 @@ def _ambient_shock_strip_probe(
               require_state_carry=True,
             ),
           )
+        ####
         repeat_chain = plan_first_cell_geometry_owned_alternating_research_chain(
           refinement_candidate,
           start_x_m=refinement_start_x_m,
@@ -2729,6 +2824,7 @@ def _ambient_shock_strip_probe(
             repeat_planner=repeat_chain,
           )
         )
+      ####
       refinement_measurement = (
         measure_first_cell_geometry_owned_research_chain_refinement(
           tuple(alternating_chain_refinement_cases),
@@ -2779,6 +2875,8 @@ def _ambient_shock_strip_probe(
       geometry_owned_first_cell_alternating_research_chain_refinement_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
+  ####
   geometry_owned_first_cell_free_boundary_correction = None
   geometry_owned_first_cell_free_boundary_correction_measurement = None
   geometry_owned_first_cell_free_boundary_correction_planner = None
@@ -2871,6 +2969,8 @@ def _ambient_shock_strip_probe(
       geometry_owned_first_cell_free_boundary_correction_error = (
         f'{type(error).__name__}: {error}'
       )
+    ####
+  ####
   geometry_owned_first_cell_free_boundary_correction_refinement = []
   geometry_owned_first_cell_free_boundary_correction_refinement_results = []
   geometry_owned_first_cell_free_boundary_correction_refinement_measurement = None
@@ -2912,10 +3012,13 @@ def _ambient_shock_strip_probe(
           )
         except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
           correction_refinement_error = f'{type(error).__name__}: {error}'
+        ####
+      ####
       if correction_refinement is not None:
         geometry_owned_first_cell_free_boundary_correction_refinement_results.append(
           correction_refinement
         )
+      ####
       correction_refinement_decision = (
         None
         if correction_refinement is None
@@ -3027,6 +3130,7 @@ def _ambient_shock_strip_probe(
         ),
         'error': correction_refinement_error,
       })
+    ####
     if geometry_owned_first_cell_free_boundary_correction_refinement_results:
       geometry_owned_first_cell_free_boundary_correction_refinement_measurement = (
         measure_first_cell_free_boundary_correction_refinement(
@@ -3036,6 +3140,7 @@ def _ambient_shock_strip_probe(
           residual_spread_tolerance=1.0e-6,
         )
       )
+    ####
     manual_refinement_accepted = (
       len(geometry_owned_first_cell_free_boundary_correction_refinement) == 3
       and all(
@@ -3077,6 +3182,7 @@ def _ambient_shock_strip_probe(
       and geometry_owned_first_cell_free_boundary_correction_refinement_measurement.physical_closure_verified
       is False
     )
+  ####
   ambient_centerline_physical_chain_probe = None
   ambient_centerline_physical_chain_probe_accepted = False
   ambient_centerline_physical_chain_mock = None
@@ -3140,6 +3246,7 @@ def _ambient_shock_strip_probe(
         ambient_pressure_Pa=ambient_pressure,
         end_x_m=2.6,
       )
+    ####
 
     physical_chain_planner = plan_ambient_closed_post_shock_chain(
       physical_field,
@@ -3397,6 +3504,7 @@ def _ambient_shock_strip_probe(
         'source': terminal_source.as_report(),
         'claim_status': 'normal-shock-terminal-fixture-compression-failed',
       }
+    ####
     terminal_patch_planner = plan_ambient_closed_post_shock_chain_terminal_patch(
       physical_field,
       start_x_m=shock_fit.boundary_states[0].point_m[0],
@@ -3547,6 +3655,7 @@ def _ambient_shock_strip_probe(
         ):
           field_chain_audit_error = continuation.message
           break
+        ####
         previous_end_x_m = continued_cell.end_x_m
         continued_field = continuation.field
         continued_fields.append(continued_field)
@@ -3555,8 +3664,10 @@ def _ambient_shock_strip_probe(
           end_x_m=continuation.end_x_m,
           cell_index=field_index,
         )
+      ####
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       field_chain_audit_error = str(error)
+    ####
     field_chain_measurement = measure_moc_ambient_closed_physical_field_chain(
       tuple(continued_fields)
     )
@@ -3567,6 +3678,7 @@ def _ambient_shock_strip_probe(
       ambient_centerline_physical_terminal_patch_field_chain_audit[
         'continuation_error'
       ] = field_chain_audit_error
+    ####
     ambient_centerline_physical_terminal_patch_field_chain_audit_accepted = (
       field_chain_audit_error is None
       and ambient_centerline_physical_terminal_patch_ambient_closure_chain_accepted
@@ -3593,6 +3705,7 @@ def _ambient_shock_strip_probe(
           'status': 'missing-physical-field',
         })
         continue
+      ####
       refinement_planner = plan_ambient_closed_post_shock_chain_terminal_patch(
         refinement_field,
         start_x_m=shock_fit.boundary_states[0].point_m[0],
@@ -3634,6 +3747,7 @@ def _ambient_shock_strip_probe(
         ),
         'message': refinement_decision.message,
       })
+    ####
     ambient_centerline_physical_terminal_patch_refinement_accepted = (
       len(ambient_centerline_physical_terminal_patch_refinement) == 3
       and all(
@@ -3645,6 +3759,7 @@ def _ambient_shock_strip_probe(
         for case in ambient_centerline_physical_terminal_patch_refinement
       )
     )
+  ####
   ambient_axis_closure_probe_accepted = (
     ambient_axis_closure.status is MocAmbientAxisClosureStatus.PRESSURE_FAILURE
     and ambient_axis_closure.axis_candidate_verified
@@ -3684,6 +3799,8 @@ def _ambient_shock_strip_probe(
         )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError):
         terminal_patch_trace_profile = None
+      ####
+    ####
     terminal_patch_trace_profile_accepted = (
       terminal_patch_trace_polarity.status is MocReflectedTracePolarity.COMPRESSION
       and terminal_patch_trace_profile is not None
@@ -3700,6 +3817,7 @@ def _ambient_shock_strip_probe(
         )
       ) <= 1.0e-14
     )
+  ####
   terminal_patch_shock_probe = None
   terminal_patch_chain_probe = None
   terminal_patch_chain_planner = None
@@ -3886,6 +4004,11 @@ def _ambient_shock_strip_probe(
                 solver=free_boundary_solver,
               )
             )
+          ####
+        ####
+      ####
+    ####
+  ####
   accepted = (
     strip.status is MocAmbientShockStripStatus.CONVERGED_OPEN
     and strip.topology.forms_closed_zone
@@ -4161,6 +4284,7 @@ def _ambient_shock_strip_probe(
       'physical-downstream-boundary-closure-pending'
     ),
   }
+####
 
 
 def _ambient_pressure_closure_probe() -> dict[str, Any]:
@@ -4202,6 +4326,7 @@ def _ambient_pressure_closure_probe() -> dict[str, Any]:
       'tangency-gate-remains-open'
     ),
   }
+####
 
 
 def _ambient_attachment_closure_probe(
@@ -4227,6 +4352,7 @@ def _ambient_attachment_closure_probe(
       'message': 'solver-generated shock fixture did not provide attachment inputs',
       'claim_status': 'ambient-matched-attachment-and-open-strip-pending',
     }
+  ####
 
   first = shock_fit.boundary_states[0]
   downstream_state = first.state
@@ -4265,6 +4391,7 @@ def _ambient_attachment_closure_probe(
       'linear-centerline-reference-only; terminal-centerline-closure-pending'
     ),
   }
+####
 
 
 def _ambient_attachment_transition_probe(
@@ -4291,6 +4418,7 @@ def _ambient_attachment_transition_probe(
       'message': 'solver-generated shock fixture did not provide transition inputs',
       'claim_status': 'staged-shock-cell-transition-pending',
     }
+  ####
 
   first = shock_fit.boundary_states[0]
   downstream_state = first.state
@@ -4336,6 +4464,7 @@ def _ambient_attachment_transition_probe(
       'verified-normal-shock-chain-stop; unresolved-cell-promotion-pending'
     ),
   }
+####
 
 
 def _solver_generated_shock_refinement_probe() -> list[dict[str, Any]]:
@@ -4370,7 +4499,9 @@ def _solver_generated_shock_refinement_probe() -> list[dict[str, Any]]:
       'minimum_forward_margin_m': None if field is None else field.minimum_forward_margin_m,
       'pressure_loss_verified': None if field is None else field.pressure_loss_verified,
     })
+  ####
   return probe
+####
 
 
 def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
@@ -4400,6 +4531,7 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
         'shock_status': shock.status.value,
       })
       continue
+    ####
     first = fit.boundary_states[0]
     state = first.state
     ambient_pressure = first.downstream_total_pressure_Pa / (
@@ -4415,6 +4547,7 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
         'march_status': march.status.value,
       })
       continue
+    ####
     trace_position_tolerance_m = 1.0e-3 if sample_count == 9 else 2.0e-4
     strip = assemble_ambient_shock_characteristic_strip(
       fit,
@@ -4465,6 +4598,9 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
             position_tolerance_m=1.0e-10,
             mesh_vertex_tolerance_m=1.0e-9,
           )
+        ####
+      ####
+    ####
     input_trace = patch.input_trace_validation
     output_trace = patch.outgoing_trace_validation
     probe.append({
@@ -4567,7 +4703,9 @@ def _terminal_reflection_patch_refinement_probe() -> list[dict[str, Any]]:
         else first_cell_terminal_closure.terminal_field.terminal_shock_boundary_coverage_verified
       ),
     })
+  ####
   return probe
+####
 
 
 def _terminal_composite_refinement_probe(
@@ -4584,6 +4722,7 @@ def _terminal_composite_refinement_probe(
       'terminal_field_status': None,
       'message': 'solver-generated shock fixture did not provide a terminal input',
     }]
+  ####
   first = shock_fit.boundary_states[0]
   state = first.state
   ambient_pressure = first.downstream_total_pressure_Pa / (
@@ -4695,7 +4834,9 @@ def _terminal_composite_refinement_probe(
       'terminal_point_m': None if terminal is None else terminal.shock_point_m,
       'message': result.message,
     })
+  ####
   return probe
+####
 
 
 def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
@@ -4708,6 +4849,7 @@ def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
   )
   if not isinstance(sample_count, int):
     return True
+  ####
   return (
     case.get('status') != 'physically_terminated_at_normal_shock'
     or case.get('converged') is not True
@@ -4737,6 +4879,7 @@ def _terminal_composite_refinement_case_failed(case: dict[str, Any]) -> bool:
     or case.get('shock_sample_count') != sample_count - 1
     or case.get('physical_terminal_verified') is not True
   )
+####
 
 
 def _parameterized_planar_free_boundary_refinement_probe(
@@ -4773,6 +4916,7 @@ def _parameterized_planar_free_boundary_refinement_probe(
       'canonical-reflected-moc-closure-pending'
     ),
   }
+####
 
 
 def _mixed_regime_boundary_probe(
@@ -4790,6 +4934,7 @@ def _mixed_regime_boundary_probe(
       'claim_status': 'mixed-regime-boundary-contract-pending',
       'message': 'solver-generated shock fixture did not provide mixed-regime inputs',
     }
+  ####
   first = shock_fit.boundary_states[0]
   state = first.state
   ambient_pressure = first.downstream_total_pressure_Pa / (
@@ -4832,6 +4977,7 @@ def _mixed_regime_boundary_probe(
       'claim_status': 'mixed-regime-boundary-contract-pending',
       'message': 'terminal composite did not expose a verified open supersonic patch and scalar terminal',
     }
+  ####
   patch = field.terminal_shock_supersonic_downstream_states
   missing_field = validate_mixed_regime_boundary(
     terminal,
@@ -4856,6 +5002,7 @@ def _mixed_regime_boundary_probe(
       'claim_status': 'mixed-regime-boundary-contract-pending',
       'message': 'normal-shock terminal did not expose complete scalar values',
     }
+  ####
   terminal_x, terminal_y = terminal.shock_point_m
   perimeter_mock = MocPrescribedMixedRegimeClosureMock(radial_divisions=2)
   perimeter_request = field.mixed_regime_perimeter_request()
@@ -5101,6 +5248,7 @@ def _mixed_regime_boundary_probe(
       total_pressure_Pa=terminal.downstream_total_pressure_Pa,
       gamma=terminal.upstream_state.gamma,
     )
+  ####
 
   planar_reference_control_section = MocMixedRegimeControlSection(
     points_m=planar_section_points,
@@ -5156,6 +5304,7 @@ def _mixed_regime_boundary_probe(
       total_pressure_Pa=terminal.downstream_total_pressure_Pa,
       gamma=terminal.upstream_state.gamma,
     )
+  ####
 
   planar_frozen_profile_control_section = MocMixedRegimeControlSection(
     points_m=planar_section_points,
@@ -5282,7 +5431,9 @@ def _mixed_regime_boundary_probe(
         'chain_promotion_blocked': attached.chain_promotion_blocked,
         'termination_decision': attached.as_physical_termination_decision().as_report(),
       })
+    ####
     terminal_attachment_refinement = tuple(attachment_cases)
+  ####
   terminal_attachment_fixture = None
   terminal_attachment_termination_decision = None
   terminal_attachment_closure = None
@@ -5296,6 +5447,7 @@ def _mixed_regime_boundary_probe(
       raise ValueError(
         'accepted mixed-regime contract fixture did not return an attachable field'
       )
+    ####
     terminal_attachment = field.with_mixed_regime_field(terminal_attachment_closure.field)
     terminal_attachment_fixture = terminal_attachment.as_report()
     terminal_attachment_termination_decision = (
@@ -5307,6 +5459,7 @@ def _mixed_regime_boundary_probe(
         mixed_regime_closure=terminal_attachment_closure,
       )
     )
+  ####
   return {
     'status': contract_fixture.status.value,
     'accepted': (
@@ -5608,6 +5761,7 @@ def _mixed_regime_boundary_probe(
     ),
     'message': contract_fixture.message,
   }
+####
 
 
 def _shock_cell_chain_planner_mock(
@@ -5653,7 +5807,9 @@ def _shock_cell_chain_planner_mock(
       measurement_observations.append(
         _post_shock_field_measurement_observation(field, cell_index=cell_index)
       )
+    ####
     return solved
+  ####
 
   planner = plan_post_shock_characteristic_chain(
     seed_field,
@@ -5674,6 +5830,7 @@ def _shock_cell_chain_planner_mock(
     measurement_observations,
     planner,
   )
+####
 
 
 def _post_shock_field_measurement_observation(
@@ -5695,6 +5852,7 @@ def _post_shock_field_measurement_observation(
       'upstream_total_pressure_Pa': upstream_pressures,
       'downstream_total_pressure_Pa': downstream_pressures,
     }
+  ####
   incoming_handoff = tuple(
     MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
     for state, pressure in zip(
@@ -5730,6 +5888,7 @@ def _post_shock_field_measurement_observation(
     ),
     **pressure_kwargs,
   )
+####
 
 
 def _planner_boundary_validation(cell: Any) -> dict[str, Any]:
@@ -5744,6 +5903,7 @@ def _planner_boundary_validation(cell: Any) -> dict[str, Any]:
         CharacteristicFamily.MINUS,
       ).as_report(),
     }
+  ####
   if kind is not MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER:
     return {
       'boundary_kind': kind.value,
@@ -5755,6 +5915,7 @@ def _planner_boundary_validation(cell: Any) -> dict[str, Any]:
         'message': 'planner fixture has no characteristic-trace validator for this boundary kind',
       },
     }
+  ####
   points = tuple(sample.point_m for sample in cell.continuation_boundary)
   segment_lengths = tuple(
     ((second[0] - first[0]) ** 2 + (second[1] - first[1]) ** 2) ** 0.5
@@ -5790,6 +5951,7 @@ def _planner_boundary_validation(cell: Any) -> dict[str, Any]:
       'end_m': points[-1] if points else None,
     },
   }
+####
 
 
 def _solver_generated_chain_reference(
@@ -5829,7 +5991,9 @@ def _solver_generated_chain_reference(
           cell_index=cell_index,
         )
       )
+    ####
     return solved
+  ####
 
   planner = plan_post_shock_characteristic_chain(
     seed_field,
@@ -5846,6 +6010,7 @@ def _solver_generated_chain_reference(
     },
   )
   return planner.chain, observations, measurement_observations, planner
+####
 
 
 def _solver_generated_chain_refinement_probe() -> Any:
@@ -5869,6 +6034,7 @@ def _solver_generated_chain_refinement_probe() -> Any:
     field = generated.field
     if field is None or not field.converged:
       continue
+    ####
     reference = MocSolverGeneratedPostShockChainReference(
       total_cell_count=5,
       sample_count=sample_count,
@@ -5879,7 +6045,9 @@ def _solver_generated_chain_refinement_probe() -> Any:
       solved = reference.solve_next(current, cell_index, handoff)
       if isinstance(solved, MocPostShockChainCellSolve):
         returned_fields.append(solved.field)
+      ####
       return solved
+    ####
 
     planner = plan_post_shock_characteristic_chain(
       field,
@@ -5909,7 +6077,9 @@ def _solver_generated_chain_refinement_probe() -> Any:
         physical_termination=planner.chain.physical_termination,
       )
     )
+  ####
   return measure_moc_shock_cell_chain_refinement(cases)
+####
 
 
 def _alternating_physical_field_chain_refinement_probe(
@@ -5925,6 +6095,7 @@ def _alternating_physical_field_chain_refinement_probe(
 
   if seed_field is None or not getattr(seed_field, 'converged', False):
     return None, 'converged physical seed field is required'
+  ####
   cases: list[MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase] = []
   try:
     for sample_count in (17, 33):
@@ -5944,9 +6115,11 @@ def _alternating_physical_field_chain_refinement_probe(
           raise ValueError(
             f'continued-cell reflection patch did not converge: {patch.message}'
           )
+        ####
         ambient_pressure = current.ambient_boundary.ambient_pressure_Pa
         if ambient_pressure is None:
           raise ValueError('continued-cell physical field has no ambient pressure')
+        ####
         incoming_handoff = tuple(
           MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
           for state, pressure in zip(
@@ -5964,6 +6137,7 @@ def _alternating_physical_field_chain_refinement_probe(
           raise ValueError(
             f'continued-cell alternating source did not converge: {source.message}'
           )
+        ####
         result = solve_reflected_domain_alternating_physical_field(
           source,
           compression_amplitude_rad=0.05,
@@ -5977,16 +6151,20 @@ def _alternating_physical_field_chain_refinement_probe(
             'continued-cell alternating physical field did not converge: '
             f'{result.message}'
           )
+        ####
         results.append(result)
         current = result.field
+      ####
       cases.append(
         MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase(
           resolution=sample_count,
           results=tuple(results),
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return None, f'{type(error).__name__}: {error}'
+  ####
 
   measurement = (
     measure_moc_reflected_domain_alternating_physical_field_chain_refinement(
@@ -5998,6 +6176,7 @@ def _alternating_physical_field_chain_refinement_probe(
     )
   )
   return measurement, None
+####
 
 
 def _solver_generated_chain_external_validation_probe(
@@ -6046,6 +6225,7 @@ def _solver_generated_chain_external_validation_probe(
       'external residuals and calibration/validation claims remain blocked'
     ),
   }
+####
 
 
 def _solver_generated_free_boundary_refinement_probe(
@@ -6065,6 +6245,7 @@ def _solver_generated_free_boundary_refinement_probe(
     for sample_count in (5, 7, 9)
   )
   return measure_mixed_regime_free_boundary_refinement(cases)
+####
 
 
 def _solver_generated_field_coupled_chain_planner(
@@ -6081,12 +6262,14 @@ def _solver_generated_field_coupled_chain_planner(
 
   if not seed_field.converged or not seed_field.upstream_shock_coupling_verified:
     return None
+  ####
   return plan_field_coupled_post_shock_chain_reference(
     seed_field,
     start_x_m=0.5,
     end_x_m=0.9,
     reference=MocFieldCoupledPostShockChainReference(),
   )
+####
 
 
 def _solver_generated_invariant_field_coupled_chain_planner(
@@ -6096,6 +6279,7 @@ def _solver_generated_invariant_field_coupled_chain_planner(
 
   if not seed_field.converged or not seed_field.upstream_shock_coupling_verified:
     return None
+  ####
 
   start_y_m = 0.05
 
@@ -6111,6 +6295,7 @@ def _solver_generated_invariant_field_coupled_chain_planner(
         'invariant planner could not sample the bounded prior field at '
         f'{point!r}'
       )
+    ####
     downstream_angle = 2.4 * point[1]
     compression = solve_attached_compression_to_turn(
       upstream_mach=state.mach,
@@ -6123,10 +6308,12 @@ def _solver_generated_invariant_field_coupled_chain_planner(
         'invariant planner could not derive an attached-compression target: '
         f'{compression.message}'
       )
+    ####
     return downstream_angle - prandtl_meyer_angle_rad(
       compression.downstream_mach,
       state.gamma,
     )
+  ####
 
   return plan_post_shock_field_invariant_chain(
     seed_field,
@@ -6142,6 +6329,7 @@ def _solver_generated_invariant_field_coupled_chain_planner(
     position_tolerance_m=1.0e-8,
     shock_angle_tolerance_rad=0.1,
   )
+####
 
 
 def _ambient_pressure_field_coupled_chain_planner(
@@ -6156,6 +6344,7 @@ def _ambient_pressure_field_coupled_chain_planner(
       'planner': None,
       'claim_status': 'ambient-pressure-field-chain-pending',
     }
+  ####
   planner = plan_ambient_pressure_field_chain(
     seed_field,
     start_x_m=0.5,
@@ -6206,6 +6395,7 @@ def _ambient_pressure_field_coupled_chain_planner(
       'canonical-upstream-domain-extension-pending'
     ),
   }
+####
 
 
 def _source_strip_chain_planner_probe(
@@ -6227,6 +6417,7 @@ def _source_strip_chain_planner_probe(
       'claim_status': 'source-strip-shock-chain-pending',
       'message': 'source-strip planner did not receive a coupled closed seed field',
     }
+  ####
   planner = plan_source_strip_shock_chain(
     seed_field,
     source_continuation,
@@ -6272,6 +6463,7 @@ def _source_strip_chain_planner_probe(
     'claim_status': planner.claim_status,
     'message': chain['message'],
   }
+####
 
 
 def _source_strip_chain_sequence_planner_probe(
@@ -6293,6 +6485,7 @@ def _source_strip_chain_sequence_planner_probe(
       'claim_status': 'source-strip-shock-chain-sequence-pending',
       'message': 'source-strip sequence did not receive a coupled closed seed field',
     }
+  ####
   planner = plan_source_strip_shock_chain_sequence(
     seed_field,
     source_continuation,
@@ -6351,6 +6544,7 @@ def _source_strip_chain_sequence_planner_probe(
     'claim_status': planner.claim_status,
     'message': chain['message'],
   }
+####
 
 
 def _solver_generated_chain_terminal_probe(
@@ -6365,6 +6559,7 @@ def _solver_generated_chain_terminal_probe(
       'message': f'generated chain terminal probe received an open seed: {seed_field.message}',
       'claim_status': 'typed-terminal-chain-stop-pending',
     }
+  ####
 
   def solve_next(current, cell_index, handoff):
     return solve_marched_attached_shock_chain_cell_or_termination(
@@ -6384,6 +6579,7 @@ def _solver_generated_chain_terminal_probe(
       downstream_flow_angle_rad=0.0,
       sample_count=9,
     )
+  ####
 
   planner = plan_post_shock_characteristic_chain(
     seed_field,
@@ -6424,6 +6620,7 @@ def _solver_generated_chain_terminal_probe(
       'mixed-regime-cell-promotion-pending'
     ),
   }
+####
 
 
 def _reflected_zone_chain_boundary_probe(
@@ -6440,6 +6637,7 @@ def _reflected_zone_chain_boundary_probe(
       'message': 'reflected-zone chain-boundary probe requires converged inputs',
       'claim_status': 'typed-upstream-field-boundary-stop-pending',
     }
+  ####
   if not reflected_zone.boundary_states:
     return {
       'status': 'invalid_input',
@@ -6448,6 +6646,7 @@ def _reflected_zone_chain_boundary_probe(
       'message': 'reflected-zone chain-boundary probe requires a boundary anchor',
       'claim_status': 'typed-upstream-field-boundary-stop-pending',
     }
+  ####
   start_point = reflected_zone.boundary_states[-1]
   try:
     _seed = seed_field.as_coupled_chain_cell(start_x_m=0.0, end_x_m=0.5)
@@ -6459,6 +6658,7 @@ def _reflected_zone_chain_boundary_probe(
       'message': f'reflected-zone chain-boundary seed rejected: {error}',
       'claim_status': 'typed-upstream-field-boundary-stop-pending',
     }
+  ####
   chain = continue_post_shock_characteristic_chain(
     seed_field,
     lambda cell, cell_index, handoff: (
@@ -6488,6 +6688,7 @@ def _reflected_zone_chain_boundary_probe(
     ),
     'claim_status': 'typed-nonphysical-upstream-field-boundary-stop',
   }
+####
 
 
 def _post_shock_zone_chain_planner_probe(
@@ -6511,6 +6712,7 @@ def _post_shock_zone_chain_planner_probe(
       ),
       'claim_status': 'bounded-open-post-shock-zone-chain-pending',
     }
+  ####
   try:
     seed = seed_field.as_chain_cell(start_x_m=0.5, end_x_m=0.85)
   except (TypeError, ValueError) as error:
@@ -6521,12 +6723,14 @@ def _post_shock_zone_chain_planner_probe(
       'message': f'bounded open-zone planner seed rejected: {error}',
       'claim_status': 'bounded-open-post-shock-zone-chain-pending',
     }
+  ####
 
   def downstream_angle(
     _sample_index: int,
     point: tuple[float, float],
   ) -> float:
     return 0.02 * max(-1.0, min(1.0, point[1] / 0.001))
+  ####
 
   planner = plan_post_shock_zone_chain(
     seed,
@@ -6578,6 +6782,7 @@ def _post_shock_zone_chain_planner_probe(
       'mixed-regime-downstream-closure-pending'
     ),
   }
+####
 
 
 def _caustic_family_restart_probe(
@@ -6594,6 +6799,7 @@ def _caustic_family_restart_probe(
       'cases': [],
       'claim_status': 'caustic-new-family-restart-pending',
     }
+  ####
   cases: list[dict[str, Any]] = []
   for anchor_edge_index in (0, 1):
     result = restart_characteristic_family_from_caustic(
@@ -6635,6 +6841,7 @@ def _caustic_family_restart_probe(
       and result.as_chain_termination_decision().diagnostics['old_family_bridge_verified'] is False
     )
     cases.append(report)
+  ####
   return {
     'status': 'diagnostic-open-new-family-boundary-restarts',
     'accepted': all(case['accepted'] is True for case in cases),
@@ -6644,6 +6851,7 @@ def _caustic_family_restart_probe(
       'shock-closure-pending'
     ),
   }
+####
 
 
 def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
@@ -6660,6 +6868,7 @@ def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
       'bridge': None,
       'claim_status': 'caustic-local-shock-bridge-pending',
     }
+  ####
   target_invariant = seed.edge_states[1].state.k_plus
   bridge = solve_caustic_shock_bridge(
     seed,
@@ -6715,6 +6924,7 @@ def _caustic_shock_bridge_probe(seed: Any) -> dict[str, Any]:
       'downstream-field-pending'
     ),
   }
+####
 
 
 def _build_diagnostic_caustic_upstream_request(
@@ -6729,6 +6939,7 @@ def _build_diagnostic_caustic_upstream_request(
   selected = seed.edge_states[0].state
   if selected is None or seed.event is None or seed.event.caustic_point_m is None:
     raise ValueError('caustic request fixture requires a selected seed event')
+  ####
   event = seed.event.caustic_point_m
   centerline_states: list[CharacteristicState] = []
   outer_states: list[CharacteristicState] = []
@@ -6747,6 +6958,7 @@ def _build_diagnostic_caustic_upstream_request(
       raise ValueError(
         'deterministic caustic Cauchy trace inversion did not converge'
       )
+    ####
     centerline_probe = CharacteristicState(
       x_m=0.0,
       y_m=0.0,
@@ -6772,11 +6984,13 @@ def _build_diagnostic_caustic_upstream_request(
       raise ValueError(
         'deterministic caustic Cauchy trace has a degenerate characteristic'
       )
+    ####
     y = event[1] * (1.0 - 0.12 * index)
     if index == 0:
       centerline_x = event[0] - event[1] * cos(characteristic_angle) / sine
     else:
       centerline_x = 0.5191348811250018 + 0.027 * index
+    ####
     centerline_states.append(
       CharacteristicState(
         x_m=centerline_x,
@@ -6799,6 +7013,8 @@ def _build_diagnostic_caustic_upstream_request(
           gamma=selected.gamma,
         )
       )
+    ####
+  ####
   return MocCausticUpstreamRemeshRequest(
     seed=seed,
     upstream_edge_index=0,
@@ -6806,6 +7022,7 @@ def _build_diagnostic_caustic_upstream_request(
     outer_source_states=tuple(outer_states),
     total_pressure_Pa=total_pressure_Pa,
   )
+####
 
 
 def _caustic_upstream_cauchy_remesh_probe(
@@ -6831,6 +7048,7 @@ def _caustic_upstream_cauchy_remesh_probe(
       'message': message,
       'claim_status': 'caustic-upstream-cauchy-remesh-pending',
     }
+  ####
 
   if (
     seed is None
@@ -6844,6 +7062,7 @@ def _caustic_upstream_cauchy_remesh_probe(
       'missing_seed_or_post_shock_field',
       'explicit caustic Cauchy remesh requires a seed event and post-shock field',
     )
+  ####
 
   try:
     request = _build_diagnostic_caustic_upstream_request(
@@ -6860,6 +7079,7 @@ def _caustic_upstream_cauchy_remesh_probe(
         sample_count=9,
         shock_angle_tolerance_rad=0.2,
       )
+    ####
     planner = None
     if direct_shock is not None:
       planner = plan_caustic_upstream_remesh_shock_chain(
@@ -6876,6 +7096,7 @@ def _caustic_upstream_cauchy_remesh_probe(
           require_state_carry=True,
         ),
       )
+    ####
     planner_measurement = (
       None if planner is None else measure_moc_chain_planner(planner)
     )
@@ -6940,6 +7161,8 @@ def _caustic_upstream_cauchy_remesh_probe(
     }
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return failure('caustic-upstream-cauchy-remesh-failure', str(error))
+  ####
+####
 
 
 def _caustic_upstream_remesh_chain_sequence_probe(
@@ -6970,6 +7193,7 @@ def _caustic_upstream_remesh_chain_sequence_probe(
       'message': message,
       'claim_status': 'caustic-upstream-remesh-chain-sequence-pending',
     }
+  ####
 
   if (
     seed is None
@@ -6981,6 +7205,7 @@ def _caustic_upstream_remesh_chain_sequence_probe(
       'missing_seed_or_post_shock_field',
       'caustic remesh sequence requires a seed event and coupled post-shock field',
     )
+  ####
 
   try:
     initial_request = _build_diagnostic_caustic_upstream_request(
@@ -7006,6 +7231,7 @@ def _caustic_upstream_remesh_chain_sequence_probe(
         'remesh_fixture_failure',
         'caustic remesh sequence fixtures did not produce distinct bounded source strips',
       )
+    ####
 
     cell_solver_fixture = MocPrescribedPostShockChainMock(
       total_cell_count=3,
@@ -7028,6 +7254,7 @@ def _caustic_upstream_remesh_chain_sequence_probe(
         next_cell_index,
         incoming_handoff,
       )
+    ####
 
     def remesh_at(current, next_cell_index, incoming_handoff):
       provider_calls.append({
@@ -7037,6 +7264,7 @@ def _caustic_upstream_remesh_chain_sequence_probe(
       })
       if replacement.request is None:
         return None
+      ####
       return replace(
         replacement,
         request=replace(
@@ -7044,6 +7272,7 @@ def _caustic_upstream_remesh_chain_sequence_probe(
           incoming_handoff=tuple(incoming_handoff),
         ),
       )
+    ####
 
     with patch(
       'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
@@ -7066,6 +7295,7 @@ def _caustic_upstream_remesh_chain_sequence_probe(
           require_state_carry=True,
         ),
       )
+    ####
     planner = replace(
       planner,
       diagnostics={
@@ -7119,6 +7349,8 @@ def _caustic_upstream_remesh_chain_sequence_probe(
     }
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return failure('caustic-upstream-remesh-chain-sequence-failure', str(error))
+  ####
+####
 
 
 def _caustic_shock_remesh_execution_probe(
@@ -7155,6 +7387,7 @@ def _caustic_shock_remesh_execution_probe(
       'upstream_cauchy_remesh': None,
       'claim_status': 'caustic-remesh-execution-pending',
     }
+  ####
 
   negative_state = replace(seed.edge_states[0].state, theta_rad=-0.2)
   fixture_seed = replace(
@@ -7185,6 +7418,7 @@ def _caustic_shock_remesh_execution_probe(
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
+  ####
   request = prepared.request
   bridge_state = request.local_bridge.downstream_state
   if bridge_state is None or abs(request.event_point_m[1]) <= 1.0e-12:
@@ -7201,6 +7435,7 @@ def _caustic_shock_remesh_execution_probe(
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
+  ####
 
   reference = solve_uniform_attached_shock_field(
     CharacteristicState(0.5, 0.5, -0.2, 2.0, 1.4),
@@ -7223,6 +7458,7 @@ def _caustic_shock_remesh_execution_probe(
       'preparation': prepared.as_report(),
       'claim_status': 'caustic-remesh-execution-pending',
     }
+  ####
   current = reference.field.as_coupled_chain_cell(start_x_m=0.2, end_x_m=0.5)
   caustic_upstream_cauchy_remesh = _caustic_upstream_cauchy_remesh_probe(
     seed,
@@ -7233,6 +7469,7 @@ def _caustic_shock_remesh_execution_probe(
   def upstream_state_at(point_m: tuple[float, float]) -> CharacteristicState:
     if point_m == request.event_point_m:
       return request.upstream_state
+    ####
     return CharacteristicState(
       x_m=point_m[0],
       y_m=point_m[1],
@@ -7240,6 +7477,7 @@ def _caustic_shock_remesh_execution_probe(
       mach=request.upstream_state.mach,
       gamma=request.upstream_state.gamma,
     )
+  ####
 
   def invariant_law(_index: int, point_m: tuple[float, float]) -> float:
     desired_angle = bridge_state.theta_rad * max(
@@ -7254,10 +7492,12 @@ def _caustic_shock_remesh_execution_probe(
     )
     if compression.downstream_mach is None:
       raise ValueError('remesh validation invariant law produced no downstream Mach')
+    ####
     return desired_angle - prandtl_meyer_angle_rad(
       compression.downstream_mach,
       request.upstream_state.gamma,
     )
+  ####
 
   direct = solve_caustic_shock_remesh(
     request,
@@ -7328,6 +7568,7 @@ def _caustic_shock_remesh_execution_probe(
       sample_count=9,
       shock_angle_tolerance_rad=0.2,
     )
+  ####
   planner = plan_caustic_shock_remesh_chain(
     current,
     request,
@@ -7535,6 +7776,7 @@ def _caustic_shock_remesh_execution_probe(
       'open-physical-closure-and-external-validation-pending'
     ),
   }
+####
 
 
 def _caustic_family_band_shock_probe(
@@ -7551,6 +7793,7 @@ def _caustic_family_band_shock_probe(
       'cases': [],
       'claim_status': 'caustic-family-band-shock-coupling-pending',
     }
+  ####
   cases: list[dict[str, Any]] = []
   for anchor_edge_index in (0, 1):
     restart = restart_characteristic_family_from_caustic(
@@ -7569,6 +7812,7 @@ def _caustic_family_band_shock_probe(
         'shock': None,
       })
       continue
+    ####
     start = band.boundary_states[-2]
     start_point = (start.x_m, start.y_m)
 
@@ -7578,6 +7822,7 @@ def _caustic_family_band_shock_probe(
     ) -> float:
       fraction = max(0.0, min(1.0, point_m[1] / start.y_m))
       return 0.05 * fraction
+    ####
 
     try:
       shock = solve_marched_attached_shock_field(
@@ -7614,6 +7859,8 @@ def _caustic_family_band_shock_probe(
         'shock': None,
         'message': f'band shock probe raised: {error}',
       })
+    ####
+  ####
   return {
     'status': 'diagnostic-open-band-shock-coupling',
     'accepted': all(case['accepted'] is True for case in cases),
@@ -7623,6 +7870,7 @@ def _caustic_family_band_shock_probe(
       'shock-field-and-chain-closure-pending'
     ),
   }
+####
 
 
 def _caustic_family_band_origin_envelope_probe(
@@ -7639,6 +7887,7 @@ def _caustic_family_band_origin_envelope_probe(
       'cases': [],
       'claim_status': 'caustic-origin-envelope-pending',
     }
+  ####
   cases: list[dict[str, Any]] = []
   for anchor_edge_index in (0, 1):
     restart = restart_characteristic_family_from_caustic(
@@ -7657,6 +7906,7 @@ def _caustic_family_band_origin_envelope_probe(
         'envelope': None,
       })
       continue
+    ####
     try:
       envelope = trace_caustic_family_band_forward_envelope(
         band,
@@ -7689,6 +7939,8 @@ def _caustic_family_band_origin_envelope_probe(
         'envelope': None,
         'message': f'caustic-origin envelope probe raised: {error}',
       })
+    ####
+  ####
   return {
     'status': 'diagnostic-caustic-origin-forward-envelope',
     'accepted': all(case['accepted'] is True for case in cases),
@@ -7698,6 +7950,7 @@ def _caustic_family_band_origin_envelope_probe(
       'physical-caustic-remesh-and-shock-closure-pending'
     ),
   }
+####
 
 
 def _caustic_family_band_terminal_field_probe(
@@ -7714,6 +7967,7 @@ def _caustic_family_band_terminal_field_probe(
       'cases': [],
       'claim_status': 'caustic-family-band-terminal-field-pending',
     }
+  ####
   cases: list[dict[str, Any]] = []
   for anchor_edge_index in (0, 1):
     restart = restart_characteristic_family_from_caustic(
@@ -7732,6 +7986,7 @@ def _caustic_family_band_terminal_field_probe(
         'result': None,
       })
       continue
+    ####
     start_point = (
       0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
       0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
@@ -7788,6 +8043,8 @@ def _caustic_family_band_terminal_field_probe(
         'result': None,
         'message': f'caustic-band terminal field probe raised: {error}',
       })
+    ####
+  ####
   return {
     'status': 'diagnostic-open-band-terminal-field',
     'accepted': all(case['accepted'] is True for case in cases),
@@ -7797,6 +8054,7 @@ def _caustic_family_band_terminal_field_probe(
       'mixed-regime-closure-and-chain-promotion-pending'
     ),
   }
+####
 
 
 def _caustic_family_band_chain_planner_probe(
@@ -7814,6 +8072,7 @@ def _caustic_family_band_chain_planner_probe(
       'cases': [],
       'claim_status': 'caustic-family-band-chain-planner-pending',
     }
+  ####
   if (
     current_field is None
     or not current_field.converged
@@ -7829,6 +8088,7 @@ def _caustic_family_band_chain_planner_probe(
         'with upstream shock coupling'
       ),
     }
+  ####
   try:
     current = current_field.as_coupled_chain_cell(
       start_x_m=0.2,
@@ -7842,6 +8102,7 @@ def _caustic_family_band_chain_planner_probe(
       'claim_status': 'caustic-family-band-chain-planner-pending',
       'message': f'current solver field could not seed the chain: {error}',
     }
+  ####
 
   cases: list[dict[str, Any]] = []
   for anchor_edge_index in (0, 1):
@@ -7861,6 +8122,7 @@ def _caustic_family_band_chain_planner_probe(
         'planner': None,
       })
       continue
+    ####
     start_point = (
       0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
       0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
@@ -7917,6 +8179,8 @@ def _caustic_family_band_chain_planner_probe(
         'planner': None,
         'message': f'caustic-band chain planner raised: {error}',
       })
+    ####
+  ####
   return {
     'status': 'diagnostic-caustic-band-next-shock-planner',
     'accepted': all(case['accepted'] is True for case in cases),
@@ -7926,6 +8190,7 @@ def _caustic_family_band_chain_planner_probe(
       'open-mixed-regime-closure-and-chain-promotion-pending'
     ),
   }
+####
 
 
 def _caustic_family_band_invariant_chain_probe(
@@ -7944,6 +8209,7 @@ def _caustic_family_band_invariant_chain_probe(
       'planner': None,
       'claim_status': 'invariant-caustic-band-chain-pending',
     }
+  ####
   if (
     current_field is None
     or not current_field.converged
@@ -7956,6 +8222,7 @@ def _caustic_family_band_invariant_chain_probe(
       'planner': None,
       'claim_status': 'invariant-caustic-band-chain-pending',
     }
+  ####
   assert seed.edge_states[1].state is not None
   target_invariant = seed.edge_states[1].state.k_plus
   restart = restart_characteristic_family_from_caustic(
@@ -7974,6 +8241,7 @@ def _caustic_family_band_invariant_chain_probe(
       'planner': None,
       'claim_status': 'invariant-caustic-band-chain-pending',
     }
+  ####
   direct_result = solve_marched_attached_shock_from_caustic_family_band_with_invariant_boundary(
     band,
     band.anchor_point_m,
@@ -8007,6 +8275,7 @@ def _caustic_family_band_invariant_chain_probe(
       'message': str(error),
       'claim_status': 'invariant-caustic-band-chain-pending',
     }
+  ####
   chain = planner_report['chain']
   steps = planner_report['steps']
   diagnostics = chain['diagnostics']
@@ -8048,6 +8317,7 @@ def _caustic_family_band_invariant_chain_probe(
       'physical-caustic-remesh-pending'
     ),
   }
+####
 
 
 def _caustic_upstream_bridge_probe(
@@ -8067,6 +8337,7 @@ def _caustic_upstream_bridge_probe(
       'bridge': None,
       'claim_status': 'caustic-upstream-bridge-pending',
     }
+  ####
   try:
     restart = restart_characteristic_family_from_caustic(
       seed,
@@ -8083,6 +8354,7 @@ def _caustic_upstream_bridge_probe(
         'bridge': None,
         'claim_status': 'caustic-upstream-bridge-pending',
       }
+    ####
     bridge = build_caustic_upstream_bridge(old_family, band)
     bridge_source = MocBoundedUpstreamFieldSource.from_caustic_upstream_bridge(
       bridge,
@@ -8149,6 +8421,7 @@ def _caustic_upstream_bridge_probe(
         'bridge': bridge.as_report(),
         'claim_status': 'caustic-upstream-bridge-pending',
       }
+    ####
     target_invariant = seed.edge_states[1].state.k_plus
     invariant_shock = solve_marched_attached_shock_from_caustic_upstream_bridge_with_invariant_boundary(
       bridge,
@@ -8214,6 +8487,7 @@ def _caustic_upstream_bridge_probe(
         sample_count=17,
         shock_angle_tolerance_rad=0.2,
       )
+    ####
     planner_report = None if planner is None else planner.as_report()
     candidate_planner_report = (
       None if candidate_planner is None else candidate_planner.as_report()
@@ -8233,6 +8507,7 @@ def _caustic_upstream_bridge_probe(
         downstream_invariant_at=lambda _index, _point: target_invariant,
         sample_count=9,
       )
+    ####
     invariant_planner_report = (
       None if invariant_planner is None else invariant_planner.as_report()
     )
@@ -8282,6 +8557,7 @@ def _caustic_upstream_bridge_probe(
           ),
         )
       )
+    ####
     physical_bridge_planner_report = (
       None
       if physical_bridge_planner is None
@@ -8456,6 +8732,8 @@ def _caustic_upstream_bridge_probe(
       'message': str(error),
       'claim_status': 'caustic-upstream-bridge-pending',
     }
+  ####
+####
 
 
 def _caustic_upstream_continuation_probe(
@@ -8475,6 +8753,7 @@ def _caustic_upstream_continuation_probe(
       'planner': None,
       'claim_status': 'caustic-upstream-continuation-pending',
   }
+  ####
   try:
     planner = plan_caustic_upstream_continuation(
       old_family,
@@ -8546,6 +8825,8 @@ def _caustic_upstream_continuation_probe(
       'message': str(error),
       'claim_status': 'caustic-upstream-continuation-pending',
     }
+  ####
+####
 
 
 def _caustic_family_band_terminal_refinement_probe(
@@ -8562,6 +8843,7 @@ def _caustic_family_band_terminal_refinement_probe(
       'cases': [],
       'claim_status': 'caustic-family-band-terminal-refinement-pending',
     }
+  ####
   cases: list[dict[str, Any]] = []
   for anchor_edge_index in (0, 1):
     restart = restart_characteristic_family_from_caustic(
@@ -8580,6 +8862,7 @@ def _caustic_family_band_terminal_refinement_probe(
         'message': 'missing converged family band',
       })
       continue
+    ####
     start_point = (
       0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
       0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
@@ -8653,13 +8936,16 @@ def _caustic_family_band_terminal_refinement_probe(
           'status': 'exception',
           'message': f'caustic-band refinement raised: {error}',
         }
+      ####
       resolutions.append(resolution)
+    ####
     cases.append({
       'anchor_edge_index': anchor_edge_index,
       'start_point_m': start_point,
       'accepted': all(case['accepted'] is True for case in resolutions),
       'resolutions': resolutions,
     })
+  ####
   return {
     'status': 'diagnostic-caustic-band-terminal-refinement',
     'accepted': all(case['accepted'] is True for case in cases),
@@ -8669,6 +8955,7 @@ def _caustic_family_band_terminal_refinement_probe(
       'chain-promotion-pending'
     ),
   }
+####
 
 
 def _caustic_family_band_terminal_measurement_probe(
@@ -8685,6 +8972,7 @@ def _caustic_family_band_terminal_measurement_probe(
       'cases': [],
       'claim_status': 'caustic-family-band-terminal-measurement-pending',
     }
+  ####
   cases: list[dict[str, Any]] = []
   for anchor_edge_index in (0, 1):
     restart = restart_characteristic_family_from_caustic(
@@ -8702,6 +8990,7 @@ def _caustic_family_band_terminal_measurement_probe(
         'measurement': None,
       })
       continue
+    ####
     start_point = (
       0.5 * (band.input_edge_points_m[0][0] + band.input_edge_points_m[1][0]),
       0.5 * (band.input_edge_points_m[0][1] + band.input_edge_points_m[1][1]),
@@ -8719,6 +9008,7 @@ def _caustic_family_band_terminal_measurement_probe(
         'message': 'open terminal field did not expose measurement inputs',
       })
       continue
+    ####
     observation = MocShockCellObservation(
       cell_index=1,
       shock_boundary_points_m=tuple(
@@ -8754,6 +9044,7 @@ def _caustic_family_band_terminal_measurement_probe(
       'measurement': report,
       'expected_open_zone_rejection': True,
     })
+  ####
   return {
     'status': 'diagnostic-independent-measurement-rejects-open-terminal-zone',
     'accepted': all(case['accepted'] is True for case in cases),
@@ -8763,6 +9054,7 @@ def _caustic_family_band_terminal_measurement_probe(
       'physical-cell-acceptance-pending'
     ),
   }
+####
 
 
 def _reflected_zone_shock_coupling_probe(
@@ -8780,6 +9072,7 @@ def _reflected_zone_shock_coupling_probe(
       'message': 'reflected zone or boundary did not converge',
       'claim_status': 'reflected-field-shock-coupling-pending',
     }
+  ####
   start = reflected_boundary.boundary_points_m[-1]
   if start[1] <= 0.0:
     return {
@@ -8788,6 +9081,7 @@ def _reflected_zone_shock_coupling_probe(
       'message': 'reflected boundary shock probe requires a positive start ordinate',
       'claim_status': 'reflected-field-shock-coupling-pending',
     }
+  ####
   upstream_pressure = reflected_source_strip.static_pressure_at(start)
   if upstream_pressure is None:
     return {
@@ -8796,6 +9090,7 @@ def _reflected_zone_shock_coupling_probe(
       'message': 'reflected zone could not provide terminal upstream pressure',
       'claim_status': 'reflected-field-shock-coupling-pending',
     }
+  ####
   trace_extension = solve_reflected_boundary_trace_extension(
     reflected_boundary,
     upstream_pressure,
@@ -8857,6 +9152,7 @@ def _reflected_zone_shock_coupling_probe(
       'shock-path-extension-pending'
     ),
   }
+####
 
 
 def _reflected_simple_wave_extension_probe(
@@ -8874,6 +9170,7 @@ def _reflected_simple_wave_extension_probe(
       'extension': reflected_simple_wave_extension.as_report(),
       'claim_status': 'constant-k-plus-simple-wave-extension-pending',
     }
+  ####
   if not reflected_boundary.boundary_points_m:
     return {
       'status': 'invalid_input',
@@ -8882,6 +9179,7 @@ def _reflected_simple_wave_extension_probe(
       'extension': reflected_simple_wave_extension.as_report(),
       'claim_status': 'constant-k-plus-simple-wave-extension-pending',
     }
+  ####
   start = reflected_boundary.boundary_points_m[-1]
   result = solve_marched_attached_shock_from_source_strip(
     strip,
@@ -8901,6 +9199,7 @@ def _reflected_simple_wave_extension_probe(
     'extension': reflected_simple_wave_extension.as_report(),
     'claim_status': 'constant-k-plus-simple-wave-extension; shock-closure-pending',
   }
+####
 
 
 def _terminal_source_window_invariant_closure_probe(
@@ -8924,6 +9223,7 @@ def _terminal_source_window_invariant_closure_probe(
       'claim_status': 'domain-bounded-invariant-shooting-attempt; closure-pending',
       'message': 'reflected boundary did not provide a converged shock start',
     }
+  ####
   extension = extend_source_characteristic_strip_constant_k_plus(
     reflected_boundary.centerline_states,
     reflected_boundary.boundary_states,
@@ -8942,6 +9242,7 @@ def _terminal_source_window_invariant_closure_probe(
       'source_extension': extension.as_report(),
       'message': extension.message,
     }
+  ####
   closure = solve_marched_attached_shock_with_constant_invariant_closure(
     strip,
     start,
@@ -8960,6 +9261,7 @@ def _terminal_source_window_invariant_closure_probe(
       'constant-downstream-invariant-is-not-yet-a-physical-closure'
     ),
   }
+####
 
 
 def build_moc_primitive_report() -> dict[str, Any]:
@@ -8982,6 +9284,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'status': result.status.value,
         'message': result.message,
       })
+    ####
   ####
   plus_source = CharacteristicState(
     x_m=0.0,
@@ -9191,6 +9494,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         downstream_total_pressure_Pa=shock_closure.compression.downstream_total_pressure_Pa,
       ),
     ))
+  ####
   sampled_shock_fit, sampled_continuation, sampled_closed_gate = _sampled_attached_shock_gate()
   shock_seeded_field = _shock_seeded_field_fixture()
   sampled_post_shock_zone = assemble_post_shock_characteristic_zone(
@@ -9273,6 +9577,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         sample_count=9,
       ).field
     )
+  ####
   caustic_upstream_bridge = _caustic_upstream_bridge_probe(
     caustic_shock_seed,
     fan_exit.total_pressure_Pa,
@@ -9340,6 +9645,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       solver_generated_field_coupled_chain_planner_measurement = (
         measure_moc_chain_planner(solver_generated_field_coupled_chain_planner)
       )
+    ####
     solver_generated_invariant_field_coupled_chain_planner = (
       _solver_generated_invariant_field_coupled_chain_planner(
         solver_generated_shock.field
@@ -9351,12 +9657,14 @@ def build_moc_primitive_report() -> dict[str, Any]:
           solver_generated_invariant_field_coupled_chain_planner
         )
       )
+    ####
     ambient_pressure_field_coupled_chain_planner = (
       _ambient_pressure_field_coupled_chain_planner(solver_generated_shock.field)
     )
     solver_generated_chain_measurement = measure_moc_shock_cell_chain(
       solver_generated_chain_measurement_observations,
     )
+  ####
   solver_generated_chain_external_validation = (
     _solver_generated_chain_external_validation_probe(
       solver_generated_chain_measurement,
@@ -10482,6 +10790,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
   )
   if euler_curve_compression.beta_rad is None:
     raise RuntimeError('Euler-consistent shock-curve fixture could not resolve beta')
+  ####
   euler_curve_shock_angle = 0.2 - euler_curve_compression.beta_rad
   euler_curve_points = tuple(
     (
@@ -10705,6 +11014,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         expected_subdivision_levels=(1, 2, 3),
       )
     )
+  ####
   euler_ambient_first_wedge_entropy_characteristic_field_planner = (
     None
     if euler_ambient_first_wedge_entropy_carry_planner is None
@@ -10958,6 +11268,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
           position_tolerance_m=1.0e-8,
         ),
       )
+    ####
     euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_cases = tuple(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFrontierReconciliationRefinementCase(
         case_id=f'outer-angle-{angle:g}',
@@ -10973,6 +11284,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         strict=True,
       )
     )
+  ####
   euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement = (
     measure_moc_euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_refinement_ladder(
       euler_ambient_first_wedge_entropy_characteristic_frontier_reconciliation_cases,
@@ -11236,6 +11548,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     euler_companion_field_chain_refinement_error = (
       f'{type(error).__name__}: {error}'
     )
+  ####
   euler_companion_chain_planner = None
   euler_companion_chain_planner_measurement = None
   if solver_generated_shock.field is not None and solver_generated_shock.field.converged:
@@ -11248,6 +11561,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
     euler_companion_chain_planner_measurement = measure_moc_chain_planner(
       euler_companion_chain_planner,
     )
+  ####
   normal_shock_terminal = solve_normal_shock_terminal(
     CharacteristicState(
       x_m=1.25,
@@ -11333,6 +11647,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         'status': refined_zone.status.value,
         'message': refined_zone.message,
       })
+    ####
     resolution_probe.append({
       'characteristic_count': resolution,
       'status': refined_fan.status.value,
@@ -11375,6 +11690,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
         refined_interface.maximum_coordinate_residual_m
       ),
     })
+  ####
   geometry_results = {
     'interior': {
       'status': interior.status.value,
@@ -15441,7 +15757,6 @@ def build_moc_primitive_report() -> dict[str, Any]:
       shock_cell_chain_strict_gate.status is not MocChainStatus.STATE_BOUNDARY
     ) else []),
   ]
-  ####
   return {
     'report_id': 'exhaust-plume-moc-foundation-validation-v1',
     'model_fidelity': 'planar-moc-primitives',
@@ -15469,6 +15784,7 @@ def build_moc_primitive_report() -> dict[str, Any]:
       'only after all physical and external gates pass, review promotion into a dedicated resolved-planar-moc provider; never feed it into basic visualization, signature, ray-transfer, or focal-plane-array providers',
     ],
   }
+####
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -15479,9 +15795,12 @@ def main(argv: list[str] | None = None) -> int:
   serialized = json.dumps(report, indent=2) + '\n'
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
+  ####
   print(serialized, end='')
   return 0 if report['status'] == 'fan-compression-boundary-foundation-gate-passed-closure-pending' else 1
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

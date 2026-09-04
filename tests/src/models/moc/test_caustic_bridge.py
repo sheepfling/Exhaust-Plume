@@ -82,6 +82,7 @@ def _caustic_bridge_fixture():
   assert restart.family_band is not None
   assert restart.family_band.status is MocCausticFamilyBandStatus.CONVERGED_OPEN_BAND
   return old_family, restart.family_band, seed
+####
 
 
 def test_caustic_bridge_accepts_unique_restarted_family_coverage() -> None:
@@ -105,6 +106,7 @@ def test_caustic_bridge_accepts_unique_restarted_family_coverage() -> None:
   assert all(sample.restarted_family_available for sample in result.samples)
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+####
 
 
 def test_caustic_continuation_requires_an_explicit_one_sided_branch() -> None:
@@ -132,6 +134,7 @@ def test_caustic_continuation_requires_an_explicit_one_sided_branch() -> None:
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
   )
+####
 
 
 def test_caustic_continuation_builds_exact_selected_branch_seam() -> None:
@@ -162,6 +165,7 @@ def test_caustic_continuation_builds_exact_selected_branch_seam() -> None:
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
   )
+####
 
 
 def test_caustic_continuation_planner_audits_and_retains_nonphysical_stop() -> None:
@@ -192,6 +196,7 @@ def test_caustic_continuation_planner_audits_and_retains_nonphysical_stop() -> N
   assert planner.production_claim_allowed is False
   assert planner.diagnostics['chain_cell_appended'] is False
   assert planner.as_report()['branch_audit_verified'] is True
+####
 
 
 def test_caustic_continuation_planner_requires_branch_before_bridge() -> None:
@@ -211,6 +216,7 @@ def test_caustic_continuation_planner_requires_branch_before_bridge() -> None:
   assert planner.continuation.bridge is None
   assert planner.termination.reason is MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
   assert planner.diagnostics['selected_anchor_edge_index'] is None
+####
 
 
 def test_caustic_continuation_does_not_hide_an_invalid_side_selector() -> None:
@@ -232,6 +238,7 @@ def test_caustic_continuation_does_not_hide_an_invalid_side_selector() -> None:
   assert result.bridge is not None
   assert result.state_sampling_available is False
   assert result.chain_promotion_blocked
+####
 
 
 def test_caustic_bridge_preserves_a_gap_between_one_sided_fields() -> None:
@@ -254,6 +261,7 @@ def test_caustic_bridge_preserves_a_gap_between_one_sided_fields() -> None:
   assert result.first_missing_sample_index == 2
   assert result.last_valid_point_m == (0.675, 0.052)
   assert 'extrapolation' in result.message
+####
 
 
 def test_caustic_bridge_selected_side_never_falls_back() -> None:
@@ -274,6 +282,7 @@ def test_caustic_bridge_selected_side_never_falls_back() -> None:
   assert result.first_missing_sample_index == 0
   assert result.sampled_count == 0
   assert bridge.state_at(restarted_family.anchor_point_m) is None
+####
 
 
 def test_caustic_bridge_adapts_to_bounded_chain_source_without_extrapolation() -> None:
@@ -321,6 +330,7 @@ def test_caustic_bridge_adapts_to_bounded_chain_source_without_extrapolation() -
     'extrapolation_allowed': False,
     'preferred_start_point_m': restarted_family.anchor_point_m,
   }
+####
 
 
 def test_caustic_bridge_shock_and_planner_keep_open_seam_nonpromotable() -> None:
@@ -383,6 +393,7 @@ def test_caustic_bridge_shock_and_planner_keep_open_seam_nonpromotable() -> None
     MocCausticBridgeStatus.CONVERGED_BOUNDED_PATH.value
   )
   assert planner.chain.diagnostics['physical_closure_verified'] is False
+####
 
 
 def test_caustic_bridge_reports_the_first_candidate_point_beyond_the_seam() -> None:
@@ -415,6 +426,7 @@ def test_caustic_bridge_reports_the_first_candidate_point_beyond_the_seam() -> N
   assert result.upstream_coupling_verified is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
+####
 
 
 def test_caustic_bridge_invariant_api_preserves_bounded_stop_and_handoff() -> None:
@@ -469,3 +481,4 @@ def test_caustic_bridge_invariant_api_preserves_bounded_stop_and_handoff() -> No
   assert planner.chain.diagnostics['bridge_status'] == (
     MocCausticBridgeStatus.DOMAIN_GAP.value
   )
+####

@@ -115,6 +115,7 @@ def test_centerline_seam_comparison_reports_pointwise_residuals() -> None:
   assert comparison.maximum_absolute_total_pressure_residual_Pa == pytest.approx(0.0)
   assert comparison.maximum_relative_total_pressure_residual == pytest.approx(0.0)
   assert comparison.as_report()['verified'] is False
+####
 
 
 def _shock_fit() -> MocShockBoundaryFitResult:
@@ -140,6 +141,7 @@ def _shock_fit() -> MocShockBoundaryFitResult:
     shock_angle_residuals_rad=(0.0,) * len(states),
     maximum_shock_angle_residual_rad=0.0,
   )
+####
 
 
 def test_coupled_post_shock_field_rejects_an_outer_boundary_without_axis_end() -> None:
@@ -173,6 +175,7 @@ def test_coupled_post_shock_field_rejects_an_outer_boundary_without_axis_end() -
   assert result.status is MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE
   assert not result.converged
   assert 'ambient boundary must terminate' in result.message
+####
 
 
 def test_coupled_post_shock_field_requires_an_accepted_ambient_trace() -> None:
@@ -200,6 +203,7 @@ def test_coupled_post_shock_field_requires_an_accepted_ambient_trace() -> None:
   assert result.status is MocPhysicalPostShockFieldStatus.AMBIENT_BOUNDARY_FAILURE
   assert not result.converged
   assert result.ambient_boundary.pressure_residuals
+####
 
 
 def test_legacy_ambient_field_cannot_promote_without_family_orientation_evidence() -> None:
@@ -232,6 +236,8 @@ def test_legacy_ambient_field_cannot_promote_without_family_orientation_evidence
   assert legacy_converged.physical_closure_verified is False
   with pytest.raises(ValueError, match='family orientation'):
     legacy_converged.as_chain_cell(start_x_m=0.0, end_x_m=1.0)
+  ####
+####
 
 
 def test_coupled_post_shock_field_accepts_an_explicit_axis_corner_before_axis_gate() -> None:
@@ -288,6 +294,7 @@ def test_coupled_post_shock_field_accepts_an_explicit_axis_corner_before_axis_ga
   assert result.topology.forms_closed_zone
   assert result.ambient_boundary_points_m[-1] == axis_corner.point_m
   assert result.centerline_boundary_points_m[-1] == axis_corner.point_m
+####
 
 
 def test_centerline_reflection_closes_each_ambient_c_minus_characteristic() -> None:
@@ -340,6 +347,7 @@ def test_centerline_reflection_closes_each_ambient_c_minus_characteristic() -> N
     )
   )
   assert all(result.physical_closure_gates.values())
+####
 
 
 def test_centerline_reflection_does_not_accept_an_appended_axis_corner() -> None:
@@ -387,6 +395,7 @@ def test_centerline_reflection_does_not_accept_an_appended_axis_corner() -> None
 
   assert result.status is MocPhysicalPostShockFieldStatus.INVALID_INPUT
   assert 'one physical ambient sample per fitted shock sample' in result.message
+####
 
 
 def _canonical_ambient_closed_field(*, sample_count: int = 9):
@@ -428,6 +437,7 @@ def _canonical_ambient_closed_field(*, sample_count: int = 9):
   assert result.field is not None
   assert result.field.physical_closure_verified
   return result.field
+####
 
 
 def test_accepted_physical_field_projects_to_a_valid_terminal_source_strip() -> None:
@@ -463,6 +473,7 @@ def test_accepted_physical_field_projects_to_a_valid_terminal_source_strip() -> 
       strict=True,
     )
   )
+####
 
 
 def test_terminal_reflection_patch_exposes_a_bounded_exact_outgoing_source() -> None:
@@ -490,6 +501,7 @@ def test_terminal_reflection_patch_exposes_a_bounded_exact_outgoing_source() -> 
   assert report['extrapolation_allowed'] is False
   assert report['upstream_coupling_verified'] is False
   assert report['preferred_start_point_m'] == pytest.approx(start)
+####
 
 
 def test_terminal_reflection_patch_closes_a_solver_owned_next_physical_field() -> None:
@@ -529,6 +541,7 @@ def test_terminal_reflection_patch_closes_a_solver_owned_next_physical_field() -
   assert report['converged'] is True
   assert report['chain_promotion_blocked'] is False
   assert report['field_result']['field']['zero_strength_shock_endpoints_allowed'] is True
+####
 
 
 def test_terminal_reflection_patch_ambient_closure_returns_a_chain_continuation() -> None:
@@ -560,6 +573,7 @@ def test_terminal_reflection_patch_ambient_closure_returns_a_chain_continuation(
   )
   assert solved.end_x_m > current.end_x_m
   assert solved.end_x_m < 3.0
+####
 
 
 def test_terminal_reflection_patch_ambient_closure_planner_carries_a_second_cell() -> None:
@@ -593,6 +607,7 @@ def test_terminal_reflection_patch_ambient_closure_planner_carries_a_second_cell
   assert report['diagnostics']['endpoint_policy'].startswith(
     'use-next-field-ambient-boundary-endpoint'
   )
+####
 
 
 def test_terminal_reflection_patch_trace_profile_records_polarity_and_closes_a_field() -> None:
@@ -656,6 +671,7 @@ def test_terminal_reflection_patch_trace_profile_records_polarity_and_closes_a_f
   )
   assert next_polarity.status is MocReflectedTracePolarity.MIXED
   assert next_polarity.expansion_sample_count > 0
+####
 
 
 def test_terminal_reflection_patch_ambient_closure_planner_carries_three_cells_with_polarity_aware_closure() -> None:
@@ -687,6 +703,7 @@ def test_terminal_reflection_patch_ambient_closure_planner_carries_three_cells_w
   ]
   assert reference_report['polarity_aware'] is True
   assert reference_report['trace_position_tolerance_m'] == pytest.approx(1.0e-3)
+####
 
 
 def test_continued_chain_planner_runs_one_terminal_mock_from_final_physical_cell() -> None:
@@ -802,6 +819,7 @@ def test_continued_chain_planner_runs_one_terminal_mock_from_final_physical_cell
   assert planner_with_transport.as_report()[
     'mixed_regime_entropy_transport_verified'
   ] is True
+####
 
 
 def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> None:
@@ -843,6 +861,7 @@ def test_continued_chain_planner_keeps_scalar_terminal_reference_separate() -> N
     'resolutions'
   ] == [5, 7, 9]
   assert planner.production_claim_allowed is False
+####
 
 
 def test_continued_chain_planner_accepts_integrated_control_section_reference() -> None:
@@ -936,6 +955,7 @@ def test_continued_chain_planner_accepts_integrated_control_section_reference() 
   ] is True
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+####
 
 
 def test_continued_chain_planner_runs_variable_entropy_terminal_reference() -> None:
@@ -981,6 +1001,7 @@ def test_continued_chain_planner_runs_variable_entropy_terminal_reference() -> N
   ] is False
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+####
 
 
 def test_continued_chain_variable_entropy_mode_preserves_fidelity_boundary() -> None:
@@ -1005,6 +1026,7 @@ def test_continued_chain_variable_entropy_mode_preserves_fidelity_boundary() -> 
       mock=MocPrescribedMixedRegimeClosureMock(),
       variable_entropy_solver=variable_entropy_solver,
     )
+  ####
 
   with pytest.raises(ValueError, match='cannot attach'):
     plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_mixed_regime(
@@ -1013,6 +1035,8 @@ def test_continued_chain_variable_entropy_mode_preserves_fidelity_boundary() -> 
       variable_entropy_solver=variable_entropy_solver,
       attach_mixed_regime_field=True,
     )
+  ####
+####
 
 
 def test_continued_chain_planner_records_planar_handoff_after_prefix() -> None:
@@ -1070,6 +1094,7 @@ def test_continued_chain_planner_records_planar_handoff_after_prefix() -> None:
     closure = mock.solve(received_request)
     assert closure.field is not None
     return replace(closure.field, control_section=received_section)
+  ####
 
   planner = (
     plan_ambient_closed_post_shock_chain_terminal_reflection_patch_ambient_closure_with_planar_handoff(
@@ -1106,6 +1131,7 @@ def test_continued_chain_planner_records_planar_handoff_after_prefix() -> None:
   ] is True
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+####
 
 
 def test_continued_chain_planner_does_not_fabricate_terminal_after_prefix_stop() -> None:
@@ -1137,6 +1163,7 @@ def test_continued_chain_planner_does_not_fabricate_terminal_after_prefix_stop()
   )
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+####
 
 
 def test_terminal_reflection_patch_physical_field_rejects_a_mismatched_handoff() -> None:
@@ -1163,6 +1190,7 @@ def test_terminal_reflection_patch_physical_field_rejects_a_mismatched_handoff()
   assert result.status is MocTerminalReflectionPatchPhysicalFieldStatus.INVALID_INPUT
   assert result.chain_promotion_blocked
   assert 'exactly match' in result.message
+####
 
 
 def test_generated_chain_maps_verified_normal_shock_to_physical_termination() -> None:
@@ -1226,6 +1254,7 @@ def test_generated_chain_maps_verified_normal_shock_to_physical_termination() ->
   assert result_report['ambient_attachment']['shock']['status'] == (
     'subsonic_terminal_required'
   )
+####
 
 
 def test_physical_field_terminal_patch_transition_reaches_typed_normal_shock_stop() -> None:
@@ -1263,6 +1292,7 @@ def test_physical_field_terminal_patch_transition_reaches_typed_normal_shock_sto
   assert decision.diagnostics['chain_cell_promotion'] == (
     'blocked-at-mixed-regime-boundary'
   )
+####
 
 
 def test_physical_field_terminal_patch_transition_retains_mixed_regime_seam() -> None:
@@ -1306,6 +1336,7 @@ def test_physical_field_terminal_patch_transition_retains_mixed_regime_seam() ->
   assert transition.as_report()['mixed_regime_request']['terminal_point_m'] == (
     request.terminal_point_m
   )
+####
 
 
 def test_terminal_patch_planner_mock_consumes_exact_retained_seam() -> None:
@@ -1349,6 +1380,7 @@ def test_terminal_patch_planner_mock_consumes_exact_retained_seam() -> None:
   assert planner.diagnostics['free_boundary_reference_audit'] is None
   assert planner.diagnostics['free_boundary_reference_audit_accepted'] is False
   assert planner.as_report()['production_claim_allowed'] is False
+####
 
 
 def test_terminal_patch_can_explicitly_attach_an_exact_mixed_regime_field() -> None:
@@ -1389,6 +1421,7 @@ def test_terminal_patch_can_explicitly_attach_an_exact_mixed_regime_field() -> N
   assert planner.as_report()['transition']['physical_closure_verified'] is True
   assert planner.as_report()['mixed_regime_field_complete'] is True
   assert planner.as_report()['production_claim_allowed'] is False
+####
 
 
 def test_terminal_patch_rejects_a_mismatched_mixed_regime_field() -> None:
@@ -1432,6 +1465,8 @@ def test_terminal_patch_rejects_a_mismatched_mixed_regime_field() -> None:
 
   with pytest.raises(ValueError, match='exact terminal shock seam'):
     planner.transition.with_mixed_regime_field(mismatched_field)
+  ####
+####
 
 
 def test_terminal_patch_planner_reference_keeps_scalar_result_separate() -> None:
@@ -1483,6 +1518,7 @@ def test_terminal_patch_planner_reference_keeps_scalar_result_separate() -> None
   }
   assert planner.chain_promotion_blocked
   assert planner.diagnostics['mixed_regime_closure_attached'] is False
+####
 
 
 def test_terminal_patch_planner_records_explicit_planar_handoff_without_promotion() -> None:
@@ -1541,6 +1577,7 @@ def test_terminal_patch_planner_records_explicit_planar_handoff_without_promotio
     closure = mock.solve(received_request)
     assert closure.field is not None
     return replace(closure.field, control_section=received_section)
+  ####
 
   planner = plan_ambient_closed_post_shock_chain_terminal_patch_with_planar_handoff(
     field,
@@ -1573,6 +1610,7 @@ def test_terminal_patch_planner_records_explicit_planar_handoff_without_promotio
   assert planner.as_report()['mixed_regime_planar_handoff']['request'] == (
     planner.transition.mixed_regime_request.as_report()
   )
+####
 
 
 def test_terminal_patch_planner_records_one_seed_and_physical_stop() -> None:
@@ -1605,6 +1643,7 @@ def test_terminal_patch_planner_records_one_seed_and_physical_stop() -> None:
   assert planner.diagnostics['physical_cell_promotion'] == (
     'blocked-at-mixed-regime-boundary'
   )
+####
 
 
 def test_terminal_patch_transition_rejects_backward_source_interface() -> None:
@@ -1630,6 +1669,7 @@ def test_terminal_patch_transition_rejects_backward_source_interface() -> None:
   assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
   assert decision.diagnostics['centerline_seam_verified'] is True
   assert decision.diagnostics['first_outgoing_trace_point_m'][0] < current.end_x_m
+####
 
 
 def _manufactured_closed_physical_field(
@@ -1794,6 +1834,7 @@ def _manufactured_closed_physical_field(
     ),
     post_shock_boundary_total_pressure_Pa=(1.8e6, 1.8e6, 1.8e6),
   )
+####
 
 
 def _prescribed_candidate_outside_manufactured_field() -> MocAmbientClosedPostShockChainCandidate:
@@ -1827,6 +1868,7 @@ def _prescribed_candidate_outside_manufactured_field() -> MocAmbientClosedPostSh
     ambient_pressure_Pa=ambient_pressure,
     end_x_m=3.0,
   )
+####
 
 
 def test_structured_ambient_closed_candidate_preserves_bounded_upstream_stop() -> None:
@@ -1852,6 +1894,7 @@ def test_structured_ambient_closed_candidate_preserves_bounded_upstream_stop() -
   assert candidate.as_report()['boundary_provenance'] == (
     'explicit-prescribed-next-shock-and-ambient-samples'
   )
+####
 
 
 def test_prescribed_ambient_closed_chain_mock_records_candidate_and_typed_stop() -> None:
@@ -1892,6 +1935,7 @@ def test_prescribed_ambient_closed_chain_mock_records_candidate_and_typed_stop()
   )
   assert planner.chain.diagnostics['next_cell_index'] == 2
   assert planner.chain.diagnostics['incoming_handoff_fingerprint'] is not None
+####
 
 
 def test_generated_ambient_closed_chain_reference_preserves_bounded_field_stop() -> None:
@@ -1933,6 +1977,7 @@ def test_generated_ambient_closed_chain_reference_preserves_bounded_field_stop()
   assert planner.diagnostics['source_provider_policy'] == (
     'bounded-callback-source-or-previous-field; no extrapolation'
   )
+####
 
 
 def test_generated_chain_rejects_a_preferred_source_start_before_the_interface() -> None:
@@ -1953,10 +1998,12 @@ def test_generated_chain_rejects_a_preferred_source_start_before_the_interface()
       mach=2.0,
       gamma=1.4,
     )
+  ####
 
   def static_pressure_at(point: tuple[float, float]) -> float:
     callback_calls.append(('pressure', point))
     return 100000.0
+  ####
 
   preferred_start = (current.end_x_m - 0.1, 0.25)
   source = MocBoundedUpstreamFieldSource(
@@ -1988,6 +2035,7 @@ def test_generated_chain_rejects_a_preferred_source_start_before_the_interface()
   assert decision.diagnostics['current_cell_end_x_m'] == current.end_x_m
   assert decision.diagnostics['start_point_downstream_of_current_cell'] is False
   assert callback_calls == []
+####
 
 
 def test_generated_chain_routes_the_reflection_patch_to_an_open_closure_stop() -> None:
@@ -2042,6 +2090,7 @@ def test_generated_chain_routes_the_reflection_patch_to_an_open_closure_stop() -
   assert diagnostics['ambient_physical_field_result']['status'] == (
     'ambient_attachment_failure'
   )
+####
 
 
 def test_generated_chain_can_derive_the_reflection_patch_source_without_callback() -> None:
@@ -2092,6 +2141,7 @@ def test_generated_chain_can_derive_the_reflection_patch_source_without_callback
   assert reference_report['source_trace_position_tolerance_m'] == pytest.approx(
     1.0e-3
   )
+####
 
 
 def test_generated_chain_rejects_mixed_callback_and_source_mode() -> None:
@@ -2100,6 +2150,8 @@ def test_generated_chain_rejects_mixed_callback_and_source_mode() -> None:
       upstream_source_mode=MocAmbientClosedChainSourceMode.TERMINAL_REFLECTION_PATCH,
       upstream_source_provider=lambda *_args: None,
     )
+  ####
+####
 
 
 def test_generated_chain_preserves_source_decision_context_and_blocks_physical_source_stop() -> None:
@@ -2167,6 +2219,7 @@ def test_generated_chain_preserves_source_decision_context_and_blocks_physical_s
     MocChainTerminationReason.PHYSICAL_TERMINATION.value
   )
   assert rejected.diagnostics['continuation_model'] == physical_stop_reference.model
+####
 
 
 def test_generated_ambient_closed_chain_reference_re_solves_explicit_reference_cells() -> None:
@@ -2206,6 +2259,7 @@ def test_generated_ambient_closed_chain_reference_re_solves_explicit_reference_c
   def source_provider(current_field, current, next_index, incoming_handoff):
     seen_sources.append((current_field, current.cell_index, next_index, incoming_handoff))
     return source
+  ####
 
   reference = MocSolverGeneratedAmbientClosedPostShockChainReference(
     total_cell_count=3,
@@ -2251,6 +2305,7 @@ def test_generated_ambient_closed_chain_reference_re_solves_explicit_reference_c
     'callback-supplied-bounded-source'
   )
   assert reference_report['physical_chain_promotion_allowed'] is False
+####
 
 
 def test_ambient_closed_physical_field_sampling_is_bounded_and_state_carrying() -> None:
@@ -2266,6 +2321,7 @@ def test_ambient_closed_physical_field_sampling_is_bounded_and_state_carrying() 
   assert field.static_pressure_at((0.4, 0.6)) is not None
   assert field.state_at((2.5, 0.1)) is None
   assert field.total_pressure_at((2.5, 0.1)) is None
+####
 
 
 def test_physical_field_next_shock_returns_bounded_upstream_stop_without_extrapolation() -> None:
@@ -2306,6 +2362,7 @@ def test_physical_field_next_shock_returns_bounded_upstream_stop_without_extrapo
   assert decision.reason is MocChainTerminationReason.UPSTREAM_FIELD_BOUNDARY
   assert decision.diagnostics['first_missing_sample_index'] == 0
   assert decision.diagnostics['sampled_count'] == 0
+####
 
 
 def test_ambient_physical_chain_rejects_an_appended_axis_corner_source() -> None:
@@ -2344,6 +2401,7 @@ def test_ambient_physical_chain_rejects_an_appended_axis_corner_source() -> None
   assert isinstance(decision, MocChainTerminationDecision)
   assert decision.reason is MocChainTerminationReason.INVALID_INPUT
   assert 'explicit axis corner is not a C- source' in decision.message
+####
 
 
 def test_ambient_closed_physical_chain_requires_exact_incoming_handoff() -> None:
@@ -2358,6 +2416,7 @@ def test_ambient_closed_physical_chain_requires_exact_incoming_handoff() -> None
       field=_manufactured_closed_physical_field(wrong_handoff),
       end_x_m=current.end_x_m + 1.0,
     )
+  ####
 
   result = continue_ambient_closed_post_shock_chain(
     seed,
@@ -2371,6 +2430,7 @@ def test_ambient_closed_physical_chain_requires_exact_incoming_handoff() -> None
   assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
   assert result.cell_count == 1
   assert 'changed consumed total pressure sample' in result.message
+####
 
 
 def test_physical_field_promotion_rechecks_mesh_and_declared_boundary_paths() -> None:
@@ -2386,6 +2446,8 @@ def test_physical_field_promotion_rechecks_mesh_and_declared_boundary_paths() ->
   assert tampered.physical_closure_gates['physical_boundary_paths_verified'] is False
   with pytest.raises(ValueError, match='ambient-closed post-shock field'):
     tampered.as_chain_cell(start_x_m=0.0, end_x_m=1.0)
+  ####
+####
 
 
 def test_ambient_closed_physical_chain_and_planner_carry_multiple_cells() -> None:
@@ -2398,6 +2460,7 @@ def test_ambient_closed_physical_chain_and_planner_carry_multiple_cells() -> Non
         reason=MocChainTerminationReason.SOLVER_RETURNED_NO_NEXT_CELL,
         message='manufactured physical-field test chain exhausted',
       )
+    ####
     return MocPhysicalPostShockFieldContinuationSolve(
       field=_manufactured_closed_physical_field(
         incoming_handoff,
@@ -2405,6 +2468,7 @@ def test_ambient_closed_physical_chain_and_planner_carry_multiple_cells() -> Non
       ),
       end_x_m=current.end_x_m + 1.0,
     )
+  ####
 
   planner = plan_ambient_closed_post_shock_chain(
     seed,
@@ -2426,6 +2490,7 @@ def test_ambient_closed_physical_chain_and_planner_carry_multiple_cells() -> Non
     'termination-returned',
   ]
   assert report['steps'][1]['incoming_handoff_link_verified'] is True
+####
 
 
 def test_ambient_closed_physical_chain_rejects_open_seed_before_callback() -> None:
@@ -2437,6 +2502,7 @@ def test_ambient_closed_physical_chain_rejects_open_seed_before_callback() -> No
     nonlocal called
     called = True
     return None
+  ####
 
   result = continue_ambient_closed_post_shock_chain(
     open_seed,
@@ -2448,3 +2514,4 @@ def test_ambient_closed_physical_chain_rejects_open_seed_before_callback() -> No
   assert result.status.value == 'open-cell'
   assert result.termination_reason is MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   assert called is False
+####

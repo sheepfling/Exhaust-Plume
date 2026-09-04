@@ -61,6 +61,7 @@ class MocEulerAmbientPhysicalFieldStatus(str, Enum):
   SHOCK_BOUNDARY_REQUIRED = 'euler_physical_shock_boundary_required'
   AMBIENT_BOUNDARY_FAILURE = 'euler_physical_ambient_boundary_failure'
   FIELD_FAILURE = 'euler_physical_field_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +95,7 @@ class MocEulerAmbientPhysicalFieldResult:
       raise TypeError(
         'status must be a MocEulerAmbientPhysicalFieldStatus'
       )
+    ####
     if self.shock_boundary is not None and not isinstance(
       self.shock_boundary,
       MocEulerShockBoundaryCurveResult,
@@ -101,6 +103,7 @@ class MocEulerAmbientPhysicalFieldResult:
       raise TypeError(
         'shock_boundary must be a MocEulerShockBoundaryCurveResult or None'
       )
+    ####
     if self.ambient_march is not None and not isinstance(
       self.ambient_march,
       MocEulerAmbientBoundaryMarchResult,
@@ -108,6 +111,7 @@ class MocEulerAmbientPhysicalFieldResult:
       raise TypeError(
         'ambient_march must be a MocEulerAmbientBoundaryMarchResult or None'
       )
+    ####
     if self.field is not None and not isinstance(
       self.field,
       MocPhysicalPostShockFieldResult,
@@ -115,18 +119,22 @@ class MocEulerAmbientPhysicalFieldResult:
       raise TypeError(
         'field must be a MocPhysicalPostShockFieldResult or None'
       )
+    ####
     if self.ambient_pressure_Pa is not None:
       ambient_pressure = float(self.ambient_pressure_Pa)
       if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
         raise ValueError(
           'ambient_pressure_Pa must be finite and positive when supplied'
         )
+      ####
       object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    ####
     residuals = tuple(float(value) for value in self.entropy_residuals)
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError(
         'entropy_residuals must contain finite nonnegative values'
       )
+    ####
     object.__setattr__(self, 'entropy_residuals', residuals)
     if self.maximum_entropy_residual is not None:
       maximum = float(self.maximum_entropy_residual)
@@ -134,7 +142,9 @@ class MocEulerAmbientPhysicalFieldResult:
         raise ValueError(
           'maximum_entropy_residual must be finite and nonnegative when supplied'
         )
+      ####
       object.__setattr__(self, 'maximum_entropy_residual', maximum)
+    ####
     for name in (
       'shock_boundary_verified',
       'ambient_boundary_verified',
@@ -145,7 +155,10 @@ class MocEulerAmbientPhysicalFieldResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -159,6 +172,7 @@ class MocEulerAmbientPhysicalFieldResult:
       and self.field is not None
       and self.field.converged
     )
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
@@ -169,6 +183,7 @@ class MocEulerAmbientPhysicalFieldResult:
       and self.field is not None
       and self.field.physical_closure_verified
     )
+  ####
 
   @property
   def state_sampling_available(self) -> bool:
@@ -179,6 +194,7 @@ class MocEulerAmbientPhysicalFieldResult:
       and self.field is not None
       and self.field.state_sampling_available
     )
+  ####
 
   @property
   def downstream_handoff(self) -> tuple[MocChainBoundarySample, ...]:
@@ -186,6 +202,7 @@ class MocEulerAmbientPhysicalFieldResult:
 
     if not self.state_sampling_available or self.field is None:
       return ()
+    ####
     return tuple(
       MocChainBoundarySample(state=state, total_pressure_Pa=pressure)
       for state, pressure in zip(
@@ -194,6 +211,7 @@ class MocEulerAmbientPhysicalFieldResult:
         strict=True,
       )
     )
+  ####
 
   @property
   def incoming_handoff(self) -> tuple[MocChainBoundarySample, ...]:
@@ -201,13 +219,16 @@ class MocEulerAmbientPhysicalFieldResult:
 
     if self.field is None:
       return ()
+    ####
     return self.field.incoming_handoff
+  ####
 
   @property
   def carries_incoming_handoff(self) -> bool:
     """Whether this candidate retained a solver-supplied upstream frontier."""
 
     return bool(self.incoming_handoff)
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the explicit research-chain boundary for this candidate."""
@@ -230,6 +251,7 @@ class MocEulerAmbientPhysicalFieldResult:
           'required_next_gate': 'independent-euler-cell-audit-and-refinement',
         },
       )
+    ####
     if self.status is MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT:
       reason = MocChainTerminationReason.INVALID_INPUT
     elif self.status is MocEulerAmbientPhysicalFieldStatus.SHOCK_BOUNDARY_REQUIRED:
@@ -238,6 +260,7 @@ class MocEulerAmbientPhysicalFieldResult:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
     else:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -249,6 +272,7 @@ class MocEulerAmbientPhysicalFieldResult:
         'production_claim_allowed': False,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -281,6 +305,8 @@ class MocEulerAmbientPhysicalFieldResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -311,6 +337,7 @@ def _failure(
     ),
     message=message,
   )
+####
 
 
 def _as_post_shock_fit(
@@ -343,6 +370,7 @@ def _as_post_shock_fit(
     upstream_total_pressure_Pa=shock_boundary.upstream_total_pressure_Pa,
     message='adapted from exact Euler shock evidence for physical assembly',
   )
+####
 
 
 def assemble_euler_ambient_physical_field(
@@ -374,6 +402,7 @@ def assemble_euler_ambient_physical_field(
       ambient_pressure_Pa=None,
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
     )
+  ####
   try:
     resolved_incoming_handoff = (
       () if incoming_handoff is None else tuple(incoming_handoff)
@@ -390,6 +419,7 @@ def assemble_euler_ambient_physical_field(
         'values'
       ),
     )
+  ####
   if any(
     not isinstance(sample, MocChainBoundarySample)
     for sample in resolved_incoming_handoff
@@ -402,6 +432,7 @@ def assemble_euler_ambient_physical_field(
       ambient_pressure_Pa=None,
       message='incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if incoming_handoff is not None and len(resolved_incoming_handoff) < 3:
     return _failure(
       MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT,
@@ -411,6 +442,7 @@ def assemble_euler_ambient_physical_field(
       ambient_pressure_Pa=None,
       message='incoming_handoff requires at least three state samples',
     )
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     target_y = float(target_centerline_y_m)
@@ -427,8 +459,10 @@ def assemble_euler_ambient_physical_field(
       ambient_pressure_Pa=None,
       message='ambient physical-field pressures, coordinates, and tolerances must be numeric',
     )
+  ####
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('invariant_tolerance', invariant_tolerance_value),
@@ -437,10 +471,14 @@ def assemble_euler_ambient_physical_field(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isfinite(target_y):
     raise ValueError('target_centerline_y_m must be finite')
+  ####
   if isinstance(maximum_boundary_iterations, bool) or maximum_boundary_iterations < 1:
     raise ValueError('maximum_boundary_iterations must be a positive integer')
+  ####
   if not shock_boundary.converged or not shock_boundary.local_euler_verified:
     return _failure(
       MocEulerAmbientPhysicalFieldStatus.SHOCK_BOUNDARY_REQUIRED,
@@ -453,6 +491,7 @@ def assemble_euler_ambient_physical_field(
         f'shock curve: {shock_boundary.message}'
       ),
     )
+  ####
   if shock_boundary.orientation is not MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY:
     return _failure(
       MocEulerAmbientPhysicalFieldStatus.SHOCK_BOUNDARY_REQUIRED,
@@ -465,6 +504,7 @@ def assemble_euler_ambient_physical_field(
         'orientation so the shock supplies the downstream C+ sources'
       ),
     )
+  ####
   try:
     ambient_march = march_euler_ambient_boundary(
       shock_boundary,
@@ -484,6 +524,7 @@ def assemble_euler_ambient_physical_field(
       ambient_pressure_Pa=ambient_pressure,
       message=f'exact ambient boundary march raised: {error}',
     )
+  ####
   if not ambient_march.converged:
     return _failure(
       MocEulerAmbientPhysicalFieldStatus.AMBIENT_BOUNDARY_FAILURE,
@@ -496,6 +537,7 @@ def assemble_euler_ambient_physical_field(
         f'assembly: {ambient_march.message}'
       ),
     )
+  ####
   entropy_residuals = tuple(
     abs(value - shock_boundary.downstream_total_pressure_Pa[0])
     / shock_boundary.downstream_total_pressure_Pa[0]
@@ -539,6 +581,7 @@ def assemble_euler_ambient_physical_field(
       entropy_residuals=entropy_residuals,
       message=f'exact Euler physical-field assembly raised: {error}',
     )
+  ####
   if not field.converged or not field.physical_closure_verified:
     return _failure(
       MocEulerAmbientPhysicalFieldStatus.FIELD_FAILURE,
@@ -552,6 +595,7 @@ def assemble_euler_ambient_physical_field(
         f'physical field did not pass closure gates: {field.message}'
       ),
     )
+  ####
   if field.incoming_handoff != resolved_incoming_handoff:
     return _failure(
       MocEulerAmbientPhysicalFieldStatus.FIELD_FAILURE,
@@ -565,6 +609,7 @@ def assemble_euler_ambient_physical_field(
         'incoming handoff exactly'
       ),
     )
+  ####
   return MocEulerAmbientPhysicalFieldResult(
     status=MocEulerAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED,
     shock_boundary=shock_boundary,
@@ -585,3 +630,4 @@ def assemble_euler_ambient_physical_field(
       'cell conservation/refinement and production validation remain pending'
     ),
   )
+####

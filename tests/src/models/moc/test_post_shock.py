@@ -79,6 +79,7 @@ def _prescribed_boundary() -> tuple[MocPostShockBoundaryState, ...]:
     )
     for index, point in enumerate(points)
   )
+####
 
 
 def _open_post_shock_zone_fixture() -> MocPostShockCharacteristicZoneResult:
@@ -102,6 +103,7 @@ def _open_post_shock_zone_fixture() -> MocPostShockCharacteristicZoneResult:
     first_layer,
     tuple(samples),
   )
+####
 
 
 def _fitted_attached_boundary() -> tuple[tuple[float, float], ...]:
@@ -122,6 +124,7 @@ def _fitted_attached_boundary() -> tuple[tuple[float, float], ...]:
     )
     for index in range(4)
   )
+####
 
 
 def _closed_post_shock_candidate():
@@ -200,6 +203,7 @@ def _closed_post_shock_candidate():
     for index, (point, state) in enumerate(states_by_point.items())
   )
   return shock_fit, continuation, nodes, tuple(cells)
+####
 
 
 def test_prescribed_post_shock_c_minus_traces_reach_centerline() -> None:
@@ -215,6 +219,7 @@ def test_prescribed_post_shock_c_minus_traces_reach_centerline() -> None:
   assert result.segments[-1].centerline_point_m == pytest.approx((0.82, 0.0))
   assert all(segment.centerline_state.theta_rad == pytest.approx(0.0) for segment in result.segments)
   assert 'shock fitting' in result.message
+####
 
 
 def test_open_post_shock_c_minus_traces_keep_a_terminal_shock_interface() -> None:
@@ -265,6 +270,7 @@ def test_open_post_shock_c_minus_traces_keep_a_terminal_shock_interface() -> Non
   assert sampled_static_pressure > 0.0
   assert zone.state_at((10.0, 10.0)) is None
   assert zone.total_pressure_at((10.0, 10.0)) is None
+####
 
 
 def test_open_post_shock_zone_path_probe_is_bounded_and_pressure_aware() -> None:
@@ -295,6 +301,7 @@ def test_open_post_shock_zone_path_probe_is_bounded_and_pressure_aware() -> None
   assert bounded.status is MocPostShockZoneSamplingStatus.OUTSIDE_DOMAIN
   assert bounded.sampled_count == 2
   assert bounded.first_missing_sample_index == 2
+####
 
 
 def test_post_shock_zone_next_shock_carries_a_typed_terminal_to_the_chain() -> None:
@@ -313,6 +320,7 @@ def test_post_shock_zone_next_shock_carries_a_typed_terminal_to_the_chain() -> N
     point: tuple[float, float],
   ) -> float:
     return 0.02 * max(0.0, min(1.0, point[1] / 0.001))
+  ####
 
   solved = solve_marched_attached_shock_from_post_shock_zone(
     zone,
@@ -341,6 +349,7 @@ def test_post_shock_zone_next_shock_carries_a_typed_terminal_to_the_chain() -> N
   assert decision.reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert decision.diagnostics['termination_model'] == 'normal-shock-terminal'
   assert decision.diagnostics['upstream_field_model'] == 'bounded-open-post-shock-zone'
+####
 
 
 def test_post_shock_zone_partial_shock_march_preserves_the_upstream_gap() -> None:
@@ -386,6 +395,7 @@ def test_post_shock_zone_partial_shock_march_preserves_the_upstream_gap() -> Non
   assert decision.diagnostics['coupling_status'] == 'outside_post_shock_zone_domain'
   assert decision.diagnostics['sampled_count'] == 4
   assert decision.diagnostics['first_missing_sample_index'] == 4
+####
 
 
 def test_post_shock_zone_planner_records_a_typed_terminal_stop() -> None:
@@ -419,6 +429,7 @@ def test_post_shock_zone_planner_records_a_typed_terminal_stop() -> None:
   assert planner.steps[0].result_termination_reason is MocChainTerminationReason.PHYSICAL_TERMINATION
   assert planner.steps[0].result_physical_termination is True
   assert 'one-step-domain' in planner.claim_status
+####
 
 
 def test_sampled_attached_shock_fit_produces_pressure_losing_boundary_states() -> None:
@@ -451,6 +462,7 @@ def test_sampled_attached_shock_fit_produces_pressure_losing_boundary_states() -
     for sample in result.boundary_states
   )
   assert result.boundary_states[-1].point_m[1] == pytest.approx(0.0, abs=1.0e-12)
+####
 
 
 def test_attached_shock_fit_rejects_a_tangent_mismatch() -> None:
@@ -477,6 +489,7 @@ def test_attached_shock_fit_rejects_a_tangent_mismatch() -> None:
   assert result.status is MocShockBoundaryFitStatus.GEOMETRY_FAILURE
   assert not result.converged
   assert 'tangent disagrees' in result.message
+####
 
 
 def test_closed_post_shock_field_requires_explicit_boundary_edges() -> None:
@@ -506,6 +519,7 @@ def test_closed_post_shock_field_requires_explicit_boundary_edges() -> None:
   report = result.as_report()
   assert report['state_sampling_available'] is True
   assert report['topology_forms_closed_zone'] is True
+####
 
 
 def test_shock_seeded_post_shock_field_closes_a_characteristic_fan() -> None:
@@ -549,12 +563,15 @@ def test_shock_seeded_post_shock_field_closes_a_characteristic_fan() -> None:
   assert chain_cell.resolved
   with pytest.raises(ValueError, match='upstream shock states'):
     result.as_coupled_chain_cell(start_x_m=samples[0].point_m[0], end_x_m=1.5)
+  ####
   with pytest.raises(ValueError, match='reserved closure keys'):
     result.as_chain_cell(
       start_x_m=samples[0].point_m[0],
       end_x_m=1.5,
       diagnostics={'physical_closure_verified': False},
     )
+  ####
+####
 
 
 def test_shock_seeded_field_does_not_promote_internal_characteristic_as_ambient_edge() -> None:
@@ -575,6 +592,7 @@ def test_shock_seeded_field_does_not_promote_internal_characteristic_as_ambient_
   assert result.maximum_absolute_pressure_residual is not None
   assert result.maximum_absolute_pressure_residual > 1.0
   assert 'outer perimeter validation failed' in result.message
+####
 
 
 def test_shock_seeded_field_rejects_a_zero_area_uniform_turn_closure() -> None:
@@ -601,6 +619,7 @@ def test_shock_seeded_field_rejects_a_zero_area_uniform_turn_closure() -> None:
   assert result.status is MocPostShockFieldStatus.GEOMETRY_FAILURE
   assert not result.converged
   assert 'zero_area' in result.message
+####
 
 
 def test_shock_seeded_post_shock_field_rejects_nonconverged_fit() -> None:
@@ -616,6 +635,7 @@ def test_shock_seeded_post_shock_field_rejects_nonconverged_fit() -> None:
   assert result.status is MocPostShockFieldStatus.SHOCK_FIT_REQUIRED
   assert not result.converged
   assert 'converged shock fit' in result.message
+####
 
 
 def _next_chain_field(handoff) -> MocPostShockChainCellSolve:
@@ -666,6 +686,7 @@ def _next_chain_field(handoff) -> MocPostShockChainCellSolve:
     ),
     end_x_m=2.0,
   )
+####
 
 
 def test_post_shock_chain_re_solves_with_state_and_pressure_handoff() -> None:
@@ -686,7 +707,9 @@ def test_post_shock_chain_re_solves_with_state_and_pressure_handoff() -> None:
     calls.append((index, len(handoff), handoff[0].total_pressure_Pa))
     if index == 3:
       return None
+    ####
     return _next_chain_field(handoff)
+  ####
 
   result = continue_post_shock_characteristic_chain(
     seed_field,
@@ -704,6 +727,7 @@ def test_post_shock_chain_re_solves_with_state_and_pressure_handoff() -> None:
     (2, 5, pytest.approx(1.8e6)),
     (3, 6, pytest.approx(1.6e6)),
   ]
+####
 
 
 def test_post_shock_planner_records_exact_handoff_steps_without_promotion_claim() -> None:
@@ -756,6 +780,7 @@ def test_post_shock_planner_records_exact_handoff_steps_without_promotion_claim(
   ]
   assert planner.steps[0].result_end_x_m == pytest.approx(2.0)
   assert planner.steps[1].result_end_x_m is None
+####
 
 
 def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> None:
@@ -821,6 +846,7 @@ def test_prescribed_post_shock_chain_mock_is_reusable_and_nonproduction() -> Non
     step.incoming_handoff_link_verified is True
     for step in planner.steps[1:]
   )
+####
 
 
 def test_prescribed_post_shock_chain_mock_scales_without_changing_its_claim_ceiling() -> None:
@@ -859,6 +885,7 @@ def test_prescribed_post_shock_chain_mock_scales_without_changing_its_claim_ceil
   assert fixture_report['free_boundary_verified'] is False
   assert fixture_report['physical_chain_promotion_allowed'] is False
   assert planner.production_claim_allowed is False
+####
 
 
 def test_prescribed_post_shock_chain_mock_can_vary_shock_height_per_cell() -> None:
@@ -887,6 +914,7 @@ def test_prescribed_post_shock_chain_mock_can_vary_shock_height_per_cell() -> No
       for polygon in cell.mesh
       for point in polygon.vertices_xr_m
     )
+  ####
 
   expected_heights = tuple(
     mock.shock_ordinates_m[0] * (1.0 + 0.10 * index)
@@ -924,6 +952,7 @@ def test_prescribed_post_shock_chain_mock_can_vary_shock_height_per_cell() -> No
   assert pressure_ranges[2][1] < pressure_ranges[1][1]
   assert pressure_ranges[3] is not None
   assert pressure_ranges[3][1] < pressure_ranges[2][1]
+####
 
 
 def test_prescribed_post_shock_chain_mock_accepts_an_explicit_geometry_schedule() -> None:
@@ -956,6 +985,7 @@ def test_prescribed_post_shock_chain_mock_accepts_an_explicit_geometry_schedule(
       for polygon in cell.mesh
       for point in polygon.vertices_xr_m
     )
+  ####
 
   assert planner.resolved
   assert tuple(cell.end_x_m for cell in planner.chain.cells) == pytest.approx(
@@ -998,6 +1028,7 @@ def test_prescribed_post_shock_chain_mock_accepts_an_explicit_geometry_schedule(
     },
   ]
   assert planner.production_claim_allowed is False
+####
 
 
 def test_prescribed_post_shock_chain_mock_exposes_explicit_pressure_mapping() -> None:
@@ -1032,6 +1063,7 @@ def test_prescribed_post_shock_chain_mock_exposes_explicit_pressure_mapping() ->
   assert report['upstream_pressure_coordinate_model'] == (
     'explicit-normalized-shock-sample-coordinate-from-exact-incoming-handoff'
   )
+####
 
 
 def test_prescribed_post_shock_chain_mock_rejects_invalid_pressure_coordinates() -> None:
@@ -1039,14 +1071,18 @@ def test_prescribed_post_shock_chain_mock_rejects_invalid_pressure_coordinates()
     MocPrescribedPostShockChainMock(
       shock_pressure_coordinates=(0.0, 0.5, 1.0),
     )
+  ####
   with pytest.raises(ValueError, match='start at zero and end at one'):
     MocPrescribedPostShockChainMock(
       shock_pressure_coordinates=(0.1, 0.4, 0.6, 0.8, 1.0),
     )
+  ####
   with pytest.raises(ValueError, match='strictly increasing'):
     MocPrescribedPostShockChainMock(
       shock_pressure_coordinates=(0.0, 0.2, 0.2, 0.8, 1.0),
     )
+  ####
+####
 
 
 def test_prescribed_post_shock_chain_mock_rejects_an_incomplete_geometry_schedule() -> None:
@@ -1055,6 +1091,7 @@ def test_prescribed_post_shock_chain_mock_rejects_an_incomplete_geometry_schedul
       total_cell_count=4,
       cell_axial_lengths_m=(0.45, 0.55),
     )
+  ####
 
   with pytest.raises(ValueError, match='continued-cell shock geometry must fit'):
     MocPrescribedPostShockChainMock(
@@ -1062,6 +1099,8 @@ def test_prescribed_post_shock_chain_mock_rejects_an_incomplete_geometry_schedul
       cell_axial_lengths_m=(0.20,),
       shock_start_offsets_m=(0.19,),
     )
+  ####
+####
 
 
 def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> None:
@@ -1117,6 +1156,7 @@ def test_solver_generated_post_shock_reference_re_solves_multiple_cells() -> Non
     'normalized-shock-height-resampling-of-exact-incoming-handoff'
   )
   assert planner.chain.as_report()['cell_geometry'][-1]['boundary_geometry']['shock_boundary_points_m']
+####
 
 
 def test_solver_generated_reference_preserves_pressure_variation_from_handoff() -> None:
@@ -1158,6 +1198,7 @@ def test_solver_generated_reference_preserves_pressure_variation_from_handoff() 
     > solved.field.upstream_total_pressure_range_Pa[0]
   )
   assert reference.as_report()['target_centerline_y_m'] == pytest.approx(0.0)
+####
 
 
 def test_field_coupled_post_shock_reference_uses_the_bounded_prior_field() -> None:
@@ -1196,6 +1237,7 @@ def test_field_coupled_post_shock_reference_uses_the_bounded_prior_field() -> No
   assert planner.diagnostics['upstream_field_replacement_policy'] == (
     'replace-only-after-complete-field-coupled-solve'
   )
+####
 
 
 def test_prescribed_chain_mock_uses_a_solver_backed_attached_shock_fit() -> None:
@@ -1224,6 +1266,7 @@ def test_prescribed_chain_mock_uses_a_solver_backed_attached_shock_fit() -> None
   assert solved.field.incoming_handoff_total_pressure_Pa == tuple(
     sample.total_pressure_Pa for sample in seed_cell.continuation_boundary
   )
+####
 
 
 def test_prescribed_chain_mock_rejects_geometry_without_attached_fit() -> None:
@@ -1241,6 +1284,8 @@ def test_prescribed_chain_mock_rejects_geometry_without_attached_fit() -> None:
 
   with pytest.raises(ValueError, match='rejected its shock geometry'):
     mock.solve_next(seed_cell, 2, seed_cell.continuation_boundary)
+  ####
+####
 
 
 def test_post_shock_chain_accepts_explicit_physical_termination() -> None:
@@ -1267,6 +1312,7 @@ def test_post_shock_chain_accepts_explicit_physical_termination() -> None:
   assert result.physical_termination is True
   assert result.cell_count == 1
   assert result.resolved
+####
 
 
 def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:
@@ -1293,6 +1339,7 @@ def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:
       field=replace(field, incoming_handoff_states=tuple(changed_states)),
       end_x_m=2.0,
     )
+  ####
 
   result = continue_post_shock_characteristic_chain(
     seed_field,
@@ -1304,6 +1351,7 @@ def test_post_shock_chain_rejects_a_changed_state_handoff() -> None:
   assert result.status is MocChainStatus.SOLVER_FAILURE
   assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
   assert 'changed consumed state sample' in result.message
+####
 
 
 def test_post_shock_chain_rejects_a_reused_upstream_field_domain() -> None:
@@ -1325,6 +1373,7 @@ def test_post_shock_chain_rejects_a_reused_upstream_field_domain() -> None:
       field=replace(solved.field, shock_boundary_points_m=reused_points),
       end_x_m=2.0,
     )
+  ####
 
   result = continue_post_shock_characteristic_chain(
     seed_field,
@@ -1336,6 +1385,7 @@ def test_post_shock_chain_rejects_a_reused_upstream_field_domain() -> None:
   assert result.status is MocChainStatus.SOLVER_FAILURE
   assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
   assert 'start strictly downstream' in result.message
+####
 
 
 def test_post_shock_chain_rejects_a_total_pressure_reset() -> None:
@@ -1356,6 +1406,7 @@ def test_post_shock_chain_rejects_a_total_pressure_reset() -> None:
       ),
       end_x_m=2.0,
     )
+  ####
 
   result = continue_post_shock_characteristic_chain(
     seed_field,
@@ -1367,6 +1418,7 @@ def test_post_shock_chain_rejects_a_total_pressure_reset() -> None:
   assert result.status is MocChainStatus.SOLVER_FAILURE
   assert result.termination_reason is MocChainTerminationReason.SOLVER_ERROR
   assert 'reset total pressure' in result.message
+####
 
 
 def test_open_post_shock_zone_cannot_be_promoted_without_a_shock_edge() -> None:
@@ -1388,6 +1440,7 @@ def test_open_post_shock_zone_cannot_be_promoted_without_a_shock_edge() -> None:
   assert result.status is MocPostShockClosureStatus.GEOMETRY_FAILURE
   assert not result.converged
   assert 'shock boundary edge' in result.message
+####
 
 
 def test_post_shock_first_downstream_cross_layer_is_explicitly_partial() -> None:
@@ -1403,6 +1456,7 @@ def test_post_shock_first_downstream_cross_layer_is_explicitly_partial() -> None
   assert result.maximum_absolute_invariant_residual is not None
   assert result.maximum_absolute_invariant_residual < 1.0e-10
   assert 'physical closure remain pending' in result.message
+####
 
 
 def test_post_shock_characteristic_zone_assembles_connected_open_field() -> None:
@@ -1431,6 +1485,7 @@ def test_post_shock_characteristic_zone_assembles_connected_open_field() -> None
   assert result.minimum_post_shock_total_pressure_ratio == pytest.approx(0.9)
   assert result.maximum_post_shock_total_pressure_ratio == pytest.approx(0.9)
   assert 'fitted shock closure' in result.message
+####
 
 
 def test_post_shock_zone_preserves_samplewise_total_pressure_ratios() -> None:
@@ -1456,6 +1511,7 @@ def test_post_shock_zone_preserves_samplewise_total_pressure_ratios() -> None:
   assert result.status is MocPostShockZoneStatus.CONVERGED_OPEN
   assert result.minimum_post_shock_total_pressure_ratio == pytest.approx(1.5 / 1.9)
   assert result.maximum_post_shock_total_pressure_ratio == pytest.approx(0.9)
+####
 
 
 def test_post_shock_continuation_requires_total_pressure_loss() -> None:
@@ -1471,6 +1527,7 @@ def test_post_shock_continuation_requires_total_pressure_loss() -> None:
 
   assert result.status is MocPostShockContinuationStatus.INVALID_INPUT
   assert 'strict total-pressure loss' in result.message
+####
 
 
 def test_post_shock_continuation_requires_centerline_terminal_sample() -> None:
@@ -1492,6 +1549,7 @@ def test_post_shock_continuation_requires_centerline_terminal_sample() -> None:
 
   assert result.status is MocPostShockContinuationStatus.INVALID_INPUT
   assert 'final post-shock boundary sample must lie on the symmetry line' in result.message
+####
 
 
 def test_strict_chain_mode_rejects_a_prescribed_upstream_boundary() -> None:
@@ -1514,3 +1572,4 @@ def test_strict_chain_mode_rejects_a_prescribed_upstream_boundary() -> None:
   assert result.status is MocChainStatus.STATE_BOUNDARY
   assert result.termination_reason is MocChainTerminationReason.STATE_NOT_CARRIED
   assert 'upstream shock states' in result.message
+####

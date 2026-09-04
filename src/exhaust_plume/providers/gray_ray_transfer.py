@@ -107,7 +107,6 @@ class GrayRayTransferDefinition:
     if self.support.frame_id != self.frame_id:
       raise ProviderConfigurationError('support frame_id must match the definition frame_id')
     ####
-    ####
     wavelengths = _axis(self.wavelengths_m, 'wavelengths_m')
     global_source_present = self.source_function_w_sr_m is not None
     global_absorption_present = self.absorption_coefficient_per_m is not None
@@ -115,8 +114,10 @@ class GrayRayTransferDefinition:
     section_absorption_present = self.absorption_coefficient_per_m_by_section is not None
     if global_source_present != global_absorption_present:
       raise ProviderConfigurationError('global optical property arrays must be supplied together')
+    ####
     if section_source_present != section_absorption_present:
       raise ProviderConfigurationError('section optical property arrays must be supplied together')
+    ####
     if global_source_present == section_source_present:
       raise ProviderConfigurationError('provide either homogeneous or section-varying optical properties')
     ####
@@ -125,6 +126,7 @@ class GrayRayTransferDefinition:
       absorption = _spectrum(self.absorption_coefficient_per_m or (), 'absorption_coefficient_per_m')
       if len(wavelengths) != len(source) or len(wavelengths) != len(absorption):
         raise ProviderConfigurationError('optical property arrays must match wavelengths_m')
+      ####
       object.__setattr__(self, 'source_function_w_sr_m', source)
       object.__setattr__(self, 'absorption_coefficient_per_m', absorption)
     else:
@@ -133,11 +135,13 @@ class GrayRayTransferDefinition:
       expected_sections = len(self.support.centers_m) - 1
       if not self.support.is_straight:
         raise ProviderConfigurationError('section-varying optical properties require a straight support')
+      ####
       _straight_section_boundaries(self.support)
       if len(section_sources) != expected_sections or len(section_absorptions) != expected_sections:
         raise ProviderConfigurationError(
           f'section optical properties require {expected_sections} support sections',
         )
+      ####
       normalized_sources = tuple(
         _spectrum(spectrum, f'source_function_w_sr_m_by_section[{index}]')
         for index, spectrum in enumerate(section_sources)
@@ -148,6 +152,7 @@ class GrayRayTransferDefinition:
       )
       if any(len(spectrum) != len(wavelengths) for spectrum in normalized_sources + normalized_absorptions):
         raise ProviderConfigurationError('section optical property arrays must match wavelengths_m')
+      ####
       object.__setattr__(self, 'source_function_w_sr_m_by_section', normalized_sources)
       object.__setattr__(self, 'absorption_coefficient_per_m_by_section', normalized_absorptions)
     ####
@@ -161,7 +166,9 @@ class GrayRayTransferDefinition:
     object.__setattr__(self, 'asset_sha256', self.asset_sha256.lower() if self.asset_sha256 else None)
     if not isinstance(self.allow_curved_support, bool):
       raise ProviderConfigurationError('allow_curved_support must be bool')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,7 +185,9 @@ class GrayRayTransferConfiguration:
     ####
     if not isfinite(self.intersection_tolerance_m) or self.intersection_tolerance_m <= 0.0:
       raise ProviderConfigurationError('intersection_tolerance_m must be finite and positive')
+    ####
   ####
+####
 
 
 def _descriptor(configuration: GrayRayTransferConfiguration) -> ProviderDescriptor:
@@ -228,6 +237,7 @@ def _straight_axis(support: SectionedTubeSupport) -> tuple[float, float, float]:
   length = sqrt(sum(component * component for component in vector))
   if length <= 1.0e-14:
     raise ProviderConfigurationError('straight support axis must have positive length')
+  ####
   return tuple(component / length for component in vector)  # type: ignore[return-value]
 ####
 
@@ -241,6 +251,7 @@ def _straight_section_boundaries(support: SectionedTubeSupport) -> tuple[float, 
   )
   if any(next_value <= value for value, next_value in zip(boundaries, boundaries[1:])):
     raise ProviderConfigurationError('straight support section centers must advance along the support axis')
+  ####
   return boundaries
 ####
 
@@ -277,13 +288,17 @@ def _split_straight_interval(
     crossing = (boundary - origin_axial) / direction_axial
     if enter + tolerance < crossing < exit - tolerance:
       cuts.append(crossing)
+    ####
+  ####
   cuts.sort()
   sections: list[tuple[float, float, int]] = []
   for first, second in zip(cuts, cuts[1:]):
     if second - first <= tolerance:
       continue
+    ####
     midpoint_axial = origin_axial + 0.5 * (first + second) * direction_axial
     sections.append((first, second, _section_index(boundaries, midpoint_axial)))
+  ####
   return tuple(sections)
 ####
 
@@ -394,6 +409,7 @@ class _GrayRayTransferEvaluator:
           )
           for enter, exit, section_index in sections
         )
+      ####
       transfer = compose_homogeneous_segments(segments)
       source_matrix.append(transfer.source_radiance_w_sr_m)
       transmittance_matrix.append(transfer.background_transmittance)
@@ -484,6 +500,7 @@ class GrayRayTransferProvider:
   ) -> 'GrayRayTransferSession':
     if not isinstance(definition, GrayRayTransferDefinition):
       raise ProviderConfigurationError('definition must be GrayRayTransferDefinition')
+    ####
     if not definition.support.is_straight:
       raise ProviderConfigurationError('gray-ray-transfer-v1 requires a straight support; use the curved provider for curved supports')
     ####
@@ -574,3 +591,4 @@ class GrayRayTransferSession:
   def close(self) -> None:
     self._closed = True
   ####
+####

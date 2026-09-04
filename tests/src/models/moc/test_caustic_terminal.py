@@ -92,6 +92,7 @@ def _fixture():
     end_x_m=0.5,
   )
   return prepared.request, current
+####
 
 
 def test_solver_owned_simple_wave_reaches_open_typed_terminal() -> None:
@@ -198,6 +199,7 @@ def test_solver_owned_simple_wave_reaches_open_typed_terminal() -> None:
   assert report['chain_termination_decision']['reason'] == (
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
   )
+####
 
 
 def test_simple_wave_terminal_planner_records_one_step_without_promotion() -> None:
@@ -226,3 +228,4 @@ def test_simple_wave_terminal_planner_records_one_step_without_promotion() -> No
   )
   assert planner.chain.diagnostics['terminal_verified'] is True
   assert planner.chain.diagnostics['chain_promotion_blocked'] is True
+####

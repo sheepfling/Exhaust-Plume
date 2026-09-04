@@ -23,6 +23,7 @@ def _assert_chain_planner_measurement(
   )
   assert measurement['physical_termination'] is physical_termination
   assert measurement['production_claim_allowed'] is False
+####
 
 
 def test_open_lattice_refinement_order_is_only_a_numerical_diagnostic() -> None:
@@ -59,13 +60,13 @@ def test_open_lattice_refinement_order_is_only_a_numerical_diagnostic() -> None:
   assert report['metrics']['maximum_radius_m']['observed_order'] == pytest.approx(2.0)
   assert report['metrics']['open_extent_x_m']['observed_order'] == pytest.approx(2.0)
   assert report['metrics']['candidate_shock_endpoint_x_m']['observed_order'] == pytest.approx(2.0)
-  ####
+####
 
 
 def test_observed_refinement_order_does_not_infer_from_flat_sequence() -> None:
   assert _observed_refinement_order(1.0, 1.0, 1.0) is None
   assert _observed_refinement_order(1.0, float('inf'), 1.25) is None
-  ####
+####
 
 
 def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> None:
@@ -1900,6 +1901,7 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
       case['planner_measurement'],
       physical_termination=False,
     )
+  ####
   invariant_chain = centerline_reflection_extension[
     'caustic_family_band_invariant_chain'
   ]
@@ -2120,4 +2122,4 @@ def test_validation_report_retains_solver_generated_shock_and_chain_gates() -> N
   assert invariant_closure['source_extension']['remesh']['chain_termination_decision']['physical_termination'] is False
   assert invariant_closure['claim_status'].startswith('domain-bounded-invariant-shooting-attempt')
   assert report['failures'] == []
-  ####
+####

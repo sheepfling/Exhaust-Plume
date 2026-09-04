@@ -66,31 +66,45 @@ class ModelVisualizationGallerySpec:
   def __post_init__(self) -> None:
     if not isinstance(self.bundle_digest_sha256, str) or not _HASH.fullmatch(self.bundle_digest_sha256):
       raise ValueError('bundle_digest_sha256 must be a lowercase SHA-256 digest')
+    ####
     if not _VIEW_KIND.fullmatch(self.view_kind):
       raise ValueError('view_kind must start with model. and contain a valid name')
+    ####
     if self.station_index is not None:
       if isinstance(self.station_index, bool) or not isinstance(self.station_index, int) or self.station_index < 0:
         raise ValueError('station_index must be a nonnegative integer or None')
+      ####
+    ####
     if self.field_id is not None and not self.field_id:
       raise ValueError('field_id must not be empty')
+    ####
     if self.field_channel_id is not None:
       if not self.field_channel_id:
         raise ValueError('field_channel_id must not be empty')
+      ####
       if self.field_id is None:
         raise ValueError('field_channel_id requires field_id')
+      ####
+    ####
     if not isinstance(self.x_scale, AxisScale) or not isinstance(self.y_scale, AxisScale):
       raise TypeError('x_scale and y_scale must be AxisScale values')
+    ####
     if not self.color_map:
       raise ValueError('color_map must not be empty')
+    ####
     if isinstance(self.radial_segments, bool) or not isinstance(self.radial_segments, int):
       raise TypeError('radial_segments must be an integer')
+    ####
     if self.radial_segments < 3:
       raise ValueError('radial_segments must be at least three')
+    ####
     paths = tuple(str(path_id) for path_id in self.path_ids)
     if any(not path_id for path_id in paths):
       raise ValueError('path_ids must not contain empty IDs')
+    ####
     if len(paths) != len(set(paths)):
       raise ValueError('path_ids must be unique')
+    ####
     object.__setattr__(self, 'path_ids', paths)
   ####
 
@@ -104,6 +118,7 @@ class ModelVisualizationGallerySpec:
 
     if not isinstance(bundle, StandardizedModelVisualization):
       raise TypeError('bundle must be StandardizedModelVisualization')
+    ####
     return cls(bundle_digest_sha256=bundle.digest_sha256(), **overrides)
   ####
 
@@ -112,8 +127,10 @@ class ModelVisualizationGallerySpec:
 
     if not isinstance(bundle, StandardizedModelVisualization):
       raise TypeError('bundle must be StandardizedModelVisualization')
+    ####
     if self.bundle_digest_sha256 != bundle.digest_sha256():
       raise ValueError('model visualization spec is bound to a different bundle')
+    ####
   ####
 
   def model_dump(self) -> dict[str, Any]:
@@ -229,6 +246,7 @@ class ModelVisualizationGallerySetManifest:
         'source': dict(manifest.source),
         'spec_digest_sha256': manifest.spec.digest_sha256(),
       })
+    ####
     return {
       'schema': self.schema,
       'lane_ids': [lane['lane_id'] for lane in lanes],
@@ -277,6 +295,7 @@ def _selected_station(bundle: StandardizedModelVisualization, spec: ModelVisuali
   selected = count // 2 if spec.station_index is None else spec.station_index
   if selected >= count:
     raise IndexError(f'station_index out of range: {selected}')
+  ####
   return selected
 ####
 
@@ -285,16 +304,21 @@ def _selected_field(bundle: StandardizedModelVisualization, spec: ModelVisualiza
   if not bundle.fields:
     if spec.field_id is not None or spec.field_channel_id is not None:
       raise KeyError('the bundle has no fields to select')
+    ####
     return None
+  ####
   if spec.field_id is None:
     selected = bundle.fields[0]
   else:
     matching = tuple(field for field in bundle.fields if field.field_id == spec.field_id)
     if not matching:
       raise KeyError(f'unknown field_id {spec.field_id!r}')
+    ####
     selected = matching[0]
+  ####
   if spec.field_channel_id is not None and spec.field_channel_id not in selected.channels:
     raise KeyError(f'unknown field channel {spec.field_channel_id!r} for {selected.field_id!r}')
+  ####
   return selected
 ####
 
@@ -302,10 +326,12 @@ def _selected_field(bundle: StandardizedModelVisualization, spec: ModelVisualiza
 def _selected_paths(bundle: StandardizedModelVisualization, spec: ModelVisualizationGallerySpec) -> tuple[ModelVisualPath, ...]:
   if not spec.path_ids:
     return bundle.paths
+  ####
   by_id = {path.path_id: path for path in bundle.paths}
   missing = tuple(path_id for path_id in spec.path_ids if path_id not in by_id)
   if missing:
     raise KeyError(f'unknown model visualization path(s): {missing!r}')
+  ####
   return tuple(by_id[path_id] for path_id in spec.path_ids)
 ####
 
@@ -341,6 +367,8 @@ def _mesh(bundle: StandardizedModelVisualization, radial_segments: int) -> tuple
         float(section.center_m[1] + offset[1]),
         float(section.center_m[2] + offset[2]),
       ))
+    ####
+  ####
   for section_index in range(len(sections) - 1):
     first = section_index * radial_segments
     second = (section_index + 1) * radial_segments
@@ -349,6 +377,8 @@ def _mesh(bundle: StandardizedModelVisualization, radial_segments: int) -> tuple
       a, b, c, d = first + radial_index, first + next_index, second + radial_index, second + next_index
       faces.extend(((a, c, b), (b, c, d)))
       face_sections.extend((section_index, section_index))
+    ####
+  ####
   return tuple(vertices), tuple(faces), tuple(face_sections)
 ####
 
@@ -356,6 +386,7 @@ def _mesh(bundle: StandardizedModelVisualization, radial_segments: int) -> tuple
 def _bounds(points: Sequence[tuple[float, float, float]]) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
   if not points:
     return (0.0, 0.0, 0.0), (1.0, 1.0, 1.0)
+  ####
   lower = (
     min(point[0] for point in points),
     min(point[1] for point in points),
@@ -416,11 +447,13 @@ def _render_plots(
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
   except ImportError as error:
     raise RuntimeError('model visualization galleries require the optional plot dependency: pip install .[plot]') from error
+  ####
 
   vertices, faces, face_sections = _mesh(bundle, spec.radial_segments)
   channel = None
   if bundle.section_channels:
     channel = bundle.section_channels[0]
+  ####
   colors: Any = '#4c78a8'
   normalizer: Any | None = None
   if channel is not None:
@@ -428,6 +461,7 @@ def _render_plots(
     normalizer = Normalize(vmin=minimum, vmax=maximum if maximum > minimum else minimum + 1.0)
     cmap = plt.get_cmap(spec.color_map)
     colors = [cmap(normalizer(channel.values[index])) for index in face_sections]
+  ####
 
   overview_path = output / 'model_overview.png'
   figure = plt.figure(figsize=(8.5, 6.5))
@@ -447,6 +481,7 @@ def _render_plots(
   axis.scatter([selected_center[0]], [selected_center[1]], [selected_center[2]], color='crimson', s=32, label=f'station {station_index}')
   for path in selected_paths:
     axis.plot([point[0] for point in path.points_m], [point[1] for point in path.points_m], [point[2] for point in path.points_m], linewidth=1.0, label=path.path_id)
+  ####
   _set_3d_bounds(axis, vertices + centerline + tuple(point for path in selected_paths for point in path.points_m))
   axis.set_xlabel('x [m]')
   axis.set_ylabel('y [m]')
@@ -454,6 +489,7 @@ def _render_plots(
   axis.legend(loc='upper left', fontsize=7)
   if normalizer is not None and channel is not None:
     figure.colorbar(plt.cm.ScalarMappable(norm=normalizer, cmap=spec.color_map), ax=axis, label=f'{channel.channel_id} [{channel.unit}]')
+  ####
   _save(figure, overview_path, title='Standardized model-lane overview', bundle=bundle, spec=spec)
   plt.close(figure)
 
@@ -467,10 +503,12 @@ def _render_plots(
     target.scatter([selected_center[first]], [selected_center[second]], color='crimson', s=30)
     for path in selected_paths:
       target.plot([point[first] for point in path.points_m], [point[second] for point in path.points_m], linewidth=0.9, label=path.path_id)
+    ####
     target.set_xlabel(f'{axis_names[first]} [m]')
     target.set_ylabel(f'{axis_names[second]} [m]')
     target.set_title(f'{name} projection')
     _set_equal(target)
+  ####
   cross_axis: Any = axes[1, 1]
   section = bundle.sectioned_tube.sections[station_index]
   theta = tuple(2.0 * pi * index / 128.0 for index in range(129))
@@ -499,12 +537,18 @@ def _render_plots(
       if spec.x_scale is AxisScale.LOG10:
         if any(value <= 0.0 for value in arc_length):
           raise ValueError('log10 x-axis requires positive model arc lengths')
+        ####
         target.set_xscale('log')
+      ####
       if spec.y_scale is AxisScale.LOG10:
         if any(value <= 0.0 for value in item.values):
           raise ValueError(f'log10 y-axis requires positive values for {item.channel_id!r}')
+        ####
         target.set_yscale('log')
+      ####
+    ####
     channel_axes[-1, 0].set_xlabel('arc length [m]')
+  ####
   _save(figure, channels_path, title='Standardized model-lane channels', bundle=bundle, spec=spec)
   plt.close(figure)
 
@@ -521,12 +565,15 @@ def _render_plots(
     if finite_values:
       field_normalizer = Normalize(vmin=min(finite_values), vmax=max(finite_values) if max(finite_values) > min(finite_values) else min(finite_values) + 1.0)
       field_cmap = plt.get_cmap(spec.color_map)
+    ####
     for index, polygon in enumerate(selected_field.polygons_xr_m):
       value = values[index] if index < len(values) else None
       color = '#bdbdbd' if value is None or field_normalizer is None or field_cmap is None else field_cmap(field_normalizer(value))
       axis.fill([point[0] for point in polygon], [point[1] for point in polygon], facecolor=color, edgecolor='#555555', linewidth=0.6, alpha=0.78)
+    ####
     for path in selected_paths:
       axis.plot([point[0] for point in path.points_m], [point[1] for point in path.points_m], linewidth=1.1, label=path.path_id)
+    ####
     axis.set_xlabel('x [m]')
     axis.set_ylabel('r / y [m]')
     axis.set_title(f'{selected_field.field_id}: {selected_field.semantic}' + (f' — {spec.field_channel_id}' if spec.field_channel_id else ''))
@@ -534,8 +581,11 @@ def _render_plots(
     field_channel_id = spec.field_channel_id
     if field_normalizer is not None and field_cmap is not None and field_channel_id is not None:
       figure.colorbar(plt.cm.ScalarMappable(norm=field_normalizer, cmap=spec.color_map), ax=axis, label=f'{field_channel_id} [{selected_field.channel_units[field_channel_id]}]')
+    ####
     if selected_paths:
       axis.legend(loc='best', fontsize=8)
+    ####
+  ####
   _save(figure, fields_path, title='Standardized model-lane fields and paths', bundle=bundle, spec=spec)
   plt.close(figure)
 
@@ -564,10 +614,12 @@ def write_model_gallery_manifest(
 def _coerce_model_lane(value: ModelVisualizationLane | str) -> ModelVisualizationLane:
   if isinstance(value, ModelVisualizationLane):
     return value
+  ####
   try:
     return ModelVisualizationLane(value)
   except (TypeError, ValueError) as error:
     raise ValueError(f'unknown model visualization lane: {value!r}') from error
+  ####
 ####
 
 
@@ -579,29 +631,38 @@ def _normalize_gallery_bundles(
     entries = tuple(bundles.items())
   else:
     entries = tuple((None, bundle) for bundle in bundles)
+  ####
   if not entries:
     raise ValueError('model visualization gallery set requires at least one bundle')
+  ####
   normalized: dict[ModelVisualizationLane, StandardizedModelVisualization] = {}
   for key, bundle in entries:
     if not isinstance(bundle, StandardizedModelVisualization):
       raise TypeError('gallery set bundles must be StandardizedModelVisualization values')
+    ####
     lane = bundle.lane if key is None else _coerce_model_lane(key)
     if key is not None and lane is not bundle.lane:
       raise ValueError(
         f'gallery set key {lane.value!r} does not match bundle lane {bundle.lane.value!r}'
       )
+    ####
     if lane in normalized:
       raise ValueError(f'duplicate model visualization lane: {lane.value}')
+    ####
     normalized[lane] = bundle
+  ####
   missing = tuple(lane.value for lane in MODEL_VISUALIZATION_LANES if lane not in normalized)
   unexpected = tuple(lane.value for lane in normalized if lane not in MODEL_VISUALIZATION_LANES)
   if missing or unexpected:
     details = []
     if missing:
       details.append(f'missing={missing!r}')
+    ####
     if unexpected:
       details.append(f'unexpected={unexpected!r}')
+    ####
     raise ValueError('gallery set requires exactly the five model lanes: ' + ', '.join(details))
+  ####
   return normalized
 ####
 
@@ -612,17 +673,22 @@ def _normalize_gallery_specs(
 ) -> dict[ModelVisualizationLane, ModelVisualizationGallerySpec]:
   if specs is None:
     return {}
+  ####
   normalized: dict[ModelVisualizationLane, ModelVisualizationGallerySpec] = {}
   for key, spec in specs.items():
     lane = _coerce_model_lane(key)
     if lane in normalized:
       raise ValueError(f'duplicate model gallery spec lane: {lane.value}')
+    ####
     if not isinstance(spec, ModelVisualizationGallerySpec):
       raise TypeError('gallery set specs must be ModelVisualizationGallerySpec values')
+    ####
     if lane not in bundles:
       raise ValueError(f'model gallery spec has no matching bundle: {lane.value}')
+    ####
     spec.validate_for_bundle(bundles[lane])
     normalized[lane] = spec
+  ####
   return normalized
 ####
 
@@ -635,6 +701,7 @@ def write_model_gallery_set_manifest(
 
   if not isinstance(manifest, ModelVisualizationGallerySetManifest):
     raise TypeError('manifest must be ModelVisualizationGallerySetManifest')
+  ####
   output = manifest.manifest_path if path is None else Path(path)
   output.parent.mkdir(parents=True, exist_ok=True)
   output.write_text(manifest.canonical_json(), encoding='utf-8')
@@ -658,6 +725,7 @@ def render_model_visualization_gallery_set(
 
   if not isinstance(render_plots, bool):
     raise TypeError('render_plots must be bool')
+  ####
   normalized = _normalize_gallery_bundles(bundles)
   normalized_specs = _normalize_gallery_specs(specs, normalized)
   output = Path(output_dir)
@@ -672,6 +740,7 @@ def render_model_visualization_gallery_set(
       render_plots=render_plots,
     )
     manifests.append(lane_manifest)
+  ####
   manifest = ModelVisualizationGallerySetManifest(
     schema=MODEL_GALLERY_SET_MANIFEST_SCHEMA,
     lane_manifests=tuple(manifests),
@@ -699,8 +768,10 @@ def render_model_visualization_gallery(
 
   if not isinstance(bundle, StandardizedModelVisualization):
     raise TypeError('bundle must be StandardizedModelVisualization')
+  ####
   if not isinstance(render_plots, bool):
     raise TypeError('render_plots must be bool')
+  ####
   resolved = spec or ModelVisualizationGallerySpec.for_bundle(bundle)
   resolved.validate_for_bundle(bundle)
   output = Path(output_dir)
@@ -725,6 +796,7 @@ def render_model_visualization_gallery(
   ]
   if render_plots:
     artifacts.extend(_render_plots(bundle, resolved, output, station_index, selected_field, selected_paths))
+  ####
   guardrails = (
     'model-lane gallery is an evaluation surface and does not create a new product capability',
     'shock diamonds, regions, endpoints, and paths are shown only when explicitly retained by the model bundle',

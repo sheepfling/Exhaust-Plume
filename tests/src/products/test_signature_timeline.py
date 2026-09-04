@@ -39,6 +39,7 @@ def _request() -> SpectralSignatureRequest:
         ),
         wavelengths_m=(1.0e-6, 2.0e-6),
     )
+####
 
 
 def _definition() -> SignatureTableDefinition:
@@ -55,6 +56,7 @@ def _definition() -> SignatureTableDefinition:
         asset_id="signature-timeline-test",
         operating_point_id="showcase",
     )
+####
 
 
 def _timeline() -> SignatureTimeline:
@@ -75,6 +77,7 @@ def _timeline() -> SignatureTimeline:
             for time_s in (0.0, 2.0)
         )
     )
+####
 
 
 def test_direction_projection_uses_declared_azimuth_elevation_convention() -> None:
@@ -86,6 +89,7 @@ def test_direction_projection_uses_declared_azimuth_elevation_convention() -> No
     assert north.azimuth_deg == pytest.approx(90.0)
     assert zenith.azimuth_deg == pytest.approx(0.0)
     assert zenith.elevation_deg == pytest.approx(90.0)
+####
 
 
 def test_angular_heatmap_keeps_exact_time_samples_and_missing_bins() -> None:
@@ -105,6 +109,8 @@ def test_angular_heatmap_keeps_exact_time_samples_and_missing_bins() -> None:
     assert heatmap.cell_at(0, 0).mean_spectral_radiant_intensity_w_sr_m is None
     with pytest.raises(SignatureTimelineSelectionError, match="exact signature timeline sample"):
         build_signature_angular_heatmap(timeline, time_s=1.0, wavelength_index=0)
+    ####
+####
 
 
 def test_direction_series_and_source_trajectory_retain_source_result_lineage() -> None:
@@ -119,6 +125,7 @@ def test_direction_series_and_source_trajectory_retain_source_result_lineage() -
     assert len(series.result_ids) == 2
     assert trajectory.frame_id == "world"
     assert trajectory.positions_m == ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+####
 
 
 def test_point_query_returns_exact_value_and_source_lineage() -> None:
@@ -138,6 +145,7 @@ def test_point_query_returns_exact_value_and_source_lineage() -> None:
     assert query.spectral_radiant_intensity_w_sr_m == pytest.approx(12.0)
     assert query.valid is True
     assert query.status.code is SampleStatusCode.OK
+####
 
 
 def test_point_query_masks_invalid_wire_placeholders_and_rejects_nonexact_time() -> None:
@@ -177,6 +185,8 @@ def test_point_query_masks_invalid_wire_placeholders_and_rejects_nonexact_time()
     assert query.status.code is SampleStatusCode.OUTSIDE_APPLICABILITY
     with pytest.raises(SignatureTimelineSelectionError, match="exact signature timeline sample"):
         invalid_timeline.query_at(time_s=1.0, direction_index=2, wavelength_index=1)
+    ####
+####
 
 
 def test_heatmap_keeps_invalid_direction_samples_out_of_display_aggregate() -> None:
@@ -221,6 +231,7 @@ def test_heatmap_keeps_invalid_direction_samples_out_of_display_aggregate() -> N
     assert selected_cell.valid_direction_indices == (4,)
     assert selected_cell.invalid_direction_indices == (2,)
     assert selected_cell.mean_spectral_radiant_intensity_w_sr_m == pytest.approx(8.0)
+####
 
 
 def test_timeline_rejects_changed_direction_or_wavelength_axes() -> None:
@@ -233,3 +244,5 @@ def test_timeline_rejects_changed_direction_or_wavelength_axes() -> None:
 
     with pytest.raises(ValueError, match="one wavelength axis"):
         SignatureTimeline((timeline.samples[0], changed_sample))
+    ####
+####

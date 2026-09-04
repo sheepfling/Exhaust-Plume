@@ -25,6 +25,7 @@ def _definition() -> GrayRayTransferDefinition:
     source_function_w_sr_m=(2.0, 4.0, 8.0),
     absorption_coefficient_per_m=(0.5, 1.0, 2.0),
   )
+####
 
 
 def _request() -> SpectralRayTransferRequest:
@@ -36,6 +37,7 @@ def _request() -> SpectralRayTransferRequest:
     ray_t_max_m=(10.0, 10.0, 10.0),
     wavelengths_m=(1.5e-6, 2.5e-6),
   )
+####
 
 
 def _ray_result():
@@ -50,6 +52,7 @@ def _ray_result():
     ambient_state={},
   )
   return snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, _request())
+####
 
 
 def _integration() -> FarFieldRayIntegration:
@@ -59,6 +62,7 @@ def _integration() -> FarFieldRayIntegration:
     ray_direction_indices=(0, 0, 1),
     ray_projected_area_weights_m2=(0.25, 0.75, 1.0),
   )
+####
 
 
 def test_far_field_from_rays_integrates_projected_area_and_preserves_lineage() -> None:
@@ -76,6 +80,7 @@ def test_far_field_from_rays_integrates_projected_area_and_preserves_lineage() -
   assert signature.metadata.claims.consistency.value == 'co_generated'
   assert signature.metadata.provenance.metadata['source_term'] == 'source_spectral_radiance only; background excluded'
   assert signature.metadata.provenance.metadata['wavelength_grid_digest_sha256']
+####
 
 
 def test_far_field_from_rays_is_deterministic_and_keeps_gray_claim_ceiling() -> None:
@@ -87,6 +92,7 @@ def test_far_field_from_rays_is_deterministic_and_keeps_gray_claim_ceiling() -> 
   assert first.model_dump(mode='json') == second.model_dump(mode='json')
   assert first.metadata.claims.radiation.value == 'gray_approximate'
   assert first.metadata.applicability.status.value == 'inside'
+####
 
 
 def test_far_field_from_rays_rejects_request_or_weight_mismatch() -> None:
@@ -114,6 +120,8 @@ def test_far_field_from_rays_rejects_request_or_weight_mismatch() -> None:
         ray_projected_area_weights_m2=(1.0,),
       ),
     )
+  ####
+####
 
 
 def test_far_field_from_rays_can_preserve_an_invalid_partial_direction() -> None:
@@ -156,8 +164,11 @@ def test_far_field_from_rays_can_preserve_an_invalid_partial_direction() -> None
   assert signature.spectral_radiant_intensity[1] == (0.0, 0.0)
   assert signature.direction_status[1].code is SampleStatusCode.BACKEND_FAILURE
   assert signature.metadata.applicability.status.value == 'marginal'
+####
 
 
 def test_far_field_from_rays_requires_the_canonical_result_type() -> None:
   with pytest.raises(TypeError, match='ray_result'):
     far_field_from_rays(_request(), object(), _integration())
+  ####
+####

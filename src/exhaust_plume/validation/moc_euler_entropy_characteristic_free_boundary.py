@@ -60,6 +60,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus(
   )
   STATUS_FAILURE = 'entropy_characteristic_free_boundary_status_failure'
   FLAG_FAILURE = 'entropy_characteristic_free_boundary_flag_failure'
+####
 
 
 def _state_matches(
@@ -86,6 +87,8 @@ def _state_matches(
     )
   except (AttributeError, TypeError, ValueError):
     return False
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,9 +130,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
         'status must be a '
         'MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus'
       )
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     for name in (
       'result_status',
@@ -141,6 +146,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
       value = getattr(self, name)
       if value is not None and not isinstance(value, str):
         raise TypeError(f'{name} must be a string or None')
+      ####
+    ####
     if self.field_audit is not None and not isinstance(
       self.field_audit,
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit,
@@ -149,6 +156,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
         'field_audit must be a '
         'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit or None'
       )
+    ####
     if self.physical_field_euler_audit is not None and not isinstance(
       self.physical_field_euler_audit,
       MocPhysicalFieldEulerAudit,
@@ -156,6 +164,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
       raise TypeError(
         'physical_field_euler_audit must be a MocPhysicalFieldEulerAudit or None'
       )
+    ####
     for name in (
       'shock_sample_count',
       'covered_sample_count',
@@ -164,6 +173,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.first_missing_sample_index is not None and (
       isinstance(self.first_missing_sample_index, bool)
       or not isinstance(self.first_missing_sample_index, int)
@@ -172,14 +183,18 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
       raise ValueError(
         'first_missing_sample_index must be a nonnegative integer or None'
       )
+    ####
     for name in ('maximum_state_residual', 'maximum_pressure_residual'):
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'incoming_handoff_verified',
       'path_coverage_verified',
@@ -193,7 +208,10 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -203,6 +221,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
       .CONVERGED_LOCAL_CLOSED_AUDIT,
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -226,6 +245,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
       and self.external_validation_required
       and self.fidelity_flags_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -261,6 +281,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAudit:
       'termination_reason': self.termination_reason,
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -319,6 +341,7 @@ def _failure(
     termination_reason=termination_reason,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
@@ -340,6 +363,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       .INVALID_INPUT,
       'result must be a MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult',
     )
+  ####
   tolerances = (
     float(position_tolerance_m),
     float(state_tolerance),
@@ -348,6 +372,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
   )
   if not all(isfinite(value) and value > 0.0 for value in tolerances):
     raise ValueError('free-boundary audit tolerances must be finite and positive')
+  ####
   field = result.field
   if field is None:
     return _failure(
@@ -356,6 +381,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       'free-boundary result did not retain its entropy-characteristic field',
       result_status=result.status.value,
     )
+  ####
   field_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
     field,
     position_tolerance_m=position_tolerance_m,
@@ -370,6 +396,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       attachment_status=result.attachment_status,
       field_audit=field_audit,
     )
+  ####
   incoming_handoff_verified = result.incoming_handoff == field.continuation_boundary
   if not incoming_handoff_verified:
     return _failure(
@@ -381,6 +408,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       attachment_status=result.attachment_status,
       field_audit=field_audit,
     )
+  ####
   shock = result.shock
   shock_status = None if shock is None else shock.status.value
   attachment_status = result.attachment_status
@@ -408,6 +436,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
         if actual_state is None or actual_pressure is None:
           first_missing = index
           break
+        ####
         state_residuals.append(
           max(
             abs(actual_state.x_m - expected_state.x_m),
@@ -430,7 +459,9 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
         ):
           first_missing = index
           break
+        ####
         covered_count += 1
+      ####
     except (TypeError, ValueError):
       return _failure(
         MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
@@ -443,6 +474,8 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
         field_audit=field_audit,
         incoming_handoff_verified=True,
       )
+    ####
+  ####
   shock_sample_count = 0 if shock is None else len(shock.shock_points_m)
   if (
     shock is not None
@@ -450,6 +483,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
     and first_missing is None
   ):
     first_missing = shock.failed_sample_index
+  ####
   path_coverage_verified = bool(
     shock is not None
     and shock.converged
@@ -461,6 +495,8 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
     ambient_march = result.physical_field.ambient_attachment.ambient_march
     if ambient_march is not None:
       ambient_boundary_sample_count = len(ambient_march.boundary_samples)
+    ####
+  ####
 
   physical_field_euler_audit: MocPhysicalFieldEulerAudit | None = None
   physical_field = (
@@ -491,6 +527,8 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
         first_missing_sample_index=first_missing,
         ambient_boundary_sample_count=ambient_boundary_sample_count,
       )
+    ####
+  ####
   reflected_free_boundary_verified = bool(
     result.physical_field is not None
     and result.physical_field.physical_closure_verified
@@ -574,6 +612,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       'free-boundary result status does not match its retained path/closure evidence',
       **common,
     )
+  ####
   if not flags_verified:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
@@ -581,6 +620,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       'free-boundary result weakened its explicit non-promotion fidelity boundary',
       **common,
     )
+  ####
   if expected_boundary:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
@@ -588,6 +628,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       'independent audit confirmed the bounded reflected/free-boundary attempt stopped at the upstream field boundary',
       **common,
     )
+  ####
   if expected_closed:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
@@ -595,6 +636,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       'independent audit confirmed the local reflected physical field; external validation remains required',
       **common,
     )
+  ####
   if result.status is MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus.AMBIENT_ATTACHMENT_FAILURE:
     audit_status = (
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
@@ -610,8 +652,10 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_free_boundary(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
       .PATH_COVERAGE_FAILURE
     )
+  ####
   return _failure(
     audit_status,
     'free-boundary result did not pass the independent closure evidence gates',
     **common,
   )
+####

@@ -15,6 +15,7 @@ try:
   from scripts.verify_validation_corpus import load_manifest, verify_archive
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from verify_validation_corpus import load_manifest, verify_archive
+####
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +43,9 @@ def _load_semantic_crosswalk() -> tuple[dict[str, Any], ...]:
   entries = payload.get('entries')
   if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
     raise ValueError('operator semantic crosswalk must contain an entries list of objects')
+  ####
   return tuple(dict(entry) for entry in entries)
+####
 
 
 REVIEWED_SEMANTIC_CROSSWALKS = _load_semantic_crosswalk()
@@ -58,29 +61,38 @@ def _validate_semantic_crosswalk(committed_operator_ids: Iterable[str]) -> dict[
     if not isinstance(external_id, str) or not external_id:
       errors.append(f'crosswalk entry {index} has no external operator ID')
       continue
+    ####
     external_ids.append(external_id)
     internal_ids = entry.get('internal_operator_ids')
     if not isinstance(internal_ids, list) or not all(isinstance(item, str) for item in internal_ids):
       errors.append(f'crosswalk entry {external_id} has invalid internal_operator_ids')
       internal_ids = []
+    ####
     referenced_internal_ids.update(internal_ids)
     candidates = entry.get('candidate_internal_operator_ids', [])
     if not isinstance(candidates, list) or not all(isinstance(item, str) for item in candidates):
       errors.append(f'crosswalk entry {external_id} has invalid candidate_internal_operator_ids')
       candidates = []
+    ####
     referenced_internal_ids.update(candidates)
     if entry.get('mapping_kind') == 'no-safe-equivalent' and internal_ids:
       errors.append(f'no-safe-equivalent entry {external_id} has executable internal IDs')
+    ####
     if entry.get('claim_status') != 'not_accepted':
       errors.append(f'crosswalk entry {external_id} does not retain not_accepted claim status')
+    ####
     for field in ('mapping_kind', 'review_status', 'scope', 'unresolved_differences'):
       if field not in entry:
         errors.append(f'crosswalk entry {external_id} is missing {field}')
+      ####
+    ####
+  ####
   duplicates = sorted({external_id for external_id in external_ids if external_ids.count(external_id) > 1})
   errors.extend(f'duplicate crosswalk external operator ID: {external_id}' for external_id in duplicates)
   unknown_internal_ids = sorted(referenced_internal_ids - committed_set)
   if unknown_internal_ids:
     errors.append(f'crosswalk references unknown internal operator IDs: {unknown_internal_ids!r}')
+  ####
   return {
     'entry_count': len(REVIEWED_SEMANTIC_CROSSWALKS),
     'external_operator_ids': sorted(set(external_ids)),
@@ -89,6 +101,7 @@ def _validate_semantic_crosswalk(committed_operator_ids: Iterable[str]) -> dict[
     'errors': errors,
     'status': 'valid' if not errors else 'invalid',
   }
+####
 
 
 def _resolve_member(archive: ZipFile, relative_path: str) -> str:
@@ -98,22 +111,28 @@ def _resolve_member(archive: ZipFile, relative_path: str) -> str:
   )
   if len(candidates) != 1:
     raise ValueError(f'expected one archive member ending in {relative_path!r}, found {candidates!r}')
+  ####
   return candidates[0]
+####
 
 
 def _read_json(archive: ZipFile, relative_path: str) -> Any:
   return json.loads(archive.read(_resolve_member(archive, relative_path)).decode('utf-8'))
+####
 
 
 def _read_csv(archive: ZipFile, relative_path: str) -> list[dict[str, str]]:
   content = archive.read(_resolve_member(archive, relative_path)).decode('utf-8')
   return list(csv.DictReader(io.StringIO(content)))
+####
 
 
 def _records(value: Any, *, name: str) -> list[Mapping[str, Any]]:
   if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
     raise ValueError(f'{name} must be a list of objects')
+  ####
   return value
+####
 
 
 def reconcile_operator_ids(
@@ -154,11 +173,13 @@ def reconcile_operator_ids(
     'scoped_reviewed_external_only': sorted(external_set & reviewed_external_ids),
     'unreviewed_external_only': sorted(external_set - reviewed_external_ids),
   }
+####
 
 
 def _cross_product_rule_key(record: Mapping[str, Any]) -> tuple[tuple[str, ...], str, str]:
   source_ids = tuple(sorted(str(item) for item in record.get('source_product_ids', ())))
   return source_ids, str(record.get('target_product_id')), str(record.get('disposition'))
+####
 
 
 def _validate_alignment_records(
@@ -171,24 +192,32 @@ def _validate_alignment_records(
   product_ids = {str(record.get('product_id')) for record in product_definitions}
   if product_ids != PRIMARY_PRODUCTS:
     errors.append(f'primary product IDs differ: {sorted(product_ids)!r}')
+  ####
   if len(alignment_records) != 78:
     errors.append(f'expected 78 alignment records, found {len(alignment_records)}')
+  ####
   if len(cross_product_rules) != 7:
     errors.append(f'expected 7 cross-product rules, found {len(cross_product_rules)}')
+  ####
   if len(validation_gates) != 11:
     errors.append(f'expected 11 validation gates, found {len(validation_gates)}')
+  ####
 
   gate_eligible = [record for record in alignment_records if record.get('direct_product_gate_eligible')]
   for record in gate_eligible:
     if record.get('target_kind') != 'primary_product':
       errors.append(f"gate-eligible record {record.get('alignment_id')} does not target a primary product")
+    ####
     if not record.get('measurement_operator_id'):
       errors.append(f"gate-eligible record {record.get('alignment_id')} has no measurement operator")
+    ####
     if record.get('relationship') not in {
         'direct_product_observation',
         'measurement_space_product_observation',
     }:
       errors.append(f"gate-eligible record {record.get('alignment_id')} has an invalid relationship")
+    ####
+  ####
 
   rule_keys = {_cross_product_rule_key(record) for record in cross_product_rules}
   required_rules = {
@@ -201,11 +230,13 @@ def _validate_alignment_records(
   missing_rules = sorted(required_rules - rule_keys)
   if missing_rules:
     errors.append(f'missing required cross-product rules: {missing_rules!r}')
+  ####
 
   gate_statuses: dict[str, int] = {}
   for gate in validation_gates:
     status = str(gate.get('status'))
     gate_statuses[status] = gate_statuses.get(status, 0) + 1
+  ####
 
   return {
     'product_ids': sorted(product_ids),
@@ -217,6 +248,7 @@ def _validate_alignment_records(
     'errors': errors,
     'structure_status': 'valid' if not errors else 'invalid',
   }
+####
 
 
 def _verify_internal_checksums(archive: ZipFile) -> dict[str, Any]:
@@ -236,12 +268,15 @@ def _verify_internal_checksums(archive: ZipFile) -> dict[str, Any]:
     checked += 1
     if actual != expected:
       mismatches.append(relative)
+    ####
+  ####
   return {
     'checksum_entry_count': len(lines),
     'checked_file_count': checked,
     'mismatches': mismatches,
     'status': 'verified' if not mismatches and len(names) == len(lines) + 1 else 'invalid',
   }
+####
 
 
 def preflight_corpus(path: Path) -> dict[str, Any]:
@@ -267,6 +302,7 @@ def preflight_corpus(path: Path) -> dict[str, Any]:
       'errors': list(archive_check.errors),
     })
     return report
+  ####
 
   with ZipFile(path) as archive:
     benchmark_definitions = _records(_read_json(archive, 'data/benchmark_definitions.json'), name='benchmark_definitions')
@@ -296,6 +332,8 @@ def preflight_corpus(path: Path) -> dict[str, Any]:
     ):
       if actual != expected:
         count_errors.append(f'expected {expected} {name}, found {actual}')
+      ####
+    ####
     structure['errors'].extend(count_errors)
     report.update({
       'content_counts': {
@@ -312,13 +350,16 @@ def preflight_corpus(path: Path) -> dict[str, Any]:
         committed_operator_ids,
       ),
     })
+  ####
 
   errors = list(structure['errors'])
   checksum_status = report['internal_checksums']['status']
   if checksum_status != 'verified':
     errors.append('internal corpus checksums did not verify')
+  ####
   if report['operator_reconciliation']['semantic_crosswalk']['status'] != 'valid':
     errors.append('committed semantic operator crosswalk is invalid')
+  ####
   operator_status = report['operator_reconciliation']['semantic_crosswalk_status']
   report.update({
     'status': 'preflight-valid-pending-release-gates' if not errors else 'invalid-content',
@@ -332,6 +373,7 @@ def preflight_corpus(path: Path) -> dict[str, Any]:
   })
   report['release_blockers'] = [item for item in report['release_blockers'] if item is not None]
   return report
+####
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -343,9 +385,12 @@ def main(argv: list[str] | None = None) -> int:
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')
+  ####
   print(serialized, end='')
   return 0 if report['status'] == 'preflight-valid-pending-release-gates' else 1
+####
 
 
 if __name__ == '__main__':
   raise SystemExit(main())
+####

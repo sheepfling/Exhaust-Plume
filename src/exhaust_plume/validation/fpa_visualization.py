@@ -58,6 +58,7 @@ class FpaDisplayLayer(str, Enum):
   VALIDITY_MASK = 'validity_mask'
   SATURATED_MASK = 'saturated_mask'
   DETECTOR_RESPONSE = 'detector_response'
+####
 
 
 class FpaSourceReference(StrictFrozenModel):
@@ -121,6 +122,7 @@ class FpaSourceReference(StrictFrozenModel):
         },
         operator_chain=operator_chain,
       )
+    ####
     if not isinstance(result, SpectralRayTransferResult):
       raise TypeError('result must be a supported SpectralRayTransferResult')
     ####
@@ -282,7 +284,6 @@ class FpaVisualizationInput:
       width=self.image.width_px,
       field_name='validity_mask',
     )
-    ####
     if not self.claim_ceiling or not self.validation_status:
       raise ValueError('claim_ceiling and validation_status must not be empty')
     ####
@@ -338,6 +339,7 @@ class FpaVisualizationInput:
       ####
       if self.digitized.digitization_policy_id != self.digitization_policy.policy_id:
         raise ValueError('digitization policy identity must match digitized output')
+      ####
     ####
   ####
 
@@ -525,7 +527,6 @@ def project_fpa_view(
     raise TypeError('spec must be FpaVisualizationSpec')
   ####
   spec.validate_for_source(inputs.source)
-  ####
   if spec.display_layer is FpaDisplayLayer.DETECTOR_RESPONSE:
     if inputs.detector_response is None:
       raise ValueError('detector_response view requires explicit DetectorResponse')

@@ -49,6 +49,7 @@ class MocMixedRegimeEntropyTransportStatus(str, Enum):
   FIELD_FAILURE = 'entropy-transport-field-failure'
   MAPPING_FAILURE = 'entropy-transport-mapping-failure'
   RESIDUAL_FAILURE = 'entropy-transport-residual-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +90,7 @@ class MocMixedRegimeEntropyTransportResult:
       raise TypeError(
         'status must be a MocMixedRegimeEntropyTransportStatus'
       )
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocMixedRegimePerimeterRequest,
@@ -96,6 +98,7 @@ class MocMixedRegimeEntropyTransportResult:
       raise TypeError(
         'request must be a MocMixedRegimePerimeterRequest or None'
       )
+    ####
     if self.handoff is not None and not isinstance(
       self.handoff,
       MocMixedRegimeEntropyHandoffResult,
@@ -103,6 +106,7 @@ class MocMixedRegimeEntropyTransportResult:
       raise TypeError(
         'handoff must be a MocMixedRegimeEntropyHandoffResult or None'
       )
+    ####
     if self.field is not None and not isinstance(
       self.field,
       MocMixedRegimeFieldResult,
@@ -110,6 +114,7 @@ class MocMixedRegimeEntropyTransportResult:
       raise TypeError(
         'field must be a MocMixedRegimeFieldResult or None'
       )
+    ####
     try:
       source_arc = tuple(float(value) for value in self.streamline_source_arc_length_m)
       streamline_ids = tuple(self.streamline_ids)
@@ -120,10 +125,12 @@ class MocMixedRegimeEntropyTransportResult:
       raise ValueError(
         'entropy transport samples must contain numeric values'
       ) from error
+    ####
     if any(not isfinite(value) or value < 0.0 for value in source_arc):
       raise ValueError(
         'streamline_source_arc_length_m must contain finite nonnegative values'
       )
+    ####
     if any(
       isinstance(identifier, bool)
       or not isinstance(identifier, int)
@@ -133,10 +140,12 @@ class MocMixedRegimeEntropyTransportResult:
       raise ValueError(
         'streamline_ids must contain nonnegative integer identifiers'
       )
+    ####
     if any(not isfinite(value) or value <= 0.0 for value in transported):
       raise ValueError(
         'transported_total_pressure_Pa must contain finite positive values'
       )
+    ####
     if self.field is not None:
       node_count = self.field.node_count
       for name, values in (
@@ -148,6 +157,9 @@ class MocMixedRegimeEntropyTransportResult:
           raise ValueError(
             f'{name} must match the mixed-regime field node count'
           )
+        ####
+      ####
+    ####
     if self.terminal_node_index is not None:
       if (
         isinstance(self.terminal_node_index, bool)
@@ -159,6 +171,8 @@ class MocMixedRegimeEntropyTransportResult:
         )
       ):
         raise ValueError('terminal_node_index must identify a field node')
+      ####
+    ####
     for name in (
       'maximum_total_pressure_residual_Pa',
       'maximum_entropy_coordinate_residual',
@@ -168,7 +182,10 @@ class MocMixedRegimeEntropyTransportResult:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     for name in (
       'field_boundary_verified',
       'source_profile_verified',
@@ -178,9 +195,12 @@ class MocMixedRegimeEntropyTransportResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     model = str(self.model)
     if not model:
       raise ValueError('model must be a non-empty string')
+    ####
     object.__setattr__(self, 'streamline_source_arc_length_m', source_arc)
     object.__setattr__(self, 'streamline_ids', streamline_ids)
     object.__setattr__(self, 'transported_total_pressure_Pa', transported)
@@ -259,6 +279,7 @@ class MocMixedRegimeEntropyTransportResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -296,6 +317,7 @@ def _failure(
     terminal_seam_verified=terminal_seam_verified,
     message=message,
   )
+####
 
 
 def solve_mixed_regime_entropy_transport_boundary(
@@ -323,12 +345,14 @@ def solve_mixed_regime_entropy_transport_boundary(
       MocMixedRegimeEntropyTransportStatus.INVALID_INPUT,
       message='request must be a MocMixedRegimePerimeterRequest',
     )
+  ####
   if not isinstance(handoff, MocMixedRegimeEntropyHandoffResult):
     return _failure(
       MocMixedRegimeEntropyTransportStatus.INVALID_INPUT,
       request=request,
       message='handoff must be a MocMixedRegimeEntropyHandoffResult',
     )
+  ####
   if not isinstance(field, MocMixedRegimeFieldResult):
     return _failure(
       MocMixedRegimeEntropyTransportStatus.INVALID_INPUT,
@@ -336,6 +360,7 @@ def solve_mixed_regime_entropy_transport_boundary(
       handoff=handoff,
       message='field must be a MocMixedRegimeFieldResult',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('source_arc_length_tolerance_m', source_arc_length_tolerance_m),
@@ -344,6 +369,8 @@ def solve_mixed_regime_entropy_transport_boundary(
     numeric = float(value)
     if not isfinite(numeric) or numeric <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   position_tolerance_m = float(position_tolerance_m)
   source_arc_length_tolerance_m = float(source_arc_length_tolerance_m)
   pressure_tolerance = float(pressure_tolerance)
@@ -355,6 +382,7 @@ def solve_mixed_regime_entropy_transport_boundary(
       field=field,
       message='entropy handoff must retain the exact mixed-regime request',
     )
+  ####
   if not handoff.converged or not handoff.entropy_transport_verified:
     return _failure(
       MocMixedRegimeEntropyTransportStatus.HANDOFF_FAILURE,
@@ -366,6 +394,7 @@ def solve_mixed_regime_entropy_transport_boundary(
         f'{handoff.message}'
       ),
     )
+  ####
   if not field.converged:
     return _failure(
       MocMixedRegimeEntropyTransportStatus.FIELD_FAILURE,
@@ -374,6 +403,7 @@ def solve_mixed_regime_entropy_transport_boundary(
       field=field,
       message='entropy transport requires a converged scalar mixed-regime field',
     )
+  ####
   boundary = field.boundary
   field_boundary_verified = bool(
     boundary.converged
@@ -397,6 +427,7 @@ def solve_mixed_regime_entropy_transport_boundary(
         'and finite scalar nodes'
       ),
     )
+  ####
   try:
     source_arc = tuple(
       float(value) for value in streamline_source_arc_length_m
@@ -410,6 +441,7 @@ def solve_mixed_regime_entropy_transport_boundary(
       field=field,
       message=f'entropy transport mapping is not numeric: {error}',
     )
+  ####
   if len(source_arc) != field.node_count or len(identifiers) != field.node_count:
     return _failure(
       MocMixedRegimeEntropyTransportStatus.MAPPING_FAILURE,
@@ -423,6 +455,7 @@ def solve_mixed_regime_entropy_transport_boundary(
         f'identifier per field node (expected {field.node_count})'
       ),
     )
+  ####
   if any(
     not isfinite(value) for value in source_arc
   ) or any(
@@ -443,6 +476,7 @@ def solve_mixed_regime_entropy_transport_boundary(
         'nonnegative integer streamline identifiers'
       ),
     )
+  ####
   arc = handoff.cumulative_arc_length_m
   if len(arc) < 2:
     return _failure(
@@ -454,6 +488,7 @@ def solve_mixed_regime_entropy_transport_boundary(
       streamline_ids=identifiers,
       message='entropy handoff does not expose a usable arc-length interval',
     )
+  ####
   if any(
     coordinate < arc[0] - source_arc_length_tolerance_m
     or coordinate > arc[-1] + source_arc_length_tolerance_m
@@ -472,9 +507,11 @@ def solve_mixed_regime_entropy_transport_boundary(
         'arc; extrapolation is disabled'
       ),
     )
+  ####
   group_coordinates: dict[int, list[float]] = {}
   for identifier, coordinate in zip(identifiers, source_arc, strict=True):
     group_coordinates.setdefault(identifier, []).append(coordinate)
+  ####
   streamline_assignment_verified = bool(
     group_coordinates
     and all(
@@ -499,6 +536,7 @@ def solve_mixed_regime_entropy_transport_boundary(
         'one common shock-interface source coordinate'
       ),
     )
+  ####
   transported: list[float] = []
   pressure_residuals: list[float] = []
   entropy_residuals: list[float] = []
@@ -511,6 +549,7 @@ def solve_mixed_regime_entropy_transport_boundary(
       entropy_residuals.append(
         abs(log(carried_pressure / sample.total_pressure_Pa))
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocMixedRegimeEntropyTransportStatus.HANDOFF_FAILURE,
@@ -524,6 +563,7 @@ def solve_mixed_regime_entropy_transport_boundary(
       streamline_assignment_verified=streamline_assignment_verified,
       message=f'could not interpolate the carried entropy profile: {error}',
     )
+  ####
   terminal_index = next(
     (
       index
@@ -594,3 +634,4 @@ def solve_mixed_regime_entropy_transport_boundary(
       'lineage'
     ),
   )
+####

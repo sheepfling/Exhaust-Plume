@@ -51,6 +51,7 @@ def _observation(
     upstream_total_pressure_Pa=(2.0e6,) * len(shock),
     downstream_total_pressure_Pa=(1.8e6,) * len(shock),
   )
+####
 
 
 def _chain():
@@ -59,6 +60,7 @@ def _chain():
   )
   assert result.converged
   return result
+####
 
 
 def _promotion_policy(
@@ -73,6 +75,7 @@ def _promotion_policy(
     ),
     require_exact_cell_indices=require_exact_cell_indices,
   )
+####
 
 
 def _dataset(
@@ -112,6 +115,7 @@ def _dataset(
         centerline_end_x_uncertainty_m=0.1,
       ),
     )
+  ####
   return MocShockCellExternalDataset(
     dataset_id=dataset_id,
     case_id=case_id,
@@ -122,6 +126,7 @@ def _dataset(
     coordinate_frame=metadata.get('coordinate_frame', 'axial-transverse-m'),
     units=metadata.get('units', 'm'),
   )
+####
 
 
 def test_external_comparison_uses_exact_cell_indices_and_uncertainties() -> None:
@@ -138,6 +143,7 @@ def test_external_comparison_uses_exact_cell_indices_and_uncertainties() -> None
   )
   assert result.claim_status == 'not_accepted'
   assert 'canonical reflected-MOC closure' in result.reason
+####
 
 
 def test_external_comparison_reports_partial_coverage_without_extrapolation() -> None:
@@ -160,6 +166,7 @@ def test_external_comparison_reports_partial_coverage_without_extrapolation() ->
   assert result.feature_comparisons[0].feature is MocShockCellExternalFeature.AXIAL_LENGTH_M
   assert result.feature_comparisons[0].matched_cell_indices == (1,)
   assert 'not filled' in result.reason
+####
 
 
 def test_external_comparison_blocks_unsupported_coordinate_metadata() -> None:
@@ -171,6 +178,7 @@ def test_external_comparison_blocks_unsupported_coordinate_metadata() -> None:
   assert result.status is MocShockCellExternalComparisonStatus.BLOCKED_COORDINATE_METADATA
   assert not result.computed
   assert 'no coordinate conversion' in result.reason
+####
 
 
 def test_external_split_audit_requires_disjoint_calibration_and_validation_cases() -> None:
@@ -197,17 +205,21 @@ def test_external_split_audit_requires_disjoint_calibration_and_validation_cases
 
   missing = audit_moc_external_validation_splits((validation,))
   assert missing.status is MocExternalValidationSplitAuditStatus.MISSING_SPLIT
+####
 
 
 def test_external_observation_rejects_empty_feature_records() -> None:
   with pytest.raises(ValueError, match='at least one external shock-cell feature'):
     MocShockCellExternalObservation(cell_index=1)
+  ####
 
   with pytest.raises(ValueError, match='cannot be supplied without'):
     MocShockCellExternalObservation(
       cell_index=1,
       axial_length_uncertainty_m=0.1,
     )
+  ####
+####
 
 
 def test_external_promotion_review_blocks_without_indexed_observations() -> None:
@@ -223,6 +235,7 @@ def test_external_promotion_review_blocks_without_indexed_observations() -> None
   assert review.chain_promotion_allowed is False
   assert review.product_claim_allowed is False
   assert review.split_audit.verified is False
+####
 
 
 def test_external_promotion_review_requires_explicit_split_and_residual_policy() -> None:
@@ -261,6 +274,7 @@ def test_external_promotion_review_requires_explicit_split_and_residual_policy()
     MocShockCellExternalPromotionReviewStatus.BLOCKED_TOLERANCE_CONFIGURATION
   )
   assert missing_tolerance.missing_tolerances == tuple(MocShockCellExternalFeature)
+####
 
 
 def test_external_promotion_review_keeps_partial_index_coverage_non_promotable() -> None:
@@ -290,3 +304,4 @@ def test_external_promotion_review_keeps_partial_index_coverage_non_promotable()
   assert review.status is MocShockCellExternalPromotionReviewStatus.BLOCKED_COVERAGE
   assert review.converged is False
   assert review.chain_promotion_allowed is False
+####

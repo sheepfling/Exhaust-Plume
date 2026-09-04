@@ -55,6 +55,7 @@ class MocCausticFamilyRestartStatus(str, Enum):
   CENTERLINE_FAILURE = 'caustic_restart_centerline_failure'
   AMBIENT_BOUNDARY_FAILURE = 'caustic_restart_ambient_boundary_failure'
   BAND_FAILURE = 'caustic_restart_family_band_failure'
+####
 
 
 class MocCausticFamilyBandStatus(str, Enum):
@@ -64,6 +65,7 @@ class MocCausticFamilyBandStatus(str, Enum):
   INVALID_INPUT = 'invalid_input'
   GEOMETRY_FAILURE = 'caustic_family_band_geometry_failure'
   TOPOLOGY_FAILURE = 'caustic_family_band_topology_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,16 +98,19 @@ class MocCausticFamilyBandResult:
       raise ValueError(
         'caustic family band anchor point and state must be supplied together'
       )
+    ####
     if self.anchor_point_m is not None:
       if len(self.anchor_point_m) != 2 or not all(
         isfinite(float(value)) for value in self.anchor_point_m
       ):
         raise ValueError('caustic family band anchor point must be finite')
+      ####
       assert self.anchor_state is not None
       if not isinstance(self.anchor_state, CharacteristicState):
         raise TypeError(
           'caustic family band anchor state must be a CharacteristicState'
         )
+      ####
       if (
         abs(self.anchor_state.x_m - float(self.anchor_point_m[0])) > 1.0e-10
         or abs(self.anchor_state.y_m - float(self.anchor_point_m[1])) > 1.0e-10
@@ -113,26 +118,33 @@ class MocCausticFamilyBandResult:
         raise ValueError(
           'caustic family band anchor state must lie on its anchor point'
         )
+      ####
+    ####
     if self.anchor_to_input_min_forward_progress_m is not None and not isfinite(
       float(self.anchor_to_input_min_forward_progress_m)
     ):
       raise ValueError(
         'caustic family band anchor progress must be finite when supplied'
       )
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocCausticFamilyBandStatus.CONVERGED_OPEN_BAND
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The band has no shock or downstream physical termination."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def anchor_wedge_verified(self) -> bool:
@@ -146,6 +158,7 @@ class MocCausticFamilyBandResult:
       or len(self.boundary_states) < 1
     ):
       return False
+    ####
     expected_vertices = (
       self.anchor_point_m,
       (self.centerline_states[0].x_m, self.centerline_states[0].y_m),
@@ -154,8 +167,10 @@ class MocCausticFamilyBandResult:
     for cell in self.cells:
       if cell.cell_kind != 'caustic-restart-anchor-wedge':
         continue
+      ####
       if len(cell.vertices_xr_m) != len(expected_vertices):
         continue
+      ####
       if all(
         abs(actual - expected) <= 1.0e-10
         for actual_point, expected_point in zip(
@@ -166,7 +181,10 @@ class MocCausticFamilyBandResult:
         for actual, expected in zip(actual_point, expected_point, strict=True)
       ):
         return True
+      ####
+    ####
     return False
+  ####
 
   @property
   def caustic_handoff_verified(self) -> bool:
@@ -183,12 +201,14 @@ class MocCausticFamilyBandResult:
       or not self.anchor_wedge_verified
     ):
       return False
+    ####
     if any(
       len(point) != 2
       or any(not isfinite(float(value)) for value in point)
       for point in self.input_edge_points_m
     ):
       return False
+    ####
     expected_input_edge = (
       (self.centerline_states[0].x_m, self.centerline_states[0].y_m),
       (self.boundary_states[0].x_m, self.boundary_states[0].y_m),
@@ -203,6 +223,7 @@ class MocCausticFamilyBandResult:
       for actual, expected in zip(actual_point, expected_point, strict=True)
     ):
       return False
+    ####
     actual_progress = min(
       point[0] - self.anchor_point_m[0] for point in self.input_edge_points_m
     )
@@ -212,10 +233,12 @@ class MocCausticFamilyBandResult:
       > 1.0e-10
     ):
       return False
+    ####
     return all(
       state.x_m > self.anchor_point_m[0]
       for state in (*self.centerline_states, *self.boundary_states)
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Return the explicit non-physical stop at the open band outlet."""
@@ -224,6 +247,7 @@ class MocCausticFamilyBandResult:
       raise ValueError(
         'a caustic family chain stop requires a converged open family band'
       )
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE,
@@ -241,14 +265,17 @@ class MocCausticFamilyBandResult:
         'topology_forms_closed_zone': self.topology.forms_closed_zone,
       },
     )
+  ####
 
   @property
   def cell_count(self) -> int:
     return len(self.cells)
+  ####
 
   @property
   def step_count(self) -> int:
     return max(0, min(len(self.centerline_states), len(self.boundary_states)) - 1)
+  ####
 
   def _domain_points(self) -> tuple[tuple[float, float], ...]:
     """Return the mesh vertices that bound the sampled family band."""
@@ -258,6 +285,7 @@ class MocCausticFamilyBandResult:
       for cell in self.cells
       for point in cell.vertices_xr_m
     )
+  ####
 
   @property
   def domain_x_extent_m(self) -> tuple[float, float] | None:
@@ -266,8 +294,10 @@ class MocCausticFamilyBandResult:
     points = self._domain_points()
     if not points:
       return None
+    ####
     x_values = tuple(point[0] for point in points)
     return min(x_values), max(x_values)
+  ####
 
   @property
   def domain_y_extent_m(self) -> tuple[float, float] | None:
@@ -276,8 +306,10 @@ class MocCausticFamilyBandResult:
     points = self._domain_points()
     if not points:
       return None
+    ####
     y_values = tuple(point[1] for point in points)
     return min(y_values), max(y_values)
+  ####
 
   @property
   def state_sampling_available(self) -> bool:
@@ -293,6 +325,7 @@ class MocCausticFamilyBandResult:
       and self.domain_x_extent_m is not None
       and self.domain_y_extent_m is not None
     )
+  ####
 
   def state_at(
     self,
@@ -304,12 +337,15 @@ class MocCausticFamilyBandResult:
 
     if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     point = (float(point_m[0]), float(point_m[1]))
     for cell in self.cells:
       if len(cell.vertices_xr_m) != 3:
         continue
+      ####
       if cell.cell_kind == 'caustic-restart-anchor-wedge':
         if (
           self.anchor_state is None
@@ -317,6 +353,7 @@ class MocCausticFamilyBandResult:
           or not self.boundary_states
         ):
           continue
+        ####
         states = (
           self.anchor_state,
           self.centerline_states[0],
@@ -326,6 +363,7 @@ class MocCausticFamilyBandResult:
         step = cell.cell_index // 2 + 1
         if step >= len(self.centerline_states) or step >= len(self.boundary_states):
           continue
+        ####
         if cell.cell_index % 2 == 0:
           states = (
             self.centerline_states[step - 1],
@@ -338,6 +376,8 @@ class MocCausticFamilyBandResult:
             self.boundary_states[step - 1],
             self.boundary_states[step],
           )
+        ####
+      ####
       weights = _triangle_interpolation_weights(
         point,
         cell.vertices_xr_m,
@@ -345,6 +385,7 @@ class MocCausticFamilyBandResult:
       )
       if weights is None:
         continue
+      ####
       theta = sum(
         weight * state.theta_rad
         for weight, state in zip(weights, states, strict=True)
@@ -356,6 +397,7 @@ class MocCausticFamilyBandResult:
       inverse = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
       if not inverse.converged or inverse.value is None:
         return None
+      ####
       return CharacteristicState(
         x_m=point[0],
         y_m=point[1],
@@ -363,7 +405,9 @@ class MocCausticFamilyBandResult:
         mach=inverse.value,
         gamma=states[0].gamma,
       )
+    ####
     return None
+  ####
 
   def static_pressure_at(
     self,
@@ -376,10 +420,12 @@ class MocCausticFamilyBandResult:
     state = self.state_at(point_m, position_tolerance_m=position_tolerance_m)
     if state is None:
       return None
+    ####
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
     return self.total_pressure_Pa / pressure_ratio
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -433,6 +479,8 @@ class MocCausticFamilyBandResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,16 +508,19 @@ class MocCausticFamilyRestartResult:
   @property
   def converged(self) -> bool:
     return self.status is MocCausticFamilyRestartStatus.CONVERGED_OPEN_BOUNDARY
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
     """The restart has no downstream shock or closed characteristic mesh."""
 
     return False
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return True
+  ####
 
   @property
   def caustic_handoff_verified(self) -> bool:
@@ -488,15 +539,18 @@ class MocCausticFamilyRestartResult:
       or self.family_band.anchor_state is None
     ):
       return False
+    ####
     selected_edge = self.seed.edge_states[self.anchor_edge_index]
     if selected_edge.state is None or selected_edge.point_m is None:
       return False
+    ####
     return bool(
       self.family_band.anchor_point_m == self.anchor_point_m
       and self.family_band.anchor_state == self.anchor_state
       and selected_edge.point_m == self.anchor_point_m
       and selected_edge.state == self.anchor_state
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Expose the unresolved old-family/new-family caustic handoff."""
@@ -506,6 +560,7 @@ class MocCausticFamilyRestartResult:
         'a caustic restart chain decision requires an exact one-sided '
         'handoff into a converged open family band'
       )
+    ####
     assert self.seed is not None
     assert self.family_band is not None
     assert self.anchor_point_m is not None
@@ -529,10 +584,12 @@ class MocCausticFamilyRestartResult:
         'seed_flow_angle_jump_rad': self.seed.flow_angle_jump_rad,
       },
     )
+  ####
 
   @property
   def boundary_sample_count(self) -> int:
     return len(self.boundary_states)
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -592,6 +649,8 @@ class MocCausticFamilyRestartResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -631,6 +690,7 @@ def _failure(
     source_strip=source_strip,
     message=message,
   )
+####
 
 
 def _state_result_reportable(result: MocFreeBoundaryPointResult) -> bool:
@@ -639,6 +699,7 @@ def _state_result_reportable(result: MocFreeBoundaryPointResult) -> bool:
     and result.state is not None
     and result.point_m is not None
   )
+####
 
 
 def _triangle_interpolation_weights(
@@ -656,6 +717,7 @@ def _triangle_interpolation_weights(
   )
   if abs(denominator) <= tolerance_m:
     return None
+  ####
   first_weight = (
     (second[1] - third[1]) * (point[0] - third[0])
     + (third[0] - second[0]) * (point[1] - third[1])
@@ -680,7 +742,9 @@ def _triangle_interpolation_weights(
     for weight in weights
   ):
     return None
+  ####
   return tuple(max(0.0, min(1.0, weight)) for weight in weights)  # type: ignore[return-value]
+####
 
 
 def _assemble_open_family_band(
@@ -727,6 +791,7 @@ def _assemble_open_family_band(
     geometry_values = tuple(geometry_residuals)
     if seed_geometry_residual_m is not None:
       geometry_values = (*geometry_values, abs(seed_geometry_residual_m))
+    ####
     return MocCausticFamilyBandResult(
       status=status,
       centerline_states=centerline_states,
@@ -746,12 +811,14 @@ def _assemble_open_family_band(
       anchor_state=anchor_state,
       anchor_to_input_min_forward_progress_m=anchor_progress,
     )
+  ####
 
   if (anchor_point_m is None) != (anchor_state is None):
     return _failure(
       MocCausticFamilyBandStatus.INVALID_INPUT,
       'caustic family band anchor point and state must be supplied together',
     )
+  ####
   if anchor_point_m is not None and anchor_state is not None:
     if (
       abs(anchor_state.x_m - anchor_point_m[0]) > position_tolerance_m
@@ -761,17 +828,21 @@ def _assemble_open_family_band(
         MocCausticFamilyBandStatus.INVALID_INPUT,
         'caustic family band anchor state does not match its anchor point',
       )
+    ####
     if anchor_progress is None or anchor_progress <= position_tolerance_m:
       return _failure(
         MocCausticFamilyBandStatus.GEOMETRY_FAILURE,
         'caustic family band input edge is not downstream of its anchor',
       )
+    ####
+  ####
 
   if len(centerline_states) != len(boundary_states) or len(centerline_states) < 2:
     return _failure(
       MocCausticFamilyBandStatus.INVALID_INPUT,
       'caustic family band requires equal centerline and boundary arrays with at least two samples',
     )
+  ####
   if any(
     not isinstance(state, CharacteristicState)
     for state in (*centerline_states, *boundary_states)
@@ -780,6 +851,7 @@ def _assemble_open_family_band(
       MocCausticFamilyBandStatus.INVALID_INPUT,
       'caustic family band states must be CharacteristicState values',
     )
+  ####
   gamma = centerline_states[0].gamma
   if any(
     abs(state.gamma - gamma) > invariant_tolerance
@@ -789,11 +861,13 @@ def _assemble_open_family_band(
       MocCausticFamilyBandStatus.INVALID_INPUT,
       'caustic family band states must use one common gamma',
     )
+  ####
   if any(abs(state.y_m) > position_tolerance_m for state in centerline_states):
     return _failure(
       MocCausticFamilyBandStatus.INVALID_INPUT,
       'caustic family band centerline states must lie on y=0',
     )
+  ####
 
   geometry_residuals: list[float] = []
   invariant_residuals: list[float] = []
@@ -816,8 +890,10 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
     if anchor_axis_result.geometry_residual is not None:
       geometry_residuals.append(abs(anchor_axis_result.geometry_residual))
+    ####
     anchor_axis_residual = sqrt(
       (anchor_axis_result.point_m[0] - centerline_states[0].x_m) ** 2
       + (anchor_axis_result.point_m[1] - centerline_states[0].y_m) ** 2
@@ -830,6 +906,7 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
     if centerline_states[0].x_m <= anchor_point_m[0] + position_tolerance_m:
       return _failure(
         MocCausticFamilyBandStatus.GEOMETRY_FAILURE,
@@ -837,6 +914,7 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
     anchor_compatibility_residual = (
       boundary_states[0].k_plus - centerline_states[0].k_plus
     )
@@ -848,6 +926,8 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
+  ####
 
   for index in range(1, len(centerline_states)):
     previous_boundary = boundary_states[index - 1]
@@ -871,8 +951,10 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
     if axis_result.geometry_residual is not None:
       geometry_residuals.append(abs(axis_result.geometry_residual))
+    ####
     point_residual = sqrt(
       (axis_result.point_m[0] - axis_state.x_m) ** 2
       + (axis_result.point_m[1] - axis_state.y_m) ** 2
@@ -886,6 +968,7 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
     if axis_state.x_m <= centerline_states[index - 1].x_m + position_tolerance_m:
       return _failure(
         MocCausticFamilyBandStatus.GEOMETRY_FAILURE,
@@ -894,6 +977,7 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
     if boundary_state.x_m <= previous_boundary.x_m + position_tolerance_m:
       return _failure(
         MocCausticFamilyBandStatus.GEOMETRY_FAILURE,
@@ -902,6 +986,7 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
     compatibility_residual = boundary_state.k_plus - axis_state.k_plus
     invariant_residuals.append(compatibility_residual)
     if abs(compatibility_residual) > invariant_tolerance:
@@ -912,6 +997,7 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
     axis_previous_point = (
       centerline_states[index - 1].x_m,
       centerline_states[index - 1].y_m,
@@ -946,6 +1032,8 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
+  ####
 
   if anchor_point_m is not None and anchor_state is not None:
     try:
@@ -970,6 +1058,8 @@ def _assemble_open_family_band(
         geometry_residuals=tuple(geometry_residuals),
         invariant_residuals=tuple(invariant_residuals),
       )
+    ####
+  ####
 
   topology = validate_moc_mesh(tuple(cells))
   if not topology.connected or topology.nonmanifold_edge_count:
@@ -981,9 +1071,11 @@ def _assemble_open_family_band(
       geometry_residuals=tuple(geometry_residuals),
       invariant_residuals=tuple(invariant_residuals),
     )
+  ####
   geometry_values = tuple(geometry_residuals)
   if seed_geometry_residual_m is not None:
     geometry_values = (*geometry_values, abs(seed_geometry_residual_m))
+  ####
   return MocCausticFamilyBandResult(
     status=MocCausticFamilyBandStatus.CONVERGED_OPEN_BAND,
     centerline_states=centerline_states,
@@ -1007,6 +1099,7 @@ def _assemble_open_family_band(
     anchor_state=anchor_state,
     anchor_to_input_min_forward_progress_m=anchor_progress,
   )
+####
 
 
 def restart_characteristic_family_from_caustic(
@@ -1038,6 +1131,7 @@ def restart_characteristic_family_from_caustic(
       anchor_edge_index=None,
       message='seed must be a MocSourceStripCausticShockSeedResult',
     )
+  ####
   try:
     total_pressure = float(total_pressure_Pa)
     ambient_pressure = float(ambient_pressure_Pa)
@@ -1048,6 +1142,7 @@ def restart_characteristic_family_from_caustic(
       anchor_edge_index=anchor_edge_index,
       message='pressures must be finite numeric values',
     )
+  ####
   if (
     not isfinite(total_pressure)
     or total_pressure <= 0.0
@@ -1063,6 +1158,7 @@ def restart_characteristic_family_from_caustic(
       ambient_pressure_Pa=ambient_pressure,
       message='total pressure must exceed finite positive ambient pressure',
     )
+  ####
   if (
     isinstance(anchor_edge_index, bool)
     or not isinstance(anchor_edge_index, int)
@@ -1076,6 +1172,7 @@ def restart_characteristic_family_from_caustic(
       ambient_pressure_Pa=ambient_pressure,
       message='anchor_edge_index must be 0 or 1',
     )
+  ####
   if (
     isinstance(sample_count, bool)
     or not isinstance(sample_count, int)
@@ -1089,6 +1186,7 @@ def restart_characteristic_family_from_caustic(
       ambient_pressure_Pa=ambient_pressure,
       message='sample_count must be an integer of at least three',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -1096,8 +1194,11 @@ def restart_characteristic_family_from_caustic(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if not seed.converged or len(seed.edge_states) != 2:
     return _failure(
       MocCausticFamilyRestartStatus.SEED_FAILURE,
@@ -1107,6 +1208,7 @@ def restart_characteristic_family_from_caustic(
       ambient_pressure_Pa=ambient_pressure,
       message=f'caustic restart seed is not usable: {seed.message}',
     )
+  ####
   anchor = seed.edge_states[anchor_edge_index]
   if anchor.state is None or anchor.point_m is None:
     return _failure(
@@ -1117,6 +1219,7 @@ def restart_characteristic_family_from_caustic(
       ambient_pressure_Pa=ambient_pressure,
       message='selected caustic edge does not carry a one-sided anchor state',
     )
+  ####
   anchor_state = anchor.state
   centerline_states: list[CharacteristicState] = []
   boundary_states: list[CharacteristicState] = []
@@ -1151,6 +1254,7 @@ def restart_characteristic_family_from_caustic(
         minimum_forward_progress_m=min(forward_progress, default=None),
         message=f'caustic restart centerline reflection failed at step {step}: {axis_result.message}',
       )
+    ####
     boundary_result = solve_ambient_pressure_free_boundary_point(
       axis_result.state,
       previous_boundary,
@@ -1179,6 +1283,7 @@ def restart_characteristic_family_from_caustic(
         minimum_forward_progress_m=min(forward_progress, default=None),
         message=f'caustic restart ambient boundary failed at step {step}: {boundary_result.message}',
       )
+    ####
     assert boundary_result.state is not None
     assert boundary_result.point_m is not None
     progress = boundary_result.point_m[0] - previous_boundary.x_m
@@ -1200,6 +1305,7 @@ def restart_characteristic_family_from_caustic(
         minimum_forward_progress_m=min(forward_progress, default=None),
         message='caustic restart ambient boundary did not make downstream progress',
       )
+    ####
     centerline_states.append(axis_result.state)
     boundary_states.append(boundary_result.state)
     boundary_points.append(boundary_result.point_m)
@@ -1208,6 +1314,7 @@ def restart_characteristic_family_from_caustic(
     geometry_residuals.append(boundary_result.geometry_residual or 0.0)
     forward_progress.append(progress)
     previous_boundary = boundary_result.state
+  ####
 
   source_strip = assemble_source_characteristic_strip(
     tuple(centerline_states),
@@ -1255,3 +1362,4 @@ def restart_characteristic_family_from_caustic(
       else f'caustic family band assembly failed: {family_band.message}'
     ),
   )
+####

@@ -132,6 +132,7 @@ class MocAmbientShockBoundaryMarchResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +167,7 @@ class MocAmbientAxisClosureResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocAmbientAxisClosureStatus):
       raise TypeError('status must be a MocAmbientAxisClosureStatus')
+    ####
     if self.source_boundary_sample is not None and not isinstance(
         self.source_boundary_sample,
         MocAmbientBoundarySample,
@@ -173,11 +175,13 @@ class MocAmbientAxisClosureResult:
       raise TypeError(
         'source_boundary_sample must be a MocAmbientBoundarySample or None'
       )
+    ####
     if self.axis_state is not None and not isinstance(
         self.axis_state,
         CharacteristicState,
     ):
       raise TypeError('axis_state must be a CharacteristicState or None')
+    ####
     for name, value in (
       ('axis_total_pressure_Pa', self.axis_total_pressure_Pa),
       ('axis_static_pressure_Pa', self.axis_static_pressure_Pa),
@@ -187,6 +191,8 @@ class MocAmbientAxisClosureResult:
         not isfinite(float(value)) or float(value) <= 0.0
       ):
         raise ValueError(f'{name} must be finite and positive when supplied')
+      ####
+    ####
     for name, value in (
       ('pressure_residual_Pa', self.pressure_residual_Pa),
       ('relative_pressure_residual', self.relative_pressure_residual),
@@ -195,20 +201,26 @@ class MocAmbientAxisClosureResult:
     ):
       if value is not None and not isfinite(float(value)):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
+    ####
     if self.axis_point_m is not None:
       if len(self.axis_point_m) != 2 or not all(
         isfinite(float(value)) for value in self.axis_point_m
       ):
         raise ValueError('axis_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(
         self,
         'axis_point_m',
         (float(self.axis_point_m[0]), float(self.axis_point_m[1])),
       )
+    ####
     if not isinstance(self.axis_candidate_verified, bool):
       raise TypeError('axis_candidate_verified must be a bool')
+    ####
     if not isinstance(self.ambient_pressure_verified, bool):
       raise TypeError('ambient_pressure_verified must be a bool')
+    ####
     if self.axis_boundary is not None and not isinstance(
         self.axis_boundary,
         MocAmbientPressureBoundaryResult,
@@ -216,12 +228,15 @@ class MocAmbientAxisClosureResult:
       raise TypeError(
         'axis_boundary must be a MocAmbientPressureBoundaryResult or None'
       )
+    ####
     if self.axis_boundary_tangent_residual is not None and not isfinite(
         float(self.axis_boundary_tangent_residual)
     ):
       raise ValueError('axis_boundary_tangent_residual must be finite when supplied')
+    ####
     if not isinstance(self.axis_boundary_verified, bool):
       raise TypeError('axis_boundary_verified must be a bool')
+    ####
   ####
 
   @property
@@ -288,6 +303,7 @@ class MocAmbientAxisClosureResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -327,7 +343,10 @@ class MocAmbientShockStripResult:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
+  ####
 
   @property
   def converged(self) -> bool:
@@ -407,6 +426,7 @@ class MocAmbientShockStripResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _empty_ambient_boundary(
@@ -427,6 +447,7 @@ def _empty_ambient_boundary(
     maximum_absolute_tangent_residual=None,
     message=message,
   )
+####
 
 
 def _empty_march(
@@ -461,6 +482,7 @@ def _empty_march(
     maximum_absolute_invariant_residual=None,
     message=message,
   )
+####
 
 
 def _static_pressure_from_total(
@@ -470,12 +492,15 @@ def _static_pressure_from_total(
   return float(total_pressure_Pa) / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
+####
 
 
 def _finite_point(point_m: tuple[float, float], name: str) -> tuple[float, float]:
   if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
     raise ValueError(f'{name} must contain two finite coordinates')
+  ####
   return float(point_m[0]), float(point_m[1])
+####
 
 
 def march_post_shock_ambient_boundary(
@@ -510,6 +535,7 @@ def march_post_shock_ambient_boundary(
       ambient_boundary=ambient,
       message='shock_fit must be a MocShockBoundaryFitResult',
     )
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     target_y = float(target_centerline_y_m)
@@ -520,10 +546,13 @@ def march_post_shock_ambient_boundary(
       ambient_boundary=ambient,
       message='ambient_pressure_Pa and target_centerline_y_m must be finite numeric values',
     )
+  ####
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(target_y):
     raise ValueError('target_centerline_y_m must be finite')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -531,8 +560,11 @@ def march_post_shock_ambient_boundary(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if not shock_fit.converged:
     ambient = _empty_ambient_boundary(
       ambient_pressure,
@@ -543,6 +575,7 @@ def march_post_shock_ambient_boundary(
       ambient_boundary=ambient,
       message=f'shock boundary fit is not converged: {shock_fit.message}',
     )
+  ####
   shock_samples = tuple(shock_fit.boundary_states)
   if len(shock_samples) < 3:
     ambient = _empty_ambient_boundary(
@@ -554,6 +587,7 @@ def march_post_shock_ambient_boundary(
       ambient_boundary=ambient,
       message='shock boundary fit requires at least three samples',
     )
+  ####
   first_shock = shock_samples[0]
   seed = first_shock.state if seed_boundary_state is None else seed_boundary_state
   if not isinstance(seed, CharacteristicState):
@@ -563,6 +597,7 @@ def march_post_shock_ambient_boundary(
       ambient_boundary=ambient,
       message='seed_boundary_state must be a CharacteristicState when supplied',
     )
+  ####
   if (
     abs(seed.x_m - first_shock.point_m[0]) > position_tolerance_m
     or abs(seed.y_m - first_shock.point_m[1]) > position_tolerance_m
@@ -576,6 +611,7 @@ def march_post_shock_ambient_boundary(
       ambient_boundary=ambient,
       message='ambient seed must lie at the first shock/ambient attachment point',
     )
+  ####
   if abs(seed.gamma - first_shock.state.gamma) > invariant_tolerance:
     ambient = _empty_ambient_boundary(
       ambient_pressure,
@@ -586,6 +622,7 @@ def march_post_shock_ambient_boundary(
       ambient_boundary=ambient,
       message='ambient seed and shock trace must use the same gamma',
     )
+  ####
   if (
     abs(seed.theta_rad - first_shock.state.theta_rad) > invariant_tolerance
     or abs(seed.mach - first_shock.state.mach) > invariant_tolerance
@@ -599,6 +636,7 @@ def march_post_shock_ambient_boundary(
       ambient_boundary=ambient,
       message='ambient seed must match the first post-shock attachment state',
     )
+  ####
   first_total_pressure = first_shock.downstream_total_pressure_Pa
   first_static_pressure = _static_pressure_from_total(seed, first_total_pressure)
   first_pressure_residual = (first_static_pressure - ambient_pressure) / ambient_pressure
@@ -615,6 +653,7 @@ def march_post_shock_ambient_boundary(
         f'residual={first_pressure_residual}'
       ),
     )
+  ####
   samples: list[MocAmbientBoundarySample] = [
     MocAmbientBoundarySample(
       point_m=first_shock.point_m,
@@ -666,6 +705,7 @@ def march_post_shock_ambient_boundary(
         point_results=point_results,
         message=f'ambient boundary sample {index} failed: {result.message}',
       )
+    ####
     if result.point_m[0] <= previous_boundary.x_m + position_tolerance_m:
       ambient = _empty_ambient_boundary(
         ambient_pressure,
@@ -678,6 +718,7 @@ def march_post_shock_ambient_boundary(
         point_results=point_results,
         message=f'ambient boundary sample {index} is not strictly downstream',
       )
+    ####
     if result.point_m[1] < target_y - position_tolerance_m:
       ambient = _empty_ambient_boundary(
         ambient_pressure,
@@ -690,6 +731,7 @@ def march_post_shock_ambient_boundary(
         point_results=point_results,
         message=f'ambient boundary sample {index} crossed below the target centerline',
       )
+    ####
     if abs(result.state.k_plus - shock_sample.state.k_plus) > invariant_tolerance:
       ambient = _empty_ambient_boundary(
         ambient_pressure,
@@ -702,6 +744,7 @@ def march_post_shock_ambient_boundary(
         point_results=point_results,
         message=f'ambient boundary sample {index} violated shock-to-boundary K+ compatibility',
       )
+    ####
     sample = MocAmbientBoundarySample(
       point_m=result.point_m,
       state=result.state,
@@ -709,6 +752,7 @@ def march_post_shock_ambient_boundary(
     )
     samples.append(sample)
     previous_boundary = result.state
+  ####
   ambient = validate_ambient_pressure_boundary(
     samples,
     ambient_pressure,
@@ -724,6 +768,7 @@ def march_post_shock_ambient_boundary(
       point_results=point_results,
       message=f'generated ambient boundary failed acceptance: {ambient.message}',
     )
+  ####
   return MocAmbientShockBoundaryMarchResult(
     status=MocAmbientShockBoundaryMarchStatus.CONVERGED,
     boundary_samples=tuple(samples),
@@ -789,6 +834,7 @@ def _strip_failure(
     maximum_post_shock_total_pressure_ratio=max(pressure_ratios, default=None),
     message=message,
   )
+####
 
 
 def _shock_endpoint_characteristic_point(
@@ -812,6 +858,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       message='shock and ambient endpoint states use different gamma',
     )
+  ####
   plus_residual = minus_endpoint.k_plus - plus_source.k_plus
   displacement = (
     endpoint[0] - plus_source.x_m,
@@ -830,6 +877,7 @@ def _shock_endpoint_characteristic_point(
         intersection_status='shared-attachment',
         message='shared shock/ambient attachment does not preserve C+ compatibility',
       )
+    ####
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.CONVERGED,
       state=minus_endpoint,
@@ -840,6 +888,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       intersection_status='shared-attachment',
     )
+  ####
   start_angle = plus_source.theta_rad + plus_source.mu_rad
   end_angle = minus_endpoint.theta_rad + minus_endpoint.mu_rad
   average_angle = 0.5 * (start_angle + end_angle)
@@ -857,6 +906,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       message='ambient endpoint does not preserve the shock C+ invariant',
     )
+  ####
   if forward_parameter <= position_tolerance_m or geometry_residual > position_tolerance_m:
     return CharacteristicPointResult(
       status=MocPrimitiveStatus.GEOMETRY_FAILURE,
@@ -868,6 +918,7 @@ def _shock_endpoint_characteristic_point(
       iterations=0,
       message='ambient endpoint is not on a forward shock C+ characteristic',
     )
+  ####
   return CharacteristicPointResult(
     status=MocPrimitiveStatus.CONVERGED,
     state=minus_endpoint,
@@ -878,6 +929,7 @@ def _shock_endpoint_characteristic_point(
     iterations=0,
     intersection_status='ambient-boundary-endpoint',
   )
+####
 
 
 def probe_post_shock_ambient_axis_closure(
@@ -901,6 +953,7 @@ def probe_post_shock_ambient_axis_closure(
     ambient_pressure = float(ambient_pressure_Pa)
   except (TypeError, ValueError):
     ambient_pressure = None
+  ####
   if ambient_pressure is None or not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     return MocAmbientAxisClosureResult(
       status=MocAmbientAxisClosureStatus.INVALID_INPUT,
@@ -918,6 +971,7 @@ def probe_post_shock_ambient_axis_closure(
       ambient_pressure_verified=False,
       message='ambient_pressure_Pa must be finite and positive',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -925,6 +979,8 @@ def probe_post_shock_ambient_axis_closure(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isinstance(march, MocAmbientShockBoundaryMarchResult):
     return MocAmbientAxisClosureResult(
       status=MocAmbientAxisClosureStatus.INVALID_INPUT,
@@ -942,6 +998,7 @@ def probe_post_shock_ambient_axis_closure(
       ambient_pressure_verified=False,
       message='march must be a MocAmbientShockBoundaryMarchResult',
     )
+  ####
   source = march.boundary_samples[-1] if march.boundary_samples else None
   if not march.converged or source is None:
     return MocAmbientAxisClosureResult(
@@ -963,6 +1020,7 @@ def probe_post_shock_ambient_axis_closure(
         f'final sample: {march.message}'
       ),
     )
+  ####
 
   axis = centerline_characteristic_point(
     source.state,
@@ -994,6 +1052,7 @@ def probe_post_shock_ambient_axis_closure(
       ambient_pressure_verified=False,
       message=f'final ambient C- sample did not produce a valid axis candidate: {axis.message}',
     )
+  ####
 
   assert axis.state is not None
   assert axis.point_m is not None
@@ -1032,6 +1091,7 @@ def probe_post_shock_ambient_axis_closure(
         '; the appended ambient-to-axis perimeter still fails its '
         f'tangency gate: {axis_boundary.message}'
       )
+    ####
   else:
     status = MocAmbientAxisClosureStatus.PRESSURE_FAILURE
     message = (
@@ -1039,6 +1099,7 @@ def probe_post_shock_ambient_axis_closure(
       'but its carried static pressure does not match ambient: '
       f'relative residual={relative_pressure_residual}'
     )
+  ####
   return MocAmbientAxisClosureResult(
     status=status,
     source_boundary_sample=source,
@@ -1063,6 +1124,7 @@ def probe_post_shock_ambient_axis_closure(
 
 def _point_key(point: tuple[float, float], tolerance_m: float) -> tuple[int, int]:
   return round(point[0] / tolerance_m), round(point[1] / tolerance_m)
+####
 
 
 def _edge_key(
@@ -1073,6 +1135,7 @@ def _edge_key(
   first_key = _point_key(first, tolerance_m)
   second_key = _point_key(second, tolerance_m)
   return (first_key, second_key) if first_key <= second_key else (second_key, first_key)
+####
 
 
 def _edge_counts(
@@ -1085,7 +1148,10 @@ def _edge_counts(
     for first, second in zip(vertices, (*vertices[1:], vertices[0])):
       edge = _edge_key(first, second, tolerance_m)
       counts[edge] = counts.get(edge, 0) + 1
+    ####
+  ####
   return counts
+####
 
 
 def _path_is_boundary(
@@ -1097,6 +1163,7 @@ def _path_is_boundary(
     edge_counts.get(_edge_key(first, second, tolerance_m), 0) == 1
     for first, second in zip(points, points[1:])
   )
+####
 
 
 def assemble_ambient_shock_characteristic_strip(
@@ -1129,10 +1196,13 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_boundary=ambient,
       message='shock_fit must be a MocShockBoundaryFitResult',
     )
+  ####
   if not isinstance(allow_zero_strength_start, bool):
     raise TypeError('allow_zero_strength_start must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise TypeError('allow_zero_strength_endpoints must be a bool')
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     target_y = float(target_centerline_y_m)
@@ -1143,10 +1213,13 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_boundary=ambient,
       message='ambient_pressure_Pa and target_centerline_y_m must be finite numeric values',
     )
+  ####
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(target_y):
     raise ValueError('target_centerline_y_m must be finite')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -1155,6 +1228,8 @@ def assemble_ambient_shock_characteristic_strip(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not shock_fit.converged:
     ambient = _empty_ambient_boundary(ambient_pressure, message='shock fit is not converged')
     return _strip_failure(
@@ -1162,6 +1237,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_boundary=ambient,
       message=f'shock boundary fit is not converged: {shock_fit.message}',
     )
+  ####
   shock_samples = tuple(shock_fit.boundary_states)
   samples = tuple(ambient_boundary)
   if len(shock_samples) < 3 or len(samples) != len(shock_samples):
@@ -1171,6 +1247,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_boundary=ambient,
       message='shock and ambient boundaries require the same count of at least three samples',
     )
+  ####
   if any(not isinstance(sample, MocAmbientBoundarySample) for sample in samples):
     ambient = _empty_ambient_boundary(ambient_pressure, message='ambient boundary sample type is invalid')
     return _strip_failure(
@@ -1178,6 +1255,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_boundary=ambient,
       message='ambient_boundary must contain MocAmbientBoundarySample values',
     )
+  ####
   ambient = validate_ambient_pressure_boundary(
     samples,
     ambient_pressure,
@@ -1193,6 +1271,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_points=tuple(sample.point_m for sample in samples),
       message=f'ambient boundary is not accepted: {ambient.message}',
     )
+  ####
   shock_points = tuple(sample.point_m for sample in shock_samples)
   ambient_points = tuple(sample.point_m for sample in samples)
   if any(
@@ -1207,6 +1286,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_points=ambient_points,
       message='shock boundary state coordinates do not match their fitted points',
     )
+  ####
   if any(point[1] < target_y - position_tolerance_m for point in (*shock_points, *ambient_points)):
     return _strip_failure(
       MocAmbientShockStripStatus.GEOMETRY_FAILURE,
@@ -1215,6 +1295,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_points=ambient_points,
       message='shock/ambient boundary crossed below the target centerline',
     )
+  ####
   if any(
     second[0] <= first[0] + position_tolerance_m
     or second[1] > first[1] + position_tolerance_m
@@ -1227,6 +1308,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_points=ambient_points,
       message='shock boundary must be strictly downstream and nonincreasing in y',
     )
+  ####
   if sqrt(
     (shock_points[0][0] - ambient_points[0][0]) ** 2
     + (shock_points[0][1] - ambient_points[0][1]) ** 2
@@ -1238,6 +1320,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_points=ambient_points,
       message='shock and ambient boundaries must share their attachment point',
     )
+  ####
   if abs(shock_points[-1][1] - target_y) > position_tolerance_m:
     return _strip_failure(
       MocAmbientShockStripStatus.GEOMETRY_FAILURE,
@@ -1246,6 +1329,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_points=ambient_points,
       message='shock boundary must terminate on the target centerline',
     )
+  ####
   if (
     abs(shock_samples[0].state.theta_rad - samples[0].state.theta_rad)
     > invariant_tolerance
@@ -1259,6 +1343,7 @@ def assemble_ambient_shock_characteristic_strip(
       ambient_points=ambient_points,
       message='shock and ambient attachment states must agree at the shared point',
     )
+  ####
   pressure_ratios = tuple(
     sample.downstream_total_pressure_Pa / sample.upstream_total_pressure_Pa
     for sample in shock_samples
@@ -1309,6 +1394,7 @@ def assemble_ambient_shock_characteristic_strip(
           position_tolerance_m=position_tolerance_m,
           invariant_tolerance=invariant_tolerance,
         )
+      ####
       if not point_result.converged or point_result.point_m is None or point_result.state is None:
         status = (
           MocAmbientShockStripStatus.INVARIANT_FAILURE
@@ -1328,6 +1414,7 @@ def assemble_ambient_shock_characteristic_strip(
             f'failed: {point_result.message}'
           ),
         )
+      ####
       point = point_result.point_m
       if point[1] < target_y - position_tolerance_m:
         return _strip_failure(
@@ -1340,6 +1427,7 @@ def assemble_ambient_shock_characteristic_strip(
           pressure_ratios=pressure_ratios,
           message=f'shock/ambient node ({plus_index}, {minus_index}) crossed below the target centerline',
         )
+      ####
       if plus_index != minus_index and point[0] <= max(
         plus_source.x_m,
         minus_source.x_m,
@@ -1354,6 +1442,7 @@ def assemble_ambient_shock_characteristic_strip(
           pressure_ratios=pressure_ratios,
           message=f'shock/ambient node ({plus_index}, {minus_index}) has no forward margin',
         )
+      ####
       nodes_by_index[(plus_index, minus_index)] = MocCharacteristicNode(
         centerline_index=plus_index,
         boundary_index=minus_index,
@@ -1362,10 +1451,12 @@ def assemble_ambient_shock_characteristic_strip(
         point_result=point_result,
         total_pressure_Pa=samples[minus_index].total_pressure_Pa,
       )
+    ####
   ####
 
   def node_point(plus_index: int, minus_index: int) -> tuple[float, float]:
     return nodes_by_index[(plus_index, minus_index)].point_m
+  ####
 
   cells_list: list[MocCharacteristicCell] = []
   try:
@@ -1389,6 +1480,7 @@ def assemble_ambient_shock_characteristic_strip(
           boundary_indices=(0,),
         )
       )
+    ####
     for row in range(1, expected_count - 1):
       for column in range(row):
         cells_list.append(
@@ -1405,6 +1497,8 @@ def assemble_ambient_shock_characteristic_strip(
             boundary_indices=(column, column + 1),
           )
         )
+      ####
+    ####
     for index in range(expected_count - 1):
       cells_list.append(
         MocCharacteristicCell(
@@ -1419,6 +1513,7 @@ def assemble_ambient_shock_characteristic_strip(
           boundary_indices=(index, index + 1),
         )
       )
+    ####
   except (KeyError, ValueError) as error:
     return _strip_failure(
       MocAmbientShockStripStatus.GEOMETRY_FAILURE,
@@ -1431,6 +1526,7 @@ def assemble_ambient_shock_characteristic_strip(
       pressure_ratios=pressure_ratios,
       message=f'shock/ambient characteristic cell geometry failed: {error}',
     )
+  ####
   cells = tuple(cells_list)
   topology = validate_moc_mesh(cells)
   if not topology.connected or not topology.forms_closed_zone or topology.nonmanifold_edge_count:
@@ -1446,6 +1542,7 @@ def assemble_ambient_shock_characteristic_strip(
       pressure_ratios=pressure_ratios,
       message=f'shock/ambient characteristic strip topology failed: {topology.message}',
     )
+  ####
   edge_counts = _edge_counts(cells, position_tolerance_m)
   if not _path_is_boundary(shock_points, edge_counts, position_tolerance_m):
     return _strip_failure(
@@ -1460,6 +1557,7 @@ def assemble_ambient_shock_characteristic_strip(
       pressure_ratios=pressure_ratios,
       message='shock/ambient strip is missing an explicit shock boundary edge',
     )
+  ####
   if not _path_is_boundary(ambient_points, edge_counts, position_tolerance_m):
     return _strip_failure(
       MocAmbientShockStripStatus.GEOMETRY_FAILURE,
@@ -1473,6 +1571,7 @@ def assemble_ambient_shock_characteristic_strip(
       pressure_ratios=pressure_ratios,
       message='shock/ambient strip is missing an explicit ambient boundary edge',
     )
+  ####
   terminal_points = [shock_points[-1]]
   terminal_states = [shock_samples[-1].state]
   terminal_pressures = [shock_samples[-1].downstream_total_pressure_Pa]
@@ -1485,6 +1584,7 @@ def assemble_ambient_shock_characteristic_strip(
       if terminal_node.total_pressure_Pa is not None
       else samples[boundary_index].total_pressure_Pa
     )
+  ####
   terminal_points.append(ambient_points[-1])
   terminal_states.append(samples[-1].state)
   terminal_pressures.append(samples[-1].total_pressure_Pa)

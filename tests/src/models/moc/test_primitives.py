@@ -30,6 +30,7 @@ def test_prandtl_meyer_forward_inverse_round_trip(gamma: float, mach: float) -> 
   assert isclose(result.value, mach, rel_tol=2.0e-9, abs_tol=2.0e-9)
   assert result.residual is not None
   assert abs(result.residual) <= 1.0e-12 + 1.0e-10 * abs(angle)
+####
 
 
 def test_prandtl_meyer_domain_rejects_asymptotic_angle() -> None:
@@ -38,11 +39,14 @@ def test_prandtl_meyer_domain_rejects_asymptotic_angle() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.value is None
+####
 
 
 def test_prandtl_meyer_rejects_subsonic_forward_input() -> None:
   with pytest.raises(ValueError, match='at least one'):
     prandtl_meyer_angle_rad(0.99, 1.4)
+  ####
+####
 
 
 def test_supersonic_pressure_inversion_reconstructs_ratio() -> None:
@@ -54,6 +58,7 @@ def test_supersonic_pressure_inversion_reconstructs_ratio() -> None:
   assert result.converged
   assert result.value == pytest.approx(mach)
   assert result.residual == pytest.approx(0.0, abs=1.0e-10)
+####
 
 
 def test_characteristic_invariants_and_mach_angle_are_explicit() -> None:
@@ -63,6 +68,7 @@ def test_characteristic_invariants_and_mach_angle_are_explicit() -> None:
   assert k_plus == pytest.approx(state.theta_rad - state.nu_rad)
   assert k_minus == pytest.approx(state.theta_rad + state.nu_rad)
   assert mach_angle_rad(state.mach) == pytest.approx(0.5235987755982988)
+####
 
 
 def test_interior_compatibility_closes_both_invariants_and_forward_geometry() -> None:
@@ -78,6 +84,7 @@ def test_interior_compatibility_closes_both_invariants_and_forward_geometry() ->
   assert result.invariant_residual_minus == pytest.approx(0.0, abs=1.0e-12)
   assert result.geometry_residual is not None
   assert result.geometry_residual <= 1.0e-10
+####
 
 
 def test_interior_compatibility_rejects_negative_compatible_nu() -> None:
@@ -87,6 +94,7 @@ def test_interior_compatibility_rejects_negative_compatible_nu() -> None:
 
   assert result.status is MocPrimitiveStatus.OUTSIDE_DOMAIN
   assert result.state is None
+####
 
 
 def test_centerline_compatibility_uses_family_invariant() -> None:
@@ -100,6 +108,7 @@ def test_centerline_compatibility_uses_family_invariant() -> None:
   assert result.point_m[0] > source.x_m
   assert result.state.theta_rad == 0.0
   assert result.invariant_residual_minus == pytest.approx(0.0, abs=1.0e-12)
+####
 
 
 def test_centerline_reports_nonforward_geometry() -> None:
@@ -108,8 +117,10 @@ def test_centerline_reports_nonforward_geometry() -> None:
 
   assert result.status is MocPrimitiveStatus.GEOMETRY_FAILURE
   assert result.point_m is None
+####
 
 
 def test_maximum_prandtl_meyer_angle_is_bounded() -> None:
   maximum = maximum_prandtl_meyer_angle_rad(1.4)
   assert 0.0 < maximum < pi
+####

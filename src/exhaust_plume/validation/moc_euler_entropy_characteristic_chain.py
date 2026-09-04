@@ -69,6 +69,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus(
   FLAG_FAILURE = (
     'euler_ambient_first_wedge_entropy_characteristic_field_chain_flag_failure'
   )
+####
 
 
 def _handoff_fingerprint(
@@ -78,6 +79,7 @@ def _handoff_fingerprint(
 
   if not boundary:
     return None
+  ####
   payload = '\n'.join(
     '|'.join(
       value.hex()
@@ -93,6 +95,7 @@ def _handoff_fingerprint(
     for sample in boundary
   )
   return sha256(payload.encode('ascii')).hexdigest()
+####
 
 
 def _field_fingerprint(
@@ -113,6 +116,7 @@ def _field_fingerprint(
       f'{state.theta_rad.hex()}|{state.mach.hex()}|{state.gamma.hex()}|'
       f'{node.total_pressure_Pa.hex()}'
     )
+  ####
   payload.append('cells')
   payload.extend(
     f'{cell.cell_index}|{cell.cell_kind}|' + '|'.join(
@@ -121,6 +125,7 @@ def _field_fingerprint(
     for cell in field.cells
   )
   return sha256('\n'.join(payload).encode('ascii')).hexdigest()
+####
 
 
 def _field_x_extent(
@@ -129,10 +134,13 @@ def _field_x_extent(
   points = tuple(node.point_m for node in field.nodes)
   if not points:
     return None
+  ####
   values = tuple(float(point[0]) for point in points)
   if not all(isfinite(value) for value in values):
     return None
+  ####
   return min(values), max(values)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,8 +158,10 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainFieldAudit:
       or self.field_index < 1
     ):
       raise ValueError('field_index must be a positive integer')
+    ####
     if not isinstance(self.field_fingerprint, str) or not self.field_fingerprint:
       raise ValueError('field_fingerprint must be a non-empty string')
+    ####
     if not isinstance(
       self.audit,
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit,
@@ -160,10 +170,13 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainFieldAudit:
         'audit must be a '
         'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldAudit'
       )
+    ####
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
     return self.audit.local_consistency_verified
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -172,6 +185,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainFieldAudit:
       'local_consistency_verified': self.local_consistency_verified,
       'audit': self.audit.as_report(),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,23 +221,30 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit:
         'status must be a '
         'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus'
       )
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     planner_kind = str(self.planner_kind)
     if not planner_kind:
       raise ValueError('planner_kind must be a non-empty string')
+    ####
     object.__setattr__(self, 'planner_kind', planner_kind)
     for name in ('field_count', 'continued_field_count'):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if self.continued_field_count > self.field_count:
       raise ValueError('continued_field_count cannot exceed field_count')
+    ####
     audits = tuple(self.field_audits)
     if len(audits) != self.field_count:
       raise ValueError('field_audits must align with field_count')
+    ####
     if any(
       not isinstance(
         value,
@@ -234,12 +256,14 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit:
         'field_audits must contain '
         'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainFieldAudit values'
       )
+    ####
     object.__setattr__(self, 'field_audits', audits)
     if isinstance(self.physical_chain_cell_count, bool) or not isinstance(
       self.physical_chain_cell_count,
       int,
     ) or self.physical_chain_cell_count < 0:
       raise ValueError('physical_chain_cell_count must be a nonnegative integer')
+    ####
     if self.termination_reason is not None and not isinstance(
       self.termination_reason,
       MocChainTerminationReason,
@@ -247,6 +271,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit:
       raise TypeError(
         'termination_reason must be a MocChainTerminationReason or None'
       )
+    ####
     for name in (
       'handoff_links_verified',
       'fresh_domains_verified',
@@ -258,15 +283,22 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.physical_closure_verified:
       raise ValueError('a field-chain audit cannot claim physical closure')
+    ####
     if self.physical_chain_cell_count != 0:
       raise ValueError('an open field-chain audit cannot contain physical cells')
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError('an open field-chain audit must block promotion')
+    ####
     if self.production_claim_allowed:
       raise ValueError('an open field-chain audit cannot claim production validity')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -274,6 +306,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit:
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus
       .CONVERGED_LOCAL_CHAIN_AUDIT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -290,6 +323,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -322,6 +356,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _make_audit(
@@ -357,6 +393,7 @@ def _make_audit(
     termination_reason=planner.termination.reason,
     message=message,
   )
+####
 
 
 def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
@@ -374,9 +411,11 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       'planner must be a '
       'MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainPlannerResult'
     )
+  ####
   tolerance = float(position_tolerance_m)
   if not isfinite(tolerance) or tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
 
   field_audits: list[
     MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainFieldAudit
@@ -392,6 +431,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
         tuple(field_audits),
         message=f'field {field_index} has an invalid result type',
       )
+    ####
     field_audit = measure_moc_euler_ambient_first_wedge_entropy_characteristic_field(
       field,
       position_tolerance_m=position_tolerance_m,
@@ -403,6 +443,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
         audit=field_audit,
       )
     )
+  ####
   field_audits_tuple = tuple(field_audits)
   if not field_audits_tuple or not all(
     value.local_consistency_verified for value in field_audits_tuple
@@ -413,17 +454,20 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       field_audits_tuple,
       message='one or more retained fields failed its independent local audit',
     )
+  ####
 
   handoff_links_verified = True
   fresh_domains_verified = True
   expected_step_indices = tuple(range(2, len(planner.steps) + 2))
   if tuple(step.next_field_index for step in planner.steps) != expected_step_indices:
     handoff_links_verified = False
+  ####
   for step in planner.steps:
     current_index = step.next_field_index - 2
     if current_index < 0 or current_index >= len(planner.fields):
       handoff_links_verified = False
       continue
+    ####
     current = planner.fields[current_index]
     incoming = current.continuation_boundary
     handoff_links_verified = handoff_links_verified and bool(
@@ -436,6 +480,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       if next_index >= len(planner.fields):
         handoff_links_verified = False
         continue
+      ####
       next_field = planner.fields[next_index]
       outgoing = next_field.continuation_boundary
       handoff_links_verified = handoff_links_verified and bool(
@@ -455,8 +500,11 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       'termination-returned',
     }:
       handoff_links_verified = False
+    ####
+  ####
   if planner.continued_field_count == 0:
     fresh_domains_verified = True
+  ####
   if not handoff_links_verified:
     return _make_audit(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus.HANDOFF_FAILURE,
@@ -466,6 +514,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       fresh_domains_verified=fresh_domains_verified,
       message='planner steps do not retain the exact field perimeter links',
     )
+  ####
   if not fresh_domains_verified:
     return _make_audit(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus.DOMAIN_FAILURE,
@@ -475,6 +524,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       fresh_domains_verified=False,
       message='one or more accepted fields overlap or backtrack in x',
     )
+  ####
 
   termination_verified = bool(
     not planner.termination.physical_termination
@@ -502,6 +552,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       planner_resolved_consistent=planner_resolved_consistent,
       message='planner termination is not a verified non-physical sequence stop',
     )
+  ####
   if not planner_resolved_consistent or planner.physical_chain_cell_count != 0:
     return _make_audit(
       MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus.FLAG_FAILURE,
@@ -513,6 +564,7 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       planner_resolved_consistent=planner_resolved_consistent,
       message='planner resolved/physical fidelity flags disagree with raw gates',
     )
+  ####
   return _make_audit(
     MocEulerAmbientFirstWedgeEntropyCharacteristicFieldChainAuditStatus.CONVERGED_LOCAL_CHAIN_AUDIT,
     planner,
@@ -526,3 +578,4 @@ def measure_moc_euler_ambient_first_wedge_entropy_characteristic_field_chain(
       'physical reflected/free-boundary closure remains blocked'
     ),
   )
+####

@@ -159,10 +159,12 @@ def _prescribed_configuration(
       'reduced-order continuation is an engineering-approximate visual envelope, not resolved MOC geometry',
       'appearance channels are not spectral radiance or signature predictions',
     )
+  ####
   if result.status is ShockTrainStatus.TRUNCATED:
     warnings += ('the configured safety limit truncated the train; no physical endpoint is inferred',)
   elif result.status is ShockTrainStatus.PHYSICALLY_TERMINATED:
     warnings += (f'physical termination is modeled as {result.termination_reason.value}',)
+  ####
   return PrescribedVisualConfiguration(
     provider_id=configuration.provider_id,
     provider_version=configuration.provider_version,
@@ -219,6 +221,7 @@ def _interpolate_station(
 ) -> tuple[float, float, float]:
   if right[0] <= left[0]:
     return (station_x_m, left[1], left[2])
+  ####
   fraction = (station_x_m - left[0]) / (right[0] - left[0])
   return (
     station_x_m,
@@ -245,6 +248,7 @@ def _train_stations(
     amplitude = max(0.0, metrics.pressure_oscillation_ratio)
     if not stations:
       stations.append((metrics.start_x_m, radius, amplitude))
+    ####
     stations.append((metrics.end_x_m, radius, amplitude))
   ####
   stations = sorted(stations, key=lambda station: station[0])

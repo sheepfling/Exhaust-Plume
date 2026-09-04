@@ -72,6 +72,7 @@ def _correction_inputs(sample_count: int = 9) -> tuple[
     1.0 + 0.5 * (first.state.gamma - 1.0) * first.state.mach**2
   ) ** (first.state.gamma / (first.state.gamma - 1.0))
   return source, shock_points, ambient_pressure
+####
 
 
 def test_free_boundary_correction_records_explicit_no_bracket_and_audit() -> None:
@@ -127,6 +128,7 @@ def test_free_boundary_correction_records_explicit_no_bracket_and_audit() -> Non
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
   assert planner.as_report()['diagnostics']['continued_cell_callback_invoked'] is False
+####
 
 
 def test_free_boundary_correction_retains_bounded_source_failure() -> None:
@@ -159,6 +161,7 @@ def test_free_boundary_correction_retains_bounded_source_failure() -> None:
   )
   assert measurement.fidelity_isolation_verified
   assert measurement.physical_closure_verified is False
+####
 
 
 def test_free_boundary_correction_rejects_shape_bracket_without_seed() -> None:
@@ -175,6 +178,7 @@ def test_free_boundary_correction_rejects_shape_bracket_without_seed() -> None:
   assert result.status is MocFirstCellFreeBoundaryCorrectionStatus.INVALID_INPUT
   assert result.converged is False
   assert result.trials == ()
+####
 
 
 def test_free_boundary_correction_refinement_is_independently_audited() -> None:
@@ -190,6 +194,7 @@ def test_free_boundary_correction_refinement_is_independently_audited() -> None:
         shape_scale_upper=1.05,
       )
     )
+  ####
 
   measurement = measure_first_cell_free_boundary_correction_refinement(
     corrections,
@@ -213,6 +218,7 @@ def test_free_boundary_correction_refinement_is_independently_audited() -> None:
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_geometry_owned_candidate_can_seed_reflected_research_chain_without_promotion() -> None:
@@ -267,6 +273,7 @@ def test_geometry_owned_candidate_can_seed_reflected_research_chain_without_prom
   assert report['physical_field_count'] == 3
   assert report['diagnostics']['first_cell_field_identity_verified'] is True
   assert report['diagnostics']['continued_cell_callback_invoked'] is True
+####
 
 
 def test_geometry_owned_candidate_can_seed_alternating_research_chain_without_promotion() -> None:
@@ -325,6 +332,7 @@ def test_geometry_owned_candidate_can_seed_alternating_research_chain_without_pr
   assert planner.canonical_free_boundary_verified is False
   assert planner.canonical_euler_verified is False
   assert planner.external_validation_verified is False
+####
 
 
 def test_geometry_owned_research_chain_is_deterministic_over_resolution() -> None:
@@ -361,6 +369,7 @@ def test_geometry_owned_research_chain_is_deterministic_over_resolution() -> Non
       )
       assert isinstance(result, MocFirstCellResearchChainPlannerResult)
       return result
+    ####
 
     cases.append(
       MocFirstCellResearchChainRefinementCase(
@@ -369,6 +378,7 @@ def test_geometry_owned_research_chain_is_deterministic_over_resolution() -> Non
         repeat_planner=run_chain(),
       )
     )
+  ####
 
   measurement = measure_first_cell_geometry_owned_research_chain_refinement(
     cases,
@@ -402,6 +412,7 @@ def test_geometry_owned_research_chain_is_deterministic_over_resolution() -> Non
   assert report['canonical_free_boundary_verified'] is False
   assert report['canonical_euler_verified'] is False
   assert report['external_validation_verified'] is False
+####
 
 
 def test_geometry_owned_candidate_mock_keeps_bounded_source_stop_typed() -> None:
@@ -465,3 +476,4 @@ def test_geometry_owned_candidate_mock_keeps_bounded_source_stop_typed() -> None
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
   assert planner.as_report()['diagnostics']['continued_cell_callback_invoked'] is False
+####

@@ -89,6 +89,7 @@ class FarFieldRayIntegration:
     object.__setattr__(self, 'ray_direction_indices', indices)
     object.__setattr__(self, 'ray_projected_area_weights_m2', weights)
   ####
+####
 
 
 def _failure_status(
@@ -289,3 +290,4 @@ def far_field_from_rays(
     direction_status=tuple(output_statuses),
     absolute_standard_uncertainty=None,
   )
+####

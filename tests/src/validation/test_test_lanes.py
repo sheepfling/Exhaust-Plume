@@ -19,6 +19,7 @@ def test_test_lane_manifest_partitions_every_test_module_once() -> None:
     assert report["empty_patterns"] == {}
     assert report["overlaps"] == {}
     assert report["unassigned"] == ()
+####
 
 
 def test_mission_and_planar_lanes_have_explicit_focused_commands() -> None:
@@ -31,3 +32,4 @@ def test_mission_and_planar_lanes_have_explicit_focused_commands() -> None:
     assert mission_command[:4] == ("python", "-m", "pytest", "-q")
     assert mission_command[-1] == "tests/src/products/test_mission_timeline.py"
     assert "tests/src/models/moc/test_primitives.py" in planar_command
+####

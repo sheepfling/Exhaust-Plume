@@ -26,6 +26,7 @@ def test_same_phase_spacing_is_computed_without_accepting_a_physical_claim() -> 
   assert result.uncertainty_weighted_rmse == pytest.approx(0.0)
   assert result.claim_status == 'not_accepted'
   assert 'does not identify physical' in result.reason
+####
 
 
 def test_spacing_operator_reports_partial_overlap_without_extrapolation() -> None:
@@ -46,6 +47,7 @@ def test_spacing_operator_reports_partial_overlap_without_extrapolation() -> Non
   assert result.matched_spacing_count == 1
   assert result.observed_spacing_over_D == pytest.approx((0.7, 0.7))
   assert result.uncertainty_weighted_rmse is None
+####
 
 
 def test_spacing_operator_blocks_when_a_phase_has_no_interval() -> None:
@@ -60,6 +62,7 @@ def test_spacing_operator_blocks_when_a_phase_has_no_interval() -> None:
   assert result.matched_spacing_count == 0
   assert result.rmse_over_D is None
   assert result.claim_status == 'not_accepted'
+####
 
 
 def test_spacing_operator_rejects_duplicate_same_phase_positions() -> None:
@@ -73,3 +76,5 @@ def test_spacing_operator_rejects_duplicate_same_phase_positions() -> None:
       ),
       phase_kind='maximum',
     )
+  ####
+####

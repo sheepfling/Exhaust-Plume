@@ -74,6 +74,7 @@ class MocReflectedDomainGlobalPhysicalClosureStatus(str, Enum):
   GLOBAL_EULER_FAILURE = 'global_physical_closure_euler_failure'
   INDEPENDENT_AUDIT_FAILURE = 'global_physical_closure_independent_audit_failure'
   ENTROPY_TRANSPORT_FAILURE = 'global_physical_closure_entropy_transport_failure'
+####
 
 
 def _pressure_log_residual(actual: float, expected: float) -> float:
@@ -81,7 +82,9 @@ def _pressure_log_residual(actual: float, expected: float) -> float:
 
   if actual <= 0.0 or expected <= 0.0:
     return float('inf')
+  ####
   return abs(log(float(actual) / float(expected)))
+####
 
 
 def _state_residual(
@@ -99,6 +102,8 @@ def _state_residual(
     )
   except (AttributeError, TypeError, ValueError):
     return float('inf')
+  ####
+####
 
 
 def _variable_entropy_transport_audit(
@@ -123,15 +128,18 @@ def _variable_entropy_transport_audit(
   field = None if physical is None else physical.field
   if curve is None or field is None or physical is None:
     return False, None, 'global closure retained no exact shock and physical field'
+  ####
   points = tuple(global_result.remeshed_shock_points_m)
   if len(points) < 3 or len(curve.shock_points_m) != len(points):
     return False, None, 'global closure shock geometry and curve samples are misaligned'
+  ####
   if any(
     hypot(curve_point[0] - point[0], curve_point[1] - point[1])
     > position_tolerance_m
     for curve_point, point in zip(curve.shock_points_m, points, strict=True)
   ):
     return False, None, 'global shock curve geometry is not aligned with the retained path'
+  ####
   if not (
     len(curve.upstream_states)
     == len(curve.upstream_total_pressure_Pa)
@@ -140,6 +148,7 @@ def _variable_entropy_transport_audit(
     == len(points)
   ):
     return False, None, 'global closure shock curve lacks complete state/pressure lineage'
+  ####
   if not (
     len(field.shock_boundary_points_m)
     == len(field.post_shock_boundary_states)
@@ -147,6 +156,7 @@ def _variable_entropy_transport_audit(
     == len(points)
   ):
     return False, None, 'closed field lacks one post-shock state and pressure per shock sample'
+  ####
   if any(
     hypot(field_point[0] - point[0], field_point[1] - point[1])
     > position_tolerance_m
@@ -157,6 +167,7 @@ def _variable_entropy_transport_audit(
     )
   ):
     return False, None, 'closed field shock geometry is not aligned with the global curve'
+  ####
 
   residuals: list[float] = []
   for index, point in enumerate(points):
@@ -170,6 +181,7 @@ def _variable_entropy_transport_audit(
     )
     if source_state is None or source_pressure is None:
       return False, None, f'source band could not reproduce shock sample {index}'
+    ####
     upstream_state = curve.upstream_states[index]
     upstream_pressure = curve.upstream_total_pressure_Pa[index]
     downstream_state = curve.downstream_states[index]
@@ -187,6 +199,7 @@ def _variable_entropy_transport_audit(
       > pressure_tolerance
     ):
       return False, None, f'shock entropy lineage changed at sample {index}'
+    ####
     residuals.extend((
       _pressure_log_residual(source_pressure, upstream_pressure),
       _pressure_log_residual(
@@ -194,12 +207,15 @@ def _variable_entropy_transport_audit(
         curve.downstream_total_pressure_Pa[index],
       ),
     ))
+  ####
 
   march = physical.ambient_march
   if march is None or len(march.boundary_samples) != len(points):
     return False, None, 'closed field retained no aligned ambient pressure march'
+  ####
   if len(field.ambient_boundary.total_pressure_Pa) != len(points):
     return False, None, 'closed field retained no aligned ambient pressure perimeter'
+  ####
   for index, (march_sample, field_pressure) in enumerate(
     zip(march.boundary_samples, field.ambient_boundary.total_pressure_Pa, strict=True)
   ):
@@ -210,18 +226,22 @@ def _variable_entropy_transport_audit(
     residuals.append(residual)
     if residual > pressure_tolerance:
       return False, None, f'ambient entropy lineage changed at sample {index}'
+    ####
+  ####
 
   cell_samples = field.cell_state_samples(
     position_tolerance_m=position_tolerance_m,
   )
   if len(cell_samples) != field.cell_count:
     return False, None, 'closed field does not expose complete cell pressure lineage'
+  ####
   if any(
     pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0
     for _vertices, _states, pressures in cell_samples
     for pressure in pressures
   ):
     return False, None, 'closed field contains a non-finite or non-positive cell pressure'
+  ####
   maximum_residual = max(residuals, default=0.0)
   return (
     maximum_residual <= pressure_tolerance,
@@ -233,6 +253,7 @@ def _variable_entropy_transport_audit(
       else 'per-sample shock entropy lineage exceeded tolerance'
     ),
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,6 +276,7 @@ class MocReflectedDomainPromotionEvidence:
   def __post_init__(self) -> None:
     if not isinstance(self.closure_fingerprint, str):
       raise TypeError('closure_fingerprint must be a string')
+    ####
     fingerprint = self.closure_fingerprint
     if len(fingerprint) != 64 or any(
       character not in '0123456789abcdef'
@@ -263,6 +285,7 @@ class MocReflectedDomainPromotionEvidence:
       raise ValueError(
         'closure_fingerprint must be a 64-character lowercase SHA-256 digest'
       )
+    ####
     object.__setattr__(self, 'closure_fingerprint', fingerprint)
     for name in (
       'canonical_free_boundary_evidence_id',
@@ -274,24 +297,33 @@ class MocReflectedDomainPromotionEvidence:
       if value is not None:
         if not isinstance(value, str):
           raise TypeError(f'{name} must be a string when supplied')
+        ####
         if not value:
           raise ValueError(f'{name} must be non-empty when supplied')
+        ####
+      ####
+    ####
+  ####
 
   @property
   def canonical_free_boundary_verified(self) -> bool:
     return self.canonical_free_boundary_evidence_id is not None
+  ####
 
   @property
   def canonical_euler_verified(self) -> bool:
     return self.canonical_euler_evidence_id is not None
+  ####
 
   @property
   def refinement_verified(self) -> bool:
     return self.refinement_evidence_id is not None
+  ####
 
   @property
   def external_validation_verified(self) -> bool:
     return self.external_validation_evidence_id is not None
+  ####
 
   @property
   def has_verified_gate(self) -> bool:
@@ -301,6 +333,7 @@ class MocReflectedDomainPromotionEvidence:
       or self.refinement_verified
       or self.external_validation_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -319,6 +352,8 @@ class MocReflectedDomainPromotionEvidence:
       'external_validation_verified': self.external_validation_verified,
       'has_verified_gate': self.has_verified_gate,
     }
+  ####
+####
 
 
 def moc_reflected_domain_global_physical_closure_fingerprint(
@@ -336,6 +371,7 @@ def moc_reflected_domain_global_physical_closure_fingerprint(
     raise TypeError(
       'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
     )
+  ####
   payload = {
     'status': closure.status.value,
     'source_band': (
@@ -373,6 +409,7 @@ def moc_reflected_domain_global_physical_closure_fingerprint(
     default=str,
   )
   return sha256(serialized.encode('utf-8')).hexdigest()
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -402,16 +439,19 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       raise TypeError(
         'status must be a MocReflectedDomainGlobalPhysicalClosureStatus'
       )
+    ####
     if self.source_band is not None and not isinstance(
       self.source_band,
       MocReflectedDomainAlternatingSourceResult,
     ):
       raise TypeError('source_band must be a MocReflectedDomainAlternatingSourceResult or None')
+    ####
     if self.global_remesh is not None and not isinstance(
       self.global_remesh,
       MocReflectedDomainGlobalShockRemeshResult,
     ):
       raise TypeError('global_remesh must be a MocReflectedDomainGlobalShockRemeshResult or None')
+    ####
     if self.global_euler is not None and not isinstance(
       self.global_euler,
       MocReflectedDomainGlobalEulerShockBoundaryResult,
@@ -419,6 +459,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       raise TypeError(
         'global_euler must be a MocReflectedDomainGlobalEulerShockBoundaryResult or None'
       )
+    ####
     for name in (
       'source_frontier_verified',
       'incoming_handoff_verified',
@@ -431,6 +472,8 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.promotion_evidence is not None and not isinstance(
       self.promotion_evidence,
       MocReflectedDomainPromotionEvidence,
@@ -438,6 +481,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       raise TypeError(
         'promotion_evidence must be a MocReflectedDomainPromotionEvidence or None'
       )
+    ####
     for gate_name, evidence_name in (
       (
         'canonical_free_boundary_verified',
@@ -457,18 +501,24 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         raise ValueError(
           f'{gate_name} requires matching promotion evidence'
         )
+      ####
+    ####
     if self.maximum_entropy_lineage_residual is not None:
       residual = float(self.maximum_entropy_lineage_residual)
       if not isfinite(residual) or residual < 0.0:
         raise ValueError(
           'maximum_entropy_lineage_residual must be finite and nonnegative'
         )
+      ####
       object.__setattr__(self, 'maximum_entropy_lineage_residual', residual)
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     return self.status is MocReflectedDomainGlobalPhysicalClosureStatus.CONVERGED_GLOBAL_PHYSICAL_CLOSURE
+  ####
 
   @property
   def physical_closure_verified(self) -> bool:
@@ -499,6 +549,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       and self.variable_entropy_transport_verified
       and self.cell_euler_residuals_verified
     )
+  ####
 
   @property
   def production_promotion_gates(self) -> Mapping[str, bool]:
@@ -534,6 +585,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         and evidence.external_validation_verified
       ),
     })
+  ####
 
   @property
   def promotion_evidence_bound(self) -> bool:
@@ -544,6 +596,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       and evidence.closure_fingerprint
       == moc_reflected_domain_global_physical_closure_fingerprint(self)
     )
+  ####
 
   def bind_promotion_evidence(
     self,
@@ -561,19 +614,23 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       raise TypeError(
         'evidence must be a MocReflectedDomainPromotionEvidence'
       )
+    ####
     if not self.physical_closure_verified:
       raise ValueError(
         'promotion evidence requires a locally physically verified closure'
       )
+    ####
     fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(self)
     if evidence.closure_fingerprint != fingerprint:
       raise ValueError(
         'promotion evidence closure_fingerprint does not match this closure'
       )
+    ####
     if not evidence.has_verified_gate:
       raise ValueError(
         'promotion evidence must contain at least one verified gate record'
       )
+    ####
     return replace(
       self,
       canonical_free_boundary_verified=evidence.canonical_free_boundary_verified,
@@ -582,20 +639,25 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       external_validation_verified=evidence.external_validation_verified,
       promotion_evidence=evidence,
     )
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return not all(self.production_promotion_gates.values())
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return all(self.production_promotion_gates.values())
+  ####
 
   @property
   def incoming_handoff(self) -> tuple[MocChainBoundarySample, ...]:
     if self.global_euler is None:
       return ()
+    ####
     return self.global_euler.incoming_handoff
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     if self.status is MocReflectedDomainGlobalPhysicalClosureStatus.INVALID_INPUT:
@@ -604,6 +666,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -622,6 +685,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         'production_claim_allowed': self.production_claim_allowed,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -653,6 +717,8 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _closure_result(
@@ -684,6 +750,7 @@ def _closure_result(
     cell_euler_residuals_verified=cell_euler_residuals_verified,
     message=message,
   )
+####
 
 
 def solve_reflected_domain_global_physical_closure(
@@ -729,6 +796,7 @@ def solve_reflected_domain_global_physical_closure(
       None,
       message='source_band must be a MocReflectedDomainAlternatingSourceResult',
     )
+  ####
   try:
     resolved_handoff = (
       source_band.incoming_handoff
@@ -743,6 +811,7 @@ def solve_reflected_domain_global_physical_closure(
       None,
       message='incoming_handoff must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in resolved_handoff):
     return _closure_result(
       status_type.INVALID_INPUT,
@@ -751,6 +820,7 @@ def solve_reflected_domain_global_physical_closure(
       None,
       message='incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if resolved_handoff != source_band.incoming_handoff:
     return _closure_result(
       status_type.INVALID_INPUT,
@@ -760,6 +830,7 @@ def solve_reflected_domain_global_physical_closure(
       incoming_handoff_verified=False,
       message='incoming_handoff must exactly match the source-band handoff',
     )
+  ####
   if not source_band.source_field_verified:
     return _closure_result(
       status_type.GLOBAL_REMESH_FAILURE,
@@ -769,6 +840,7 @@ def solve_reflected_domain_global_physical_closure(
       incoming_handoff_verified=True,
       message='global physical closure requires a verified bounded source band',
     )
+  ####
   try:
     global_remesh = solve_reflected_domain_global_shock_remesh(
       source_band,
@@ -802,6 +874,7 @@ def solve_reflected_domain_global_physical_closure(
       incoming_handoff_verified=True,
       message=f'global shock remesh raised: {error}',
     )
+  ####
   if not global_remesh.attempts or global_remesh.selected_attempt is None:
     return _closure_result(
       status_type.GLOBAL_REMESH_FAILURE,
@@ -811,6 +884,7 @@ def solve_reflected_domain_global_physical_closure(
       incoming_handoff_verified=True,
       message=f'global shock remesh retained no selectable attempt: {global_remesh.message}',
     )
+  ####
   try:
     global_euler = solve_reflected_domain_global_euler_shock_boundary(
       global_remesh,
@@ -832,6 +906,7 @@ def solve_reflected_domain_global_physical_closure(
       incoming_handoff_verified=True,
       message=f'global Euler closure raised: {error}',
     )
+  ####
   if not global_euler.converged:
     return _closure_result(
       status_type.GLOBAL_EULER_FAILURE,
@@ -842,6 +917,7 @@ def solve_reflected_domain_global_physical_closure(
       incoming_handoff_verified=global_euler.incoming_handoff_verified,
       message=f'global Euler closure did not converge: {global_euler.message}',
     )
+  ####
   try:
     from exhaust_plume.validation.moc_euler import measure_moc_euler_ambient_physical_field
     from exhaust_plume.validation.moc_measurements import (
@@ -875,6 +951,7 @@ def solve_reflected_domain_global_physical_closure(
       incoming_handoff_verified=global_euler.incoming_handoff_verified,
       message=f'global physical closure independent audit raised: {error}',
     )
+  ####
   entropy_verified, maximum_entropy_residual, entropy_message = (
     _variable_entropy_transport_audit(
       source_band,
@@ -909,6 +986,7 @@ def solve_reflected_domain_global_physical_closure(
   )
   if provisional.physical_closure_verified:
     return provisional
+  ####
   failure_status = (
     status_type.ENTROPY_TRANSPORT_FAILURE
     if not entropy_verified
@@ -933,6 +1011,7 @@ def solve_reflected_domain_global_physical_closure(
       else 'global Euler field did not pass the independent physical-field or cell-residual audit'
     ),
   )
+####
 
 
 class MocProductionShockCellFitStatus(str, Enum):
@@ -944,6 +1023,7 @@ class MocProductionShockCellFitStatus(str, Enum):
   FRONTIER_FAILURE = 'production_shock_cell_frontier_failure'
   SHOCK_FIT_FAILURE = 'production_shock_cell_fit_failure'
   FIELD_FAILURE = 'production_shock_cell_field_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -967,46 +1047,60 @@ class MocProductionShockCellFitResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocProductionShockCellFitStatus):
       raise TypeError('status must be a MocProductionShockCellFitStatus')
+    ####
     if self.closure is not None and not isinstance(
       self.closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('closure must be a MocReflectedDomainGlobalPhysicalClosureResult or None')
+    ####
     frontier = tuple(self.incoming_frontier)
     if any(not isinstance(sample, MocChainBoundarySample) for sample in frontier):
       raise TypeError('incoming_frontier must contain MocChainBoundarySample values')
+    ####
     object.__setattr__(self, 'incoming_frontier', frontier)
     if self.shock_fit is not None and not isinstance(
       self.shock_fit,
       MocEulerShockBoundaryCurveResult,
     ):
       raise TypeError('shock_fit must be a MocEulerShockBoundaryCurveResult or None')
+    ####
     if self.candidate_field is not None and not isinstance(
       self.candidate_field,
       MocPhysicalPostShockFieldResult,
     ):
       raise TypeError('candidate_field must be a MocPhysicalPostShockFieldResult or None')
+    ####
     if self.candidate_cell is not None and not isinstance(self.candidate_cell, MocChainCell):
       raise TypeError('candidate_cell must be a MocChainCell or None')
+    ####
     points = tuple(
       (float(point[0]), float(point[1])) for point in self.fitted_shock_points_m
     )
     if any(not all(isfinite(value) for value in point) for point in points):
       raise ValueError('fitted_shock_points_m must contain finite coordinates')
+    ####
     object.__setattr__(self, 'fitted_shock_points_m', points)
     for name in ('frontier_verified', 'shock_fit_verified'):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     for name in ('start_x_m', 'end_x_m'):
       value = getattr(self, name)
       if value is not None:
         normalized = float(value)
         if not isfinite(normalized):
           raise ValueError(f'{name} must be finite when supplied')
+        ####
         object.__setattr__(self, name, normalized)
+      ####
+    ####
     if isinstance(self.cell_index, bool) or not isinstance(self.cell_index, int) or self.cell_index < 1:
       raise ValueError('cell_index must be a positive integer')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def local_fit_verified(self) -> bool:
@@ -1023,6 +1117,7 @@ class MocProductionShockCellFitResult:
       and self.candidate_field.state_sampling_available
       and self.candidate_cell is not None
     )
+  ####
 
   @property
   def production_promotion_gates(self) -> Mapping[str, bool]:
@@ -1046,14 +1141,17 @@ class MocProductionShockCellFitResult:
         closure_gates.get('external_validation_verified', False)
       ),
     })
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
     return not all(self.production_promotion_gates.values())
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return all(self.production_promotion_gates.values())
+  ####
 
   def as_production_chain_cell(self) -> MocChainCell:
     """Return a production cell only after every explicit promotion gate."""
@@ -1063,7 +1161,9 @@ class MocProductionShockCellFitResult:
         'production shock-cell promotion is blocked until canonical closure, '
         'refinement, and external validation pass'
       )
+    ####
     return self.candidate_cell
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     if self.status is MocProductionShockCellFitStatus.INVALID_INPUT:
@@ -1074,6 +1174,7 @@ class MocProductionShockCellFitResult:
       reason = MocChainTerminationReason.STATE_NOT_CARRIED
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -1091,6 +1192,7 @@ class MocProductionShockCellFitResult:
         'template_schedule_consumed': False,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1117,6 +1219,8 @@ class MocProductionShockCellFitResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _fit_result(
@@ -1150,6 +1254,7 @@ def _fit_result(
     cell_index=cell_index,
     message=message,
   )
+####
 
 
 def fit_reflected_domain_production_shock_cell(
@@ -1180,6 +1285,7 @@ def fit_reflected_domain_production_shock_cell(
       (),
       message='closure must be a MocReflectedDomainGlobalPhysicalClosureResult',
     )
+  ####
   try:
     start = float(start_x_m)
     end = float(end_x_m)
@@ -1196,6 +1302,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='shock-cell fit geometry and tolerances must be numeric',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (position_tolerance, angle_tolerance, fit_tolerance)
@@ -1209,6 +1316,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='shock-cell fit requires finite positive tolerances and end_x_m > start_x_m',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _fit_result(
       status_type.INVALID_INPUT,
@@ -1219,6 +1327,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='branch must be a ShockBranch',
     )
+  ####
   if (
     isinstance(cell_index, bool)
     or not isinstance(cell_index, int)
@@ -1233,6 +1342,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=1,
       message='cell_index must be a positive integer',
     )
+  ####
   try:
     frontier = (
       closure.incoming_handoff
@@ -1249,6 +1359,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='incoming_frontier must be an iterable of MocChainBoundarySample values',
     )
+  ####
   if any(not isinstance(sample, MocChainBoundarySample) for sample in frontier):
     return _fit_result(
       status_type.INVALID_INPUT,
@@ -1259,6 +1370,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='incoming_frontier must contain MocChainBoundarySample values',
     )
+  ####
   frontier_verified = bool(frontier and frontier == closure.incoming_handoff)
   if not frontier_verified:
     return _fit_result(
@@ -1271,6 +1383,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='incoming_frontier must exactly match the globally coupled closure handoff',
     )
+  ####
   if not closure.physical_closure_verified:
     return _fit_result(
       status_type.CLOSURE_REQUIRED,
@@ -1282,6 +1395,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='production shock-cell fitting requires a verified global physical closure',
     )
+  ####
   source_band = closure.source_band
   global_euler = closure.global_euler
   physical_result = None if global_euler is None else global_euler.physical_field
@@ -1297,6 +1411,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='global physical closure retained no state-carrying field for fitting',
     )
+  ####
   points = tuple(global_euler.remeshed_shock_points_m)
   if len(points) < 3 or any(
     second[0] <= first[0] + position_tolerance
@@ -1313,6 +1428,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='global closure retained no ordered solver-generated shock path',
     )
+  ####
   if points[0][0] <= start + position_tolerance:
     return _fit_result(
       status_type.SHOCK_FIT_FAILURE,
@@ -1325,6 +1441,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='solver-generated next shock does not start downstream of start_x_m',
     )
+  ####
   if not field.ambient_boundary_points_m:
     return _fit_result(
       status_type.FIELD_FAILURE,
@@ -1337,6 +1454,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='closed physical field retained no ambient boundary path',
     )
+  ####
   if end < field.ambient_boundary_points_m[-1][0] - position_tolerance:
     return _fit_result(
       status_type.FIELD_FAILURE,
@@ -1349,6 +1467,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message='end_x_m truncates the retained closed physical field',
     )
+  ####
 
   upstream_states = []
   upstream_pressures = []
@@ -1373,8 +1492,10 @@ def fit_reflected_domain_production_shock_cell(
         cell_index=cell_index,
         message=f'bounded source frontier cannot reproduce shock sample {index}',
       )
+    ####
     upstream_states.append(state)
     upstream_pressures.append(float(pressure))
+  ####
   try:
     shock_fit = fit_euler_consistent_shock_boundary_from_geometry(
       tuple(upstream_states),
@@ -1398,6 +1519,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message=f'frontier-only shock fit raised: {error}',
     )
+  ####
   if not shock_fit.converged or not shock_fit.local_euler_verified:
     return _fit_result(
       status_type.SHOCK_FIT_FAILURE,
@@ -1412,6 +1534,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message=f'frontier-only shock fit did not pass its Euler gate: {shock_fit.message}',
     )
+  ####
   try:
     candidate_cell = field.as_coupled_chain_cell(
       start_x_m=start,
@@ -1440,6 +1563,7 @@ def fit_reflected_domain_production_shock_cell(
       cell_index=cell_index,
       message=f'closed physical field could not become a fitting candidate: {error}',
     )
+  ####
   return _fit_result(
     status_type.CONVERGED_LOCAL_FIT,
     closure,
@@ -1459,6 +1583,7 @@ def fit_reflected_domain_production_shock_cell(
       'by canonical/refinement/external gates'
     ),
   )
+####
 
 
 fit_production_shock_cell_from_frontier = fit_reflected_domain_production_shock_cell

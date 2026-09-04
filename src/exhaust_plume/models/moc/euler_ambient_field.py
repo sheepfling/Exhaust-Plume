@@ -77,6 +77,7 @@ class MocEulerAmbientBoundaryMarchStatus(str, Enum):
   GEOMETRY_FAILURE = 'euler_ambient_boundary_geometry_failure'
   PRESSURE_FAILURE = 'euler_ambient_boundary_pressure_failure'
   INVARIANT_FAILURE = 'euler_ambient_boundary_invariant_failure'
+####
 
 
 class MocEulerAmbientAttachmentWedgeStatus(str, Enum):
@@ -85,6 +86,7 @@ class MocEulerAmbientAttachmentWedgeStatus(str, Enum):
   CONVERGED_FIRST_WEDGE = 'converged_euler_ambient_first_wedge'
   NO_FORWARD_INTERSECTION = 'euler_ambient_first_wedge_no_forward_intersection'
   INVALID_INPUT = 'invalid_input'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,15 +104,21 @@ class MocEulerAmbientAttachmentWedgeTrial:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
     if not isinstance(self.point_result, CharacteristicPointResult):
       raise TypeError('point_result must be a CharacteristicPointResult')
+    ####
     if self.forward_margin_m is not None:
       margin = float(self.forward_margin_m)
       if not isfinite(margin):
         raise ValueError('forward_margin_m must be finite when supplied')
+      ####
       object.__setattr__(self, 'forward_margin_m', margin)
+    ####
     if not isinstance(self.accepted, bool):
       raise TypeError('accepted must be a bool')
+    ####
   ####
 
   def as_report(self) -> dict[str, Any]:
@@ -126,6 +134,7 @@ class MocEulerAmbientAttachmentWedgeTrial:
       'message': result.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +160,7 @@ class MocEulerAmbientAttachmentWedgeResult:
       raise TypeError(
         'status must be a MocEulerAmbientAttachmentWedgeStatus'
       )
+    ####
     trials = tuple(self.trials)
     if any(
       not isinstance(trial, MocEulerAmbientAttachmentWedgeTrial)
@@ -159,45 +169,56 @@ class MocEulerAmbientAttachmentWedgeResult:
       raise TypeError(
         'trials must contain MocEulerAmbientAttachmentWedgeTrial values'
       )
+    ####
     if (
       not trials
       and self.status is not MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT
     ):
       raise ValueError('trials must retain at least one source pairing')
+    ####
     object.__setattr__(self, 'trials', trials)
     for name in ('position_tolerance_m', 'invariant_tolerance'):
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in ('accepted_plus_source_index', 'accepted_minus_source_index'):
       value = getattr(self, name)
       if value is not None and (
         isinstance(value, bool) or not isinstance(value, int) or value < 0
       ):
         raise ValueError(f'{name} must be a nonnegative integer or None')
+      ####
+    ####
     if self.accepted_point_m is not None:
       if len(self.accepted_point_m) != 2 or not all(
         isfinite(float(value)) for value in self.accepted_point_m
       ):
         raise ValueError('accepted_point_m must contain two finite coordinates')
+      ####
       object.__setattr__(
         self,
         'accepted_point_m',
         (float(self.accepted_point_m[0]), float(self.accepted_point_m[1])),
       )
+    ####
     if self.accepted_state is not None and not isinstance(
       self.accepted_state,
       CharacteristicState,
     ):
       raise TypeError('accepted_state must be a CharacteristicState or None')
+    ####
     if self.accepted_forward_margin_m is not None:
       margin = float(self.accepted_forward_margin_m)
       if not isfinite(margin) or margin <= 0.0:
         raise ValueError(
           'accepted_forward_margin_m must be finite and positive when supplied'
         )
+      ####
       object.__setattr__(self, 'accepted_forward_margin_m', margin)
+    ####
     if self.status is MocEulerAmbientAttachmentWedgeStatus.CONVERGED_FIRST_WEDGE:
       if (
         self.accepted_plus_source_index is None
@@ -210,6 +231,8 @@ class MocEulerAmbientAttachmentWedgeResult:
           'a converged first wedge must retain its accepted source pairing, '
           'state, point, and forward margin'
         )
+      ####
+    ####
     for name in (
       'physical_closure_verified',
       'chain_promotion_blocked',
@@ -217,6 +240,8 @@ class MocEulerAmbientAttachmentWedgeResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -230,6 +255,8 @@ class MocEulerAmbientAttachmentWedgeResult:
     for trial in self.trials:
       if trial.accepted:
         return trial
+      ####
+    ####
     return None
   ####
 
@@ -255,6 +282,7 @@ class MocEulerAmbientAttachmentWedgeResult:
       'message': self.message,
     }
   ####
+####
 
 
 def solve_euler_ambient_attachment_wedge(
@@ -280,6 +308,7 @@ def solve_euler_ambient_attachment_wedge(
       trials=(),
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
     )
+  ####
   if not isinstance(ambient_march, MocEulerAmbientBoundaryMarchResult):
     return MocEulerAmbientAttachmentWedgeResult(
       status=MocEulerAmbientAttachmentWedgeStatus.INVALID_INPUT,
@@ -288,12 +317,14 @@ def solve_euler_ambient_attachment_wedge(
         'ambient_march must be a MocEulerAmbientBoundaryMarchResult'
       ),
     )
+  ####
   if (
     isinstance(candidate_span, bool)
     or not isinstance(candidate_span, int)
     or candidate_span < 1
   ):
     raise ValueError('candidate_span must be a positive integer')
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     invariant_tolerance_value = float(invariant_tolerance)
@@ -303,12 +334,15 @@ def solve_euler_ambient_attachment_wedge(
       trials=(),
       message='attachment-wedge tolerances must be numeric',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('invariant_tolerance', invariant_tolerance_value),
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not (
     shock_boundary.converged
     and shock_boundary.local_euler_verified
@@ -324,6 +358,7 @@ def solve_euler_ambient_attachment_wedge(
         'boundary results'
       ),
     )
+  ####
   shock_points = tuple(shock_boundary.shock_points_m)
   samples = tuple(ambient_march.boundary_samples)
   if len(shock_points) < 2 or len(samples) != len(shock_points):
@@ -336,6 +371,7 @@ def solve_euler_ambient_attachment_wedge(
         'attachment-wedge probe requires aligned shock and ambient samples'
       ),
     )
+  ####
   first_shock = shock_points[0]
   first_ambient = samples[0].point_m
   if any(
@@ -352,6 +388,7 @@ def solve_euler_ambient_attachment_wedge(
         'samples to share a physical attachment point'
       ),
     )
+  ####
 
   pairs: list[tuple[int, int]] = []
   maximum_index = len(samples) - 1
@@ -360,6 +397,9 @@ def solve_euler_ambient_attachment_wedge(
       minus_index = distance - plus_index
       if plus_index <= maximum_index and minus_index <= maximum_index:
         pairs.append((plus_index, minus_index))
+      ####
+    ####
+  ####
   trials: list[MocEulerAmbientAttachmentWedgeTrial] = []
   accepted_plus_index: int | None = None
   accepted_minus_index: int | None = None
@@ -379,6 +419,7 @@ def solve_euler_ambient_attachment_wedge(
         shock_boundary.downstream_states[plus_index].x_m,
         samples[minus_index].state.x_m,
       )
+    ####
     accepted = bool(
       point_result.converged
       and point_result.point_m is not None
@@ -402,6 +443,8 @@ def solve_euler_ambient_attachment_wedge(
       accepted_state = point_result.state
       accepted_margin = margin
       break
+    ####
+  ####
 
   if accepted_plus_index is not None:
     return MocEulerAmbientAttachmentWedgeResult(
@@ -419,6 +462,7 @@ def solve_euler_ambient_attachment_wedge(
         'C+/C- intersection; full reflected field remesh remains pending'
       ),
     )
+  ####
   return MocEulerAmbientAttachmentWedgeResult(
     status=MocEulerAmbientAttachmentWedgeStatus.NO_FORWARD_INTERSECTION,
     trials=tuple(trials),
@@ -429,7 +473,7 @@ def solve_euler_ambient_attachment_wedge(
       'C+/C- intersection in its candidate source span'
     ),
   )
-  ####
+####
 
 
 def _empty_ambient_boundary(
@@ -450,6 +494,7 @@ def _empty_ambient_boundary(
     maximum_absolute_tangent_residual=None,
     message=message,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -483,6 +528,7 @@ class MocEulerAmbientBoundaryMarchResult:
       raise TypeError(
         'status must be a MocEulerAmbientBoundaryMarchStatus'
       )
+    ####
     if self.shock_boundary is not None and not isinstance(
       self.shock_boundary,
       MocEulerShockBoundaryCurveResult,
@@ -490,13 +536,16 @@ class MocEulerAmbientBoundaryMarchResult:
       raise TypeError(
         'shock_boundary must be a MocEulerShockBoundaryCurveResult or None'
       )
+    ####
     if self.ambient_pressure_Pa is not None:
       ambient_pressure = float(self.ambient_pressure_Pa)
       if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
         raise ValueError(
           'ambient_pressure_Pa must be finite and positive when supplied'
         )
+      ####
       object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    ####
     if not isinstance(
       self.ambient_boundary,
       MocAmbientPressureBoundaryResult,
@@ -504,6 +553,7 @@ class MocEulerAmbientBoundaryMarchResult:
       raise TypeError(
         'ambient_boundary must be a MocAmbientPressureBoundaryResult'
       )
+    ####
     samples = tuple(self.boundary_samples)
     point_results = tuple(self.point_results)
     residuals = tuple(float(value) for value in self.incoming_k_plus_residuals)
@@ -514,6 +564,7 @@ class MocEulerAmbientBoundaryMarchResult:
       raise TypeError(
         'boundary_samples must contain MocAmbientBoundarySample values'
       )
+    ####
     if any(
       not isinstance(result, MocFreeBoundaryPointResult)
       for result in point_results
@@ -521,14 +572,17 @@ class MocEulerAmbientBoundaryMarchResult:
       raise TypeError(
         'point_results must contain MocFreeBoundaryPointResult values'
       )
+    ####
     if len(samples) != len(point_results) or len(samples) != len(residuals):
       raise ValueError(
         'boundary samples, point results, and invariant residuals must align'
       )
+    ####
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError(
         'incoming_k_plus_residuals must contain finite nonnegative values'
       )
+    ####
     object.__setattr__(self, 'boundary_samples', samples)
     object.__setattr__(self, 'point_results', point_results)
     object.__setattr__(self, 'incoming_k_plus_residuals', residuals)
@@ -541,12 +595,16 @@ class MocEulerAmbientBoundaryMarchResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric):
         raise ValueError(f'{name} must be finite when supplied')
+      ####
       if name != 'attachment_relative_pressure_residual' and numeric < 0.0:
         raise ValueError(f'{name} must be nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
+    ####
     for name in (
       'physical_closure_verified',
       'chain_promotion_blocked',
@@ -554,21 +612,27 @@ class MocEulerAmbientBoundaryMarchResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     """Whether the exact-Euler ambient boundary passed its local gates."""
 
     return self.status is MocEulerAmbientBoundaryMarchStatus.CONVERGED
+  ####
 
   @property
   def state_sampling_available(self) -> bool:
     return bool(self.converged and len(self.boundary_samples) >= 2)
+  ####
 
   @property
   def points_m(self) -> tuple[tuple[float, float], ...]:
     return tuple(sample.point_m for sample in self.boundary_samples)
+  ####
 
   @property
   def boundary_handoff(self) -> tuple[MocChainBoundarySample, ...]:
@@ -576,6 +640,7 @@ class MocEulerAmbientBoundaryMarchResult:
 
     if not self.state_sampling_available:
       return ()
+    ####
     return tuple(
       MocChainBoundarySample(
         state=sample.state,
@@ -583,6 +648,7 @@ class MocEulerAmbientBoundaryMarchResult:
       )
       for sample in self.boundary_samples
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     """Expose the open physical boundary to a continued-chain planner."""
@@ -601,6 +667,7 @@ class MocEulerAmbientBoundaryMarchResult:
           'physical_closure_verified': False,
         },
       )
+    ####
     if self.status is MocEulerAmbientBoundaryMarchStatus.INVALID_INPUT:
       reason = MocChainTerminationReason.INVALID_INPUT
     elif self.status in (
@@ -612,6 +679,7 @@ class MocEulerAmbientBoundaryMarchResult:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -622,6 +690,7 @@ class MocEulerAmbientBoundaryMarchResult:
         'physical_closure_verified': False,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -659,6 +728,8 @@ class MocEulerAmbientBoundaryMarchResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _march_failure(
@@ -708,6 +779,7 @@ def _march_failure(
     maximum_absolute_invariant_residual=max(resolved_residuals, default=None),
     message=message,
   )
+####
 
 
 def _static_pressure_from_total(
@@ -717,6 +789,7 @@ def _static_pressure_from_total(
   return float(total_pressure_Pa) / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
+####
 
 
 def march_euler_ambient_boundary(
@@ -743,6 +816,7 @@ def march_euler_ambient_boundary(
       None,
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
     )
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     target_y = float(target_centerline_y_m)
@@ -758,10 +832,13 @@ def march_euler_ambient_boundary(
         'ambient pressure, target ordinate, and tolerances must be numeric'
       ),
     )
+  ####
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(target_y):
     raise ValueError('target_centerline_y_m must be finite')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('invariant_tolerance', invariant_tolerance_value),
@@ -769,8 +846,11 @@ def march_euler_ambient_boundary(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   if not shock_boundary.converged or not shock_boundary.local_euler_verified:
     return _march_failure(
       MocEulerAmbientBoundaryMarchStatus.SHOCK_BOUNDARY_REQUIRED,
@@ -781,6 +861,7 @@ def march_euler_ambient_boundary(
         f'curve: {shock_boundary.message}'
       ),
     )
+  ####
   if shock_boundary.orientation is not MocEulerShockBoundaryOrientation.MIXED_CHARACTERISTIC_BOUNDARY:
     return _march_failure(
       MocEulerAmbientBoundaryMarchStatus.SHOCK_ORIENTATION_FAILURE,
@@ -791,6 +872,7 @@ def march_euler_ambient_boundary(
         'orientation so the shock supplies C+ sources'
       ),
     )
+  ####
   points = tuple(shock_boundary.shock_points_m)
   states = tuple(shock_boundary.downstream_states)
   pressures = tuple(shock_boundary.downstream_total_pressure_Pa)
@@ -804,6 +886,7 @@ def march_euler_ambient_boundary(
         'and total pressures'
       ),
     )
+  ####
   if any(
     abs(state.x_m - point[0]) > position_tolerance
     or abs(state.y_m - point[1]) > position_tolerance
@@ -815,6 +898,7 @@ def march_euler_ambient_boundary(
       ambient_pressure,
       message='exact Euler shock states must lie on their shock sample points',
     )
+  ####
   if any(
     points[index + 1][0] <= points[index][0] + position_tolerance
     or points[index + 1][1] > points[index][1] + position_tolerance
@@ -829,6 +913,7 @@ def march_euler_ambient_boundary(
         'in ordinate'
       ),
     )
+  ####
   if any(point[1] < target_y - position_tolerance for point in points):
     return _march_failure(
       MocEulerAmbientBoundaryMarchStatus.GEOMETRY_FAILURE,
@@ -836,6 +921,7 @@ def march_euler_ambient_boundary(
       ambient_pressure,
       message='exact Euler shock samples cross below the target centerline',
     )
+  ####
 
   first_static_pressure = _static_pressure_from_total(states[0], pressures[0])
   attachment_residual = (
@@ -872,6 +958,7 @@ def march_euler_ambient_boundary(
         f'relative residual={attachment_residual}'
       ),
     )
+  ####
 
   samples: list[MocAmbientBoundarySample] = [
     MocAmbientBoundarySample(
@@ -921,6 +1008,7 @@ def march_euler_ambient_boundary(
         attachment_relative_pressure_residual=attachment_residual,
         message=f'exact Euler ambient boundary sample {index} failed: {result.message}',
       )
+    ####
     if result.point_m[0] <= previous_boundary.x_m + position_tolerance:
       return _march_failure(
         MocEulerAmbientBoundaryMarchStatus.GEOMETRY_FAILURE,
@@ -935,6 +1023,7 @@ def march_euler_ambient_boundary(
           'downstream'
         ),
       )
+    ####
     if result.point_m[1] < target_y - position_tolerance:
       return _march_failure(
         MocEulerAmbientBoundaryMarchStatus.GEOMETRY_FAILURE,
@@ -949,6 +1038,7 @@ def march_euler_ambient_boundary(
           'target centerline'
         ),
       )
+    ####
     k_plus_residual = abs(result.state.k_plus - state.k_plus)
     k_plus_residuals.append(k_plus_residual)
     if k_plus_residual > invariant_tolerance_value:
@@ -965,6 +1055,7 @@ def march_euler_ambient_boundary(
           'the shock-sourced C+ invariant'
         ),
       )
+    ####
     samples.append(
       MocAmbientBoundarySample(
         point_m=result.point_m,
@@ -973,6 +1064,7 @@ def march_euler_ambient_boundary(
       )
     )
     previous_boundary = result.state
+  ####
 
   ambient_boundary = validate_ambient_pressure_boundary(
     samples,
@@ -1001,6 +1093,7 @@ def march_euler_ambient_boundary(
         f'acceptance: {ambient_boundary.message}'
       ),
     )
+  ####
   return MocEulerAmbientBoundaryMarchResult(
     status=MocEulerAmbientBoundaryMarchStatus.CONVERGED,
     shock_boundary=shock_boundary,
@@ -1028,6 +1121,7 @@ def march_euler_ambient_boundary(
       'closure remains pending'
     ),
   )
+####
 
 
 class MocEulerAmbientShockFieldStatus(str, Enum):
@@ -1040,6 +1134,7 @@ class MocEulerAmbientShockFieldStatus(str, Enum):
   ENTROPY_TRANSPORT_REQUIRED = 'euler_entropy_transport_required'
   ATTACHMENT_GEOMETRY_FAILURE = 'euler_attachment_geometry_failure'
   FIELD_FAILURE = 'euler_ambient_shock_field_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1066,6 +1161,7 @@ class MocEulerAmbientShockFieldResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocEulerAmbientShockFieldStatus):
       raise TypeError('status must be a MocEulerAmbientShockFieldStatus')
+    ####
     if self.shock_boundary is not None and not isinstance(
       self.shock_boundary,
       MocEulerShockBoundaryCurveResult,
@@ -1073,6 +1169,7 @@ class MocEulerAmbientShockFieldResult:
       raise TypeError(
         'shock_boundary must be a MocEulerShockBoundaryCurveResult or None'
       )
+    ####
     if self.ambient_march is not None and not isinstance(
       self.ambient_march,
       MocEulerAmbientBoundaryMarchResult,
@@ -1080,6 +1177,7 @@ class MocEulerAmbientShockFieldResult:
       raise TypeError(
         'ambient_march must be a MocEulerAmbientBoundaryMarchResult or None'
       )
+    ####
     if self.attachment_wedge is not None and not isinstance(
       self.attachment_wedge,
       MocEulerAmbientAttachmentWedgeResult,
@@ -1087,6 +1185,7 @@ class MocEulerAmbientShockFieldResult:
       raise TypeError(
         'attachment_wedge must be a MocEulerAmbientAttachmentWedgeResult or None'
       )
+    ####
     if self.ambient_companion_boundary is not None and not isinstance(
       self.ambient_companion_boundary,
       MocEulerAmbientCompanionBoundaryResult,
@@ -1095,11 +1194,13 @@ class MocEulerAmbientShockFieldResult:
         'ambient_companion_boundary must be a '
         'MocEulerAmbientCompanionBoundaryResult or None'
       )
+    ####
     if self.ambient_march is not None and self.ambient_companion_boundary is not None:
       raise ValueError(
         'ambient_march and ambient_companion_boundary are mutually exclusive '
         'ambient-boundary sources'
       )
+    ####
     if self.field is not None and not isinstance(
       self.field,
       MocEulerCompanionFieldResult,
@@ -1107,16 +1208,20 @@ class MocEulerAmbientShockFieldResult:
       raise TypeError(
         'field must be a MocEulerCompanionFieldResult or None'
       )
+    ####
     if self.ambient_pressure_Pa is not None:
       ambient_pressure = float(self.ambient_pressure_Pa)
       if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
         raise ValueError(
           'ambient_pressure_Pa must be finite and positive when supplied'
         )
+      ####
       object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    ####
     residuals = tuple(float(value) for value in self.entropy_residuals)
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError('entropy_residuals must contain finite nonnegative values')
+    ####
     object.__setattr__(self, 'entropy_residuals', residuals)
     if self.maximum_entropy_residual is not None:
       maximum = float(self.maximum_entropy_residual)
@@ -1124,7 +1229,9 @@ class MocEulerAmbientShockFieldResult:
         raise ValueError(
           'maximum_entropy_residual must be finite and nonnegative when supplied'
         )
+      ####
       object.__setattr__(self, 'maximum_entropy_residual', maximum)
+    ####
     for name in (
       'ambient_boundary_verified',
       'entropy_lineage_verified',
@@ -1135,7 +1242,10 @@ class MocEulerAmbientShockFieldResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -1147,16 +1257,20 @@ class MocEulerAmbientShockFieldResult:
       and self.field is not None
       and self.field.converged
     )
+  ####
 
   @property
   def state_sampling_available(self) -> bool:
     return bool(self.converged and self.field is not None and self.field.state_sampling_available)
+  ####
 
   @property
   def downstream_handoff(self) -> tuple[MocChainBoundarySample, ...]:
     if not self.state_sampling_available or self.field is None:
       return ()
+    ####
     return self.field.downstream_handoff
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     if self.converged:
@@ -1173,6 +1287,7 @@ class MocEulerAmbientShockFieldResult:
           'physical_closure_verified': False,
         },
       )
+    ####
     if self.status is MocEulerAmbientShockFieldStatus.INVALID_INPUT:
       reason = MocChainTerminationReason.INVALID_INPUT
     elif self.status in (
@@ -1182,6 +1297,7 @@ class MocEulerAmbientShockFieldResult:
       reason = MocChainTerminationReason.FIDELITY_NOT_ALLOWED
     else:
       reason = MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    ####
     return MocChainTerminationDecision(
       physical_termination=False,
       reason=reason,
@@ -1192,6 +1308,7 @@ class MocEulerAmbientShockFieldResult:
         'physical_closure_verified': False,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1232,6 +1349,8 @@ class MocEulerAmbientShockFieldResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _field_failure(
@@ -1264,6 +1383,7 @@ def _field_failure(
     local_field_verified=local_field_verified,
     message=message,
   )
+####
 
 
 def assemble_euler_ambient_shock_field_from_companion(
@@ -1299,6 +1419,7 @@ def assemble_euler_ambient_shock_field_from_companion(
       None,
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
     )
+  ####
   if not isinstance(companion_boundary, MocEulerAmbientCompanionBoundaryResult):
     return _field_failure(
       MocEulerAmbientShockFieldStatus.INVALID_INPUT,
@@ -1310,6 +1431,7 @@ def assemble_euler_ambient_shock_field_from_companion(
         'MocEulerAmbientCompanionBoundaryResult'
       ),
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     invariant_tolerance_value = float(invariant_tolerance)
@@ -1323,6 +1445,7 @@ def assemble_euler_ambient_shock_field_from_companion(
       ambient_companion_boundary=companion_boundary,
       message='explicit companion field tolerances must be numeric',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance),
     ('invariant_tolerance', invariant_tolerance_value),
@@ -1330,6 +1453,8 @@ def assemble_euler_ambient_shock_field_from_companion(
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
 
   ambient_pressure = companion_boundary.ambient_pressure_Pa
   if ambient_pressure is None:
@@ -1341,6 +1466,7 @@ def assemble_euler_ambient_shock_field_from_companion(
       ambient_companion_boundary=companion_boundary,
       message='explicit companion boundary does not retain ambient pressure',
     )
+  ####
   if not shock_boundary.converged or not shock_boundary.local_euler_verified:
     return _field_failure(
       MocEulerAmbientShockFieldStatus.SHOCK_BOUNDARY_REQUIRED,
@@ -1353,6 +1479,7 @@ def assemble_euler_ambient_shock_field_from_companion(
         f'curve: {shock_boundary.message}'
       ),
     )
+  ####
   if companion_boundary.shock_boundary is not shock_boundary:
     return _field_failure(
       MocEulerAmbientShockFieldStatus.AMBIENT_BOUNDARY_FAILURE,
@@ -1365,6 +1492,7 @@ def assemble_euler_ambient_shock_field_from_companion(
         'boundary object supplied to this field assembly'
       ),
     )
+  ####
   samples = tuple(companion_boundary.samples)
   shock_count = len(shock_boundary.shock_points_m)
   if (
@@ -1384,6 +1512,7 @@ def assemble_euler_ambient_shock_field_from_companion(
         'aligned with every shock sample'
       ),
     )
+  ####
   if any(
     abs(sample.state.gamma - shock_boundary.downstream_states[0].gamma)
     > invariant_tolerance_value
@@ -1397,6 +1526,7 @@ def assemble_euler_ambient_shock_field_from_companion(
       ambient_companion_boundary=companion_boundary,
       message='explicit companion boundary uses a different gamma',
     )
+  ####
   if any(
     sample.total_pressure_Pa <= 0.0
     or not isfinite(sample.total_pressure_Pa)
@@ -1419,6 +1549,7 @@ def assemble_euler_ambient_shock_field_from_companion(
         'shock downstream pressure lineage'
       ),
     )
+  ####
 
   shock_pressures = tuple(shock_boundary.downstream_total_pressure_Pa)
   baseline_pressure = shock_pressures[0]
@@ -1443,6 +1574,7 @@ def assemble_euler_ambient_shock_field_from_companion(
         f'assembled (maximum relative residual={maximum_entropy_residual})'
       ),
     )
+  ####
 
   field = assemble_euler_consistent_companion_characteristic_strip(
     shock_boundary,
@@ -1464,6 +1596,7 @@ def assemble_euler_ambient_shock_field_from_companion(
       local_field_verified=False,
       message=f'explicit companion strip assembly failed: {field.message}',
     )
+  ####
   return MocEulerAmbientShockFieldResult(
     status=MocEulerAmbientShockFieldStatus.CONVERGED_OPEN,
     shock_boundary=shock_boundary,
@@ -1488,6 +1621,7 @@ def assemble_euler_ambient_shock_field_from_companion(
       'pending'
     ),
   )
+####
 
 
 def assemble_euler_ambient_shock_field(
@@ -1517,6 +1651,7 @@ def assemble_euler_ambient_shock_field(
       None,
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
     )
+  ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
     pressure_tolerance_value = float(pressure_tolerance)
@@ -1528,10 +1663,13 @@ def assemble_euler_ambient_shock_field(
       None,
       message='ambient pressure and pressure tolerance must be numeric',
     )
+  ####
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
   if not isfinite(pressure_tolerance_value) or pressure_tolerance_value <= 0.0:
     raise ValueError('pressure_tolerance must be finite and positive')
+  ####
   if not shock_boundary.converged or not shock_boundary.local_euler_verified:
     return _field_failure(
       MocEulerAmbientShockFieldStatus.SHOCK_BOUNDARY_REQUIRED,
@@ -1543,6 +1681,7 @@ def assemble_euler_ambient_shock_field(
         f'shock curve: {shock_boundary.message}'
       ),
     )
+  ####
   march = march_euler_ambient_boundary(
     shock_boundary,
     ambient_pressure,
@@ -1561,6 +1700,7 @@ def assemble_euler_ambient_shock_field(
       ambient_boundary_verified=False,
       message=f'exact Euler ambient boundary did not converge: {march.message}',
     )
+  ####
   shock_pressures = tuple(shock_boundary.downstream_total_pressure_Pa)
   baseline_pressure = shock_pressures[0]
   entropy_residuals = tuple(
@@ -1584,6 +1724,7 @@ def assemble_euler_ambient_shock_field(
         f'is implemented (maximum relative residual={maximum_entropy_residual})'
       ),
     )
+  ####
   companion = tuple(
     MocChainBoundarySample(
       state=sample.state,
@@ -1603,6 +1744,7 @@ def assemble_euler_ambient_shock_field(
       local_field_verified=False,
       message='exact Euler ambient boundary did not retain two samples',
     )
+  ####
   attachment = companion[0].state
   shock_attachment = shock_boundary.shock_points_m[0]
   if (
@@ -1632,6 +1774,7 @@ def assemble_euler_ambient_shock_field(
         f'({attachment_wedge.status.value})'
       ),
     )
+  ####
   field = assemble_euler_consistent_companion_characteristic_strip(
     shock_boundary,
     companion,
@@ -1656,6 +1799,7 @@ def assemble_euler_ambient_shock_field(
       local_field_verified=False,
       message=f'exact Euler ambient strip assembly failed: {field.message}',
     )
+  ####
   return MocEulerAmbientShockFieldResult(
     status=MocEulerAmbientShockFieldStatus.CONVERGED_OPEN,
     shock_boundary=shock_boundary,
@@ -1678,3 +1822,4 @@ def assemble_euler_ambient_shock_field(
       'continued physical cell promotion remain pending'
     ),
   )
+####

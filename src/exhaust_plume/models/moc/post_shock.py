@@ -172,15 +172,20 @@ class MocPostShockBoundaryState:
   def __post_init__(self) -> None:
     if len(self.point_m) != 2 or not all(isfinite(float(value)) for value in self.point_m):
       raise ValueError('post-shock boundary point must contain two finite coordinates')
+    ####
     if not isinstance(self.state, CharacteristicState):
       raise TypeError('post-shock boundary state must be a CharacteristicState')
+    ####
     for name, value in (
       ('upstream_total_pressure_Pa', self.upstream_total_pressure_Pa),
       ('downstream_total_pressure_Pa', self.downstream_total_pressure_Pa),
     ):
       if not isfinite(float(value)) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +213,7 @@ class MocPostShockZoneSamplingResult:
   def last_valid_point_m(self) -> tuple[float, float] | None:
     if not self.upstream_states:
       return None
+    ####
     state = self.upstream_states[-1]
     return state.x_m, state.y_m
   ####
@@ -222,6 +228,7 @@ class MocPostShockZoneSamplingResult:
       'last_valid_point_m': self.last_valid_point_m,
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -239,10 +246,12 @@ class MocPostShockCharacteristicSegment:
   @property
   def geometry_residual_m(self) -> float | None:
     return self.point_result.geometry_residual
+  ####
 
   @property
   def invariant_residual(self) -> float | None:
     return self.point_result.invariant_residual_minus
+  ####
 ####
 
 
@@ -273,6 +282,7 @@ class MocPostShockContinuationResult:
       MocPostShockContinuationStatus.CONVERGED_OPEN_BOUNDARY,
     )
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,6 +298,7 @@ class MocPostShockCrossCharacteristic:
   def point_m(self) -> tuple[float, float] | None:
     return self.point_result.point_m
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,6 +322,7 @@ class MocPostShockFirstLayerResult:
   def converged(self) -> bool:
     return self.status is MocPostShockFirstLayerStatus.CONVERGED_FIRST_LAYER
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,17 +359,21 @@ class MocPostShockCharacteristicZoneResult:
   def __post_init__(self) -> None:
     if self.boundary_states and len(self.boundary_states) < 2:
       raise ValueError('boundary_states must contain at least two samples when supplied')
+    ####
     if any(
       not isinstance(sample, MocPostShockBoundaryState)
       for sample in self.boundary_states
     ):
       raise TypeError('boundary_states must contain MocPostShockBoundaryState values')
+    ####
     if len(self.axis_boundary_states) != len(self.axis_boundary_total_pressure_Pa):
       raise ValueError(
         'axis boundary states and total-pressure samples must have equal lengths'
       )
+    ####
     if any(not isinstance(state, CharacteristicState) for state in self.axis_boundary_states):
       raise TypeError('axis_boundary_states must contain CharacteristicState values')
+    ####
     if any(
       not isfinite(float(value)) or value <= 0.0
       for value in self.axis_boundary_total_pressure_Pa
@@ -365,11 +381,13 @@ class MocPostShockCharacteristicZoneResult:
       raise ValueError(
         'axis_boundary_total_pressure_Pa must contain finite positive values'
       )
+    ####
     object.__setattr__(
       self,
       'axis_boundary_total_pressure_Pa',
       tuple(float(value) for value in self.axis_boundary_total_pressure_Pa),
     )
+  ####
 
   @property
   def converged(self) -> bool:
@@ -452,6 +470,7 @@ class MocPostShockCharacteristicZoneResult:
 
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     sources: list[
       tuple[tuple[float, float], CharacteristicState, float | None]
     ] = []
@@ -493,7 +512,10 @@ class MocPostShockCharacteristicZoneResult:
           and abs(point[1] - source_point[1]) <= position_tolerance_m
         ):
           return state, pressure
+        ####
+      ####
       return None
+    ####
 
     resolved_cells: list[
       tuple[
@@ -506,6 +528,7 @@ class MocPostShockCharacteristicZoneResult:
       resolved = tuple(resolve(point) for point in cell.vertices_xr_m)
       if any(value is None for value in resolved):
         continue
+      ####
       samples = tuple(value for value in resolved if value is not None)
       resolved_cells.append(
         (
@@ -514,6 +537,7 @@ class MocPostShockCharacteristicZoneResult:
           tuple(value[1] for value in samples),
         )
       )
+    ####
     return tuple(resolved_cells)
   ####
 
@@ -540,6 +564,7 @@ class MocPostShockCharacteristicZoneResult:
       )
       if weights is None:
         continue
+      ####
       gamma = states[0].gamma
       theta = sum(
         weight * state.theta_rad
@@ -552,6 +577,7 @@ class MocPostShockCharacteristicZoneResult:
       inverse = inverse_prandtl_meyer_angle_rad(nu, gamma)
       if not inverse.converged or inverse.value is None:
         return None
+      ####
       return CharacteristicState(
         x_m=point[0],
         y_m=point[1],
@@ -559,6 +585,7 @@ class MocPostShockCharacteristicZoneResult:
         mach=inverse.value,
         gamma=gamma,
       )
+    ####
     return None
   ####
 
@@ -576,6 +603,7 @@ class MocPostShockCharacteristicZoneResult:
     ):
       if any(pressure is None for pressure in pressures):
         continue
+      ####
       weights = _polygon_interpolation_weights(
         point,
         vertices,
@@ -583,11 +611,13 @@ class MocPostShockCharacteristicZoneResult:
       )
       if weights is None:
         continue
+      ####
       return sum(
         weight * pressure
         for weight, pressure in zip(weights, pressures, strict=True)
         if pressure is not None
       )
+    ####
     return None
   ####
 
@@ -606,11 +636,13 @@ class MocPostShockCharacteristicZoneResult:
     )
     if state is None or total_pressure is None:
       return None
+    ####
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
     return total_pressure / pressure_ratio
   ####
+####
 
 
 def sample_post_shock_zone_along_shock_path(
@@ -635,6 +667,7 @@ def sample_post_shock_zone_along_shock_path(
       first_missing_sample_index=None,
       message='zone must be a MocPostShockCharacteristicZoneResult',
     )
+  ####
   try:
     points = tuple(
       (float(point[0]), float(point[1]))
@@ -649,6 +682,7 @@ def sample_post_shock_zone_along_shock_path(
       first_missing_sample_index=None,
       message='shock_points_m must contain finite two-coordinate points',
     )
+  ####
   if len(points) < 2 or any(
     not all(isfinite(value) for value in point)
     for point in points
@@ -661,8 +695,10 @@ def sample_post_shock_zone_along_shock_path(
       first_missing_sample_index=None,
       message='shock path coupling requires at least two finite points',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not zone.state_sampling_available:
     return MocPostShockZoneSamplingResult(
       status=MocPostShockZoneSamplingStatus.INVALID_INPUT,
@@ -672,6 +708,7 @@ def sample_post_shock_zone_along_shock_path(
       first_missing_sample_index=None,
       message='open post-shock zone does not provide a bounded state/pressure sampler',
     )
+  ####
   for index, (previous, current) in enumerate(zip(points, points[1:]), start=1):
     if current[0] <= previous[0] + position_tolerance_m or current[1] > previous[1] + position_tolerance_m:
       return MocPostShockZoneSamplingResult(
@@ -682,6 +719,7 @@ def sample_post_shock_zone_along_shock_path(
         first_missing_sample_index=index,
         message='shock path must be strictly downstream in x and nonincreasing in y',
       )
+    ####
   ####
 
   states: list[CharacteristicState] = []
@@ -701,6 +739,7 @@ def sample_post_shock_zone_along_shock_path(
           f'shock sample {index}'
         ),
       )
+    ####
     if pressure is None or not isfinite(float(pressure)) or float(pressure) <= 0.0:
       return MocPostShockZoneSamplingResult(
         status=MocPostShockZoneSamplingStatus.PRESSURE_FAILURE,
@@ -713,6 +752,7 @@ def sample_post_shock_zone_along_shock_path(
           f'at shock sample {index}'
         ),
       )
+    ####
     states.append(state)
     pressures.append(float(pressure))
   ####
@@ -771,8 +811,11 @@ class MocPostShockClosedFieldResult:
     ):
       if states and len(states) != len(points):
         raise ValueError(f'{name} states must match the boundary point count')
+      ####
       if any(not isinstance(state, CharacteristicState) for state in states):
         raise TypeError(f'{name} states must contain CharacteristicState values')
+      ####
+    ####
     for name, pressures, points in (
       (
         'shock_boundary_total_pressure_Pa',
@@ -787,8 +830,11 @@ class MocPostShockClosedFieldResult:
     ):
       if pressures and len(pressures) != len(points):
         raise ValueError(f'{name} must match the boundary point count')
+      ####
       if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
         raise ValueError(f'{name} must contain finite positive values')
+      ####
+    ####
     object.__setattr__(self, 'shock_boundary_states', tuple(self.shock_boundary_states))
     object.__setattr__(
       self,
@@ -801,6 +847,7 @@ class MocPostShockClosedFieldResult:
       'axis_boundary_total_pressure_Pa',
       tuple(float(value) for value in self.axis_boundary_total_pressure_Pa),
     )
+  ####
 
   @property
   def converged(self) -> bool:
@@ -847,6 +894,7 @@ class MocPostShockClosedFieldResult:
       == len(self.axis_boundary_points_m)
       and all(node.total_pressure_Pa is not None for node in self.nodes)
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     """Serialize the validated field and its bounded state-carry evidence."""
@@ -906,6 +954,7 @@ class MocPostShockClosedFieldResult:
         'only a converged closed post-shock field with bounded state samples '
         'can become a chain cell'
       )
+    ####
     chain_diagnostics: dict[str, Any] = {
       'source': 'validated-closed-post-shock-field',
       'physical_closure_verified': True,
@@ -922,7 +971,9 @@ class MocPostShockClosedFieldResult:
       reserved = set(chain_diagnostics) & set(diagnostics)
       if reserved:
         raise ValueError(f'diagnostics cannot override reserved closure keys: {sorted(reserved)!r}')
+      ####
       chain_diagnostics.update(diagnostics)
+    ####
     return MocChainCell(
       cell_index=cell_index,
       start_x_m=start_x_m,
@@ -942,6 +993,7 @@ class MocPostShockClosedFieldResult:
       continuation_boundary_kind=MocChainBoundaryKind.CENTERLINE_TRACE,
     )
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -991,22 +1043,28 @@ class MocPostShockCharacteristicFieldResult:
       raise ValueError(
         'upstream boundary states and total-pressure samples must have equal lengths'
       )
+    ####
     if len(self.continuation_boundary_states) != len(self.continuation_boundary_total_pressure_Pa):
       raise ValueError(
         'continuation boundary states and total-pressure samples must have equal lengths'
       )
+    ####
     if len(self.incoming_handoff_states) != len(self.incoming_handoff_total_pressure_Pa):
       raise ValueError(
         'incoming handoff states and total-pressure samples must have equal lengths'
       )
+    ####
     if len(self.shock_boundary_states) != len(self.shock_boundary_total_pressure_Pa):
       raise ValueError(
         'shock boundary states and total-pressure samples must have equal lengths'
       )
+    ####
     if any(not isinstance(state, CharacteristicState) for state in self.incoming_handoff_states):
       raise TypeError('incoming handoff states must be CharacteristicState values')
+    ####
     if any(not isinstance(state, CharacteristicState) for state in self.shock_boundary_states):
       raise TypeError('shock boundary states must be CharacteristicState values')
+    ####
     for name, pressures in (
       ('upstream_boundary_total_pressure_Pa', self.upstream_boundary_total_pressure_Pa),
       ('continuation_boundary_total_pressure_Pa', self.continuation_boundary_total_pressure_Pa),
@@ -1015,14 +1073,18 @@ class MocPostShockCharacteristicFieldResult:
     ):
       if any(not isfinite(float(value)) or value <= 0.0 for value in pressures):
         raise ValueError(f'{name} must contain finite positive values')
+      ####
+    ####
     if self.shock_boundary_states and len(self.shock_boundary_states) != len(self.shock_boundary_points_m):
       raise ValueError(
         'shock boundary states must match the shock boundary point count'
       )
+    ####
     if self.shock_boundary_total_pressure_Pa and len(self.shock_boundary_total_pressure_Pa) != len(self.shock_boundary_points_m):
       raise ValueError(
         'shock boundary total pressures must match the shock boundary point count'
       )
+    ####
     if (
       self.maximum_shock_angle_residual_rad is not None
       and (
@@ -1033,6 +1095,7 @@ class MocPostShockCharacteristicFieldResult:
       raise ValueError(
         'maximum_shock_angle_residual_rad must be finite and nonnegative when supplied'
       )
+    ####
   ####
 
   @property
@@ -1100,6 +1163,7 @@ class MocPostShockCharacteristicFieldResult:
     points: list[tuple[float, float]] = []
     for cell in self.cells:
       points.extend(cell.vertices_xr_m)
+    ####
     points.extend(self.shock_boundary_points_m)
     points.extend(self.centerline_boundary_points_m)
     points.extend(
@@ -1111,6 +1175,7 @@ class MocPostShockCharacteristicFieldResult:
       for point in points
     ):
       return None
+    ####
     return min(float(point[0]) for point in points), max(
       float(point[0]) for point in points
     )
@@ -1123,6 +1188,7 @@ class MocPostShockCharacteristicFieldResult:
     points: list[tuple[float, float]] = []
     for cell in self.cells:
       points.extend(cell.vertices_xr_m)
+    ####
     points.extend(self.shock_boundary_points_m)
     points.extend(self.centerline_boundary_points_m)
     points.extend(
@@ -1134,6 +1200,7 @@ class MocPostShockCharacteristicFieldResult:
       for point in points
     ):
       return None
+    ####
     return min(float(point[1]) for point in points), max(
       float(point[1]) for point in points
     )
@@ -1231,6 +1298,7 @@ class MocPostShockCharacteristicFieldResult:
       )
       if weights is None:
         continue
+      ####
       gamma = states[0].gamma
       theta = sum(
         weight * state.theta_rad
@@ -1243,6 +1311,7 @@ class MocPostShockCharacteristicFieldResult:
       inverse = inverse_prandtl_meyer_angle_rad(nu, gamma)
       if not inverse.converged or inverse.value is None:
         return None
+      ####
       return CharacteristicState(
         x_m=point[0],
         y_m=point[1],
@@ -1250,6 +1319,7 @@ class MocPostShockCharacteristicFieldResult:
         mach=inverse.value,
         gamma=gamma,
       )
+    ####
     return None
   ####
 
@@ -1266,6 +1336,7 @@ class MocPostShockCharacteristicFieldResult:
     for vertices, states, pressures in samples:
       if any(pressure is None for pressure in pressures):
         continue
+      ####
       weights = _polygon_interpolation_weights(
         point,
         vertices,
@@ -1273,11 +1344,13 @@ class MocPostShockCharacteristicFieldResult:
       )
       if weights is None:
         continue
+      ####
       return sum(
         weight * pressure
         for weight, pressure in zip(weights, pressures, strict=True)
         if pressure is not None
       )
+    ####
     return None
   ####
 
@@ -1296,6 +1369,7 @@ class MocPostShockCharacteristicFieldResult:
     )
     if state is None or total_pressure is None:
       return None
+    ####
     pressure_ratio = (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
@@ -1318,6 +1392,7 @@ class MocPostShockCharacteristicFieldResult:
 
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
     sources: list[tuple[tuple[float, float], CharacteristicState, float | None]] = []
     sources.extend(
       (
@@ -1356,7 +1431,10 @@ class MocPostShockCharacteristicFieldResult:
       for source_point, state, pressure in sources:
         if hypot(point[0] - source_point[0], point[1] - source_point[1]) <= position_tolerance_m:
           return state, pressure
+        ####
+      ####
       return None
+    ####
 
     resolved_cells: list[
       tuple[
@@ -1369,6 +1447,7 @@ class MocPostShockCharacteristicFieldResult:
       resolved = tuple(resolve(point) for point in cell.vertices_xr_m)
       if any(value is None for value in resolved):
         continue
+      ####
       samples = tuple(value for value in resolved if value is not None)
       resolved_cells.append(
         (
@@ -1377,7 +1456,9 @@ class MocPostShockCharacteristicFieldResult:
           tuple(value[1] for value in samples),
         )
       )
+    ####
     return tuple(resolved_cells)
+  ####
 
   def as_chain_cell(
     self,
@@ -1394,6 +1475,7 @@ class MocPostShockCharacteristicFieldResult:
         'only a converged closed post-shock characteristic field can become '
         'a chain cell'
       )
+    ####
     chain_diagnostics: dict[str, Any] = {
       'source': 'shock-seeded-closed-post-shock-characteristic-field',
       'physical_closure_verified': True,
@@ -1441,7 +1523,9 @@ class MocPostShockCharacteristicFieldResult:
       reserved = set(chain_diagnostics) & set(diagnostics)
       if reserved:
         raise ValueError(f'diagnostics cannot override reserved closure keys: {sorted(reserved)!r}')
+      ####
       chain_diagnostics.update(diagnostics)
+    ####
     return MocChainCell(
       cell_index=cell_index,
       start_x_m=start_x_m,
@@ -1482,13 +1566,16 @@ class MocPostShockCharacteristicFieldResult:
         'coupled chain promotion requires a converged field with upstream '
         'shock states and total-pressure samples'
       )
+    ####
     coupled_diagnostics = {
       'upstream_coupling_promotion_gate': 'passed',
     }
     if diagnostics is not None:
       if 'upstream_shock_coupling_verified' in diagnostics:
         raise ValueError('reserved coupling diagnostics cannot be overridden')
+      ####
       coupled_diagnostics.update(diagnostics)
+    ####
     return self.as_chain_cell(
       start_x_m=start_x_m,
       end_x_m=end_x_m,
@@ -1496,6 +1583,7 @@ class MocPostShockCharacteristicFieldResult:
       diagnostics=coupled_diagnostics,
     )
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1514,9 +1602,12 @@ class MocPostShockChainCellSolve:
   def __post_init__(self) -> None:
     if not isinstance(self.field, MocPostShockCharacteristicFieldResult):
       raise TypeError('field must be a MocPostShockCharacteristicFieldResult')
+    ####
     if not isfinite(float(self.end_x_m)) or self.end_x_m <= 0.0:
       raise ValueError('end_x_m must be finite and positive')
+    ####
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -1535,6 +1626,7 @@ class MocShockBoundaryFitResult:
   def converged(self) -> bool:
     return self.status is MocShockBoundaryFitStatus.CONVERGED_FITTED
   ####
+####
 
 
 def _shock_fit_failure(
@@ -1554,15 +1646,19 @@ def _shock_fit_failure(
     ),
     message=message,
   )
+####
 
 
 def _wrapped_angle_difference(first: float, second: float) -> float:
   difference = float(first) - float(second)
   while difference > pi:
     difference -= 2.0 * pi
+  ####
   while difference < -pi:
     difference += 2.0 * pi
+  ####
   return difference
+####
 
 
 def fit_attached_shock_boundary(
@@ -1599,31 +1695,39 @@ def fit_attached_shock_boundary(
       MocShockBoundaryFitStatus.INVALID_INPUT,
       message='shock boundary fit requires at least two samples',
     )
+  ####
   if not (len(samples) == len(pressures) == len(points) == len(target_angles)):
     return _shock_fit_failure(
       MocShockBoundaryFitStatus.INVALID_INPUT,
       message='upstream states, pressures, points, and target angles must have equal lengths',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return _shock_fit_failure(
       MocShockBoundaryFitStatus.INVALID_INPUT,
       message='branch must be a ShockBranch',
     )
+  ####
   if not isinstance(allow_zero_strength_start, bool):
     raise TypeError('allow_zero_strength_start must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise TypeError('allow_zero_strength_endpoints must be a bool')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('shock_angle_tolerance_rad', shock_angle_tolerance_rad),
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not all(isinstance(state, CharacteristicState) for state in samples):
     return _shock_fit_failure(
       MocShockBoundaryFitStatus.INVALID_INPUT,
       message='upstream_states must contain CharacteristicState values',
     )
+  ####
   gamma = samples[0].gamma
   previous_point: tuple[float, float] | None = None
   for index, (state, pressure, point, target_angle) in enumerate(
@@ -1634,26 +1738,31 @@ def fit_attached_shock_boundary(
         MocShockBoundaryFitStatus.INVALID_INPUT,
         message=f'shock sample {index} uses a different gamma',
       )
+    ####
     if len(point) != 2 or not all(isfinite(float(value)) for value in point):
       return _shock_fit_failure(
         MocShockBoundaryFitStatus.INVALID_INPUT,
         message=f'shock sample {index} has a non-finite point',
       )
+    ####
     if abs(state.x_m - point[0]) > position_tolerance_m or abs(state.y_m - point[1]) > position_tolerance_m:
       return _shock_fit_failure(
         MocShockBoundaryFitStatus.INVALID_INPUT,
         message=f'upstream state {index} does not lie on its shock sample',
       )
+    ####
     if not isfinite(float(pressure)) or pressure <= 0.0:
       return _shock_fit_failure(
         MocShockBoundaryFitStatus.INVALID_INPUT,
         message=f'upstream pressure {index} must be finite and positive',
       )
+    ####
     if not isfinite(float(target_angle)):
       return _shock_fit_failure(
         MocShockBoundaryFitStatus.INVALID_INPUT,
         message=f'downstream flow angle {index} must be finite',
       )
+    ####
     if previous_point is not None:
       dx = float(point[0]) - previous_point[0]
       dy = float(point[1]) - previous_point[1]
@@ -1665,6 +1774,8 @@ def fit_attached_shock_boundary(
             'in y'
           ),
         )
+      ####
+    ####
     previous_point = (float(point[0]), float(point[1]))
   ####
 
@@ -1691,6 +1802,7 @@ def fit_attached_shock_boundary(
     )
     if zero_strength_start:
       target_turn = 0.0
+    ####
     if target_turn < 0.0 or (target_turn == 0.0 and not zero_strength_start):
       return _shock_fit_failure(
         MocShockBoundaryFitStatus.OUTSIDE_DOMAIN,
@@ -1698,6 +1810,7 @@ def fit_attached_shock_boundary(
         residuals=tuple(angle_residuals),
         message=f'shock sample {index} does not require a positive compression turn',
       )
+    ####
     if zero_strength_start:
       beta = asin(1.0 / state.mach)
       downstream_mach = state.mach
@@ -1731,10 +1844,12 @@ def fit_attached_shock_boundary(
           residuals=tuple(angle_residuals),
           message=f'shock sample {index} failed attached compression: {compression.message}',
         )
+      ####
       beta = float(compression.beta_rad)
       downstream_mach = float(compression.downstream_mach)
       upstream_total_pressure = float(compression.upstream_total_pressure_Pa)
       downstream_total_pressure = float(compression.downstream_total_pressure_Pa)
+    ####
     if index == 0:
       tangent_dx = points[1][0] - points[0][0]
       tangent_dy = points[1][1] - points[0][1]
@@ -1744,6 +1859,7 @@ def fit_attached_shock_boundary(
     else:
       tangent_dx = points[index + 1][0] - points[index - 1][0]
       tangent_dy = points[index + 1][1] - points[index - 1][1]
+    ####
     tangent_angle = atan2(tangent_dy, tangent_dx)
     shock_angle = state.theta_rad - beta
     angle_residual = _wrapped_angle_difference(tangent_angle, shock_angle)
@@ -1758,6 +1874,7 @@ def fit_attached_shock_boundary(
           f'by {angle_residual}'
         ),
       )
+    ####
     fitted.append(
       MocPostShockBoundaryState(
         point_m=(float(point[0]), float(point[1])),
@@ -1793,6 +1910,7 @@ def fit_attached_shock_boundary(
 class _PostShockFrontSample:
   state: CharacteristicState
   total_pressure_Pa: float
+####
 
 
 def _post_shock_field_failure(
@@ -1844,6 +1962,7 @@ def _post_shock_field_failure(
     shock_closure_status='not_assembled',
     message=message,
   )
+####
 
 
 def assemble_post_shock_characteristic_field(
@@ -1883,10 +2002,13 @@ def assemble_post_shock_characteristic_field(
       MocPostShockFieldStatus.INVALID_INPUT,
       message='shock_fit must be a MocShockBoundaryFitResult',
     )
+  ####
   if not isinstance(allow_zero_strength_start, bool):
     raise TypeError('allow_zero_strength_start must be a bool')
+  ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise TypeError('allow_zero_strength_endpoints must be a bool')
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -1894,22 +2016,27 @@ def assemble_post_shock_characteristic_field(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not shock_fit.converged:
     return _post_shock_field_failure(
       MocPostShockFieldStatus.SHOCK_FIT_REQUIRED,
       message=f'characteristic field requires a converged shock fit: {shock_fit.message}',
     )
+  ####
   incoming_samples = () if incoming_handoff is None else tuple(incoming_handoff)
   if any(not isinstance(sample, MocChainBoundarySample) for sample in incoming_samples):
     return _post_shock_field_failure(
       MocPostShockFieldStatus.INVALID_INPUT,
       message='incoming_handoff must contain MocChainBoundarySample values',
     )
+  ####
   if incoming_handoff is not None and len(incoming_samples) < 3:
     return _post_shock_field_failure(
       MocPostShockFieldStatus.INVALID_INPUT,
       message='incoming_handoff requires at least three state samples',
     )
+  ####
   incoming_states = tuple(sample.state for sample in incoming_samples)
   incoming_pressures = tuple(sample.total_pressure_Pa for sample in incoming_samples)
   samples = tuple(shock_fit.boundary_states)
@@ -1918,6 +2045,7 @@ def assemble_post_shock_characteristic_field(
       MocPostShockFieldStatus.INVALID_INPUT,
       message='shock-seeded characteristic field requires at least three shock samples',
     )
+  ####
   upstream_boundary_states = tuple(shock_fit.upstream_states)
   upstream_boundary_total_pressures = tuple(shock_fit.upstream_total_pressure_Pa)
   if bool(upstream_boundary_states) != bool(upstream_boundary_total_pressures):
@@ -1928,6 +2056,7 @@ def assemble_post_shock_characteristic_field(
         'total-pressure samples'
       ),
     )
+  ####
   if upstream_boundary_states and (
     len(upstream_boundary_states) != len(samples)
     or len(upstream_boundary_total_pressures) != len(samples)
@@ -1936,6 +2065,7 @@ def assemble_post_shock_characteristic_field(
       MocPostShockFieldStatus.INVALID_INPUT,
       message='shock-fit upstream state carry must match its downstream sample count',
     )
+  ####
   shock_points = tuple(sample.point_m for sample in samples)
   upstream_values = tuple(sample.upstream_total_pressure_Pa for sample in samples)
   downstream_values = tuple(sample.downstream_total_pressure_Pa for sample in samples)
@@ -1964,6 +2094,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='shock-fit upstream total-pressure carry disagrees with its shock samples',
     )
+  ####
   zero_strength_endpoints = bool(
     allow_zero_strength_endpoints
     and abs(pressure_ratios[0] - 1.0) <= 1.0e-10
@@ -1986,6 +2117,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='shock-seeded characteristic field requires strict positive total-pressure loss at every shock sample',
     )
+  ####
   if (
     shock_fit.maximum_shock_angle_residual_rad is None
     or shock_fit.maximum_shock_angle_residual_rad > shock_angle_tolerance_rad
@@ -1997,6 +2129,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='shock-fit tangent residual exceeds the characteristic-field tolerance',
     )
+  ####
   if any(
     abs(sample.state.x_m - sample.point_m[0]) > position_tolerance_m
     or abs(sample.state.y_m - sample.point_m[1]) > position_tolerance_m
@@ -2009,6 +2142,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='shock boundary state coordinates must match their fitted points',
     )
+  ####
   if upstream_boundary_states and any(
     abs(state.x_m - point[0]) > position_tolerance_m
     or abs(state.y_m - point[1]) > position_tolerance_m
@@ -2025,6 +2159,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='shock-fit upstream states must lie on the fitted shock samples',
     )
+  ####
   if abs(shock_points[-1][1]) > position_tolerance_m:
     return _post_shock_field_failure(
       MocPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -2033,6 +2168,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='the fitted shock boundary must terminate on the symmetry line',
     )
+  ####
   if abs(samples[-1].state.theta_rad) > invariant_tolerance:
     return _post_shock_field_failure(
       MocPostShockFieldStatus.INVARIANT_FAILURE,
@@ -2091,6 +2227,7 @@ def assemble_post_shock_characteristic_field(
             f'{index} failed: {point_result.message}'
           ),
         )
+      ####
       point = point_result.point_m
       if point[1] < -position_tolerance_m:
         return _post_shock_field_failure(
@@ -2106,6 +2243,7 @@ def assemble_post_shock_characteristic_field(
             f'{index} crossed below the symmetry line'
           ),
         )
+      ####
       forward_margin = point[0] - max(
         plus_source.state.x_m,
         minus_source.state.x_m,
@@ -2124,6 +2262,7 @@ def assemble_post_shock_characteristic_field(
             f'{index} has no forward margin'
           ),
         )
+      ####
       forward_margins.append(forward_margin)
       next_sample = _PostShockFrontSample(
         state=point_result.state,
@@ -2157,6 +2296,7 @@ def assemble_post_shock_characteristic_field(
             boundary_indices=(index, index + 1),
           )
         )
+      ####
       cells_list.append(
         MocCharacteristicCell(
           cell_index=len(cells_list),
@@ -2181,6 +2321,7 @@ def assemble_post_shock_characteristic_field(
         pressure_ratios=pressure_ratios,
         message=f'post-shock characteristic layer cell geometry failed: {error}',
       )
+    ####
     fronts.append(tuple(next_front))
     layer_index += 1
   ####
@@ -2197,6 +2338,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='post-shock characteristic march produced an empty terminal front',
     )
+  ####
   terminal = terminal_front[0]
   centerline_result = centerline_characteristic_point(
     terminal.state,
@@ -2220,6 +2362,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message=f'terminal post-shock characteristic did not reach the centerline: {centerline_result.message}',
     )
+  ####
   centerline_point = centerline_result.point_m
   if abs(centerline_point[1]) > position_tolerance_m:
     return _post_shock_field_failure(
@@ -2232,6 +2375,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='terminal post-shock characteristic did not reproduce y=0',
     )
+  ####
   terminal_forward_margin = centerline_point[0] - terminal.state.x_m
   if terminal_forward_margin <= position_tolerance_m:
     return _post_shock_field_failure(
@@ -2244,6 +2388,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message='terminal post-shock characteristic has no forward centerline margin',
     )
+  ####
   forward_margins.append(terminal_forward_margin)
   nodes_list.append(
     MocCharacteristicNode(
@@ -2255,7 +2400,6 @@ def assemble_post_shock_characteristic_field(
       total_pressure_Pa=terminal.total_pressure_Pa,
     )
   )
-  ####
 
   closure_path = [fronts[0][-1]]
   closure_path.extend(front[-1] for front in fronts[1:])
@@ -2280,6 +2424,7 @@ def assemble_post_shock_characteristic_field(
           boundary_indices=(index - 1, index),
         )
       )
+    ####
   except ValueError as error:
     return _post_shock_field_failure(
       MocPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -2325,6 +2470,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message=f'post-shock characteristic field topology failed: {topology.message}',
     )
+  ####
   edge_counts = _mesh_edge_counts(cells, position_tolerance_m=position_tolerance_m)
   missing_shock_edges = [
     index
@@ -2353,6 +2499,7 @@ def assemble_post_shock_characteristic_field(
       pressure_ratios=pressure_ratios,
       message=f'post-shock field is missing explicit shock boundary edge(s): {missing_shock_edges}',
     )
+  ####
   if edge_counts.get(axis_edge, 0) != 1:
     return _post_shock_field_failure(
       MocPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -2447,6 +2594,7 @@ def _post_shock_chain_failure(
     physical_termination=False,
     message=message,
   )
+####
 
 
 def _validate_post_shock_handoff(
@@ -2464,8 +2612,10 @@ def _validate_post_shock_handoff(
       'next characteristic field does not record the prior terminal trace '
       'and total-pressure samples used for handoff validation'
     )
+  ####
   if len(consumed_states) != len(incoming) or len(consumed_pressures) != len(incoming):
     return 'next characteristic field incoming handoff length does not match the current boundary'
+  ####
   for index, (incoming_sample, state, pressure) in enumerate(
       zip(incoming, consumed_states, consumed_pressures, strict=True)
   ):
@@ -2477,25 +2627,31 @@ def _validate_post_shock_handoff(
       or abs(incoming_sample.state.gamma - state.gamma) > state_tolerance
     ):
       return f'next characteristic field changed consumed state sample {index}'
+    ####
     if abs(incoming_sample.total_pressure_Pa - pressure) > state_tolerance * max(
       1.0,
       abs(incoming_sample.total_pressure_Pa),
       abs(pressure),
     ):
       return f'next characteristic field changed consumed total pressure sample {index}'
+    ####
+  ####
   upstream_pressures = next_field.upstream_boundary_total_pressure_Pa
   if not upstream_pressures:
     return (
       'next characteristic field does not expose the newly propagated upstream '
       'total-pressure samples'
     )
+  ####
   incoming_max = max(consumed_pressures)
   if max(upstream_pressures) > incoming_max + state_tolerance * max(1.0, incoming_max):
     return (
       'next characteristic field reset total pressure above the incoming '
       'terminal-trace pressure'
     )
+  ####
   return None
+####
 
 
 def _validate_post_shock_geometry_handoff(
@@ -2515,8 +2671,10 @@ def _validate_post_shock_geometry_handoff(
 
   if not isfinite(float(end_x_m)) or end_x_m <= current.end_x_m:
     return 'continued post-shock field endpoint must be downstream of the current cell'
+  ####
   if not next_field.shock_boundary_points_m:
     return 'continued post-shock field does not expose a shock boundary'
+  ####
   field_points = [
     point
     for cell in next_field.cells
@@ -2529,19 +2687,23 @@ def _validate_post_shock_geometry_handoff(
   )
   if not field_points:
     return 'continued post-shock field does not expose a geometric domain'
+  ####
   if any(
     len(point) != 2
     or not all(isfinite(float(value)) for value in point)
     for point in field_points
   ):
     return 'continued post-shock field contains non-finite geometry'
+  ####
   minimum_x = min(float(point[0]) for point in field_points)
   if minimum_x <= current.end_x_m + position_tolerance_m:
     return (
       'continued post-shock field must start strictly downstream of the '
       f'current cell: minimum_x={minimum_x}, current_end_x={current.end_x_m}'
     )
+  ####
   return None
+####
 
 
 def continue_post_shock_characteristic_chain(
@@ -2572,24 +2734,28 @@ def continue_post_shock_characteristic_chain(
       MocChainTerminationReason.INVALID_INPUT,
       message='seed must be a MocPostShockCharacteristicFieldResult',
     )
+  ####
   if not seed.converged:
     return _post_shock_chain_failure(
       MocChainStatus.INVALID_INPUT,
       MocChainTerminationReason.INVALID_INPUT,
       message=f'chain seed field is not converged: {seed.message}',
     )
+  ####
   if not callable(solve_next):
     return _post_shock_chain_failure(
       MocChainStatus.INVALID_INPUT,
       MocChainTerminationReason.INVALID_INPUT,
       message='solve_next must be callable',
     )
+  ####
   if not isinstance(require_upstream_shock_coupling, bool):
     return _post_shock_chain_failure(
       MocChainStatus.INVALID_INPUT,
       MocChainTerminationReason.INVALID_INPUT,
       message='require_upstream_shock_coupling must be a bool',
     )
+  ####
   for name, value in (('start_x_m', start_x_m), ('end_x_m', end_x_m)):
     if not isfinite(float(value)) or value < 0.0:
       return _post_shock_chain_failure(
@@ -2597,12 +2763,15 @@ def continue_post_shock_characteristic_chain(
         MocChainTerminationReason.INVALID_INPUT,
         message=f'{name} must be finite and nonnegative',
       )
+    ####
+  ####
   if end_x_m <= start_x_m:
     return _post_shock_chain_failure(
       MocChainStatus.INVALID_INPUT,
       MocChainTerminationReason.INVALID_INPUT,
       message='seed end_x_m must be strictly downstream of start_x_m',
     )
+  ####
   if policy is None:
     policy = MocChainContinuationPolicy(require_state_carry=True)
   elif not policy.require_state_carry:
@@ -2614,6 +2783,7 @@ def continue_post_shock_characteristic_chain(
       allowed_fidelities=policy.allowed_fidelities,
       require_state_carry=True,
     )
+  ####
   try:
     seed_cell = (
       seed.as_coupled_chain_cell(
@@ -2634,6 +2804,7 @@ def continue_post_shock_characteristic_chain(
       MocChainTerminationReason.STATE_NOT_CARRIED,
       message=f'converged chain seed has no usable state carry: {error}',
     )
+  ####
 
   def solve_cell(
     current: MocChainCell,
@@ -2643,20 +2814,25 @@ def continue_post_shock_characteristic_chain(
       solved = solve_next(current, cell_index, current.continuation_boundary)
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       raise ValueError(f'local post-shock MOC solve failed: {error}') from error
+    ####
     if solved is None:
       return None
+    ####
     if isinstance(solved, MocChainTerminationDecision):
       return solved
+    ####
     if not isinstance(solved, MocPostShockChainCellSolve):
       raise ValueError(
         'solve_next must return MocPostShockChainCellSolve, '
         'MocChainTerminationDecision, or None'
       )
+    ####
     if not solved.field.converged:
       raise ValueError(
         f'next post-shock characteristic field is not converged: '
         f'{solved.field.message}'
       )
+    ####
     handoff_error = _validate_post_shock_handoff(
       current,
       solved.field,
@@ -2665,6 +2841,7 @@ def continue_post_shock_characteristic_chain(
     )
     if handoff_error is not None:
       raise ValueError(handoff_error)
+    ####
     geometry_error = _validate_post_shock_geometry_handoff(
       current,
       solved.field,
@@ -2673,6 +2850,7 @@ def continue_post_shock_characteristic_chain(
     )
     if geometry_error is not None:
       raise ValueError(geometry_error)
+    ####
     try:
       return (
         solved.field.as_coupled_chain_cell(
@@ -2689,6 +2867,8 @@ def continue_post_shock_characteristic_chain(
       )
     except (TypeError, ValueError) as error:
       raise ValueError(f'next post-shock field could not become a chain cell: {error}') from error
+    ####
+  ####
 
   return continue_moc_cell_chain(seed_cell, solve_cell, policy)
 ####
@@ -2700,8 +2880,10 @@ def _finite_interpolation_point(
 ) -> tuple[float, float]:
   if len(point_m) != 2 or not all(isfinite(float(value)) for value in point_m):
     raise ValueError('point_m must contain two finite coordinates')
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   return float(point_m[0]), float(point_m[1])
 ####
 
@@ -2716,12 +2898,14 @@ def _triangle_interpolation_weights(
   denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
   if abs(denominator) <= max(tolerance_m * tolerance_m, 1.0e-24):
     return None
+  ####
   px, py = point
   first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
   second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
   third = 1.0 - first - second
   if min(first, second, third) < -1.0e-10 or max(first, second, third) > 1.0 + 1.0e-10:
     return None
+  ####
   return first, second, third
 ####
 
@@ -2739,8 +2923,10 @@ def _polygon_interpolation_weights(
       triangle,
       tolerance_m=tolerance_m,
     )
+  ####
   if len(vertices) != 4:
     return None
+  ####
   first = _triangle_interpolation_weights(
     point,
     (
@@ -2752,6 +2938,7 @@ def _polygon_interpolation_weights(
   )
   if first is not None:
     return first[0], first[1], first[2], 0.0
+  ####
   second = _triangle_interpolation_weights(
     point,
     (
@@ -2763,6 +2950,7 @@ def _polygon_interpolation_weights(
   )
   if second is not None:
     return second[0], 0.0, second[1], second[2]
+  ####
   return None
 ####
 
@@ -2803,6 +2991,7 @@ def _closed_field_failure(
     axis_boundary_states=axis_boundary_states,
     axis_boundary_total_pressure_Pa=axis_boundary_total_pressure_Pa,
   )
+####
 
 
 def _mesh_edge_counts(
@@ -2822,7 +3011,10 @@ def _mesh_edge_counts(
     for first, second in zip(keys, (*keys[1:], keys[0])):
       edge = (first, second) if first <= second else (second, first)
       edge_counts[edge] = edge_counts.get(edge, 0) + 1
+    ####
+  ####
   return edge_counts
+####
 
 
 def _mesh_edge_key(
@@ -2840,6 +3032,7 @@ def _mesh_edge_key(
     round(float(second[1]) / position_tolerance_m),
   )
   return (first_key, second_key) if first_key <= second_key else (second_key, first_key)
+####
 
 
 def validate_closed_post_shock_field(
@@ -2867,32 +3060,40 @@ def validate_closed_post_shock_field(
       MocPostShockClosureStatus.INVALID_INPUT,
       message='continuation must be a MocPostShockContinuationResult',
     )
+  ####
   if not isinstance(shock_fit, MocShockBoundaryFitResult):
     return _closed_field_failure(
       MocPostShockClosureStatus.INVALID_INPUT,
       message='shock_fit must be a MocShockBoundaryFitResult',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if not isfinite(float(shock_angle_tolerance_rad)) or shock_angle_tolerance_rad <= 0.0:
     raise ValueError('shock_angle_tolerance_rad must be finite and positive')
+  ####
   if not continuation.converged:
     return _closed_field_failure(
       MocPostShockClosureStatus.INVALID_INPUT,
       message=f'continuation is not converged: {continuation.message}',
     )
+  ####
   if not shock_fit.converged:
     return _closed_field_failure(
       MocPostShockClosureStatus.SHOCK_FIT_REQUIRED,
       message=f'closed post-shock validation requires a converged shock fit: {shock_fit.message}',
     )
+  ####
   if len(shock_fit.boundary_states) != len(continuation.segments):
     return _closed_field_failure(
       MocPostShockClosureStatus.INVALID_INPUT,
       message='shock-fit samples must match post-shock continuation segments',
     )
+  ####
   if len(shock_fit.boundary_states) < 2:
     return _closed_field_failure(
       MocPostShockClosureStatus.INVALID_INPUT,
@@ -2920,6 +3121,7 @@ def validate_closed_post_shock_field(
       pressure_ratios=pressure_ratios,
       message='shock-fit tangent residual exceeds the closed-field tolerance',
     )
+  ####
   if any(ratio <= 0.0 or ratio >= 1.0 for ratio in pressure_ratios):
     return _closed_field_failure(
       MocPostShockClosureStatus.INVARIANT_FAILURE,
@@ -2949,6 +3151,8 @@ def validate_closed_post_shock_field(
         pressure_ratios=pressure_ratios,
         message=f'shock-fit sample {index} does not match its continuation segment',
       )
+    ####
+  ####
   if any(abs(point[1]) > position_tolerance_m for point in axis_points):
     return _closed_field_failure(
       MocPostShockClosureStatus.GEOMETRY_FAILURE,
@@ -2958,6 +3162,7 @@ def validate_closed_post_shock_field(
       pressure_ratios=pressure_ratios,
       message='continuation centerline samples must lie on the symmetry line',
     )
+  ####
   if any(
     ((right[0] - left[0]) ** 2 + (right[1] - left[1]) ** 2) ** 0.5
     <= position_tolerance_m
@@ -2984,6 +3189,7 @@ def validate_closed_post_shock_field(
       pressure_ratios=pressure_ratios,
       message='closed post-shock validation requires characteristic nodes',
     )
+  ####
   if not all(isinstance(node, MocCharacteristicNode) for node in node_values):
     return _closed_field_failure(
       MocPostShockClosureStatus.INVALID_INPUT,
@@ -2993,6 +3199,7 @@ def validate_closed_post_shock_field(
       pressure_ratios=pressure_ratios,
       message='nodes must contain MocCharacteristicNode values',
     )
+  ####
   if not cell_values or not all(isinstance(cell, MocCharacteristicCell) for cell in cell_values):
     return _closed_field_failure(
       MocPostShockClosureStatus.INVALID_INPUT,
@@ -3041,6 +3248,7 @@ def validate_closed_post_shock_field(
         pressure_ratios=pressure_ratios,
         message=f'characteristic node {index} does not carry converged compatibility evidence',
       )
+    ####
     if (
       abs(node.point_m[0] - point_result.point_m[0]) > position_tolerance_m
       or abs(node.point_m[1] - point_result.point_m[1]) > position_tolerance_m
@@ -3059,6 +3267,7 @@ def validate_closed_post_shock_field(
         pressure_ratios=pressure_ratios,
         message=f'characteristic node {index} has inconsistent coordinates',
       )
+    ####
     if any(
       value is not None and abs(value) > invariant_tolerance
       for value in (
@@ -3078,6 +3287,7 @@ def validate_closed_post_shock_field(
         pressure_ratios=pressure_ratios,
         message=f'characteristic node {index} exceeds invariant tolerance',
       )
+    ####
     node_keys.add(
       (
         round(node.point_m[0] / position_tolerance_m),
@@ -3101,6 +3311,7 @@ def validate_closed_post_shock_field(
       pressure_ratios=pressure_ratios,
       message=f'closed post-shock candidate topology failed: {topology.message}',
     )
+  ####
   edge_counts = _mesh_edge_counts(
     cell_values,
     position_tolerance_m=position_tolerance_m,
@@ -3149,6 +3360,7 @@ def validate_closed_post_shock_field(
       pressure_ratios=pressure_ratios,
       message=f'candidate field is missing explicit shock boundary edge(s): {missing_shock_edges}',
     )
+  ####
   missing_axis_edges = [
     index
     for index, (first, second) in enumerate(zip(axis_points, axis_points[1:]))
@@ -3169,6 +3381,7 @@ def validate_closed_post_shock_field(
       pressure_ratios=pressure_ratios,
       message=f'candidate field is missing explicit centerline boundary edge(s): {missing_axis_edges}',
     )
+  ####
   return _closed_field_failure(
     MocPostShockClosureStatus.CONVERGED_CLOSED,
     nodes=node_values,
@@ -3244,6 +3457,7 @@ def _first_layer_failure(
     ),
     message=message,
   )
+####
 
 
 def _post_shock_zone_result(
@@ -3272,6 +3486,8 @@ def _post_shock_zone_result(
     if pressure_ratios:
       minimum_ratio = min(pressure_ratios)
       maximum_ratio = max(pressure_ratios)
+    ####
+  ####
   return MocPostShockCharacteristicZoneResult(
     status=status,
     characteristic_count=characteristic_count,
@@ -3326,6 +3542,7 @@ def _post_shock_zone_result(
       float(value) for value in axis_boundary_total_pressure_Pa
     ),
   )
+####
 
 
 def assemble_post_shock_characteristic_zone(
@@ -3353,22 +3570,27 @@ def assemble_post_shock_characteristic_zone(
       characteristic_count=0,
       message='continuation must be a MocPostShockContinuationResult',
     )
+  ####
   if not isinstance(first_layer, MocPostShockFirstLayerResult):
     return _post_shock_zone_result(
       MocPostShockZoneStatus.INVALID_INPUT,
       characteristic_count=0,
       message='first_layer must be a MocPostShockFirstLayerResult',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if not continuation.converged or not first_layer.converged:
     return _post_shock_zone_result(
       MocPostShockZoneStatus.INVALID_INPUT,
       characteristic_count=0,
       message='post-shock zone requires converged prescribed traces and first layer',
     )
+  ####
   samples = tuple(boundary_states)
   if len(samples) != len(continuation.segments):
     return _post_shock_zone_result(
@@ -3376,12 +3598,14 @@ def assemble_post_shock_characteristic_zone(
       characteristic_count=0,
       message='boundary sample count must match post-shock continuation segments',
     )
+  ####
   if len(first_layer.crossings) != len(samples) - 1 or len(samples) < 4:
     return _post_shock_zone_result(
       MocPostShockZoneStatus.INVALID_INPUT,
       characteristic_count=max(0, len(first_layer.crossings) - 1),
       message='post-shock zone requires at least four ordered boundary samples',
     )
+  ####
   if not all(isinstance(sample, MocPostShockBoundaryState) for sample in samples):
     return _post_shock_zone_result(
       MocPostShockZoneStatus.INVALID_INPUT,
@@ -3402,6 +3626,8 @@ def assemble_post_shock_characteristic_zone(
         characteristic_count=0,
         message=f'boundary sample {index} does not match its continuation segment',
       )
+    ####
+  ####
   upstream_values = tuple(sample.upstream_total_pressure_Pa for sample in samples)
   downstream_values = tuple(sample.downstream_total_pressure_Pa for sample in samples)
   pressure_ranges = (
@@ -3412,7 +3638,6 @@ def assemble_post_shock_characteristic_zone(
     downstream / upstream
     for upstream, downstream in zip(upstream_values, downstream_values, strict=True)
   )
-  ####
 
   axis_sources = tuple(segment.centerline_state for segment in continuation.segments[1:])
   shock_sources = tuple(segment.shock_state for segment in continuation.segments[:-1])
@@ -3430,6 +3655,7 @@ def assemble_post_shock_characteristic_zone(
       pressure_ratios=pressure_ratios,
       message='first-layer crossings must all expose finite points',
     )
+  ####
   diagonal_points = tuple(
     point for point in diagonal_points_optional if point is not None
   )
@@ -3445,6 +3671,7 @@ def assemble_post_shock_characteristic_zone(
         pressure_ratios=pressure_ratios,
         message=f'axis source {centerline_index} must satisfy y=0 and theta=0',
       )
+    ####
     for boundary_index in range(centerline_index + 1):
       point_result = interior_characteristic_point(
         axis_source,
@@ -3470,9 +3697,11 @@ def assemble_post_shock_characteristic_zone(
             f'{boundary_index}) failed: {point_result.message}'
           ),
         )
+      ####
       point_result_point = point_result.point_m
       if point_result_point is None:
         raise RuntimeError('converged characteristic point did not expose a point')
+      ####
       point = point_result_point
       if centerline_index == boundary_index:
         diagonal_point = diagonal_points[boundary_index]
@@ -3493,7 +3722,9 @@ def assemble_post_shock_characteristic_zone(
               f'the first-layer point; residual={discrepancy}'
             ),
           )
+        ####
         point = diagonal_point
+      ####
       nodes_by_index[(centerline_index, boundary_index)] = MocCharacteristicNode(
         centerline_index=centerline_index,
         boundary_index=boundary_index,
@@ -3502,16 +3733,19 @@ def assemble_post_shock_characteristic_zone(
         point_result=point_result,
         total_pressure_Pa=downstream_values[boundary_index],
       )
+    ####
   ####
 
   nodes = tuple(nodes_by_index.values())
 
   def node_point(centerline_index: int, boundary_index: int) -> tuple[float, float]:
     return nodes_by_index[(centerline_index, boundary_index)].point_m
+  ####
 
   def axis_point(index: int) -> tuple[float, float]:
     state = axis_sources[index]
     return state.x_m, 0.0
+  ####
 
   cells_list: list[MocCharacteristicCell] = []
   try:
@@ -3530,6 +3764,7 @@ def assemble_post_shock_characteristic_zone(
           boundary_indices=(0,),
         )
       )
+    ####
     for row in range(1, expected_count - 1):
       for column in range(row):
         cells_list.append(
@@ -3546,6 +3781,8 @@ def assemble_post_shock_characteristic_zone(
             boundary_indices=(column, column + 1),
           )
         )
+      ####
+    ####
     for index in range(expected_count - 1):
       cells_list.append(
         MocCharacteristicCell(
@@ -3560,6 +3797,7 @@ def assemble_post_shock_characteristic_zone(
           boundary_indices=(index, index + 1),
         )
       )
+    ####
   except (KeyError, ValueError) as error:
     return _post_shock_zone_result(
       MocPostShockZoneStatus.GEOMETRY_FAILURE,
@@ -3586,6 +3824,7 @@ def assemble_post_shock_characteristic_zone(
       pressure_ratios=pressure_ratios,
       message=f'post-shock characteristic topology failed: {topology.message}',
     )
+  ####
   return _post_shock_zone_result(
     MocPostShockZoneStatus.CONVERGED_OPEN,
     characteristic_count=expected_count - 1,
@@ -3627,10 +3866,13 @@ def assemble_post_shock_first_layer(
       MocPostShockFirstLayerStatus.INVALID_INPUT,
       message='continuation must be a MocPostShockContinuationResult',
     )
+  ####
   if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
+  ####
   if not isfinite(float(invariant_tolerance)) or invariant_tolerance <= 0.0:
     raise ValueError('invariant_tolerance must be finite and positive')
+  ####
   if not continuation.converged:
     return _first_layer_failure(
       MocPostShockFirstLayerStatus.INVALID_INPUT,
@@ -3639,6 +3881,7 @@ def assemble_post_shock_first_layer(
         f'traces: {continuation.message}'
       ),
     )
+  ####
   if len(continuation.segments) < 2:
     return _first_layer_failure(
       MocPostShockFirstLayerStatus.INVALID_INPUT,
@@ -3674,12 +3917,14 @@ def assemble_post_shock_first_layer(
         crossings=tuple(crossings),
         message=f'post-shock cross-characteristic {index} failed: {point_result.message}',
       )
+    ####
     if point_result.point_m[1] < -position_tolerance_m:
       return _first_layer_failure(
         MocPostShockFirstLayerStatus.GEOMETRY_FAILURE,
         crossings=tuple(crossings),
         message=f'post-shock cross-characteristic {index} crossed below the symmetry line',
       )
+    ####
     if point_result.point_m[0] <= max(
         next_segment.centerline_state.x_m,
         current.shock_state.x_m,
@@ -3689,6 +3934,7 @@ def assemble_post_shock_first_layer(
         crossings=tuple(crossings),
         message=f'post-shock cross-characteristic {index} has no forward margin',
       )
+    ####
   ####
 
   return _first_layer_failure(
@@ -3751,6 +3997,7 @@ def continue_post_shock_characteristics_to_centerline(
       MocPostShockContinuationStatus.INVALID_INPUT,
       message='post-shock continuation requires at least two sampled shock states',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
     ('invariant_tolerance', invariant_tolerance),
@@ -3759,6 +4006,8 @@ def continue_post_shock_characteristics_to_centerline(
   ):
     if not isfinite(float(value)) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
   if not isinstance(require_terminal_on_centerline, bool):
     return _failure(
       MocPostShockContinuationStatus.INVALID_INPUT,
@@ -3771,6 +4020,7 @@ def continue_post_shock_characteristics_to_centerline(
       MocPostShockContinuationStatus.INVALID_INPUT,
       message='post-shock continuation inputs must be MocPostShockBoundaryState values',
     )
+  ####
   gamma = samples[0].state.gamma
   previous_point: tuple[float, float] | None = None
   for index, sample in enumerate(samples):
@@ -3781,21 +4031,25 @@ def continue_post_shock_characteristics_to_centerline(
         MocPostShockContinuationStatus.INVALID_INPUT,
         message=f'post-shock sample {index} uses a different gamma',
       )
+    ####
     if abs(state.x_m - point[0]) > position_tolerance_m or abs(state.y_m - point[1]) > position_tolerance_m:
       return _failure(
         MocPostShockContinuationStatus.INVALID_INPUT,
         message=f'post-shock sample {index} state and point coordinates disagree',
       )
+    ####
     if sample.downstream_total_pressure_Pa >= sample.upstream_total_pressure_Pa * (1.0 - pressure_tolerance):
       return _failure(
         MocPostShockContinuationStatus.INVALID_INPUT,
         message=f'post-shock sample {index} does not record a strict total-pressure loss',
       )
+    ####
     if point[1] < -position_tolerance_m:
       return _failure(
         MocPostShockContinuationStatus.INVALID_INPUT,
         message=f'post-shock sample {index} lies below the symmetry line',
       )
+    ####
     if previous_point is not None:
       separation = ((point[0] - previous_point[0]) ** 2 + (point[1] - previous_point[1]) ** 2) ** 0.5
       if separation <= position_tolerance_m:
@@ -3803,6 +4057,8 @@ def continue_post_shock_characteristics_to_centerline(
           MocPostShockContinuationStatus.INVALID_INPUT,
           message=f'post-shock samples {index - 1} and {index} are coincident',
         )
+      ####
+    ####
     previous_point = point
   ####
   terminal = samples[-1]
@@ -3812,11 +4068,13 @@ def continue_post_shock_characteristics_to_centerline(
         MocPostShockContinuationStatus.INVALID_INPUT,
         message='the final post-shock boundary sample must lie on the symmetry line',
       )
+    ####
     if abs(terminal.state.theta_rad) > centerline_angle_tolerance_rad:
       return _failure(
         MocPostShockContinuationStatus.INVALID_INPUT,
         message='the final post-shock boundary state must satisfy centerline theta = 0',
       )
+    ####
   ####
   segments: list[MocPostShockCharacteristicSegment] = []
   centerline_states: list[CharacteristicState] = []
@@ -3839,6 +4097,7 @@ def continue_post_shock_characteristics_to_centerline(
         centerline_states=tuple(centerline_states),
         message=f'post-shock C- characteristic {index} failed: {point_result.message}',
       )
+    ####
     centerline_point = point_result.point_m
     if abs(centerline_point[1]) > position_tolerance_m:
       return _failure(
@@ -3847,6 +4106,7 @@ def continue_post_shock_characteristics_to_centerline(
         centerline_states=tuple(centerline_states),
         message=f'post-shock C- characteristic {index} did not reach y=0',
       )
+    ####
     if (
       (index < len(samples) - 1 or not require_terminal_on_centerline)
       and centerline_point[0] <= sample.point_m[0] + position_tolerance_m
@@ -3857,6 +4117,7 @@ def continue_post_shock_characteristics_to_centerline(
         centerline_states=tuple(centerline_states),
         message=f'post-shock C- characteristic {index} has no forward centerline endpoint',
       )
+    ####
     centerline_states.append(point_result.state)
     segments.append(MocPostShockCharacteristicSegment(
       index=index,

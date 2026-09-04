@@ -98,39 +98,50 @@ MissionRayTransferAtState: TypeAlias = tuple[
 def _finite(name: str, value: object) -> float:
     if isinstance(value, bool):
         raise TypeError(f"{name} must be numeric")
+    ####
     try:
         numeric = float(cast(Any, value))
     except (TypeError, ValueError) as error:
         raise TypeError(f"{name} must be numeric") from error
+    ####
     if not isfinite(numeric):
         raise ValueError(f"{name} must be finite")
+    ####
     return numeric
+####
 
 
 def _optional_finite(name: str, value: float | None) -> float | None:
     return None if value is None else _finite(name, value)
+####
 
 
 def _copy_context(name: str, value: Mapping[str, object]) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise TypeError(f"{name} must be a mapping")
+    ####
     copied = dict(value)
     try:
         canonical_digest(copied)
     except (TypeError, ValueError) as error:
         raise ValueError(f"{name} must contain canonicalizable contract data") from error
+    ####
     return MappingProxyType(copied)
+####
 
 
 def _interpolate_scalar(first: float | None, second: float | None, fraction: float) -> float | None:
     if first is None or second is None:
         return None
+    ####
     return first + (second - first) * fraction
+####
 
 
 def _normalized_quaternion(value: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
     norm = sqrt(sum(component * component for component in value))
     return tuple(component / norm for component in value)  # type: ignore[return-value]
+####
 
 
 def _slerp(
@@ -143,11 +154,13 @@ def _slerp(
     if dot < 0.0:
         second_adjusted = tuple(-value for value in second_adjusted)  # type: ignore[assignment]
         dot = -dot
+    ####
     dot = max(-1.0, min(1.0, dot))
     if dot > 0.9995:
         return _normalized_quaternion(
             tuple(left + (right - left) * fraction for left, right in zip(first, second_adjusted))  # type: ignore[arg-type]
         )
+    ####
     angle = acos(dot)
     sine = sin(angle)
     first_weight = sin((1.0 - fraction) * angle) / sine
@@ -155,11 +168,13 @@ def _slerp(
     return _normalized_quaternion(
         tuple(first_weight * left + second_weight * right for left, right in zip(first, second_adjusted))  # type: ignore[arg-type]
     )
+####
 
 
 def _interpolate_pose(first: Pose, second: Pose, fraction: float) -> Pose:
     if first.frame_id != second.frame_id:
         raise ValueError("mission timeline poses must use one frame_id")
+    ####
     return Pose(
         frame_id=first.frame_id,
         translation_m=cast(
@@ -168,6 +183,7 @@ def _interpolate_pose(first: Pose, second: Pose, fraction: float) -> Pose:
         ),
         rotation_xyzw=_slerp(first.rotation_xyzw, second.rotation_xyzw, fraction),
     )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +209,7 @@ class MissionState:
         time_s = _finite("time_s", self.time_s)
         if not isinstance(self.source_pose, Pose):
             raise TypeError("source_pose must be Pose")
+        ####
         altitude = _optional_finite("geopotential_altitude_m", self.geopotential_altitude_m)
         throttle = _optional_finite("throttle_fraction", self.throttle_fraction)
         propellant_mass = _optional_finite(
@@ -201,16 +218,20 @@ class MissionState:
         )
         if throttle is not None and not 0.0 <= throttle <= 1.0:
             raise ValueError("throttle_fraction must lie in [0, 1]")
+        ####
         if propellant_mass is not None and propellant_mass < 0.0:
             raise ValueError("remaining_propellant_mass_kg must be nonnegative")
+        ####
         if self.operating_point_id is not None and not self.operating_point_id:
             raise ValueError("operating_point_id must be nonempty when supplied")
+        ####
         object.__setattr__(self, "time_s", time_s)
         object.__setattr__(self, "geopotential_altitude_m", altitude)
         object.__setattr__(self, "throttle_fraction", throttle)
         object.__setattr__(self, "remaining_propellant_mass_kg", propellant_mass)
         object.__setattr__(self, "dynamic_state", _copy_context("dynamic_state", self.dynamic_state))
         object.__setattr__(self, "ambient_state", _copy_context("ambient_state", self.ambient_state))
+    ####
 
     def snapshot_dynamic_state(self) -> dict[str, object]:
         """Return declared vehicle state suitable for a provider snapshot digest."""
@@ -224,6 +245,7 @@ class MissionState:
             "operating_point_id": self.operating_point_id,
             "declared_dynamic_state": dict(self.dynamic_state),
         }
+    ####
 
     def snapshot_ambient_state(self) -> dict[str, object]:
         """Return ambient context suitable for a provider snapshot digest."""
@@ -234,10 +256,13 @@ class MissionState:
             "geopotential_altitude_m": self.geopotential_altitude_m,
             "declared_ambient_state": dict(self.ambient_state),
         }
+    ####
+####
 
 
 class MissionTimelineRangeError(ValueError):
     """Raised when a sample or cursor advance leaves a prescribed timeline."""
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,13 +282,17 @@ class MissionTimeline:
         states = tuple(self.states)
         if not states:
             raise ValueError("mission timeline requires at least one state")
+        ####
         if any(not isinstance(state, MissionState) for state in states):
             raise TypeError("mission timeline states must be MissionState")
+        ####
         if any(second.time_s <= first.time_s for first, second in zip(states, states[1:])):
             raise ValueError("mission timeline state times must be strictly increasing")
+        ####
         frame_id = states[0].source_pose.frame_id
         if any(state.source_pose.frame_id != frame_id for state in states[1:]):
             raise ValueError("mission timeline poses must use one frame_id")
+        ####
         for field_name in (
             "geopotential_altitude_m",
             "throttle_fraction",
@@ -272,15 +301,20 @@ class MissionTimeline:
             populated = tuple(getattr(state, field_name) is not None for state in states)
             if any(populated) and not all(populated):
                 raise ValueError(f"{field_name} must be supplied at every timeline state or omitted from all states")
+            ####
+        ####
         object.__setattr__(self, "states", states)
+    ####
 
     @property
     def start_time_s(self) -> float:
         return self.states[0].time_s
+    ####
 
     @property
     def end_time_s(self) -> float:
         return self.states[-1].time_s
+    ####
 
     def sample_at(self, time_s: float) -> MissionState:
         """Return an immutable state at ``time_s`` without extrapolation."""
@@ -288,10 +322,12 @@ class MissionTimeline:
         requested_time_s = _finite("time_s", time_s)
         if requested_time_s < self.start_time_s or requested_time_s > self.end_time_s:
             raise MissionTimelineRangeError(f"time_s={requested_time_s} lies outside [{self.start_time_s}, {self.end_time_s}]")
+        ####
         state_times = tuple(state.time_s for state in self.states)
         upper_index = bisect_left(state_times, requested_time_s)
         if self.states[upper_index].time_s == requested_time_s:
             return self.states[upper_index]
+        ####
         lower = self.states[upper_index - 1]
         upper = self.states[upper_index]
         fraction = (requested_time_s - lower.time_s) / (upper.time_s - lower.time_s)
@@ -317,6 +353,7 @@ class MissionTimeline:
             dynamic_state=lower.dynamic_state,
             ambient_state=lower.ambient_state,
         )
+    ####
 
     def cursor_at(self, time_s: float | None = None) -> "MissionCursor":
         """Create a non-mutating cursor at the start or an exact/interpolated time."""
@@ -325,6 +362,8 @@ class MissionTimeline:
             timeline=self,
             state=self.sample_at(self.start_time_s if time_s is None else time_s),
         )
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -337,11 +376,15 @@ class MissionCursor:
     def __post_init__(self) -> None:
         if not isinstance(self.timeline, MissionTimeline):
             raise TypeError("timeline must be MissionTimeline")
+        ####
         if not isinstance(self.state, MissionState):
             raise TypeError("state must be MissionState")
+        ####
         canonical = self.timeline.sample_at(self.state.time_s)
         if canonical != self.state:
             raise ValueError("cursor state must be a sample from its timeline")
+        ####
+    ####
 
     def advance_to(self, time_s: float) -> "MissionCursor":
         """Return a cursor at a later prescribed time."""
@@ -349,7 +392,9 @@ class MissionCursor:
         requested_time_s = _finite("time_s", time_s)
         if requested_time_s < self.state.time_s:
             raise ValueError("mission cursor cannot advance backward in time")
+        ####
         return MissionCursor(timeline=self.timeline, state=self.timeline.sample_at(requested_time_s))
+    ####
 
     def advance_by(self, duration_s: float) -> "MissionCursor":
         """Return a cursor advanced by a nonnegative duration."""
@@ -357,7 +402,10 @@ class MissionCursor:
         resolved_duration_s = _finite("duration_s", duration_s)
         if resolved_duration_s < 0.0:
             raise ValueError("duration_s must be nonnegative")
+        ####
         return self.advance_to(self.state.time_s + resolved_duration_s)
+    ####
+####
 
 
 def _mission_visual_snapshot(
@@ -397,6 +445,7 @@ def _mission_visual_snapshot(
         ambient_state_digest_sha256=ambient_digest,
         provider_state_digest_sha256=provider_state_digest,
     )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -406,6 +455,7 @@ class MissionVisualizationSample:
     state: MissionState
     visualization: StandardizedModelVisualization
     visual_product: VisualSectionedTubeResult
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -427,17 +477,23 @@ class MissionVisualizationEvaluator:
     def __post_init__(self) -> None:
         if not isinstance(self.timeline, MissionTimeline):
             raise TypeError("timeline must be MissionTimeline")
+        ####
         if not callable(self.visualization_at):
             raise TypeError("visualization_at must be callable")
+        ####
         if not isinstance(self.request, VisualSectionedTubeRequest):
             raise TypeError("request must be VisualSectionedTubeRequest")
+        ####
         if not self.provider_version:
             raise ValueError("provider_version must not be empty")
+        ####
+    ####
 
     def _evaluate_state(self, state: MissionState) -> MissionVisualizationSample:
         visualization = self.visualization_at(state)
         if not isinstance(visualization, StandardizedModelVisualization):
             raise TypeError("visualization_at must return StandardizedModelVisualization")
+        ####
         visual_product = evaluate_standardized_model_visualization(
             visualization,
             self.request,
@@ -461,25 +517,32 @@ class MissionVisualizationEvaluator:
             visualization=visualization,
             visual_product=visual_product,
         )
+    ####
 
     def sample_at(self, time_s: float) -> MissionVisualizationSample:
         """Resolve and return the visual product at a scheduled mission time."""
 
         return self._evaluate_state(self.timeline.sample_at(time_s))
+    ####
 
     def evaluate_at(self, time_s: float) -> VisualSectionedTubeResult:
         """Return the canonical visual sectioned-tube product at ``time_s``."""
 
         return self.sample_at(time_s).visual_product
+    ####
 
     def evaluate_cursor(self, cursor: MissionCursor) -> MissionVisualizationSample:
         """Evaluate a cursor originating from this evaluator's timeline."""
 
         if not isinstance(cursor, MissionCursor):
             raise TypeError("cursor must be MissionCursor")
+        ####
         if cursor.timeline is not self.timeline:
             raise ValueError("cursor must originate from this evaluator's timeline")
+        ####
         return self._evaluate_state(cursor.state)
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -490,6 +553,7 @@ class MissionSignatureSample:
     visualization: StandardizedModelVisualization
     optical_profile: GrayOpticalProfile
     signature: SpectralSignatureResult
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -512,22 +576,30 @@ class MissionSignatureEvaluator:
     def __post_init__(self) -> None:
         if not isinstance(self.timeline, MissionTimeline):
             raise TypeError("timeline must be MissionTimeline")
+        ####
         if not callable(self.visualization_at):
             raise TypeError("visualization_at must be callable")
+        ####
         if not callable(self.optical_profile_at):
             raise TypeError("optical_profile_at must be callable")
+        ####
         if self.sampling is not None and not isinstance(self.sampling, ModelSignatureSampling):
             raise TypeError("sampling must be ModelSignatureSampling or None")
+        ####
         if not isinstance(self.allow_partial_results, bool):
             raise TypeError("allow_partial_results must be bool")
+        ####
+    ####
 
     def _evaluate_state(self, state: MissionState) -> MissionSignatureSample:
         visualization = self.visualization_at(state)
         optical_profile = self.optical_profile_at(state)
         if not isinstance(visualization, StandardizedModelVisualization):
             raise TypeError("visualization_at must return StandardizedModelVisualization")
+        ####
         if not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
             raise TypeError("optical_profile_at must return a supported gray optical profile")
+        ####
         signature = evaluate_model_signature(
             visualization,
             optical_profile,
@@ -546,16 +618,19 @@ class MissionSignatureEvaluator:
             optical_profile=optical_profile,
             signature=signature,
         )
+    ####
 
     def sample_at(self, time_s: float) -> MissionSignatureSample:
         """Resolve flow/optics and evaluate the spectral signature at one time."""
 
         return self._evaluate_state(self.timeline.sample_at(time_s))
+    ####
 
     def evaluate_at(self, time_s: float) -> SpectralSignatureResult:
         """Return the far-field spectral radiant-intensity product at one time."""
 
         return self.sample_at(time_s).signature
+    ####
 
     def query_at(
         self,
@@ -589,15 +664,20 @@ class MissionSignatureEvaluator:
             direction_index=direction_index,
             wavelength_index=wavelength_index,
         )
+    ####
 
     def evaluate_cursor(self, cursor: MissionCursor) -> MissionSignatureSample:
         """Evaluate the state held by a cursor created from this timeline."""
 
         if not isinstance(cursor, MissionCursor):
             raise TypeError("cursor must be MissionCursor")
+        ####
         if cursor.timeline is not self.timeline:
             raise ValueError("cursor must originate from this evaluator's timeline")
+        ####
         return self._evaluate_state(cursor.state)
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -614,6 +694,8 @@ class MissionProductSample:
     @property
     def signature_available(self) -> bool:
         return self.signature is not None
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -635,22 +717,29 @@ class MissionProductEvaluator:
     def __post_init__(self) -> None:
         if not isinstance(self.visualization_evaluator, MissionVisualizationEvaluator):
             raise TypeError("visualization_evaluator must be MissionVisualizationEvaluator")
+        ####
         if self.optical_profile_at is not None and not callable(self.optical_profile_at):
             raise TypeError("optical_profile_at must be callable or None")
+        ####
         if self.sampling is not None and not isinstance(self.sampling, ModelSignatureSampling):
             raise TypeError("sampling must be ModelSignatureSampling or None")
+        ####
         if not isinstance(self.allow_partial_results, bool):
             raise TypeError("allow_partial_results must be bool")
+        ####
+    ####
 
     @property
     def timeline(self) -> MissionTimeline:
         return self.visualization_evaluator.timeline
+    ####
 
     def _evaluate_visual_sample(self, visual_sample: MissionVisualizationSample) -> MissionProductSample:
         state = visual_sample.state
         optical_profile = None if self.optical_profile_at is None else self.optical_profile_at(state)
         if optical_profile is not None and not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
             raise TypeError("optical_profile_at must return a supported gray optical profile")
+        ####
         assessment = assess_model_signature_readiness(
             visual_sample.visualization,
             optical_profile=optical_profile,
@@ -669,6 +758,7 @@ class MissionProductEvaluator:
                 ambient_state=state.snapshot_ambient_state(),
                 time_model=TimeModel.PRESCRIBED_TRANSIENT,
             )
+        ####
         return MissionProductSample(
             state=state,
             visualization=visual_sample.visualization,
@@ -677,21 +767,25 @@ class MissionProductEvaluator:
             optical_profile=optical_profile,
             signature=signature,
         )
+    ####
 
     def sample_at(self, time_s: float) -> MissionProductSample:
         """Return every currently valid product at one scheduled mission time."""
 
         return self._evaluate_visual_sample(self.visualization_evaluator.sample_at(time_s))
+    ####
 
     def evaluate_cursor(self, cursor: MissionCursor) -> MissionProductSample:
         """Return every currently valid product at the cursor's mission state."""
 
         return self._evaluate_visual_sample(self.visualization_evaluator.evaluate_cursor(cursor))
+    ####
 
     def visual_at(self, time_s: float) -> VisualSectionedTubeResult:
         """Return the canonical visual product at one scheduled mission time."""
 
         return self.visualization_evaluator.evaluate_at(time_s)
+    ####
 
     def signature_at(self, time_s: float) -> SpectralSignatureResult:
         """Return a signature or raise its typed, machine-readable block."""
@@ -700,7 +794,10 @@ class MissionProductEvaluator:
         if sample.signature is None:
             reasons = "; ".join(sample.signature_assessment.reasons)
             raise ModelSignatureBlockedError(f"{sample.visualization.lane_id} cannot provide a mission signature ({sample.signature_assessment.readiness.value}): {reasons}")
+        ####
         return sample.signature
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -724,6 +821,8 @@ class MissionFpaSample:
         """Whether an explicit deterministic ADC expectation was requested."""
 
         return self.digitized is not None
+    ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -750,6 +849,7 @@ class MissionFpaEvaluator:
     def __post_init__(self) -> None:
         if not isinstance(self.timeline, MissionTimeline):
             raise TypeError("timeline must be MissionTimeline")
+        ####
         for name in (
             "ray_transfer_at",
             "geometry_at",
@@ -758,10 +858,14 @@ class MissionFpaEvaluator:
         ):
             if not callable(getattr(self, name)):
                 raise TypeError(f"{name} must be callable")
+            ####
+        ####
         if self.digitization_policy_at is not None and not callable(
             self.digitization_policy_at
         ):
             raise TypeError("digitization_policy_at must be callable or None")
+        ####
+    ####
 
     def _evaluate_state(self, state: MissionState) -> MissionFpaSample:
         resolved_ray = self.ray_transfer_at(state)
@@ -769,41 +873,50 @@ class MissionFpaEvaluator:
             raise TypeError(
                 "ray_transfer_at must return (wavelengths_m, SpectralRayTransferResult)"
             )
+        ####
         raw_wavelengths, ray_transfer = resolved_ray
         if not isinstance(ray_transfer, ProviderSpectralRayTransferResult):
             raise TypeError(
                 "ray_transfer_at must return the provider SpectralRayTransferResult"
             )
+        ####
         wavelengths = tuple(
             _finite(f"wavelengths_m[{index}]", value)
             for index, value in enumerate(raw_wavelengths)
         )
         if len(wavelengths) < 2 or any(value <= 0.0 for value in wavelengths):
             raise ValueError("wavelengths_m must contain at least two positive values")
+        ####
         if any(
             right <= left for left, right in zip(wavelengths, wavelengths[1:])
         ):
             raise ValueError("wavelengths_m must be strictly increasing")
+        ####
 
         snapshot = ray_transfer.metadata.snapshot
         if snapshot.time_s != state.time_s:
             raise ValueError(
                 "ray-transfer snapshot time_s must exactly match the mission state"
             )
+        ####
         if snapshot.source_pose != state.source_pose:
             raise ValueError(
                 "ray-transfer snapshot source_pose must exactly match the mission state"
             )
+        ####
 
         geometry = self.geometry_at(state)
         detector = self.detector_at(state)
         if not isinstance(geometry, FpaPixelGeometry):
             raise TypeError("geometry_at must return FpaPixelGeometry")
+        ####
         if not isinstance(detector, DetectorResponse):
             raise TypeError("detector_at must return DetectorResponse")
+        ####
         exposure_s = _finite("exposure_s", self.exposure_s_at(state))
         if exposure_s <= 0.0:
             raise ValueError("exposure_s_at must return a positive value")
+        ####
         policy = (
             None
             if self.digitization_policy_at is None
@@ -813,6 +926,7 @@ class MissionFpaEvaluator:
             raise TypeError(
                 "digitization_policy_at must return FpaDigitizationPolicy or None"
             )
+        ####
 
         source = FpaSourceReference.from_ray_result(ray_transfer)
         image = integrate_spectral_ray_result_to_fpa(
@@ -848,25 +962,31 @@ class MissionFpaEvaluator:
             digitized=digitized,
             inputs=inputs,
         )
+    ####
 
     def sample_at(self, time_s: float) -> MissionFpaSample:
         """Evaluate the downstream FPA chain at a prescribed mission time."""
 
         return self._evaluate_state(self.timeline.sample_at(time_s))
+    ####
 
     def evaluate_at(self, time_s: float) -> FpaVisualizationInput:
         """Return source-bound FPA inputs at a prescribed mission time."""
 
         return self.sample_at(time_s).inputs
+    ####
 
     def evaluate_cursor(self, cursor: MissionCursor) -> MissionFpaSample:
         """Evaluate a cursor originating from this evaluator's timeline."""
 
         if not isinstance(cursor, MissionCursor):
             raise TypeError("cursor must be MissionCursor")
+        ####
         if cursor.timeline is not self.timeline:
             raise ValueError("cursor must originate from this evaluator's timeline")
+        ####
         return self._evaluate_state(cursor.state)
+    ####
 
     def project_at(
         self,
@@ -881,3 +1001,5 @@ class MissionFpaEvaluator:
             view_kind="fpa.overview",
         )
         return project_fpa_view(sample.inputs, resolved_spec)
+    ####
+####

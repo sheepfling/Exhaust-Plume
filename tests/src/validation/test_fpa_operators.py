@@ -23,6 +23,7 @@ def _geometry() -> FpaPixelGeometry:
     ray_pixel_indices_row_col=((0, 0), (0, 0), (0, 1)),
     ray_collection_weights_m2_sr=(0.25, 0.75, 1.0),
   )
+####
 
 
 def _detector() -> DetectorResponse:
@@ -33,6 +34,7 @@ def _detector() -> DetectorResponse:
     dark_current_e_per_s=2.0,
     read_noise_std_e=3.0,
   )
+####
 
 
 def test_fpa_operator_integrates_rays_exposure_and_noise_policy() -> None:
@@ -57,6 +59,7 @@ def test_fpa_operator_integrates_rays_exposure_and_noise_policy() -> None:
   assert result.dark_electrons == ((4.0, 4.0),)
   assert result.noise_variance_e2[0][0] == pytest.approx(expected_pixel_zero_signal + 4.0 + 9.0)
   assert result.noise_variance_e2[0][1] == pytest.approx(expected_pixel_one_signal + 4.0 + 9.0)
+####
 
 
 def test_fpa_operator_composes_background_only_when_explicitly_requested() -> None:
@@ -87,6 +90,7 @@ def test_fpa_operator_composes_background_only_when_explicitly_requested() -> No
   assert result.source_semantics == 'source-plus-transmitted-background'
   assert result.expected_electrons[0][0] == pytest.approx(source_only.expected_electrons[0][0])
   assert result.expected_electrons[0][1] == pytest.approx(source_only.expected_electrons[0][1])
+####
 
 
 def test_fpa_operator_propagates_invalid_rays_and_rejects_partial_background() -> None:
@@ -109,6 +113,8 @@ def test_fpa_operator_propagates_invalid_rays_and_rejects_partial_background() -
       exposure_s=1.0,
       background_transmittance=((1.0, 1.0, 1.0),) * 3,
     )
+  ####
+####
 
 
 def test_fpa_operator_requires_detector_response_coverage() -> None:
@@ -124,6 +130,8 @@ def test_fpa_operator_requires_detector_response_coverage() -> None:
       ),
       exposure_s=1.0,
     )
+  ####
+####
 
 
 def test_fpa_operator_is_deterministic() -> None:
@@ -143,6 +151,7 @@ def test_fpa_operator_is_deterministic() -> None:
     **kwargs,
   )
   assert first == second
+####
 
 
 def test_fpa_operator_preserves_declared_camera_optics_identity() -> None:
@@ -173,6 +182,7 @@ def test_fpa_operator_preserves_declared_camera_optics_identity() -> None:
   )
   assert result.camera_optics_id == 'camera-synthetic-01'
   assert result.camera_mapping_model_id == 'declared-ray-to-pixel-mapping-v1'
+####
 
 
 def test_fpa_pixel_geometry_rejects_coercible_shape_and_index_values() -> None:
@@ -183,6 +193,7 @@ def test_fpa_pixel_geometry_rejects_coercible_shape_and_index_values() -> None:
       ray_pixel_indices_row_col=((0, 0),),
       ray_collection_weights_m2_sr=(1.0,),
     )
+  ####
   with pytest.raises(ValueError, match='indices must contain integers'):
     FpaPixelGeometry(
       width_px=1,
@@ -190,6 +201,7 @@ def test_fpa_pixel_geometry_rejects_coercible_shape_and_index_values() -> None:
       ray_pixel_indices_row_col=((0.5, 0),),
       ray_collection_weights_m2_sr=(1.0,),
     )
+  ####
   with pytest.raises(ValueError, match='indices must contain integers'):
     FpaPixelGeometry(
       width_px=1,
@@ -197,6 +209,8 @@ def test_fpa_pixel_geometry_rejects_coercible_shape_and_index_values() -> None:
       ray_pixel_indices_row_col=((True, 0),),
       ray_collection_weights_m2_sr=(1.0,),
     )
+  ####
+####
 
 
 def test_fpa_digitization_is_deterministic_and_preserves_invalid_pixels() -> None:
@@ -227,13 +241,17 @@ def test_fpa_digitization_is_deterministic_and_preserves_invalid_pixels() -> Non
   assert first.validity_mask == image.validity_mask
   assert first.camera_optics_id == 'camera-synthetic-01'
   assert first.camera_mapping_model_id == 'declared-ray-to-pixel-mapping-v1'
+####
 
 
 def test_fpa_digitization_rejects_unsupported_adc_conventions() -> None:
   with pytest.raises(ValueError, match='nearest_even'):
     FpaDigitizationPolicy(electrons_per_count=1.0, rounding_mode='floor')
+  ####
   with pytest.raises(ValueError, match='clip'):
     FpaDigitizationPolicy(electrons_per_count=1.0, saturation_mode='wrap')
+  ####
+####
 
 
 def test_fpa_images_reject_malformed_direct_construction() -> None:
@@ -251,10 +269,14 @@ def test_fpa_images_reject_malformed_direct_construction() -> None:
   }
   with pytest.raises(ValueError, match='finite'):
     FpaPixelImage(**{**common, 'expected_electrons': ((nan,),)})
+  ####
   with pytest.raises(ValueError, match='shape'):
     FpaPixelImage(**{**common, 'validity_mask': ((True, False),)})
+  ####
   with pytest.raises(ValueError, match='positive integer'):
     FpaPixelImage(**{**common, 'width_px': 0})
+  ####
+####
 
 
 def test_fpa_digitized_expectation_rejects_malformed_direct_construction() -> None:
@@ -269,7 +291,11 @@ def test_fpa_digitized_expectation_rejects_malformed_direct_construction() -> No
   }
   with pytest.raises(ValueError, match='nonnegative integers'):
     FpaDigitizedExpectation(**{**common, 'counts': ((-1,),)})
+  ####
   with pytest.raises(ValueError, match='boolean'):
     FpaDigitizedExpectation(**{**common, 'saturated_mask': ((0,),)})
+  ####
   with pytest.raises(ValueError, match='operator_id'):
     FpaDigitizedExpectation(**{**common, 'operator_id': 'other'})
+  ####
+####

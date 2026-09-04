@@ -63,6 +63,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus
   EULER_RESIDUAL_FAILURE = (
     'euler_ambient_first_wedge_entropy_characteristic_continuation_refinement_euler_residual_failure'
   )
+####
 
 
 def _lattice_point(
@@ -81,6 +82,7 @@ def _lattice_point(
     + second_weight * third[index]
     for index in (0, 1)
   )
+####
 
 
 def _project_sample(
@@ -115,6 +117,7 @@ def _project_sample(
   inversion = inverse_prandtl_meyer_angle_rad(nu, states[0].gamma)
   if not inversion.converged or inversion.value is None:
     raise ValueError('continuation refinement left the supersonic Mach domain')
+  ####
   state = CharacteristicState(
     x_m=point[0],
     y_m=point[1],
@@ -130,7 +133,9 @@ def _project_sample(
   )
   if not isfinite(total_pressure) or total_pressure <= 0.0:
     raise ValueError('continuation refinement total pressure was not positive')
+  ####
   return state, total_pressure
+####
 
 
 def _triangle_weights(
@@ -140,6 +145,7 @@ def _triangle_weights(
 ) -> tuple[float, float, float] | None:
   if len(vertices) != 3:
     return None
+  ####
   (ax, ay), (bx, by), (cx, cy) = vertices
   denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
   if not isfinite(denominator) or abs(denominator) <= max(
@@ -147,6 +153,7 @@ def _triangle_weights(
     1.0e-24,
   ):
     return None
+  ####
   px, py = point
   first = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
   second = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
@@ -157,7 +164,9 @@ def _triangle_weights(
     third,
   ) > 1.0 + 1.0e-10:
     return None
+  ####
   return first, second, third
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,40 +201,50 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus,
     ):
       raise TypeError('status must be a continuation-refinement status')
+    ####
     if self.source_continuation is not None and not isinstance(
       self.source_continuation,
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationResult,
     ):
       raise TypeError('source_continuation must be typed or None')
+    ####
     if (
       isinstance(self.subdivision_side_count, bool)
       or not isinstance(self.subdivision_side_count, int)
       or self.subdivision_side_count < 1
     ):
       raise ValueError('subdivision_side_count must be a positive integer')
+    ####
     cells = tuple(self.cells)
     samples = tuple(self.cell_samples)
     residuals = tuple(float(value) for value in self.cell_euler_residuals)
     if len(cells) != len(samples) or len(cells) != len(residuals):
       raise ValueError('cells, samples, and residuals must have equal lengths')
+    ####
     if any(not isinstance(cell, MocCharacteristicCell) for cell in cells):
       raise TypeError('cells must contain MocCharacteristicCell values')
+    ####
     if any(
       not isinstance(sample, MocEulerAmbientFirstWedgeCellSample)
       for sample in samples
     ):
       raise TypeError('cell_samples must contain typed cell samples')
+    ####
     if any(not isfinite(value) or value < 0.0 for value in residuals):
       raise ValueError('cell_euler_residuals must be finite and nonnegative')
+    ####
     if not isinstance(self.topology, MocTopologyResult):
       raise TypeError('topology must be a MocTopologyResult')
+    ####
     if self.maximum_cell_euler_residual is not None:
       maximum = float(self.maximum_cell_euler_residual)
       if not isfinite(maximum) or maximum < 0.0:
         raise ValueError(
           'maximum_cell_euler_residual must be finite and nonnegative'
         )
+      ####
       object.__setattr__(self, 'maximum_cell_euler_residual', maximum)
+    ####
     object.__setattr__(self, 'cells', cells)
     object.__setattr__(self, 'cell_samples', samples)
     object.__setattr__(self, 'cell_euler_residuals', residuals)
@@ -242,14 +261,20 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.internal_characteristic_closure_verified:
       raise ValueError('projection refinement cannot claim characteristic closure')
+    ####
     if self.physical_closure_verified:
       raise ValueError('projection refinement cannot claim physical closure')
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError('projection refinement must retain the promotion block')
+    ####
     if self.production_claim_allowed:
       raise ValueError('projection refinement cannot claim production validity')
+    ####
     for name in (
       'position_tolerance_m',
       'projection_tolerance',
@@ -258,8 +283,11 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -267,10 +295,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus
       .CONVERGED_DIAGNOSTIC_REFINEMENT
     )
+  ####
 
   @property
   def cell_count(self) -> int:
     return len(self.cells)
+  ####
 
   @property
   def state_sample_count(self) -> int:
@@ -279,16 +309,20 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       for sample in self.cell_samples
       for point in sample.vertices_xr_m
     })
+  ####
 
   @property
   def continuation_boundary_kind(self) -> MocChainBoundaryKind:
     return MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER
+  ####
 
   @property
   def continuation_boundary(self):
     if self.source_continuation is None:
       return ()
+    ####
     return self.source_continuation.continuation_boundary
+  ####
 
   @property
   def local_projection_verified(self) -> bool:
@@ -307,10 +341,12 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   @property
   def state_sampling_available(self) -> bool:
     return bool(self.local_projection_verified and self.cells and self.cell_samples)
+  ####
 
   def _sample_at(
     self,
@@ -322,8 +358,10 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       point = (float(point_m[0]), float(point_m[1]))
     except (IndexError, TypeError, ValueError):
       return None
+    ####
     if not all(isfinite(value) for value in point):
       return None
+    ####
     for sample in self.cell_samples:
       weights = _triangle_weights(
         point,
@@ -332,7 +370,10 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       )
       if weights is not None:
         return weights, sample
+      ####
+    ####
     return None
+  ####
 
   def state_at(
     self,
@@ -346,6 +387,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
     )
     if sampled is None:
       return None
+    ####
     weights, sample = sampled
     point = (float(point_m[0]), float(point_m[1]))
     theta = sum(
@@ -359,6 +401,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
     inversion = inverse_prandtl_meyer_angle_rad(nu, sample.states[0].gamma)
     if not inversion.converged or inversion.value is None:
       return None
+    ####
     return CharacteristicState(
       x_m=point[0],
       y_m=point[1],
@@ -366,6 +409,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       mach=inversion.value,
       gamma=sample.states[0].gamma,
     )
+  ####
 
   def total_pressure_at(
     self,
@@ -379,6 +423,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
     )
     if sampled is None:
       return None
+    ####
     weights, sample = sampled
     return exp(
       sum(
@@ -386,6 +431,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
         for weight, pressure in zip(weights, sample.total_pressure_Pa, strict=True)
       )
     )
+  ####
 
   def static_pressure_at(
     self,
@@ -403,13 +449,16 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
     )
     if state is None or total_pressure is None:
       return None
+    ####
     return total_pressure / (
       1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
     ) ** (state.gamma / (state.gamma - 1.0))
+  ####
 
   @property
   def physical_chain_cell_count(self) -> int:
     return 0
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     reason = (
@@ -452,6 +501,7 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
         ),
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -499,6 +549,8 @@ class MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -540,6 +592,7 @@ def _failure(
     cell_residual_tolerance=cell_residual_tolerance,
     message=message,
   )
+####
 
 
 def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
@@ -562,6 +615,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
       None,
       message='source_continuation must be a typed continuation result',
     )
+  ####
   try:
     position_tolerance = float(position_tolerance_m)
     projection_limit = float(projection_tolerance)
@@ -573,11 +627,13 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
       source_continuation,
       message='continuation refinement tolerances must be numeric',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (position_tolerance, projection_limit, residual_limit)
   ):
     raise ValueError('continuation refinement tolerances must be finite and positive')
+  ####
   if (
     isinstance(subdivision_side_count, bool)
     or not isinstance(subdivision_side_count, int)
@@ -585,6 +641,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
     or subdivision_side_count > 32
   ):
     raise ValueError('subdivision_side_count must be an integer from one through 32')
+  ####
   common = {
     'subdivision_side_count': subdivision_side_count,
     'position_tolerance_m': position_tolerance,
@@ -605,6 +662,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
       ),
       **common,
     )
+  ####
   if not source_continuation.cell_samples:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus
@@ -613,6 +671,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
       message='continuation refinement requires triangular source samples',
       **common,
     )
+  ####
 
   cells: list[MocCharacteristicCell] = []
   samples: list[MocEulerAmbientFirstWedgeCellSample] = []
@@ -630,6 +689,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
         raise ValueError(
           f'parent continuation cell {parent_index} is not a triangle'
         )
+      ####
       if any(
         not all(isfinite(value) for value in point)
         or not isinstance(state, CharacteristicState)
@@ -655,6 +715,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
         )
       ):
         raise ValueError(f'parent continuation cell {parent_index} is non-finite')
+      ####
       lattice: dict[tuple[int, int], tuple[CharacteristicState, float]] = {}
       for first_index in range(subdivision_side_count + 1):
         for second_index in range(
@@ -668,6 +729,8 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
             first_index,
             second_index,
           )
+        ####
+      ####
       for first_index in range(subdivision_side_count):
         for second_index in range(subdivision_side_count - first_index):
           for keys in (
@@ -709,6 +772,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
                 cell_pressures,
               )
             )
+          ####
           if first_index + second_index <= subdivision_side_count - 2:
             keys = (
               (first_index + 1, second_index),
@@ -747,6 +811,10 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
                 cell_pressures,
               )
             )
+          ####
+        ####
+      ####
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementStatus
@@ -763,6 +831,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
       message=f'continuation projection refinement failed: {error}',
       **common,
     )
+  ####
   topology = validate_moc_mesh(tuple(cells))
   topology_verified = bool(
     topology.connected
@@ -786,6 +855,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
       message=f'continuation projection topology failed: {topology.message}',
       **common,
     )
+  ####
   for sample in samples:
     for point, state, pressure in zip(
       sample.vertices_xr_m,
@@ -806,6 +876,8 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
         and isfinite(pressure)
         and pressure > 0.0
       )
+    ####
+  ####
   continuation_boundary_verified = bool(
     source_continuation.continuation_boundary_verified
     and source_continuation.continuation_boundary
@@ -841,6 +913,7 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
       'continuation projection refinement passed topology, lineage, and '
       'Euler residual gates; characteristic re-closure remains unsolved'
     )
+  ####
   return MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationRefinementResult(
     status=status,
     source_continuation=source_continuation,
@@ -860,3 +933,4 @@ def refine_euler_ambient_first_wedge_entropy_characteristic_continuation(
     cell_residual_tolerance=residual_limit,
     message=message,
   )
+####

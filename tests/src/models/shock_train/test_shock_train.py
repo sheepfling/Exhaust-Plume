@@ -147,6 +147,7 @@ def test_zero_amplitude_decay_preserves_amplitude_until_safety_limit() -> None:
   amplitudes = result.diagnostics['pressure_amplitude_history']
   assert result.termination_reason is TerminationReason.MAX_CELL_LIMIT
   assert amplitudes == [amplitudes[0]] * len(amplitudes)
+####
 
 
 def test_sensitivity_sweep_is_explicit_and_does_not_change_first_cell() -> None:
@@ -167,6 +168,7 @@ def test_sensitivity_sweep_is_explicit_and_does_not_change_first_cell() -> None:
   assert points[0].shock_train_end_x_m > points[-1].shock_train_end_x_m
   assert points[0].cell_count != points[-1].cell_count
   assert first_cell.exit_state.mach == 1.000001
+####
 
 
 def test_matched_exit_has_no_train_and_reports_no_pressure_mismatch() -> None:
@@ -194,6 +196,7 @@ def test_matched_exit_has_no_train_and_reports_no_pressure_mismatch() -> None:
   assert result.cells == ()
   assert result.status is ShockTrainStatus.PHYSICALLY_TERMINATED
   assert result.termination_reason is TerminationReason.NO_PRESSURE_MISMATCH
+####
 
 
 def test_covariance_propagation_preserves_parameter_order_and_reports_output_uncertainty() -> None:
@@ -220,6 +223,7 @@ def test_covariance_propagation_preserves_parameter_order_and_reports_output_unc
   assert all(value >= 0.0 for value in result['output_standard_deviation'])
   assert result['discrete_cell_count_is_not_differentiated'] is True
   assert {item['difference_scheme'] for item in result['perturbations']} == {'central'}
+####
 
 
 def test_covariance_propagation_without_covariance_is_explicitly_unavailable() -> None:
@@ -244,11 +248,14 @@ def test_covariance_propagation_without_covariance_is_explicitly_unavailable() -
   )
 
   assert result['status'] == 'not-available-no-calibration-covariance'
+####
 
 
 def test_covariance_requires_explicit_parameter_order() -> None:
   with pytest.raises(ValueError, match='covariance_parameter_names'):
     replace(_calibration(), covariance_parameter_names=None)
+  ####
+####
 
 
 def test_calibration_validation_split_requires_disjoint_assigned_cases() -> None:
@@ -270,6 +277,8 @@ def test_calibration_validation_split_requires_disjoint_assigned_cases() -> None
       calibration_case_ids=('same-case',),
       validation_case_ids=('same-case',),
     )
+  ####
+####
 
 
 def test_calibration_validation_split_keeps_single_candidate_unassigned() -> None:
@@ -280,3 +289,4 @@ def test_calibration_validation_split_keeps_single_candidate_unassigned() -> Non
   assert split.status is CalibrationValidationSplitStatus.BLOCKED_INSUFFICIENT_CASES
   assert split.accepted is False
   assert split.as_report()['unassigned_case_ids'] == ['CJ-UEJ-001']
+####
