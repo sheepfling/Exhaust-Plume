@@ -942,6 +942,12 @@ def solve_marched_attached_shock_field(
     if not isfinite(target_angle):
       return None, f'downstream flow angle {index} must be finite', MocFreeBoundaryShockStatus.INVALID_INPUT
     turn = target_angle - state.theta_rad
+    # A Mach-wave endpoint is a zero-strength boundary condition.  Normalize
+    # round-off-sized signed turns before the strict compression gate so that
+    # the same physical endpoint is not classified differently by BLAS/math
+    # implementations on different CI platforms.
+    if abs(turn) <= float(invariant_tolerance):
+      turn = 0.0
     zero_strength_start = (
       allow_zero_strength_start
       and index == 0

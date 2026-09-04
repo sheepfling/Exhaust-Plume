@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 from math import atan2, tan
 
+import pytest
+
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
@@ -650,19 +652,26 @@ def test_terminal_characteristic_field_retile_preserves_source_and_blocks_chain(
   assert result.terminal_geometry_verified
   assert not result.variable_entropy_compatibility_verified
   assert not result.cell_euler_residual_verified
-  assert result.retiled_field.cells[16].vertices_xr_m == (
-    (2.125, 0.0),
-    (2.2331132751544187, 0.07673569462883911),
-    (2.4636587590024055, 0.0),
+  assert all(
+    actual == pytest.approx(expected, rel=0.0, abs=1.0e-12)
+    for actual, expected in zip(
+      result.retiled_field.cells[16].vertices_xr_m,
+      (
+        (2.125, 0.0),
+        (2.2331132751544187, 0.07673569462883911),
+        (2.4636587590024055, 0.0),
+      ),
+      strict=True,
+    )
   )
-  assert result.retiled_field.cells[17].vertices_xr_m[-1] == (
+  assert result.retiled_field.cells[17].vertices_xr_m[-1] == pytest.approx((
     2.4636587590024055,
     0.0,
-  )
-  assert result.retiled_field.centerline_boundary_points_m[1] == (
+  ), rel=0.0, abs=1.0e-12)
+  assert result.retiled_field.centerline_boundary_points_m[1] == pytest.approx((
     2.4636587590024055,
     0.0,
-  )
+  ), rel=0.0, abs=1.0e-12)
   assert physical_field.field.cells == original_cells
   assert physical_field.field.centerline_boundary_points_m == original_centerline
   assert result.physical_closure_verified is False

@@ -1684,12 +1684,15 @@ def test_global_reflected_shock_remesh_retains_invalid_attempts_without_bridging
     compression_amplitude_upper_rad=0.03,
     compression_envelope_skews=(-0.75, 0.0, 0.75),
     sample_count=9,
-    shock_angle_tolerance_rad=0.02,
+    # Keep this fixture a mixed valid/invalid attempt case with an explicit
+    # geometry gate rather than relying on platform-specific last-bit drift.
+    shock_angle_tolerance_rad=0.008,
   )
 
   assert result.status is MocReflectedDomainGlobalShockRemeshStatus.ATTEMPT_FAILURE
   assert result.attempt_count == 3
   assert result.selected_attempt_index is not None
+  assert result.selected_residual_m is not None
   assert any(
     attempt.first_cell_result.status is MocReflectedDomainSolverOwnedFirstCellStatus.FIELD_FAILURE
     for attempt in result.attempts

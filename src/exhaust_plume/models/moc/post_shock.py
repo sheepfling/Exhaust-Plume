@@ -1675,6 +1675,10 @@ def fit_attached_shock_boundary(
       zip(samples, pressures, points, target_angles, strict=True)
   ):
     target_turn = float(target_angle) - state.theta_rad
+    # Endpoint zero-strength is an explicit tolerance-based model.  Keeping
+    # the signed floating-point residue would make a Mach-wave endpoint fail
+    # the positive-compression gate on otherwise equivalent platforms.
+    zero_strength_tolerance_rad = 1.0e-10
     zero_strength_start = (
       (
         (allow_zero_strength_start and index == 0)
@@ -1683,8 +1687,10 @@ def fit_attached_shock_boundary(
           and index == len(samples) - 1
         )
       )
-      and target_turn == 0.0
+      and abs(target_turn) <= zero_strength_tolerance_rad
     )
+    if zero_strength_start:
+      target_turn = 0.0
     if target_turn < 0.0 or (target_turn == 0.0 and not zero_strength_start):
       return _shock_fit_failure(
         MocShockBoundaryFitStatus.OUTSIDE_DOMAIN,
