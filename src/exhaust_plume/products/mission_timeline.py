@@ -30,10 +30,12 @@ from exhaust_plume.api.v1 import (
     canonical_digest,
 )
 from exhaust_plume.products.model_signature import (
+    GrayOpticalProfile,
     GrayRadiationProfile,
     ModelSignatureAssessment,
     ModelSignatureBlockedError,
     ModelSignatureSampling,
+    SectionedGrayRadiationProfile,
     assess_model_signature_readiness,
     evaluate_model_signature,
 )
@@ -453,7 +455,7 @@ class MissionSignatureSample:
 
     state: MissionState
     visualization: StandardizedModelVisualization
-    optical_profile: GrayRadiationProfile
+    optical_profile: GrayOpticalProfile
     signature: SpectralSignatureResult
 
 
@@ -470,7 +472,7 @@ class MissionSignatureEvaluator:
 
     timeline: MissionTimeline
     visualization_at: Callable[[MissionState], StandardizedModelVisualization]
-    optical_profile_at: Callable[[MissionState], GrayRadiationProfile]
+    optical_profile_at: Callable[[MissionState], GrayOpticalProfile]
     sampling: ModelSignatureSampling | None = None
     allow_partial_results: bool = False
 
@@ -491,8 +493,8 @@ class MissionSignatureEvaluator:
         optical_profile = self.optical_profile_at(state)
         if not isinstance(visualization, StandardizedModelVisualization):
             raise TypeError("visualization_at must return StandardizedModelVisualization")
-        if not isinstance(optical_profile, GrayRadiationProfile):
-            raise TypeError("optical_profile_at must return GrayRadiationProfile")
+        if not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
+            raise TypeError("optical_profile_at must return a supported gray optical profile")
         signature = evaluate_model_signature(
             visualization,
             optical_profile,
@@ -540,7 +542,7 @@ class MissionProductSample:
     visualization: StandardizedModelVisualization
     visual_product: VisualSectionedTubeResult
     signature_assessment: ModelSignatureAssessment
-    optical_profile: GrayRadiationProfile | None
+    optical_profile: GrayOpticalProfile | None
     signature: SpectralSignatureResult | None
 
     @property
@@ -560,7 +562,7 @@ class MissionProductEvaluator:
     """
 
     visualization_evaluator: MissionVisualizationEvaluator
-    optical_profile_at: Callable[[MissionState], GrayRadiationProfile] | None = None
+    optical_profile_at: Callable[[MissionState], GrayOpticalProfile] | None = None
     sampling: ModelSignatureSampling | None = None
     allow_partial_results: bool = False
 
@@ -581,8 +583,8 @@ class MissionProductEvaluator:
     def _evaluate_visual_sample(self, visual_sample: MissionVisualizationSample) -> MissionProductSample:
         state = visual_sample.state
         optical_profile = None if self.optical_profile_at is None else self.optical_profile_at(state)
-        if optical_profile is not None and not isinstance(optical_profile, GrayRadiationProfile):
-            raise TypeError("optical_profile_at must return GrayRadiationProfile")
+        if optical_profile is not None and not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
+            raise TypeError("optical_profile_at must return a supported gray optical profile")
         assessment = assess_model_signature_readiness(
             visual_sample.visualization,
             optical_profile=optical_profile,

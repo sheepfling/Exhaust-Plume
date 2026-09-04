@@ -16,6 +16,7 @@ from exhaust_plume.products import (
     ModelSignatureSampling,
     ModelSignatureReadiness,
     ModelVisualizationLane,
+    SectionedGrayRadiationProfile,
     evaluate_model_signature,
     standardize_model_visualization,
 )
@@ -193,6 +194,40 @@ def test_combined_mission_product_evaluator_preserves_visual_when_signature_is_b
     assert curved_sample.signature.metadata.claims.radiation.value == "gray_approximate"
     assert curved_sample.signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
     assert curved_sample.signature_assessment.readiness is ModelSignatureReadiness.READY
+
+
+def test_mission_signature_evaluator_accepts_section_varying_profile_resolver() -> None:
+    visualization = _straight_bundles()[0]
+    section_count = len(visualization.sectioned_tube.sections) - 1
+
+    def sectioned_profile_for_state(_state: MissionState) -> SectionedGrayRadiationProfile:
+        return SectionedGrayRadiationProfile(
+            wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+            source_function_w_sr_m_by_section=tuple(
+                (2.0 + index, 3.0 + index, 4.0 + index)
+                for index in range(section_count)
+            ),
+            absorption_coefficient_per_m_by_section=tuple(
+                (0.5, 1.0, 1.5)
+                for _index in range(section_count)
+            ),
+            profile_id="mission-sectioned-gray",
+        )
+
+    evaluator = MissionSignatureEvaluator(
+        timeline=_timeline(),
+        visualization_at=lambda _state: visualization,
+        optical_profile_at=sectioned_profile_for_state,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    sample = evaluator.sample_at(5.0)
+    assert isinstance(sample.optical_profile, SectionedGrayRadiationProfile)
+    assert sample.signature.metadata.provenance.metadata["optical_profile_mode"] == "piecewise-axial-section"
+    assert sample.signature.metadata.claims.time_model is TimeModel.PRESCRIBED_TRANSIENT
 
 
 def test_direct_bridge_accepts_explicit_snapshot_state() -> None:

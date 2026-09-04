@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from dataclasses import dataclass
-from math import isfinite
+from math import isfinite, sqrt
 from typing import Any, Mapping
 
 from exhaust_plume.api.v1 import (
@@ -40,7 +40,7 @@ from exhaust_plume.api.v1 import (
   TimeModel,
   canonical_digest,
 )
-from exhaust_plume.geometry.ray_intervals import SectionedTubeSupport, intersect_sectioned_tube
+from exhaust_plume.geometry.ray_intervals import RayInterval, SectionedTubeSupport, intersect_sectioned_tube
 from exhaust_plume.radiation.gray import HomogeneousSegment, compose_homogeneous_segments
 
 __all__ = (
@@ -77,13 +77,22 @@ def _spectrum(values: tuple[float, ...], field_name: str) -> tuple[float, ...]:
 
 @dataclass(frozen=True, slots=True)
 class GrayRayTransferDefinition:
-  """Straight sectioned support plus wavelength-node optical properties."""
+  """Straight sectioned support plus wavelength-node optical properties.
+
+  A definition may carry either one homogeneous spectrum or one spectrum per
+  axial support section.  The latter is intentionally limited to straight
+  supports: the provider splits each ray chord at the support-section planes,
+  which keeps spatial variation explicit without pretending that a curved
+  capsule envelope is a resolved curved-flow field.
+  """
 
   frame_id: str
   support: SectionedTubeSupport
   wavelengths_m: tuple[float, ...]
-  source_function_w_sr_m: tuple[float, ...]
-  absorption_coefficient_per_m: tuple[float, ...]
+  source_function_w_sr_m: tuple[float, ...] | None = None
+  absorption_coefficient_per_m: tuple[float, ...] | None = None
+  source_function_w_sr_m_by_section: tuple[tuple[float, ...], ...] | None = None
+  absorption_coefficient_per_m_by_section: tuple[tuple[float, ...], ...] | None = None
   asset_id: str = 'gray-ray-transfer-definition'
   asset_sha256: str | None = None
   allow_curved_support: bool = False
@@ -100,10 +109,47 @@ class GrayRayTransferDefinition:
     ####
     ####
     wavelengths = _axis(self.wavelengths_m, 'wavelengths_m')
-    source = _spectrum(self.source_function_w_sr_m, 'source_function_w_sr_m')
-    absorption = _spectrum(self.absorption_coefficient_per_m, 'absorption_coefficient_per_m')
-    if len(wavelengths) != len(source) or len(wavelengths) != len(absorption):
-      raise ProviderConfigurationError('optical property arrays must match wavelengths_m')
+    global_source_present = self.source_function_w_sr_m is not None
+    global_absorption_present = self.absorption_coefficient_per_m is not None
+    section_source_present = self.source_function_w_sr_m_by_section is not None
+    section_absorption_present = self.absorption_coefficient_per_m_by_section is not None
+    if global_source_present != global_absorption_present:
+      raise ProviderConfigurationError('global optical property arrays must be supplied together')
+    if section_source_present != section_absorption_present:
+      raise ProviderConfigurationError('section optical property arrays must be supplied together')
+    if global_source_present == section_source_present:
+      raise ProviderConfigurationError('provide either homogeneous or section-varying optical properties')
+    ####
+    if global_source_present:
+      source = _spectrum(self.source_function_w_sr_m or (), 'source_function_w_sr_m')
+      absorption = _spectrum(self.absorption_coefficient_per_m or (), 'absorption_coefficient_per_m')
+      if len(wavelengths) != len(source) or len(wavelengths) != len(absorption):
+        raise ProviderConfigurationError('optical property arrays must match wavelengths_m')
+      object.__setattr__(self, 'source_function_w_sr_m', source)
+      object.__setattr__(self, 'absorption_coefficient_per_m', absorption)
+    else:
+      section_sources = self.source_function_w_sr_m_by_section or ()
+      section_absorptions = self.absorption_coefficient_per_m_by_section or ()
+      expected_sections = len(self.support.centers_m) - 1
+      if not self.support.is_straight:
+        raise ProviderConfigurationError('section-varying optical properties require a straight support')
+      _straight_section_boundaries(self.support)
+      if len(section_sources) != expected_sections or len(section_absorptions) != expected_sections:
+        raise ProviderConfigurationError(
+          f'section optical properties require {expected_sections} support sections',
+        )
+      normalized_sources = tuple(
+        _spectrum(spectrum, f'source_function_w_sr_m_by_section[{index}]')
+        for index, spectrum in enumerate(section_sources)
+      )
+      normalized_absorptions = tuple(
+        _spectrum(spectrum, f'absorption_coefficient_per_m_by_section[{index}]')
+        for index, spectrum in enumerate(section_absorptions)
+      )
+      if any(len(spectrum) != len(wavelengths) for spectrum in normalized_sources + normalized_absorptions):
+        raise ProviderConfigurationError('section optical property arrays must match wavelengths_m')
+      object.__setattr__(self, 'source_function_w_sr_m_by_section', normalized_sources)
+      object.__setattr__(self, 'absorption_coefficient_per_m_by_section', normalized_absorptions)
     ####
     if self.asset_sha256 is not None and (
         len(self.asset_sha256) != 64
@@ -112,8 +158,6 @@ class GrayRayTransferDefinition:
       raise ProviderConfigurationError('asset_sha256 must be a 64-character hexadecimal digest')
     ####
     object.__setattr__(self, 'wavelengths_m', wavelengths)
-    object.__setattr__(self, 'source_function_w_sr_m', source)
-    object.__setattr__(self, 'absorption_coefficient_per_m', absorption)
     object.__setattr__(self, 'asset_sha256', self.asset_sha256.lower() if self.asset_sha256 else None)
     if not isinstance(self.allow_curved_support, bool):
       raise ProviderConfigurationError('allow_curved_support must be bool')
@@ -151,6 +195,7 @@ def _descriptor(configuration: GrayRayTransferConfiguration) -> ProviderDescript
       'exact homogeneous segment transfer through a straight sectioned support',
       'constant-radius support uses an exact finite cylinder; varying radius uses a conservative segment-maximum capsule union',
       'source radiance and background transmittance are returned separately',
+      'optional piecewise-axial source and absorption spectra are split at support-section planes',
       'gray-approximate radiation only; no chemistry, atmosphere, detector, or FPA',
       'curved sectioned-support intervals are available as geometry-only primitives',
       'fidelity profile: optical-transfer-v1',
@@ -176,6 +221,73 @@ def _interpolate(nodes: tuple[float, ...], values: tuple[float, ...], value: flo
 ####
 
 
+def _straight_axis(support: SectionedTubeSupport) -> tuple[float, float, float]:
+  start = support.centers_m[0]
+  end = support.centers_m[-1]
+  vector = tuple(second - first for first, second in zip(start, end))
+  length = sqrt(sum(component * component for component in vector))
+  if length <= 1.0e-14:
+    raise ProviderConfigurationError('straight support axis must have positive length')
+  return tuple(component / length for component in vector)  # type: ignore[return-value]
+####
+
+
+def _straight_section_boundaries(support: SectionedTubeSupport) -> tuple[float, ...]:
+  axis = _straight_axis(support)
+  start = support.centers_m[0]
+  boundaries = tuple(
+    sum((center[index] - start[index]) * axis[index] for index in range(3))
+    for center in support.centers_m
+  )
+  if any(next_value <= value for value, next_value in zip(boundaries, boundaries[1:])):
+    raise ProviderConfigurationError('straight support section centers must advance along the support axis')
+  return boundaries
+####
+
+
+def _section_index(boundaries: tuple[float, ...], axial_coordinate: float) -> int:
+  index = bisect_right(boundaries, axial_coordinate) - 1
+  return min(max(index, 0), len(boundaries) - 2)
+####
+
+
+def _split_straight_interval(
+    origin: tuple[float, float, float],
+    direction: tuple[float, float, float],
+    interval: RayInterval,
+    support: SectionedTubeSupport,
+    *,
+    tolerance: float,
+) -> tuple[tuple[float, float, int], ...]:
+  """Split one ray interval into ordered axial support-section intervals."""
+
+  boundaries = _straight_section_boundaries(support)
+  axis = _straight_axis(support)
+  start = support.centers_m[0]
+  origin_axial = sum((origin[index] - start[index]) * axis[index] for index in range(3))
+  direction_axial = sum(direction[index] * axis[index] for index in range(3))
+  enter = float(interval.t_enter_m)
+  exit = float(interval.t_exit_m)
+  if abs(direction_axial) <= tolerance:
+    midpoint_axial = origin_axial + 0.5 * (enter + exit) * direction_axial
+    return ((enter, exit, _section_index(boundaries, midpoint_axial)),)
+  ####
+  cuts = [enter, exit]
+  for boundary in boundaries[1:-1]:
+    crossing = (boundary - origin_axial) / direction_axial
+    if enter + tolerance < crossing < exit - tolerance:
+      cuts.append(crossing)
+  cuts.sort()
+  sections: list[tuple[float, float, int]] = []
+  for first, second in zip(cuts, cuts[1:]):
+    if second - first <= tolerance:
+      continue
+    midpoint_axial = origin_axial + 0.5 * (first + second) * direction_axial
+    sections.append((first, second, _section_index(boundaries, midpoint_axial)))
+  return tuple(sections)
+####
+
+
 class _GrayRayTransferEvaluator:
   def __init__(
       self,
@@ -197,14 +309,34 @@ class _GrayRayTransferEvaluator:
         f'gray ray provider supports frame {self._definition.frame_id!r}, not {request.ray_frame_id!r}',
       )
     ####
-    source_spectrum = tuple(
-      _interpolate(self._definition.wavelengths_m, self._definition.source_function_w_sr_m, wavelength)
-      for wavelength in request.wavelengths_m
-    )
-    absorption_spectrum = tuple(
-      _interpolate(self._definition.wavelengths_m, self._definition.absorption_coefficient_per_m, wavelength)
-      for wavelength in request.wavelengths_m
-    )
+    section_source_spectra: tuple[tuple[float, ...], ...] | None = None
+    section_absorption_spectra: tuple[tuple[float, ...], ...] | None = None
+    if self._definition.source_function_w_sr_m_by_section is not None:
+      section_source_spectra = tuple(
+        tuple(
+          _interpolate(self._definition.wavelengths_m, spectrum, wavelength)
+          for wavelength in request.wavelengths_m
+        )
+        for spectrum in self._definition.source_function_w_sr_m_by_section
+      )
+      section_absorption_spectra = tuple(
+        tuple(
+          _interpolate(self._definition.wavelengths_m, spectrum, wavelength)
+          for wavelength in request.wavelengths_m
+        )
+        for spectrum in self._definition.absorption_coefficient_per_m_by_section or ()
+      )
+      source_spectrum = None
+      absorption_spectrum = None
+    else:
+      source_spectrum = tuple(
+        _interpolate(self._definition.wavelengths_m, self._definition.source_function_w_sr_m or (), wavelength)
+        for wavelength in request.wavelengths_m
+      )
+      absorption_spectrum = tuple(
+        _interpolate(self._definition.wavelengths_m, self._definition.absorption_coefficient_per_m or (), wavelength)
+        for wavelength in request.wavelengths_m
+      )
     ####
     source_matrix: list[tuple[float, ...]] = []
     transmittance_matrix: list[tuple[float, ...]] = []
@@ -237,10 +369,31 @@ class _GrayRayTransferEvaluator:
         intersection_intervals.append(None)
         continue
       ####
-      segments = tuple(
-        HomogeneousSegment(source_spectrum, absorption_spectrum, interval.t_exit_m - interval.t_enter_m)
-        for interval in intervals
-      )
+      if section_source_spectra is None:
+        segments = tuple(
+          HomogeneousSegment(source_spectrum or (), absorption_spectrum or (), interval.t_exit_m - interval.t_enter_m)
+          for interval in intervals
+        )
+      else:
+        sections = tuple(
+          section
+          for interval in intervals
+          for section in _split_straight_interval(
+            origin,
+            direction,
+            interval,
+            self._definition.support,
+            tolerance=self._configuration.intersection_tolerance_m,
+          )
+        )
+        segments = tuple(
+          HomogeneousSegment(
+            section_source_spectra[section_index],
+            (section_absorption_spectra or ())[section_index],
+            exit - enter,
+          )
+          for enter, exit, section_index in sections
+        )
       transfer = compose_homogeneous_segments(segments)
       source_matrix.append(transfer.source_radiance_w_sr_m)
       transmittance_matrix.append(transfer.background_transmittance)
@@ -282,6 +435,16 @@ class _GrayRayTransferEvaluator:
           ),
           'source_function_convention': 'L_out = L_in*T + S*(1-T)',
           'wavelength_interpolation': 'linear within definition domain',
+          'optical_property_mode': (
+            'piecewise-axial-section'
+            if self._definition.source_function_w_sr_m_by_section is not None
+            else 'homogeneous'
+          ),
+          'optical_property_section_count': (
+            str(len(self._definition.source_function_w_sr_m_by_section))
+            if self._definition.source_function_w_sr_m_by_section is not None
+            else '1'
+          ),
         },
       ),
       warnings=(),

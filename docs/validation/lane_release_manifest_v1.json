@@ -128,8 +128,8 @@
       "advertised_capabilities": [
         "plume.optical.spectral-ray-transfer@1"
       ],
-      "claim_ceiling": "Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.",
-      "complexity_policy": "straight homogeneous transfer ceiling; curved/path/chemistry fidelity requires a new provider lane",
+      "claim_ceiling": "Homogeneous or piecewise-axial gray transfer through a straight support only; no chemistry, atmosphere, detector, or FPA claim.",
+      "complexity_policy": "straight homogeneous or piecewise-axial transfer ceiling; curved/path/chemistry fidelity requires a new provider lane",
       "external_validation_status": "pending",
       "forbidden_capabilities": [
         "plume.signature.spectral-radiant-intensity@1",

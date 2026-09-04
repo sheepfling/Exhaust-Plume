@@ -35,6 +35,7 @@ from exhaust_plume.contracts import (  # noqa: E402
   run_visual_provider_conformance,
 )
 from exhaust_plume.geometry import SectionedTubeSupport, intersect_sectioned_tube  # noqa: E402
+from exhaust_plume.products import SectionedGrayRadiationProfile  # noqa: E402
 from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays  # noqa: E402
 from exhaust_plume.validation.measurement_operators import (  # noqa: E402
   BAND_INTEGRATION_OPERATOR_ID,
@@ -555,6 +556,61 @@ def _run_optical_lane() -> dict[str, Any]:
     source * (1.0 - transmission)
     for source, transmission in zip(definition.source_function_w_sr_m, expected_transmittance)
   )
+  sectioned_profile = SectionedGrayRadiationProfile(
+    wavelengths_m=definition.wavelengths_m,
+    source_function_w_sr_m_by_section=(
+      (1.0, 2.0, 3.0),
+      (3.0, 4.0, 5.0),
+    ),
+    absorption_coefficient_per_m_by_section=(
+      definition.absorption_coefficient_per_m,
+      definition.absorption_coefficient_per_m,
+    ),
+    profile_id='product-lane-sectioned-gray-probe',
+  )
+  sectioned_definition = GrayRayTransferDefinition(
+    frame_id='sensor',
+    support=SectionedTubeSupport(
+      frame_id='sensor',
+      centers_m=((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0)),
+      radii_m=(1.0, 1.0, 1.0),
+    ),
+    wavelengths_m=sectioned_profile.wavelengths_m,
+    source_function_w_sr_m_by_section=sectioned_profile.source_function_w_sr_m_by_section,
+    absorption_coefficient_per_m_by_section=sectioned_profile.absorption_coefficient_per_m_by_section,
+    asset_id='product-lane-sectioned-gray-definition',
+  )
+  sectioned_snapshot = provider.create_session(definition=sectioned_definition).create_snapshot(
+    time_s=0.0,
+    source_pose=pose,
+    dynamic_state={},
+    ambient_state={},
+  )
+  sectioned_request = SpectralRayTransferRequest(
+    ray_frame_id='sensor',
+    ray_origins_m=((-2.0, 0.0, 0.0),),
+    ray_directions=((1.0, 0.0, 0.0),),
+    ray_t_min_m=(0.0,),
+    ray_t_max_m=(10.0,),
+    wavelengths_m=sectioned_profile.wavelengths_m,
+  )
+  sectioned = sectioned_snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, sectioned_request)
+  section_transmittance = tuple(exp(-coefficient) for coefficient in definition.absorption_coefficient_per_m)
+  expected_sectioned_transmittance = tuple(value * value for value in section_transmittance)
+  expected_sectioned_source = tuple(
+    (near + far * transmission) * (1.0 - transmission)
+    for near, far, transmission in zip(
+      sectioned_profile.source_function_w_sr_m_by_section[0],
+      sectioned_profile.source_function_w_sr_m_by_section[1],
+      section_transmittance,
+    )
+  )
+  piecewise_axial_passed = (
+    sectioned.metadata.provenance.metadata['optical_property_mode'] == 'piecewise-axial-section'
+    and sectioned.metadata.provenance.metadata['optical_property_section_count'] == '2'
+    and all(isclose(actual, expected, rel_tol=1.0e-12, abs_tol=1.0e-12) for actual, expected in zip(sectioned.source_spectral_radiance[0], expected_sectioned_source))
+    and all(isclose(actual, expected, rel_tol=1.0e-12, abs_tol=1.0e-12) for actual, expected in zip(sectioned.background_transmittance[0], expected_sectioned_transmittance))
+  )
   def curved_support(section_count: int) -> SectionedTubeSupport:
     centers = tuple(
       (
@@ -624,6 +680,7 @@ def _run_optical_lane() -> dict[str, Any]:
     and first.optical_depth is not None
     and all(isclose(actual, expected, rel_tol=1.0e-12, abs_tol=1.0e-12) for actual, expected in zip(first.optical_depth[0], (1.0, 2.0, 4.0)))
     and first.hit_mask == (True, False)
+    and piecewise_axial_passed
   )
   return {
     'lane_id': 'optical-transfer-v1',
@@ -631,6 +688,8 @@ def _run_optical_lane() -> dict[str, Any]:
     'provider_id': provider.descriptor.provider_id,
     'status': 'passed' if analytic_passed else 'failed',
     'analytic_slab_and_chord_passed': analytic_passed,
+    'piecewise_axial_transfer_passed': piecewise_axial_passed,
+    'piecewise_axial_section_count': 2,
     'deterministic_serialization': first.model_dump(mode='json') == second.model_dump(mode='json'),
     'spatial_refinement': {
       'straight_section_counts': [2, 3, 5, 9],
@@ -663,7 +722,7 @@ def _run_optical_lane() -> dict[str, Any]:
       'status': 'pending',
       'reason': 'The gray provider is analytically validated and generic downstream sensor operators pass synthetic probes, but the recovered external gates still require provider-bound observer, path, band, and scenario assets.',
     },
-    'claim_ceiling': 'Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.',
+    'claim_ceiling': 'Homogeneous or piecewise-axial gray transfer through a straight support only; no chemistry, atmosphere, detector, or FPA claim.',
   }
 
 

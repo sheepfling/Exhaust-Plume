@@ -7,6 +7,7 @@ from exhaust_plume.products import (
     ModelSignatureBlockedError,
     ModelSignatureReadiness,
     ModelSignatureSampling,
+    SectionedGrayRadiationProfile,
     ModelVisualizationLane,
     assess_model_signature_readiness,
     evaluate_model_signature,
@@ -109,3 +110,71 @@ def test_profile_and_sampling_reject_invalid_optical_inputs() -> None:
         )
     with pytest.raises(ValueError, match=r"in \[3, 128\]"):
         ModelSignatureSampling(transverse_sample_count=2)
+
+
+def test_sectioned_gray_profile_builds_planck_sources_and_requires_matching_sections() -> None:
+    profile = SectionedGrayRadiationProfile.from_blackbody(
+        wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+        temperatures_K=(900.0, 1200.0),
+        absorption_coefficient_per_m_by_section=(
+            (0.5, 0.6, 0.7),
+            (0.8, 0.9, 1.0),
+        ),
+    )
+
+    assert len(profile.source_function_w_sr_m_by_section) == 2
+    assert profile.source_function_w_sr_m_by_section[1][0] > profile.source_function_w_sr_m_by_section[0][0]
+    with pytest.raises(ValueError, match="match absorption section count"):
+        SectionedGrayRadiationProfile.from_blackbody(
+            wavelengths_m=(1.0e-6, 2.0e-6),
+            temperatures_K=(900.0,),
+            absorption_coefficient_per_m_by_section=((0.5, 0.6), (0.8, 0.9)),
+        )
+
+
+def test_model_signature_can_use_section_varying_profile_without_promoting_claims() -> None:
+    bundle = _straight_bundles()[0]
+    section_count = len(bundle.sectioned_tube.sections) - 1
+    profile = SectionedGrayRadiationProfile(
+        wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+        source_function_w_sr_m_by_section=tuple(
+            (2.0 + index, 3.0 + index, 4.0 + index)
+            for index in range(section_count)
+        ),
+        absorption_coefficient_per_m_by_section=tuple(
+            (0.5, 1.0, 1.5)
+            for _index in range(section_count)
+        ),
+        profile_id="test-sectioned-gray-profile",
+    )
+
+    signature = evaluate_model_signature(
+        bundle,
+        profile,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    assert any(value > 0.0 for row in signature.spectral_radiant_intensity for value in row)
+    assert signature.metadata.provenance.metadata["optical_profile_mode"] == "piecewise-axial-section"
+    assert signature.metadata.provenance.metadata["optical_profile_section_count"] == str(section_count)
+    assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
+
+
+def test_sectioned_gray_profile_does_not_enter_curved_transport_lane() -> None:
+    curved = standardize_model_visualization(
+        _curved_result(),
+        lane=ModelVisualizationLane.CURVED_INTEGRAL,
+    )
+    section_count = len(curved.sectioned_tube.sections) - 1
+    profile = SectionedGrayRadiationProfile(
+        wavelengths_m=(1.0e-6, 2.0e-6),
+        source_function_w_sr_m_by_section=tuple((1.0, 1.0) for _index in range(section_count)),
+        absorption_coefficient_per_m_by_section=tuple((1.0, 1.0) for _index in range(section_count)),
+    )
+
+    assessment = assess_model_signature_readiness(curved, optical_profile=profile)
+    assert assessment.readiness is ModelSignatureReadiness.BLOCKED_INVALID_SUPPORT
+    assert "straight section support" in assessment.reasons[0]

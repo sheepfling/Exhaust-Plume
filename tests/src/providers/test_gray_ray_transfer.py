@@ -138,3 +138,81 @@ def test_gray_provider_rejects_curved_support_until_curve_transfer_gate_exists()
   )
   with pytest.raises(ProviderConfigurationError, match='straight support'):
     GrayRayTransferProvider().create_session(definition=definition)
+
+
+def test_gray_provider_composes_section_varying_properties_in_ray_order() -> None:
+  definition = GrayRayTransferDefinition(
+    frame_id='sensor',
+    support=SectionedTubeSupport(
+      frame_id='sensor',
+      centers_m=((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0)),
+      radii_m=(1.0, 1.0, 1.0),
+    ),
+    wavelengths_m=(1.0e-6, 2.0e-6),
+    source_function_w_sr_m_by_section=((2.0, 2.0), (4.0, 4.0)),
+    absorption_coefficient_per_m_by_section=((1.0, 1.0), (1.0, 1.0)),
+  )
+  snapshot = GrayRayTransferProvider().create_session(definition=definition).create_snapshot(
+    time_s=0.0,
+    source_pose=Pose(
+      frame_id='world',
+      translation_m=(0.0, 0.0, 0.0),
+      rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    ),
+    dynamic_state={},
+    ambient_state={},
+  )
+  request = SpectralRayTransferRequest(
+    ray_frame_id='sensor',
+    ray_origins_m=((-2.0, 0.0, 0.0), (4.0, 0.0, 0.0)),
+    ray_directions=((1.0, 0.0, 0.0), (-1.0, 0.0, 0.0)),
+    ray_t_min_m=(0.0, 0.0),
+    ray_t_max_m=(10.0, 10.0),
+    wavelengths_m=(1.0e-6, 2.0e-6),
+  )
+
+  result = snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+  transmission = exp(-1.0)
+  assert result.optical_depth == ((2.0, 2.0), (2.0, 2.0))
+  assert result.source_spectral_radiance[0] == pytest.approx(
+    ((2.0 + 4.0 * transmission) * (1.0 - transmission),) * 2,
+  )
+  assert result.source_spectral_radiance[1] == pytest.approx(
+    ((4.0 + 2.0 * transmission) * (1.0 - transmission),) * 2,
+  )
+  assert result.metadata.provenance.metadata['optical_property_mode'] == 'piecewise-axial-section'
+  assert result.metadata.provenance.metadata['optical_property_section_count'] == '2'
+
+
+def test_gray_definition_rejects_incomplete_section_properties() -> None:
+  support = SectionedTubeSupport(
+    frame_id='sensor',
+    centers_m=((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),
+    radii_m=(1.0, 1.0),
+  )
+  with pytest.raises(ProviderConfigurationError, match='either homogeneous or section-varying'):
+    GrayRayTransferDefinition(
+      frame_id='sensor',
+      support=support,
+      wavelengths_m=(1.0e-6, 2.0e-6),
+    )
+  with pytest.raises(ProviderConfigurationError, match='require 1 support sections'):
+    GrayRayTransferDefinition(
+      frame_id='sensor',
+      support=support,
+      wavelengths_m=(1.0e-6, 2.0e-6),
+      source_function_w_sr_m_by_section=((1.0, 1.0), (2.0, 2.0)),
+      absorption_coefficient_per_m_by_section=((1.0, 1.0), (1.0, 1.0)),
+    )
+  with pytest.raises(ProviderConfigurationError, match='advance along the support axis'):
+    GrayRayTransferDefinition(
+      frame_id='sensor',
+      support=SectionedTubeSupport(
+        frame_id='sensor',
+        centers_m=((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.5, 0.0, 0.0)),
+        radii_m=(1.0, 1.0, 1.0),
+      ),
+      wavelengths_m=(1.0e-6, 2.0e-6),
+      source_function_w_sr_m_by_section=((1.0, 1.0), (2.0, 2.0)),
+      absorption_coefficient_per_m_by_section=((1.0, 1.0), (1.0, 1.0)),
+    )

@@ -120,11 +120,13 @@ from exhaust_plume.products.workflow_model_gallery import (
 )
 from exhaust_plume.products.model_signature import (
     GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
+    GrayOpticalProfile,
     GrayRadiationProfile,
     ModelSignatureAssessment,
     ModelSignatureBlockedError,
     ModelSignatureReadiness,
     ModelSignatureSampling,
+    SectionedGrayRadiationProfile,
     assess_model_signature_readiness,
     evaluate_model_signature,
 )
@@ -185,6 +187,7 @@ __all__ = (
     'FpaVisualizationGalleryManifest',
     'GALLERY_MANIFEST_SCHEMA',
     'GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA',
+    'GrayOpticalProfile',
     'GrayRadiationProfile',
     'GalleryArtifact',
     'INTERACTIVE_GALLERY_SCHEMA',
@@ -205,6 +208,7 @@ __all__ = (
     'ModelSignatureBlockedError',
     'ModelSignatureReadiness',
     'ModelSignatureSampling',
+    'SectionedGrayRadiationProfile',
     'MissionCursor',
     'MissionProductEvaluator',
     'MissionProductSample',

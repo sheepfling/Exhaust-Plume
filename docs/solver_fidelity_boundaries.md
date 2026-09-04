@@ -17,7 +17,7 @@ applicability, validation evidence, and complexity ceiling.
 | `shock-cell-reduced-order-v1` | experimental | One resolved first cell plus explicitly calibrated, scaled downstream shock-train continuation | `plume.visual.sectioned-tube@1` through `plume.shock-train-reduced-order`; explicit gray signature adapter | No physical/validated downstream spectral signature, resolved downstream MOC claim, detector image, FPA, or unvalidated universal closure |
 | `signature-table-mvp-v1` | active | Independent unresolved spectral lookup | `plume.signature.spectral-radiant-intensity@1` | No solved flow, geometry reconstruction, atmosphere, optics, detector, or focal-plane array |
 | `washed-integral-v1` | active, validation-pending | Curved, rotor-washed, or crossflow integral continuation through the canonical visual provider | `plume.visual.sectioned-tube@1` for engineering visualization only | No automatic physical signature or ray-transfer claim; curved transport and external validation remain open |
-| `optical-transfer-v1` | active | Straight constant-radius support with exact homogeneous gray transfer | `plume.optical.spectral-ray-transfer@1` | No chemistry, atmosphere, curved transport, detector integration, or focal-plane electronics |
+| `optical-transfer-v1` | active | Straight sectioned support with exact homogeneous or piecewise-axial gray transfer | `plume.optical.spectral-ray-transfer@1` | No chemistry, atmosphere, curved transport, detector integration, or focal-plane electronics |
 | `curved-optical-transfer-v1` | experimental, validation-pending | Piecewise capsule path transfer through curved sectioned supports | `plume.optical.spectral-ray-transfer@1` for gray engineering diagnostics | No resolved curved-flow radiation, chemistry, atmosphere, detector, FPA, or external-validation claim |
 | `focal-plane-array-v1` | validated downstream adapter; no provider | Camera/optics identity, spectral response, exposure, pixel integration, expected noise variance, and deterministic digitization | A future image/detector product | Not a plume solver; requires validated ray transfer and external detector evidence |
 
@@ -523,11 +523,14 @@ Until those contracts and validation gates exist, no provider may advertise an
 FPA capability.
 
 The current `optical-transfer-v1` provider is intentionally narrower than that
-future product: it resolves exact homogeneous gray transfer through a straight
-constant-radius support. The downstream boundary operators now preserve an
-explicit camera/optics mapping identity and deterministic ADC policy, but their
-synthetic checks do not validate the external BSUV2, EMAP, or ALSI sensor-space
-gates, do not create a measured image, and do not advertise an FPA provider.
+future product: it resolves exact homogeneous or explicitly piecewise-axial
+gray transfer through a straight support. The piecewise-axial mode splits ray
+chords at the declared support-section planes; it is not a resolved
+thermochemical radiation field. The downstream boundary operators now
+preserve an explicit camera/optics mapping identity and deterministic ADC
+policy, but their synthetic checks do not validate the external BSUV2, EMAP,
+or ALSI sensor-space gates, do not create a measured image, and do not
+advertise an FPA provider.
 
 ## Fidelity isolation rules
 

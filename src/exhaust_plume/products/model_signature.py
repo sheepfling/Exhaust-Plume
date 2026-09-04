@@ -56,6 +56,8 @@ from exhaust_plume.radiation import (
 __all__ = (
     "GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA",
     "GrayRadiationProfile",
+    "GrayOpticalProfile",
+    "SectionedGrayRadiationProfile",
     "ModelSignatureAssessment",
     "ModelSignatureBlockedError",
     "ModelSignatureReadiness",
@@ -117,7 +119,7 @@ def _nonnegative_spectrum(name: str, values: Sequence[float]) -> tuple[float, ..
 
 @dataclass(frozen=True, slots=True)
 class GrayRadiationProfile:
-    """Caller-supplied gray source and absorption spectra."""
+    """Caller-supplied homogeneous gray source and absorption spectra."""
 
     wavelengths_m: tuple[float, ...]
     source_function_w_sr_m: tuple[float, ...]
@@ -169,6 +171,91 @@ class GrayRadiationProfile:
         )
 
     ####
+
+
+@dataclass(frozen=True, slots=True)
+class SectionedGrayRadiationProfile:
+    """Caller-supplied gray spectra resolved per straight support section.
+
+    A section is the interval between two adjacent centers in the
+    standardized sectioned-tube support.  This profile carries no chemistry
+    inference: every source and absorption spectrum remains an explicit
+    caller-owned input and is recorded in the Signature lineage.
+    """
+
+    wavelengths_m: tuple[float, ...]
+    source_function_w_sr_m_by_section: tuple[tuple[float, ...], ...]
+    absorption_coefficient_per_m_by_section: tuple[tuple[float, ...], ...]
+    profile_id: str = "sectioned-gray-profile"
+
+    def __post_init__(self) -> None:
+        wavelengths = _strict_axis("wavelengths_m", self.wavelengths_m)
+        source_sections = tuple(
+            _nonnegative_spectrum(
+                f"source_function_w_sr_m_by_section[{index}]",
+                spectrum,
+            )
+            for index, spectrum in enumerate(self.source_function_w_sr_m_by_section)
+        )
+        absorption_sections = tuple(
+            _nonnegative_spectrum(
+                f"absorption_coefficient_per_m_by_section[{index}]",
+                spectrum,
+            )
+            for index, spectrum in enumerate(self.absorption_coefficient_per_m_by_section)
+        )
+        if not source_sections or len(source_sections) != len(absorption_sections):
+            raise ValueError("sectioned gray source and absorption arrays must have matching nonzero lengths")
+        if any(
+            len(spectrum) != len(wavelengths)
+            for spectrum in source_sections + absorption_sections
+        ):
+            raise ValueError("sectioned gray optical arrays must match wavelengths_m")
+        if not self.profile_id:
+            raise ValueError("profile_id must not be empty")
+        object.__setattr__(self, "wavelengths_m", wavelengths)
+        object.__setattr__(self, "source_function_w_sr_m_by_section", source_sections)
+        object.__setattr__(self, "absorption_coefficient_per_m_by_section", absorption_sections)
+
+    @classmethod
+    def from_blackbody(
+        cls,
+        wavelengths_m: Sequence[float],
+        temperatures_K: Sequence[float],
+        absorption_coefficient_per_m_by_section: Sequence[Sequence[float]],
+        *,
+        emissivity: float = 1.0,
+        profile_id: str = "sectioned-blackbody-gray-profile",
+    ) -> SectionedGrayRadiationProfile:
+        """Build one explicit Planck continuum source per support section."""
+
+        wavelengths = tuple(float(value) for value in wavelengths_m)
+        temperatures = tuple(_finite(f"temperatures_K[{index}]", value) for index, value in enumerate(temperatures_K))
+        absorption_sections = tuple(
+            tuple(float(value) for value in spectrum)
+            for spectrum in absorption_coefficient_per_m_by_section
+        )
+        if len(temperatures) != len(absorption_sections):
+            raise ValueError("temperatures_K must match absorption section count")
+        source_sections = tuple(
+            planck_spectral_radiance_W_m2_sr_m(
+                wavelengths,
+                temperature,
+                emissivity=emissivity,
+            )
+            for temperature in temperatures
+        )
+        return cls(
+            wavelengths_m=wavelengths,
+            source_function_w_sr_m_by_section=source_sections,
+            absorption_coefficient_per_m_by_section=absorption_sections,
+            profile_id=profile_id,
+        )
+
+    ####
+
+
+GrayOpticalProfile: TypeAlias = GrayRadiationProfile | SectionedGrayRadiationProfile
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,7 +361,7 @@ def _support_readiness(
 def assess_model_signature_readiness(
     visualization: StandardizedModelVisualization,
     *,
-    optical_profile: GrayRadiationProfile | None = None,
+    optical_profile: GrayOpticalProfile | None = None,
 ) -> ModelSignatureAssessment:
     """Report whether a standardized flow lane can enter the gray bridge."""
 
@@ -288,6 +375,9 @@ def assess_model_signature_readiness(
             visualization,
             allow_curved=lane in _CURVED_SIGNATURE_LANES,
         )
+        if isinstance(optical_profile, SectionedGrayRadiationProfile) and _support is not None and not _support.is_straight:
+            support_ready = False
+            support_reason = "section-varying gray profiles require a straight section support"
         if lane in _CURVED_SIGNATURE_LANES and _support is not None and _support.is_straight:
             support_ready = False
             support_reason = "the curved signature lane requires a non-straight section support"
@@ -433,7 +523,7 @@ def _build_ray_grid(
 def _attach_flow_lineage(
     signature: SpectralSignatureResult,
     visualization: StandardizedModelVisualization,
-    profile: GrayRadiationProfile,
+    profile: GrayOpticalProfile,
     sampling: ModelSignatureSampling,
     time_model: TimeModel,
 ) -> SpectralSignatureResult:
@@ -464,6 +554,16 @@ def _attach_flow_lineage(
                 "signature_claim_ceiling": "gray-approximate; no chemistry, atmosphere, detector, or external validation",
                 "optical_profile_id": profile.profile_id,
                 "optical_profile_digest": optical_profile_digest,
+                "optical_profile_mode": (
+                    "piecewise-axial-section"
+                    if isinstance(profile, SectionedGrayRadiationProfile)
+                    else "homogeneous"
+                ),
+                "optical_profile_section_count": str(
+                    len(profile.source_function_w_sr_m_by_section)
+                    if isinstance(profile, SectionedGrayRadiationProfile)
+                    else 1
+                ),
                 "ray_grid_policy": f"{sampling.transverse_sample_count}x{sampling.transverse_sample_count} per observer direction",
                 "signature_time_model": time_model.value,
                 "production_claim_allowed": "false",
@@ -504,7 +604,7 @@ def _attach_flow_lineage(
 
 def evaluate_model_signature(
     visualization: StandardizedModelVisualization,
-    optical_profile: GrayRadiationProfile,
+    optical_profile: GrayOpticalProfile,
     *,
     sampling: ModelSignatureSampling | None = None,
     operating_point_id: str | None = None,
@@ -525,8 +625,8 @@ def evaluate_model_signature(
 
     if not isinstance(visualization, StandardizedModelVisualization):
         raise TypeError("visualization must be StandardizedModelVisualization")
-    if not isinstance(optical_profile, GrayRadiationProfile):
-        raise TypeError("optical_profile must be GrayRadiationProfile")
+    if not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
+        raise TypeError("optical_profile must be GrayRadiationProfile or SectionedGrayRadiationProfile")
     if not isinstance(allow_partial_results, bool):
         raise TypeError("allow_partial_results must be bool")
     resolved_time_s = _finite("time_s", time_s)
@@ -555,15 +655,25 @@ def evaluate_model_signature(
     if not support_ready or support is None:
         raise ModelSignatureBlockedError(support_reason or "flow support is not transport-ready")
     request, integration = _build_ray_grid(support, selected_sampling, optical_profile.wavelengths_m)
-    definition = GrayRayTransferDefinition(
-        frame_id=support.frame_id,
-        support=support,
-        wavelengths_m=optical_profile.wavelengths_m,
-        source_function_w_sr_m=optical_profile.source_function_w_sr_m,
-        absorption_coefficient_per_m=optical_profile.absorption_coefficient_per_m,
-        asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
-        allow_curved_support=visualization.lane in _CURVED_SIGNATURE_LANES,
-    )
+    if isinstance(optical_profile, SectionedGrayRadiationProfile):
+        definition = GrayRayTransferDefinition(
+            frame_id=support.frame_id,
+            support=support,
+            wavelengths_m=optical_profile.wavelengths_m,
+            source_function_w_sr_m_by_section=optical_profile.source_function_w_sr_m_by_section,
+            absorption_coefficient_per_m_by_section=optical_profile.absorption_coefficient_per_m_by_section,
+            asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
+        )
+    else:
+        definition = GrayRayTransferDefinition(
+            frame_id=support.frame_id,
+            support=support,
+            wavelengths_m=optical_profile.wavelengths_m,
+            source_function_w_sr_m=optical_profile.source_function_w_sr_m,
+            absorption_coefficient_per_m=optical_profile.absorption_coefficient_per_m,
+            asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
+            allow_curved_support=visualization.lane in _CURVED_SIGNATURE_LANES,
+        )
     if visualization.lane in _CURVED_SIGNATURE_LANES:
         provider = CurvedGrayRayTransferProvider()
     else:

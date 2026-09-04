@@ -112,6 +112,7 @@ TEST_LANES = (
         claim_boundary="Visualization integrity only; tests retain source-lane claim ceilings.",
         patterns=(
             "tests/src/products/test_model_visualization.py",
+            "tests/src/products/test_model_gallery.py",
             "tests/src/products/test_visual_mvp.py",
             "tests/src/products/test_visualization_gallery.py",
             "tests/src/providers/test_prescribed_visual.py",

@@ -156,10 +156,10 @@
         "flow": "not_solved",
         "mixing": "not_solved",
         "thermochemistry": "not_solved",
-        "radiation": "homogeneous-gray-source-function",
+        "radiation": "homogeneous-or-piecewise-axial-gray-source-function",
         "validation": "analytic-transfer-and-declared-support-envelope"
       },
-      "complexity_policy": "straight homogeneous transfer ceiling; curved/path/chemistry fidelity requires a new provider lane",
+      "complexity_policy": "straight homogeneous or piecewise-axial transfer ceiling; curved/path/chemistry fidelity requires a new provider lane",
       "focal_plane_array": "not_supported"
     },
     {

@@ -3,8 +3,9 @@
 The flow model and the signature product remain separate contracts. A flow
 result containing temperature, pressure, or a visual envelope does not contain
 spectral source radiance or optical depth. The bridge therefore requires an
-explicit `GrayRadiationProfile` and records the flow lane in signature
-provenance.
+explicit `GrayRadiationProfile` (homogeneous) or
+`SectionedGrayRadiationProfile` (one source/absorption spectrum per straight
+support section) and records the flow lane in Signature provenance.
 
 `GrayRadiationProfile.from_blackbody(...)` supplies an auditable thermal
 continuum source using the SI Planck law and a caller-supplied gray
@@ -12,6 +13,13 @@ absorption spectrum. This is a physically grounded source-term primitive, not
 a chemistry or line-by-line radiation model; its Signature output remains
 gray-approximate and non-production until the corresponding source and
 measurement validation gates are accepted.
+
+`SectionedGrayRadiationProfile.from_blackbody(...)` applies the same explicit
+Planck source construction at each axial support section. The transfer
+provider splits each ray chord at the support-section planes and composes the
+result in near-to-far ray order. It is still a piecewise-homogeneous gray
+approximation: it does not infer temperature, species, or absorption from a
+flow lane, and it does not enable curved-flow or planar-MOC transport.
 
 ## Lane matrix
 
@@ -54,11 +62,30 @@ signature = evaluate_model_signature(
 )
 ```
 
+For a prescribed axial thermal profile, use the sectioned form and provide
+exactly one row per adjacent support-center pair:
+
+```python
+from exhaust_plume.products import SectionedGrayRadiationProfile
+
+sectioned_profile = SectionedGrayRadiationProfile.from_blackbody(
+  wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+  temperatures_K=(2200.0, 2050.0, 1900.0),
+  absorption_coefficient_per_m_by_section=(
+    (0.4, 0.5, 0.6),
+    (0.35, 0.45, 0.55),
+    (0.3, 0.4, 0.5),
+  ),
+  profile_id='caller-owned-sectioned-gray-profile-v1',
+)
+```
+
 The optical profile is caller-owned and is never inferred from the flow
 channels. Straight variable-radius supports use the existing conservative
-piecewise-capsule intersection policy. Curved and planar models fail with a
-typed `ModelSignatureBlockedError` until their transport providers are
-implemented.
+piecewise-capsule intersection policy. A sectioned profile is restricted to a
+straight support and is split by axial section planes. Curved and planar models
+fail with a typed `ModelSignatureBlockedError` until their transport providers
+are implemented.
 
 `assess_model_signature_readiness` exposes the same decision without running
 the solver, which lets product orchestration display a blocked lane rather

@@ -111,7 +111,7 @@
     },
     "optical": {
       "analytic_slab_and_chord_passed": true,
-      "claim_ceiling": "Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.",
+      "claim_ceiling": "Homogeneous or piecewise-axial gray transfer through a straight support only; no chemistry, atmosphere, detector, or FPA claim.",
       "deterministic_serialization": true,
       "external_comparison": {
         "reason": "The gray provider is analytically validated and generic downstream sensor operators pass synthetic probes, but the recovered external gates still require provider-bound observer, path, band, and scenario assets.",
@@ -147,6 +147,8 @@
           3e-06
         ]
       },
+      "piecewise_axial_section_count": 2,
+      "piecewise_axial_transfer_passed": true,
       "product_id": "plume.optical.spectral-ray-transfer@1",
       "provider_id": "plume.gray-ray-transfer",
       "radiation_claim": "gray_approximate",
