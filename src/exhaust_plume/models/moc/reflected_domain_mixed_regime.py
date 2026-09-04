@@ -11,7 +11,7 @@ promote the scalar reference to a canonical two-dimensional closure.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from math import isfinite
 from types import MappingProxyType
@@ -470,8 +470,12 @@ class MocReflectedDomainMixedRegimeBoundaryResult:
   tangency_verified: bool = False
   conservative_euler_residuals_measured: bool = False
   conservative_euler_residuals_verified: bool = False
-  residual_channel_coverage: Mapping[str, bool] = MappingProxyType({})
-  residual_channel_validity: Mapping[str, bool] = MappingProxyType({})
+  residual_channel_coverage: Mapping[str, bool] = field(
+    default_factory=lambda: MappingProxyType({})
+  )
+  residual_channel_validity: Mapping[str, bool] = field(
+    default_factory=lambda: MappingProxyType({})
+  )
   canonical_free_boundary_verified: bool = False
   canonical_euler_verified: bool = False
   refinement_verified: bool = False

@@ -8,7 +8,8 @@ canonical reflected-MOC or production-chain claim.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from enum import Enum
 from math import isfinite, sqrt
 from types import MappingProxyType
@@ -86,8 +87,12 @@ class MocReflectedDomainMixedRegimeBoundaryMeasurement:
   mixed_regime_field_verified: bool = False
   conservative_euler_residuals_measured: bool = False
   conservative_euler_residuals_verified: bool = False
-  residual_channel_coverage: dict[str, bool] = MappingProxyType({})
-  residual_channel_validity: dict[str, bool] = MappingProxyType({})
+  residual_channel_coverage: Mapping[str, bool] = field(
+    default_factory=lambda: MappingProxyType({})
+  )
+  residual_channel_validity: Mapping[str, bool] = field(
+    default_factory=lambda: MappingProxyType({})
+  )
   maximum_conservative_mass_residual: float | None = None
   maximum_conservative_streamwise_momentum_residual: float | None = None
   maximum_conservative_transverse_momentum_residual: float | None = None
