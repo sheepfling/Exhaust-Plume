@@ -23,6 +23,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalEulerShockBoundaryStatus,
   MocReflectedDomainGlobalPhysicalClosureStatus,
   MocReflectedDomainGlobalPhysicalClosureResult,
+  MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
   MocProductionShockCellFitStatus,
   MocGlobalEulerContinuedChainReference,
@@ -1225,6 +1226,19 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   assert closure.cell_euler_residuals_verified
   assert closure.downstream_boundary_closure_verified is False
   assert closure.downstream_boundary_model.endswith('compression-envelope')
+  assert closure.downstream_boundary is not None
+  downstream_boundary = closure.downstream_boundary
+  assert downstream_boundary.status is (
+    MocReflectedDomainDownstreamBoundaryStatus.RESEARCH_COMPRESSION_ENVELOPE
+  )
+  assert downstream_boundary.model == closure.downstream_boundary_model
+  assert downstream_boundary.sample_count >= 2
+  assert downstream_boundary.samples_available
+  assert downstream_boundary.geometry_verified
+  assert downstream_boundary.closure_verified is False
+  assert downstream_boundary.solver_owned
+  assert downstream_boundary.boundary_condition_verified is False
+  assert downstream_boundary.mixed_regime_field_verified is False
   assert any(
     blocker.startswith('solver-owned downstream boundary closure')
     for blocker in closure.promotion_blockers
@@ -1290,6 +1304,23 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   with pytest.raises(ValueError, match='promotion'):
     fit.as_production_chain_cell()
   ####
+
+  forged_downstream_boundary = replace(
+    downstream_boundary,
+    status=(
+      MocReflectedDomainDownstreamBoundaryStatus
+      .CONVERGED_SOLVER_OWNED_MIXED_REGIME
+    ),
+    boundary_condition_verified=True,
+    mixed_regime_field_verified=True,
+  )
+  forged_closure = replace(
+    closure,
+    downstream_boundary=forged_downstream_boundary,
+  )
+  assert forged_downstream_boundary.closure_verified is False
+  assert forged_closure.downstream_boundary_closure_verified is False
+  assert forged_closure.production_claim_allowed is False
 
   fully_evidenced = closure.bind_promotion_evidence(
     MocReflectedDomainPromotionEvidence(

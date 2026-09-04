@@ -3468,3 +3468,13 @@ pass that gate.  This makes the next physics seam precise: implement a typed
 solver-owned reflected/mixed-regime downstream boundary, then repeat the
 global case and resolution ladders before fitting a production shock-cell
 chain.  A local exact-Euler field or a renamed envelope is not sufficient.
+
+The closure now retains that seam as a typed downstream-boundary result.  It
+records the solver-carried boundary points, state and pressure samples,
+point/segment residual evidence, selected continuation-law identity, and
+separate solver-owned, boundary-condition, and mixed-regime-field checks.  The
+current compression-envelope result is explicitly tagged research-only, and a
+status relabel cannot make its closure flag pass.  This is an auditable solver
+handoff contract, not the missing physics itself: the canonical implementation
+must still solve the reflected/mixed-regime downstream field and then rerun
+the case and resolution ladders before production shock-cell fitting.

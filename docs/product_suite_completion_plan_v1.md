@@ -289,3 +289,15 @@ readiness gate in its own promotion map.  A locally fitted candidate therefore
 cannot become a production chain cell merely because later canonical,
 refinement, or external evidence is attached while the downstream boundary is
 still the research envelope.
+
+## Typed downstream-boundary evidence checkpoint
+
+The closure now retains a typed downstream-boundary evidence object.  It
+preserves the solver-carried boundary points, state and pressure samples,
+point/segment residuals, selected continuation-law identity, and separate
+solver-owned, boundary-condition, and mixed-regime-field flags.  The existing
+compression-envelope output is classified as research-only inside that object;
+even relabeling its status cannot satisfy the closure gate.  This gives the
+next canonical reflected/mixed-regime solver a concrete handoff contract while
+keeping the current research field and production fitter below the release
+boundary.

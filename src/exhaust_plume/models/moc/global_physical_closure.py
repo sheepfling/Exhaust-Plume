@@ -41,6 +41,7 @@ from exhaust_plume.models.moc.euler_shock_boundary import (
 from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
 )
+from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainGlobalEulerShockBoundaryResult,
@@ -53,6 +54,8 @@ from exhaust_plume.util.aero.shock_validity import ShockBranch
 __all__ = (
   'MocReflectedDomainGlobalPhysicalClosureStatus',
   'MocReflectedDomainPromotionEvidence',
+  'MocReflectedDomainDownstreamBoundaryStatus',
+  'MocReflectedDomainDownstreamBoundaryResult',
   'MocReflectedDomainGlobalPhysicalClosureResult',
   'moc_reflected_domain_global_physical_closure_fingerprint',
   'solve_reflected_domain_global_physical_closure',
@@ -356,6 +359,379 @@ class MocReflectedDomainPromotionEvidence:
 ####
 
 
+class MocReflectedDomainDownstreamBoundaryStatus(str, Enum):
+  """Outcome of the solver-owned downstream-boundary seam."""
+
+  RESEARCH_COMPRESSION_ENVELOPE = 'research_compression_envelope'
+  SOLVER_OWNED_MIXED_REGIME_PENDING = (
+    'solver_owned_mixed_regime_boundary_pending'
+  )
+  CONVERGED_SOLVER_OWNED_MIXED_REGIME = (
+    'converged_solver_owned_mixed_regime_boundary'
+  )
+  INVALID_INPUT = 'invalid_input'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainDownstreamBoundaryResult:
+  """Typed evidence at the downstream continuation boundary.
+
+  The current global solver populates this value with the boundary samples
+  carried by its research compression-envelope field.  Those samples are
+  useful for inspection and for the next solver seam, but they are not a
+  mixed-regime boundary condition and therefore cannot pass
+  ``closure_verified``.  A future canonical solver must provide a different
+  model, its own boundary-condition and mixed-regime-field checks, and the
+  residual evidence before this result can satisfy the global gate.
+  """
+
+  status: MocReflectedDomainDownstreamBoundaryStatus
+  model: str
+  boundary_points_m: tuple[tuple[float, float], ...] = ()
+  boundary_states: tuple[CharacteristicState, ...] = ()
+  boundary_total_pressure_Pa: tuple[float, ...] = ()
+  boundary_static_pressure_Pa: tuple[float, ...] = ()
+  pressure_residuals: tuple[float, ...] = ()
+  tangent_residuals: tuple[float, ...] = ()
+  coordinate_residuals_m: tuple[float, ...] = ()
+  solver_owned: bool = False
+  boundary_condition_verified: bool = False
+  mixed_regime_field_verified: bool = False
+  position_tolerance_m: float = 1.0e-9
+  residual_tolerance: float = 1.0e-8
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainDownstreamBoundaryStatus,
+    ):
+      raise TypeError(
+        'status must be a MocReflectedDomainDownstreamBoundaryStatus'
+      )
+    ####
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    ####
+    try:
+      points = tuple(
+        (float(point[0]), float(point[1]))
+        for point in self.boundary_points_m
+      )
+    except (IndexError, TypeError, ValueError) as error:
+      raise ValueError(
+        'boundary_points_m must contain two-coordinate numeric points'
+      ) from error
+    ####
+    if any(not all(isfinite(value) for value in point) for point in points):
+      raise ValueError('boundary_points_m must contain finite coordinates')
+    ####
+    states = tuple(self.boundary_states)
+    if any(not isinstance(state, CharacteristicState) for state in states):
+      raise TypeError(
+        'boundary_states must contain CharacteristicState values'
+      )
+    ####
+    total_pressure = tuple(
+      float(value) for value in self.boundary_total_pressure_Pa
+    )
+    if any(not isfinite(value) or value <= 0.0 for value in total_pressure):
+      raise ValueError(
+        'boundary_total_pressure_Pa must contain finite positive values'
+      )
+    ####
+    sample_count = len(points)
+    if len(states) != sample_count or len(total_pressure) != sample_count:
+      raise ValueError(
+        'downstream boundary points, states, and total-pressure samples '
+        'must have equal lengths'
+      )
+    ####
+    static_pressure = tuple(
+      float(value) for value in self.boundary_static_pressure_Pa
+    )
+    pressure_residuals = tuple(float(value) for value in self.pressure_residuals)
+    tangent_residuals = tuple(float(value) for value in self.tangent_residuals)
+    coordinate_residuals = tuple(
+      float(value) for value in self.coordinate_residuals_m
+    )
+    if static_pressure and len(static_pressure) != sample_count:
+      raise ValueError(
+        'boundary_static_pressure_Pa must match the boundary sample count'
+      )
+    ####
+    for name, values in (
+      ('boundary_static_pressure_Pa', static_pressure),
+      ('pressure_residuals', pressure_residuals),
+      ('coordinate_residuals_m', coordinate_residuals),
+    ):
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
+      if values and len(values) != sample_count:
+        raise ValueError(f'{name} must match the boundary sample count')
+      ####
+    ####
+    if tangent_residuals and len(tangent_residuals) != max(0, sample_count - 1):
+      raise ValueError(
+        'tangent_residuals must match the boundary segment count'
+      )
+    ####
+    if not coordinate_residuals and states:
+      coordinate_residuals = tuple(
+        hypot(state.x_m - point[0], state.y_m - point[1])
+        for point, state in zip(points, states, strict=True)
+      )
+    ####
+    for name in (
+      'solver_owned',
+      'boundary_condition_verified',
+      'mixed_regime_field_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    for name in ('position_tolerance_m', 'residual_tolerance'):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    object.__setattr__(self, 'model', model)
+    object.__setattr__(self, 'boundary_points_m', points)
+    object.__setattr__(self, 'boundary_states', states)
+    object.__setattr__(self, 'boundary_total_pressure_Pa', total_pressure)
+    object.__setattr__(self, 'boundary_static_pressure_Pa', static_pressure)
+    object.__setattr__(self, 'pressure_residuals', pressure_residuals)
+    object.__setattr__(self, 'tangent_residuals', tangent_residuals)
+    object.__setattr__(self, 'coordinate_residuals_m', coordinate_residuals)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def sample_count(self) -> int:
+    return len(self.boundary_points_m)
+  ####
+
+  @property
+  def samples_available(self) -> bool:
+    return bool(
+      self.sample_count >= 2
+      and len(self.boundary_states) == self.sample_count
+      and len(self.boundary_total_pressure_Pa) == self.sample_count
+      and len(self.coordinate_residuals_m) == self.sample_count
+      and all(
+        residual <= self.position_tolerance_m
+        for residual in self.coordinate_residuals_m
+      )
+    )
+  ####
+
+  @property
+  def geometry_verified(self) -> bool:
+    return bool(
+      self.samples_available
+      and all(
+        hypot(second[0] - first[0], second[1] - first[1])
+        > self.position_tolerance_m
+        for first, second in zip(
+          self.boundary_points_m,
+          self.boundary_points_m[1:],
+        )
+      )
+    )
+  ####
+
+  @property
+  def maximum_coordinate_residual_m(self) -> float | None:
+    return max(self.coordinate_residuals_m, default=None)
+  ####
+
+  @property
+  def maximum_pressure_residual(self) -> float | None:
+    return max(self.pressure_residuals, default=None)
+  ####
+
+  @property
+  def maximum_tangent_residual(self) -> float | None:
+    return max(self.tangent_residuals, default=None)
+  ####
+
+  @property
+  def residuals_verified(self) -> bool:
+    return bool(
+      self.geometry_verified
+      and self.pressure_residuals
+      and self.tangent_residuals
+      and self.maximum_pressure_residual is not None
+      and self.maximum_tangent_residual is not None
+      and self.maximum_pressure_residual <= self.residual_tolerance
+      and self.maximum_tangent_residual <= self.residual_tolerance
+    )
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainDownstreamBoundaryStatus.CONVERGED_SOLVER_OWNED_MIXED_REGIME
+      and self.closure_verified
+    )
+  ####
+
+  @property
+  def closure_verified(self) -> bool:
+    """Whether the boundary is a non-envelope mixed-regime closure."""
+
+    return bool(
+      self.status
+      is MocReflectedDomainDownstreamBoundaryStatus.CONVERGED_SOLVER_OWNED_MIXED_REGIME
+      and 'compression-envelope' not in self.model
+      and self.solver_owned
+      and self.boundary_condition_verified
+      and self.mixed_regime_field_verified
+      and self.residuals_verified
+    )
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """A downstream boundary alone is not a promoted shock-cell chain."""
+
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'model': self.model,
+      'converged': self.converged,
+      'closure_verified': self.closure_verified,
+      'solver_owned': self.solver_owned,
+      'boundary_condition_verified': self.boundary_condition_verified,
+      'mixed_regime_field_verified': self.mixed_regime_field_verified,
+      'samples_available': self.samples_available,
+      'geometry_verified': self.geometry_verified,
+      'residuals_verified': self.residuals_verified,
+      'sample_count': self.sample_count,
+      'boundary_points_m': [list(point) for point in self.boundary_points_m],
+      'boundary_states': [
+        {
+          'x_m': state.x_m,
+          'y_m': state.y_m,
+          'theta_rad': state.theta_rad,
+          'mach': state.mach,
+          'gamma': state.gamma,
+        }
+        for state in self.boundary_states
+      ],
+      'boundary_total_pressure_Pa': list(self.boundary_total_pressure_Pa),
+      'boundary_static_pressure_Pa': list(self.boundary_static_pressure_Pa),
+      'pressure_residuals': list(self.pressure_residuals),
+      'tangent_residuals': list(self.tangent_residuals),
+      'coordinate_residuals_m': list(self.coordinate_residuals_m),
+      'maximum_coordinate_residual_m': self.maximum_coordinate_residual_m,
+      'maximum_pressure_residual': self.maximum_pressure_residual,
+      'maximum_tangent_residual': self.maximum_tangent_residual,
+      'position_tolerance_m': self.position_tolerance_m,
+      'residual_tolerance': self.residual_tolerance,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'message': self.message,
+    }
+  ####
+####
+
+
+def _selected_downstream_continuation_law(
+  global_remesh: MocReflectedDomainGlobalShockRemeshResult | None,
+) -> str:
+  """Return the exact continuation law selected by a global remesh."""
+
+  if global_remesh is None or global_remesh.selected_attempt is None:
+    return 'unavailable'
+  ####
+  physical_field = (
+    global_remesh.selected_attempt.first_cell_result.selected_physical_field
+  )
+  if physical_field is None:
+    return 'unavailable'
+  ####
+  return physical_field.continuation_law
+####
+
+
+def _build_downstream_boundary_result(
+  global_remesh: MocReflectedDomainGlobalShockRemeshResult,
+  global_euler: MocReflectedDomainGlobalEulerShockBoundaryResult,
+) -> MocReflectedDomainDownstreamBoundaryResult:
+  """Expose retained downstream samples without promoting the envelope."""
+
+  model = _selected_downstream_continuation_law(global_remesh)
+  status = (
+    MocReflectedDomainDownstreamBoundaryStatus.RESEARCH_COMPRESSION_ENVELOPE
+    if 'compression-envelope' in model
+    else MocReflectedDomainDownstreamBoundaryStatus.SOLVER_OWNED_MIXED_REGIME_PENDING
+  )
+  physical = global_euler.physical_field
+  field = None if physical is None else physical.field
+  if field is None:
+    return MocReflectedDomainDownstreamBoundaryResult(
+      status=status,
+      model=model,
+      solver_owned=model != 'unavailable',
+      message=(
+        'global Euler closure retained no downstream boundary samples; '
+        'a solver-owned mixed-regime boundary is still required'
+      ),
+    )
+  ####
+  boundary = field.ambient_boundary
+  points = tuple(boundary.points_m)
+  states = tuple(boundary.states)
+  total_pressure = tuple(boundary.total_pressure_Pa)
+  static_pressure = tuple(boundary.static_pressure_Pa)
+  pressure_residuals = tuple(
+    abs(float(value)) for value in boundary.pressure_residuals
+  )
+  tangent_residuals = tuple(
+    abs(float(value)) for value in boundary.tangent_residuals
+  )
+  coordinate_residuals = tuple(
+    hypot(state.x_m - point[0], state.y_m - point[1])
+    for point, state in zip(points, states, strict=True)
+  )
+  return MocReflectedDomainDownstreamBoundaryResult(
+    status=status,
+    model=model,
+    boundary_points_m=points,
+    boundary_states=states,
+    boundary_total_pressure_Pa=total_pressure,
+    boundary_static_pressure_Pa=static_pressure,
+    pressure_residuals=pressure_residuals,
+    tangent_residuals=tangent_residuals,
+    coordinate_residuals_m=coordinate_residuals,
+    solver_owned=True,
+    boundary_condition_verified=False,
+    mixed_regime_field_verified=False,
+    message=(
+      'solver-carried ambient boundary samples are retained for the '
+      f'{model} research law; the coupled mixed-regime downstream condition '
+      'is not solved'
+    ),
+  )
+####
+
+
 def moc_reflected_domain_global_physical_closure_fingerprint(
   closure: MocReflectedDomainGlobalPhysicalClosureResult,
 ) -> str:
@@ -382,6 +758,11 @@ def moc_reflected_domain_global_physical_closure_fingerprint(
     ),
     'global_euler': (
       None if closure.global_euler is None else closure.global_euler.as_report()
+    ),
+    'downstream_boundary': (
+      None
+      if closure.downstream_boundary is None
+      else closure.downstream_boundary.as_report()
     ),
     'global_audit': (
       None if closure.global_audit is None else closure.global_audit.as_report()
@@ -434,6 +815,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
   canonical_euler_verified: bool = False
   refinement_verified: bool = False
   external_validation_verified: bool = False
+  downstream_boundary: MocReflectedDomainDownstreamBoundaryResult | None = None
   message: str = ''
   promotion_evidence: MocReflectedDomainPromotionEvidence | None = None
 
@@ -461,6 +843,25 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
     ):
       raise TypeError(
         'global_euler must be a MocReflectedDomainGlobalEulerShockBoundaryResult or None'
+      )
+    ####
+    if self.downstream_boundary is not None and not isinstance(
+      self.downstream_boundary,
+      MocReflectedDomainDownstreamBoundaryResult,
+    ):
+      raise TypeError(
+        'downstream_boundary must be a '
+        'MocReflectedDomainDownstreamBoundaryResult or None'
+      )
+    ####
+    selected_model = _selected_downstream_continuation_law(self.global_remesh)
+    if (
+      self.downstream_boundary is not None
+      and selected_model != 'unavailable'
+      and self.downstream_boundary.model != selected_model
+    ):
+      raise ValueError(
+        'downstream_boundary model must match the selected continuation law'
       )
     ####
     for name in (
@@ -564,15 +965,10 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
     downstream condition.
     """
 
-    remesh = self.global_remesh
-    if remesh is None or remesh.selected_attempt is None:
-      return 'unavailable'
+    if self.downstream_boundary is not None:
+      return self.downstream_boundary.model
     ####
-    physical_field = remesh.selected_attempt.first_cell_result.selected_physical_field
-    if physical_field is None:
-      return 'unavailable'
-    ####
-    return physical_field.continuation_law
+    return _selected_downstream_continuation_law(self.global_remesh)
   ####
 
   @property
@@ -586,7 +982,8 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
     existing envelope.
     """
 
-    return False
+    boundary = self.downstream_boundary
+    return bool(boundary is not None and boundary.closure_verified)
   ####
 
   @property
@@ -752,6 +1149,11 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         'downstream_boundary_closure_verified': (
           self.downstream_boundary_closure_verified
         ),
+        'downstream_boundary': (
+          None
+          if self.downstream_boundary is None
+          else self.downstream_boundary.as_report()
+        ),
         'downstream_boundary_model': self.downstream_boundary_model,
         'promotion_blockers': list(self.promotion_blockers),
         'promotion_evidence_bound': self.promotion_evidence_bound,
@@ -775,6 +1177,11 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
       'downstream_boundary_closure_verified': (
         self.downstream_boundary_closure_verified
+      ),
+      'downstream_boundary': (
+        None
+        if self.downstream_boundary is None
+        else self.downstream_boundary.as_report()
       ),
       'downstream_boundary_model': self.downstream_boundary_model,
       'promotion_blockers': list(self.promotion_blockers),
@@ -814,6 +1221,7 @@ def _closure_result(
   variable_entropy_transport_verified: bool = False,
   maximum_entropy_lineage_residual: float | None = None,
   cell_euler_residuals_verified: bool = False,
+  downstream_boundary: MocReflectedDomainDownstreamBoundaryResult | None = None,
   message: str,
 ) -> MocReflectedDomainGlobalPhysicalClosureResult:
   return MocReflectedDomainGlobalPhysicalClosureResult(
@@ -828,6 +1236,7 @@ def _closure_result(
     variable_entropy_transport_verified=variable_entropy_transport_verified,
     maximum_entropy_lineage_residual=maximum_entropy_lineage_residual,
     cell_euler_residuals_verified=cell_euler_residuals_verified,
+    downstream_boundary=downstream_boundary,
     message=message,
   )
 ####
@@ -987,6 +1396,10 @@ def solve_reflected_domain_global_physical_closure(
       message=f'global Euler closure raised: {error}',
     )
   ####
+  downstream_boundary = _build_downstream_boundary_result(
+    global_remesh,
+    global_euler,
+  )
   if not global_euler.converged:
     return _closure_result(
       status_type.GLOBAL_EULER_FAILURE,
@@ -995,6 +1408,7 @@ def solve_reflected_domain_global_physical_closure(
       global_euler,
       source_frontier_verified=global_euler.source_frontier_verified,
       incoming_handoff_verified=global_euler.incoming_handoff_verified,
+      downstream_boundary=downstream_boundary,
       message=f'global Euler closure did not converge: {global_euler.message}',
     )
   ####
@@ -1029,6 +1443,7 @@ def solve_reflected_domain_global_physical_closure(
       global_euler,
       source_frontier_verified=global_euler.source_frontier_verified,
       incoming_handoff_verified=global_euler.incoming_handoff_verified,
+      downstream_boundary=downstream_boundary,
       message=f'global physical closure independent audit raised: {error}',
     )
   ####
@@ -1056,6 +1471,7 @@ def solve_reflected_domain_global_physical_closure(
     variable_entropy_transport_verified=entropy_verified,
     maximum_entropy_lineage_residual=maximum_entropy_residual,
     cell_euler_residuals_verified=cell_residuals_verified,
+    downstream_boundary=downstream_boundary,
     message=(
       'globally coupled exact-Euler shock, ambient, centerline, entropy, and '
       'cell-residual gates passed locally; canonical free-boundary, refinement, '
@@ -1084,6 +1500,7 @@ def solve_reflected_domain_global_physical_closure(
     variable_entropy_transport_verified=entropy_verified,
     maximum_entropy_lineage_residual=maximum_entropy_residual,
     cell_euler_residuals_verified=cell_residuals_verified,
+    downstream_boundary=downstream_boundary,
     message=(
       'global Euler field did not pass the coupled physical closure gates: '
       f'{entropy_message}'
