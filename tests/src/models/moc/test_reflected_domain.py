@@ -1279,6 +1279,9 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   assert fit.candidate_cell is not None
   assert fit.closure is evidence_bound
   assert fit.production_promotion_gates['refinement_verified'] is True
+  assert fit.production_promotion_gates[
+    'downstream_boundary_closure_verified'
+  ] is False
   assert fit.production_claim_allowed is False
   assert fit.chain_promotion_blocked
   assert fit.as_chain_termination_decision().reason is (

@@ -283,3 +283,9 @@ downstream-boundary evidence at every case/resolution point: selected law,
 readiness gate, blockers, and promotion-gate map.  This makes cross-case
 review auditable without flattening distinct source bands or treating the
 current compression-envelope law as a physical downstream closure.
+
+The frontier-only production shock-cell fitter now carries the same downstream
+readiness gate in its own promotion map.  A locally fitted candidate therefore
+cannot become a production chain cell merely because later canonical,
+refinement, or external evidence is attached while the downstream boundary is
+still the research envelope.

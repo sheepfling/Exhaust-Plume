@@ -1210,6 +1210,9 @@ class MocProductionShockCellFitResult:
       'local_fit_verified': self.local_fit_verified,
       'frontier_verified': self.frontier_verified,
       'shock_fit_verified': self.shock_fit_verified,
+      'downstream_boundary_closure_verified': bool(
+        closure_gates.get('downstream_boundary_closure_verified', False)
+      ),
       'canonical_free_boundary_verified': bool(
         closure_gates.get('canonical_free_boundary_verified', False)
       ),
