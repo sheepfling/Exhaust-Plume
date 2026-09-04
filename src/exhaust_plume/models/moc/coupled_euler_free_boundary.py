@@ -95,6 +95,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   shape_relaxation: float = 0.35
   pressure_shape_relaxation: float = 0.20
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL
+  outlet_static_pressure_Pa: float | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -165,6 +166,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       raise ValueError('source must be a non-empty string')
     ####
     object.__setattr__(self, 'source', source)
+    if self.outlet_static_pressure_Pa is not None:
+      outlet_pressure = float(self.outlet_static_pressure_Pa)
+      if not isfinite(outlet_pressure) or outlet_pressure <= 0.0:
+        raise ValueError(
+          'outlet_static_pressure_Pa must be finite and positive when supplied'
+        )
+      ####
+      object.__setattr__(self, 'outlet_static_pressure_Pa', outlet_pressure)
+    ####
   ####
 
   def as_report(self) -> dict[str, Any]:
@@ -189,6 +199,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'shape_convergence_tolerance': self.shape_convergence_tolerance,
       'shape_relaxation': self.shape_relaxation,
       'pressure_shape_relaxation': self.pressure_shape_relaxation,
+      'outlet_static_pressure_Pa': self.outlet_static_pressure_Pa,
       'claim_status': (
         'constant-gamma-coupled-euler-free-boundary-research-lane; '
         'independent-audit-and-external-validation-required'
@@ -900,6 +911,7 @@ def _cell_residuals(
   control_points: tuple[tuple[float, float], ...],
   control_samples: tuple[Any, ...],
   ambient_pressure: float,
+  outlet_static_pressure: float | None,
   gamma: float,
   total_temperature: float,
   gas_constant: float,
@@ -937,14 +949,34 @@ def _cell_residuals(
             gas_constant,
           )
         elif edge_index == 1 and i == axial_count - 1:
-          flux, wave = _euler_flux(
-            state,
-            normal_x,
-            normal_y,
-            gamma,
-            gas_constant,
-          )
-          flux = flux * face_length
+          if outlet_static_pressure is None:
+            flux, wave = _euler_flux(
+              state,
+              normal_x,
+              normal_y,
+              gamma,
+              gas_constant,
+            )
+            flux = flux * face_length
+          else:
+            outlet = _ambient_ghost_state(
+              state,
+              outlet_static_pressure,
+              normal_x,
+              normal_y,
+              gamma,
+              gas_constant,
+            )
+            flux, wave = _rusanov_flux(
+              state,
+              outlet,
+              normal_x,
+              normal_y,
+              face_length,
+              gamma,
+              gas_constant,
+            )
+          ####
         elif edge_index == 1:
           flux, wave = _rusanov_flux(
             state,
@@ -1350,6 +1382,7 @@ def _solve_pseudo_time(
       request.mixed_regime_request.control_section.points_m,
       request.mixed_regime_request.control_section.samples,
       request.mixed_regime_request.ambient_pressure_Pa,
+      request.outlet_static_pressure_Pa,
       gamma,
       request.reference_total_temperature_K,
       request.gas_constant_J_kgK,

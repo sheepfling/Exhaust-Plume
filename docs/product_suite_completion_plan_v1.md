@@ -459,6 +459,17 @@ validation, chain promotion, and production claims false.  The next physics
 slice is to close and independently validate the actual global planar-MOC
 field, not to reinterpret this ladder as a production shock-cell input.
 
+The coupled-field request now also accepts an explicit optional downstream
+static-pressure condition for a subsonic truncated outlet.  When supplied,
+the finite-volume residual uses a solver-owned pressure ghost state; when it
+is omitted, the prior extrapolated-outflow research behavior is retained for
+backward compatibility.  Exercising the actual global case with the
+ambient-pressure outlet leaves the result correctly typed as
+``FREE_BOUNDARY_FAILURE``: the added terminal condition does not repair the
+upstream pressure budget or authorize a canonical closure.  This is a
+boundary-condition experiment recorded for the next 2-D solver slice, not a
+relaxation of the promotion gates.
+
 After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound
 VIS/SIG/RAY/FPA comparisons (`P4`), then refresh the exact-candidate freeze

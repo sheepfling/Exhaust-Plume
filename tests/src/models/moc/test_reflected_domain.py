@@ -1641,6 +1641,7 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
     transverse_cell_count=4,
     max_pseudo_iterations=400,
     max_shape_iterations=8,
+    outlet_static_pressure_Pa=request.ambient_pressure_Pa,
   )
 
   result = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
@@ -1656,6 +1657,13 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   )
   assert all(len(cell) == 4 for cell in result.cell_vertices_by_cell_m)
   assert result.free_boundary_condition_verified is False
+  assert result.request is not None
+  assert result.request.outlet_static_pressure_Pa == pytest.approx(
+    request.ambient_pressure_Pa
+  )
+  assert result.as_report()['request']['outlet_static_pressure_Pa'] == pytest.approx(
+    request.ambient_pressure_Pa
+  )
   assert result.physical_closure_verified is False
   assert result.canonical_euler_verified is False
   assert result.chain_promotion_blocked

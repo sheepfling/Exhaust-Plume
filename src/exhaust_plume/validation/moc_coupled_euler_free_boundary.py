@@ -654,14 +654,32 @@ def _audit_field(
             gas_constant,
           )
         elif edge_index == 1 and i == axial_count - 1:
-          flux, wave = _flux(
-            state,
-            normal_x,
-            normal_y,
-            gamma,
-            gas_constant,
-          )
-          flux = flux * length
+          if request.outlet_static_pressure_Pa is None:
+            flux, wave = _flux(
+              state,
+              normal_x,
+              normal_y,
+              gamma,
+              gas_constant,
+            )
+            flux = flux * length
+          else:
+            outlet = _ambient_ghost(
+              state,
+              request.outlet_static_pressure_Pa,
+              gamma,
+              gas_constant,
+            )
+            flux, wave = _rusanov(
+              state,
+              outlet,
+              normal_x,
+              normal_y,
+              length,
+              gamma,
+              gas_constant,
+            )
+          ####
         elif edge_index == 1:
           flux, wave = _rusanov(
             state,
