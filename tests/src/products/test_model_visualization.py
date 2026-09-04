@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from math import pow
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -269,6 +270,69 @@ def test_moc_field_values_can_remain_masked_without_becoming_zero() -> None:
   bundle = standardize_model_visualization(MaskedResult())
   assert bundle.fields[0].channels['mach'] == (None, None)
   assert 'state samples were unavailable' in bundle.warnings[-1]
+####
+
+
+def test_moc_global_euler_visualization_exposes_solver_owned_shock_parameters() -> None:
+  curve = SimpleNamespace(
+    shock_points_m=((0.5, 0.4), (1.0, 0.3), (1.5, 0.15), (2.0, 0.0)),
+    shock_angles_rad=(0.1, 0.15, 0.2, 0.25),
+    beta_rad=(0.4, 0.42, 0.44, 0.46),
+    target_downstream_flow_angles_rad=(0.0, 0.01, 0.02, 0.03),
+    upstream_static_pressure_Pa=(200_000.0, 190_000.0, 180_000.0, 170_000.0),
+    downstream_static_pressure_Pa=(160_000.0, 152_000.0, 144_000.0, 136_000.0),
+    upstream_total_pressure_Pa=(220_000.0, 209_000.0, 198_000.0, 187_000.0),
+    downstream_total_pressure_Pa=(198_000.0, 188_100.0, 178_200.0, 168_300.0),
+    shock_jump_mass_residuals=(1.0e-9, 2.0e-9, 3.0e-9, 4.0e-9),
+    shock_jump_momentum_residuals=(2.0e-9, 3.0e-9, 4.0e-9, 5.0e-9),
+    shock_jump_energy_residuals=(3.0e-9, 4.0e-9, 5.0e-9, 6.0e-9),
+    tangent_residuals_rad=(1.0e-10, 2.0e-10, 3.0e-10, 4.0e-10),
+    orientation='mixed-characteristic-boundary',
+  )
+  physical = SimpleNamespace(
+    maximum_entropy_residual=0.01,
+    physical_closure_verified=True,
+    field=_MocField(),
+  )
+  global_euler = SimpleNamespace(
+    status='converged_global_euler_shock_field',
+    shock_boundary=curve,
+    physical_field=physical,
+    converged=True,
+    physical_closure_verified=True,
+    source_frontier_verified=True,
+    incoming_handoff_verified=True,
+    production_claim_allowed=False,
+  )
+  result = SimpleNamespace(
+    status='converged_global_physical_closure',
+    global_euler=global_euler,
+    production_claim_allowed=False,
+  )
+
+  bundle = standardize_model_visualization(
+    result,
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  channels = {channel.channel_id: channel for channel in bundle.section_channels}
+  assert channels['shock_height'].values == pytest.approx((0.4, 0.3, 0.15, 0.0))
+  assert channels['shock_static_pressure_ratio'].values == pytest.approx(
+    (0.8, 0.8, 0.8, 0.8),
+  )
+  assert channels['shock_total_pressure_ratio'].values == pytest.approx(
+    (0.9, 0.9, 0.9, 0.9),
+  )
+  assert channels['shock_jump_residual'].values == pytest.approx(
+    (3.0e-9, 4.0e-9, 5.0e-9, 6.0e-9),
+  )
+  assert bundle.diagnostics['global_euler_status'] == 'converged_global_euler_shock_field'
+  assert bundle.diagnostics['global_euler_physical_closure_verified'] is True
+  assert bundle.diagnostics['shock_boundary_orientation'] == 'mixed-characteristic-boundary'
+  assert bundle.diagnostics['shock_jump_residual_maximum'] == pytest.approx(6.0e-9)
+  assert bundle.claims.production_claim_allowed is False
+  json.dumps(bundle.model_dump(), allow_nan=False)
 ####
 
 

@@ -1163,6 +1163,268 @@ def _interpolated_y(points: Sequence[Vector2], x_value: float) -> float | None:
 ####
 
 
+def _interpolate_moc_series(
+  x_values: Sequence[float],
+  values: Sequence[float],
+  target_x_values: Sequence[float],
+) -> tuple[float, ...] | None:
+  """Interpolate solver-owned MOC evidence without extrapolation."""
+
+  if len(x_values) != len(values) or len(x_values) < 2:
+    return None
+  ####
+  if any(
+    not isfinite(float(value))
+    for value in (*x_values, *values, *target_x_values)
+  ):
+    return None
+  ####
+  if any(
+    right <= left
+    for left, right in zip(x_values, x_values[1:])
+  ):
+    return None
+  ####
+  interpolated: list[float] = []
+  for target in target_x_values:
+    if target < x_values[0] - 1.0e-10 or target > x_values[-1] + 1.0e-10:
+      return None
+    ####
+    if target <= x_values[0]:
+      interpolated.append(float(values[0]))
+      continue
+    ####
+    if target >= x_values[-1]:
+      interpolated.append(float(values[-1]))
+      continue
+    ####
+    for index, (left_x, right_x) in enumerate(zip(x_values, x_values[1:])):
+      if left_x <= target <= right_x:
+        fraction = (target - left_x) / (right_x - left_x)
+        interpolated.append(
+          float(values[index])
+          + fraction * (float(values[index + 1]) - float(values[index]))
+        )
+        break
+      ####
+    else:
+      return None
+    ####
+  ####
+  return tuple(interpolated)
+####
+
+
+def _moc_solver_evidence(result: object) -> tuple[object | None, object | None]:
+  """Find an exact shock curve and its owning global-Euler wrapper."""
+
+  candidates: list[object] = [result]
+  global_euler = getattr(result, 'global_euler', None)
+  if global_euler is not None:
+    candidates.append(global_euler)
+  ####
+  for candidate in tuple(candidates):
+    physical_field = getattr(candidate, 'physical_field', None)
+    if physical_field is not None:
+      candidates.append(physical_field)
+    ####
+  ####
+  shock_curve: object | None = None
+  owner: object | None = None
+  for candidate in candidates:
+    curve = getattr(candidate, 'shock_boundary', None)
+    if curve is not None and hasattr(curve, 'shock_points_m'):
+      shock_curve = curve
+      owner = candidate
+      break
+    ####
+  ####
+  return owner, shock_curve
+####
+
+
+def _moc_solver_evidence_channels(
+  result: object,
+  centerline_x_values: Sequence[float],
+) -> tuple[
+  tuple[ModelVisualChannel, ...],
+  dict[str, DiagnosticValue],
+  tuple[str, ...],
+]:
+  """Expose exact shock-jump quantities when the result retained them.
+
+  The standard bundle has no boundary-array channel type, so evidence is
+  added to station channels only when every displayed station lies inside the
+  retained shock sample domain.  Partial or malformed evidence is reported
+  as unavailable rather than extrapolated or replaced with zero.
+  """
+
+  owner, curve = _moc_solver_evidence(result)
+  if curve is None:
+    return (), {}, ()
+  ####
+  raw_points = getattr(curve, 'shock_points_m', ())
+  try:
+    points = tuple(_vector2('MOC shock evidence point', point) for point in raw_points)
+  except (TypeError, ValueError, IndexError):
+    return (), {}, ('solver-owned shock evidence has invalid geometry and remains unavailable',)
+  ####
+  if len(points) < 2:
+    return (), {}, ('solver-owned shock evidence has fewer than two samples and remains unavailable',)
+  ####
+  x_values = tuple(point[0] for point in points)
+  if any(right <= left for left, right in zip(x_values, x_values[1:])):
+    return (), {}, ('solver-owned shock evidence is not strictly ordered in x and remains unavailable',)
+  ####
+  diagnostics: dict[str, DiagnosticValue] = {
+    'shock_boundary_sample_count': len(points),
+  }
+  status = getattr(owner, 'status', None)
+  if status is not None:
+    diagnostics['global_euler_status'] = str(getattr(status, 'value', status))
+  ####
+  for name in (
+    'converged',
+    'physical_closure_verified',
+    'source_frontier_verified',
+    'incoming_handoff_verified',
+    'production_claim_allowed',
+  ):
+    value = getattr(owner, name, None)
+    if isinstance(value, bool):
+      diagnostics[f'global_euler_{name}'] = value
+    ####
+  ####
+  orientation = getattr(curve, 'orientation', None)
+  if orientation is not None:
+    diagnostics['shock_boundary_orientation'] = str(
+      getattr(orientation, 'value', orientation)
+    )
+  ####
+  raw_physical = getattr(owner, 'physical_field', None)
+  if raw_physical is not None:
+    entropy_residual = getattr(raw_physical, 'maximum_entropy_residual', None)
+    if entropy_residual is not None and isfinite(float(entropy_residual)):
+      diagnostics['maximum_entropy_residual'] = float(entropy_residual)
+    ####
+    physical_verified = getattr(raw_physical, 'physical_closure_verified', None)
+    if isinstance(physical_verified, bool):
+      diagnostics['ambient_physical_field_verified'] = physical_verified
+    ####
+  ####
+
+  def series(name: str) -> tuple[float, ...] | None:
+    raw = getattr(curve, name, None)
+    if raw is None:
+      return None
+    ####
+    try:
+      values = tuple(float(value) for value in raw)
+    except (TypeError, ValueError):
+      return None
+    ####
+    if len(values) != len(points) or any(not isfinite(value) for value in values):
+      return None
+    ####
+    return values
+  ####
+
+  raw_series: dict[str, tuple[float, ...] | None] = {
+    'shock_height': tuple(abs(point[1]) for point in points),
+    'shock_angle': series('shock_angles_rad'),
+    'shock_beta': series('beta_rad'),
+    'shock_turn': series('target_downstream_flow_angles_rad'),
+    'shock_tangent_residual': series('tangent_residuals_rad'),
+    'shock_jump_mass_residual': series('shock_jump_mass_residuals'),
+    'shock_jump_momentum_residual': series('shock_jump_momentum_residuals'),
+    'shock_jump_energy_residual': series('shock_jump_energy_residuals'),
+  }
+  upstream_static = series('upstream_static_pressure_Pa')
+  downstream_static = series('downstream_static_pressure_Pa')
+  upstream_total = series('upstream_total_pressure_Pa')
+  downstream_total = series('downstream_total_pressure_Pa')
+  if upstream_static is not None and downstream_static is not None and all(
+    value > 0.0 for value in (*upstream_static, *downstream_static)
+  ):
+    raw_series['shock_static_pressure_ratio'] = tuple(
+      downstream / upstream
+      for upstream, downstream in zip(upstream_static, downstream_static, strict=True)
+    )
+  ####
+  if upstream_total is not None and downstream_total is not None and all(
+    value > 0.0 for value in (*upstream_total, *downstream_total)
+  ):
+    raw_series['shock_total_pressure_ratio'] = tuple(
+      downstream / upstream
+      for upstream, downstream in zip(upstream_total, downstream_total, strict=True)
+    )
+  ####
+  jump_components = tuple(
+    raw_series[name]
+    for name in (
+      'shock_jump_mass_residual',
+      'shock_jump_momentum_residual',
+      'shock_jump_energy_residual',
+    )
+  )
+  if all(values is not None for values in jump_components):
+    resolved_components = tuple(value for value in jump_components if value is not None)
+    raw_series['shock_jump_residual'] = tuple(
+      max(component[index] for component in resolved_components)
+      for index in range(len(points))
+    )
+  ####
+
+  channel_metadata = {
+    'shock_height': (
+      'absolute radial position of the solver-fitted shock boundary',
+      'm',
+    ),
+    'shock_angle': ('solver-fitted shock tangent angle', 'rad'),
+    'shock_beta': ('local oblique-shock wave angle', 'rad'),
+    'shock_turn': ('downstream flow turn carried by the shock solve', 'rad'),
+    'shock_static_pressure_ratio': (
+      'downstream-to-upstream static pressure ratio across the shock',
+      '1',
+    ),
+    'shock_total_pressure_ratio': (
+      'downstream-to-upstream total pressure ratio across the shock',
+      '1',
+    ),
+    'shock_tangent_residual': ('shock geometry tangent residual', 'rad'),
+    'shock_jump_mass_residual': ('Rankine-Hugoniot mass-flux residual', '1'),
+    'shock_jump_momentum_residual': ('Rankine-Hugoniot momentum residual', '1'),
+    'shock_jump_energy_residual': ('Rankine-Hugoniot energy residual', '1'),
+    'shock_jump_residual': ('maximum local Rankine-Hugoniot residual', '1'),
+  }
+  channels: list[ModelVisualChannel] = []
+  missing: list[str] = []
+  for channel_id, values in raw_series.items():
+    if values is None:
+      missing.append(channel_id)
+      continue
+    ####
+    interpolated = _interpolate_moc_series(x_values, values, centerline_x_values)
+    if interpolated is None:
+      missing.append(channel_id)
+      continue
+    ####
+    semantic, unit = channel_metadata[channel_id]
+    channels.append(_section_channel(channel_id, semantic, unit, interpolated))
+    diagnostics[f'{channel_id}_minimum'] = min(values)
+    diagnostics[f'{channel_id}_maximum'] = max(values)
+  ####
+  warnings: list[str] = []
+  if missing:
+    warnings.append(
+      'some solver-owned shock parameters were unavailable at every displayed '
+      'station; missing values remain omitted rather than extrapolated or set to zero'
+    )
+  ####
+  return tuple(channels), diagnostics, tuple(warnings)
+####
+
+
 def _moc_visualization(
   result: object,
   *,
@@ -1307,7 +1569,13 @@ def _moc_visualization(
   if len(pressure_values) == len(centerline):
     optional_channels.append(_section_channel('total_pressure', 'centerline MOC total pressure', 'Pa', pressure_values))
   ####
-  channels = tuple(base_channels + optional_channels)
+  solver_channels, solver_diagnostics, solver_warnings = (
+    _moc_solver_evidence_channels(
+      result,
+      tuple(point[0] for point in centerline),
+    )
+  )
+  channels = tuple(base_channels + optional_channels + list(solver_channels))
 
   field_channel_values: dict[str, list[Scalar]] = {
     'mach': [],
@@ -1356,6 +1624,7 @@ def _moc_visualization(
     'state_sampling_available': bool(getattr(source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
+  diagnostics.update(solver_diagnostics)
   if isinstance(gates, Mapping):
     for key, value in gates.items():
       diagnostics[f'gate_{key}'] = bool(value)
@@ -1365,6 +1634,7 @@ def _moc_visualization(
     'planar-MOC geometry is retained as 2-D field polygons and boundary paths',
     'the sectioned-tube view is a display envelope projected from the planar field, not an axisymmetric claim',
     'MOC production promotion remains blocked until canonical closure, refinement, and external validation gates pass',
+    *solver_warnings,
   ]
   if not optional_channels or any(
     value is None

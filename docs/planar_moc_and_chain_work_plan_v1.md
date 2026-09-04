@@ -3430,3 +3430,19 @@ bands use the current research downstream law, canonical globally coupled
 reflected/mixed-regime closure is not proven, indexed external observations
 are absent, and no production shock-cell, Signature, ray-transfer, or
 focal-plane-array claim is enabled.
+
+## Higher-fidelity MOC visualization checkpoint
+
+The standardized planar-MOC visualization now carries the solver-owned exact
+shock evidence when a retained result exposes it.  The common station bundle
+can show shock height, tangent and wave angles, downstream turn, static and
+total-pressure loss ratios, and the individual plus maximum
+Rankine--Hugoniot residuals.  It also records the global-Euler status,
+orientation, closure flags, and entropy diagnostic beside the existing cell
+polygons and physical boundary paths.
+
+These channels are interpolated only over the retained shock-domain interval
+and are omitted when a displayed station falls outside that interval or when
+the source array is incomplete.  The field remains a 2-D research display;
+the new observability does not create a resolved radiation medium, promote a
+shock cell, or change the canonical/refinement/external-validation gates.

@@ -109,6 +109,11 @@ when the source result declares them; it may not infer them from tessellation.
 
 Remaining Visualization work is provider-bound comparison and any richer
 uncertainty or observation overlays that can be supported by supplied data.
+The planar-MOC adapter also exposes retained solver-owned shock height, wave
+angle, flow turn, static/total-pressure ratios, and Rankine--Hugoniot residual
+channels whenever the exact curve covers the displayed stations.  Partial
+coverage remains explicitly unavailable; the adapter does not extrapolate or
+turn missing evidence into zero.
 
 ### Signature
 
@@ -243,6 +248,8 @@ claim is authorized.
 - [x] Provide an exact Signature time/direction/wavelength point query.
 - [x] Add exact-fingerprint binding for future high-fidelity promotion evidence
       without changing the current research-only claim ceiling.
+- [x] Expose retained higher-fidelity MOC shock geometry, jump, pressure-loss,
+      and residual channels through the common visualization bundle.
 - [x] Add a typed provider-bound comparison-evidence envelope requiring exact
       assets, operator identity, uncertainty, applicability, and disjoint cases.
 - [x] Make provider-bound evidence ingestible through a strict preflight JSON
