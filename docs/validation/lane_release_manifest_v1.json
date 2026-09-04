@@ -1,9 +1,11 @@
 {
   "checks": {
     "all_active_lanes_have_local_release_evidence": true,
+    "candidate_worktree_clean": true,
     "fpa_provider_guard_passed": true,
     "low_fidelity_promotion_detected": false,
-    "provider_preflight_release_ready": false
+    "provider_preflight_release_ready": false,
+    "release_freeze_matches_candidate_head": false
   },
   "lanes": [
     {
@@ -57,7 +59,7 @@
       "advertised_capabilities": [
         "plume.signature.spectral-radiant-intensity@1"
       ],
-      "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
+      "claim_ceiling": "Versioned table/interpolation and explicit caller-bound LTE line-source spectral engineering only; no chemistry, atmosphere, detector, or external validation claim.",
       "complexity_policy": "independent provider; no shock-cell backfill",
       "external_validation_status": "pending",
       "forbidden_capabilities": [
@@ -154,7 +156,7 @@
       ],
       "claim_ceiling": "Gray engineering transfer through conservative piecewise capsule supports only; no resolved curved-flow radiation or detector claim.",
       "complexity_policy": "separate curved transport lane; does not change straight optical-transfer ceiling",
-      "external_validation_status": "not-applicable",
+      "external_validation_status": "pending",
       "forbidden_capabilities": [
         "plume.signature.spectral-radiant-intensity@1",
         "plume.image.spectral-radiance@1"
@@ -163,7 +165,7 @@
       "local_release_ready": false,
       "local_release_status": "not-released-validation-pending",
       "matrix_status": "experimental",
-      "product_report_status": null,
+      "product_report_status": "diagnostic-only",
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
         "low_fidelity_promotion_detected": false
@@ -196,6 +198,14 @@
     "local_release_definition": "versioned lane evidence plus an explicit claim ceiling; it is not an external validation claim",
     "low_fidelity_promotion_forbidden": true
   },
+  "release_provenance": {
+    "candidate_head_commit": "63d7cf77e4511abb116288f8d5149f8afe668621",
+    "candidate_head_matches_recorded_freeze": false,
+    "candidate_head_matches_validated_code_commit": false,
+    "candidate_worktree_clean": true,
+    "recorded_freeze_head_commit": "964859fbe1150b81c5eb440a5a68ed8dfa7b2cc7",
+    "validated_code_commit": "b16f550b42331491430b18fcdbaf9275125e8b54"
+  },
   "report_id": "exhaust-plume-lane-release-manifest-v1",
   "schema_version": "plume.lane-release-manifest@1",
   "source_commit": "b16f550b42331491430b18fcdbaf9275125e8b54",
@@ -206,6 +216,7 @@
       "separately named MVP alignment archive is not yet verified",
       "planar MOC first-cell closure is not complete; the CJ-UEJ external reference comparison is quantified diagnostic evidence only and remains not accepted",
       "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open",
+      "release freeze does not identify the current candidate HEAD; refresh release evidence after the final code and documentation commit",
       "provider comparison preflight is not externally accepted"
     ],
     "release_ready": false
