@@ -42,6 +42,7 @@ from exhaust_plume.products.model_signature import (
     ModelSignatureBlockedError,
     ModelSignatureSampling,
     SectionedGrayRadiationProfile,
+    SectionedLineRadiationProfile,
     assess_model_signature_readiness,
     evaluate_model_signature,
 )
@@ -600,7 +601,12 @@ class MissionSignatureEvaluator:
         ####
         if not isinstance(
             optical_profile,
-            (GrayRadiationProfile, SectionedGrayRadiationProfile, LineRadiationProfile),
+            (
+                GrayRadiationProfile,
+                SectionedGrayRadiationProfile,
+                LineRadiationProfile,
+                SectionedLineRadiationProfile,
+            ),
         ):
             raise TypeError("optical_profile_at must return a supported optical profile")
         ####
@@ -743,7 +749,12 @@ class MissionProductEvaluator:
         optical_profile = None if self.optical_profile_at is None else self.optical_profile_at(state)
         if optical_profile is not None and not isinstance(
             optical_profile,
-            (GrayRadiationProfile, SectionedGrayRadiationProfile, LineRadiationProfile),
+            (
+                GrayRadiationProfile,
+                SectionedGrayRadiationProfile,
+                LineRadiationProfile,
+                SectionedLineRadiationProfile,
+            ),
         ):
             raise TypeError("optical_profile_at must return a supported optical profile")
         ####

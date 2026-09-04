@@ -19,6 +19,7 @@ from exhaust_plume.radiation.lines import (
   BOLTZMANN_J_K,
   SPEED_OF_LIGHT_M_S,
   LineRadiationProfile,
+  SectionedLineRadiationProfile,
   SpectralLine,
   voigt_line_shape_per_m,
 )
@@ -36,6 +37,7 @@ __all__ = (
   'BOLTZMANN_J_K',
   'SPEED_OF_LIGHT_M_S',
   'LineRadiationProfile',
+  'SectionedLineRadiationProfile',
   'SpectralLine',
   'voigt_line_shape_per_m',
 )

@@ -536,6 +536,15 @@ molecular mass. The line path is exposed through the existing ray-transfer
 and far-field operators with a distinct adapter schema and
 `radiation=spectral_engineering` metadata.
 
+The bridge also accepts a `SectionedLineRadiationProfile`. It carries one
+explicit LTE line profile per straight-support section, so source temperature,
+line optical depth, and CHEM-0 source-state provenance can vary with position
+without interpolation or chemistry inference. The existing piecewise transfer
+operator consumes those section arrays, and the adapter records a distinct
+sectioned-line schema and section count. This is still spectral-engineering
+evidence: population closure, pressure broadening, non-LTE behavior, atmosphere,
+and provider-bound validation remain outside the claim.
+
 This advances the physical source contract without inventing chemistry: line
 populations, composition, pressure-broadening inputs, non-LTE effects,
 atmosphere, and external validation remain open. The new source path is

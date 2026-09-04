@@ -25,6 +25,7 @@ __all__ = (
   'SPEED_OF_LIGHT_M_S',
   'SpectralLine',
   'LineRadiationProfile',
+  'SectionedLineRadiationProfile',
   'voigt_line_shape_per_m',
 )
 
@@ -293,6 +294,133 @@ class LineRadiationProfile:
       'claim_status': (
         'spectral-engineering-with-explicit-line-optical-depths; '
         'CHEM-0-source-state-bound-but-no-population-closure-or-external-validation'
+      ),
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class SectionedLineRadiationProfile:
+  """Explicit LTE line sources resolved independently by axial section.
+
+  Each section retains its own caller-owned line optical depths, path length,
+  and optional CHEM-0 source state.  The section arrays are consumed by the
+  existing piecewise straight-support transfer operator; no line population,
+  pressure-broadening, or interpolation between source states is inferred.
+  """
+
+  wavelengths_m: tuple[float, ...]
+  profiles_by_section: tuple[LineRadiationProfile, ...]
+  profile_id: str = 'explicit-sectioned-lte-line-profile'
+
+  def __post_init__(self) -> None:
+    wavelengths = _strict_wavelength_axis(self.wavelengths_m)
+    profiles = tuple(self.profiles_by_section)
+    if not profiles:
+      raise ValueError('profiles_by_section must contain at least one LineRadiationProfile')
+    ####
+    if any(not isinstance(profile, LineRadiationProfile) for profile in profiles):
+      raise TypeError('profiles_by_section must contain LineRadiationProfile values')
+    ####
+    if any(profile.wavelengths_m != wavelengths for profile in profiles):
+      raise ValueError('every section profile must use the same wavelengths_m axis')
+    ####
+    profile_id = str(self.profile_id)
+    if not profile_id:
+      raise ValueError('profile_id must not be empty')
+    ####
+    object.__setattr__(self, 'wavelengths_m', wavelengths)
+    object.__setattr__(self, 'profiles_by_section', profiles)
+    object.__setattr__(self, 'profile_id', profile_id)
+  ####
+
+  @classmethod
+  def from_frozen_mixture_states(
+    cls,
+    wavelengths_m: Sequence[float],
+    lines_by_section: Sequence[Sequence[SpectralLine]],
+    mixture_states: Sequence[FrozenMixtureState],
+    path_lengths_m: Sequence[float],
+    *,
+    profile_id: str = 'chem-0-sectioned-lte-line-profile',
+  ) -> 'SectionedLineRadiationProfile':
+    """Build section sources from explicit CHEM-0 states and line inputs.
+
+    This factory binds source temperature and composition provenance to each
+    section only.  Every line list and optical-depth primitive remains
+    caller-owned; missing population or species spectroscopy data is rejected
+    by omission rather than synthesized here.
+    """
+
+    lines = tuple(tuple(section) for section in lines_by_section)
+    states = tuple(mixture_states)
+    path_lengths = tuple(float(value) for value in path_lengths_m)
+    if not lines or len(lines) != len(states) or len(lines) != len(path_lengths):
+      raise ValueError(
+        'lines_by_section, mixture_states, and path_lengths_m must have equal nonzero lengths'
+      )
+    ####
+    if any(not isinstance(state, FrozenMixtureState) for state in states):
+      raise TypeError('mixture_states must contain FrozenMixtureState values')
+    ####
+    profiles = tuple(
+      LineRadiationProfile.from_frozen_mixture_state(
+        wavelengths_m=wavelengths_m,
+        lines=section_lines,
+        mixture_state=state,
+        path_length_m=path_length,
+        profile_id=f'{profile_id}:section-{index}',
+      )
+      for index, (section_lines, state, path_length) in enumerate(
+        zip(lines, states, path_lengths, strict=True)
+      )
+    )
+    return cls(
+      wavelengths_m=tuple(wavelengths_m),
+      profiles_by_section=profiles,
+      profile_id=profile_id,
+    )
+  ####
+
+  @property
+  def source_function_w_sr_m_by_section(self) -> tuple[tuple[float, ...], ...]:
+    """Return the explicit LTE Planck source spectrum for every section."""
+
+    return tuple(profile.source_function_w_sr_m for profile in self.profiles_by_section)
+  ####
+
+  @property
+  def absorption_coefficient_per_m_by_section(self) -> tuple[tuple[float, ...], ...]:
+    """Return the explicit Voigt line opacity spectrum for every section."""
+
+    return tuple(
+      profile.absorption_coefficient_per_m
+      for profile in self.profiles_by_section
+    )
+  ####
+
+  @property
+  def source_temperature_K_by_section(self) -> tuple[float, ...]:
+    """Return the source temperatures without interpolating between sections."""
+
+    return tuple(profile.source_temperature_K for profile in self.profiles_by_section)
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'profile_id': self.profile_id,
+      'wavelengths_m': self.wavelengths_m,
+      'section_count': len(self.profiles_by_section),
+      'source_temperature_K_by_section': self.source_temperature_K_by_section,
+      'profiles_by_section': tuple(
+        profile.as_report() for profile in self.profiles_by_section
+      ),
+      'source_model': 'LTE-Planck-source-by-section',
+      'line_shape_model': 'normalized-wavelength-domain-Voigt',
+      'claim_status': (
+        'spectral-engineering-with-explicit-section-line-optical-depths; '
+        'no-population-closure-or-external-validation'
       ),
     }
   ####

@@ -9,6 +9,7 @@ from exhaust_plume.products import (
     ModelSignatureReadiness,
     ModelSignatureSampling,
     SectionedGrayRadiationProfile,
+    SectionedLineRadiationProfile,
     SpectralLine,
     ModelVisualizationLane,
     assess_model_signature_readiness,
@@ -229,6 +230,51 @@ def test_explicit_lte_line_profile_enters_signature_as_spectral_engineering() ->
     assert signature.metadata.claims.radiation.value == "spectral_engineering"
     assert signature.metadata.provenance.metadata["optical_profile_mode"] == "lte-line-by-line-voigt"
     assert signature.metadata.provenance.metadata["signature_adapter_schema"].endswith("@1")
+    assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
+    assert any(value > 0.0 for row in signature.spectral_radiant_intensity for value in row)
+####
+
+
+def test_sectioned_lte_line_profile_enters_signature_with_axial_lineage() -> None:
+    bundle = _straight_bundles()[0]
+    section_count = len(bundle.sectioned_tube.sections) - 1
+    line = SpectralLine(
+        center_wavelength_m=2.0e-6,
+        integrated_optical_depth_m=4.0e-7,
+        doppler_sigma_m=5.0e-8,
+        label="sectioned-signature-line",
+    )
+    profile = SectionedLineRadiationProfile(
+        wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+        profiles_by_section=tuple(
+            LineRadiationProfile(
+                wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+                lines=(line,),
+                source_temperature_K=900.0 + 100.0 * index,
+                path_length_m=1.0,
+                profile_id=f"section-{index}",
+            )
+            for index in range(section_count)
+        ),
+        profile_id="test-sectioned-lte-line-profile",
+    )
+
+    assessment = assess_model_signature_readiness(bundle, optical_profile=profile)
+    signature = evaluate_model_signature(
+        bundle,
+        profile,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    assert assessment.ready
+    assert assessment.schema == "plume.signature.model-lte-line-sectioned-bridge@1"
+    assert signature.metadata.claims.radiation.value == "spectral_engineering"
+    assert signature.metadata.provenance.metadata["optical_profile_mode"] == "piecewise-axial-lte-line-by-line-voigt"
+    assert signature.metadata.provenance.metadata["optical_profile_section_count"] == str(section_count)
+    assert signature.metadata.provenance.metadata["signature_adapter_schema"] == assessment.schema
     assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
     assert any(value > 0.0 for row in signature.spectral_radiant_intensity for value in row)
 ####
