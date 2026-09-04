@@ -258,6 +258,8 @@ claim is authorized.
       separately named, fingerprint-bound research cases.
 - [x] Expose the retained downstream continuation law and a hard readiness
       gate for solver-owned reflected/mixed-regime boundary closure.
+- [x] Add a fresh global-to-mixed-regime reference resolution ladder with
+      independent case audits and explicit research-only promotion stops.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -406,6 +408,21 @@ variable-entropy audit.  In both cases ``mixed_regime_field_verified`` and
 and production claims remain false.  The next physics task is to replace this
 mapped reference with a coupled reflected 2-D Euler/free-boundary solve and
 then repeat the case/resolution ladder.
+
+The follow-on reference-evidence slice now provides
+``run_reflected_domain_mixed_regime_boundary_refinement`` and
+``measure_reflected_domain_mixed_regime_boundary_refinement``.  A fresh 5/7/9
+global shock-resolution run reuses one fingerprinted source band, derives a
+new terminal and entropy handoff at each resolution, and applies the same
+explicit 0.98 terminal-total-pressure reference fraction.  Independent audits
+verify the closure/request seams, mesh growth, conservative-Euler channel
+coverage, and post-entrance geometry/output sensitivity.  The regression run
+passes with shock and downstream axial counts 5/7/9, node/cell counts 21/27,
+29/39, and 37/51; the largest post-entrance shape and outlet-height delta is
+about ``1.10e-6 m``.  Residual maxima increase across this mapped reference
+ladder and remain diagnostic rather than a convergence or production claim.
+The new evidence explicitly keeps canonical free-boundary/Euler, external,
+physical-closure, chain-promotion, and production flags false.
 
 After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound

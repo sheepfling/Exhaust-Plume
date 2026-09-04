@@ -94,7 +94,10 @@ from exhaust_plume.validation.moc_measurements import (
 )
 from exhaust_plume.validation.moc_reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryMeasurementStatus,
+  MocReflectedDomainMixedRegimeBoundaryRefinementStatus,
   measure_reflected_domain_mixed_regime_boundary,
+  measure_reflected_domain_mixed_regime_boundary_refinement,
+  run_reflected_domain_mixed_regime_boundary_refinement,
 )
 from exhaust_plume.validation.moc_reflected_domain_refinement import (
   MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
@@ -1550,6 +1553,69 @@ def test_global_mixed_regime_boundary_measurement_rejects_field_mutation():
   assert measurement.reference_measurement.conservative_euler_residuals_verified is False
   assert measurement.conservative_euler_residuals_verified is False
   assert measurement.physical_closure_verified is False
+####
+
+
+def test_global_mixed_regime_boundary_refinement_reexecutes_without_promotion():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  assert source.converged
+
+  run = run_reflected_domain_mixed_regime_boundary_refinement(
+    source,
+    (5, 7, 9),
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    shock_angle_tolerance_rad=0.02,
+    geometry_tolerance_m=1.0e-2,
+    outlet_height_tolerance_m=1.0e-2,
+  )
+
+  assert run.requested_resolutions == (5, 7, 9)
+  assert len(run.closures) == 3
+  assert len(run.requests) == 3
+  assert len(run.cases) == 3
+  assert run.fresh_solver_invocation_verified
+  assert run.upstream_global_physical_closure_verified
+  assert run.fidelity_isolation_verified
+  assert run.measurement.status is (
+    MocReflectedDomainMixedRegimeBoundaryRefinementStatus.CONVERGED
+  )
+  assert run.measurement.resolutions == (5, 7, 9)
+  assert run.measurement.global_shock_sample_counts == (5, 7, 9)
+  assert run.measurement.reference_axial_station_counts == (5, 7, 9)
+  assert run.measurement.case_measurements_verified
+  assert run.measurement.conservative_euler_evidence_verified
+  assert run.measurement.geometry_sensitivity_verified
+  assert run.measurement.outlet_height_stability_verified
+  assert run.measurement.refinement_convergence_verified
+  assert run.measurement.physical_closure_verified is False
+  assert run.measurement.canonical_euler_verified is False
+  assert run.measurement.external_validation_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  assert run.local_consistency_verified
+  assert len(run.source_band_fingerprint) == 64
+  assert len(run.configuration_fingerprint) == 64
+
+  reversed_measurement = (
+    measure_reflected_domain_mixed_regime_boundary_refinement(
+      tuple(reversed(run.cases)),
+    )
+  )
+  assert reversed_measurement.status is (
+    MocReflectedDomainMixedRegimeBoundaryRefinementStatus.RESOLUTION_FAILURE
+  )
+  assert not reversed_measurement.converged
 ####
 
 
