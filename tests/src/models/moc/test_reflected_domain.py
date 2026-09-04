@@ -28,6 +28,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
+  MocTransonicTransitionStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
   MocProductionShockCellFitStatus,
@@ -63,6 +64,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_coupled_euler_free_boundary,
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
+  assess_reflected_domain_coupled_euler_transonic_transition,
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   moc_reflected_domain_global_physical_closure_fingerprint,
@@ -1689,6 +1691,17 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert result.as_report()['subsonic_pressure_budget']['status'] == (
     'below-isentropic-subsonic-pressure-bounds'
   )
+  transition = assess_reflected_domain_coupled_euler_transonic_transition(
+    coupled_request
+  )
+  assert transition.status is (
+    MocTransonicTransitionStatus.CONVERGED_NORMAL_SHOCK_REFERENCE
+  )
+  assert transition.transition_required
+  assert transition.converged
+  assert transition.as_report()['physical_closure_verified'] is False
+  assert transition.as_report()['chain_promotion_blocked'] is True
+  assert transition.as_report()['production_claim_allowed'] is False
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   )

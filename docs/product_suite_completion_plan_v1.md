@@ -276,6 +276,9 @@ claim is authorized.
 - [x] Add an isolated CHEM-0 frozen-mixture property/state contract with
       constant/tabulated heat capacity and composition conversion tests;
       keep it source-bound and production claims blocked.
+- [x] Bind the coupled pressure-budget seam to an independently audited
+      scalar transonic/normal-shock pressure reference; keep 2-D placement,
+      mixed-regime closure, and chain promotion blocked.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -502,6 +505,16 @@ compatible research fixture is within the bounds.  This is a one-dimensional
 reachability diagnostic only: a future 2-D continued shock/mixing solve may
 change the budget through entropy production, so the diagnostic explains the
 next physics seam without becoming a closure or promotion gate.
+
+The coupled request now binds that pressure budget to a separate scalar
+`research-normal-shock-after-transonic-pressure-reference-v1`. When the
+actual target is below the subsonic sonic bound, the reference solves the
+upstream supersonic Mach number whose normal-shock downstream static pressure
+matches the target and retains the resulting total-pressure loss and entropy
+increase. An independent measurement rederives those scalar invariants. This
+identifies an admissible entropy-producing mechanism for the next 2-D solver;
+it does not place a shock in the retained mesh, close the mixed-regime field,
+or authorize a continued physical cell.
 
 ### Explicit LTE line-source Signature checkpoint
 

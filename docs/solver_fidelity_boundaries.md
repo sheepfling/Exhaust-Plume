@@ -1685,6 +1685,15 @@ both APIs keep ``chain_promotion_blocked=true`` and
 ``production_claim_allowed=false`` in the current checkpoint, and no lower
 fidelity product provider consumes the candidate.
 
+The coupled-field request now also binds a scalar
+``research-normal-shock-after-transonic-pressure-reference-v1`` when its
+control-section pressure target falls below the isentropic subsonic bound. The
+reference solves the supersonic pre-shock Mach number required to reach that
+target, retains total-pressure loss and entropy increase, and has an
+independent scalar audit. It identifies a mechanism the future 2-D solver may
+embed; it is not a shock placement, a mixed-regime field closure, or a
+continued-chain promotion path.
+
 Promotion evidence now has an explicit binding seam. A
 ``MocReflectedDomainPromotionEvidence`` record carries owner-produced evidence
 IDs for the canonical free-boundary, canonical Euler, refinement, and external

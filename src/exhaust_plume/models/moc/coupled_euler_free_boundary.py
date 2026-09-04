@@ -30,6 +30,11 @@ from exhaust_plume.models.moc.chain import (
 from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRequest,
 )
+from exhaust_plume.models.moc.transonic_transition import (
+  MocTransonicTransitionRequest,
+  MocTransonicTransitionResult,
+  solve_moc_transonic_transition,
+)
 
 __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
@@ -38,6 +43,7 @@ __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
   'MocReflectedDomainCoupledEulerFreeBoundaryResult',
   'assess_reflected_domain_coupled_euler_subsonic_pressure_budget',
+  'assess_reflected_domain_coupled_euler_transonic_transition',
   'solve_reflected_domain_coupled_euler_free_boundary',
 )
 
@@ -797,6 +803,39 @@ def assess_reflected_domain_coupled_euler_subsonic_pressure_budget(
       1.0 - compatibility_ratio,
     ),
     gamma=gamma,
+  )
+####
+
+
+def assess_reflected_domain_coupled_euler_transonic_transition(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+) -> MocTransonicTransitionResult:
+  """Bind the actual coupled control-section seam to the scalar transition reference.
+
+  The returned normal-shock target is an explicit mechanism diagnostic for a
+  target below the subsonic sonic bound.  It does not alter the coupled field,
+  add a shock to its mesh, or authorize a mixed-regime closure.
+  """
+
+  if not isinstance(
+    request,
+    MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  ):
+    raise TypeError(
+      'request must be a '
+      'MocReflectedDomainCoupledEulerFreeBoundaryRequest'
+    )
+  ####
+  sample = request.mixed_regime_request.control_section.samples[-1]
+  return solve_moc_transonic_transition(
+    MocTransonicTransitionRequest(
+      upstream_total_pressure_Pa=float(sample.total_pressure_Pa),
+      target_downstream_static_pressure_Pa=(
+        float(request.mixed_regime_request.ambient_pressure_Pa)
+      ),
+      gamma=float(sample.gamma),
+      gas_constant_J_kgK=request.gas_constant_J_kgK,
+    )
   )
 ####
 

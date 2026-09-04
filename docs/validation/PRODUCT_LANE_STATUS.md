@@ -34,6 +34,12 @@ to the explicit LTE line-source bridge for source-temperature and composition
 provenance, while line optical depths/populations remain caller-owned. This
 does not change any product lane's claim ceiling or release status.
 
+For the open P2 mixed-regime seam, the coupled request now also exposes an
+independently audited scalar transonic/normal-shock pressure reference. It
+quantifies the supersonic pre-shock Mach and total-pressure loss needed to
+reach a target below the isentropic subsonic bound, but it does not place a
+transition in the 2-D mesh or promote a physical shock cell.
+
 The cross-product operator evidence is recorded in
 [`ray_signature_consistency_v1.json`](ray_signature_consistency_v1.json). It
 validates synthetic projected-area summation, ray misses, wavelength-grid

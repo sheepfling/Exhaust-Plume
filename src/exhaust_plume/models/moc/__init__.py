@@ -143,7 +143,17 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
+  assess_reflected_domain_coupled_euler_transonic_transition,
   solve_reflected_domain_coupled_euler_free_boundary,
+)
+from exhaust_plume.models.moc.transonic_transition import (
+  MocTransonicTransitionAudit,
+  MocTransonicTransitionAuditStatus,
+  MocTransonicTransitionRequest,
+  MocTransonicTransitionResult,
+  MocTransonicTransitionStatus,
+  measure_moc_transonic_transition,
+  solve_moc_transonic_transition,
 )
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
@@ -803,6 +813,14 @@ __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
   'MocReflectedDomainCoupledEulerFreeBoundaryResult',
   'assess_reflected_domain_coupled_euler_subsonic_pressure_budget',
+  'assess_reflected_domain_coupled_euler_transonic_transition',
+  'MocTransonicTransitionAudit',
+  'MocTransonicTransitionAuditStatus',
+  'MocTransonicTransitionRequest',
+  'MocTransonicTransitionResult',
+  'MocTransonicTransitionStatus',
+  'measure_moc_transonic_transition',
+  'solve_moc_transonic_transition',
   'solve_mixed_regime_planar_free_boundary_reference',
   'build_mixed_regime_entropy_handoff',
   'solve_mixed_regime_entropy_transport_boundary',
