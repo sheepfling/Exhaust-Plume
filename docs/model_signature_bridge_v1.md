@@ -179,3 +179,24 @@ The resolver callbacks are intentionally caller-owned: they are where a
 trajectory/atmosphere model, throttle-to-nozzle closure, propellant depletion
 model, chemistry model, and optical-property source must be connected and
 validated. No such physics is inferred by the schedule adapter.
+
+## Mission-time FPA composition
+
+`MissionFpaEvaluator` is the separate downstream composition seam for a
+time-varying ray-transfer result. Its `ray_transfer_at` callback returns the
+explicit wavelength axis and the provider
+`SpectralRayTransferResult` for the requested `MissionState`; camera pixel
+geometry, detector response, exposure, and optional ADC policy are supplied by
+their own callbacks. The adapter requires the ray snapshot time and source
+pose to exactly match the timeline sample, then runs
+`integrate_spectral_ray_result_to_fpa` and optionally
+`digitize_expected_electrons`. `sample_at` returns the source-bound
+`FpaVisualizationInput`, while `project_at` resolves the renderer-neutral FPA
+view.
+
+This is an instrument-bound expected-electron/expected-ADC composition only.
+It does not infer camera pointing, atmosphere, chemistry, noise realizations,
+detection decisions, or measured counts, and it does not turn the FPA boundary
+into a public plume provider. The far-field Signature result and the ray
+transfer consumed by the FPA remain separate products with separate claim
+ceilings.

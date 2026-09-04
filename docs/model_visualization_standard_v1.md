@@ -81,10 +81,10 @@ bundle:
    settings.
 
 The existing `VisualizationSpec` remains the source-bound view-state contract
-for canonical product results. A future multi-lane gallery may add a lane
-selection and panel layout around that spec; it must retain one source digest
-and one provenance record per lane rather than merging results into a new
-physical product.
+for canonical product results. The five-lane gallery-set wrapper adds
+navigation and per-lane panel selection around the bundle specs; it retains one
+source digest and one provenance record per lane rather than merging results
+into a new physical product.
 
 ## Validation gates
 

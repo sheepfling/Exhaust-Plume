@@ -137,6 +137,8 @@ from exhaust_plume.products.model_signature import (
 from exhaust_plume.products.mission_timeline import (
     MISSION_TIMELINE_SCHEMA,
     MissionCursor,
+    MissionFpaEvaluator,
+    MissionFpaSample,
     MissionProductEvaluator,
     MissionProductSample,
     MissionSignatureEvaluator,
@@ -201,6 +203,8 @@ __all__ = (
     'MODEL_GALLERY_SET_MANIFEST_SCHEMA',
     'MODEL_GALLERY_SPEC_SCHEMA',
     'MISSION_TIMELINE_SCHEMA',
+    'MissionFpaEvaluator',
+    'MissionFpaSample',
     'ModelVisualizationClaims',
     'ModelVisualizationLane',
     'ModelVisualChannel',

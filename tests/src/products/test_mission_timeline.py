@@ -4,9 +4,21 @@ from math import sqrt
 
 import pytest
 
-from exhaust_plume.api.v1 import Pose, TimeModel, VisualSampling, VisualSectionedTubeRequest
+from exhaust_plume.api.v1 import (
+    Pose,
+    SPECTRAL_RAY_TRANSFER_V1,
+    SpectralRayTransferRequest,
+    TimeModel,
+    VisualSampling,
+    VisualSectionedTubeRequest,
+)
+from exhaust_plume.contracts.ray_transfer_v1 import (
+    SpectralRayTransferResult as ProviderSpectralRayTransferResult,
+)
+from exhaust_plume.geometry import SectionedTubeSupport
 from exhaust_plume.products import (
     GrayRadiationProfile,
+    MissionFpaEvaluator,
     MissionProductEvaluator,
     MissionSignatureEvaluator,
     MissionState,
@@ -19,6 +31,13 @@ from exhaust_plume.products import (
     SectionedGrayRadiationProfile,
     evaluate_model_signature,
     standardize_model_visualization,
+)
+from exhaust_plume.providers import GrayRayTransferDefinition, GrayRayTransferProvider
+from exhaust_plume.validation import (
+    DetectorResponse,
+    FpaCameraOptics,
+    FpaDigitizationPolicy,
+    FpaPixelGeometry,
 )
 
 from src.models.moc.test_reflected_domain import _patch
@@ -77,6 +96,69 @@ def _profile_for_state(state: MissionState) -> GrayRadiationProfile:
         absorption_coefficient_per_m=(0.5, 1.0, 1.5),
         profile_id=f"mission-gray-{state.time_s:g}",
     )
+
+
+def _fpa_geometry() -> FpaPixelGeometry:
+    return FpaPixelGeometry(
+        width_px=2,
+        height_px=1,
+        ray_pixel_indices_row_col=((0, 0), (0, 1)),
+        ray_collection_weights_m2_sr=(1.0e-6, 2.0e-6),
+        camera_optics=FpaCameraOptics(
+            camera_id="mission-camera",
+            focal_length_m=0.05,
+            pixel_pitch_m=(5.0e-6, 5.0e-6),
+            principal_point_px=(0.5, 0.0),
+            aperture_area_m2=1.0e-4,
+        ),
+    )
+
+
+def _detector_for_mission() -> DetectorResponse:
+    return DetectorResponse(
+        wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+        quantum_efficiency=(0.5, 0.6, 0.7),
+        optical_throughput=(0.8, 0.9, 1.0),
+        response_id="mission-detector",
+    )
+
+
+def _ray_transfer_for_state(
+    state: MissionState,
+) -> tuple[tuple[float, ...], ProviderSpectralRayTransferResult]:
+    definition = GrayRayTransferDefinition(
+        frame_id="sensor",
+        support=SectionedTubeSupport(
+            frame_id="sensor",
+            centers_m=((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)),
+            radii_m=(1.0, 1.0),
+        ),
+        wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+        source_function_w_sr_m=(2.0, 4.0, 8.0),
+        absorption_coefficient_per_m=(0.5, 1.0, 2.0),
+    )
+    session = GrayRayTransferProvider().create_session(definition=definition)
+    try:
+        snapshot = session.create_snapshot(
+            time_s=state.time_s,
+            source_pose=state.source_pose,
+            dynamic_state=state.snapshot_dynamic_state(),
+            ambient_state=state.snapshot_ambient_state(),
+        )
+        result = snapshot.evaluate(
+            SPECTRAL_RAY_TRANSFER_V1,
+            SpectralRayTransferRequest(
+                ray_frame_id="sensor",
+                ray_origins_m=((-2.0, 0.0, 0.0), (4.0, 0.0, 0.0)),
+                ray_directions=((1.0, 0.0, 0.0), (-1.0, 0.0, 0.0)),
+                ray_t_min_m=(0.0, 0.0),
+                ray_t_max_m=(10.0, 10.0),
+                wavelengths_m=definition.wavelengths_m,
+            ),
+        )
+    finally:
+        session.close()
+    return definition.wavelengths_m, result
 
 
 def _visual_evaluator(visualization) -> MissionVisualizationEvaluator:
@@ -138,6 +220,55 @@ def test_mission_evaluator_resolves_and_records_prescribed_time_state() -> None:
     assert final.signature.metadata.snapshot.ambient_state_digest_sha256 != (initial.signature.metadata.snapshot.ambient_state_digest_sha256)
     assert midpoint.signature.spectral_radiant_intensity != initial.signature.spectral_radiant_intensity
     assert final.signature.spectral_radiant_intensity != initial.signature.spectral_radiant_intensity
+
+
+def test_mission_fpa_evaluator_composes_explicit_ray_detector_and_adc_at_time() -> None:
+    policy = FpaDigitizationPolicy(
+        electrons_per_count=1.0e10,
+        bit_depth=12,
+        policy_id="mission-adc",
+    )
+    evaluator = MissionFpaEvaluator(
+        timeline=_timeline(),
+        ray_transfer_at=_ray_transfer_for_state,
+        geometry_at=lambda _state: _fpa_geometry(),
+        detector_at=lambda _state: _detector_for_mission(),
+        exposure_s_at=lambda state: 1.0 + state.time_s / 10.0,
+        digitization_policy_at=lambda _state: policy,
+    )
+
+    initial = evaluator.sample_at(0.0)
+    midpoint = evaluator.sample_at(5.0)
+
+    assert initial.ray_transfer.metadata.snapshot.time_s == pytest.approx(0.0)
+    assert midpoint.ray_transfer.metadata.snapshot.time_s == pytest.approx(5.0)
+    assert midpoint.ray_transfer.metadata.snapshot.source_pose == midpoint.state.source_pose
+    assert initial.source.snapshot_id == initial.ray_transfer.metadata.snapshot.snapshot_id
+    assert midpoint.source.snapshot_id == midpoint.ray_transfer.metadata.snapshot.snapshot_id
+    assert midpoint.image.exposure_s == pytest.approx(1.5)
+    assert midpoint.image.expected_electrons[0][0] > initial.image.expected_electrons[0][0]
+    assert midpoint.digitized_available
+    assert midpoint.inputs.operator_ids == (
+        "op.sensor.fpa-pixel-detector",
+        "op.sensor.fpa-digitization",
+    )
+    projection = evaluator.project_at(5.0)
+    assert projection.source == midpoint.source
+    assert projection.display_layer.value == "expected_electrons"
+    assert projection.selected_pixel.valid
+
+
+def test_mission_fpa_evaluator_rejects_a_ray_snapshot_from_another_mission_time() -> None:
+    evaluator = MissionFpaEvaluator(
+        timeline=_timeline(),
+        ray_transfer_at=lambda _state: _ray_transfer_for_state(_timeline().states[0]),
+        geometry_at=lambda _state: _fpa_geometry(),
+        detector_at=lambda _state: _detector_for_mission(),
+        exposure_s_at=lambda _state: 1.0,
+    )
+
+    with pytest.raises(ValueError, match="snapshot time_s"):
+        evaluator.sample_at(5.0)
 
 
 def test_all_five_lanes_emit_canonical_visual_products_at_mission_time() -> None:

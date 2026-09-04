@@ -14,11 +14,15 @@ model-specific closures and must be provided by the resolver callbacks.
 from __future__ import annotations
 
 from bisect import bisect_left
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from math import acos, isfinite, sin, sqrt
 from types import MappingProxyType
-from typing import Any, cast
+from typing import Any, TypeAlias, cast
+
+from exhaust_plume.contracts.ray_transfer_v1 import (
+    SpectralRayTransferResult as ProviderSpectralRayTransferResult,
+)
 
 from exhaust_plume.api.v1 import (
     Pose,
@@ -43,10 +47,28 @@ from exhaust_plume.products.model_visualization import (
     StandardizedModelVisualization,
     evaluate_standardized_model_visualization,
 )
+from exhaust_plume.validation.fpa_operators import (
+    DetectorResponse,
+    FpaDigitizationPolicy,
+    FpaDigitizedExpectation,
+    FpaPixelGeometry,
+    FpaPixelImage,
+    digitize_expected_electrons,
+    integrate_spectral_ray_result_to_fpa,
+)
+from exhaust_plume.validation.fpa_visualization import (
+    FpaSourceReference,
+    FpaViewProjection,
+    FpaVisualizationInput,
+    FpaVisualizationSpec,
+    project_fpa_view,
+)
 
 __all__ = (
     "MISSION_TIMELINE_SCHEMA",
     "MissionCursor",
+    "MissionFpaEvaluator",
+    "MissionFpaSample",
     "MissionProductEvaluator",
     "MissionProductSample",
     "MissionSignatureEvaluator",
@@ -60,6 +82,11 @@ __all__ = (
 
 
 MISSION_TIMELINE_SCHEMA = "plume.mission-timeline@1"
+
+MissionRayTransferAtState: TypeAlias = tuple[
+    Sequence[float],
+    ProviderSpectralRayTransferResult,
+]
 
 
 def _finite(name: str, value: object) -> float:
@@ -635,3 +662,183 @@ class MissionProductEvaluator:
             reasons = "; ".join(sample.signature_assessment.reasons)
             raise ModelSignatureBlockedError(f"{sample.visualization.lane_id} cannot provide a mission signature ({sample.signature_assessment.readiness.value}): {reasons}")
         return sample.signature
+
+
+@dataclass(frozen=True, slots=True)
+class MissionFpaSample:
+    """One explicit downstream FPA evaluation at a mission-state snapshot."""
+
+    state: MissionState
+    wavelengths_m: tuple[float, ...]
+    ray_transfer: ProviderSpectralRayTransferResult
+    geometry: FpaPixelGeometry
+    detector: DetectorResponse
+    exposure_s: float
+    source: FpaSourceReference
+    image: FpaPixelImage
+    digitization_policy: FpaDigitizationPolicy | None
+    digitized: FpaDigitizedExpectation | None
+    inputs: FpaVisualizationInput
+
+    @property
+    def digitized_available(self) -> bool:
+        """Whether an explicit deterministic ADC expectation was requested."""
+
+        return self.digitized is not None
+
+
+@dataclass(frozen=True, slots=True)
+class MissionFpaEvaluator:
+    """Evaluate an explicit ray-to-FPA chain over a prescribed mission timeline.
+
+    The ray-transfer resolver owns the flow, atmosphere, chemistry, and
+    optical source closures.  The remaining resolvers own the instrument
+    geometry, detector response, exposure, and optional deterministic ADC
+    policy.  This adapter only composes those declared inputs at one mission
+    state; it does not infer a camera model, sample noise, or advertise an FPA
+    provider.
+    """
+
+    timeline: MissionTimeline
+    ray_transfer_at: Callable[[MissionState], MissionRayTransferAtState]
+    geometry_at: Callable[[MissionState], FpaPixelGeometry]
+    detector_at: Callable[[MissionState], DetectorResponse]
+    exposure_s_at: Callable[[MissionState], float]
+    digitization_policy_at: Callable[
+        [MissionState], FpaDigitizationPolicy | None
+    ] | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.timeline, MissionTimeline):
+            raise TypeError("timeline must be MissionTimeline")
+        for name in (
+            "ray_transfer_at",
+            "geometry_at",
+            "detector_at",
+            "exposure_s_at",
+        ):
+            if not callable(getattr(self, name)):
+                raise TypeError(f"{name} must be callable")
+        if self.digitization_policy_at is not None and not callable(
+            self.digitization_policy_at
+        ):
+            raise TypeError("digitization_policy_at must be callable or None")
+
+    def _evaluate_state(self, state: MissionState) -> MissionFpaSample:
+        resolved_ray = self.ray_transfer_at(state)
+        if not isinstance(resolved_ray, tuple) or len(resolved_ray) != 2:
+            raise TypeError(
+                "ray_transfer_at must return (wavelengths_m, SpectralRayTransferResult)"
+            )
+        raw_wavelengths, ray_transfer = resolved_ray
+        if not isinstance(ray_transfer, ProviderSpectralRayTransferResult):
+            raise TypeError(
+                "ray_transfer_at must return the provider SpectralRayTransferResult"
+            )
+        wavelengths = tuple(
+            _finite(f"wavelengths_m[{index}]", value)
+            for index, value in enumerate(raw_wavelengths)
+        )
+        if len(wavelengths) < 2 or any(value <= 0.0 for value in wavelengths):
+            raise ValueError("wavelengths_m must contain at least two positive values")
+        if any(
+            right <= left for left, right in zip(wavelengths, wavelengths[1:])
+        ):
+            raise ValueError("wavelengths_m must be strictly increasing")
+
+        snapshot = ray_transfer.metadata.snapshot
+        if snapshot.time_s != state.time_s:
+            raise ValueError(
+                "ray-transfer snapshot time_s must exactly match the mission state"
+            )
+        if snapshot.source_pose != state.source_pose:
+            raise ValueError(
+                "ray-transfer snapshot source_pose must exactly match the mission state"
+            )
+
+        geometry = self.geometry_at(state)
+        detector = self.detector_at(state)
+        if not isinstance(geometry, FpaPixelGeometry):
+            raise TypeError("geometry_at must return FpaPixelGeometry")
+        if not isinstance(detector, DetectorResponse):
+            raise TypeError("detector_at must return DetectorResponse")
+        exposure_s = _finite("exposure_s", self.exposure_s_at(state))
+        if exposure_s <= 0.0:
+            raise ValueError("exposure_s_at must return a positive value")
+        policy = (
+            None
+            if self.digitization_policy_at is None
+            else self.digitization_policy_at(state)
+        )
+        if policy is not None and not isinstance(policy, FpaDigitizationPolicy):
+            raise TypeError(
+                "digitization_policy_at must return FpaDigitizationPolicy or None"
+            )
+
+        source = FpaSourceReference.from_ray_result(ray_transfer)
+        image = integrate_spectral_ray_result_to_fpa(
+            ray_transfer,
+            wavelengths,
+            geometry=geometry,
+            detector=detector,
+            exposure_s=exposure_s,
+        )
+        digitized = (
+            None
+            if policy is None
+            else digitize_expected_electrons(image, policy=policy)
+        )
+        inputs = FpaVisualizationInput(
+            image=image,
+            source=source,
+            detector_response=detector,
+            digitized=digitized,
+            digitization_policy=policy,
+            camera_optics=geometry.camera_optics,
+        )
+        return MissionFpaSample(
+            state=state,
+            wavelengths_m=wavelengths,
+            ray_transfer=ray_transfer,
+            geometry=geometry,
+            detector=detector,
+            exposure_s=exposure_s,
+            source=source,
+            image=image,
+            digitization_policy=policy,
+            digitized=digitized,
+            inputs=inputs,
+        )
+
+    def sample_at(self, time_s: float) -> MissionFpaSample:
+        """Evaluate the downstream FPA chain at a prescribed mission time."""
+
+        return self._evaluate_state(self.timeline.sample_at(time_s))
+
+    def evaluate_at(self, time_s: float) -> FpaVisualizationInput:
+        """Return source-bound FPA inputs at a prescribed mission time."""
+
+        return self.sample_at(time_s).inputs
+
+    def evaluate_cursor(self, cursor: MissionCursor) -> MissionFpaSample:
+        """Evaluate a cursor originating from this evaluator's timeline."""
+
+        if not isinstance(cursor, MissionCursor):
+            raise TypeError("cursor must be MissionCursor")
+        if cursor.timeline is not self.timeline:
+            raise ValueError("cursor must originate from this evaluator's timeline")
+        return self._evaluate_state(cursor.state)
+
+    def project_at(
+        self,
+        time_s: float,
+        spec: FpaVisualizationSpec | None = None,
+    ) -> FpaViewProjection:
+        """Return a renderer-neutral FPA projection for one mission time."""
+
+        sample = self.sample_at(time_s)
+        resolved_spec = spec or FpaVisualizationSpec.for_source(
+            sample.source,
+            view_kind="fpa.overview",
+        )
+        return project_fpa_view(sample.inputs, resolved_spec)
