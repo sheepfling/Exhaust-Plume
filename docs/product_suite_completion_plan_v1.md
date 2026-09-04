@@ -32,6 +32,57 @@ claim ceiling.
 | 5 | FPA downstream product | Explicit camera geometry, detector response, expected electrons, ADC, metadata, and accepted camera/detector comparisons | Deterministic downstream boundary exists; no FPA provider or external image claim |
 | 6 | Validation and release | Provider-bound evidence, disjoint calibration/validation, current manifests, CI, package smoke, and `release_ready=true` | Blocked by the release gates listed below |
 
+## Operating protocol
+
+This is a long-running integration goal, so the repository is worked in
+small, reviewable vertical slices:
+
+- `main` is the integration reference; feature work stays on a dedicated
+  branch. The current integration candidate can continue on its dedicated
+  work branch and be published to the integration branch without changing
+  `main` until the release gates are green.
+- Every slice begins with a contract and fidelity check, then changes the
+  smallest necessary implementation surface, adds focused tests, updates the
+  applicable plan or validation notes, and records the release evidence it
+  produced.
+- Commits should represent one coherent slice: contract, implementation,
+  tests, and documentation move together. Merge-conflict resolution must
+  preserve the stricter claim ceiling when two branches disagree.
+- After each slice, run the focused lane tests and static checks. At wave
+  boundaries, run the full release-facing matrix and inspect the generated
+  manifest; a passing test run does not by itself authorize promotion.
+- Do not create a release tag while any physical, provider, data, or package
+  gate is open. Research-only outputs may be committed and pushed, but their
+  status must remain visible in their contracts and reports.
+
+## Dependency sequence for the remaining work
+
+The remaining work is intentionally ordered by what must be true before the
+next product can make a stronger claim:
+
+1. **Validation intake.** Obtain the owner-supplied measurement archives and
+   exact provider outputs, verify provenance and digests, assign disjoint
+   calibration/validation cases, and register each measurement operator and
+   coordinate convention.
+2. **Canonical planar-MOC closure.** Replace boundary-conditioned research
+   pieces with one solver-owned reflected/mixed-regime solve that closes the
+   C- frontier, shock geometry, ambient attachment, centerline reflection,
+   entropy transport, and Euler residuals together. Establish stable
+   refinement and a terminal criterion before fitting cells.
+3. **Production shock-cell fitting.** Fit the first and continued cells only
+   from the typed, solver-generated frontier and closed field. Compare the
+   resulting physical lengths and uncertainties to accepted observations;
+   diagnostic pressure-extrema spacing is not sufficient.
+4. **Provider-bound product validation.** Run the five Visualization lanes,
+   Signature/ray-transfer operators, and FPA camera/detector chain against
+   their own supplied measurement-space cases. Preserve each lane's fidelity
+   and do not route unresolved MOC results backward into lower-fidelity
+   products.
+5. **Candidate acceptance and release.** Re-run the exact candidate commit
+   through lane partitioning, full tests, static analysis, documentation,
+   public-contract checks, wheel build, installed-wheel smoke, and the release
+   manifest. Tag only when every gate reports green.
+
 ## Product workstreams
 
 ### Visualization
@@ -133,12 +184,24 @@ Each comparison must retain:
 - coverage, uncertainty, residual metric, tolerance, and applicability domain;
 - limitations and an explicit evidence status.
 
-The recovered Version 8 archive is integrity-checked in the corpus manifests:
-its recorded SHA-256 is
+Repository manifests record a Version 8 archive whose recorded SHA-256 is
 `79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa`, with
-138 members and 137 internal checksums. That proves corpus integrity, not
-provider acceptance. The separately named alignment archive remains an
-outstanding input and must not be reconstructed or claimed as present.
+138 members and 137 internal checksums. Those manifests are provenance
+metadata only: the raw ZIP is not currently available in the workspace or
+attachment path. A re-supplied archive must be checked against that record;
+the digest alone does not prove provider acceptance. The separately named
+alignment archive remains an outstanding input and must not be reconstructed
+or claimed as present.
+
+The required validation handoff is therefore explicit:
+
+- archive plus member checksums and license/provenance record;
+- provider/model snapshot and exact source-output identity;
+- measurement operator, units, frame, sampling, and coordinate convention;
+- case manifest with disjoint calibration and validation roles;
+- uncertainty, coverage, tolerance, and applicability domain; and
+- a typed evidence record that binds the comparison claim to all of the
+  above.
 
 ## Release gates
 
