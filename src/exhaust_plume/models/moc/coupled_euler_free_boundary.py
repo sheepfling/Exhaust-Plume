@@ -15,7 +15,7 @@ external validation data remain separate promotion gates.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from math import isfinite, sqrt
 from types import MappingProxyType
@@ -239,8 +239,12 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   entropy_transport_verified: bool = False
   conservative_euler_residuals_measured: bool = False
   conservative_euler_residuals_verified: bool = False
-  residual_channel_coverage: MappingProxyType = MappingProxyType({})
-  residual_channel_validity: MappingProxyType = MappingProxyType({})
+  residual_channel_coverage: MappingProxyType = field(
+    default_factory=lambda: MappingProxyType({})
+  )
+  residual_channel_validity: MappingProxyType = field(
+    default_factory=lambda: MappingProxyType({})
+  )
   canonical_free_boundary_verified: bool = False
   canonical_euler_verified: bool = False
   external_validation_verified: bool = False
