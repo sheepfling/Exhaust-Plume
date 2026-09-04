@@ -24,6 +24,14 @@ provider. The curved-support interval refinement is retained as a
 nonmonotonic geometry diagnostic and does not expand the provider’s morphology
 or claim ceiling.
 
+The cross-cutting CHEM-0 source-property primitive is locally verified in
+`tests/src/models/gas/test_frozen_mixture.py`. It preserves explicit species
+and composition basis, supports constant or bounded tabulated `c_p(T)`, and
+checks composition round trips, mixture `R/c_p/c_v/gamma`, density, enthalpy,
+and bounded enthalpy inversion. This is property evidence only: the primitive
+is not yet a source-bound Signature provider and does not change any product
+lane's claim ceiling or release status.
+
 The cross-product operator evidence is recorded in
 [`ray_signature_consistency_v1.json`](ray_signature_consistency_v1.json). It
 validates synthetic projected-area summation, ray misses, wavelength-grid

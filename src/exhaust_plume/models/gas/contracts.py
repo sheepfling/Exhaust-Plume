@@ -1,4 +1,4 @@
-"""Immutable configuration contracts for calorically-perfect gases."""
+"""Immutable configuration contracts for explicit gas-property models."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class GasModelKind(str, Enum):
   CALORICALLY_PERFECT = 'calorically-perfect'
+  FROZEN_MIXTURE = 'frozen-mixture'
 ####
 
 

@@ -3,7 +3,19 @@
 from __future__ import annotations
 
 from exhaust_plume.constants import MODULE_NAME, VERSION
-from exhaust_plume.models.gas import CaloricallyPerfectGas, FrozenMixtureConfig, GasModelKind, SpeciesMassFraction
+from exhaust_plume.models.gas import (
+    CaloricallyPerfectGas,
+    FrozenMixtureConfig,
+    FrozenMixtureGas,
+    FrozenMixtureState,
+    GasModelKind,
+    SpecificHeatTable,
+    SpeciesDefinition,
+    SpeciesMassFraction,
+    SpeciesMoleFraction,
+    mass_fractions_to_mole_fractions,
+    mole_fractions_to_mass_fractions,
+)
 from exhaust_plume.models.nozzle import (
     AmbientInput,
     AmbientState as NozzleAmbientState,
@@ -270,8 +282,13 @@ __all__ = (
     'ExpansionRegime',
     'FlowTransition',
     'FrozenMixtureConfig',
+    'FrozenMixtureGas',
+    'FrozenMixtureState',
     'FlowState',
     'GasModelKind',
+    'SpecificHeatTable',
+    'SpeciesDefinition',
+    'SpeciesMoleFraction',
     'GeometryClaim',
     'IdealGasMixtureThermodynamics',
     'IntegralStraightConfiguration',
@@ -363,6 +380,8 @@ __all__ = (
     'VelocityAugmentedAmbientField',
     'ZeroCurvedPlumeSourceTermModel',
     'SpeciesMassFraction',
+    'mass_fractions_to_mole_fractions',
+    'mole_fractions_to_mass_fractions',
     'ShockCell',
     'ShockCellSolveConfig',
     'ShockCellSolveResult',

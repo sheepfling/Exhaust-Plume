@@ -273,6 +273,9 @@ claim is authorized.
       thermodynamic, entropy, and free-boundary diagnostics.
 - [x] Add a fresh coupled-field case/resolution ladder that records finite
       independent audits and preserves the actual global-seam failure.
+- [x] Add an isolated CHEM-0 frozen-mixture property/state contract with
+      constant/tabulated heat capacity and composition conversion tests;
+      keep it source-bound and production claims blocked.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -515,6 +518,23 @@ populations, composition, pressure-broadening inputs, non-LTE effects,
 atmosphere, and external validation remain open. The new source path is
 therefore locally tested but non-production, and the provider-bound Signature,
 ray, FPA, and release gates remain unchanged.
+
+### CHEM-0 frozen-mixture source-property checkpoint
+
+An isolated `chem-0-explicit-frozen-mixture-v1` property contract now provides
+explicit species definitions, molecular weights, normalized mass/mole-basis
+conversion, and either constant or bounded tabulated `c_p(T)`. It derives
+`R(Y)`, `c_v(T,Y)`, `gamma(T,Y)`, density, sound speed, mixture enthalpy, and a
+bounded enthalpy-to-temperature inversion while retaining the exact frozen
+composition in each derived state. The report identifies reactions as
+disabled and keeps `production_claim_allowed=false`.
+
+This is a cross-cutting CHEM-0 source primitive, not a chemistry or Signature
+provider. It is intentionally not wired into the existing flow, radiation,
+ray, or FPA lanes yet: formation/species entropy data, pressure broadening,
+non-LTE populations, reacting/afterburning behavior, particle loading, and
+provider-bound validation remain open. The property tests close only the
+composition and thermodynamic identities for this declared local lane.
 
 After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound

@@ -8,6 +8,17 @@ The same visual, signature, or ray-transfer contract may eventually be served
 by more than one provider, but each provider must declare its own physics,
 applicability, validation evidence, and complexity ceiling.
 
+Thermochemistry is tracked as a cross-cutting source-property lane rather than
+as a replacement for any flow provider. The current
+`chem-0-explicit-frozen-mixture-v1` primitive accepts explicit species,
+molecular weights, normalized mass or mole fractions, and constant or
+tabulated `c_p(T)`. It derives a bounded ideal-gas state and retains
+composition provenance, but it has no reactions, entropy reference, molecular
+populations, particle model, or external validation. It therefore cannot raise
+the claim ceiling of the basic, reduced-order, planar-MOC, Signature,
+ray-transfer, or FPA lanes until it is coupled through their contracts and
+independently validated.
+
 ## Boundary matrix
 
 | Lane | Status | Current role | Allowed primary product | Explicit non-claims |
