@@ -14,7 +14,13 @@ from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
 from math import atan2, cos, fsum, hypot, isfinite, log, pi, sin, sqrt, tan
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
+
+if TYPE_CHECKING:
+  from exhaust_plume.models.moc.global_physical_closure import (
+    MocReflectedDomainDownstreamBoundaryResult,
+  )
+####
 
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
@@ -144,6 +150,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_SOLVER_OWNED_FIRST_CELL_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_SHOCK_REMESH_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_DOWNSTREAM_BOUNDARY_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_MIXED_REGIME_FREE_BOUNDARY_OPERATOR_ID',
@@ -184,6 +191,8 @@ __all__ = (
   'MocReflectedDomainGlobalShockRemeshMeasurementStatus',
   'MocReflectedDomainGlobalEulerShockBoundaryMeasurement',
   'MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus',
+  'MocReflectedDomainDownstreamBoundaryMeasurement',
+  'MocReflectedDomainDownstreamBoundaryMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase',
@@ -241,6 +250,7 @@ __all__ = (
   'measure_moc_reflected_domain_solver_owned_first_cell',
   'measure_moc_reflected_domain_global_shock_remesh',
   'measure_moc_reflected_domain_global_euler_shock_boundary',
+  'measure_moc_reflected_domain_downstream_boundary',
   'measure_moc_reflected_domain_alternating_physical_field_chain_refinement',
   'measure_mixed_regime_compressible_potential_field',
   'measure_mixed_regime_free_boundary_reference',
@@ -308,6 +318,9 @@ MOC_REFLECTED_DOMAIN_GLOBAL_SHOCK_REMESH_OPERATOR_ID = (
 )
 MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_OPERATOR_ID = (
   'op.moc.reflected-domain-global-euler-shock-boundary'
+)
+MOC_REFLECTED_DOMAIN_DOWNSTREAM_BOUNDARY_OPERATOR_ID = (
+  'op.moc.reflected-domain-downstream-boundary'
 )
 MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID = (
   'op.moc.reflected-domain-alternating-physical-field-chain'
@@ -18164,6 +18177,548 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     )
   ####
   return _reflected_domain_global_euler_shock_boundary_measurement_failure(
+    status,
+    message,
+    **common,
+  )
+####
+
+
+class MocReflectedDomainDownstreamBoundaryMeasurementStatus(str, Enum):
+  """Outcome of independently auditing the typed downstream-boundary seam."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  GEOMETRY_FAILURE = 'geometry_failure'
+  PRESSURE_FAILURE = 'pressure_failure'
+  TANGENT_FAILURE = 'tangent_failure'
+  RESIDUAL_FAILURE = 'residual_failure'
+  FIDELITY_FAILURE = 'fidelity_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainDownstreamBoundaryMeasurement:
+  """Independent evidence for retained downstream-boundary samples.
+
+  This operator rederives coordinate, static-pressure, ambient-pressure, and
+  streamline-tangent residuals from the typed boundary result.  It is an
+  integrity audit for the handoff seam, not a mixed-regime field solver; a
+  passing measurement therefore remains below the physical-closure and
+  production gates.
+  """
+
+  status: MocReflectedDomainDownstreamBoundaryMeasurementStatus
+  operator_id: str
+  boundary_status: str | None
+  model: str | None
+  ambient_pressure_Pa: float | None
+  sample_count: int
+  segment_count: int
+  model_verified: bool
+  status_verified: bool
+  solver_owned_verified: bool
+  sample_geometry_verified: bool
+  pressure_lineage_verified: bool
+  tangent_lineage_verified: bool
+  reported_residuals_verified: bool
+  research_only_verified: bool
+  physical_closure_verified: bool
+  chain_promotion_blocked: bool
+  production_claim_allowed: bool
+  maximum_coordinate_residual_m: float | None = None
+  maximum_static_pressure_residual_Pa: float | None = None
+  maximum_pressure_residual: float | None = None
+  maximum_tangent_residual: float | None = None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainDownstreamBoundaryMeasurementStatus,
+    ):
+      raise TypeError(
+        'status must be a MocReflectedDomainDownstreamBoundaryMeasurementStatus'
+      )
+    ####
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    ####
+    object.__setattr__(self, 'operator_id', operator_id)
+    if self.boundary_status is not None:
+      object.__setattr__(self, 'boundary_status', str(self.boundary_status))
+    ####
+    if self.model is not None:
+      object.__setattr__(self, 'model', str(self.model))
+    ####
+    if self.ambient_pressure_Pa is not None:
+      ambient_pressure = float(self.ambient_pressure_Pa)
+      if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+        raise ValueError(
+          'ambient_pressure_Pa must be finite and positive when supplied'
+        )
+      ####
+      object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    ####
+    for name in ('sample_count', 'segment_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
+    if self.segment_count > max(0, self.sample_count - 1):
+      raise ValueError('segment_count cannot exceed the boundary segment count')
+    ####
+    for name in (
+      'model_verified',
+      'status_verified',
+      'solver_owned_verified',
+      'sample_geometry_verified',
+      'pressure_lineage_verified',
+      'tangent_lineage_verified',
+      'reported_residuals_verified',
+      'research_only_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    for name in (
+      'maximum_coordinate_residual_m',
+      'maximum_static_pressure_residual_Pa',
+      'maximum_pressure_residual',
+      'maximum_tangent_residual',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative')
+        ####
+        object.__setattr__(self, name, numeric)
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether the retained research-boundary data passed this audit."""
+
+    return self.status is (
+      MocReflectedDomainDownstreamBoundaryMeasurementStatus.CONVERGED
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'boundary_status': self.boundary_status,
+      'model': self.model,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'counts': {
+        'sample_count': self.sample_count,
+        'segment_count': self.segment_count,
+      },
+      'checks': {
+        'model_verified': self.model_verified,
+        'status_verified': self.status_verified,
+        'solver_owned_verified': self.solver_owned_verified,
+        'sample_geometry_verified': self.sample_geometry_verified,
+        'pressure_lineage_verified': self.pressure_lineage_verified,
+        'tangent_lineage_verified': self.tangent_lineage_verified,
+        'reported_residuals_verified': self.reported_residuals_verified,
+        'research_only_verified': self.research_only_verified,
+      },
+      'residuals': {
+        'maximum_coordinate_residual_m': self.maximum_coordinate_residual_m,
+        'maximum_static_pressure_residual_Pa': (
+          self.maximum_static_pressure_residual_Pa
+        ),
+        'maximum_pressure_residual': self.maximum_pressure_residual,
+        'maximum_tangent_residual': self.maximum_tangent_residual,
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': 'independent-downstream-boundary-research-audit',
+      'message': self.message,
+    }
+  ####
+####
+
+
+def _reflected_domain_downstream_boundary_measurement_failure(
+  status: MocReflectedDomainDownstreamBoundaryMeasurementStatus,
+  message: str,
+  *,
+  boundary_status: str | None = None,
+  model: str | None = None,
+  ambient_pressure_Pa: float | None = None,
+  sample_count: int = 0,
+  segment_count: int = 0,
+  model_verified: bool = False,
+  status_verified: bool = False,
+  solver_owned_verified: bool = False,
+  sample_geometry_verified: bool = False,
+  pressure_lineage_verified: bool = False,
+  tangent_lineage_verified: bool = False,
+  reported_residuals_verified: bool = False,
+  research_only_verified: bool = False,
+  maximum_coordinate_residual_m: float | None = None,
+  maximum_static_pressure_residual_Pa: float | None = None,
+  maximum_pressure_residual: float | None = None,
+  maximum_tangent_residual: float | None = None,
+) -> MocReflectedDomainDownstreamBoundaryMeasurement:
+  return MocReflectedDomainDownstreamBoundaryMeasurement(
+    status=status,
+    operator_id=MOC_REFLECTED_DOMAIN_DOWNSTREAM_BOUNDARY_OPERATOR_ID,
+    boundary_status=boundary_status,
+    model=model,
+    ambient_pressure_Pa=ambient_pressure_Pa,
+    sample_count=sample_count,
+    segment_count=segment_count,
+    model_verified=model_verified,
+    status_verified=status_verified,
+    solver_owned_verified=solver_owned_verified,
+    sample_geometry_verified=sample_geometry_verified,
+    pressure_lineage_verified=pressure_lineage_verified,
+    tangent_lineage_verified=tangent_lineage_verified,
+    reported_residuals_verified=reported_residuals_verified,
+    research_only_verified=research_only_verified,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    maximum_coordinate_residual_m=maximum_coordinate_residual_m,
+    maximum_static_pressure_residual_Pa=maximum_static_pressure_residual_Pa,
+    maximum_pressure_residual=maximum_pressure_residual,
+    maximum_tangent_residual=maximum_tangent_residual,
+    message=message,
+  )
+####
+
+
+def measure_moc_reflected_domain_downstream_boundary(
+  boundary: MocReflectedDomainDownstreamBoundaryResult,
+  *,
+  position_tolerance_m: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  residual_tolerance: float = 1.0e-8,
+) -> MocReflectedDomainDownstreamBoundaryMeasurement:
+  """Audit the typed downstream-boundary result without rerunning a solver.
+
+  The operator verifies the data lineage carried by the boundary result.  It
+  intentionally does not infer a missing ambient pressure, replace samples,
+  or treat the current compression envelope as a mixed-regime solution.
+  """
+
+  try:
+    position_tolerance = float(position_tolerance_m)
+    pressure_tolerance_value = float(pressure_tolerance)
+    tangent_tolerance_value = float(tangent_tolerance)
+    residual_tolerance_value = float(residual_tolerance)
+  except (TypeError, ValueError):
+    return _reflected_domain_downstream_boundary_measurement_failure(
+      MocReflectedDomainDownstreamBoundaryMeasurementStatus.INVALID_INPUT,
+      'downstream-boundary measurement tolerances must be numeric',
+    )
+  ####
+  if not all(
+    isfinite(value) and value > 0.0
+    for value in (
+      position_tolerance,
+      pressure_tolerance_value,
+      tangent_tolerance_value,
+      residual_tolerance_value,
+    )
+  ):
+    raise ValueError(
+      'downstream-boundary measurement tolerances must be finite and positive'
+    )
+  ####
+
+  from exhaust_plume.models.moc.global_physical_closure import (
+    MocReflectedDomainDownstreamBoundaryResult,
+    MocReflectedDomainDownstreamBoundaryStatus,
+  )
+
+  if not isinstance(boundary, MocReflectedDomainDownstreamBoundaryResult):
+    return _reflected_domain_downstream_boundary_measurement_failure(
+      MocReflectedDomainDownstreamBoundaryMeasurementStatus.INVALID_INPUT,
+      'boundary must be a MocReflectedDomainDownstreamBoundaryResult',
+    )
+  ####
+
+  points = tuple(boundary.boundary_points_m)
+  states = tuple(boundary.boundary_states)
+  total_pressures = tuple(boundary.boundary_total_pressure_Pa)
+  static_pressures = tuple(boundary.boundary_static_pressure_Pa)
+  pressure_residuals = tuple(boundary.pressure_residuals)
+  tangent_residuals = tuple(boundary.tangent_residuals)
+  coordinate_residuals = tuple(boundary.coordinate_residuals_m)
+  sample_count = len(points)
+  segment_count = max(0, sample_count - 1)
+  model = boundary.model
+  boundary_status = boundary.status.value
+  ambient_pressure = boundary.ambient_pressure_Pa
+
+  status_verified = boundary.status in (
+    MocReflectedDomainDownstreamBoundaryStatus.RESEARCH_COMPRESSION_ENVELOPE,
+    MocReflectedDomainDownstreamBoundaryStatus.SOLVER_OWNED_MIXED_REGIME_PENDING,
+    MocReflectedDomainDownstreamBoundaryStatus.CONVERGED_SOLVER_OWNED_MIXED_REGIME,
+  )
+  model_verified = bool(model and model != 'unavailable')
+  if boundary.status is MocReflectedDomainDownstreamBoundaryStatus.RESEARCH_COMPRESSION_ENVELOPE:
+    model_verified = model_verified and 'compression-envelope' in model
+  elif boundary.status is MocReflectedDomainDownstreamBoundaryStatus.CONVERGED_SOLVER_OWNED_MIXED_REGIME:
+    model_verified = model_verified and 'compression-envelope' not in model
+  ####
+  solver_owned_verified = boundary.solver_owned is True
+
+  maximum_coordinate_residual = max(coordinate_residuals, default=None)
+  maximum_static_pressure_residual: float | None = None
+  maximum_pressure_residual = max(pressure_residuals, default=None)
+  maximum_tangent_residual = max(tangent_residuals, default=None)
+  sample_geometry_verified = False
+  pressure_lineage_verified = False
+  tangent_lineage_verified = False
+  reported_residuals_verified = False
+
+  try:
+    sample_geometry_verified = bool(
+      sample_count >= 2
+      and len(states) == sample_count
+      and len(total_pressures) == sample_count
+      and len(coordinate_residuals) == sample_count
+      and all(
+        len(point) == 2
+        and all(isfinite(float(value)) for value in point)
+        for point in points
+      )
+      and all(
+        isinstance(state, CharacteristicState)
+        and isfinite(float(state.x_m))
+        and isfinite(float(state.y_m))
+        and isfinite(float(state.theta_rad))
+        and isfinite(float(state.mach))
+        and isfinite(float(state.gamma))
+        for state in states
+      )
+      and all(
+        isfinite(float(value)) and float(value) > 0.0
+        for value in total_pressures
+      )
+      and all(
+        isfinite(float(value)) and float(value) >= 0.0
+        for value in coordinate_residuals
+      )
+      and all(
+        abs(
+          hypot(state.x_m - point[0], state.y_m - point[1])
+          - float(reported_residual)
+        )
+        <= position_tolerance
+        and hypot(state.x_m - point[0], state.y_m - point[1])
+        <= position_tolerance
+        for point, state, reported_residual in zip(
+          points,
+          states,
+          coordinate_residuals,
+          strict=True,
+        )
+      )
+      and all(
+        second[0] > first[0] + position_tolerance
+        and second[1] >= -position_tolerance
+        and hypot(second[0] - first[0], second[1] - first[1])
+        > position_tolerance
+        for first, second in zip(points, points[1:])
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    sample_geometry_verified = False
+  ####
+
+  static_pressure_residuals: list[float] = []
+  expected_pressure_residuals: list[float] = []
+  if ambient_pressure is not None:
+    try:
+      ambient_pressure_value = float(ambient_pressure)
+      if isfinite(ambient_pressure_value) and ambient_pressure_value > 0.0:
+        for state, total_pressure, static_pressure in zip(
+          states,
+          total_pressures,
+          static_pressures,
+          strict=True,
+        ):
+          expected_static_pressure = (
+            _static_pressure_from_total_pressure_for_measurement(
+              state,
+              total_pressure,
+            )
+          )
+          static_pressure_residuals.append(
+            abs(float(static_pressure) - expected_static_pressure)
+          )
+          expected_pressure_residuals.append(
+            abs(
+              (expected_static_pressure - ambient_pressure_value)
+              / ambient_pressure_value
+            )
+          )
+        ####
+        maximum_static_pressure_residual = max(
+          static_pressure_residuals,
+          default=None,
+        )
+        pressure_lineage_verified = bool(
+          len(static_pressures) == sample_count
+          and len(pressure_residuals) == sample_count
+          and all(
+            isfinite(float(value)) and float(value) > 0.0
+            for value in static_pressures
+          )
+          and len(static_pressure_residuals) == sample_count
+          and len(expected_pressure_residuals) == sample_count
+          and all(
+            residual <= pressure_tolerance_value
+            for residual in static_pressure_residuals
+          )
+          and all(
+            _pressure_matches(
+              reported,
+              expected,
+              pressure_tolerance=pressure_tolerance_value,
+            )
+            for reported, expected in zip(
+              pressure_residuals,
+              expected_pressure_residuals,
+              strict=True,
+            )
+          )
+        )
+      ####
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError, ZeroDivisionError):
+      pressure_lineage_verified = False
+    ####
+  ####
+
+  try:
+    expected_tangent_residuals = tuple(
+      abs(
+        sin(
+          atan2(second[1] - first[1], second[0] - first[0])
+          - 0.5 * (first_state.theta_rad + second_state.theta_rad)
+        )
+      )
+      for first, second, first_state, second_state in zip(
+        points,
+        points[1:],
+        states,
+        states[1:],
+      )
+    )
+    tangent_lineage_verified = bool(
+      len(tangent_residuals) == segment_count
+      and all(
+        isfinite(float(value)) and float(value) >= 0.0
+        for value in tangent_residuals
+      )
+      and all(
+        abs(float(reported) - expected) <= tangent_tolerance_value
+        for reported, expected in zip(
+          tangent_residuals,
+          expected_tangent_residuals,
+          strict=True,
+        )
+      )
+      and bool(expected_tangent_residuals)
+      and max(expected_tangent_residuals) <= residual_tolerance_value
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError, ZeroDivisionError):
+    tangent_lineage_verified = False
+  ####
+
+  reported_residuals_verified = bool(
+    sample_geometry_verified
+    and pressure_lineage_verified
+    and tangent_lineage_verified
+    and maximum_coordinate_residual is not None
+    and maximum_coordinate_residual <= position_tolerance
+    and maximum_static_pressure_residual is not None
+    and maximum_static_pressure_residual <= pressure_tolerance_value
+    and maximum_pressure_residual is not None
+    and maximum_pressure_residual <= residual_tolerance_value
+    and maximum_tangent_residual is not None
+    and maximum_tangent_residual <= residual_tolerance_value
+  )
+  research_only_verified = bool(
+    (
+      boundary.status is (
+        MocReflectedDomainDownstreamBoundaryStatus.RESEARCH_COMPRESSION_ENVELOPE
+      )
+      and 'compression-envelope' in model
+    )
+    or (
+      boundary.status is (
+        MocReflectedDomainDownstreamBoundaryStatus.SOLVER_OWNED_MIXED_REGIME_PENDING
+      )
+      and 'compression-envelope' not in model
+    )
+  ) and not boundary.boundary_condition_verified and not boundary.mixed_regime_field_verified
+
+  common = dict(
+    boundary_status=boundary_status,
+    model=model,
+    ambient_pressure_Pa=ambient_pressure,
+    sample_count=sample_count,
+    segment_count=segment_count,
+    model_verified=model_verified,
+    status_verified=status_verified,
+    solver_owned_verified=solver_owned_verified,
+    sample_geometry_verified=sample_geometry_verified,
+    pressure_lineage_verified=pressure_lineage_verified,
+    tangent_lineage_verified=tangent_lineage_verified,
+    reported_residuals_verified=reported_residuals_verified,
+    research_only_verified=research_only_verified,
+    maximum_coordinate_residual_m=maximum_coordinate_residual,
+    maximum_static_pressure_residual_Pa=maximum_static_pressure_residual,
+    maximum_pressure_residual=maximum_pressure_residual,
+    maximum_tangent_residual=maximum_tangent_residual,
+  )
+  if not status_verified or not model_verified:
+    status = MocReflectedDomainDownstreamBoundaryMeasurementStatus.FIDELITY_FAILURE
+    message = 'downstream-boundary status and continuation-law identity failed measurement'
+  elif not sample_geometry_verified:
+    status = MocReflectedDomainDownstreamBoundaryMeasurementStatus.GEOMETRY_FAILURE
+    message = 'downstream-boundary sample geometry failed independent measurement'
+  elif not pressure_lineage_verified:
+    status = MocReflectedDomainDownstreamBoundaryMeasurementStatus.PRESSURE_FAILURE
+    message = 'downstream-boundary static-pressure or ambient-pressure lineage failed measurement'
+  elif not tangent_lineage_verified:
+    status = MocReflectedDomainDownstreamBoundaryMeasurementStatus.TANGENT_FAILURE
+    message = 'downstream-boundary streamline-tangent residual failed measurement'
+  elif not reported_residuals_verified:
+    status = MocReflectedDomainDownstreamBoundaryMeasurementStatus.RESIDUAL_FAILURE
+    message = 'downstream-boundary retained residual channels failed measurement'
+  elif not solver_owned_verified or not research_only_verified:
+    status = MocReflectedDomainDownstreamBoundaryMeasurementStatus.FIDELITY_FAILURE
+    message = 'downstream-boundary result weakened its solver-ownership or research-only boundary'
+  else:
+    status = MocReflectedDomainDownstreamBoundaryMeasurementStatus.CONVERGED
+    message = (
+      'typed downstream-boundary geometry, pressure lineage, and tangent '
+      'residuals passed; mixed-regime physical closure remains pending'
+    )
+  ####
+  return _reflected_domain_downstream_boundary_measurement_failure(
     status,
     message,
     **common,

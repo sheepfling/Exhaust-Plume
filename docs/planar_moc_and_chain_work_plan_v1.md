@@ -3478,3 +3478,10 @@ status relabel cannot make its closure flag pass.  This is an auditable solver
 handoff contract, not the missing physics itself: the canonical implementation
 must still solve the reflected/mixed-regime downstream field and then rerun
 the case and resolution ladders before production shock-cell fitting.
+
+The typed handoff is now independently auditable through
+``measure_moc_reflected_domain_downstream_boundary``.  That operator
+reconstructs the retained coordinate, pressure, ambient-pressure, and tangent
+residual channels and rejects altered sample data.  Its successful result is
+still explicitly research-only; the coupled mixed-regime field and all
+downstream promotion gates remain open work.

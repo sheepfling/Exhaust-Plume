@@ -301,3 +301,10 @@ even relabeling its status cannot satisfy the closure gate.  This gives the
 next canonical reflected/mixed-regime solver a concrete handoff contract while
 keeping the current research field and production fitter below the release
 boundary.
+
+The downstream-boundary contract now also has an independent measurement
+operator.  It rederives the point geometry, static pressure from total pressure
+and local Mach/gamma, ambient-pressure residuals, and streamline-tangent
+residuals from the retained samples.  A passing audit is recorded as
+research-boundary evidence only: it does not solve the missing mixed-regime
+field, authorize continued physical shock cells, or change the release gate.

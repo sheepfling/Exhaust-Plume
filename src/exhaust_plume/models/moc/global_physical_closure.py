@@ -401,6 +401,7 @@ class MocReflectedDomainDownstreamBoundaryResult:
   position_tolerance_m: float = 1.0e-9
   residual_tolerance: float = 1.0e-8
   message: str = ''
+  ambient_pressure_Pa: float | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -509,6 +510,15 @@ class MocReflectedDomainDownstreamBoundaryResult:
     object.__setattr__(self, 'pressure_residuals', pressure_residuals)
     object.__setattr__(self, 'tangent_residuals', tangent_residuals)
     object.__setattr__(self, 'coordinate_residuals_m', coordinate_residuals)
+    if self.ambient_pressure_Pa is not None:
+      ambient_pressure = float(self.ambient_pressure_Pa)
+      if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+        raise ValueError(
+          'ambient_pressure_Pa must be finite and positive when supplied'
+        )
+      ####
+      object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -644,6 +654,7 @@ class MocReflectedDomainDownstreamBoundaryResult:
       'maximum_tangent_residual': self.maximum_tangent_residual,
       'position_tolerance_m': self.position_tolerance_m,
       'residual_tolerance': self.residual_tolerance,
+      'ambient_pressure_Pa': self.ambient_pressure_Pa,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'message': self.message,
@@ -720,6 +731,7 @@ def _build_downstream_boundary_result(
     pressure_residuals=pressure_residuals,
     tangent_residuals=tangent_residuals,
     coordinate_residuals_m=coordinate_residuals,
+    ambient_pressure_Pa=boundary.ambient_pressure_Pa,
     solver_owned=True,
     boundary_condition_verified=False,
     mixed_regime_field_verified=False,
@@ -763,6 +775,11 @@ def moc_reflected_domain_global_physical_closure_fingerprint(
       None
       if closure.downstream_boundary is None
       else closure.downstream_boundary.as_report()
+    ),
+    'downstream_boundary_audit': (
+      None
+      if closure.downstream_boundary_audit is None
+      else closure.downstream_boundary_audit.as_report()
     ),
     'global_audit': (
       None if closure.global_audit is None else closure.global_audit.as_report()
@@ -818,6 +835,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
   message: str = ''
   promotion_evidence: MocReflectedDomainPromotionEvidence | None = None
   downstream_boundary: MocReflectedDomainDownstreamBoundaryResult | None = None
+  downstream_boundary_audit: Any | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalPhysicalClosureStatus):
@@ -1154,6 +1172,11 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
           if self.downstream_boundary is None
           else self.downstream_boundary.as_report()
         ),
+        'downstream_boundary_audit': (
+          None
+          if self.downstream_boundary_audit is None
+          else self.downstream_boundary_audit.as_report()
+        ),
         'downstream_boundary_model': self.downstream_boundary_model,
         'promotion_blockers': list(self.promotion_blockers),
         'promotion_evidence_bound': self.promotion_evidence_bound,
@@ -1182,6 +1205,11 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         None
         if self.downstream_boundary is None
         else self.downstream_boundary.as_report()
+      ),
+      'downstream_boundary_audit': (
+        None
+        if self.downstream_boundary_audit is None
+        else self.downstream_boundary_audit.as_report()
       ),
       'downstream_boundary_model': self.downstream_boundary_model,
       'promotion_blockers': list(self.promotion_blockers),
@@ -1222,6 +1250,7 @@ def _closure_result(
   maximum_entropy_lineage_residual: float | None = None,
   cell_euler_residuals_verified: bool = False,
   downstream_boundary: MocReflectedDomainDownstreamBoundaryResult | None = None,
+  downstream_boundary_audit: Any | None = None,
   message: str,
 ) -> MocReflectedDomainGlobalPhysicalClosureResult:
   return MocReflectedDomainGlobalPhysicalClosureResult(
@@ -1237,6 +1266,7 @@ def _closure_result(
     maximum_entropy_lineage_residual=maximum_entropy_lineage_residual,
     cell_euler_residuals_verified=cell_euler_residuals_verified,
     downstream_boundary=downstream_boundary,
+    downstream_boundary_audit=downstream_boundary_audit,
     message=message,
   )
 ####
@@ -1412,12 +1442,21 @@ def solve_reflected_domain_global_physical_closure(
       message=f'global Euler closure did not converge: {global_euler.message}',
     )
   ####
+  downstream_boundary_audit: Any | None = None
   try:
     from exhaust_plume.validation.moc_euler import measure_moc_euler_ambient_physical_field
     from exhaust_plume.validation.moc_measurements import (
+      measure_moc_reflected_domain_downstream_boundary,
       measure_moc_reflected_domain_global_euler_shock_boundary,
     )
 
+    downstream_boundary_audit = measure_moc_reflected_domain_downstream_boundary(
+      downstream_boundary,
+      position_tolerance_m=position_tolerance_m,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+      residual_tolerance=max(pressure_tolerance, tangent_tolerance),
+    )
     global_audit = measure_moc_reflected_domain_global_euler_shock_boundary(
       global_euler,
       position_tolerance_m=position_tolerance_m,
@@ -1444,7 +1483,24 @@ def solve_reflected_domain_global_physical_closure(
       source_frontier_verified=global_euler.source_frontier_verified,
       incoming_handoff_verified=global_euler.incoming_handoff_verified,
       downstream_boundary=downstream_boundary,
+      downstream_boundary_audit=downstream_boundary_audit,
       message=f'global physical closure independent audit raised: {error}',
+    )
+  ####
+  if downstream_boundary_audit is None or not downstream_boundary_audit.converged:
+    return _closure_result(
+      status_type.INDEPENDENT_AUDIT_FAILURE,
+      source_band,
+      global_remesh,
+      global_euler,
+      source_frontier_verified=global_euler.source_frontier_verified,
+      incoming_handoff_verified=global_euler.incoming_handoff_verified,
+      downstream_boundary=downstream_boundary,
+      downstream_boundary_audit=downstream_boundary_audit,
+      message=(
+        'global physical closure downstream-boundary audit failed: '
+        f'{"audit was not produced" if downstream_boundary_audit is None else downstream_boundary_audit.message}'
+      ),
     )
   ####
   entropy_verified, maximum_entropy_residual, entropy_message = (
@@ -1472,6 +1528,7 @@ def solve_reflected_domain_global_physical_closure(
     maximum_entropy_lineage_residual=maximum_entropy_residual,
     cell_euler_residuals_verified=cell_residuals_verified,
     downstream_boundary=downstream_boundary,
+    downstream_boundary_audit=downstream_boundary_audit,
     message=(
       'globally coupled exact-Euler shock, ambient, centerline, entropy, and '
       'cell-residual gates passed locally; canonical free-boundary, refinement, '
@@ -1501,6 +1558,7 @@ def solve_reflected_domain_global_physical_closure(
     maximum_entropy_lineage_residual=maximum_entropy_residual,
     cell_euler_residuals_verified=cell_residuals_verified,
     downstream_boundary=downstream_boundary,
+    downstream_boundary_audit=downstream_boundary_audit,
     message=(
       'global Euler field did not pass the coupled physical closure gates: '
       f'{entropy_message}'

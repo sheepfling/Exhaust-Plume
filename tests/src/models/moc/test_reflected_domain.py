@@ -75,6 +75,7 @@ from exhaust_plume.validation.moc_measurements import (
   MocReflectedDomainSolverOwnedFirstCellMeasurementStatus,
   MocReflectedDomainGlobalShockRemeshMeasurementStatus,
   MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus,
+  MocReflectedDomainDownstreamBoundaryMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
   measure_moc_reflected_domain_alternating_source,
@@ -84,6 +85,7 @@ from exhaust_plume.validation.moc_measurements import (
   measure_moc_reflected_domain_solver_owned_first_cell,
   measure_moc_reflected_domain_global_shock_remesh,
   measure_moc_reflected_domain_global_euler_shock_boundary,
+  measure_moc_reflected_domain_downstream_boundary,
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
 )
@@ -1239,6 +1241,48 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   assert downstream_boundary.solver_owned
   assert downstream_boundary.boundary_condition_verified is False
   assert downstream_boundary.mixed_regime_field_verified is False
+  assert closure.downstream_boundary_audit is not None
+  assert closure.downstream_boundary_audit.converged
+  assert closure.as_report()['downstream_boundary_audit']['converged'] is True
+  downstream_measurement = measure_moc_reflected_domain_downstream_boundary(
+    downstream_boundary,
+  )
+  assert downstream_measurement.status is (
+    MocReflectedDomainDownstreamBoundaryMeasurementStatus.CONVERGED
+  )
+  assert downstream_measurement.converged
+  assert downstream_measurement.model_verified
+  assert downstream_measurement.status_verified
+  assert downstream_measurement.solver_owned_verified
+  assert downstream_measurement.sample_geometry_verified
+  assert downstream_measurement.pressure_lineage_verified
+  assert downstream_measurement.tangent_lineage_verified
+  assert downstream_measurement.reported_residuals_verified
+  assert downstream_measurement.research_only_verified
+  assert downstream_measurement.physical_closure_verified is False
+  assert downstream_measurement.chain_promotion_blocked
+  assert downstream_measurement.production_claim_allowed is False
+  assert downstream_measurement.as_report()['operator_id'] == (
+    'op.moc.reflected-domain-downstream-boundary'
+  )
+  tampered_downstream_pressure = replace(
+    downstream_boundary,
+    boundary_static_pressure_Pa=tuple(
+      value * 1.001
+      for value in downstream_boundary.boundary_static_pressure_Pa
+    ),
+  )
+  tampered_pressure_measurement = (
+    measure_moc_reflected_domain_downstream_boundary(
+      tampered_downstream_pressure,
+    )
+  )
+  assert tampered_pressure_measurement.status is (
+    MocReflectedDomainDownstreamBoundaryMeasurementStatus.PRESSURE_FAILURE
+  )
+  assert tampered_pressure_measurement.converged is False
+  assert tampered_pressure_measurement.pressure_lineage_verified is False
+  assert tampered_pressure_measurement.physical_closure_verified is False
   assert any(
     blocker.startswith('solver-owned downstream boundary closure')
     for blocker in closure.promotion_blockers
