@@ -1915,6 +1915,29 @@ def _moc_visualization(
     diagnostics['coupled_euler_shape_iteration_count'] = int(
       getattr(source, 'shape_iteration_count', 0)
     )
+    pressure_budget = getattr(source, 'subsonic_pressure_budget', None)
+    if pressure_budget is not None:
+      budget_status = getattr(pressure_budget, 'status', '')
+      diagnostics['coupled_euler_subsonic_pressure_budget_status'] = str(
+        getattr(budget_status, 'value', budget_status)
+      )
+      diagnostics['coupled_euler_subsonic_pressure_budget_reachable'] = bool(
+        getattr(pressure_budget, 'reachable_without_additional_entropy', False)
+      )
+      for name in (
+        'target_static_pressure_Pa',
+        'reference_total_pressure_Pa',
+        'subsonic_static_pressure_lower_bound_Pa',
+        'subsonic_static_pressure_upper_bound_Pa',
+        'total_pressure_compatibility_ratio',
+        'minimum_additional_total_pressure_loss_fraction',
+      ):
+        value = getattr(pressure_budget, name, None)
+        if value is not None and isfinite(float(value)):
+          diagnostics[f'coupled_euler_pressure_budget_{name}'] = float(value)
+        ####
+      ####
+    ####
   ####
   diagnostics.update(solver_diagnostics)
   if isinstance(gates, Mapping):

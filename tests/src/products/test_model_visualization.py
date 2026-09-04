@@ -272,6 +272,16 @@ def _coupled_euler_result() -> SimpleNamespace:
     maximum_entropy_transport_residual=0.01,
     pseudo_iteration_count=12,
     shape_iteration_count=3,
+    subsonic_pressure_budget=SimpleNamespace(
+      status='below-isentropic-subsonic-pressure-bounds',
+      reachable_without_additional_entropy=False,
+      target_static_pressure_Pa=100_000.0,
+      reference_total_pressure_Pa=400_000.0,
+      subsonic_static_pressure_lower_bound_Pa=212_000.0,
+      subsonic_static_pressure_upper_bound_Pa=400_000.0,
+      total_pressure_compatibility_ratio=0.5,
+      minimum_additional_total_pressure_loss_fraction=0.5,
+    ),
   )
 ####
 
@@ -408,6 +418,13 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert channels['temperature'].values == pytest.approx((700.0, 680.0, 660.0))
   assert bundle.diagnostics['coupled_euler_free_boundary_condition_verified'] is False
   assert bundle.diagnostics['coupled_euler_maximum_conservative_euler_residual'] == pytest.approx(0.001)
+  assert bundle.diagnostics['coupled_euler_subsonic_pressure_budget_status'] == (
+    'below-isentropic-subsonic-pressure-bounds'
+  )
+  assert bundle.diagnostics['coupled_euler_subsonic_pressure_budget_reachable'] is False
+  assert bundle.diagnostics[
+    'coupled_euler_pressure_budget_minimum_additional_total_pressure_loss_fraction'
+  ] == pytest.approx(0.5)
   assert bundle.claims.production_claim_allowed is False
   assert any(
     'coupled-Euler/free-boundary channels are research diagnostics' in warning
