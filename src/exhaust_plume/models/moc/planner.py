@@ -14,7 +14,13 @@ from enum import Enum
 from hashlib import sha256
 from math import atan2, isfinite, tan
 from types import MappingProxyType
-from typing import Any, Callable, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Sequence
+
+if TYPE_CHECKING:
+  from exhaust_plume.validation.moc_measurements import (
+    MocMixedRegimeVariableEntropyFreeBoundaryMeasurement,
+  )
+####
 
 from exhaust_plume.models.moc.chain import (
   MocChainBoundaryKind,
@@ -3700,6 +3706,9 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
   mixed_regime_variable_entropy_reference: (
     MocMixedRegimeVariableEntropyFreeBoundaryResult | None
   ) = None
+  mixed_regime_variable_entropy_measurement: (
+    MocMixedRegimeVariableEntropyFreeBoundaryMeasurement | None
+  ) = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.chain_planner, MocChainPlannerResult):
@@ -3784,6 +3793,35 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
             'transition seam'
           )
         ####
+      ####
+    ####
+    if self.mixed_regime_variable_entropy_measurement is not None:
+      from exhaust_plume.validation.moc_measurements import (
+        MocMixedRegimeVariableEntropyFreeBoundaryMeasurement,
+      )
+
+      if not isinstance(
+        self.mixed_regime_variable_entropy_measurement,
+        MocMixedRegimeVariableEntropyFreeBoundaryMeasurement,
+      ):
+        raise TypeError(
+          'mixed_regime_variable_entropy_measurement must be a '
+          'MocMixedRegimeVariableEntropyFreeBoundaryMeasurement or None'
+        )
+      ####
+      if self.mixed_regime_variable_entropy_reference is None:
+        raise ValueError(
+          'mixed_regime_variable_entropy_measurement requires a '
+          'variable-entropy reference'
+        )
+      ####
+      if self.mixed_regime_variable_entropy_measurement.reference != (
+        self.mixed_regime_variable_entropy_reference
+      ):
+        raise ValueError(
+          'mixed_regime_variable_entropy_measurement must retain the exact '
+          'variable-entropy reference'
+        )
       ####
     ####
     if self.mixed_regime_planar_handoff is not None:
@@ -3921,9 +3959,8 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
     return bool(
       self.mixed_regime_variable_entropy_reference is not None
       and self.mixed_regime_variable_entropy_reference.converged
-      and self.diagnostics.get(
-        'variable_entropy_reference_audit_accepted'
-      ) is True
+      and self.mixed_regime_variable_entropy_measurement is not None
+      and self.mixed_regime_variable_entropy_measurement.reference_verified
     )
   ####
 
@@ -4031,6 +4068,11 @@ class MocPhysicalPostShockTerminalPatchPlannerResult:
       ),
       'mixed_regime_variable_entropy_reference_verified': (
         self.mixed_regime_variable_entropy_reference_verified
+      ),
+      'mixed_regime_variable_entropy_measurement': (
+        None
+        if self.mixed_regime_variable_entropy_measurement is None
+        else self.mixed_regime_variable_entropy_measurement.as_report()
       ),
       'mixed_regime_planar_handoff': (
         None
@@ -24269,6 +24311,7 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
   mixed_regime_variable_entropy_reference: (
     MocMixedRegimeVariableEntropyFreeBoundaryResult | None
   ) = None
+  mixed_regime_variable_entropy_measurement = None
   variable_entropy_control_section: MocMixedRegimeControlSection | None = None
   mixed_regime_entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None
   diagnostics: dict[str, Any] = {
@@ -24619,6 +24662,7 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
           diagnostics['variable_entropy_reference_audit_accepted'] = (
             variable_entropy_reference_audit_accepted
           )
+          mixed_regime_variable_entropy_measurement = variable_entropy_measurement
         ####
       ####
       if (
@@ -24706,6 +24750,9 @@ def plan_ambient_closed_post_shock_chain_terminal_patch_with_mixed_regime(
     mixed_regime_entropy_transport=mixed_regime_entropy_transport,
     mixed_regime_variable_entropy_reference=(
       mixed_regime_variable_entropy_reference
+    ),
+    mixed_regime_variable_entropy_measurement=(
+      mixed_regime_variable_entropy_measurement
     ),
   )
 ####

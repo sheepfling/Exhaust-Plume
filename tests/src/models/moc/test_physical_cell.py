@@ -989,6 +989,12 @@ def test_continued_chain_planner_runs_variable_entropy_terminal_reference() -> N
   assert reference.physical_closure_verified is False
   assert reference.chain_promotion_blocked
   assert reference.production_claim_allowed is False
+  measurement = (
+    planner.terminal_planner.mixed_regime_variable_entropy_measurement
+  )
+  assert measurement is not None
+  assert measurement.reference is reference
+  assert measurement.reference_verified
   assert reference.control_section.source.endswith('-control-section')
   assert planner.terminal_planner.diagnostics[
     'mixed_regime_solver_mode'
@@ -999,8 +1005,21 @@ def test_continued_chain_planner_runs_variable_entropy_terminal_reference() -> N
   assert planner.terminal_planner.diagnostics[
     'terminal_closure_audit_accepted'
   ] is False
+  assert planner.terminal_planner.as_report()[
+    'mixed_regime_variable_entropy_measurement'
+  ]['reference_verified'] is True
   assert planner.chain_promotion_blocked
   assert planner.production_claim_allowed is False
+
+  with pytest.raises(ValueError, match='exact variable-entropy reference'):
+    replace(
+      planner.terminal_planner,
+      mixed_regime_variable_entropy_measurement=replace(
+        measurement,
+        reference=replace(reference, message='tampered'),
+      ),
+    )
+  ####
 ####
 
 

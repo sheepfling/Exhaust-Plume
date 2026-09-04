@@ -3485,3 +3485,20 @@ reconstructs the retained coordinate, pressure, ambient-pressure, and tangent
 residual channels and rejects altered sample data.  Its successful result is
 still explicitly research-only; the coupled mixed-regime field and all
 downstream promotion gates remain open work.
+
+## Typed variable-entropy audit checkpoint
+
+The terminal-patch planner now retains the independent variable-entropy
+free-boundary measurement as a typed field beside the solver reference rather
+than only serializing it inside a diagnostics mapping.  The planner validates
+that the measurement points to the exact reference instance it audited, and
+its verification property requires the measurement operator's complete local
+gate set.  Reports include the full measurement record for downstream
+reviewers and case-ladder tooling.
+
+This is evidence plumbing for `P2.1`, not a canonical closure result.  The
+variable-entropy reference still uses a mapped stream-tube model, keeps
+``physical_closure_verified=false``, blocks chain promotion, and cannot seed a
+production shock cell.  The next physics step remains a coupled reflected
+2-D Euler/free-boundary solver with refinement and accepted external
+measurement evidence.
