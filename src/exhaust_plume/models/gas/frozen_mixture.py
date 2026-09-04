@@ -11,6 +11,10 @@ from exhaust_plume.models.gas.contracts import GasModelKind, SpeciesMassFraction
 from exhaust_plume.util.physical_constants import R_GAS_CONSTANT
 
 
+_STATE_NORMALIZATION_TOLERANCE = 1.0e-10
+_STATE_RELATIVE_TOLERANCE = 1.0e-9
+
+
 class SpecificHeatTable(BaseModel):
   """Piecewise-linear positive ``c_p(T)`` data for one species."""
 
@@ -232,6 +236,7 @@ class FrozenMixtureState(BaseModel):
 
   model_config = ConfigDict(frozen=True, extra='forbid', allow_inf_nan=False)
 
+  model_kind: GasModelKind = GasModelKind.FROZEN_MIXTURE
   mixture_id: str = Field(min_length=1)
   temperature_K: float = Field(gt=0.0)
   pressure_Pa: float = Field(gt=0.0)
@@ -244,6 +249,91 @@ class FrozenMixtureState(BaseModel):
   cv_JpkgK: float = Field(gt=0.0)
   gamma: float = Field(gt=1.0)
   specific_enthalpy_Jpkg: float
+
+  @model_validator(mode='after')
+  def validate_state(self) -> FrozenMixtureState:
+    if self.model_kind is not GasModelKind.FROZEN_MIXTURE:
+      raise ValueError('FrozenMixtureState model_kind must be frozen-mixture')
+    ####
+    mass_names = tuple(item.species for item in self.species_mass_fractions)
+    mole_names = tuple(item.species for item in self.species_mole_fractions)
+    if len(mass_names) != len(set(mass_names)):
+      raise ValueError('species_mass_fractions must not contain duplicate species')
+    ####
+    if mass_names != mole_names:
+      raise ValueError(
+        'species mass and mole fractions must contain the same species in order'
+      )
+    ####
+    mass_total = sum(item.mass_fraction for item in self.species_mass_fractions)
+    mole_total = sum(item.mole_fraction for item in self.species_mole_fractions)
+    if abs(mass_total - 1.0) > _STATE_NORMALIZATION_TOLERANCE:
+      raise ValueError(f'species mass fractions must sum to one; got {mass_total}')
+    ####
+    if abs(mole_total - 1.0) > _STATE_NORMALIZATION_TOLERANCE:
+      raise ValueError(f'species mole fractions must sum to one; got {mole_total}')
+    ####
+    heat_capacity_scale = max(
+      abs(self.cp_JpkgK),
+      abs(self.cv_JpkgK),
+      abs(self.specific_gas_constant_JpkgK),
+      1.0,
+    )
+    if abs((self.cp_JpkgK - self.cv_JpkgK) - self.specific_gas_constant_JpkgK) > (
+      _STATE_RELATIVE_TOLERANCE * heat_capacity_scale
+    ):
+      raise ValueError('state heat capacities must satisfy cp - cv = R')
+    ####
+    expected_gamma = self.cp_JpkgK / self.cv_JpkgK
+    if abs(self.gamma - expected_gamma) > (
+      _STATE_RELATIVE_TOLERANCE * max(abs(self.gamma), abs(expected_gamma), 1.0)
+    ):
+      raise ValueError('state gamma must satisfy gamma = cp / cv')
+    ####
+    expected_pressure = (
+      self.density_kg_per_m3
+      * self.specific_gas_constant_JpkgK
+      * self.temperature_K
+    )
+    if abs(self.pressure_Pa - expected_pressure) > (
+      _STATE_RELATIVE_TOLERANCE * max(abs(self.pressure_Pa), abs(expected_pressure), 1.0)
+    ):
+      raise ValueError('state pressure must satisfy the ideal-gas identity')
+    ####
+    return self
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    """Return validated state values and source-bound claim metadata."""
+
+    return {
+      'model_kind': self.model_kind.value,
+      'thermochemistry_model': 'chem-0-explicit-frozen-mixture-v1',
+      'mixture_id': self.mixture_id,
+      'temperature_K': self.temperature_K,
+      'pressure_Pa': self.pressure_Pa,
+      'density_kg_per_m3': self.density_kg_per_m3,
+      'species_mass_fractions': tuple(
+        (item.species, item.mass_fraction) for item in self.species_mass_fractions
+      ),
+      'species_mole_fractions': tuple(
+        (item.species, item.mole_fraction) for item in self.species_mole_fractions
+      ),
+      'molecular_weight_kg_per_mol': self.molecular_weight_kg_per_mol,
+      'specific_gas_constant_JpkgK': self.specific_gas_constant_JpkgK,
+      'cp_JpkgK': self.cp_JpkgK,
+      'cv_JpkgK': self.cv_JpkgK,
+      'gamma': self.gamma,
+      'specific_enthalpy_Jpkg': self.specific_enthalpy_Jpkg,
+      'reactions_enabled': False,
+      'state_validation': 'normalized-composition-and-ideal-gas-identities-verified',
+      'claim_ceiling': (
+        'research-only thermochemical source state; no reactions, populations, '
+        'spectroscopy, or external validation'
+      ),
+      'production_claim_allowed': False,
+    }
+  ####
 ####
 
 
@@ -477,6 +567,7 @@ class FrozenMixtureGas(BaseModel):
     cv = self.cv_JpkgK(temperature_K)
     return FrozenMixtureState(
         mixture_id=self.mixture_id,
+        model_kind=GasModelKind.FROZEN_MIXTURE,
         temperature_K=temperature_K,
         pressure_Pa=pressure_Pa,
         density_kg_per_m3=density,

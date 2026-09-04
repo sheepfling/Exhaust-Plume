@@ -279,6 +279,8 @@ claim is authorized.
 - [x] Give CHEM-0 its own focused `thermochemistry-chem0-v1` test lane so
       its evidence cannot be conflated with shared gas contracts or
       downstream Signature claims.
+- [x] Validate retained CHEM-0 states for normalized composition and ideal-gas
+      identities before they can provide Signature source provenance.
 - [x] Bind the coupled pressure-budget seam to an independently audited
       scalar transonic/normal-shock pressure reference; keep 2-D placement,
       mixed-regime closure, and chain promotion blocked.

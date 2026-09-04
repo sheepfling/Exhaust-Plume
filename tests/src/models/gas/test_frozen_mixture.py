@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from exhaust_plume.models.gas import (
   FrozenMixtureGas,
+  FrozenMixtureState,
   SpecificHeatTable,
   SpeciesDefinition,
   SpeciesMassFraction,
@@ -80,6 +81,7 @@ def test_constant_cp_frozen_mixture_derives_thermodynamic_state() -> None:
   assert state.species_mole_fractions == mixture.species_mole_fractions
   assert state.specific_enthalpy_Jpkg == pytest.approx(enthalpy)
   assert state.gamma == pytest.approx(mixture.gamma(temperature))
+  assert state.as_report()['state_validation'] == 'normalized-composition-and-ideal-gas-identities-verified'
 ####
 
 
@@ -160,4 +162,19 @@ def test_mole_basis_constructor_retains_explicit_chem0_report() -> None:
   assert report['production_claim_allowed'] is False
   assert tuple(item.species for item in mixture.species_mole_fractions) == ('nitrogen', 'oxygen')
   assert tuple(item.mole_fraction for item in mixture.species_mole_fractions) == pytest.approx((0.5, 0.5))
+####
+
+
+def test_frozen_mixture_state_rejects_tampered_thermodynamic_identity() -> None:
+  mixture = FrozenMixtureGas(
+      species=_constant_species(),
+      species_mass_fractions=_mass_fractions(),
+      valid_temperature_range_K=(250.0, 2000.0),
+  )
+  payload = mixture.state_at(180000.0, 1200.0).model_dump()
+  payload['pressure_Pa'] = 181000.0
+
+  with pytest.raises(ValidationError, match='ideal-gas identity'):
+    FrozenMixtureState(**payload)
+  ####
 ####
