@@ -16,6 +16,7 @@ overlaps, and is checked by CI.
 ```bash
 python3 -m scripts.test_lanes --list
 python3 -m scripts.test_lanes --lane mission-time-v1
+python3 -m scripts.test_lanes --lane thermochemistry-chem0-v1
 python3 -m scripts.test_lanes --lane visual-product-v1 --lane signature-product-v1
 python3 -m scripts.test_lanes --lane planar-moc-primitives-v1 -- -x
 python3 -m scripts.test_lanes --check
@@ -32,6 +33,7 @@ python3 -m pytest -q
 | Lane | Focus | Must not be interpreted as |
 | --- | --- | --- |
 | `shared-contracts-v1` | API, contract, geometry, utility, and lifecycle invariants | Validation of a particular flow, radiation, or detector lane |
+| `thermochemistry-chem0-v1` | CHEM-0 frozen-mixture properties, composition conversion, and state provenance | Reaction closure, molecular-population inference, validated radiation, or production thermochemistry |
 | `shock-cell-basic-v1` | Fast steady shock-cell and straight visual behavior | Signature, ray-transfer, detector, or high-fidelity promotion |
 | `shock-cell-reduced-order-v1` | Resolved-first-cell plus reduced-order shock-train continuation | Downstream resolved-MOC evidence |
 | `straight-integral-v1` | Straight integral conservation and domain behavior | Radiation or detector evidence |

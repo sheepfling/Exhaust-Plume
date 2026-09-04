@@ -276,6 +276,9 @@ claim is authorized.
 - [x] Add an isolated CHEM-0 frozen-mixture property/state contract with
       constant/tabulated heat capacity and composition conversion tests;
       keep it source-bound and production claims blocked.
+- [x] Give CHEM-0 its own focused `thermochemistry-chem0-v1` test lane so
+      its evidence cannot be conflated with shared gas contracts or
+      downstream Signature claims.
 - [x] Bind the coupled pressure-budget seam to an independently audited
       scalar transonic/normal-shock pressure reference; keep 2-D placement,
       mixed-regime closure, and chain promotion blocked.

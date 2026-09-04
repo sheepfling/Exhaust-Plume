@@ -45,7 +45,7 @@ TEST_LANES = (
             "tests/src/geometry/test_*.py",
             "tests/src/log/test_*.py",
             "tests/src/util/**/test_*.py",
-            "tests/src/models/gas/test_*.py",
+            "tests/src/models/gas/test_calorically_perfect.py",
             "tests/src/models/nozzle/test_*.py",
             "tests/src/products/test_cli_mvp.py",
             "tests/src/products/test_product_contracts.py",
@@ -55,6 +55,12 @@ TEST_LANES = (
             "tests/src/providers/test_provider_alignment.py",
             "tests/src/providers/test_provider_lifecycle.py",
         ),
+    ),
+    TestLane(
+        lane_id="thermochemistry-chem0-v1",
+        purpose="CHEM-0 frozen-mixture properties, composition conversion, and state provenance.",
+        claim_boundary="Research-only thermochemical source evidence; no reaction, population, radiation, or production claim.",
+        patterns=("tests/src/models/gas/test_frozen_mixture.py",),
     ),
     TestLane(
         lane_id="shock-cell-basic-v1",
