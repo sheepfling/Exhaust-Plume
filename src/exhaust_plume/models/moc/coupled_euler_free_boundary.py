@@ -31,8 +31,10 @@ from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRequest,
 )
 from exhaust_plume.models.moc.transonic_transition import (
+  MocTransonicTransitionAudit,
   MocTransonicTransitionRequest,
   MocTransonicTransitionResult,
+  measure_moc_transonic_transition,
   solve_moc_transonic_transition,
 )
 
@@ -406,6 +408,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   subsonic_pressure_budget: (
     MocReflectedDomainCoupledEulerSubsonicPressureBudget | None
   ) = None
+  transonic_transition: MocTransonicTransitionResult | None = None
+  transonic_transition_audit: MocTransonicTransitionAudit | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -508,6 +512,31 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       raise TypeError(
         'subsonic_pressure_budget must be a '
         'MocReflectedDomainCoupledEulerSubsonicPressureBudget or None'
+      )
+    ####
+    if self.transonic_transition is not None and not isinstance(
+      self.transonic_transition,
+      MocTransonicTransitionResult,
+    ):
+      raise TypeError(
+        'transonic_transition must be a MocTransonicTransitionResult or None'
+      )
+    ####
+    if self.transonic_transition_audit is not None and not isinstance(
+      self.transonic_transition_audit,
+      MocTransonicTransitionAudit,
+    ):
+      raise TypeError(
+        'transonic_transition_audit must be a MocTransonicTransitionAudit or None'
+      )
+    ####
+    if (
+      self.transonic_transition is None
+    ) != (
+      self.transonic_transition_audit is None
+    ):
+      raise ValueError(
+        'transonic_transition and transonic_transition_audit must be supplied together'
       )
     ####
     for name in (
@@ -627,6 +656,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'external_validation_verified': self.external_validation_verified,
         'chain_promotion_blocked': self.chain_promotion_blocked,
         'production_claim_allowed': self.production_claim_allowed,
+        'transonic_transition': (
+          None
+          if self.transonic_transition is None
+          else self.transonic_transition.as_report()
+        ),
+        'transonic_transition_audit': (
+          None
+          if self.transonic_transition_audit is None
+          else self.transonic_transition_audit.as_report()
+        ),
       },
     )
   ####
@@ -713,6 +752,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         None
         if self.subsonic_pressure_budget is None
         else self.subsonic_pressure_budget.as_report()
+      ),
+      'transonic_transition': (
+        None
+        if self.transonic_transition is None
+        else self.transonic_transition.as_report()
+      ),
+      'transonic_transition_audit': (
+        None
+        if self.transonic_transition_audit is None
+        else self.transonic_transition_audit.as_report()
       ),
       'request': None if self.request is None else self.request.as_report(),
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
@@ -1593,6 +1642,12 @@ def _result_from_field(
   pressure_budget = (
     assess_reflected_domain_coupled_euler_subsonic_pressure_budget(request)
   )
+  transonic_transition = assess_reflected_domain_coupled_euler_transonic_transition(
+    request
+  )
+  transonic_transition_audit = measure_moc_transonic_transition(
+    transonic_transition
+  )
   channel_coverage = {name: True for name in _CHANNEL_NAMES}
   return MocReflectedDomainCoupledEulerFreeBoundaryResult(
     status=status,
@@ -1655,6 +1710,8 @@ def _result_from_field(
       for index in np.ndindex(corners.shape[:2])
     ),
     subsonic_pressure_budget=pressure_budget,
+    transonic_transition=transonic_transition,
+    transonic_transition_audit=transonic_transition_audit,
     **flattened,
   )
 ####

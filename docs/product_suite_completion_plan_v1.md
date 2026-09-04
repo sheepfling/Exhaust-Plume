@@ -284,6 +284,8 @@ claim is authorized.
 - [x] Bind the coupled pressure-budget seam to an independently audited
       scalar transonic/normal-shock pressure reference; keep 2-D placement,
       mixed-regime closure, and chain promotion blocked.
+- [x] Retain the scalar transition and its audit in every coupled-field result
+      so the actual global pressure seam is part of the verified lineage.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.

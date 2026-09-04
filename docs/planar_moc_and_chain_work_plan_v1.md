@@ -3593,3 +3593,19 @@ does not replace the canonical reflected free-boundary/Euler closure, refine
 the production shock-cell fit, or authorize any product claim.  The next
 physics seam is a solver-owned continued supersonic/mixed-regime closure with
 its own independent audit and cross-case evidence.
+
+## Retained transonic-transition lineage checkpoint
+
+The coupled constant-gamma research result now retains the scalar
+transonic/normal-shock pressure reference that is derived from its actual
+outer control-section sample.  The result also retains the independent scalar
+audit, and the coupled-field audit verifies the exact control-section binding,
+transition request, scalar invariants, and audit values.  A mutation of the
+transition evidence therefore fails as a typed transition-audit failure
+instead of remaining a disconnected diagnostic.
+
+This closes the evidence-lineage seam only.  The scalar reference still does
+not place a shock in the 2-D mesh, transport entropy through the mixed-regime
+field, close the free boundary, or create a physical ``MocChainCell``.  The
+canonical field, resolution ladder, accepted physical shock lengths, and
+external product validation remain required before any production promotion.

@@ -1691,6 +1691,15 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert result.as_report()['subsonic_pressure_budget']['status'] == (
     'below-isentropic-subsonic-pressure-bounds'
   )
+  assert result.transonic_transition is not None
+  assert result.transonic_transition.status is (
+    MocTransonicTransitionStatus.CONVERGED_NORMAL_SHOCK_REFERENCE
+  )
+  assert result.transonic_transition_audit is not None
+  assert result.transonic_transition_audit.converged
+  assert result.as_report()['transonic_transition']['status'] == (
+    'converged-normal-shock-pressure-reference'
+  )
   transition = assess_reflected_domain_coupled_euler_transonic_transition(
     coupled_request
   )
@@ -1739,6 +1748,17 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.PRESSURE_BUDGET_FAILURE
   )
   assert not pressure_budget_audit.pressure_budget_verified
+  tampered_transition = replace(
+    result.transonic_transition,
+    downstream_static_pressure_Pa=result.transonic_transition.downstream_static_pressure_Pa * 1.01,
+  )
+  transition_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(result, transonic_transition=tampered_transition)
+  )
+  assert transition_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
+  )
+  assert not transition_audit.transonic_transition_verified
   tampered_vertices = list(result.cell_vertices_by_cell_m)
   tampered_vertices[0] = (
     (tampered_vertices[0][0][0] + 1.0e-3, tampered_vertices[0][0][1]),
@@ -1811,6 +1831,12 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
     MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus
     .WITHIN_ISENTROPIC_SUBSONIC_BOUNDS
   )
+  assert result.transonic_transition is not None
+  assert result.transonic_transition.status is (
+    MocTransonicTransitionStatus.TARGET_REACHABLE_WITHOUT_SHOCK
+  )
+  assert result.transonic_transition_audit is not None
+  assert result.transonic_transition_audit.converged
   direct_budget = assess_reflected_domain_coupled_euler_subsonic_pressure_budget(
     coupled_request
   )

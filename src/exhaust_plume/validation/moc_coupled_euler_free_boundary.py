@@ -21,6 +21,13 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerSubsonicPressureBudget,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
 )
+from exhaust_plume.models.moc.transonic_transition import (
+  MocTransonicTransitionAudit,
+  MocTransonicTransitionAuditStatus,
+  MocTransonicTransitionRequest,
+  MocTransonicTransitionResult,
+  measure_moc_transonic_transition,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_AUDIT_OPERATOR_ID',
@@ -50,6 +57,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   ENTROPY_FAILURE = 'coupled-euler-audit-entropy-failure'
   BOUNDARY_FAILURE = 'coupled-euler-audit-boundary-failure'
   PRESSURE_BUDGET_FAILURE = 'coupled-euler-audit-pressure-budget-failure'
+  TRANSONIC_TRANSITION_FAILURE = 'coupled-euler-audit-transonic-transition-failure'
   FLAG_FAILURE = 'coupled-euler-audit-promotion-flag-failure'
 ####
 
@@ -81,6 +89,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   residual_report_verified: bool = False
   free_boundary_report_verified: bool = False
   pressure_budget_verified: bool = False
+  transonic_transition_verified: bool = False
   entropy_transport_verified: bool = False
   promotion_flags_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -147,6 +156,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_channels_recomputed',
       'residual_report_verified',
       'free_boundary_report_verified',
+      'transonic_transition_verified',
       'entropy_transport_verified',
       'promotion_flags_verified',
       'chain_promotion_blocked',
@@ -187,6 +197,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.residual_report_verified
       and self.free_boundary_report_verified
       and self.pressure_budget_verified
+      and self.transonic_transition_verified
       and self.entropy_transport_verified
       and self.promotion_flags_verified
       and self.chain_promotion_blocked
@@ -234,6 +245,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_report_verified': self.residual_report_verified,
       'free_boundary_report_verified': self.free_boundary_report_verified,
       'pressure_budget_verified': self.pressure_budget_verified,
+      'transonic_transition_verified': self.transonic_transition_verified,
       'entropy_transport_verified': self.entropy_transport_verified,
       'promotion_flags_verified': self.promotion_flags_verified,
       'physical_closure_verified': self.physical_closure_verified,
@@ -555,6 +567,66 @@ def _rederive_subsonic_pressure_budget(
     ),
     'source': 'derived-outer-control-section-isentropic-pressure-budget',
   }
+####
+
+
+def _audit_transonic_transition(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> bool:
+  """Verify the retained scalar transition is bound to the control section."""
+
+  request = candidate.request
+  transition = candidate.transonic_transition
+  transition_audit = candidate.transonic_transition_audit
+  if request is None or not isinstance(transition, MocTransonicTransitionResult):
+    return False
+  ####
+  if not isinstance(transition_audit, MocTransonicTransitionAudit):
+    return False
+  ####
+  sample = request.mixed_regime_request.control_section.samples[-1]
+  try:
+    expected_request = MocTransonicTransitionRequest(
+      upstream_total_pressure_Pa=float(sample.total_pressure_Pa),
+      target_downstream_static_pressure_Pa=(
+        float(request.mixed_regime_request.ambient_pressure_Pa)
+      ),
+      gamma=float(sample.gamma),
+      gas_constant_J_kgK=request.gas_constant_J_kgK,
+    )
+  except (TypeError, ValueError):
+    return False
+  ####
+  if transition.request != expected_request:
+    return False
+  ####
+  expected_audit = measure_moc_transonic_transition(transition)
+
+  def optional_close(reported: float | None, expected: float | None) -> bool:
+    if reported is None or expected is None:
+      return reported is None and expected is None
+    ####
+    return bool(np.isclose(reported, expected, rtol=3.0e-6, atol=1.0e-10))
+  ####
+
+  return bool(
+    expected_audit.status is MocTransonicTransitionAuditStatus.VERIFIED
+    and transition_audit.status is expected_audit.status
+    and transition_audit.result_status is expected_audit.result_status
+    and transition_audit.rederived == expected_audit.rederived
+    and optional_close(
+      transition_audit.pressure_residual_Pa,
+      expected_audit.pressure_residual_Pa,
+    )
+    and optional_close(
+      transition_audit.mach_residual,
+      expected_audit.mach_residual,
+    )
+    and optional_close(
+      transition_audit.total_pressure_residual,
+      expected_audit.total_pressure_residual,
+    )
+  )
 ####
 
 
@@ -962,6 +1034,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       )
     )
   )
+  transonic_transition_verified = _audit_transonic_transition(candidate)
   maxima = tuple(float(np.max(recomputed[..., index])) for index in range(_CHANNEL_COUNT))
   residuals_verified = maxima[4] <= candidate.request.euler_residual_tolerance
   pressure = np.asarray(raw['top_pressure'], dtype=float)
@@ -1003,6 +1076,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not pressure_budget_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.PRESSURE_BUDGET_FAILURE
     message = 'candidate subsonic pressure-budget diagnostic does not match the request'
+  elif not transonic_transition_verified:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
+    message = 'candidate scalar transonic transition evidence does not match the control section'
   elif not boundary_report_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
     message = 'candidate free-boundary diagnostic arrays do not match the field'
@@ -1045,6 +1121,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     residual_report_verified=report_verified and residuals_verified,
     free_boundary_report_verified=boundary_report_verified,
     pressure_budget_verified=pressure_budget_verified,
+    transonic_transition_verified=transonic_transition_verified,
     entropy_transport_verified=bool(raw['entropy_verified']),
     promotion_flags_verified=promotion_flags_verified,
     chain_promotion_blocked=True,

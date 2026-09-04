@@ -38,7 +38,11 @@ For the open P2 mixed-regime seam, the coupled request now also exposes an
 independently audited scalar transonic/normal-shock pressure reference. It
 quantifies the supersonic pre-shock Mach and total-pressure loss needed to
 reach a target below the isentropic subsonic bound, but it does not place a
-transition in the 2-D mesh or promote a physical shock cell.
+transition in the 2-D mesh or promote a physical shock cell.  The coupled
+field result now retains both that transition reference and its scalar audit;
+the independent coupled-field audit checks their exact control-section
+lineage.  This improves traceability without changing the research-only claim
+ceiling.
 
 The cross-product operator evidence is recorded in
 [`ray_signature_consistency_v1.json`](ray_signature_consistency_v1.json). It
