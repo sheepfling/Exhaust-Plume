@@ -317,6 +317,13 @@ from exhaust_plume.models.moc.global_physical_closure import (
   fit_reflected_domain_production_shock_cell,
   fit_production_shock_cell_from_frontier,
 )
+from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
+  MocReflectedDomainMixedRegimeBoundaryStatus,
+  MocReflectedDomainMixedRegimeBoundaryRequest,
+  MocReflectedDomainMixedRegimeBoundaryResult,
+  build_reflected_domain_mixed_regime_boundary_request,
+  solve_reflected_domain_mixed_regime_boundary,
+)
 from exhaust_plume.models.moc.family_band_solver import (
   MocCausticFamilyBandEnvelopeResult,
   MocCausticFamilyBandEnvelopeStatus,
@@ -1007,6 +1014,11 @@ __all__ = (
   'MocProductionShockCellFitResult',
   'fit_reflected_domain_production_shock_cell',
   'fit_production_shock_cell_from_frontier',
+  'MocReflectedDomainMixedRegimeBoundaryStatus',
+  'MocReflectedDomainMixedRegimeBoundaryRequest',
+  'MocReflectedDomainMixedRegimeBoundaryResult',
+  'build_reflected_domain_mixed_regime_boundary_request',
+  'solve_reflected_domain_mixed_regime_boundary',
   'MocCausticFamilyBandShockResult',
   'MocCausticFamilyBandShockStatus',
   'MocCausticFamilyBandInvariantShockResult',

@@ -24,6 +24,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalPhysicalClosureStatus,
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainDownstreamBoundaryStatus,
+  MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
   MocProductionShockCellFitStatus,
   MocGlobalEulerContinuedChainReference,
@@ -33,6 +34,7 @@ from exhaust_plume.models.moc import (
   MocSourceStripContinuationStatus,
   MocTerminalReflectionPatchAmbientClosureChainReference,
   assemble_terminal_trace_centerline_patch,
+  build_reflected_domain_mixed_regime_boundary_request,
   build_reflected_domain_remesh_request_from_outer_source,
   inverse_prandtl_meyer_angle_rad,
   plan_reflected_domain_remesh_ambient_closed_chain,
@@ -55,6 +57,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_shock_remesh,
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
+  solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   moc_reflected_domain_global_physical_closure_fingerprint,
   solve_reflected_domain_outer_source_curve,
@@ -88,6 +91,10 @@ from exhaust_plume.validation.moc_measurements import (
   measure_moc_reflected_domain_downstream_boundary,
   measure_moc_reflected_domain_outer_source_curve,
   measure_moc_reflected_domain_remesh,
+)
+from exhaust_plume.validation.moc_reflected_domain_mixed_regime import (
+  MocReflectedDomainMixedRegimeBoundaryMeasurementStatus,
+  measure_reflected_domain_mixed_regime_boundary,
 )
 from exhaust_plume.validation.moc_reflected_domain_refinement import (
   MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
@@ -243,6 +250,28 @@ def _handoff(field):
       field.centerline_boundary_total_pressure_Pa,
       strict=True,
     )
+  )
+####
+
+
+def _global_physical_closure_for_mixed_regime():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  return solve_reflected_domain_global_physical_closure(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
   )
 ####
 
@@ -1387,6 +1416,140 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   ] is False
   assert fully_evidenced_fit.production_claim_allowed is False
   assert fully_evidenced_fit.chain_promotion_blocked
+####
+
+
+def test_global_mixed_regime_boundary_reference_is_bound_and_measured():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  assert request.upstream_handoff == closure.incoming_handoff
+  assert len(request.perimeter_request.supersonic_patch) == 7
+
+  reference_ambient_pressure = (
+    0.98 * request.entropy_handoff.samples[0].downstream_total_pressure_Pa
+  )
+  request = replace(
+    request,
+    ambient_pressure_Pa=reference_ambient_pressure,
+  )
+  candidate = solve_reflected_domain_mixed_regime_boundary(request)
+
+  assert candidate.status is (
+    MocReflectedDomainMixedRegimeBoundaryStatus.CONVERGED_RESEARCH_REFERENCE
+  )
+  assert candidate.converged
+  assert candidate.reference_verified
+  assert candidate.solver_owned_reference_verified
+  assert candidate.upstream_handoff_verified
+  assert candidate.terminal_seam_verified
+  assert candidate.boundary_condition_verified
+  assert candidate.geometry_verified
+  assert candidate.pressure_lineage_verified
+  assert candidate.entropy_transport_verified
+  assert candidate.tangency_verified
+  assert candidate.conservative_euler_residuals_measured
+  assert candidate.conservative_euler_residuals_verified
+  assert candidate.residual_channel_coverage == {
+    'mass': True,
+    'streamwise_momentum': True,
+    'transverse_momentum': True,
+    'energy': True,
+    'euler': True,
+  }
+  assert candidate.residual_channel_validity == candidate.residual_channel_coverage
+  assert candidate.mixed_regime_field_verified is False
+  assert candidate.physical_closure_verified is False
+  assert candidate.downstream_boundary_closure_verified is False
+  assert candidate.chain_promotion_blocked
+  assert candidate.production_claim_allowed is False
+  assert candidate.independent_measurement is not None
+  assert candidate.independent_measurement.status is (
+    MocReflectedDomainMixedRegimeBoundaryMeasurementStatus.CONVERGED
+  )
+  assert candidate.independent_measurement.reference_verified
+  assert candidate.independent_measurement.maximum_conservative_euler_residual == pytest.approx(
+    candidate.reference.maximum_conservative_euler_residual,
+  )
+  report = candidate.as_report()
+  assert report['independent_measurement']['checks']['terminal_seam_verified']
+  assert report['residual_channel_coverage']['energy']
+  assert report['physical_closure_verified'] is False
+####
+
+
+def test_global_mixed_regime_boundary_uses_typed_stop_for_actual_ambient_pressure():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = build_reflected_domain_mixed_regime_boundary_request(closure)
+
+  candidate = solve_reflected_domain_mixed_regime_boundary(request)
+
+  assert candidate.status is (
+    MocReflectedDomainMixedRegimeBoundaryStatus.FIELD_FAILURE
+  )
+  assert not candidate.converged
+  assert candidate.reference is not None
+  assert 'strict-subsonic' in candidate.message
+  assert candidate.independent_measurement is None
+  assert candidate.physical_closure_verified is False
+  assert candidate.chain_promotion_blocked
+####
+
+
+def test_global_mixed_regime_boundary_rejects_reused_or_altered_frontier():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  altered_handoff = tuple(reversed(request.upstream_handoff))
+
+  with pytest.raises(ValueError, match='upstream_handoff'):
+    replace(request, upstream_handoff=altered_handoff)
+  ####
+
+  altered_section = replace(
+    request.control_section,
+    source='altered-control-section',
+  )
+  with pytest.raises(ValueError, match='control_section'):
+    replace(request, control_section=altered_section)
+  ####
+####
+
+
+def test_global_mixed_regime_boundary_measurement_rejects_field_mutation():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  request = replace(
+    request,
+    ambient_pressure_Pa=(
+      0.98 * request.entropy_handoff.samples[0].downstream_total_pressure_Pa
+    ),
+  )
+  candidate = solve_reflected_domain_mixed_regime_boundary(request)
+  assert candidate.reference is not None
+  assert candidate.reference.maximum_conservative_euler_residual is not None
+  tampered_reference = replace(
+    candidate.reference,
+    maximum_conservative_euler_residual=(
+      candidate.reference.maximum_conservative_euler_residual + 1.0
+    ),
+  )
+  tampered_candidate = replace(
+    candidate,
+    reference=tampered_reference,
+    independent_measurement=None,
+  )
+
+  measurement = measure_reflected_domain_mixed_regime_boundary(
+    tampered_candidate,
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainMixedRegimeBoundaryMeasurementStatus.FIELD_FAILURE
+  )
+  assert not measurement.converged
+  assert measurement.reference_measurement is not None
+  assert measurement.reference_measurement.conservative_euler_residuals_verified is False
+  assert measurement.conservative_euler_residuals_verified is False
+  assert measurement.physical_closure_verified is False
 ####
 
 

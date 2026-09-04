@@ -3541,3 +3541,37 @@ them to decrease; their growth is diagnostic evidence of the unresolved
 coupled closure.  This is numerical-sensitivity evidence for a research
 reference only: it does not close the canonical downstream field, authorize a
 continued chain, or change any product/release gate.
+
+## Global-to-mixed-regime boundary-reference checkpoint
+
+The candidate branch now exposes an explicit solver-owned boundary packet
+through ``MocReflectedDomainMixedRegimeBoundaryRequest`` and
+``MocReflectedDomainMixedRegimeBoundaryResult``.  The request is derived from
+the retained global exact-Euler shock curve: zero-strength endpoint samples
+are not treated as entropy-producing patch samples, the remaining strictly
+lossy downstream states form the open supersonic patch, and a new scalar
+normal-shock terminal is solved at the curve's centerline endpoint.  The
+terminal, patch, entropy handoff, and axis-aligned control section are bound
+to the exact global closure fingerprint and incoming frontier, so an altered
+or reused upstream handoff cannot be substituted silently.
+
+The independent operator
+``measure_reflected_domain_mixed_regime_boundary`` rederives the global shock
+binding and terminal scalars, then delegates the field-as-data audit to the
+existing variable-entropy measurement without invoking its solver.  The
+result carries separate geometry, pressure/total-pressure, entropy,
+tangency, and control/frontier checks.  It also carries independent mass,
+streamwise-momentum, transverse-momentum, energy, and combined-Euler residual
+maxima with explicit per-channel coverage and validity masks.  A reported
+conservative residual mutation is rejected by the measurement operator.
+
+This is intentionally a solver-bound research reference rather than a
+canonical mixed-regime field.  The current physical ambient pressure produces
+a typed strict-subsonic pressure-unreachable stop because the retained global
+shock interface remains too high in total pressure; a separately declared
+reference ambient pressure exercises the mapped variable-entropy field and
+its full audit.  Even when that audit passes, ``mixed_regime_field_verified``
+and ``physical_closure_verified`` remain false, chain promotion remains
+blocked, and no production claim is enabled.  The next physics seam is still
+the coupled reflected 2-D Euler/free-boundary solve, followed by repeated
+case/resolution evidence.

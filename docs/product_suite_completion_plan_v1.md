@@ -376,28 +376,38 @@ monotone convergence claim.  This closes only numerical-sensitivity evidence
 for the mapped reference; `physical_closure_verified`, canonical free-boundary
 acceptance, chain promotion, and production claims remain false.
 
-### Next implementation slice
+### P2.1 global-to-mixed-regime boundary-reference checkpoint
 
-The next physics slice remains completion of `P2.1`: a solver-owned
-reflected/mixed-regime downstream boundary that consumes the retained upstream
-handoff, carries its own control/frontier data, and exposes an independent
-residual audit. It may be implemented first as a research candidate, but it
-must remain explicitly non-canonical until the coupled Euler/free-boundary,
-entropy, refinement, and external-validation gates pass. The packet is
-accepted only if it:
+The candidate branch now binds a solver-owned downstream reference through
+``build_reflected_domain_mixed_regime_boundary_request`` and
+``solve_reflected_domain_mixed_regime_boundary``.  The builder derives the
+open, strictly lossy supersonic patch from the retained global exact-Euler
+shock curve, applies an explicit normal-shock terminal at its centerline
+endpoint, builds the pressure-aware entropy handoff, and carries an explicit
+axis-aligned control section.  The request includes the global-closure
+fingerprint and exact incoming frontier; altered, missing, or reused frontier
+data are rejected by the typed contract.
 
-1. rejects missing, altered, or reused upstream handoffs;
-2. distinguishes a solver-owned mixed-regime boundary from the current
-   compression-envelope continuation law;
-3. reports geometry, pressure, entropy/total-pressure, tangency, and
-   independently reproduced conservative Euler residuals with coverage and
-   validity masks;
-4. has an independent measurement operator that can detect tampered fields;
-   and
-5. leaves `physical_closure_verified`, chain promotion, and production claims
-   false until the canonical gates are actually satisfied.
+``measure_reflected_domain_mixed_regime_boundary`` independently checks the
+closure identity, shock-curve binding, terminal normal-shock scalars,
+pressure/entropy lineage, control-section identity, geometry, ambient
+condition, and tangency.  It exposes independently reproduced mass,
+streamwise-momentum, transverse-momentum, energy, and combined-Euler maxima
+with per-channel coverage and validity masks, and detects a tampered reported
+residual.  The resulting candidate is explicitly distinct from the existing
+compression-envelope law.
 
-After `P2.1`, the order is fixed: close the coupled field (`P2`), run the
+This packet is deliberately a boundary reference, not the missing canonical
+physics.  With the global closure's actual ambient pressure, the current
+reference returns a typed strict-subsonic pressure-unreachable stop; a
+separately declared reference ambient pressure can exercise the full mapped
+variable-entropy audit.  In both cases ``mixed_regime_field_verified`` and
+``physical_closure_verified`` remain false, chain promotion remains blocked,
+and production claims remain false.  The next physics task is to replace this
+mapped reference with a coupled reflected 2-D Euler/free-boundary solve and
+then repeat the case/resolution ladder.
+
+After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound
 VIS/SIG/RAY/FPA comparisons (`P4`), then refresh the exact-candidate freeze
 and run the release matrix (`P5`). Missing data is an explicit blocker; it

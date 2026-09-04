@@ -197,6 +197,12 @@ from exhaust_plume.validation.moc_measurements import (
   measure_moc_shock_cell_chain,
   measure_moc_shock_cell_chain_refinement,
 )
+from exhaust_plume.validation.moc_reflected_domain_mixed_regime import (
+  MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_OPERATOR_ID,
+  MocReflectedDomainMixedRegimeBoundaryMeasurementStatus,
+  MocReflectedDomainMixedRegimeBoundaryMeasurement,
+  measure_reflected_domain_mixed_regime_boundary,
+)
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -500,6 +506,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_SHOCK_REMESH_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_DOWNSTREAM_BOUNDARY_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
@@ -563,6 +570,8 @@ __all__ = (
   'MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus',
   'MocReflectedDomainDownstreamBoundaryMeasurement',
   'MocReflectedDomainDownstreamBoundaryMeasurementStatus',
+  'MocReflectedDomainMixedRegimeBoundaryMeasurementStatus',
+  'MocReflectedDomainMixedRegimeBoundaryMeasurement',
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus',
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementCase',
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement',
@@ -775,6 +784,7 @@ __all__ = (
   'measure_moc_reflected_domain_global_shock_remesh',
   'measure_moc_reflected_domain_global_euler_shock_boundary',
   'measure_moc_reflected_domain_downstream_boundary',
+  'measure_reflected_domain_mixed_regime_boundary',
   'measure_moc_reflected_domain_global_euler_shock_boundary_refinement',
   'measure_moc_reflected_domain_alternating_physical_field_chain',
   'measure_moc_reflected_domain_alternating_physical_field_chain_refinement',
