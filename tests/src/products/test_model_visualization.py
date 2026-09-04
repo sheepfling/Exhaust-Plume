@@ -224,6 +224,58 @@ class _MocResult:
 ####
 
 
+def _coupled_euler_result() -> SimpleNamespace:
+  control_section = SimpleNamespace(
+    points_m=((0.0, 0.0), (0.0, 1.0)),
+    samples=(SimpleNamespace(gamma=1.4), SimpleNamespace(gamma=1.4)),
+  )
+  request = SimpleNamespace(
+    mixed_regime_request=SimpleNamespace(control_section=control_section),
+  )
+  vertices = (
+    ((0.0, 0.0), (1.0, 0.0), (1.0, 0.55), (0.0, 0.5)),
+    ((0.0, 0.5), (1.0, 0.55), (1.0, 1.1), (0.0, 1.0)),
+    ((1.0, 0.0), (2.0, 0.0), (2.0, 0.6), (1.0, 0.55)),
+    ((1.0, 0.55), (2.0, 0.6), (2.0, 1.2), (1.0, 1.1)),
+  )
+  return SimpleNamespace(
+    status='coupled-euler-free-boundary-failure',
+    request=request,
+    x_stations_m=(0.0, 1.0, 2.0),
+    free_boundary_points_m=((0.0, 1.0), (1.0, 1.1), (2.0, 1.2)),
+    cell_vertices_by_cell_m=vertices,
+    cell_centers_m=((0.5, 0.25), (0.5, 0.8), (1.5, 0.275), (1.5, 0.9)),
+    mach_by_cell=(0.8, 0.9, 1.0, 1.1),
+    static_pressure_by_cell_Pa=(200_000.0, 190_000.0, 180_000.0, 170_000.0),
+    density_by_cell_kg_m3=(1.0, 0.95, 0.9, 0.85),
+    temperature_by_cell_K=(700.0, 680.0, 660.0, 640.0),
+    velocity_u_by_cell_m_s=(120.0, 130.0, 140.0, 150.0),
+    velocity_v_by_cell_m_s=(1.0, 2.0, 3.0, 4.0),
+    total_pressure_by_cell_Pa=(210_000.0, 200_000.0, 190_000.0, 180_000.0),
+    entropy_proxy_by_cell=(100.0, 101.0, 102.0, 103.0),
+    physical_closure_verified=False,
+    state_sampling_available=True,
+    production_claim_allowed=False,
+    coupled_euler_field_verified=True,
+    free_boundary_condition_verified=False,
+    entropy_transport_verified=True,
+    conservative_euler_residuals_measured=True,
+    conservative_euler_residuals_verified=True,
+    chain_promotion_blocked=True,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    external_validation_verified=False,
+    maximum_conservative_euler_residual=0.001,
+    maximum_free_boundary_pressure_residual_Pa=20_000.0,
+    maximum_free_boundary_normal_velocity_residual_fraction=0.02,
+    maximum_shape_residual_m=0.0005,
+    maximum_entropy_transport_residual=0.01,
+    pseudo_iteration_count=12,
+    shape_iteration_count=3,
+  )
+####
+
+
 def test_all_five_model_lanes_share_one_bundle_shape() -> None:
   results = {
     ModelVisualizationLane.BASIC_SHOCK_CELL: _basic_result(),
@@ -332,6 +384,35 @@ def test_moc_global_euler_visualization_exposes_solver_owned_shock_parameters() 
   assert bundle.diagnostics['shock_boundary_orientation'] == 'mixed-characteristic-boundary'
   assert bundle.diagnostics['shock_jump_residual_maximum'] == pytest.approx(6.0e-9)
   assert bundle.claims.production_claim_allowed is False
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
+def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> None:
+  bundle = standardize_model_visualization(
+    _coupled_euler_result(),
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-coupled-euler-free-boundary'
+  assert len(bundle.fields) == 1
+  assert len(bundle.fields[0].polygons_xr_m) == 4
+  assert {path.path_id for path in bundle.paths} >= {
+    'moc-ambient-boundary',
+    'moc-centerline-boundary',
+  }
+  channels = {channel.channel_id: channel for channel in bundle.section_channels}
+  assert channels['static_pressure'].unit == 'Pa'
+  assert channels['density'].unit == 'kg m^-3'
+  assert channels['temperature'].values == pytest.approx((700.0, 680.0, 660.0))
+  assert bundle.diagnostics['coupled_euler_free_boundary_condition_verified'] is False
+  assert bundle.diagnostics['coupled_euler_maximum_conservative_euler_residual'] == pytest.approx(0.001)
+  assert bundle.claims.production_claim_allowed is False
+  assert any(
+    'coupled-Euler/free-boundary channels are research diagnostics' in warning
+    for warning in bundle.warnings
+  )
   json.dumps(bundle.model_dump(), allow_nan=False)
 ####
 

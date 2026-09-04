@@ -1651,6 +1651,10 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert result.coupled_euler_field_verified
   assert result.conservative_euler_residuals_measured
   assert result.conservative_euler_residuals_verified
+  assert len(result.cell_vertices_by_cell_m) == len(
+    result.conservative_states_by_cell
+  )
+  assert all(len(cell) == 4 for cell in result.cell_vertices_by_cell_m)
   assert result.free_boundary_condition_verified is False
   assert result.physical_closure_verified is False
   assert result.canonical_euler_verified is False
@@ -1682,6 +1686,17 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   )
   assert tampered_audit.status is (
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.RESIDUAL_FAILURE
+  )
+  tampered_vertices = list(result.cell_vertices_by_cell_m)
+  tampered_vertices[0] = (
+    (tampered_vertices[0][0][0] + 1.0e-3, tampered_vertices[0][0][1]),
+    *tampered_vertices[0][1:],
+  )
+  geometry_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(result, cell_vertices_by_cell_m=tuple(tampered_vertices))
+  )
+  assert geometry_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.GEOMETRY_FAILURE
   )
 ####
 
@@ -1726,6 +1741,9 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
     'energy': True,
     'euler': True,
   }
+  assert len(result.cell_vertices_by_cell_m) == len(
+    result.conservative_states_by_cell
+  )
   assert result.as_report()['claim_status'].startswith('research-only')
   audit = measure_reflected_domain_coupled_euler_free_boundary(result)
   assert audit.status is (

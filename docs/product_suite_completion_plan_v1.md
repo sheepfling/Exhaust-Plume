@@ -250,6 +250,8 @@ claim is authorized.
       without changing the current research-only claim ceiling.
 - [x] Expose retained higher-fidelity MOC shock geometry, jump, pressure-loss,
       and residual channels through the common visualization bundle.
+- [x] Expose retained coupled-Euler/free-boundary mesh cells and physical
+      state channels through the same planar-MOC visualization lane.
 - [x] Add a typed provider-bound comparison-evidence envelope requiring exact
       assets, operator identity, uncertainty, applicability, and disjoint cases.
 - [x] Make provider-bound evidence ingestible through a strict preflight JSON

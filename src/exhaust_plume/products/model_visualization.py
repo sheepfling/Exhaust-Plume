@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from math import isfinite, sqrt
+from math import atan2, isfinite, sqrt
 import re
 from typing import Any, Literal, TypeAlias, cast
 
@@ -1083,8 +1083,240 @@ def _curved_integral_visualization(
 ####
 
 
+@dataclass(frozen=True, slots=True)
+class _CoupledEulerCellView:
+  vertices_xr_m: tuple[Vector2, ...]
+####
+
+
+@dataclass(frozen=True, slots=True)
+class _CoupledEulerSample:
+  x_m: float
+  y_m: float
+  theta_rad: float
+  mach: float
+  gamma: float
+  static_pressure_Pa: float
+  density_kg_m3: float
+  temperature_K: float
+  velocity_u_m_s: float
+  velocity_v_m_s: float
+  total_pressure_Pa: float
+  entropy_proxy: float
+####
+
+
+class _CoupledEulerFieldView:
+  """Adapt the retained coupled-Euler mesh to the planar-MOC view protocol."""
+
+  def __init__(self, result: object) -> None:
+    vertices = tuple(
+      tuple(_vector2('coupled-Euler cell vertex', point) for point in polygon)
+      for polygon in getattr(result, 'cell_vertices_by_cell_m', ())
+    )
+    if not vertices or any(len(polygon) != 4 for polygon in vertices):
+      raise ValueError(
+        'coupled-Euler visualization requires retained quadrilateral cell geometry'
+      )
+    ####
+    x_stations = tuple(
+      _finite('coupled-Euler x station', value)
+      for value in getattr(result, 'x_stations_m', ())
+    )
+    free_boundary = tuple(
+      _vector2('coupled-Euler free-boundary point', point)
+      for point in getattr(result, 'free_boundary_points_m', ())
+    )
+    centers = tuple(
+      _vector2('coupled-Euler cell center', point)
+      for point in getattr(result, 'cell_centers_m', ())
+    )
+    if len(x_stations) < 2 or len(free_boundary) != len(x_stations):
+      raise ValueError('coupled-Euler visualization has an incomplete axial mesh')
+    ####
+    if len(centers) != len(vertices):
+      raise ValueError('coupled-Euler centers and cell geometry must have equal lengths')
+    ####
+    axial_count = len(x_stations) - 1
+    if len(vertices) % axial_count != 0:
+      raise ValueError('coupled-Euler cell geometry is not rectangular')
+    ####
+    transverse_count = len(vertices) // axial_count
+    arrays = {
+      'mach': tuple(float(value) for value in getattr(result, 'mach_by_cell', ())),
+      'static_pressure': tuple(
+        float(value) for value in getattr(result, 'static_pressure_by_cell_Pa', ())
+      ),
+      'density': tuple(
+        float(value) for value in getattr(result, 'density_by_cell_kg_m3', ())
+      ),
+      'temperature': tuple(
+        float(value) for value in getattr(result, 'temperature_by_cell_K', ())
+      ),
+      'velocity_u': tuple(
+        float(value) for value in getattr(result, 'velocity_u_by_cell_m_s', ())
+      ),
+      'velocity_v': tuple(
+        float(value) for value in getattr(result, 'velocity_v_by_cell_m_s', ())
+      ),
+      'total_pressure': tuple(
+        float(value) for value in getattr(result, 'total_pressure_by_cell_Pa', ())
+      ),
+      'entropy_proxy': tuple(
+        float(value) for value in getattr(result, 'entropy_proxy_by_cell', ())
+      ),
+    }
+    if any(len(values) != len(vertices) for values in arrays.values()):
+      raise ValueError('coupled-Euler cell channels must match cell geometry')
+    ####
+    if any(
+      not isfinite(value)
+      for values in arrays.values()
+      for value in values
+    ):
+      raise ValueError('coupled-Euler cell channels must be finite')
+    ####
+    request = getattr(result, 'request', None)
+    control = getattr(request, 'mixed_regime_request', None)
+    control_section = getattr(control, 'control_section', None)
+    control_points = tuple(getattr(control_section, 'points_m', ()))
+    control_samples = tuple(getattr(control_section, 'samples', ()))
+    if not control_points or not control_samples:
+      raise ValueError('coupled-Euler visualization requires the retained control section')
+    ####
+    lower_ordinate = _finite(
+      'coupled-Euler lower ordinate',
+      control_points[0][1],
+    )
+    gamma = _finite(
+      'coupled-Euler gamma',
+      getattr(control_samples[0], 'gamma'),
+    )
+    self._centers = centers
+    self._arrays = arrays
+    self._gamma = gamma
+    self._transverse_count = transverse_count
+    self.cells = tuple(
+      _CoupledEulerCellView(polygon)
+      for polygon in vertices
+    )
+    self.nodes = tuple(sorted({point for polygon in vertices for point in polygon}))
+    self.shock_boundary_points_m: tuple[Vector2, ...] = ()
+    self.ambient_boundary_points_m = free_boundary
+    self.centerline_boundary_points_m = tuple(
+      (x_value, lower_ordinate) for x_value in x_stations
+    )
+    centerline_index_groups = tuple(
+      (
+        (0,)
+        if station_index == 0
+        else (
+          ((station_index - 1) * transverse_count,)
+          if station_index == axial_count
+          else (
+            (station_index - 1) * transverse_count,
+            station_index * transverse_count,
+          )
+        )
+      )
+      for station_index in range(axial_count + 1)
+    )
+    self.centerline_boundary_states = tuple(
+      self._sample_from_indices(
+        indices,
+        x_stations[station_index],
+        lower_ordinate,
+      )
+      for station_index, indices in enumerate(centerline_index_groups)
+    )
+    self.centerline_boundary_total_pressure_Pa = tuple(
+      sum(self._arrays['total_pressure'][index] for index in indices) / len(indices)
+      for indices in centerline_index_groups
+    )
+    self.physical_closure_verified = bool(
+      getattr(result, 'physical_closure_verified', False)
+    )
+    self.state_sampling_available = True
+    self.production_claim_allowed = bool(
+      getattr(result, 'production_claim_allowed', False)
+    )
+    self._result = result
+  ####
+
+  def _sample(self, index: int, x_value: float, y_value: float) -> _CoupledEulerSample:
+    return self._sample_from_indices((index,), x_value, y_value)
+  ####
+
+  def _sample_from_indices(
+    self,
+    indices: tuple[int, ...],
+    x_value: float,
+    y_value: float,
+  ) -> _CoupledEulerSample:
+    def mean(name: str) -> float:
+      values = self._arrays[name]
+      return sum(values[index] for index in indices) / len(indices)
+    ####
+
+    velocity_u = mean('velocity_u')
+    velocity_v = mean('velocity_v')
+    return _CoupledEulerSample(
+      x_m=x_value,
+      y_m=y_value,
+      theta_rad=atan2(velocity_v, velocity_u),
+      mach=mean('mach'),
+      gamma=self._gamma,
+      static_pressure_Pa=mean('static_pressure'),
+      density_kg_m3=mean('density'),
+      temperature_K=mean('temperature'),
+      velocity_u_m_s=velocity_u,
+      velocity_v_m_s=velocity_v,
+      total_pressure_Pa=mean('total_pressure'),
+      entropy_proxy=mean('entropy_proxy'),
+    )
+  ####
+
+  def _nearest_index(self, point: tuple[float, float]) -> int:
+    return min(
+      range(len(self._centers)),
+      key=lambda index: (
+        (self._centers[index][0] - point[0]) ** 2
+        + (self._centers[index][1] - point[1]) ** 2,
+        index,
+      ),
+    )
+  ####
+
+  def state_at(self, point: tuple[float, float]) -> _CoupledEulerSample:
+    index = self._nearest_index(point)
+    center = self._centers[index]
+    return self._sample(index, center[0], center[1])
+  ####
+
+  def total_pressure_at(self, point: tuple[float, float]) -> float:
+    return self._arrays['total_pressure'][self._nearest_index(point)]
+  ####
+####
+
+
+def _coupled_euler_field_from_result(result: object) -> object | None:
+  if not hasattr(result, 'cell_vertices_by_cell_m'):
+    return None
+  ####
+  if not getattr(result, 'cell_vertices_by_cell_m', ()):
+    return None
+  ####
+  return _CoupledEulerFieldView(result)
+####
+
+
 def _moc_field_from_result(result: object) -> tuple[object | None, object]:
   """Find a retained planar field without requiring one concrete MOC wrapper."""
+
+  coupled_field = _coupled_euler_field_from_result(result)
+  if coupled_field is not None:
+    return coupled_field, result
+  ####
 
   candidates: list[object] = [result]
   candidate_field = getattr(result, 'candidate_field', None)
@@ -1437,6 +1669,7 @@ def _moc_visualization(
   if field is None:
     raise ValueError('planar-MOC visualization requires a retained field with cells and boundaries')
   ####
+  coupled_euler = isinstance(field, _CoupledEulerFieldView)
   cell_polygons: list[tuple[Vector2, ...]] = []
   all_points: list[Vector2] = []
   for cell in getattr(field, 'cells', ()):
@@ -1569,6 +1802,28 @@ def _moc_visualization(
   if len(pressure_values) == len(centerline):
     optional_channels.append(_section_channel('total_pressure', 'centerline MOC total pressure', 'Pa', pressure_values))
   ####
+  if coupled_euler:
+    axis_samples = tuple(state for state, _pressure in axis_states)
+    for channel_id, attribute, semantic, unit in (
+      ('static_pressure', 'static_pressure_Pa', 'centerline static pressure', 'Pa'),
+      ('density', 'density_kg_m3', 'centerline density', 'kg m^-3'),
+      ('temperature', 'temperature_K', 'centerline static temperature', 'K'),
+      ('velocity_u', 'velocity_u_m_s', 'centerline streamwise velocity', 'm s^-1'),
+      ('velocity_v', 'velocity_v_m_s', 'centerline transverse velocity', 'm s^-1'),
+      ('entropy_proxy', 'entropy_proxy', 'centerline entropy proxy', '1'),
+    ):
+      values = tuple(
+        float(getattr(state, attribute))
+        for state in axis_samples
+        if hasattr(state, attribute)
+      )
+      if len(values) == len(centerline):
+        optional_channels.append(
+          _section_channel(channel_id, semantic, unit, values)
+        )
+      ####
+    ####
+  ####
   solver_channels, solver_diagnostics, solver_warnings = (
     _moc_solver_evidence_channels(
       result,
@@ -1624,6 +1879,43 @@ def _moc_visualization(
     'state_sampling_available': bool(getattr(source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
+  if coupled_euler:
+    for name in (
+      'coupled_euler_field_verified',
+      'free_boundary_condition_verified',
+      'entropy_transport_verified',
+      'conservative_euler_residuals_measured',
+      'conservative_euler_residuals_verified',
+      'chain_promotion_blocked',
+      'canonical_free_boundary_verified',
+      'canonical_euler_verified',
+      'external_validation_verified',
+      'production_claim_allowed',
+    ):
+      value = getattr(source, name, None)
+      if isinstance(value, bool):
+        diagnostics[f'coupled_euler_{name}'] = value
+      ####
+    ####
+    for name in (
+      'maximum_conservative_euler_residual',
+      'maximum_free_boundary_pressure_residual_Pa',
+      'maximum_free_boundary_normal_velocity_residual_fraction',
+      'maximum_shape_residual_m',
+      'maximum_entropy_transport_residual',
+    ):
+      value = getattr(source, name, None)
+      if value is not None and isfinite(float(value)):
+        diagnostics[f'coupled_euler_{name}'] = float(value)
+      ####
+    ####
+    diagnostics['coupled_euler_pseudo_iteration_count'] = int(
+      getattr(source, 'pseudo_iteration_count', 0)
+    )
+    diagnostics['coupled_euler_shape_iteration_count'] = int(
+      getattr(source, 'shape_iteration_count', 0)
+    )
+  ####
   diagnostics.update(solver_diagnostics)
   if isinstance(gates, Mapping):
     for key, value in gates.items():
@@ -1636,6 +1928,12 @@ def _moc_visualization(
     'MOC production promotion remains blocked until canonical closure, refinement, and external validation gates pass',
     *solver_warnings,
   ]
+  if coupled_euler:
+    warnings.append(
+      'coupled-Euler/free-boundary channels are research diagnostics; '
+      'local closure does not authorize canonical or production use'
+    )
+  ####
   if not optional_channels or any(
     value is None
     for values in field_channel_values.values()
@@ -1645,7 +1943,10 @@ def _moc_visualization(
   ####
   return _bundle(
     lane=ModelVisualizationLane.PLANAR_MOC,
-    model_id='planar-moc-reflected-domain',
+    model_id=(
+      'planar-moc-coupled-euler-free-boundary'
+      if coupled_euler else 'planar-moc-reflected-domain'
+    ),
     model_version='1',
     result=result,
     frame_id=frame_id,
@@ -1657,7 +1958,12 @@ def _moc_visualization(
       geometry_claim=GeometryClaim.ILLUSTRATIVE,
       production_claim_allowed=False,
       claim_notes=(
-        'higher-fidelity planar characteristic/reflected-domain field retained for evaluation',
+        (
+          'coupled constant-gamma Euler/free-boundary field retained for '
+          'research visualization'
+          if coupled_euler
+          else 'higher-fidelity planar characteristic/reflected-domain field retained for evaluation'
+        ),
         'local field closure does not imply a production chain-cell or axisymmetric plume claim',
       ),
     ),

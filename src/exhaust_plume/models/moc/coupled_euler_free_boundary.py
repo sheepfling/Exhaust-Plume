@@ -250,6 +250,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   external_validation_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
+  cell_vertices_by_cell_m: tuple[tuple[tuple[float, float], ...], ...] = ()
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -323,6 +324,28 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       raise ValueError('residual_channels_by_cell must be finite')
     ####
     object.__setattr__(self, 'residual_channels_by_cell', residuals)
+    cell_vertices = tuple(
+      tuple(
+        (float(point[0]), float(point[1]))
+        for point in polygon
+      )
+      for polygon in self.cell_vertices_by_cell_m
+    )
+    if any(len(polygon) != 4 for polygon in cell_vertices):
+      raise ValueError('cell_vertices_by_cell_m must contain quadrilateral cells')
+    ####
+    if any(
+      not all(isfinite(value) for point in polygon for value in point)
+      for polygon in cell_vertices
+    ):
+      raise ValueError('cell_vertices_by_cell_m must contain finite points')
+    ####
+    if cell_vertices and len(cell_vertices) != len(states):
+      raise ValueError(
+        'cell_vertices_by_cell_m must match conservative state count'
+      )
+    ####
+    object.__setattr__(self, 'cell_vertices_by_cell_m', cell_vertices)
     for name in (
       'maximum_conservative_mass_residual',
       'maximum_conservative_streamwise_momentum_residual',
@@ -521,6 +544,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'external_validation_verified': self.external_validation_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
+      'cell_vertices_by_cell_m': self.cell_vertices_by_cell_m,
       'request': None if self.request is None else self.request.as_report(),
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
@@ -1199,6 +1223,7 @@ def _result_from_field(
   free_boundary_heights: np.ndarray,
   states: np.ndarray,
   centers: np.ndarray,
+  corners: np.ndarray,
   residual_channels: np.ndarray,
   residual_history: list[float],
   shape_residual_history: list[float],
@@ -1289,6 +1314,12 @@ def _result_from_field(
     external_validation_verified=False,
     chain_promotion_blocked=True,
     production_claim_allowed=False,
+    cell_vertices_by_cell_m=tuple(
+      tuple(
+        tuple((float(point[0]), float(point[1])) for point in corners[index])
+      )
+      for index in np.ndindex(corners.shape[:2])
+    ),
     **flattened,
   )
 ####
@@ -1648,6 +1679,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     free_boundary_heights,
     states,
     centers,
+    corners,
     residual_channels,
     residual_history,
     shape_residual_history,

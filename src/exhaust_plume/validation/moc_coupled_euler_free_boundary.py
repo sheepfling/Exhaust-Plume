@@ -573,6 +573,30 @@ def _audit_field(
       ####
     ####
   ####
+  retained_vertices_verified = True
+  retained_vertices = candidate.cell_vertices_by_cell_m
+  if retained_vertices:
+    if len(retained_vertices) != expected_cell_count:
+      raise ValueError(
+        'retained cell-vertex count does not match the audited mesh'
+      )
+    ####
+    retained_array = np.asarray(retained_vertices, dtype=float)
+    if retained_array.shape != (expected_cell_count, 4, 2):
+      raise ValueError('retained cell vertices must be quadrilateral mesh cells')
+    ####
+    retained_vertices_verified = bool(
+      np.allclose(
+        retained_array.reshape((axial_count, transverse_count, 4, 2)),
+        corners,
+        rtol=3.0e-10,
+        atol=1.0e-12,
+      )
+    )
+    if not retained_vertices_verified:
+      raise ValueError('retained cell vertices do not match the request mesh')
+    ####
+  ####
   residual = np.zeros_like(states)
   top_pressure = np.zeros(axial_count, dtype=float)
   top_normal_velocity = np.zeros(axial_count, dtype=float)
@@ -748,7 +772,7 @@ def _audit_field(
   # The candidate arrays are checked outside this helper; this return keeps the
   # independent flux reconstruction separate from report reconciliation.
   return {
-    'geometry_verified': True,
+    'geometry_verified': retained_vertices_verified,
     'state_samples_verified': True,
     'thermodynamics_verified': thermodynamic_inputs_verified,
     'recomputed_channels': recomputed_channels,
