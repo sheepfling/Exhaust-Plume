@@ -3446,3 +3446,13 @@ and are omitted when a displayed station falls outside that interval or when
 the source array is incomplete.  The field remains a 2-D research display;
 the new observability does not create a resolved radiation medium, promote a
 shock cell, or change the canonical/refinement/external-validation gates.
+
+## Downstream-boundary readiness checkpoint
+
+Global physical-closure reports now name the selected downstream continuation
+law and carry an explicit ``downstream_boundary_closure_verified`` gate.  The
+current bounded compression-envelope law remains research-only and cannot
+pass that gate.  This makes the next physics seam precise: implement a typed
+solver-owned reflected/mixed-regime downstream boundary, then repeat the
+global case and resolution ladders before fitting a production shock-cell
+chain.  A local exact-Euler field or a renamed envelope is not sufficient.

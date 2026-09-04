@@ -1223,6 +1223,16 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   assert closure.variable_entropy_transport_verified
   assert closure.maximum_entropy_lineage_residual == pytest.approx(0.0)
   assert closure.cell_euler_residuals_verified
+  assert closure.downstream_boundary_closure_verified is False
+  assert closure.downstream_boundary_model.endswith('compression-envelope')
+  assert any(
+    blocker.startswith('solver-owned downstream boundary closure')
+    for blocker in closure.promotion_blockers
+  )
+  assert closure.as_report()['downstream_boundary_closure_verified'] is False
+  assert closure.as_chain_termination_decision().diagnostics[
+    'downstream_boundary_model'
+  ].endswith('compression-envelope')
   assert closure.field_audit is not None
   # The legacy audit intentionally checks a uniform p0 lineage.  The new
   # closure gate checks each shock sample against its own entropy loss.

@@ -262,3 +262,16 @@ claim is authorized.
 - [ ] Supply the separate alignment archive and disjoint reduced-order cases.
 - [ ] Run the final candidate acceptance matrix and create the release tag
       only after the manifest turns green.
+
+## Downstream-boundary readiness checkpoint
+
+The global physical-closure result now reports the exact downstream turn law
+retained by its selected remesh and exposes a separate
+``downstream_boundary_closure_verified`` promotion gate.  The current result
+is intentionally false for that gate because it uses the bounded research
+compression-envelope law.  A future canonical reflected/mixed-regime solver
+must provide a typed solver-owned downstream boundary result; renaming or
+reusing the envelope cannot satisfy the gate.  The result also reports
+concrete promotion blockers so production shock-cell fitting and release
+reviews can distinguish a local exact-Euler field from a completed physical
+closure.

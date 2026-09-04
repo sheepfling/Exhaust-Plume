@@ -392,6 +392,9 @@ def moc_reflected_domain_global_physical_closure_fingerprint(
     'local_gates': {
       'source_frontier_verified': closure.source_frontier_verified,
       'incoming_handoff_verified': closure.incoming_handoff_verified,
+      'downstream_boundary_closure_verified': (
+        closure.downstream_boundary_closure_verified
+      ),
       'variable_entropy_transport_verified': (
         closure.variable_entropy_transport_verified
       ),
@@ -552,6 +555,70 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
   ####
 
   @property
+  def downstream_boundary_model(self) -> str:
+    """Return the downstream turn law retained by the selected remesh.
+
+    The current global remesh intentionally carries a bounded compression
+    envelope.  Naming that law at the closure boundary prevents a locally
+    closed field from being mistaken for a solver-owned reflected/mixed-regime
+    downstream condition.
+    """
+
+    remesh = self.global_remesh
+    if remesh is None or remesh.selected_attempt is None:
+      return 'unavailable'
+    ####
+    physical_field = remesh.selected_attempt.first_cell_result.selected_physical_field
+    if physical_field is None:
+      return 'unavailable'
+    ####
+    return physical_field.continuation_law
+  ####
+
+  @property
+  def downstream_boundary_closure_verified(self) -> bool:
+    """Whether a canonical solver-owned downstream boundary was verified.
+
+    The present global closure retains a research compression-envelope law and
+    therefore cannot satisfy this gate.  The property is deliberately
+    explicit so a future canonical reflected/mixed-regime implementation must
+    add a typed solver-owned boundary result rather than merely renaming the
+    existing envelope.
+    """
+
+    return False
+  ####
+
+  @property
+  def promotion_blockers(self) -> tuple[str, ...]:
+    """Return the concrete gates that still block production promotion."""
+
+    blockers: list[str] = []
+    if not self.physical_closure_verified:
+      blockers.append('local physical closure gates are not all verified')
+    ####
+    if not self.downstream_boundary_closure_verified:
+      blockers.append(
+        'solver-owned downstream boundary closure is not verified; '
+        f'current law is {self.downstream_boundary_model}'
+      )
+    ####
+    if not self.canonical_free_boundary_verified:
+      blockers.append('canonical reflected free-boundary evidence is not bound')
+    ####
+    if not self.canonical_euler_verified:
+      blockers.append('canonical Euler evidence is not bound')
+    ####
+    if not self.refinement_verified:
+      blockers.append('independent refinement evidence is not bound')
+    ####
+    if not self.external_validation_verified:
+      blockers.append('external validation evidence is not bound')
+    ####
+    return tuple(blockers)
+  ####
+
+  @property
   def production_promotion_gates(self) -> Mapping[str, bool]:
     """Return the gates still required before a product claim."""
 
@@ -564,6 +631,9 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
     )
     return MappingProxyType({
       'physical_closure_verified': self.physical_closure_verified,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
       'canonical_free_boundary_verified': bool(
         evidence_bound
         and self.canonical_free_boundary_verified
@@ -679,6 +749,11 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         'incoming_handoff_verified': self.incoming_handoff_verified,
         'variable_entropy_transport_verified': self.variable_entropy_transport_verified,
         'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+        'downstream_boundary_closure_verified': (
+          self.downstream_boundary_closure_verified
+        ),
+        'downstream_boundary_model': self.downstream_boundary_model,
+        'promotion_blockers': list(self.promotion_blockers),
         'promotion_evidence_bound': self.promotion_evidence_bound,
         'production_promotion_gates': dict(self.production_promotion_gates),
         'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -698,6 +773,11 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       'variable_entropy_transport_verified': self.variable_entropy_transport_verified,
       'maximum_entropy_lineage_residual': self.maximum_entropy_lineage_residual,
       'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
+      'downstream_boundary_model': self.downstream_boundary_model,
+      'promotion_blockers': list(self.promotion_blockers),
       'closure_fingerprint': (
         moc_reflected_domain_global_physical_closure_fingerprint(self)
       ),
