@@ -371,6 +371,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   mach_by_cell: tuple[float, ...] = ()
   total_pressure_by_cell_Pa: tuple[float, ...] = ()
   entropy_proxy_by_cell: tuple[float, ...] = ()
+  entropy_production_fraction_by_cell: tuple[float, ...] = ()
   residual_channels_by_cell: tuple[tuple[float, float, float, float, float], ...] = ()
   residual_history: tuple[float, ...] = ()
   shape_residual_history_m: tuple[float, ...] = ()
@@ -441,6 +442,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'mach_by_cell',
       'total_pressure_by_cell_Pa',
       'entropy_proxy_by_cell',
+      'entropy_production_fraction_by_cell',
       'residual_history',
       'shape_residual_history_m',
       'free_boundary_pressure_residuals_Pa',
@@ -506,6 +508,18 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       )
     ####
     object.__setattr__(self, 'cell_vertices_by_cell_m', cell_vertices)
+    if self.entropy_production_fraction_by_cell:
+      if len(self.entropy_production_fraction_by_cell) != len(states):
+        raise ValueError(
+          'entropy_production_fraction_by_cell must match conservative state count'
+        )
+      ####
+      if any(value < 0.0 for value in self.entropy_production_fraction_by_cell):
+        raise ValueError(
+          'entropy_production_fraction_by_cell must be nonnegative'
+        )
+      ####
+    ####
     if self.subsonic_pressure_budget is not None and not isinstance(
       self.subsonic_pressure_budget,
       MocReflectedDomainCoupledEulerSubsonicPressureBudget,
@@ -694,6 +708,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'mach_by_cell': self.mach_by_cell,
       'total_pressure_by_cell_Pa': self.total_pressure_by_cell_Pa,
       'entropy_proxy_by_cell': self.entropy_proxy_by_cell,
+      'entropy_production_fraction_by_cell': (
+        self.entropy_production_fraction_by_cell
+      ),
       'residual_channels_by_cell': self.residual_channels_by_cell,
       'residual_history': self.residual_history,
       'shape_residual_history_m': self.shape_residual_history_m,
@@ -1545,6 +1562,67 @@ def _entropy_diagnostics(
 ####
 
 
+def _inlet_states(
+  control_points: tuple[tuple[float, float], ...],
+  control_samples: tuple[Any, ...],
+  gamma: float,
+  total_temperature: float,
+  gas_constant: float,
+) -> tuple[np.ndarray, ...]:
+  """Reconstruct the inlet state at each control-section face midpoint."""
+
+  return tuple(
+    _interpolate_inlet_state(
+      0.5 * (first[1] + second[1]),
+      control_points,
+      control_samples,
+      gamma,
+      total_temperature,
+      gas_constant,
+    )
+    for first, second in zip(control_points, control_points[1:])
+  )
+####
+
+
+def _entropy_production_fractions(
+  states: np.ndarray,
+  inlet_states: tuple[np.ndarray, ...],
+  gamma: float,
+  gas_constant: float,
+) -> tuple[float, ...]:
+  """Return cell-wise entropy-production evidence in flattened cell order.
+
+  The value is a normalized excess over the maximum inlet entropy proxy.  It
+  is intentionally an evidence channel rather than a shock label: numerical
+  compression, mixing, or an unresolved shock can all contribute to it.
+  """
+
+  inlet_entropy_values: list[float] = []
+  for state in inlet_states:
+    density, _u, _v, pressure, _temperature, _sound_speed = (
+      _primitive_from_conservative(state, gamma, gas_constant)
+    )
+    inlet_entropy_values.append(pressure / density ** gamma)
+  ####
+  inlet_entropy = tuple(inlet_entropy_values)
+  if not inlet_entropy:
+    raise ValueError('entropy-production evidence requires inlet states')
+  ####
+  maximum_inlet = max(inlet_entropy)
+  denominator = max(maximum_inlet, 1.0e-12)
+  fractions: list[float] = []
+  for state in states.reshape((-1, 4)):
+    density, _u, _v, pressure, _temperature, _sound_speed = (
+      _primitive_from_conservative(state, gamma, gas_constant)
+    )
+    entropy_proxy = pressure / density ** gamma
+    fractions.append(max(0.0, (entropy_proxy - maximum_inlet) / denominator))
+  ####
+  return tuple(fractions)
+####
+
+
 def maximum(value: float, other: float) -> float:
   """Return the larger finite diagnostic denominator."""
 
@@ -1641,6 +1719,21 @@ def _result_from_field(
     residual_channels,
     gamma,
     gas_constant,
+  )
+  inlet_states = _inlet_states(
+    request.mixed_regime_request.control_section.points_m,
+    request.mixed_regime_request.control_section.samples,
+    gamma,
+    request.reference_total_temperature_K,
+    gas_constant,
+  )
+  flattened['entropy_production_fraction_by_cell'] = (
+    _entropy_production_fractions(
+      states,
+      inlet_states,
+      gamma,
+      gas_constant,
+    )
   )
   maxima = tuple(
     float(np.max(residual_channels[..., channel]))
@@ -2023,19 +2116,12 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       and normal_fraction
       <= request.free_boundary_normal_velocity_tolerance_fraction
     )
-    inlet_states = tuple(
-      _interpolate_inlet_state(
-        0.5 * (first[1] + second[1]),
-        request.mixed_regime_request.control_section.points_m,
-        request.mixed_regime_request.control_section.samples,
-        gamma,
-        request.reference_total_temperature_K,
-        request.gas_constant_J_kgK,
-      )
-      for first, second in zip(
-        request.mixed_regime_request.control_section.points_m,
-        request.mixed_regime_request.control_section.points_m[1:],
-      )
+    inlet_states = _inlet_states(
+      request.mixed_regime_request.control_section.points_m,
+      request.mixed_regime_request.control_section.samples,
+      gamma,
+      request.reference_total_temperature_K,
+      request.gas_constant_J_kgK,
     )
     (
       entropy_residual,

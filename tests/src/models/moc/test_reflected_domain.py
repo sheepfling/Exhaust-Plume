@@ -1662,6 +1662,12 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert result.maximum_entropy_transport_residual == pytest.approx(0.0)
   assert result.maximum_entropy_production_fraction is not None
   assert result.maximum_entropy_production_fraction > 0.0
+  assert len(result.entropy_production_fraction_by_cell) == len(
+    result.conservative_states_by_cell
+  )
+  assert max(result.entropy_production_fraction_by_cell) == pytest.approx(
+    result.maximum_entropy_production_fraction
+  )
   assert len(result.cell_vertices_by_cell_m) == len(
     result.conservative_states_by_cell
   )
@@ -1728,6 +1734,7 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert audit.free_boundary_report_verified
   assert audit.pressure_budget_verified
   assert audit.entropy_report_verified
+  assert audit.entropy_production_map_verified
   assert audit.entropy_transport_verified
   assert audit.promotion_flags_verified
   assert audit.physical_closure_verified is False
@@ -1779,6 +1786,18 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
   )
   assert not tampered_entropy.entropy_report_verified
+  tampered_entropy_map = list(result.entropy_production_fraction_by_cell)
+  tampered_entropy_map[0] += 1.0e-3
+  tampered_entropy_map_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(
+      result,
+      entropy_production_fraction_by_cell=tuple(tampered_entropy_map),
+    )
+  )
+  assert tampered_entropy_map_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
+  )
+  assert not tampered_entropy_map_audit.entropy_production_map_verified
   tampered_vertices = list(result.cell_vertices_by_cell_m)
   tampered_vertices[0] = (
     (tampered_vertices[0][0][0] + 1.0e-3, tampered_vertices[0][0][1]),

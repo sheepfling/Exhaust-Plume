@@ -93,6 +93,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   pressure_budget_verified: bool = False
   transonic_transition_verified: bool = False
   entropy_report_verified: bool = False
+  entropy_production_map_verified: bool = False
   entropy_transport_verified: bool = False
   promotion_flags_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -162,6 +163,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'free_boundary_report_verified',
       'transonic_transition_verified',
       'entropy_report_verified',
+      'entropy_production_map_verified',
       'entropy_transport_verified',
       'promotion_flags_verified',
       'chain_promotion_blocked',
@@ -204,6 +206,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.pressure_budget_verified
       and self.transonic_transition_verified
       and self.entropy_report_verified
+      and self.entropy_production_map_verified
       and self.entropy_transport_verified
       and self.promotion_flags_verified
       and self.chain_promotion_blocked
@@ -256,6 +259,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'pressure_budget_verified': self.pressure_budget_verified,
       'transonic_transition_verified': self.transonic_transition_verified,
       'entropy_report_verified': self.entropy_report_verified,
+      'entropy_production_map_verified': self.entropy_production_map_verified,
       'entropy_transport_verified': self.entropy_transport_verified,
       'promotion_flags_verified': self.promotion_flags_verified,
       'physical_closure_verified': self.physical_closure_verified,
@@ -956,6 +960,13 @@ def _audit_field(
       )
     ####
   ####
+  entropy_production_fractions = tuple(
+    max(
+      0.0,
+      (value - entropy_maximum) / max(entropy_maximum, 1.0e-12),
+    )
+    for value in entropy_values
+  )
   # The candidate arrays are checked outside this helper; this return keeps the
   # independent flux reconstruction separate from report reconciliation.
   return {
@@ -969,6 +980,7 @@ def _audit_field(
     'speeds': np.asarray(speeds, dtype=float),
     'entropy_residual': entropy_loss_residual,
     'entropy_production_fraction': entropy_production_fraction,
+    'entropy_production_fractions': entropy_production_fractions,
     'entropy_verified': entropy_loss_residual <= 0.05,
     'pressure_budget': pressure_budget,
     'expected_cell_count': expected_cell_count,
@@ -1063,6 +1075,24 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       atol=1.0e-10,
     )
   )
+  expected_entropy_production_map = np.asarray(
+    raw['entropy_production_fractions'],
+    dtype=float,
+  )
+  reported_entropy_production_map = np.asarray(
+    candidate.entropy_production_fraction_by_cell,
+    dtype=float,
+  )
+  entropy_production_map_verified = bool(
+    reported_entropy_production_map.shape
+    == expected_entropy_production_map.shape
+    and np.allclose(
+      reported_entropy_production_map,
+      expected_entropy_production_map,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+  )
   maxima = tuple(float(np.max(recomputed[..., index])) for index in range(_CHANNEL_COUNT))
   residuals_verified = maxima[4] <= candidate.request.euler_residual_tolerance
   pressure = np.asarray(raw['top_pressure'], dtype=float)
@@ -1110,6 +1140,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not entropy_report_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
     message = 'candidate entropy-loss and entropy-production diagnostics do not match the field'
+  elif not entropy_production_map_verified:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
+    message = 'candidate per-cell entropy-production map does not match the field'
   elif not boundary_report_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
     message = 'candidate free-boundary diagnostic arrays do not match the field'
@@ -1155,6 +1188,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     pressure_budget_verified=pressure_budget_verified,
     transonic_transition_verified=transonic_transition_verified,
     entropy_report_verified=entropy_report_verified,
+    entropy_production_map_verified=entropy_production_map_verified,
     entropy_transport_verified=bool(raw['entropy_verified']),
     promotion_flags_verified=promotion_flags_verified,
     chain_promotion_blocked=True,

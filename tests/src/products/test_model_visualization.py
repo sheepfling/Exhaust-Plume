@@ -253,6 +253,7 @@ def _coupled_euler_result() -> SimpleNamespace:
     velocity_v_by_cell_m_s=(1.0, 2.0, 3.0, 4.0),
     total_pressure_by_cell_Pa=(210_000.0, 200_000.0, 190_000.0, 180_000.0),
     entropy_proxy_by_cell=(100.0, 101.0, 102.0, 103.0),
+    entropy_production_fraction_by_cell=(0.0, 0.01, 0.02, 0.03),
     physical_closure_verified=False,
     state_sampling_available=True,
     production_claim_allowed=False,
@@ -429,6 +430,13 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert bundle.diagnostics[
     'coupled_euler_maximum_entropy_production_fraction'
   ] == pytest.approx(0.03)
+  assert bundle.diagnostics['coupled_euler_near_sonic_mach_half_width'] == pytest.approx(0.05)
+  assert bundle.fields[0].channels['entropy_production_fraction'] == pytest.approx(
+    (0.0, 0.01, 0.02, 0.03)
+  )
+  assert bundle.fields[0].channels['near_sonic_mask'] == pytest.approx(
+    (0.0, 0.0, 1.0, 0.0)
+  )
   assert bundle.claims.production_claim_allowed is False
   assert any(
     'coupled-Euler/free-boundary channels are research diagnostics' in warning

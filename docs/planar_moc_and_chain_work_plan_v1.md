@@ -3624,3 +3624,19 @@ identify a resolved shock, close the free boundary, establish a refinement-
 stable physical field, or authorize a chain cell.  The actual global case
 still remains an explicit free-boundary failure, and the production,
 canonical, and external-validation gates remain open.
+
+## Cell-wise regime-evidence visualization checkpoint
+
+The coupled-Euler visualization now carries a per-cell
+``entropy_production_fraction`` field when the solver retains that evidence,
+and adds explicit ``subsonic_mask``, ``near_sonic_mask``, and
+``supersonic_mask`` channels.  The near-sonic display band is the recorded
+``|M-1| <= 0.05`` interval.  The independent coupled-Euler audit recomputes
+the entropy map and rejects altered cell values, so the displayed regions are
+traceable to the retained conservative field.
+
+This is a diagnostic visualization seam, not a shock detector: entropy excess
+may include numerical compression or unresolved mixing, and a near-sonic
+mask is not a resolved shock boundary.  The global field remains
+non-promotable until a solver-owned mixed-regime closure, stable refinement,
+and accepted external measurements exist.

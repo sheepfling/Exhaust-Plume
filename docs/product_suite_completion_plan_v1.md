@@ -577,3 +577,18 @@ provider output is not in the claim's measurement space; an FPA result has no
 camera/detector observation; or the release freeze does not identify the
 candidate commit. In each case the result remains usable as scoped local or
 research evidence, but it is not promoted.
+
+### Cell-wise regime-evidence visualization checkpoint
+
+The coupled-Euler visualization now exposes the solver-retained
+``entropy_production_fraction_by_cell`` channel in the common planar field,
+alongside explicit subsonic, near-sonic, and supersonic display masks.  The
+near-sonic band is fixed at ``|M-1| <= 0.05`` and is recorded in the bundle
+diagnostics so a renderer can show regime regions without guessing a
+threshold.  The entropy map is independently rederived and audited per cell.
+
+These channels make compression/transition evidence inspectable in the
+visualization product, but they are not shock identification, radiance, or
+production closure.  Missing channels remain unavailable; the coupled lane
+still requires a solver-owned mixed-regime field, stable refinement, and
+provider-bound validation before any promotion.

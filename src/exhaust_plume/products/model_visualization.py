@@ -97,6 +97,7 @@ DiagnosticValue: TypeAlias = bool | float | int | str | None
 
 _CHANNEL_NAME = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 _AXIAL_SECTION_QUATERNION = (0.5, 0.5, 0.5, 0.5)
+_NEAR_SONIC_MACH_HALF_WIDTH = 0.05
 
 
 def _finite(name: str, value: object) -> float:
@@ -1103,6 +1104,7 @@ class _CoupledEulerSample:
   velocity_v_m_s: float
   total_pressure_Pa: float
   entropy_proxy: float
+  entropy_production_fraction: float | None
 ####
 
 
@@ -1166,6 +1168,13 @@ class _CoupledEulerFieldView:
         float(value) for value in getattr(result, 'entropy_proxy_by_cell', ())
       ),
     }
+    entropy_production = tuple(
+      float(value)
+      for value in getattr(result, 'entropy_production_fraction_by_cell', ())
+    )
+    if entropy_production:
+      arrays['entropy_production_fraction'] = entropy_production
+    ####
     if any(len(values) != len(vertices) for values in arrays.values()):
       raise ValueError('coupled-Euler cell channels must match cell geometry')
     ####
@@ -1273,6 +1282,11 @@ class _CoupledEulerFieldView:
       velocity_v_m_s=velocity_v,
       total_pressure_Pa=mean('total_pressure'),
       entropy_proxy=mean('entropy_proxy'),
+      entropy_production_fraction=(
+        None
+        if 'entropy_production_fraction' not in self._arrays
+        else mean('entropy_production_fraction')
+      ),
     )
   ####
 
@@ -1823,6 +1837,22 @@ def _moc_visualization(
         )
       ####
     ####
+    entropy_production_values = tuple(
+      getattr(state, 'entropy_production_fraction', None)
+      for state in axis_samples
+    )
+    if len(entropy_production_values) == len(centerline) and all(
+      value is not None for value in entropy_production_values
+    ):
+      optional_channels.append(
+        _section_channel(
+          'entropy_production_fraction',
+          'centerline entropy-production excess over the inlet envelope',
+          '1',
+          tuple(float(cast(float, value)) for value in entropy_production_values),
+        )
+      )
+    ####
   ####
   solver_channels, solver_diagnostics, solver_warnings = (
     _moc_solver_evidence_channels(
@@ -1838,6 +1868,20 @@ def _moc_visualization(
     'static_pressure': [],
     'total_pressure': [],
   }
+  if coupled_euler and 'entropy_production_fraction' in getattr(
+    field,
+    '_arrays',
+    {},
+  ):
+    field_channel_values['entropy_production_fraction'] = []
+  ####
+  if coupled_euler:
+    field_channel_values.update({
+      'subsonic_mask': [],
+      'near_sonic_mask': [],
+      'supersonic_mask': [],
+    })
+  ####
   for polygon in cell_polygons:
     centroid = (
       sum(point[0] for point in polygon) / len(polygon),
@@ -1857,19 +1901,70 @@ def _moc_visualization(
       field_channel_values['static_pressure'].append(float(total_pressure) / pressure_ratio)
       field_channel_values['total_pressure'].append(float(total_pressure))
     ####
+    if 'entropy_production_fraction' in field_channel_values:
+      production = getattr(state, 'entropy_production_fraction', None)
+      field_channel_values['entropy_production_fraction'].append(
+        None if production is None else float(production)
+      )
+    ####
+    if coupled_euler:
+      mach = None if state is None else float(getattr(state, 'mach'))
+      field_channel_values['subsonic_mask'].append(
+        None
+        if mach is None
+        else float(mach < 1.0 - _NEAR_SONIC_MACH_HALF_WIDTH)
+      )
+      field_channel_values['near_sonic_mask'].append(
+        None
+        if mach is None
+        else float(abs(mach - 1.0) <= _NEAR_SONIC_MACH_HALF_WIDTH)
+      )
+      field_channel_values['supersonic_mask'].append(
+        None
+        if mach is None
+        else float(mach > 1.0 + _NEAR_SONIC_MACH_HALF_WIDTH)
+      )
+    ####
+  ####
+  field_channel_units = {
+    'mach': '1',
+    'flow_angle': 'rad',
+    'static_pressure': 'Pa',
+    'total_pressure': 'Pa',
+  }
+  field_channel_semantics = {
+    'mach': 'cell-center sampled MOC Mach number',
+    'flow_angle': 'cell-center sampled MOC flow angle',
+    'static_pressure': 'cell-center isentropic static pressure',
+    'total_pressure': 'cell-center carried total pressure',
+  }
+  if 'entropy_production_fraction' in field_channel_values:
+    field_channel_units['entropy_production_fraction'] = '1'
+    field_channel_semantics['entropy_production_fraction'] = (
+      'cell-center entropy-production excess over the inlet envelope; '
+      'diagnostic and not a resolved-shock label'
+    )
+  ####
+  if coupled_euler:
+    for channel_id, semantic in (
+      ('subsonic_mask', 'cell-center M < 0.95 display mask'),
+      (
+        'near_sonic_mask',
+        'cell-center 0.95 <= M <= 1.05 display mask; diagnostic only',
+      ),
+      ('supersonic_mask', 'cell-center M > 1.05 display mask'),
+    ):
+      field_channel_units[channel_id] = '1'
+      field_channel_semantics[channel_id] = semantic
+    ####
   ####
   moc_field = ModelVisualField(
     field_id='planar-moc-cells',
     semantic='retained planar characteristic field cells',
     polygons_xr_m=tuple(cell_polygons),
     channels={name: tuple(values) for name, values in field_channel_values.items()},
-    channel_units={'mach': '1', 'flow_angle': 'rad', 'static_pressure': 'Pa', 'total_pressure': 'Pa'},
-    channel_semantics={
-      'mach': 'cell-center sampled MOC Mach number',
-      'flow_angle': 'cell-center sampled MOC flow angle',
-      'static_pressure': 'cell-center isentropic static pressure',
-      'total_pressure': 'cell-center carried total pressure',
-    },
+    channel_units=field_channel_units,
+    channel_semantics=field_channel_semantics,
   )
   gates = getattr(source, 'production_promotion_gates', {})
   diagnostics: dict[str, DiagnosticValue] = {
@@ -1915,6 +2010,9 @@ def _moc_visualization(
     )
     diagnostics['coupled_euler_shape_iteration_count'] = int(
       getattr(source, 'shape_iteration_count', 0)
+    )
+    diagnostics['coupled_euler_near_sonic_mach_half_width'] = (
+      _NEAR_SONIC_MACH_HALF_WIDTH
     )
     pressure_budget = getattr(source, 'subsonic_pressure_budget', None)
     if pressure_budget is not None:
