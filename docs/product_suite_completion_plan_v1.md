@@ -174,6 +174,8 @@ claim is authorized.
 - [x] Provide an exact Signature time/direction/wavelength point query.
 - [x] Add exact-fingerprint binding for future high-fidelity promotion evidence
       without changing the current research-only claim ceiling.
+- [x] Add a typed provider-bound comparison-evidence envelope requiring exact
+      assets, operator identity, uncertainty, applicability, and disjoint cases.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.

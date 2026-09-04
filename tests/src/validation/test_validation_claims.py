@@ -7,7 +7,9 @@ import pytest
 from exhaust_plume.validation.claims import (
   ClaimRole,
   ClaimStatus,
+  ComparisonEvidenceStatus,
   EvidenceLevel,
+  ProviderBoundComparisonEvidence,
   ValidationClaim,
   ValidationRegistry,
 )
@@ -62,6 +64,96 @@ def test_pending_unacquired_claim_is_not_accepted() -> None:
       metric_id='intrinsic-spectrum',
       evidence_level=EvidenceLevel.NONE_OR_NOT_ACQUIRED,
       claim_role=ClaimRole.VALIDATION,
+      status=ClaimStatus.ACCEPTED,
+    )
+  ####
+
+
+def _accepted_comparison_evidence(**overrides: object) -> ProviderBoundComparisonEvidence:
+  values: dict[str, object] = {
+    'evidence_id': 'evidence-1',
+    'claim_id': 'claim-accepted',
+    'provider_id': 'plume.provider.v1',
+    'provider_version': '1.2.3',
+    'product_id': 'plume.visual.sectioned-tube@1',
+    'benchmark_id': 'CJ-UEJ-001',
+    'external_operator_id': 'operator.extract.sectioned_tube_mach_disk_position',
+    'internal_operator_ids': ('op.visual.feature-extractor',),
+    'measurement_space': 'physical-geometry',
+    'metric_ids': ('shock-spacing',),
+    'source_asset_ids': ('source-1',),
+    'source_asset_sha256': ('a' * 64,),
+    'provider_output_sha256': ('b' * 64,),
+    'operator_manifest_sha256': 'c' * 64,
+    'calibration_case_ids': ('calibration-1',),
+    'validation_case_ids': ('validation-1',),
+    'uncertainty': {'position_rmse_m': 0.1},
+    'applicability_domain': {'mach': [1.5, 3.0]},
+    'status': ComparisonEvidenceStatus.ACCEPTED,
+  }
+  values.update(overrides)
+  return ProviderBoundComparisonEvidence(**values)
+
+
+def test_accepted_quantitative_claim_requires_and_matches_bound_evidence() -> None:
+  claim = ValidationClaim(
+    claim_id='claim-accepted',
+    benchmark_id='CJ-UEJ-001',
+    product_id='plume.visual.sectioned-tube@1',
+    measurement_operator_id='operator.extract.sectioned_tube_mach_disk_position',
+    metric_id='shock-spacing',
+    evidence_level=EvidenceLevel.QUANTITATIVE_AFTER_MEASUREMENT_OPERATOR,
+    claim_role=ClaimRole.VALIDATION,
+    uncertainty={'position_rmse_m': 0.1},
+    provenance={'source': 'provider-output'},
+    comparison_evidence=_accepted_comparison_evidence(),
+    status=ClaimStatus.ACCEPTED,
+  )
+
+  assert claim.comparison_evidence is not None
+  assert claim.comparison_evidence.validation_case_ids == ('validation-1',)
+####
+
+
+def test_accepted_quantitative_claim_without_bound_evidence_is_rejected() -> None:
+  with pytest.raises(ValueError, match='provider-bound comparison evidence'):
+    ValidationClaim(
+      claim_id='claim-accepted',
+      benchmark_id='CJ-UEJ-001',
+      product_id='plume.visual.sectioned-tube@1',
+      measurement_operator_id='operator.extract.sectioned_tube_mach_disk_position',
+      metric_id='shock-spacing',
+      evidence_level=EvidenceLevel.QUANTITATIVE_AFTER_MEASUREMENT_OPERATOR,
+      claim_role=ClaimRole.VALIDATION,
+      uncertainty={'position_rmse_m': 0.1},
+      provenance={'source': 'provider-output'},
+      status=ClaimStatus.ACCEPTED,
+    )
+  ####
+
+
+def test_bound_evidence_rejects_calibration_validation_overlap() -> None:
+  with pytest.raises(ValueError, match='must be disjoint'):
+    _accepted_comparison_evidence(
+      calibration_case_ids=('shared-case',),
+      validation_case_ids=('shared-case',),
+    )
+  ####
+
+
+def test_bound_evidence_must_match_claim_identity() -> None:
+  with pytest.raises(ValueError, match='claim_id must match'):
+    ValidationClaim(
+      claim_id='claim-accepted',
+      benchmark_id='CJ-UEJ-001',
+      product_id='plume.visual.sectioned-tube@1',
+      measurement_operator_id='operator.extract.sectioned_tube_mach_disk_position',
+      metric_id='shock-spacing',
+      evidence_level=EvidenceLevel.QUANTITATIVE_AFTER_MEASUREMENT_OPERATOR,
+      claim_role=ClaimRole.VALIDATION,
+      uncertainty={'position_rmse_m': 0.1},
+      provenance={'source': 'provider-output'},
+      comparison_evidence=_accepted_comparison_evidence(claim_id='other-claim'),
       status=ClaimStatus.ACCEPTED,
     )
   ####
