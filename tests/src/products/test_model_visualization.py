@@ -231,6 +231,7 @@ def _coupled_euler_result() -> SimpleNamespace:
   )
   request = SimpleNamespace(
     mixed_regime_request=SimpleNamespace(control_section=control_section),
+    source_closure_fingerprint='coupled-closure-test-fingerprint',
   )
   vertices = (
     ((0.0, 0.0), (1.0, 0.0), (1.0, 0.55), (0.0, 0.5)),
@@ -419,6 +420,9 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert channels['density'].unit == 'kg m^-3'
   assert channels['temperature'].values == pytest.approx((700.0, 680.0, 660.0))
   assert bundle.diagnostics['coupled_euler_free_boundary_condition_verified'] is False
+  assert bundle.diagnostics['coupled_euler_source_closure_fingerprint'] == (
+    'coupled-closure-test-fingerprint'
+  )
   assert bundle.diagnostics['coupled_euler_maximum_conservative_euler_residual'] == pytest.approx(0.001)
   assert bundle.diagnostics['coupled_euler_subsonic_pressure_budget_status'] == (
     'below-isentropic-subsonic-pressure-bounds'

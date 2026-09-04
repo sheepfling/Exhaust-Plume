@@ -1975,6 +1975,17 @@ def _moc_visualization(
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
   if coupled_euler:
+    request = getattr(source, 'request', None)
+    source_closure_fingerprint = getattr(
+      request,
+      'source_closure_fingerprint',
+      None,
+    )
+    if isinstance(source_closure_fingerprint, str) and source_closure_fingerprint:
+      diagnostics['coupled_euler_source_closure_fingerprint'] = (
+        source_closure_fingerprint
+      )
+    ####
     for name in (
       'coupled_euler_field_verified',
       'free_boundary_condition_verified',
