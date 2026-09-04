@@ -340,14 +340,26 @@ its typed contract and recorded claim ceiling.
   a camera/detector observation contract and a source-bound image comparison;
   deterministic expected counts are not measured-image evidence.
 
+### P2.1 evidence checkpoint
+
+The first P2.1 evidence-plumbing slice is complete on the candidate branch at
+`f219ae5`.  The terminal-patch planner now retains the independent
+variable-entropy measurement as a typed field beside the exact solver
+reference, validates reference identity, and exposes the full measurement
+record in its report.  Focused MOC tests, Ruff, Pyright, and the scope-marker
+check pass for this slice.  This closes the audit-retention subtask only; it
+does not close the canonical reflected/mixed-regime field or authorize any
+production claim.
+
 ### Next implementation slice
 
-The next physics slice is `P2.1`: a solver-owned reflected/mixed-regime
-downstream boundary that consumes the retained upstream handoff, carries its
-own control/frontier data, and exposes an independent residual audit. It may
-be implemented first as a research candidate, but it must remain explicitly
-non-canonical until the coupled Euler/free-boundary, entropy, refinement, and
-external-validation gates pass. The slice is accepted only if it:
+The next physics slice remains completion of `P2.1`: a solver-owned
+reflected/mixed-regime downstream boundary that consumes the retained upstream
+handoff, carries its own control/frontier data, and exposes an independent
+residual audit. It may be implemented first as a research candidate, but it
+must remain explicitly non-canonical until the coupled Euler/free-boundary,
+entropy, refinement, and external-validation gates pass. The packet is
+accepted only if it:
 
 1. rejects missing, altered, or reused upstream handoffs;
 2. distinguishes a solver-owned mixed-regime boundary from the current
