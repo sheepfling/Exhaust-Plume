@@ -212,8 +212,28 @@
       "asset_id": "repository-synthetic-signature-contract-fixture-v1",
       "asset_sha256": "2a35604852b25b7b0efff7def5a4feb142964b23d2e38767e60c5148494ac341",
       "asset_source": "repository synthetic contract fixture",
-      "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
+      "claim_ceiling": "Versioned table/interpolation and explicit caller-bound LTE line-source spectral engineering only; no chemistry, atmosphere, detector, or external validation claim.",
       "contract_interpolation_passed": true,
+      "explicit_lte_line_source": {
+        "adapter_schema": "plume.signature.model-lte-line-bridge@1",
+        "claim_status": "spectral-engineering-with-explicit-line-optical-depths; no-chemistry-population-closure-or-external-validation",
+        "line_count": 1,
+        "line_shape_model": "normalized-wavelength-domain-Voigt",
+        "optical_profile_mode": "lte-line-by-line-voigt",
+        "peak_absorption_coefficient_per_m": 8014.657579366804,
+        "production_claim_allowed": "false",
+        "profile_id": "product-lane-lte-line-profile-v1",
+        "radiation_claim": "spectral_engineering",
+        "scope": "explicit caller-owned line optical depths and LTE source only; no chemistry populations, atmosphere, detector, or external validation",
+        "source_model": "LTE-Planck-source",
+        "source_temperature_K": 1200.0,
+        "status": "passed",
+        "wavelengths_m": [
+          4.5e-06,
+          5.0e-06,
+          5.5e-06
+        ]
+      },
       "external_comparison": {
         "reason": "Recovered spectral observations are sensor-space or relative-shape products; generic LOS, path, and bandpass operators now pass synthetic probes, but the signature provider still lacks a corpus-bound observer, source-calibration, and detector scenario.",
         "status": "pending"
