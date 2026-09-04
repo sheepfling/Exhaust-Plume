@@ -29,6 +29,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
+  MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus,
   MocTransonicTransitionStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
@@ -68,6 +69,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
   assess_reflected_domain_coupled_euler_transonic_transition,
+  assess_reflected_domain_coupled_euler_control_section_compatibility,
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   moc_reflected_domain_global_physical_closure_fingerprint,
@@ -1758,6 +1760,17 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert result.as_report()['transonic_transition']['status'] == (
     'converged-normal-shock-pressure-reference'
   )
+  assert result.control_section_compatibility is not None
+  assert result.control_section_compatibility.status is (
+    MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus
+    .TARGET_BELOW_CONTROL_SECTION
+  )
+  assert not result.control_section_compatibility.pressure_seam_matched
+  assert result.control_section_compatibility.transition_requires_supersonic_upstream
+  assert result.control_section_compatibility.absolute_pressure_jump_Pa > 0.0
+  assert result.as_report()['control_section_compatibility']['status'] == (
+    'target-below-control-section-pressure'
+  )
   transition = assess_reflected_domain_coupled_euler_transonic_transition(
     coupled_request
   )
@@ -1769,6 +1782,11 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert transition.as_report()['physical_closure_verified'] is False
   assert transition.as_report()['chain_promotion_blocked'] is True
   assert transition.as_report()['production_claim_allowed'] is False
+  compatibility = assess_reflected_domain_coupled_euler_control_section_compatibility(
+    coupled_request,
+    transition,
+  )
+  assert compatibility == result.control_section_compatibility
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   )
@@ -1780,6 +1798,7 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert audit.residual_report_verified
   assert audit.free_boundary_report_verified
   assert audit.pressure_budget_verified
+  assert audit.control_section_compatibility_verified
   assert audit.entropy_report_verified
   assert audit.entropy_production_map_verified
   assert audit.entropy_transport_verified
@@ -1820,6 +1839,22 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
   )
   assert not transition_audit.transonic_transition_verified
+  tampered_compatibility = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(
+      result,
+      control_section_compatibility=replace(
+        result.control_section_compatibility,
+        absolute_pressure_jump_Pa=(
+          result.control_section_compatibility.absolute_pressure_jump_Pa * 1.1
+        ),
+      ),
+    )
+  )
+  assert tampered_compatibility.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .CONTROL_SECTION_COMPATIBILITY_FAILURE
+  )
+  assert not tampered_compatibility.control_section_compatibility_verified
   assert result.maximum_entropy_production_fraction is not None
   tampered_entropy = measure_reflected_domain_coupled_euler_free_boundary(
     replace(
@@ -1969,6 +2004,15 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   )
   assert result.transonic_transition_audit is not None
   assert result.transonic_transition_audit.converged
+  assert result.control_section_compatibility is not None
+  assert result.control_section_compatibility.status is (
+    MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus
+    .PRESSURE_MATCHED
+  )
+  assert result.control_section_compatibility.pressure_seam_matched
+  assert result.control_section_compatibility.absolute_pressure_jump_Pa == pytest.approx(
+    0.0
+  )
   direct_budget = assess_reflected_domain_coupled_euler_subsonic_pressure_budget(
     coupled_request
   )
@@ -2001,6 +2045,7 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert audit.residual_report_verified
   assert audit.free_boundary_report_verified
   assert audit.pressure_budget_verified
+  assert audit.control_section_compatibility_verified
   assert audit.promotion_flags_verified
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked

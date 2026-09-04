@@ -34,6 +34,7 @@ from exhaust_plume.models.moc.transonic_transition import (
   MocTransonicTransitionAudit,
   MocTransonicTransitionRequest,
   MocTransonicTransitionResult,
+  MocTransonicTransitionStatus,
   measure_moc_transonic_transition,
   solve_moc_transonic_transition,
 )
@@ -42,11 +43,14 @@ __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudget',
+  'MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus',
+  'MocReflectedDomainCoupledEulerControlSectionCompatibility',
   'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
   'MocReflectedDomainCoupledEulerFreeBoundaryResult',
   'build_reflected_domain_coupled_euler_free_boundary_request',
   'assess_reflected_domain_coupled_euler_subsonic_pressure_budget',
   'assess_reflected_domain_coupled_euler_transonic_transition',
+  'assess_reflected_domain_coupled_euler_control_section_compatibility',
   'solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request',
   'solve_reflected_domain_coupled_euler_free_boundary',
 )
@@ -205,6 +209,148 @@ class MocReflectedDomainCoupledEulerSubsonicPressureBudget:
       'claim_status': (
         'diagnostic-only-isentropic-subsonic-pressure-budget; '
         'two-dimensional entropy production and canonical closure remain open'
+      ),
+    }
+  ####
+####
+
+
+class MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus(str, Enum):
+  """Classify the pressure seam at the start of the free-boundary field."""
+
+  PRESSURE_MATCHED = 'control-section-inlet-pressure-matched'
+  TARGET_BELOW_CONTROL_SECTION = 'target-below-control-section-pressure'
+  TARGET_ABOVE_CONTROL_SECTION = 'target-above-control-section-pressure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainCoupledEulerControlSectionCompatibility:
+  """Explicit evidence for the control-section/free-boundary inlet seam.
+
+  The field solver begins from a prescribed control-section state while its
+  outer boundary is assigned the ambient pressure.  These values coincide
+  only for the compatible research fixture.  A mismatch is not a solver
+  closure and is retained as a diagnostic that identifies the missing
+  characteristic or shock-placement physics at the seam.
+  """
+
+  status: MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus
+  target_ambient_pressure_Pa: float
+  control_section_outer_static_pressure_Pa: float
+  control_section_outer_total_pressure_Pa: float
+  control_section_outer_mach: float
+  target_minus_control_section_pressure_Pa: float
+  absolute_pressure_jump_Pa: float
+  absolute_pressure_jump_fraction: float
+  control_section_is_subsonic: bool
+  scalar_transition_status: MocTransonicTransitionStatus
+  scalar_transition_required: bool
+  transition_requires_supersonic_upstream: bool
+  source: str = 'derived-control-section-free-boundary-inlet-seam'
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus'
+      )
+    ####
+    for name in (
+      'target_ambient_pressure_Pa',
+      'control_section_outer_static_pressure_Pa',
+      'control_section_outer_total_pressure_Pa',
+      'control_section_outer_mach',
+      'absolute_pressure_jump_Pa',
+      'absolute_pressure_jump_fraction',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    for name in (
+      'target_ambient_pressure_Pa',
+      'control_section_outer_static_pressure_Pa',
+      'control_section_outer_total_pressure_Pa',
+    ):
+      if getattr(self, name) <= 0.0:
+        raise ValueError(f'{name} must be positive')
+      ####
+    ####
+    target_minus_control = float(self.target_minus_control_section_pressure_Pa)
+    if not isfinite(target_minus_control):
+      raise ValueError(
+        'target_minus_control_section_pressure_Pa must be finite'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'target_minus_control_section_pressure_Pa',
+      target_minus_control,
+    )
+    if not isinstance(self.scalar_transition_status, MocTransonicTransitionStatus):
+      raise TypeError(
+        'scalar_transition_status must be a MocTransonicTransitionStatus'
+      )
+    ####
+    for name in (
+      'control_section_is_subsonic',
+      'scalar_transition_required',
+      'transition_requires_supersonic_upstream',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    source = str(self.source)
+    if not source:
+      raise ValueError('source must be a non-empty string')
+    ####
+    object.__setattr__(self, 'source', source)
+  ####
+
+  @property
+  def pressure_seam_matched(self) -> bool:
+    """Whether the prescribed inlet and ambient pressures coincide."""
+
+    return self.status is (
+      MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus
+      .PRESSURE_MATCHED
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'target_ambient_pressure_Pa': self.target_ambient_pressure_Pa,
+      'control_section_outer_static_pressure_Pa': (
+        self.control_section_outer_static_pressure_Pa
+      ),
+      'control_section_outer_total_pressure_Pa': (
+        self.control_section_outer_total_pressure_Pa
+      ),
+      'control_section_outer_mach': self.control_section_outer_mach,
+      'target_minus_control_section_pressure_Pa': (
+        self.target_minus_control_section_pressure_Pa
+      ),
+      'absolute_pressure_jump_Pa': self.absolute_pressure_jump_Pa,
+      'absolute_pressure_jump_fraction': self.absolute_pressure_jump_fraction,
+      'control_section_is_subsonic': self.control_section_is_subsonic,
+      'scalar_transition_status': self.scalar_transition_status.value,
+      'scalar_transition_required': self.scalar_transition_required,
+      'transition_requires_supersonic_upstream': (
+        self.transition_requires_supersonic_upstream
+      ),
+      'pressure_seam_matched': self.pressure_seam_matched,
+      'source': self.source,
+      'claim_status': (
+        'diagnostic-only-control-section-free-boundary-inlet-seam; '
+        'characteristic or shock placement and canonical closure remain open'
       ),
     }
   ####
@@ -484,6 +630,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   ) = None
   transonic_transition: MocTransonicTransitionResult | None = None
   transonic_transition_audit: MocTransonicTransitionAudit | None = None
+  control_section_compatibility: (
+    MocReflectedDomainCoupledEulerControlSectionCompatibility | None
+  ) = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -615,6 +764,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     ):
       raise TypeError(
         'transonic_transition_audit must be a MocTransonicTransitionAudit or None'
+      )
+    ####
+    if self.control_section_compatibility is not None and not isinstance(
+      self.control_section_compatibility,
+      MocReflectedDomainCoupledEulerControlSectionCompatibility,
+    ):
+      raise TypeError(
+        'control_section_compatibility must be a '
+        'MocReflectedDomainCoupledEulerControlSectionCompatibility or None'
       )
     ####
     if (
@@ -754,6 +912,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
           if self.transonic_transition_audit is None
           else self.transonic_transition_audit.as_report()
         ),
+        'control_section_compatibility': (
+          None
+          if self.control_section_compatibility is None
+          else self.control_section_compatibility.as_report()
+        ),
       },
     )
   ####
@@ -856,6 +1019,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         None
         if self.transonic_transition_audit is None
         else self.transonic_transition_audit.as_report()
+      ),
+      'control_section_compatibility': (
+        None
+        if self.control_section_compatibility is None
+        else self.control_section_compatibility.as_report()
       ),
       'request': None if self.request is None else self.request.as_report(),
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
@@ -979,6 +1147,98 @@ def assess_reflected_domain_coupled_euler_transonic_transition(
       gamma=float(sample.gamma),
       gas_constant_J_kgK=request.gas_constant_J_kgK,
     )
+  )
+####
+
+
+def assess_reflected_domain_coupled_euler_control_section_compatibility(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  transition: MocTransonicTransitionResult | None = None,
+) -> MocReflectedDomainCoupledEulerControlSectionCompatibility:
+  """Measure the prescribed control-section/free-boundary inlet pressure seam.
+
+  The comparison is intentionally strict: a target within the subsonic
+  pressure budget can still require a characteristic adjustment, while a
+  target below the sonic bound additionally requires the scalar transition
+  mechanism.  Neither condition places a transition in the two-dimensional
+  field or closes the downstream boundary.
+  """
+
+  if not isinstance(
+    request,
+    MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  ):
+    raise TypeError(
+      'request must be a '
+      'MocReflectedDomainCoupledEulerFreeBoundaryRequest'
+    )
+  ####
+  if transition is None:
+    transition = assess_reflected_domain_coupled_euler_transonic_transition(
+      request
+    )
+  ####
+  if not isinstance(transition, MocTransonicTransitionResult):
+    raise TypeError('transition must be a MocTransonicTransitionResult or None')
+  ####
+  sample = request.mixed_regime_request.control_section.samples[-1]
+  target_pressure = float(request.mixed_regime_request.ambient_pressure_Pa)
+  control_pressure = float(sample.static_pressure_Pa)
+  control_total_pressure = float(sample.total_pressure_Pa)
+  control_mach = float(sample.mach)
+  for name, value in (
+    ('target ambient pressure', target_pressure),
+    ('control-section static pressure', control_pressure),
+    ('control-section total pressure', control_total_pressure),
+    ('control-section Mach number', control_mach),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
+  target_minus_control = target_pressure - control_pressure
+  absolute_jump = abs(target_minus_control)
+  pressure_scale = max(target_pressure, control_pressure, 1.0)
+  jump_fraction = absolute_jump / pressure_scale
+  tolerance = 1.0e-10 * pressure_scale
+  if absolute_jump <= tolerance:
+    status = (
+      MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus
+      .PRESSURE_MATCHED
+    )
+  elif target_minus_control < 0.0:
+    status = (
+      MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus
+      .TARGET_BELOW_CONTROL_SECTION
+    )
+  else:
+    status = (
+      MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus
+      .TARGET_ABOVE_CONTROL_SECTION
+    )
+  ####
+  control_section_is_subsonic = control_mach < 1.0 - 1.0e-10
+  transition_requires_supersonic_upstream = bool(
+    transition.transition_required
+    and control_section_is_subsonic
+    and transition.required_upstream_mach is not None
+    and transition.required_upstream_mach > 1.0 + 1.0e-10
+  )
+  return MocReflectedDomainCoupledEulerControlSectionCompatibility(
+    status=status,
+    target_ambient_pressure_Pa=target_pressure,
+    control_section_outer_static_pressure_Pa=control_pressure,
+    control_section_outer_total_pressure_Pa=control_total_pressure,
+    control_section_outer_mach=control_mach,
+    target_minus_control_section_pressure_Pa=target_minus_control,
+    absolute_pressure_jump_Pa=absolute_jump,
+    absolute_pressure_jump_fraction=jump_fraction,
+    control_section_is_subsonic=control_section_is_subsonic,
+    scalar_transition_status=transition.status,
+    scalar_transition_required=transition.transition_required,
+    transition_requires_supersonic_upstream=(
+      transition_requires_supersonic_upstream
+    ),
   )
 ####
 
@@ -1892,6 +2152,12 @@ def _result_from_field(
   transonic_transition_audit = measure_moc_transonic_transition(
     transonic_transition
   )
+  control_section_compatibility = (
+    assess_reflected_domain_coupled_euler_control_section_compatibility(
+      request,
+      transonic_transition,
+    )
+  )
   channel_coverage = {name: True for name in _CHANNEL_NAMES}
   return MocReflectedDomainCoupledEulerFreeBoundaryResult(
     status=status,
@@ -1957,6 +2223,7 @@ def _result_from_field(
     subsonic_pressure_budget=pressure_budget,
     transonic_transition=transonic_transition,
     transonic_transition_audit=transonic_transition_audit,
+    control_section_compatibility=control_section_compatibility,
     **flattened,
   )
 ####

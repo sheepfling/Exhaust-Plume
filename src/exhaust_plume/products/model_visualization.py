@@ -2048,6 +2048,46 @@ def _moc_visualization(
         ####
       ####
     ####
+    control_section_compatibility = getattr(
+      source,
+      'control_section_compatibility',
+      None,
+    )
+    if control_section_compatibility is not None:
+      compatibility_status = getattr(
+        control_section_compatibility,
+        'status',
+        '',
+      )
+      diagnostics['coupled_euler_control_section_seam_status'] = str(
+        getattr(compatibility_status, 'value', compatibility_status)
+      )
+      diagnostics['coupled_euler_control_section_seam_matched'] = bool(
+        getattr(control_section_compatibility, 'pressure_seam_matched', False)
+      )
+      for name in (
+        'control_section_outer_static_pressure_Pa',
+        'control_section_outer_total_pressure_Pa',
+        'control_section_outer_mach',
+        'target_minus_control_section_pressure_Pa',
+        'absolute_pressure_jump_Pa',
+        'absolute_pressure_jump_fraction',
+      ):
+        value = getattr(control_section_compatibility, name, None)
+        if value is not None and isfinite(float(value)):
+          diagnostics[f'coupled_euler_{name}'] = float(value)
+        ####
+      ####
+      diagnostics['coupled_euler_transition_requires_supersonic_upstream'] = (
+        bool(
+          getattr(
+            control_section_compatibility,
+            'transition_requires_supersonic_upstream',
+            False,
+          )
+        )
+      )
+    ####
   ####
   diagnostics.update(solver_diagnostics)
   if isinstance(gates, Mapping):

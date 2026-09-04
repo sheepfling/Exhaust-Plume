@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
+  MocReflectedDomainCoupledEulerControlSectionCompatibility,
   MocReflectedDomainCoupledEulerSubsonicPressureBudget,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
 )
@@ -59,6 +60,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   BOUNDARY_FAILURE = 'coupled-euler-audit-boundary-failure'
   PRESSURE_BUDGET_FAILURE = 'coupled-euler-audit-pressure-budget-failure'
   TRANSONIC_TRANSITION_FAILURE = 'coupled-euler-audit-transonic-transition-failure'
+  CONTROL_SECTION_COMPATIBILITY_FAILURE = (
+    'coupled-euler-audit-control-section-compatibility-failure'
+  )
   FLAG_FAILURE = 'coupled-euler-audit-promotion-flag-failure'
 ####
 
@@ -92,6 +96,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   free_boundary_report_verified: bool = False
   pressure_budget_verified: bool = False
   transonic_transition_verified: bool = False
+  control_section_compatibility_verified: bool = False
+  control_section_pressure_jump_Pa: float | None = None
+  control_section_pressure_jump_fraction: float | None = None
   entropy_report_verified: bool = False
   entropy_production_map_verified: bool = False
   entropy_transport_verified: bool = False
@@ -142,6 +149,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'maximum_conservative_euler_residual',
       'maximum_free_boundary_pressure_residual_Pa',
       'maximum_free_boundary_normal_velocity_residual_fraction',
+      'control_section_pressure_jump_Pa',
+      'control_section_pressure_jump_fraction',
       'maximum_entropy_transport_residual',
       'maximum_entropy_production_fraction',
     ):
@@ -162,6 +171,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_report_verified',
       'free_boundary_report_verified',
       'transonic_transition_verified',
+      'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
       'entropy_transport_verified',
@@ -205,6 +215,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.free_boundary_report_verified
       and self.pressure_budget_verified
       and self.transonic_transition_verified
+      and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
       and self.entropy_transport_verified
@@ -258,6 +269,13 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'free_boundary_report_verified': self.free_boundary_report_verified,
       'pressure_budget_verified': self.pressure_budget_verified,
       'transonic_transition_verified': self.transonic_transition_verified,
+      'control_section_compatibility_verified': (
+        self.control_section_compatibility_verified
+      ),
+      'control_section_pressure_jump_Pa': self.control_section_pressure_jump_Pa,
+      'control_section_pressure_jump_fraction': (
+        self.control_section_pressure_jump_fraction
+      ),
       'entropy_report_verified': self.entropy_report_verified,
       'entropy_production_map_verified': self.entropy_production_map_verified,
       'entropy_transport_verified': self.entropy_transport_verified,
@@ -641,6 +659,112 @@ def _audit_transonic_transition(
       expected_audit.total_pressure_residual,
     )
   )
+####
+
+
+def _audit_control_section_compatibility(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> tuple[bool, float | None, float | None]:
+  """Recompute the control-section/free-boundary inlet seam independently."""
+
+  request = candidate.request
+  reported = candidate.control_section_compatibility
+  transition = candidate.transonic_transition
+  if request is None or not isinstance(
+    reported,
+    MocReflectedDomainCoupledEulerControlSectionCompatibility,
+  ):
+    return False, None, None
+  ####
+  if transition is None:
+    return False, None, None
+  ####
+  sample = request.mixed_regime_request.control_section.samples[-1]
+  target_pressure = float(request.mixed_regime_request.ambient_pressure_Pa)
+  control_pressure = float(sample.static_pressure_Pa)
+  control_total_pressure = float(sample.total_pressure_Pa)
+  control_mach = float(sample.mach)
+  if any(
+    not isfinite(value) or value <= 0.0
+    for value in (
+      target_pressure,
+      control_pressure,
+      control_total_pressure,
+      control_mach,
+    )
+  ):
+    return False, None, None
+  ####
+  target_minus_control = target_pressure - control_pressure
+  pressure_jump = abs(target_minus_control)
+  pressure_scale = max(target_pressure, control_pressure, 1.0)
+  pressure_jump_fraction = pressure_jump / pressure_scale
+  tolerance = 1.0e-10 * pressure_scale
+  if pressure_jump <= tolerance:
+    expected_status = 'control-section-inlet-pressure-matched'
+  elif target_minus_control < 0.0:
+    expected_status = 'target-below-control-section-pressure'
+  else:
+    expected_status = 'target-above-control-section-pressure'
+  ####
+  control_section_is_subsonic = control_mach < 1.0 - 1.0e-10
+  transition_requires_supersonic_upstream = bool(
+    transition.transition_required
+    and control_section_is_subsonic
+    and transition.required_upstream_mach is not None
+    and transition.required_upstream_mach > 1.0 + 1.0e-10
+  )
+  values_verified = bool(
+    reported.status.value == expected_status
+    and reported.scalar_transition_status.value == transition.status.value
+    and reported.scalar_transition_required == transition.transition_required
+    and reported.control_section_is_subsonic == control_section_is_subsonic
+    and reported.transition_requires_supersonic_upstream
+    == transition_requires_supersonic_upstream
+    and np.isclose(
+      reported.target_ambient_pressure_Pa,
+      target_pressure,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.isclose(
+      reported.control_section_outer_static_pressure_Pa,
+      control_pressure,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.isclose(
+      reported.control_section_outer_total_pressure_Pa,
+      control_total_pressure,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.isclose(
+      reported.control_section_outer_mach,
+      control_mach,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.isclose(
+      reported.target_minus_control_section_pressure_Pa,
+      target_minus_control,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.isclose(
+      reported.absolute_pressure_jump_Pa,
+      pressure_jump,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.isclose(
+      reported.absolute_pressure_jump_fraction,
+      pressure_jump_fraction,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+  )
+  return values_verified, pressure_jump, pressure_jump_fraction
 ####
 
 
@@ -1059,6 +1183,11 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     )
   )
   transonic_transition_verified = _audit_transonic_transition(candidate)
+  (
+    control_section_compatibility_verified,
+    control_section_pressure_jump,
+    control_section_pressure_jump_fraction,
+  ) = _audit_control_section_compatibility(candidate)
   entropy_report_verified = bool(
     candidate.maximum_entropy_transport_residual is not None
     and np.isclose(
@@ -1137,6 +1266,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not transonic_transition_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
     message = 'candidate scalar transonic transition evidence does not match the control section'
+  elif not control_section_compatibility_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .CONTROL_SECTION_COMPATIBILITY_FAILURE
+    )
+    message = (
+      'candidate control-section/free-boundary inlet seam evidence does not '
+      'match the bound control section'
+    )
   elif not entropy_report_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
     message = 'candidate entropy-loss and entropy-production diagnostics do not match the field'
@@ -1187,6 +1325,11 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     free_boundary_report_verified=boundary_report_verified,
     pressure_budget_verified=pressure_budget_verified,
     transonic_transition_verified=transonic_transition_verified,
+    control_section_compatibility_verified=(
+      control_section_compatibility_verified
+    ),
+    control_section_pressure_jump_Pa=control_section_pressure_jump,
+    control_section_pressure_jump_fraction=control_section_pressure_jump_fraction,
     entropy_report_verified=entropy_report_verified,
     entropy_production_map_verified=entropy_production_map_verified,
     entropy_transport_verified=bool(raw['entropy_verified']),

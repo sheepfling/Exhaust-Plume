@@ -285,6 +285,17 @@ def _coupled_euler_result() -> SimpleNamespace:
       total_pressure_compatibility_ratio=0.5,
       minimum_additional_total_pressure_loss_fraction=0.5,
     ),
+    control_section_compatibility=SimpleNamespace(
+      status='target-below-control-section-pressure',
+      pressure_seam_matched=False,
+      control_section_outer_static_pressure_Pa=300_000.0,
+      control_section_outer_total_pressure_Pa=400_000.0,
+      control_section_outer_mach=0.67,
+      target_minus_control_section_pressure_Pa=-200_000.0,
+      absolute_pressure_jump_Pa=200_000.0,
+      absolute_pressure_jump_fraction=2.0 / 3.0,
+      transition_requires_supersonic_upstream=True,
+    ),
   )
 ####
 
@@ -428,6 +439,16 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
     'below-isentropic-subsonic-pressure-bounds'
   )
   assert bundle.diagnostics['coupled_euler_subsonic_pressure_budget_reachable'] is False
+  assert bundle.diagnostics[
+    'coupled_euler_control_section_seam_status'
+  ] == 'target-below-control-section-pressure'
+  assert bundle.diagnostics['coupled_euler_control_section_seam_matched'] is False
+  assert bundle.diagnostics[
+    'coupled_euler_absolute_pressure_jump_Pa'
+  ] == pytest.approx(200_000.0)
+  assert bundle.diagnostics[
+    'coupled_euler_transition_requires_supersonic_upstream'
+  ] is True
   assert bundle.diagnostics[
     'coupled_euler_pressure_budget_minimum_additional_total_pressure_loss_fraction'
   ] == pytest.approx(0.5)

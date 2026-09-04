@@ -526,6 +526,17 @@ identifies an admissible entropy-producing mechanism for the next 2-D solver;
 it does not place a shock in the retained mesh, close the mixed-regime field,
 or authorize a continued physical cell.
 
+The coupled result now also retains an explicit control-section/free-boundary
+inlet-seam compatibility record.  It reports the signed and normalized
+pressure jump, the outer control-section Mach and total pressure, and whether
+the scalar transition would require a supersonic upstream state.  The actual
+global case is therefore classified as ``TARGET_BELOW_CONTROL_SECTION`` with
+an open inlet pressure seam, while the compatible research fixture is
+``PRESSURE_MATCHED``.  The independent field audit re-derives this record and
+the planar visualization exposes it as a diagnostic.  This makes the current
+failure actionable without treating the scalar transition or a downstream
+shape relaxation as a placed shock or a canonical closure.
+
 ### Explicit LTE line-source Signature checkpoint
 
 The Signature bridge now accepts an explicit `LineRadiationProfile` alongside

@@ -158,7 +158,6 @@ def test_sectioned_lte_line_profile_preserves_position_varying_sources() -> None
   assert report['source_model'] == 'LTE-Planck-source-by-section'
   assert report['section_count'] == 2
   assert report['profiles_by_section'][0]['source_thermochemistry']['mixture_id'] == 'test-chem0-sectioned-source'  # type: ignore[index]
-  ####
 ####
 
 
