@@ -65,6 +65,23 @@ python scripts/validate_provider_comparisons.py \
   --output provider-comparison-preflight.json
 ```
 
+When a provider owner supplies a typed evidence handoff, pass it explicitly:
+
+```bash
+python scripts/validate_provider_comparisons.py \
+  --corpus /path/to/plume_validation_data_v8.zip \
+  --provider-bound-evidence /path/to/provider-bound-evidence.json \
+  --output provider-comparison-preflight.json
+```
+
+The handoff must be a JSON object with `schema_id` set to
+`exhaust-plume.provider-bound-comparison-evidence@1` and an `evidence` list of
+`ProviderBoundComparisonEvidence` records. The loader validates the record
+shape, digests, case split, metrics, and claim identity, then the planner also
+requires each record's provider ID to match the provider under comparison. It
+does not dereference or invent the named source/output assets; their owner
+must retain those artifacts for independent audit.
+
 The committed [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json)
 is the result for the recovered attachment. It records all ten gate-eligible
 VIS/SIG/RAY comparison mappings and the actual provider channels and corpus

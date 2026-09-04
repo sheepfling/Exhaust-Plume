@@ -10,6 +10,8 @@ import sys
 from typing import Any, Mapping
 from zipfile import ZipFile
 
+from pydantic import ValidationError
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / 'src') not in sys.path:
   sys.path.insert(0, str(REPO_ROOT / 'src'))
@@ -60,6 +62,60 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution
 VISUAL_PRODUCT = 'plume.visual.sectioned-tube@1'
 SIGNATURE_PRODUCT = 'plume.signature.spectral-radiant-intensity@1'
 RAY_PRODUCT = 'plume.optical.spectral-ray-transfer@1'
+PROVIDER_BOUND_EVIDENCE_SCHEMA = (
+  'exhaust-plume.provider-bound-comparison-evidence@1'
+)
+
+
+def load_provider_bound_evidence(
+  path: Path,
+) -> dict[str, ProviderBoundComparisonEvidence]:
+  """Load a strict, content-addressed provider-evidence handoff.
+
+  The loader validates the typed envelope and indexes one record per
+  comparison claim.  It intentionally does not dereference source or provider
+  output digests: those assets belong to the provider handoff and are checked
+  by the owner of the measurement operator.  Missing or malformed records
+  fail closed before the comparison planner can mark anything accepted.
+  """
+
+  try:
+    payload = json.loads(path.read_text(encoding='utf-8'))
+  except (OSError, json.JSONDecodeError) as error:
+    raise ValueError(f'could not read provider-bound evidence from {path}: {error}') from error
+  if not isinstance(payload, dict):
+    raise ValueError('provider-bound evidence document must be a JSON object')
+  if set(payload) != {'schema_id', 'evidence'}:
+    raise ValueError(
+      'provider-bound evidence document must contain only schema_id and evidence'
+    )
+  if payload.get('schema_id') != PROVIDER_BOUND_EVIDENCE_SCHEMA:
+    raise ValueError(
+      'provider-bound evidence document has an unsupported schema_id'
+    )
+  records = payload.get('evidence')
+  if not isinstance(records, list) or not all(isinstance(record, dict) for record in records):
+    raise ValueError('provider-bound evidence document evidence must be a list of objects')
+  evidence_by_claim: dict[str, ProviderBoundComparisonEvidence] = {}
+  evidence_ids: set[str] = set()
+  for index, record in enumerate(records):
+    try:
+      evidence = ProviderBoundComparisonEvidence.model_validate(record)
+    except ValidationError as error:
+      raise ValueError(
+        f'provider-bound evidence record {index} failed typed validation: {error}'
+      ) from error
+    if evidence.evidence_id in evidence_ids:
+      raise ValueError(
+        f'provider-bound evidence contains duplicate evidence_id {evidence.evidence_id!r}'
+      )
+    if evidence.claim_id in evidence_by_claim:
+      raise ValueError(
+        f'provider-bound evidence contains duplicate claim_id {evidence.claim_id!r}'
+      )
+    evidence_ids.add(evidence.evidence_id)
+    evidence_by_claim[evidence.claim_id] = evidence
+  return evidence_by_claim
 
 
 def _summarize_csv(
@@ -644,6 +700,10 @@ def build_comparison_plan(
       raise ValueError(
         'provider-bound evidence claim_id must match comparison_id'
       )
+    if evidence.provider_id not in comparison['provider_ids']:
+      raise ValueError(
+        'provider-bound evidence provider_id must match a comparison provider'
+      )
     for field_name in ('product_id', 'benchmark_id', 'measurement_operator_id'):
       evidence_field = (
         'external_operator_id' if field_name == 'measurement_operator_id'
@@ -716,7 +776,11 @@ def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[st
   ]
 
 
-def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
+def build_provider_comparison_preflight(
+  path: Path,
+  *,
+  provider_bound_evidence_path: Path | None = None,
+) -> dict[str, Any]:
   """Validate the archive, probe current providers, and record blocked gates."""
 
   corpus_report = preflight_corpus(path)
@@ -729,6 +793,10 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
     'archive': archive_summary,
     'corpus_status': corpus_report['status'],
     'operator_reconciliation': corpus_report.get('operator_reconciliation', {}),
+    'provider_bound_evidence_schema': PROVIDER_BOUND_EVIDENCE_SCHEMA,
+    'provider_bound_evidence_source': (
+      None if provider_bound_evidence_path is None else str(provider_bound_evidence_path)
+    ),
     'release_ready': False,
   }
   if corpus_report['status'] != 'preflight-valid-pending-release-gates':
@@ -739,6 +807,23 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
       'release_blockers': ['recovered corpus did not pass the structural preflight'],
     })
     return report
+
+  provider_bound_evidence: dict[str, ProviderBoundComparisonEvidence] | None = None
+  if provider_bound_evidence_path is not None:
+    try:
+      provider_bound_evidence = load_provider_bound_evidence(
+        provider_bound_evidence_path
+      )
+    except ValueError as error:
+      report.update({
+        'status': 'blocked-invalid-provider-evidence',
+        'errors': [str(error)],
+        'comparisons': [],
+        'release_blockers': [
+          'provider-bound evidence handoff failed strict schema validation',
+        ],
+      })
+      return report
 
   with ZipFile(path) as archive:
     observations = summarize_corpus_observations(archive)
@@ -755,7 +840,12 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
     providers=providers,
     operator_crosswalk_status=operator_status,
     operator_executions=operator_executions,
+    provider_bound_evidence=provider_bound_evidence,
   )
+  unaccepted_comparisons = [
+    comparison for comparison in comparisons
+    if comparison['claim_status'] != 'accepted'
+  ]
   report.update({
     'status': 'comparisons-recorded-pending-provider-bindings',
     'providers': providers,
@@ -766,7 +856,9 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
     'unimplemented_product_boundaries': build_unimplemented_boundaries(providers),
     'release_blockers': [
       *(['external operator semantic crosswalk is incomplete'] if operator_status != 'complete-scoped' else []),
-      'all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings',
+      *([
+        'provider-specific external comparisons remain unaccepted because provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings are still missing'
+      ] if unaccepted_comparisons else []),
       'separately named MVP alignment archive is not yet verified',
     ],
   })
@@ -776,9 +868,20 @@ def build_provider_comparison_preflight(path: Path) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument('--corpus', required=True, type=Path)
+  parser.add_argument(
+    '--provider-bound-evidence',
+    type=Path,
+    help=(
+      'optional strict JSON evidence handoff using '
+      f'{PROVIDER_BOUND_EVIDENCE_SCHEMA}'
+    ),
+  )
   parser.add_argument('--output', type=Path)
   args = parser.parse_args(argv)
-  report = build_provider_comparison_preflight(args.corpus)
+  report = build_provider_comparison_preflight(
+    args.corpus,
+    provider_bound_evidence_path=args.provider_bound_evidence,
+  )
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
   if args.output is not None:
     args.output.write_text(serialized, encoding='utf-8')

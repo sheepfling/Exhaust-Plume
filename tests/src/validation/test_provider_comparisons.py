@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 
 from scripts.validate_provider_comparisons import (
+  PROVIDER_BOUND_EVIDENCE_SCHEMA,
   build_comparison_plan,
   build_unimplemented_boundaries,
   execute_visual_feature_probe,
+  load_provider_bound_evidence,
 )
 from exhaust_plume.validation.claims import (
   ComparisonEvidenceStatus,
@@ -127,7 +130,7 @@ def _accepted_spectral_evidence() -> ProviderBoundComparisonEvidence:
   return ProviderBoundComparisonEvidence(
     evidence_id='evidence-064',
     claim_id='SIG-MVP-A-064',
-    provider_id='signature.provider.v1',
+    provider_id='signature.table-lookup',
     provider_version='1.0.0',
     provider_snapshot_id='signature-snapshot-1',
     product_id='plume.signature.spectral-radiant-intensity@1',
@@ -190,6 +193,66 @@ def test_provider_bound_evidence_requires_a_complete_operator_crosswalk() -> Non
       operator_crosswalk_status='pending',
       provider_bound_evidence={'SIG-MVP-A-064': _accepted_spectral_evidence()},
     )
+
+
+def test_provider_bound_evidence_must_bind_to_a_compared_provider() -> None:
+  evidence = _accepted_spectral_evidence().model_copy(
+    update={'provider_id': 'unrelated.provider.v1'}
+  )
+  with pytest.raises(ValueError, match='must match a comparison provider'):
+    build_comparison_plan(
+      observations=_observations(),
+      providers=_providers(),
+      operator_crosswalk_status='complete-scoped',
+      provider_bound_evidence={'SIG-MVP-A-064': evidence},
+    )
+
+
+def test_provider_bound_evidence_document_loads_by_claim_id(tmp_path) -> None:
+  evidence = _accepted_spectral_evidence()
+  path = tmp_path / 'provider-evidence.json'
+  path.write_text(
+    json.dumps({
+      'schema_id': PROVIDER_BOUND_EVIDENCE_SCHEMA,
+      'evidence': [evidence.model_dump(mode='json')],
+    }),
+    encoding='utf-8',
+  )
+
+  loaded = load_provider_bound_evidence(path)
+
+  assert loaded == {'SIG-MVP-A-064': evidence}
+
+
+def test_provider_bound_evidence_document_rejects_duplicate_claims(tmp_path) -> None:
+  evidence = _accepted_spectral_evidence()
+  path = tmp_path / 'provider-evidence.json'
+  record = evidence.model_dump(mode='json')
+  path.write_text(
+    json.dumps({
+      'schema_id': PROVIDER_BOUND_EVIDENCE_SCHEMA,
+      'evidence': [record, record | {'evidence_id': 'evidence-064-copy'}],
+    }),
+    encoding='utf-8',
+  )
+
+  with pytest.raises(ValueError, match='duplicate claim_id'):
+    load_provider_bound_evidence(path)
+
+
+def test_provider_bound_evidence_document_rejects_unknown_top_level_fields(tmp_path) -> None:
+  path = tmp_path / 'provider-evidence.json'
+  path.write_text(
+    json.dumps({
+      'schema_id': PROVIDER_BOUND_EVIDENCE_SCHEMA,
+      'evidence': [],
+      'notes': 'not part of the schema',
+    }),
+    encoding='utf-8',
+  )
+
+  with pytest.raises(ValueError, match='only schema_id and evidence'):
+    load_provider_bound_evidence(path)
 
 
 def test_visual_feature_probe_reports_missing_feature_and_branch_contract() -> None:

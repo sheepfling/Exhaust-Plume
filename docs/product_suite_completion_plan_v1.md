@@ -176,6 +176,8 @@ claim is authorized.
       without changing the current research-only claim ceiling.
 - [x] Add a typed provider-bound comparison-evidence envelope requiring exact
       assets, operator identity, uncertainty, applicability, and disjoint cases.
+- [x] Make provider-bound evidence ingestible through a strict preflight JSON
+      handoff with exact provider-identity matching.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
