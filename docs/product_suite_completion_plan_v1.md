@@ -308,3 +308,70 @@ and local Mach/gamma, ambient-pressure residuals, and streamline-tangent
 residuals from the retained samples.  A passing audit is recorded as
 research-boundary evidence only: it does not solve the missing mixed-regime
 field, authorize continued physical shock cells, or change the release gate.
+
+## Active execution ledger — 2026-09-04
+
+This section is the handoff for the active long-running goal. Work proceeds
+in the order below; a later packet may consume an earlier packet only through
+its typed contract and recorded claim ceiling.
+
+| Packet | Scope | Depends on | Exit evidence | Status |
+| --- | --- | --- | --- | --- |
+| `P0` | Keep the integration candidate isolated, clean, and reproducible | — | Dedicated branch, committed changes, focused checks, full CI, current release provenance | In progress; branch `work/washed-integral-visual` is clean, `main` is untouched |
+| `P1` | Intake and bind validation assets | Owner-supplied Version 8 archive, separate alignment archive, provider outputs | Verified archive/member digests, provenance/license, disjoint case manifest, typed measurement-operator records | Partially complete; Version 8 integrity is recorded, alignment archive and provider-bound outputs are missing |
+| `P2` | Close the canonical reflected planar-MOC/mixed-regime field | Solver-owned C-/C+ frontier, shock remesh, ambient attachment, centerline reflection, entropy transport | Coupled residual report, physical downstream boundary, independent re-derivation, stable case/resolution ladder | Active physics gate; current exact-Euler and variable-entropy results remain research references |
+| `P3` | Fit the first and continued physical shock cells | `P2` closed field plus accepted physical observations | Solver-length/uncertainty comparison, disjoint validation, typed continued-chain cells | Blocked by `P2` and physical measurement evidence |
+| `P4` | Bind the three products to their own measurement spaces | `P1`, stable lane contracts, source-bound scenarios | VIS feature/geometry comparison, SIG spectral/radiance comparison, RAY path comparison, FPA camera/detector comparison | Local boundaries pass; external product claims are pending |
+| `P5` | Candidate acceptance and release | `P0`–`P4` | Full matrix on exact candidate `HEAD`, clean checkout, current freeze, wheel/install smoke, manifest `release_ready=true` | Blocked; no tag is authorized |
+
+### Product completion bars
+
+- **Visualization:** local completion is met for all five lanes. The next
+  evidence is provider-bound geometry/feature comparison and, where supplied,
+  uncertainty/observation overlays. The planar-MOC lane remains a research
+  visualization and cannot backfill another lane.
+- **Signature:** local table, Planck-continuum/gray, sectioned transfer, time,
+  angular, and point-query paths are available with explicit units and masks.
+  Completion requires a source-bound resolved radiance/chemistry path and a
+  provider-bound spectral measurement comparison; a table or gray profile is
+  not sufficient.
+- **Focal-plane array:** the deterministic ray-to-pixel, detector, expected
+  electron, ADC, and visualization boundary is available. Completion requires
+  a camera/detector observation contract and a source-bound image comparison;
+  deterministic expected counts are not measured-image evidence.
+
+### Next implementation slice
+
+The next physics slice is `P2.1`: a solver-owned reflected/mixed-regime
+downstream boundary that consumes the retained upstream handoff, carries its
+own control/frontier data, and exposes an independent residual audit. It may
+be implemented first as a research candidate, but it must remain explicitly
+non-canonical until the coupled Euler/free-boundary, entropy, refinement, and
+external-validation gates pass. The slice is accepted only if it:
+
+1. rejects missing, altered, or reused upstream handoffs;
+2. distinguishes a solver-owned mixed-regime boundary from the current
+   compression-envelope continuation law;
+3. reports geometry, pressure, entropy/total-pressure, tangency, and Euler
+   residuals with coverage and validity masks;
+4. has an independent measurement operator that can detect tampered fields;
+   and
+5. leaves `physical_closure_verified`, chain promotion, and production claims
+   false until the canonical gates are actually satisfied.
+
+After `P2.1`, the order is fixed: close the coupled field (`P2`), run the
+case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound
+VIS/SIG/RAY/FPA comparisons (`P4`), then refresh the exact-candidate freeze
+and run the release matrix (`P5`). Missing data is an explicit blocker; it
+must not be replaced with synthetic observations or a lower-fidelity solver.
+
+### Current stop conditions
+
+The goal must stop at the current claim ceiling when any of the following is
+true: the downstream result is only a compression envelope; the independent
+audit does not cover the retained field; the physical cell length has no
+accepted comparison; a validation case is not disjoint from calibration; a
+provider output is not in the claim's measurement space; an FPA result has no
+camera/detector observation; or the release freeze does not identify the
+candidate commit. In each case the result remains usable as scoped local or
+research evidence, but it is not promoted.
