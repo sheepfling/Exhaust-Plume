@@ -605,3 +605,19 @@ research ladder.
 The gate strengthens reproducibility evidence only.  It does not turn the
 coupled ladder into a shock-resolved solution or close the canonical
 mixed-regime/free-boundary, physical-length, or external-validation gates.
+
+### Coupled-Euler lineage-builder checkpoint
+
+The coupled-Euler lane now exposes an explicit builder and one-call solver
+seam from a retained mixed-regime boundary reference.  The request carries
+the exact upstream global-closure fingerprint as a first-class report field,
+so a downstream field run cannot silently substitute a different control
+section or closure snapshot.  The convenience solver returns the same typed
+invalid-input and research-only results as the direct request path; it does
+not fall back to a lower-fidelity solver.
+
+This is contract and provenance plumbing for the next physics iteration, not
+canonical closure.  The actual-ambient case remains below the coupled
+pressure/tangency gate, the scalar transonic reference remains a diagnostic,
+and chain promotion, external validation, and production claims remain
+blocked.

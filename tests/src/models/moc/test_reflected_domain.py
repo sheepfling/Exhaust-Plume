@@ -41,6 +41,7 @@ from exhaust_plume.models.moc import (
   MocTerminalReflectionPatchAmbientClosureChainReference,
   assemble_terminal_trace_centerline_patch,
   build_reflected_domain_mixed_regime_boundary_request,
+  build_reflected_domain_coupled_euler_free_boundary_request,
   build_reflected_domain_remesh_request_from_outer_source,
   inverse_prandtl_meyer_angle_rad,
   plan_reflected_domain_remesh_ambient_closed_chain,
@@ -64,6 +65,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_coupled_euler_free_boundary,
+  solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
   assess_reflected_domain_coupled_euler_transonic_transition,
   solve_reflected_domain_mixed_regime_boundary,
@@ -1634,6 +1636,46 @@ def test_global_mixed_regime_boundary_refinement_reexecutes_without_promotion():
     MocReflectedDomainMixedRegimeBoundaryRefinementStatus.RESOLUTION_FAILURE
   )
   assert not reversed_measurement.converged
+####
+
+
+def test_coupled_euler_builder_preserves_global_closure_lineage():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    outlet_static_pressure_Pa=mixed_request.ambient_pressure_Pa,
+  )
+
+  assert coupled_request.mixed_regime_request == mixed_request
+  assert coupled_request.source_closure_fingerprint == (
+    mixed_request.closure_fingerprint
+  )
+  assert coupled_request.as_report()['source_closure_fingerprint'] == (
+    mixed_request.closure_fingerprint
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    outlet_static_pressure_Pa=mixed_request.ambient_pressure_Pa,
+  )
+
+  assert result.request is not None
+  assert result.request.source_closure_fingerprint == (
+    mixed_request.closure_fingerprint
+  )
+  assert result.production_claim_allowed is False
+  assert result.downstream_boundary_closure_verified is False
 ####
 
 

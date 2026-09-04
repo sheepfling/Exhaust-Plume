@@ -44,8 +44,10 @@ __all__ = (
   'MocReflectedDomainCoupledEulerSubsonicPressureBudget',
   'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
   'MocReflectedDomainCoupledEulerFreeBoundaryResult',
+  'build_reflected_domain_coupled_euler_free_boundary_request',
   'assess_reflected_domain_coupled_euler_subsonic_pressure_budget',
   'assess_reflected_domain_coupled_euler_transonic_transition',
+  'solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request',
   'solve_reflected_domain_coupled_euler_free_boundary',
 )
 
@@ -323,6 +325,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
     return {
       'model': COUPLED_EULER_FREE_BOUNDARY_MODEL,
       'source': self.source,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
       'mixed_regime_request': self.mixed_regime_request.as_report(),
       'reference_total_temperature_K': self.reference_total_temperature_K,
       'gas_constant_J_kgK': self.gas_constant_J_kgK,
@@ -349,6 +352,75 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       ),
     }
   ####
+
+  @property
+  def source_closure_fingerprint(self) -> str:
+    """Return the exact global closure fingerprint carried by the request."""
+
+    return self.mixed_regime_request.closure_fingerprint
+  ####
+####
+
+
+def build_reflected_domain_coupled_euler_free_boundary_request(
+  mixed_regime_request: MocReflectedDomainMixedRegimeBoundaryRequest,
+  *,
+  reference_total_temperature_K: float,
+  gas_constant_J_kgK: float = 287.05,
+  axial_cell_count: int = 12,
+  transverse_cell_count: int = 6,
+  cfl_number: float = 0.85,
+  max_pseudo_iterations: int = 1200,
+  max_shape_iterations: int = 18,
+  euler_residual_tolerance: float = 5.0e-4,
+  free_boundary_pressure_tolerance_fraction: float = 0.10,
+  free_boundary_normal_velocity_tolerance_fraction: float = 0.05,
+  shape_convergence_tolerance: float = 1.0e-3,
+  shape_relaxation: float = 0.35,
+  pressure_shape_relaxation: float = 0.20,
+  source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
+  outlet_static_pressure_Pa: float | None = None,
+) -> MocReflectedDomainCoupledEulerFreeBoundaryRequest:
+  """Bind one mixed-regime reference to the coupled-Euler research lane.
+
+  The mixed-regime request must already be solver-bound to a global closure.
+  This builder makes that lineage explicit at the coupled-field seam and
+  prevents callers from silently replacing the upstream reference with a
+  separately constructed control section.  It does not change the claim
+  ceiling: the resulting request is still a constant-gamma research case.
+  """
+
+  if not isinstance(
+    mixed_regime_request,
+    MocReflectedDomainMixedRegimeBoundaryRequest,
+  ):
+    raise TypeError(
+      'mixed_regime_request must be a '
+      'MocReflectedDomainMixedRegimeBoundaryRequest'
+    )
+  ####
+  return MocReflectedDomainCoupledEulerFreeBoundaryRequest(
+    mixed_regime_request=mixed_regime_request,
+    reference_total_temperature_K=reference_total_temperature_K,
+    gas_constant_J_kgK=gas_constant_J_kgK,
+    axial_cell_count=axial_cell_count,
+    transverse_cell_count=transverse_cell_count,
+    cfl_number=cfl_number,
+    max_pseudo_iterations=max_pseudo_iterations,
+    max_shape_iterations=max_shape_iterations,
+    euler_residual_tolerance=euler_residual_tolerance,
+    free_boundary_pressure_tolerance_fraction=(
+      free_boundary_pressure_tolerance_fraction
+    ),
+    free_boundary_normal_velocity_tolerance_fraction=(
+      free_boundary_normal_velocity_tolerance_fraction
+    ),
+    shape_convergence_tolerance=shape_convergence_tolerance,
+    shape_relaxation=shape_relaxation,
+    pressure_shape_relaxation=pressure_shape_relaxation,
+    source=source,
+    outlet_static_pressure_Pa=outlet_static_pressure_Pa,
+  )
 ####
 
 
@@ -921,6 +993,68 @@ def _failure(
     request=request,
     message=message,
   )
+####
+
+
+def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request(
+  mixed_regime_request: MocReflectedDomainMixedRegimeBoundaryRequest,
+  *,
+  reference_total_temperature_K: float,
+  gas_constant_J_kgK: float = 287.05,
+  axial_cell_count: int = 12,
+  transverse_cell_count: int = 6,
+  cfl_number: float = 0.85,
+  max_pseudo_iterations: int = 1200,
+  max_shape_iterations: int = 18,
+  euler_residual_tolerance: float = 5.0e-4,
+  free_boundary_pressure_tolerance_fraction: float = 0.10,
+  free_boundary_normal_velocity_tolerance_fraction: float = 0.05,
+  shape_convergence_tolerance: float = 1.0e-3,
+  shape_relaxation: float = 0.35,
+  pressure_shape_relaxation: float = 0.20,
+  source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
+  outlet_static_pressure_Pa: float | None = None,
+) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
+  """Run the coupled research field from one bound mixed-regime reference.
+
+  This is an orchestration seam for the actual global-to-downstream lineage:
+  the caller supplies the already audited mixed-regime request, the builder
+  retains its closure fingerprint, and the field solver receives the exact
+  resulting request.  Invalid request construction is returned as a typed
+  solver result; no fallback control section or lower-fidelity model is used.
+  """
+
+  try:
+    request = build_reflected_domain_coupled_euler_free_boundary_request(
+      mixed_regime_request,
+      reference_total_temperature_K=reference_total_temperature_K,
+      gas_constant_J_kgK=gas_constant_J_kgK,
+      axial_cell_count=axial_cell_count,
+      transverse_cell_count=transverse_cell_count,
+      cfl_number=cfl_number,
+      max_pseudo_iterations=max_pseudo_iterations,
+      max_shape_iterations=max_shape_iterations,
+      euler_residual_tolerance=euler_residual_tolerance,
+      free_boundary_pressure_tolerance_fraction=(
+        free_boundary_pressure_tolerance_fraction
+      ),
+      free_boundary_normal_velocity_tolerance_fraction=(
+        free_boundary_normal_velocity_tolerance_fraction
+      ),
+      shape_convergence_tolerance=shape_convergence_tolerance,
+      shape_relaxation=shape_relaxation,
+      pressure_shape_relaxation=pressure_shape_relaxation,
+      source=source,
+      outlet_static_pressure_Pa=outlet_static_pressure_Pa,
+    )
+  except (TypeError, ValueError) as error:
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryStatus.INVALID_INPUT,
+      f'coupled Euler request construction failed: {error}',
+      None,
+    )
+  ####
+  return solve_reflected_domain_coupled_euler_free_boundary(request)
 ####
 
 
