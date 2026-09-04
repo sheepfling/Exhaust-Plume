@@ -25,6 +25,14 @@ not angular interpolation. Empty cells and cells containing only invalid
 samples remain `None`, never zero. `SignatureDirectionSeries` similarly keeps
 invalid time samples masked.
 
+`SignatureTimeline.query_at(...)` is the point-query seam for a selected exact
+time, direction index, and wavelength index. It returns the spectral radiant
+intensity, optional uncertainty, validity, direction status, angular display
+coordinates, and source-result ID together. Invalid wire rows are exposed as
+`None` rather than their required zero placeholder. The method rejects a time
+that is not an exact timeline sample; continuous-time lookup must be performed
+by an explicit provider or separately documented interpolation operator.
+
 The resulting maps carry spectral radiant intensity `Jλ [W sr⁻¹ m⁻¹]`. They do
 not report spectral radiance, detector counts, apparent intensity, or an FPA
 image. `SignatureTimeline.source_trajectory()` exposes only declared source

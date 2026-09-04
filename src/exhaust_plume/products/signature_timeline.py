@@ -18,7 +18,12 @@ from dataclasses import dataclass
 from math import atan2, degrees, hypot, isfinite
 from typing import Any, cast
 
-from exhaust_plume.api.v1 import Pose, SpectralSignatureRequest, SpectralSignatureResult
+from exhaust_plume.api.v1 import (
+    Pose,
+    SampleStatus,
+    SpectralSignatureRequest,
+    SpectralSignatureResult,
+)
 
 __all__ = (
     "SIGNATURE_ANGULAR_TIMELINE_SCHEMA",
@@ -29,6 +34,7 @@ __all__ = (
     "SignatureDirectionSeries",
     "SignatureSourceTrajectory",
     "SignatureTimeline",
+    "SignatureTimelineQuery",
     "SignatureTimelineSample",
     "SignatureTimelineSelectionError",
     "build_signature_angular_heatmap",
@@ -127,6 +133,30 @@ class SignatureTimelineSelectionError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class SignatureTimelineQuery:
+    """One exact, source-bound spectral radiant-intensity point query.
+
+    The query preserves the product's declared intensity units and lineage.
+    An invalid point has ``spectral_radiant_intensity_w_sr_m=None`` even when
+    the wire result carries its required zero placeholder.  This prevents a
+    consumer from treating a failed sample as a physical zero.
+    """
+
+    source_result_id: str
+    time_s: float
+    direction_frame_id: str
+    direction_index: int
+    direction: tuple[float, float, float]
+    angular_coordinates: AngularCoordinates
+    wavelength_index: int
+    wavelength_m: float
+    spectral_radiant_intensity_w_sr_m: float | None
+    absolute_standard_uncertainty_w_sr_m: float | None
+    valid: bool
+    status: SampleStatus
+
+
+@dataclass(frozen=True, slots=True)
 class SignatureTimeline:
     """Time-ordered compatible signature samples with no temporal interpolation.
 
@@ -182,6 +212,51 @@ class SignatureTimeline:
                 return sample
         raise SignatureTimelineSelectionError(
             f"time_s={selected_time_s} is not an exact signature timeline sample"
+        )
+
+    def query_at(
+        self,
+        *,
+        time_s: float,
+        direction_index: int,
+        wavelength_index: int,
+    ) -> SignatureTimelineQuery:
+        """Return one exact time/direction/wavelength point without interpolation.
+
+        The returned value is ``None`` when the selected point is invalid.  A
+        caller that needs a continuously varying time must explicitly resolve
+        a new provider snapshot or apply a separately documented interpolation
+        operator before constructing a timeline.
+        """
+
+        selected_direction_index = _direction_index(self, direction_index)
+        selected_wavelength_index = _wavelength_index(self, wavelength_index)
+        sample = self.sample_at(time_s)
+        valid = sample.result.validity_mask[selected_direction_index][selected_wavelength_index]
+        value = (
+            sample.result.spectral_radiant_intensity[selected_direction_index][selected_wavelength_index]
+            if valid
+            else None
+        )
+        uncertainty = (
+            sample.result.absolute_standard_uncertainty[selected_direction_index][selected_wavelength_index]
+            if valid and sample.result.absolute_standard_uncertainty is not None
+            else None
+        )
+        direction = self.directions[selected_direction_index]
+        return SignatureTimelineQuery(
+            source_result_id=sample.result.metadata.result_id,
+            time_s=sample.time_s,
+            direction_frame_id=self.direction_frame_id,
+            direction_index=selected_direction_index,
+            direction=direction,
+            angular_coordinates=direction_to_azimuth_elevation(direction),
+            wavelength_index=selected_wavelength_index,
+            wavelength_m=self.wavelengths_m[selected_wavelength_index],
+            spectral_radiant_intensity_w_sr_m=value,
+            absolute_standard_uncertainty_w_sr_m=uncertainty,
+            valid=valid,
+            status=sample.result.direction_status[selected_direction_index],
         )
 
     def source_trajectory(self) -> "SignatureSourceTrajectory":

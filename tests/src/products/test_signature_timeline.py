@@ -12,6 +12,7 @@ from exhaust_plume.api.v1 import (
 from exhaust_plume.products import (
     SignatureAngularBinning,
     SignatureTimeline,
+    SignatureTimelineQuery,
     SignatureTimelineSample,
     SignatureTimelineSelectionError,
     build_signature_angular_heatmap,
@@ -118,6 +119,64 @@ def test_direction_series_and_source_trajectory_retain_source_result_lineage() -
     assert len(series.result_ids) == 2
     assert trajectory.frame_id == "world"
     assert trajectory.positions_m == ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
+
+def test_point_query_returns_exact_value_and_source_lineage() -> None:
+    timeline = _timeline()
+
+    query = timeline.query_at(time_s=2.0, direction_index=2, wavelength_index=1)
+
+    assert isinstance(query, SignatureTimelineQuery)
+    assert query.source_result_id == timeline.samples[1].result.metadata.result_id
+    assert query.time_s == pytest.approx(2.0)
+    assert query.direction_frame_id == "source-local"
+    assert query.direction_index == 2
+    assert query.direction == (1.0, 0.0, 0.0)
+    assert query.angular_coordinates.azimuth_deg == pytest.approx(0.0)
+    assert query.wavelength_index == 1
+    assert query.wavelength_m == pytest.approx(2.0e-6)
+    assert query.spectral_radiant_intensity_w_sr_m == pytest.approx(12.0)
+    assert query.valid is True
+    assert query.status.code is SampleStatusCode.OK
+
+
+def test_point_query_masks_invalid_wire_placeholders_and_rejects_nonexact_time() -> None:
+    timeline = _timeline()
+    payload = timeline.samples[1].result.model_dump(mode="python")
+    payload["spectral_radiant_intensity"] = (
+        (2.0, 4.0),
+        (6.0, 8.0),
+        (0.0, 0.0),
+        (6.0, 8.0),
+        (6.0, 8.0),
+    )
+    payload["validity_mask"] = (
+        (True, True),
+        (True, True),
+        (False, False),
+        (True, True),
+        (True, True),
+    )
+    payload["direction_status"] = (
+        SampleStatus(code=SampleStatusCode.OK),
+        SampleStatus(code=SampleStatusCode.OK),
+        SampleStatus(code=SampleStatusCode.OUTSIDE_APPLICABILITY),
+        SampleStatus(code=SampleStatusCode.OK),
+        SampleStatus(code=SampleStatusCode.OK),
+    )
+    invalid_result = SpectralSignatureResult.model_validate(payload)
+    invalid_timeline = SignatureTimeline(
+        (timeline.samples[0], SignatureTimelineSample(timeline.samples[1].request, invalid_result))
+    )
+
+    query = invalid_timeline.query_at(time_s=2.0, direction_index=2, wavelength_index=1)
+
+    assert query.valid is False
+    assert query.spectral_radiant_intensity_w_sr_m is None
+    assert query.absolute_standard_uncertainty_w_sr_m is None
+    assert query.status.code is SampleStatusCode.OUTSIDE_APPLICABILITY
+    with pytest.raises(SignatureTimelineSelectionError, match="exact signature timeline sample"):
+        invalid_timeline.query_at(time_s=1.0, direction_index=2, wavelength_index=1)
 
 
 def test_heatmap_keeps_invalid_direction_samples_out_of_display_aggregate() -> None:
