@@ -87,10 +87,14 @@ from exhaust_plume.validation.moc_measurements import (
   measure_moc_reflected_domain_remesh,
 )
 from exhaust_plume.validation.moc_reflected_domain_refinement import (
+  MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
+  MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus,
   MocReflectedDomainGlobalEulerShockBoundaryRefinementCase,
   MocReflectedDomainGlobalEulerShockBoundaryRefinementRun,
   MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus,
+  measure_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement,
   measure_moc_reflected_domain_global_euler_shock_boundary_refinement,
+  run_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement,
   run_moc_reflected_domain_global_euler_shock_boundary_refinement,
 )
 
@@ -127,6 +131,7 @@ def _canonical_field():
   assert result.field is not None
   assert result.field.physical_closure_verified
   return result.field
+####
 
 
 def _patch():
@@ -136,6 +141,7 @@ def _patch():
   )
   assert patch.converged
   return field, patch
+####
 
 
 def _request(*, declared_polarity=None, incoming_handoff=()):
@@ -187,6 +193,7 @@ def _request(*, declared_polarity=None, incoming_handoff=()):
       )
     )
     centerline.append(axis_state)
+  ####
   request = MocReflectedDomainRemeshRequest(
     reflection_patch=patch,
     centerline_source_states=tuple(centerline),
@@ -196,6 +203,7 @@ def _request(*, declared_polarity=None, incoming_handoff=()):
     declared_polarity=declared_polarity,
   )
   return field, patch, request
+####
 
 
 def _outer_source_fixture() -> tuple[NozzleExitState, AmbientState, object]:
@@ -221,6 +229,7 @@ def _outer_source_fixture() -> tuple[NozzleExitState, AmbientState, object]:
   reflected = solve_reflected_free_boundary(fan, exit_state, ambient)
   assert reflected.converged
   return exit_state, ambient, reflected
+####
 
 
 def _handoff(field):
@@ -232,6 +241,7 @@ def _handoff(field):
       strict=True,
     )
   )
+####
 
 
 def _alternating_physical_chain_results(seed, sample_count):
@@ -269,7 +279,9 @@ def _alternating_physical_chain_results(seed, sample_count):
     assert result.field is not None
     results.append(result)
     current = result.field
+  ####
   return tuple(results)
+####
 
 
 def _reference_seed_field():
@@ -282,6 +294,7 @@ def _reference_seed_field():
   )
   assert result.field is not None
   return result.field
+####
 
 
 def test_reflected_domain_remesh_uses_a_new_outer_curve_after_the_single_c_minus_front():
@@ -316,6 +329,7 @@ def test_reflected_domain_remesh_uses_a_new_outer_curve_after_the_single_c_minus
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE.value
   )
   assert patch.outgoing_trace_states[-1].y_m == pytest.approx(0.0)
+####
 
 
 def test_reflected_domain_remesh_rejects_reusing_the_single_c_minus_front_as_a_curve():
@@ -335,6 +349,7 @@ def test_reflected_domain_remesh_rejects_reusing_the_single_c_minus_front_as_a_c
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.CHARACTERISTIC_CAUSTIC
   )
+####
 
 
 def test_reflected_domain_remesh_measurement_rechecks_raw_bounded_field_data():
@@ -364,6 +379,7 @@ def test_reflected_domain_remesh_measurement_rechecks_raw_bounded_field_data():
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_reflected_domain_remesh_measurement_preserves_single_front_rejection():
@@ -381,6 +397,7 @@ def test_reflected_domain_remesh_measurement_preserves_single_front_rejection():
   assert measurement.converged is False
   assert measurement.outer_source_verified is False
   assert measurement.bounded_remesh_verified is False
+####
 
 
 def test_reflected_domain_remesh_rejects_a_wrong_reflection_anchor():
@@ -397,6 +414,7 @@ def test_reflected_domain_remesh_rejects_a_wrong_reflection_anchor():
   assert result.status is MocReflectedDomainRemeshStatus.REFLECTION_SEAM_FAILURE
   assert result.reflection_seam_verified is False
   assert result.chain_promotion_blocked
+####
 
 
 def test_reflected_domain_remesh_records_observed_polarity_without_promoting_it():
@@ -411,6 +429,7 @@ def test_reflected_domain_remesh_records_observed_polarity_without_promoting_it(
   assert result.incoming_trace_polarity is not None
   assert result.incoming_trace_polarity.status is observed.status
   assert result.as_report()['request']['declared_polarity'] == observed.status.value
+####
 
 
 def test_reflected_domain_remesh_exposes_a_bounded_physical_solver_source():
@@ -446,6 +465,7 @@ def test_reflected_domain_remesh_exposes_a_bounded_physical_solver_source():
   report = source.as_report()
   assert report['extrapolation_allowed'] is False
   assert report['upstream_coupling_verified'] is False
+####
 
 
 def test_reflected_domain_remesh_carries_source_family_total_pressure():
@@ -493,6 +513,7 @@ def test_reflected_domain_remesh_carries_source_family_total_pressure():
   assert measurement.total_pressure_verified
   assert measurement.source_sampling_verified
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_reflected_domain_outer_source_curve_is_solved_and_assembled():
@@ -537,6 +558,7 @@ def test_reflected_domain_outer_source_curve_is_solved_and_assembled():
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_reflected_domain_alternating_source_band_closes_local_neighbor_seams():
@@ -601,6 +623,7 @@ def test_reflected_domain_alternating_source_band_closes_local_neighbor_seams():
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked is True
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_reflected_domain_alternating_source_measurement_rejects_changed_raw_row():
@@ -626,6 +649,7 @@ def test_reflected_domain_alternating_source_measurement_rejects_changed_raw_row
   assert measurement.boundary_recomputed_verified is False
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked is True
+####
 
 
 def test_reflected_domain_alternating_source_couples_to_physical_shock_field():
@@ -687,6 +711,7 @@ def test_reflected_domain_alternating_source_couples_to_physical_shock_field():
   assert measurement.physical_closure_verified
   assert measurement.chain_promotion_blocked is True
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_reflected_domain_alternating_physical_field_can_attach_at_retained_outer_seed():
@@ -727,6 +752,7 @@ def test_reflected_domain_alternating_physical_field_can_attach_at_retained_oute
   assert measurement.converged
   assert measurement.attachment_point_verified
   assert measurement.upstream_coupling_verified
+####
 
 
 def test_reflected_domain_alternating_source_chain_projects_fresh_bands_automatically():
@@ -763,6 +789,7 @@ def test_reflected_domain_alternating_source_chain_projects_fresh_bands_automati
     and attempt['fresh_source_geometry'] is True
     for attempt in attempts
   )
+####
 
 
 def test_reflected_domain_alternating_source_chain_one_cell_prefix_skips_source_projection():
@@ -788,6 +815,7 @@ def test_reflected_domain_alternating_source_chain_one_cell_prefix_skips_source_
   assert planner.diagnostics['alternating_source_attempt_count'] == 0
   assert planner.diagnostics['alternating_source_attempts'] == []
   assert planner.production_claim_allowed is False
+####
 
 
 def test_solver_owned_first_cell_retains_auditable_no_bracket_without_geometry():
@@ -851,6 +879,7 @@ def test_solver_owned_first_cell_retains_auditable_no_bracket_without_geometry()
   )
   assert invalid.status is MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT
   assert invalid.compression_amplitude_bracket is None
+####
 
 
 def test_solver_owned_first_cell_can_scan_only_inside_declared_bracket():
@@ -885,6 +914,7 @@ def test_solver_owned_first_cell_can_scan_only_inside_declared_bracket():
   assert measurement.trial_amplitudes_verified
   assert measurement.trial_residuals_verified
   assert measurement.fidelity_isolation_verified
+####
 
 
 def test_solver_owned_first_cell_planner_preserves_typed_research_stop():
@@ -928,6 +958,7 @@ def test_solver_owned_first_cell_planner_preserves_typed_research_stop():
     'solver_owned_first_cell_independent_measurement'
   ]['status'] == 'converged'
   assert planner.production_claim_allowed is False
+####
 
 
 def test_solver_owned_first_cell_planner_rejects_mismatched_seed_handoff():
@@ -957,6 +988,7 @@ def test_solver_owned_first_cell_planner_rejects_mismatched_seed_handoff():
   assert planner.diagnostics[
     'solver_owned_first_cell_independent_measurement'
   ] is None
+####
 
 
 def test_global_reflected_shock_remesh_retains_bounded_profile_sweep_without_closure():
@@ -1026,6 +1058,7 @@ def test_global_reflected_shock_remesh_retains_bounded_profile_sweep_without_clo
     MocReflectedDomainGlobalShockRemeshMeasurementStatus.ATTEMPT_FAILURE
   )
   assert tampered_measurement.attempt_identity_verified is False
+####
 
 
 def test_global_euler_shock_boundary_closes_continuous_source_frontier():
@@ -1156,6 +1189,7 @@ def test_global_euler_shock_boundary_closes_continuous_source_frontier():
   assert report['shock_boundary']['zero_strength_endpoints_allowed'] is True
   assert report['physical_field']['physical_closure_verified'] is True
   assert measurement.as_report()['checks']['source_frontier_sampling_verified'] is True
+####
 
 
 def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promotion():
@@ -1242,6 +1276,8 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   )
   with pytest.raises(ValueError, match='promotion'):
     fit.as_production_chain_cell()
+  ####
+####
 
 
 def test_global_physical_closure_rejects_evidence_for_a_different_field():
@@ -1275,6 +1311,8 @@ def test_global_physical_closure_rejects_evidence_for_a_different_field():
 
   with pytest.raises(ValueError, match='does not match'):
     changed_closure.bind_promotion_evidence(evidence)
+  ####
+####
 
 
 def test_global_physical_closure_requires_evidence_for_promoted_gate():
@@ -1288,6 +1326,8 @@ def test_global_physical_closure_requires_evidence_for_promoted_gate():
       ),
       refinement_verified=True,
     )
+  ####
+####
 
 
 def test_production_shock_cell_fit_requires_the_exact_typed_frontier():
@@ -1330,6 +1370,7 @@ def test_production_shock_cell_fit_requires_the_exact_typed_frontier():
   assert fit.frontier_verified is False
   assert fit.candidate_cell is None
   assert fit.production_claim_allowed is False
+####
 
 
 def test_global_euler_field_can_seed_a_research_continued_chain_reference():
@@ -1396,6 +1437,7 @@ def test_global_euler_field_can_seed_a_research_continued_chain_reference():
   ].startswith('global-exact-euler-local-research-seed')
   assert planner.diagnostics['chain_promotion_blocked'] is True
   assert planner.diagnostics['canonical_euler_verified'] is False
+####
 
 
 def test_global_euler_fresh_source_continuation_re_solves_each_cell():
@@ -1486,6 +1528,7 @@ def test_global_euler_fresh_source_continuation_re_solves_each_cell():
   ] is True
   assert planner.diagnostics['chain_promotion_blocked'] is True
   assert planner.diagnostics['canonical_euler_verified'] is False
+####
 
 
 def test_global_euler_continued_chain_reference_rejects_unaudited_seed():
@@ -1514,6 +1557,8 @@ def test_global_euler_continued_chain_reference_rejects_unaudited_seed():
       start_x_m=0.5,
       end_x_m=8.0,
     )
+  ####
+####
 
 
 def test_global_euler_shock_boundary_refinement_audits_resolution_ladder():
@@ -1541,6 +1586,7 @@ def test_global_euler_shock_boundary_refinement_audits_resolution_ladder():
         ),
       )
     )
+  ####
 
   measurement = measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
     tuple(cases),
@@ -1586,6 +1632,7 @@ def test_global_euler_shock_boundary_refinement_audits_resolution_ladder():
   assert tampered_measurement.case_audits_verified is False
   assert tampered_measurement.audits[-1].endpoint_tangents_verified is False
   assert tampered_measurement.converged is False
+####
 
 
 def test_global_euler_refinement_runner_reexecutes_each_resolution_without_promotion():
@@ -1626,6 +1673,7 @@ def test_global_euler_refinement_runner_reexecutes_each_resolution_without_promo
   assert report['configuration']['requested_resolutions'] == [5, 9, 11]
   assert report['checks']['chain_promotion_blocked'] is True
   assert report['checks']['production_claim_allowed'] is False
+####
 
 
 def test_global_euler_refinement_runner_retains_missing_resolution_as_failure():
@@ -1650,6 +1698,111 @@ def test_global_euler_refinement_runner_retains_missing_resolution_as_failure():
   assert run.local_consistency_verified is False
   assert run.chain_promotion_blocked
   assert run.as_report()['closures'][0]['global_euler_retained'] is False
+####
+
+
+def test_global_euler_cross_case_measurement_rejects_duplicate_source_inputs():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(patch, ambient_pressure)
+  single_run = run_moc_reflected_domain_global_euler_shock_boundary_refinement(
+    source,
+    (5, 9),
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_envelope_skews=(0.0,),
+    shock_angle_tolerance_rad=0.02,
+  )
+  cases = (
+    MocReflectedDomainGlobalEulerShockBoundaryCrossCase(
+      case_id='reflected-a',
+      regime='reflected',
+      source_band=source,
+      resolutions=(5, 9),
+    ),
+    MocReflectedDomainGlobalEulerShockBoundaryCrossCase(
+      case_id='reflected-b',
+      regime='reflected',
+      source_band=source,
+      resolutions=(5, 9),
+    ),
+  )
+
+  measurement = (
+    measure_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement(
+      cases,
+      (single_run, single_run),
+    )
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus.SOURCE_FAILURE
+  )
+  assert measurement.case_ids_verified
+  assert measurement.source_bindings_verified
+  assert measurement.distinct_source_band_fingerprints_verified is False
+  assert measurement.converged is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  report = measurement.as_report()
+  assert report['physical_closure_verified'] is False
+  assert report['external_validation_verified'] is False
+####
+
+
+def test_global_euler_cross_case_runner_keeps_case_ladders_separate():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  reflected_source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    source_sample_count=6,
+  )
+  resampled_source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    source_sample_count=7,
+  )
+  cases = (
+    MocReflectedDomainGlobalEulerShockBoundaryCrossCase(
+      case_id='reflected-source',
+      regime='reflected',
+      source_band=reflected_source,
+      resolutions=(5, 9),
+    ),
+    MocReflectedDomainGlobalEulerShockBoundaryCrossCase(
+      case_id='mild-attached-source',
+      regime='mild-attached',
+      source_band=resampled_source,
+      resolutions=(5, 9),
+    ),
+  )
+
+  run = (
+    run_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement(
+      cases,
+      outer_source_indices=(2,),
+      target_centerline_indices=(3,),
+      compression_envelope_skews=(0.0,),
+      shock_angle_tolerance_rad=0.02,
+    )
+  )
+
+  assert len(run.runs) == 2
+  assert run.fresh_solver_invocation_verified
+  assert run.runs[0].source_band_fingerprint != run.runs[1].source_band_fingerprint
+  assert run.measurement.case_ids == (
+    'reflected-source',
+    'mild-attached-source',
+  )
+  assert run.measurement.requested_resolutions == ((5, 9), (5, 9))
+  assert run.measurement.distinct_source_band_fingerprints_verified
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  assert run.as_report()['measurement']['external_validation_verified'] is False
+####
 
 
 def test_global_euler_shock_boundary_rejects_invalid_tolerance_as_typed_result():
@@ -1679,6 +1832,7 @@ def test_global_euler_shock_boundary_rejects_invalid_tolerance_as_typed_result()
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.INVALID_INPUT
   )
+####
 
 
 def test_global_reflected_shock_remesh_rejects_duplicate_profile_shapes():
@@ -1703,6 +1857,7 @@ def test_global_reflected_shock_remesh_rejects_duplicate_profile_shapes():
     MocReflectedDomainGlobalShockRemeshMeasurementStatus.INVALID_INPUT
   )
   assert measurement.converged is False
+####
 
 
 def test_global_reflected_shock_remesh_retains_invalid_attempts_without_bridging_them():
@@ -1742,6 +1897,7 @@ def test_global_reflected_shock_remesh_retains_invalid_attempts_without_bridging
   assert measurement.attempt_shape_verified is False
   assert measurement.no_endpoint_closure_verified is False
   assert measurement.chain_promotion_blocked
+####
 
 
 def test_global_reflected_shock_remesh_planner_preserves_research_stop():
@@ -1864,6 +2020,7 @@ def test_global_reflected_shock_remesh_planner_preserves_research_stop():
     'global_reflected_shock_remesh_independent_measurement'
   ]['status'] == 'converged'
   assert planner.production_claim_allowed is False
+####
 
 
 def test_global_reflected_shock_remesh_physical_field_adapter_derives_fresh_source():
@@ -1912,6 +2069,7 @@ def test_global_reflected_shock_remesh_physical_field_adapter_derives_fresh_sour
   assert planner.diagnostics['physical_chain_cell_count'] == 0
   assert planner.diagnostics['chain_promotion_blocked'] is True
   assert planner.production_claim_allowed is False
+####
 
 
 def test_global_reflected_shock_remesh_physical_field_adapter_typed_projection_stop():
@@ -1936,6 +2094,7 @@ def test_global_reflected_shock_remesh_physical_field_adapter_typed_projection_s
   assert planner.diagnostics['physical_chain_cell_count'] == 0
   assert planner.diagnostics['chain_promotion_blocked'] is True
   assert planner.production_claim_allowed is False
+####
 
 
 def test_reflected_domain_alternating_physical_field_chain_refinement_is_research_only():
@@ -2005,6 +2164,7 @@ def test_reflected_domain_alternating_physical_field_chain_refinement_is_researc
   )
   assert shape_measurement.field_count_consistent is False
   assert shape_measurement.converged is False
+####
 
 
 def test_reflected_domain_alternating_physical_field_rejects_unverified_source():
@@ -2037,6 +2197,7 @@ def test_reflected_domain_alternating_physical_field_rejects_unverified_source()
   assert measurement.source_field_verified is False
   assert measurement.physical_closure_verified is False
   assert measurement.chain_promotion_blocked is True
+####
 
 
 def test_reflected_domain_alternating_physical_field_chain_rejects_nonfresh_domain():
@@ -2092,6 +2253,7 @@ def test_reflected_domain_alternating_physical_field_chain_rejects_nonfresh_doma
   assert measurement.physical_field_chain_measurement.status.value == 'domain_failure'
   assert measurement.chain_promotion_blocked is True
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_reflected_domain_alternating_physical_field_chain_rejects_copied_geometry():
@@ -2133,6 +2295,7 @@ def test_reflected_domain_alternating_physical_field_chain_rejects_copied_geomet
   assert measurement.source_geometry_freshness_verified is False
   assert measurement.chain_promotion_blocked is True
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_reflected_domain_alternating_physical_field_chain_rejects_missing_source_band():
@@ -2161,6 +2324,7 @@ def test_reflected_domain_alternating_physical_field_chain_rejects_missing_sourc
   assert measurement.converged is False
   assert measurement.source_geometry_freshness_verified is False
   assert measurement.chain_promotion_blocked is True
+####
 
 
 def test_reflected_domain_alternating_source_planner_carries_one_cell_handoff():
@@ -2205,6 +2369,7 @@ def test_reflected_domain_alternating_source_planner_carries_one_cell_handoff():
     [sample.state.x_m, sample.state.y_m]
     for sample in planner.chain.cells[0].continuation_boundary
   ]
+####
 
 
 def test_reflected_domain_alternating_source_planner_can_opt_into_trace_profile():
@@ -2230,6 +2395,7 @@ def test_reflected_domain_alternating_source_planner_can_opt_into_trace_profile(
   assert planner.chain.cell_count == 2
   assert planner.diagnostics['use_outer_seed_attachment'] is True
   assert planner.diagnostics['use_trace_referenced_profile'] is True
+####
 
 
 def test_reflected_domain_alternating_source_sequence_requires_fresh_bands_and_carries_multiple_cells():
@@ -2249,6 +2415,7 @@ def test_reflected_domain_alternating_source_sequence_requires_fresh_bands_and_c
     callback_calls.append((current_field, current.cell_index, next_cell_index))
     if next_cell_index > 3:
       return None
+    ####
     source = solve_reflected_domain_alternating_source(
       patch,
       ambient_pressure,
@@ -2257,6 +2424,7 @@ def test_reflected_domain_alternating_source_sequence_requires_fresh_bands_and_c
     )
     assert source.converged
     return source
+  ####
 
   planner = plan_reflected_domain_alternating_source_chain_sequence(
     field,
@@ -2307,6 +2475,7 @@ def test_reflected_domain_alternating_source_sequence_requires_fresh_bands_and_c
     'fresh_domain_verified': False,
     'physical_closure_verified': False,
   }
+####
 
 
 def test_reflected_domain_alternating_source_sequence_rejects_copied_geometry():
@@ -2341,6 +2510,7 @@ def test_reflected_domain_alternating_source_sequence_rejects_copied_geometry():
   assert attempt['fresh_source_band'] is True
   assert attempt['fresh_source_geometry'] is False
   assert planner.diagnostics['canonical_reflected_domain_closed'] is False
+####
 
 
 def test_reflected_domain_alternating_source_band_carries_explicit_pressure_row():
@@ -2370,6 +2540,7 @@ def test_reflected_domain_alternating_source_band_carries_explicit_pressure_row(
   assert result.as_report()['total_pressure_range_Pa'][0] == pytest.approx(
     pressure_row[-1]
   )
+####
 
 
 def test_reflected_domain_alternating_source_band_rejects_a_nonexact_seed():
@@ -2386,6 +2557,7 @@ def test_reflected_domain_alternating_source_band_rejects_a_nonexact_seed():
   assert result.status is MocReflectedDomainAlternatingSourceStatus.SEED_FAILURE
   assert result.source_field_verified is False
   assert result.physical_closure_verified is False
+####
 
 
 def test_reflected_domain_outer_source_curve_carries_explicit_pressure_rows():
@@ -2429,6 +2601,7 @@ def test_reflected_domain_outer_source_curve_carries_explicit_pressure_rows():
   measurement = measure_moc_reflected_domain_outer_source_curve(result)
   assert measurement.converged
   assert measurement.pressure_lineage_verified
+####
 
 
 def test_reflected_domain_outer_source_curve_rejects_nonambient_seed():
@@ -2447,6 +2620,7 @@ def test_reflected_domain_outer_source_curve_rejects_nonambient_seed():
   assert result.outer_source_curve_verified is False
   assert result.source_field_verified is False
   assert result.point_results == ()
+####
 
 
 def test_reflected_domain_outer_source_curve_binds_into_a_fresh_remesh_request():
@@ -2485,6 +2659,7 @@ def test_reflected_domain_outer_source_curve_binds_into_a_fresh_remesh_request()
   assert remesh.converged
   assert remesh.source_field_verified
   assert remesh.request is bound_request
+####
 
 
 def test_reflected_domain_ambient_closed_planner_connects_fresh_remeshes_to_physical_solver(
@@ -2521,6 +2696,7 @@ def test_reflected_domain_ambient_closed_planner_connects_fresh_remeshes_to_phys
       field=field,
       message='manufactured accepted physical-field solver result',
     )
+  ####
 
   monkeypatch.setattr(
     'exhaust_plume.models.moc.planner.solve_marched_attached_shock_with_ambient_centerline_physical_field',
@@ -2541,6 +2717,7 @@ def test_reflected_domain_ambient_closed_planner_connects_fresh_remeshes_to_phys
       ),
     )
     return solve_reflected_domain_remesh(request)
+  ####
 
   planner = plan_reflected_domain_remesh_ambient_closed_chain(
     seed,
@@ -2578,6 +2755,7 @@ def test_reflected_domain_ambient_closed_planner_connects_fresh_remeshes_to_phys
   assert planner.diagnostics['free_boundary_verified'] is False
   assert planner.diagnostics['physical_chain_promotion_allowed'] is False
   assert planner.diagnostics['external_validation_pending'] is True
+####
 
 
 def test_reflected_domain_ambient_closed_planner_rejects_mismatched_initial_handoff(
@@ -2592,6 +2770,7 @@ def test_reflected_domain_ambient_closed_planner_rejects_mismatched_initial_hand
     nonlocal solver_called
     solver_called = True
     raise AssertionError('physical solver must not run after a handoff failure')
+  ####
 
   monkeypatch.setattr(
     'exhaust_plume.models.moc.planner.solve_marched_attached_shock_with_ambient_centerline_physical_field',
@@ -2620,6 +2799,7 @@ def test_reflected_domain_ambient_closed_planner_rejects_mismatched_initial_hand
   attempt = planner.diagnostics['reflected_domain_remesh_attempts'][0]
   assert attempt['role'] == 'reflected-domain-remesh-handoff-seam'
   assert attempt['incoming_handoff_verified'] is False
+####
 
 
 def test_reflected_domain_ambient_closed_planner_rejects_reused_remesh(
@@ -2647,6 +2827,7 @@ def test_reflected_domain_ambient_closed_planner_rejects_reused_remesh(
       axis_closure_shoot=None,
       field=field,
     )
+  ####
 
   monkeypatch.setattr(
     'exhaust_plume.models.moc.planner.solve_marched_attached_shock_with_ambient_centerline_physical_field',
@@ -2676,6 +2857,7 @@ def test_reflected_domain_ambient_closed_planner_rejects_reused_remesh(
   assert attempt['role'] == 'reflected-domain-remesh-freshness-gate'
   assert attempt['fresh_remesh'] is False
   assert attempt['fresh_source_field'] is False
+####
 
 
 def test_reflected_domain_one_step_planner_keeps_the_remesh_below_physical_claims():
@@ -2701,6 +2883,7 @@ def test_reflected_domain_one_step_planner_keeps_the_remesh_below_physical_claim
     MocReflectedDomainRemeshStatus.CONVERGED_BOUNDED_FIELD.value
   )
   assert planner.chain.physical_termination is False
+####
 
 
 def test_terminal_reflection_reference_report_keeps_chain_promotion_blocked():
@@ -2709,6 +2892,7 @@ def test_terminal_reflection_reference_report_keeps_chain_promotion_blocked():
   assert report['planning_only'] is True
   assert report['production_claim_allowed'] is False
   assert report['physical_chain_promotion_allowed'] is False
+####
 
 
 def test_reflected_domain_sequence_requires_exact_handoff_for_each_new_remesh(
@@ -2758,6 +2942,7 @@ def test_reflected_domain_sequence_requires_exact_handoff_for_each_new_remesh(
       field=field_with_handoff,
       end_x_m=current.end_x_m + 0.2,
     )
+  ####
 
   monkeypatch.setattr(
     'exhaust_plume.models.moc.planner.solve_marched_attached_shock_chain_cell_from_source_strip_or_termination',
@@ -2768,6 +2953,7 @@ def test_reflected_domain_sequence_requires_exact_handoff_for_each_new_remesh(
     calls.append((current.cell_index, next_cell_index, incoming_handoff))
     _field, _patch, request = _request(incoming_handoff=incoming_handoff)
     return solve_reflected_domain_remesh(request)
+  ####
 
   planner = plan_reflected_domain_remesh_shock_chain_sequence(
     field,
@@ -2812,3 +2998,4 @@ def test_reflected_domain_sequence_requires_exact_handoff_for_each_new_remesh(
   assert missing_provenance.diagnostics['reflected_domain_remesh_attempts'][0][
     'role'
   ] == 'initial-reflected-domain-remesh'
+####

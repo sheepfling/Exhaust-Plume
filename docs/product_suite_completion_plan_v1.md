@@ -68,7 +68,9 @@ next product can make a stronger claim:
    pieces with one solver-owned reflected/mixed-regime solve that closes the
    C- frontier, shock geometry, ambient attachment, centerline reflection,
    entropy transport, and Euler residuals together. Establish stable
-   refinement and a terminal criterion before fitting cells.
+   refinement and a terminal criterion before fitting cells. A named
+   reflected/mild-attached case-ladder runner now provides separated local
+   evidence for this work; it does not satisfy the canonical closure gate.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;
@@ -245,6 +247,8 @@ claim is authorized.
       assets, operator identity, uncertainty, applicability, and disjoint cases.
 - [x] Make provider-bound evidence ingestible through a strict preflight JSON
       handoff with exact provider-identity matching.
+- [x] Keep reflected and mild-attached global-Euler resolution ladders as
+      separately named, fingerprint-bound research cases.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.

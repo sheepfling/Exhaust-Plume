@@ -41,6 +41,14 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID',
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementRun',
   'run_moc_reflected_domain_global_euler_shock_boundary_refinement',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_CROSS_CASE_REFINEMENT_OPERATOR_ID',
+  'MocReflectedDomainGlobalEulerShockBoundaryCrossCase',
+  'MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus',
+  'MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement',
+  'measure_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_CROSS_CASE_REFINEMENT_RUN_OPERATOR_ID',
+  'MocReflectedDomainGlobalEulerShockBoundaryCrossCaseRun',
+  'run_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement',
 )
 
 
@@ -59,7 +67,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus(str, Enum):
   EULER_RESIDUAL_FAILURE = 'global_euler_refinement_euler_residual_failure'
   CONSISTENCY_FAILURE = 'global_euler_refinement_consistency_failure'
   FLAG_FAILURE = 'global_euler_refinement_flag_failure'
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +84,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementCase:
       or self.resolution < 1
     ):
       raise ValueError('resolution must be a positive integer')
+    ####
     if not isinstance(
       self.result,
       MocReflectedDomainGlobalEulerShockBoundaryResult,
@@ -85,6 +94,8 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementCase:
         'MocReflectedDomainGlobalEulerShockBoundaryResult'
       )
     ####
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,10 +152,12 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
         'status must be a '
         'MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus'
       )
+    ####
     cases = tuple(self.cases)
     audits = tuple(self.audits)
     if len(cases) != len(audits):
       raise ValueError('cases and audits must have equal lengths')
+    ####
     if any(
       not isinstance(
         case,
@@ -156,6 +169,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
         'cases must contain '
         'MocReflectedDomainGlobalEulerShockBoundaryRefinementCase values'
       )
+    ####
     if any(
       not isinstance(
         audit,
@@ -167,12 +181,14 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
         'audits must contain '
         'MocReflectedDomainGlobalEulerShockBoundaryMeasurement values'
       )
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'audits', audits)
 
     derived_resolutions = tuple(case.resolution for case in cases)
     if self.resolutions and tuple(self.resolutions) != derived_resolutions:
       raise ValueError('resolutions must match the supplied case resolutions')
+    ####
     object.__setattr__(self, 'resolutions', derived_resolutions)
 
     for name in (
@@ -182,12 +198,15 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
       values = tuple(getattr(self, name))
       if len(values) != len(cases):
         raise ValueError(f'{name} must match the case count')
+      ####
       if any(
         isinstance(value, bool) or not isinstance(value, int) or value < 0
         for value in values
       ):
         raise ValueError(f'{name} must contain nonnegative integers')
+      ####
       object.__setattr__(self, name, values)
+    ####
 
     for name in (
       'source_frontier_x_m',
@@ -197,11 +216,14 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
       values = tuple(float(value) for value in getattr(self, name))
       if len(values) != len(cases):
         raise ValueError(f'{name} must match the case count')
+      ####
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(
           f'{name} must contain finite nonnegative values'
         )
+      ####
       object.__setattr__(self, name, values)
+    ####
 
     for name in (
       'resolution_order_verified',
@@ -221,21 +243,27 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     for name in ('residual_tolerance', 'frontier_tolerance_m'):
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be a non-empty string')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     claim_status = str(self.claim_status)
     if not claim_status:
       raise ValueError('claim_status must be a non-empty string')
+    ####
     object.__setattr__(self, 'claim_status', claim_status)
     object.__setattr__(self, 'message', str(self.message))
-    ####
+  ####
 
   @property
   def converged(self) -> bool:
@@ -244,7 +272,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
     return self.status is (
       MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.CONVERGED
     )
-    ####
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -267,7 +295,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
-    ####
+  ####
 
   def as_report(self) -> dict[str, Any]:
     """Return the refinement evidence without promoting a field."""
@@ -333,7 +361,8 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement:
       'claim_status': self.claim_status,
       'message': self.message,
     }
-    ####
+  ####
+####
 
 
 def _failure(
@@ -395,7 +424,7 @@ def _failure(
     ),
     message=message,
   )
-  ####
+####
 
 
 def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
@@ -427,6 +456,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
       MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.INVALID_INPUT,
       'global Euler refinement tolerances must be numeric',
     )
+  ####
   if not all(
     isfinite(value) and value > 0.0
     for value in (
@@ -442,6 +472,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
       MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.INVALID_INPUT,
       'global Euler refinement tolerances must be finite and positive',
     )
+  ####
   try:
     retained_cases = tuple(cases)
   except TypeError:
@@ -451,6 +482,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
       residual_tolerance=residual_tolerance_value,
       frontier_tolerance_m=frontier_tolerance_value,
     )
+  ####
   if not retained_cases:
     return _failure(
       MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.INVALID_INPUT,
@@ -458,6 +490,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
       residual_tolerance=residual_tolerance_value,
       frontier_tolerance_m=frontier_tolerance_value,
     )
+  ####
   if any(
     not isinstance(
       case,
@@ -471,6 +504,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
       residual_tolerance=residual_tolerance_value,
       frontier_tolerance_m=frontier_tolerance_value,
     )
+  ####
 
   resolutions = tuple(case.resolution for case in retained_cases)
   resolution_order_verified = all(
@@ -486,6 +520,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
       residual_tolerance=residual_tolerance_value,
       frontier_tolerance_m=frontier_tolerance_value,
     )
+  ####
 
   audits = tuple(
     measure_moc_reflected_domain_global_euler_shock_boundary(
@@ -669,12 +704,18 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
       'global exact-Euler field passed an independent declared-resolution '
       'ladder; canonical and external promotion gates remain pending'
     )
-  return _failure(status, message, **common)
   ####
+  return _failure(status, message, **common)
+####
 
 
 MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID = (
   'op.moc.reflected-domain-global-euler-shock-boundary-refinement-run'
+)
+
+
+MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_CROSS_CASE_REFINEMENT_OPERATOR_ID = (
+  'op.moc.reflected-domain-global-euler-shock-boundary-cross-case-refinement'
 )
 
 
@@ -687,6 +728,7 @@ def _refinement_fingerprint(payload: Any) -> str:
     default=str,
   )
   return sha256(serialized.encode('utf-8')).hexdigest()
+####
 
 
 def _state_fingerprint_payload(state: Any) -> dict[str, float]:
@@ -697,6 +739,7 @@ def _state_fingerprint_payload(state: Any) -> dict[str, float]:
     'mach': float(state.mach),
     'gamma': float(state.gamma),
   }
+####
 
 
 def _boundary_fingerprint_payload(
@@ -706,6 +749,7 @@ def _boundary_fingerprint_payload(
     'state': _state_fingerprint_payload(sample.state),
     'total_pressure_Pa': float(sample.total_pressure_Pa),
   }
+####
 
 
 def _source_band_fingerprint(
@@ -730,6 +774,7 @@ def _source_band_fingerprint(
       for sample in source_band.incoming_handoff
     ],
   })
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -764,9 +809,11 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       raise TypeError(
         'source_band must be a MocReflectedDomainAlternatingSourceResult'
       )
+    ####
     resolutions = tuple(self.requested_resolutions)
     if not resolutions:
       raise ValueError('requested_resolutions must not be empty')
+    ####
     if any(
       isinstance(resolution, bool)
       or not isinstance(resolution, int)
@@ -776,9 +823,11 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       raise ValueError(
         'requested_resolutions must contain positive integers'
       )
+    ####
     closures = tuple(self.closures)
     if len(closures) != len(resolutions):
       raise ValueError('closures must match requested_resolutions')
+    ####
     if any(
       not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult)
       for closure in closures
@@ -786,6 +835,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       raise TypeError(
         'closures must contain MocReflectedDomainGlobalPhysicalClosureResult values'
       )
+    ####
     cases = tuple(self.cases)
     if any(
       not isinstance(
@@ -797,11 +847,14 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       raise TypeError(
         'cases must contain global Euler refinement case values'
       )
+    ####
     case_resolutions = tuple(case.resolution for case in cases)
     if len(set(case_resolutions)) != len(case_resolutions):
       raise ValueError('cases must not repeat a resolution')
+    ####
     if any(resolution not in resolutions for resolution in case_resolutions):
       raise ValueError('cases must use requested resolutions')
+    ####
     if not isinstance(
       self.measurement,
       MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement,
@@ -809,8 +862,10 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       raise TypeError(
         'measurement must be a global Euler refinement measurement'
       )
+    ####
     if self.measurement.cases and tuple(self.measurement.cases) != cases:
       raise ValueError('measurement cases must match retained run cases')
+    ####
     object.__setattr__(self, 'requested_resolutions', resolutions)
     object.__setattr__(self, 'closures', closures)
     object.__setattr__(self, 'cases', cases)
@@ -824,6 +879,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       raise ValueError(
         'configuration must contain (name, value) pairs'
       )
+    ####
     object.__setattr__(self, 'configuration', configuration)
     for name in (
       'source_band_fingerprint',
@@ -832,7 +888,9 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       value = str(getattr(self, name))
       if not value:
         raise ValueError(f'{name} must be a non-empty string')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in (
       'fresh_solver_invocation_verified',
       'local_physical_closure_verified',
@@ -840,13 +898,17 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
     """Whether the independent retained-field ladder converged."""
 
     return self.measurement.converged
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -859,6 +921,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       and self.local_physical_closure_verified
       and self.fidelity_isolation_verified
     )
+  ####
 
   @property
   def chain_promotion_blocked(self) -> bool:
@@ -866,10 +929,12 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       self.closures
       and all(closure.chain_promotion_blocked for closure in self.closures)
     )
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -929,6 +994,8 @@ class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
@@ -970,12 +1037,15 @@ def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
     raise TypeError(
       'source_band must be a MocReflectedDomainAlternatingSourceResult'
     )
+  ####
   try:
     requested_resolutions = tuple(resolutions)
   except TypeError as error:
     raise ValueError('resolutions must be an iterable of positive integers') from error
+  ####
   if not requested_resolutions:
     raise ValueError('resolutions must not be empty')
+  ####
   if any(
     isinstance(resolution, bool)
     or not isinstance(resolution, int)
@@ -983,6 +1053,7 @@ def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
     for resolution in requested_resolutions
   ):
     raise ValueError('resolutions must contain positive integers')
+  ####
 
   def optional_tuple(
     value: Sequence[Any] | None,
@@ -990,10 +1061,13 @@ def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
   ) -> tuple[Any, ...] | None:
     if value is None:
       return None
+    ####
     try:
       return tuple(value)
     except TypeError as error:
       raise ValueError(f'{name} must be an iterable or None') from error
+    ####
+  ####
 
   resolved_outer_indices = optional_tuple(
     outer_source_indices,
@@ -1015,6 +1089,7 @@ def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
     raise TypeError(
       'incoming_handoff must contain MocChainBoundarySample values'
     )
+  ####
   resolved_source_handoff = (
     source_band.incoming_handoff
     if resolved_handoff is None
@@ -1115,6 +1190,7 @@ def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
         global_euler=None,
         message=f'fresh global physical closure raised: {error}',
       )
+    ####
     closures.append(closure)
     if closure.global_euler is not None:
       cases.append(
@@ -1123,6 +1199,8 @@ def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
           result=closure.global_euler,
         )
       )
+    ####
+  ####
 
   if len(cases) == len(requested_resolutions):
     measurement = measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
@@ -1149,6 +1227,7 @@ def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
       f'resolution(s) {missing}',
     )
     message = measurement.message
+  ####
   local_physical_closure_verified = bool(
     closures and all(closure.physical_closure_verified for closure in closures)
   )
@@ -1176,4 +1255,808 @@ def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
     fidelity_isolation_verified=fidelity_isolation_verified,
     message=message,
   )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalEulerShockBoundaryCrossCase:
+  """One named source band and its independent resolution ladder.
+
+  A cross-case study keeps the physical cases separate from one another.  In
+  particular, samples from a reflected case are never compared as if they
+  were resolution samples from a mild-attached case.  The source-band
+  fingerprint is derived from the retained solver-owned handoff so the
+  aggregate report can prove which input each run used.
+  """
+
+  case_id: str
+  regime: str
+  source_band: MocReflectedDomainAlternatingSourceResult
+  resolutions: tuple[int, ...]
+
+  def __post_init__(self) -> None:
+    case_id = str(self.case_id)
+    if not case_id:
+      raise ValueError('case_id must be a non-empty string')
+    ####
+    object.__setattr__(self, 'case_id', case_id)
+    regime = str(self.regime)
+    if not regime:
+      raise ValueError('regime must be a non-empty string')
+    ####
+    object.__setattr__(self, 'regime', regime)
+    if not isinstance(
+      self.source_band,
+      MocReflectedDomainAlternatingSourceResult,
+    ):
+      raise TypeError(
+        'source_band must be a MocReflectedDomainAlternatingSourceResult'
+      )
+    ####
+    try:
+      resolutions = tuple(self.resolutions)
+    except TypeError as error:
+      raise ValueError(
+        'resolutions must be an iterable of positive integers'
+      ) from error
+    ####
+    if any(
+      isinstance(resolution, bool)
+      or not isinstance(resolution, int)
+      or resolution < 1
+      for resolution in resolutions
+    ):
+      raise ValueError('resolutions must contain positive integers')
+    ####
+    if not resolutions:
+      raise ValueError('resolutions must not be empty')
+    ####
+    object.__setattr__(self, 'resolutions', resolutions)
   ####
+
+  @property
+  def source_band_fingerprint(self) -> str:
+    """Deterministic identity for the source data used by this case."""
+
+    return _source_band_fingerprint(self.source_band)
+  ####
+
+  @property
+  def resolution_ladder_verified(self) -> bool:
+    """Whether this case declares a strict two-or-more-point ladder."""
+
+    return bool(
+      len(self.resolutions) >= 2
+      and all(
+        right > left
+        for left, right in zip(self.resolutions, self.resolutions[1:])
+      )
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'case_id': self.case_id,
+      'regime': self.regime,
+      'source_band_fingerprint': self.source_band_fingerprint,
+      'resolutions': list(self.resolutions),
+      'resolution_ladder_verified': self.resolution_ladder_verified,
+      'source_status': self.source_band.status.value,
+      'source_converged': self.source_band.converged,
+      'source_node_count': self.source_band.node_count,
+      'source_cell_count': self.source_band.cell_count,
+    }
+  ####
+####
+
+
+class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus(str, Enum):
+  """Outcome of the independent multi-case global-Euler study."""
+
+  CONVERGED_LOCAL_CROSS_CASE = (
+    'converged_local_global_euler_cross_case_refinement'
+  )
+  INVALID_INPUT = 'invalid_input'
+  CASE_ID_FAILURE = 'global_euler_cross_case_case_id_failure'
+  SOURCE_FAILURE = 'global_euler_cross_case_source_binding_failure'
+  RESOLUTION_FAILURE = 'global_euler_cross_case_resolution_failure'
+  CASE_FAILURE = 'global_euler_cross_case_case_failure'
+  FIDELITY_FAILURE = 'global_euler_cross_case_fidelity_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement:
+  """Independent aggregate evidence for distinct physical case ladders.
+
+  A converged measurement means every named case has its own converged local
+  exact-Euler resolution ladder and the retained run is bound to the exact
+  source fingerprint declared for that case.  It remains below canonical
+  reflected/free-boundary, external-validation, and production gates.
+  """
+
+  status: MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus
+  cases: tuple[MocReflectedDomainGlobalEulerShockBoundaryCrossCase, ...] = ()
+  runs: tuple[MocReflectedDomainGlobalEulerShockBoundaryRefinementRun, ...] = ()
+  case_ids: tuple[str, ...] = ()
+  regimes: tuple[str, ...] = ()
+  source_band_fingerprints: tuple[str, ...] = ()
+  requested_resolutions: tuple[tuple[int, ...], ...] = ()
+  run_statuses: tuple[str, ...] = ()
+  case_ids_verified: bool = False
+  source_bindings_verified: bool = False
+  distinct_source_band_fingerprints_verified: bool = False
+  resolution_ladders_verified: bool = False
+  case_runs_verified: bool = False
+  local_physical_closure_verified: bool = False
+  fidelity_isolation_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  external_validation_required: bool = True
+  message: str = ''
+  operator_id: str = (
+    MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_CROSS_CASE_REFINEMENT_OPERATOR_ID
+  )
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus'
+      )
+    ####
+    cases = tuple(self.cases)
+    runs = tuple(self.runs)
+    if len(cases) != len(runs):
+      raise ValueError('cases and runs must have equal lengths')
+    ####
+    if any(
+      not isinstance(
+        case,
+        MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
+      )
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain '
+        'MocReflectedDomainGlobalEulerShockBoundaryCrossCase values'
+      )
+    ####
+    if any(
+      not isinstance(
+        run,
+        MocReflectedDomainGlobalEulerShockBoundaryRefinementRun,
+      )
+      for run in runs
+    ):
+      raise TypeError(
+        'runs must contain '
+        'MocReflectedDomainGlobalEulerShockBoundaryRefinementRun values'
+      )
+    ####
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'runs', runs)
+
+    derived_case_ids = tuple(case.case_id for case in cases)
+    if self.case_ids and tuple(self.case_ids) != derived_case_ids:
+      raise ValueError('case_ids must match the supplied cases')
+    ####
+    object.__setattr__(self, 'case_ids', derived_case_ids)
+
+    derived_regimes = tuple(case.regime for case in cases)
+    if self.regimes and tuple(self.regimes) != derived_regimes:
+      raise ValueError('regimes must match the supplied cases')
+    ####
+    object.__setattr__(self, 'regimes', derived_regimes)
+
+    derived_fingerprints = tuple(
+      case.source_band_fingerprint for case in cases
+    )
+    if (
+      self.source_band_fingerprints
+      and tuple(self.source_band_fingerprints) != derived_fingerprints
+    ):
+      raise ValueError(
+        'source_band_fingerprints must match the supplied cases'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'source_band_fingerprints',
+      derived_fingerprints,
+    )
+
+    derived_resolutions = tuple(
+      tuple(case.resolutions) for case in cases
+    )
+    if (
+      self.requested_resolutions
+      and tuple(tuple(value) for value in self.requested_resolutions)
+      != derived_resolutions
+    ):
+      raise ValueError(
+        'requested_resolutions must match the supplied cases'
+      )
+    ####
+    object.__setattr__(self, 'requested_resolutions', derived_resolutions)
+
+    derived_statuses = tuple(
+      run.measurement.status.value for run in runs
+    )
+    if self.run_statuses and tuple(self.run_statuses) != derived_statuses:
+      raise ValueError('run_statuses must match the supplied runs')
+    ####
+    object.__setattr__(self, 'run_statuses', derived_statuses)
+
+    for name in (
+      'case_ids_verified',
+      'source_bindings_verified',
+      'distinct_source_band_fingerprints_verified',
+      'resolution_ladders_verified',
+      'case_runs_verified',
+      'local_physical_closure_verified',
+      'fidelity_isolation_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+      'external_validation_required',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    if not self.chain_promotion_blocked:
+      raise ValueError('cross-case refinement must retain promotion block')
+    ####
+    if self.production_claim_allowed:
+      raise ValueError(
+        'cross-case refinement cannot claim production validity'
+      )
+    ####
+    if not self.external_validation_required:
+      raise ValueError(
+        'cross-case refinement must retain the external-validation gate'
+      )
+    ####
+    operator_id = str(self.operator_id)
+    if not operator_id:
+      raise ValueError('operator_id must be a non-empty string')
+    ####
+    object.__setattr__(self, 'operator_id', operator_id)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus
+      .CONVERGED_LOCAL_CROSS_CASE
+    )
+  ####
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and len(self.cases) >= 2
+      and self.case_ids_verified
+      and self.source_bindings_verified
+      and self.distinct_source_band_fingerprints_verified
+      and self.resolution_ladders_verified
+      and self.case_runs_verified
+      and self.local_physical_closure_verified
+      and self.fidelity_isolation_verified
+      and self.external_validation_required
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'case_ids': list(self.case_ids),
+      'regimes': list(self.regimes),
+      'source_band_fingerprints': list(self.source_band_fingerprints),
+      'requested_resolutions': [
+        list(resolutions) for resolutions in self.requested_resolutions
+      ],
+      'run_statuses': list(self.run_statuses),
+      'cases': [case.as_report() for case in self.cases],
+      'runs': [run.as_report() for run in self.runs],
+      'checks': {
+        'case_ids_verified': self.case_ids_verified,
+        'source_bindings_verified': self.source_bindings_verified,
+        'distinct_source_band_fingerprints_verified': (
+          self.distinct_source_band_fingerprints_verified
+        ),
+        'resolution_ladders_verified': self.resolution_ladders_verified,
+        'case_runs_verified': self.case_runs_verified,
+        'local_physical_closure_verified': (
+          self.local_physical_closure_verified
+        ),
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'physical_closure_verified': False,
+        'canonical_free_boundary_verified': False,
+        'canonical_euler_verified': False,
+        'external_validation_verified': False,
+        'external_validation_required': self.external_validation_required,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'physical_closure_verified': False,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'external_validation_required': self.external_validation_required,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'independent-global-euler-cross-case-refinement; '
+        'local-research-field-only'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def _cross_case_measurement_failure(
+  status: MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus,
+  message: str,
+  *,
+  cases: Sequence[MocReflectedDomainGlobalEulerShockBoundaryCrossCase] = (),
+  runs: Sequence[MocReflectedDomainGlobalEulerShockBoundaryRefinementRun] = (),
+) -> MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement:
+  case_values = tuple(cases)
+  run_values = tuple(runs)
+  paired = min(len(case_values), len(run_values))
+  return MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement(
+    status=status,
+    cases=case_values[:paired],
+    runs=run_values[:paired],
+    message=message,
+  )
+####
+
+
+def measure_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement(
+  cases: Sequence[MocReflectedDomainGlobalEulerShockBoundaryCrossCase],
+  runs: Sequence[MocReflectedDomainGlobalEulerShockBoundaryRefinementRun],
+  *,
+  expected_case_ids: Sequence[str] | None = None,
+) -> MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement:
+  """Independently audit named reflected/mild-attached case ladders.
+
+  This function does not rerun a solver.  Each nested run has already
+  independently audited its own resolution ladder; this operator verifies
+  that the case labels, source fingerprints, and run outputs are aligned
+  before aggregating those results.  It never compares residuals between
+  physically different cases as though they formed one resolution sequence.
+  """
+
+  try:
+    case_values = tuple(cases)
+    run_values = tuple(runs)
+  except TypeError:
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus.INVALID_INPUT,
+      'cross-case cases and runs must be iterable',
+    )
+  ####
+  if len(case_values) < 2 or len(run_values) < 2:
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus.INVALID_INPUT,
+      'cross-case refinement requires at least two named cases',
+    )
+  ####
+  if len(case_values) != len(run_values):
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus.INVALID_INPUT,
+      'cross-case cases and runs must have equal lengths',
+      cases=case_values,
+      runs=run_values,
+    )
+  ####
+  if any(
+    not isinstance(
+      case,
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
+    )
+    for case in case_values
+  ):
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus.INVALID_INPUT,
+      'cases must contain typed cross-case values',
+    )
+  ####
+  if any(
+    not isinstance(
+      run,
+      MocReflectedDomainGlobalEulerShockBoundaryRefinementRun,
+    )
+    for run in run_values
+  ):
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus.INVALID_INPUT,
+      'runs must contain typed global-Euler refinement runs',
+    )
+  ####
+
+  case_ids = tuple(case.case_id for case in case_values)
+  case_ids_verified = bool(
+    len(set(case_ids)) == len(case_ids)
+    and (
+      expected_case_ids is None
+      or case_ids == tuple(str(value) for value in expected_case_ids)
+    )
+  )
+  source_fingerprints = tuple(
+    case.source_band_fingerprint for case in case_values
+  )
+  source_bindings_verified = all(
+    run.source_band_fingerprint == fingerprint
+    for case, run, fingerprint in zip(
+      case_values,
+      run_values,
+      source_fingerprints,
+      strict=True,
+    )
+  )
+  distinct_source_band_fingerprints_verified = bool(
+    len(set(source_fingerprints)) == len(source_fingerprints)
+  )
+  resolution_ladders_verified = bool(
+    all(case.resolution_ladder_verified for case in case_values)
+    and all(
+      run.requested_resolutions == case.resolutions
+      for case, run in zip(case_values, run_values, strict=True)
+    )
+  )
+  case_runs_verified = all(
+    run.local_consistency_verified
+    and run.measurement.converged
+    for run in run_values
+  )
+  local_physical_closure_verified = all(
+    run.local_physical_closure_verified for run in run_values
+  )
+  fidelity_isolation_verified = all(
+    run.fidelity_isolation_verified
+    and run.chain_promotion_blocked
+    and not run.production_claim_allowed
+    for run in run_values
+  )
+  if not case_ids_verified:
+    status = (
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus
+      .CASE_ID_FAILURE
+    )
+    message = 'cross-case IDs are duplicated or do not match expected order'
+  elif not source_bindings_verified or not distinct_source_band_fingerprints_verified:
+    status = (
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus.SOURCE_FAILURE
+    )
+    message = (
+      'cross-case runs are not bound to distinct declared source-band '
+      'fingerprints'
+    )
+  elif not resolution_ladders_verified:
+    status = (
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus
+      .RESOLUTION_FAILURE
+    )
+    message = (
+      'one or more named cases does not retain the same strict resolution '
+      'ladder used by its run'
+    )
+  elif not case_runs_verified or not local_physical_closure_verified:
+    status = (
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus.CASE_FAILURE
+    )
+    message = 'one or more named global-Euler case ladders failed local audit'
+  elif not fidelity_isolation_verified:
+    status = (
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus
+      .FIDELITY_FAILURE
+    )
+    message = 'cross-case aggregation weakened the fidelity or promotion boundary'
+  else:
+    status = (
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus
+      .CONVERGED_LOCAL_CROSS_CASE
+    )
+    message = (
+      'named reflected/mild-attached global-Euler ladders passed independently; '
+      'cross-case evidence remains local research evidence below canonical and '
+      'external promotion gates'
+    )
+  ####
+  return MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement(
+    status=status,
+    cases=case_values,
+    runs=run_values,
+    case_ids=case_ids,
+    regimes=tuple(case.regime for case in case_values),
+    source_band_fingerprints=source_fingerprints,
+    requested_resolutions=tuple(case.resolutions for case in case_values),
+    run_statuses=tuple(run.measurement.status.value for run in run_values),
+    case_ids_verified=case_ids_verified,
+    source_bindings_verified=source_bindings_verified,
+    distinct_source_band_fingerprints_verified=(
+      distinct_source_band_fingerprints_verified
+    ),
+    resolution_ladders_verified=resolution_ladders_verified,
+    case_runs_verified=case_runs_verified,
+    local_physical_closure_verified=local_physical_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=message,
+  )
+####
+
+
+MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_CROSS_CASE_REFINEMENT_RUN_OPERATOR_ID = (
+  'op.moc.reflected-domain-global-euler-shock-boundary-cross-case-refinement-run'
+)
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalEulerShockBoundaryCrossCaseRun:
+  """Fresh execution of every named case in a separate resolution ladder."""
+
+  cases: tuple[MocReflectedDomainGlobalEulerShockBoundaryCrossCase, ...]
+  runs: tuple[MocReflectedDomainGlobalEulerShockBoundaryRefinementRun, ...]
+  measurement: MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement
+  configuration: tuple[tuple[str, Any], ...]
+  configuration_fingerprint: str
+  fresh_solver_invocation_verified: bool
+  local_physical_closure_verified: bool
+  fidelity_isolation_verified: bool
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    cases = tuple(self.cases)
+    runs = tuple(self.runs)
+    if len(cases) != len(runs):
+      raise ValueError('cases and runs must have equal lengths')
+    ####
+    if any(
+      not isinstance(
+        case,
+        MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
+      )
+      for case in cases
+    ):
+      raise TypeError('cases must contain typed cross-case values')
+    ####
+    if any(
+      not isinstance(
+        run,
+        MocReflectedDomainGlobalEulerShockBoundaryRefinementRun,
+      )
+      for run in runs
+    ):
+      raise TypeError('runs must contain typed global-Euler refinement runs')
+    ####
+    if not isinstance(
+      self.measurement,
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCaseMeasurement,
+    ):
+      raise TypeError('measurement must be a typed cross-case measurement')
+    ####
+    if self.measurement.cases and tuple(self.measurement.cases) != cases:
+      raise ValueError('measurement cases must match retained cross-case values')
+    ####
+    if self.measurement.runs and tuple(self.measurement.runs) != runs:
+      raise ValueError('measurement runs must match retained run values')
+    ####
+    configuration = tuple(self.configuration)
+    if any(
+      not isinstance(item, tuple)
+      or len(item) != 2
+      or not isinstance(item[0], str)
+      for item in configuration
+    ):
+      raise ValueError('configuration must contain (name, value) pairs')
+    ####
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'runs', runs)
+    object.__setattr__(self, 'configuration', configuration)
+    configuration_fingerprint = str(self.configuration_fingerprint)
+    if not configuration_fingerprint:
+      raise ValueError('configuration_fingerprint must be non-empty')
+    ####
+    object.__setattr__(
+      self,
+      'configuration_fingerprint',
+      configuration_fingerprint,
+    )
+    for name in (
+      'fresh_solver_invocation_verified',
+      'local_physical_closure_verified',
+      'fidelity_isolation_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.measurement.converged
+  ####
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.measurement.local_consistency_verified
+      and len(self.cases) >= 2
+      and len(self.runs) == len(self.cases)
+      and self.fresh_solver_invocation_verified
+      and self.local_physical_closure_verified
+      and self.fidelity_isolation_verified
+    )
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return bool(
+      self.runs
+      and all(run.chain_promotion_blocked for run in self.runs)
+    )
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.measurement.status.value,
+      'operator_id': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_CROSS_CASE_REFINEMENT_RUN_OPERATOR_ID
+      ),
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'configuration': dict(self.configuration),
+      'configuration_fingerprint': self.configuration_fingerprint,
+      'cases': [case.as_report() for case in self.cases],
+      'runs': [run.as_report() for run in self.runs],
+      'measurement': self.measurement.as_report(),
+      'checks': {
+        'fresh_solver_invocation_verified': (
+          self.fresh_solver_invocation_verified
+        ),
+        'local_physical_closure_verified': (
+          self.local_physical_closure_verified
+        ),
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'physical_closure_verified': False,
+        'canonical_free_boundary_verified': False,
+        'canonical_euler_verified': False,
+        'external_validation_verified': False,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'physical_closure_verified': False,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'fresh-global-euler-cross-case-refinement; '
+        'local-research-field-only'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def run_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement(
+  cases: Sequence[MocReflectedDomainGlobalEulerShockBoundaryCrossCase],
+  **runner_options: Any,
+) -> MocReflectedDomainGlobalEulerShockBoundaryCrossCaseRun:
+  """Run each named case through the existing fresh-ladder operator.
+
+  ``runner_options`` are the keyword options accepted by
+  ``run_moc_reflected_domain_global_euler_shock_boundary_refinement``.  The
+  source band and resolution ladder are owned by each named case and cannot
+  be overridden through this mapping.
+  """
+
+  try:
+    case_values = tuple(cases)
+  except TypeError as error:
+    raise ValueError('cases must be an iterable of typed cross-case values') from error
+  ####
+  if len(case_values) < 2:
+    raise ValueError('cross-case refinement requires at least two named cases')
+  ####
+  if any(
+    not isinstance(
+      case,
+      MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
+    )
+    for case in case_values
+  ):
+    raise TypeError('cases must contain typed cross-case values')
+  ####
+  forbidden = {'source_band', 'resolutions'}
+  if forbidden.intersection(runner_options):
+    raise ValueError(
+      'runner_options cannot override source_band or resolutions owned by a case'
+    )
+  ####
+
+  runs = tuple(
+    run_moc_reflected_domain_global_euler_shock_boundary_refinement(
+      case.source_band,
+      case.resolutions,
+      **runner_options,
+    )
+    for case in case_values
+  )
+  measurement = (
+    measure_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement(
+      case_values,
+      runs,
+    )
+  )
+  configuration_payload: dict[str, Any] = {
+    'operator_id': (
+      MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_CROSS_CASE_REFINEMENT_RUN_OPERATOR_ID
+    ),
+    'cases': [
+      {
+        'case_id': case.case_id,
+        'regime': case.regime,
+        'source_band_fingerprint': case.source_band_fingerprint,
+        'resolutions': list(case.resolutions),
+      }
+      for case in case_values
+    ],
+    'runner_options': runner_options,
+  }
+  configuration = tuple(
+    (name, configuration_payload[name])
+    for name in sorted(configuration_payload)
+  )
+  local_physical_closure_verified = bool(
+    runs and all(run.local_physical_closure_verified for run in runs)
+  )
+  fidelity_isolation_verified = bool(
+    runs
+    and all(
+      run.fidelity_isolation_verified
+      and run.chain_promotion_blocked
+      and not run.production_claim_allowed
+      for run in runs
+    )
+  )
+  return MocReflectedDomainGlobalEulerShockBoundaryCrossCaseRun(
+    cases=case_values,
+    runs=runs,
+    measurement=measurement,
+    configuration=configuration,
+    configuration_fingerprint=_refinement_fingerprint(configuration_payload),
+    fresh_solver_invocation_verified=all(
+      run.fresh_solver_invocation_verified for run in runs
+    ),
+    local_physical_closure_verified=local_physical_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=(
+      'fresh global-Euler ladders executed independently for every named case; '
+      'canonical and external promotion gates remain pending'
+    ),
+  )
+####

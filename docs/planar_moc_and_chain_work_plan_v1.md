@@ -3408,3 +3408,25 @@ provider-bound validation, chain promotion, and production claims remain
 blocked. The next implementation slice is solver-owned downstream boundary
 closure, followed by repeated reflected/mild-attached case and resolution
 evidence.
+
+## Named reflected/mild-attached case-ladder checkpoint
+
+The global exact-Euler refinement lane now has an explicit cross-case contract:
+``MocReflectedDomainGlobalEulerShockBoundaryCrossCase`` names a regime, owns a
+solver-generated source band, and declares that case's resolution ladder.
+``run_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement``
+executes the existing fresh-ladder runner separately for every named case.
+The independent aggregate measurement preserves the per-case ladders rather
+than flattening different physical inputs into one residual trend, verifies
+the source-band fingerprints and case ordering, and rejects duplicate source
+inputs that could masquerade as broader coverage.
+
+The new runner can therefore carry reflected and mild-attached source cases
+through the same local exact-Euler audit while retaining an auditable case
+identity. The test matrix exercises a reflected source and a distinct
+resampled source, and verifies that every run remains fidelity-isolated with
+promotion blocked. This is still only local research evidence: the source
+bands use the current research downstream law, canonical globally coupled
+reflected/mixed-regime closure is not proven, indexed external observations
+are absent, and no production shock-cell, Signature, ray-transfer, or
+focal-plane-array claim is enabled.
