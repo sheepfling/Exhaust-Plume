@@ -95,6 +95,7 @@ from exhaust_plume.validation.spectral_comparisons import (  # noqa: E402
   compare_declared_peak_normalized_spectral_shape,
 )
 from exhaust_plume.providers import (  # noqa: E402
+  CurvedGrayRayTransferProvider,
   GrayRayTransferDefinition,
   GrayRayTransferProvider,
   LookupInterpolationPolicy,
@@ -839,6 +840,129 @@ def _run_optical_lane() -> dict[str, Any]:
 ####
 
 
+def _curved_optical_support(section_count: int) -> SectionedTubeSupport:
+  if section_count < 3:
+    raise ValueError('curved optical support requires at least three sections')
+  ####
+  centers = tuple(
+    (
+      5.0 * cos(index * pi / (2.0 * (section_count - 1))),
+      5.0 * sin(index * pi / (2.0 * (section_count - 1))),
+      0.0,
+    )
+    for index in range(section_count)
+  )
+  return SectionedTubeSupport(
+    frame_id='sensor',
+    centers_m=centers,
+    radii_m=(0.4,) * section_count,
+  )
+####
+
+
+def _run_curved_optical_lane() -> dict[str, Any]:
+  """Record the curved transfer boundary without promoting its geometry."""
+
+  provider = CurvedGrayRayTransferProvider()
+  support = _curved_optical_support(5)
+  definition = GrayRayTransferDefinition(
+    frame_id='sensor',
+    support=support,
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+    source_function_w_sr_m=(2.0, 4.0, 6.0),
+    absorption_coefficient_per_m=(0.5, 1.0, 1.5),
+    asset_id='product-lane-curved-gray-definition',
+    allow_curved_support=True,
+  )
+  pose = Pose(
+    frame_id='world',
+    translation_m=(0.0, 0.0, 0.0),
+    rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
+  )
+  request = SpectralRayTransferRequest(
+    ray_frame_id='sensor',
+    ray_origins_m=((-1.0, 2.5, 0.0), (-1.0, 4.5, 0.0)),
+    ray_directions=((1.0, 0.0, 0.0), (1.0, 0.0, 0.0)),
+    ray_t_min_m=(0.0, 0.0),
+    ray_t_max_m=(12.0, 12.0),
+    wavelengths_m=definition.wavelengths_m,
+  )
+  session = provider.create_session(definition=definition)
+  try:
+    first_snapshot = session.create_snapshot(
+      time_s=0.0,
+      source_pose=pose,
+      dynamic_state={},
+      ambient_state={},
+    )
+    second_snapshot = session.create_snapshot(
+      time_s=0.0,
+      source_pose=pose,
+      dynamic_state={},
+      ambient_state={},
+    )
+    first = first_snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+    second = second_snapshot.evaluate(SPECTRAL_RAY_TRANSFER_V1, request)
+  finally:
+    session.close()
+  ####
+  provider_identity_passed = (
+    first.metadata.provenance.provider_id == 'plume.curved-gray-ray-transfer'
+    and first.metadata.provenance.metadata['support_geometry'].startswith('curved')
+    and support.is_straight is False
+  )
+  deterministic_passed = first.model_dump(mode='json') == second.model_dump(mode='json')
+  transfer_contract_passed = (
+    first.hit_mask == (True, True)
+    and all(all(isfinite(value) for value in row) for row in first.source_spectral_radiance)
+    and all(all(0.0 <= value <= 1.0 for value in row) for row in first.background_transmittance)
+    and all(mask == (True, True, True) for mask in first.validity_mask)
+  )
+  refinement_counts = (3, 5, 9, 17)
+  refinement_lengths = []
+  for section_count in refinement_counts:
+    intervals = intersect_sectioned_tube(
+      (-1.0, 2.5, 0.0),
+      (1.0, 0.0, 0.0),
+      _curved_optical_support(section_count),
+      t_max_m=12.0,
+    )
+    refinement_lengths.append(sum(interval.t_exit_m - interval.t_enter_m for interval in intervals))
+  ####
+  local_diagnostic_passed = provider_identity_passed and deterministic_passed and transfer_contract_passed
+  return {
+    'lane_id': 'curved-optical-transfer-v1',
+    'product_id': SPECTRAL_RAY_TRANSFER_V1.capability.wire_id,
+    'provider_id': provider.descriptor.provider_id,
+    'status': 'diagnostic-only' if local_diagnostic_passed else 'failed',
+    'provider_identity_passed': provider_identity_passed,
+    'transfer_contract_passed': transfer_contract_passed,
+    'deterministic_serialization': deterministic_passed,
+    'hit_mask': first.hit_mask,
+    'intersection_intervals_m': first.plume_intersection_t_m,
+    'wavelengths_m': list(definition.wavelengths_m),
+    'measurement_probe': {
+      'ray_index': 0,
+      'wavelengths_m': list(definition.wavelengths_m),
+      'source_spectral_radiance_w_m2_sr_m': list(first.source_spectral_radiance[0]),
+      'validity_mask': list(first.validity_mask[0]),
+    },
+    'spatial_refinement': {
+      'section_counts': list(refinement_counts),
+      'capsule_path_lengths_m': refinement_lengths,
+      'status': 'nonmonotonic-observed-not-promoted',
+      'passed': False,
+      'note': 'piecewise capsule geometry is retained as a diagnostic; nonmonotonic refinement prevents a converged curved-path claim',
+    },
+    'external_comparison': {
+      'status': 'pending',
+      'reason': 'No provider-bound curved observer/path/scenario measurement asset is available; this lane remains an experimental gray-transfer diagnostic.',
+    },
+    'claim_ceiling': 'Gray engineering transfer through conservative piecewise capsule supports only; no resolved curved-flow radiation, chemistry, atmosphere, detector, or FPA claim.',
+  }
+####
+
+
 def _run_fpa_boundary() -> dict[str, Any]:
   matrix = json.loads((REPO_ROOT / 'docs' / 'solver_fidelity_matrix_v1.json').read_text(encoding='utf-8'))
   lanes = {lane['lane_id']: lane for lane in matrix['lanes']}
@@ -1131,6 +1255,7 @@ def main(argv: list[str] | None = None) -> int:
   visual = _run_check('shock-cell-basic-v1', _run_visual_lane)
   signature = _run_check('signature-table-mvp-v1', _run_signature_lane)
   optical = _run_check('optical-transfer-v1', _run_optical_lane)
+  curved_optical = _run_check('curved-optical-transfer-v1', _run_curved_optical_lane)
   cross_product = _run_check('ray-to-signature-consistency-v1', _run_cross_product_consistency)
   fpa = _run_check('focal-plane-array-v1', _run_fpa_boundary)
   local_passed = all(result['status'] in {'passed', 'boundary-validated-downstream'} for result in (visual, signature, optical, cross_product, fpa))
@@ -1142,6 +1267,7 @@ def main(argv: list[str] | None = None) -> int:
       'visual': visual,
       'signature': signature,
       'optical': optical,
+      'curved_optical': curved_optical,
       'cross_product': cross_product,
       'focal_plane_array': fpa,
     },

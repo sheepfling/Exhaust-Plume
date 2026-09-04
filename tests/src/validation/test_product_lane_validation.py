@@ -6,6 +6,7 @@ from scripts import validate_product_lanes
 from scripts.validate_product_lanes import (
   _external_summary,
   _run_cross_product_consistency,
+  _run_curved_optical_lane,
   _run_fpa_boundary,
   _run_optical_lane,
   _run_signature_lane,
@@ -75,6 +76,19 @@ def test_optical_lane_passes_analytic_gray_transfer_without_promoting_external_c
   assert report['provider_id'] == 'plume.gray-ray-transfer'
   assert report['analytic_slab_and_chord_passed'] is True
   assert report['sensor_space_operators']['status'] == 'passed'
+  assert report['external_comparison']['status'] == 'pending'
+####
+
+
+def test_curved_optical_lane_is_explicitly_diagnostic_only() -> None:
+  report = _run_curved_optical_lane()
+
+  assert report['status'] == 'diagnostic-only'
+  assert report['provider_id'] == 'plume.curved-gray-ray-transfer'
+  assert report['provider_identity_passed'] is True
+  assert report['transfer_contract_passed'] is True
+  assert report['spatial_refinement']['passed'] is False
+  assert report['spatial_refinement']['status'] == 'nonmonotonic-observed-not-promoted'
   assert report['external_comparison']['status'] == 'pending'
 ####
 

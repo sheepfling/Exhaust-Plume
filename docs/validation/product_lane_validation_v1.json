@@ -53,6 +53,74 @@
       "status": "passed",
       "wavelength_grid_identity_preserved": true
     },
+    "curved_optical": {
+      "claim_ceiling": "Gray engineering transfer through conservative piecewise capsule supports only; no resolved curved-flow radiation, chemistry, atmosphere, detector, or FPA claim.",
+      "deterministic_serialization": true,
+      "external_comparison": {
+        "reason": "No provider-bound curved observer/path/scenario measurement asset is available; this lane remains an experimental gray-transfer diagnostic.",
+        "status": "pending"
+      },
+      "hit_mask": [
+        true,
+        true
+      ],
+      "intersection_intervals_m": [
+        [
+          4.746379631170089,
+          5.708531450266163
+        ],
+        [
+          1.463337387869719,
+          3.8120893701653302
+        ]
+      ],
+      "lane_id": "curved-optical-transfer-v1",
+      "measurement_probe": {
+        "ray_index": 0,
+        "source_spectral_radiance_w_m2_sr_m": [
+          0.7637640102712422,
+          2.4717205776993585,
+          4.583014481842554
+        ],
+        "validity_mask": [
+          true,
+          true,
+          true
+        ],
+        "wavelengths_m": [
+          1e-06,
+          2e-06,
+          3e-06
+        ]
+      },
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_id": "plume.curved-gray-ray-transfer",
+      "provider_identity_passed": true,
+      "spatial_refinement": {
+        "capsule_path_lengths_m": [
+          0.8659137602339158,
+          0.9621518190960741,
+          0.9071104557061656,
+          0.926910092480842
+        ],
+        "note": "piecewise capsule geometry is retained as a diagnostic; nonmonotonic refinement prevents a converged curved-path claim",
+        "passed": false,
+        "section_counts": [
+          3,
+          5,
+          9,
+          17
+        ],
+        "status": "nonmonotonic-observed-not-promoted"
+      },
+      "status": "diagnostic-only",
+      "transfer_contract_passed": true,
+      "wavelengths_m": [
+        1e-06,
+        2e-06,
+        3e-06
+      ]
+    },
     "focal_plane_array": {
       "camera_mapping_model_id": "declared-ray-to-pixel-mapping-v1",
       "camera_optics_contract_passed": true,

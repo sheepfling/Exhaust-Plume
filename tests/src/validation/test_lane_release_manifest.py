@@ -20,6 +20,9 @@ def test_lane_release_manifest_separates_local_release_from_external_acceptance(
   assert lanes['signature-table-mvp-v1']['local_release_status'] == 'scoped-local-release'
   assert lanes['signature-table-mvp-v1']['external_validation_status'] == 'pending'
   assert lanes['optical-transfer-v1']['local_release_status'] == 'scoped-local-release'
+  assert lanes['curved-optical-transfer-v1']['product_report_status'] == 'diagnostic-only'
+  assert lanes['curved-optical-transfer-v1']['local_release_status'] == 'not-released-validation-pending'
+  assert lanes['curved-optical-transfer-v1']['external_validation_status'] == 'pending'
   assert lanes['focal-plane-array-v1']['local_release_status'] == 'scoped-downstream-boundary'
   assert lanes['focal-plane-array-v1']['provider_ids'] == []
 

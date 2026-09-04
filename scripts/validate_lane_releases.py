@@ -185,6 +185,7 @@ def build_lane_release_manifest() -> dict[str, Any]:
     'washed-integral-v1': 'washed_integral',
     'signature-table-mvp-v1': 'signature',
     'optical-transfer-v1': 'optical',
+    'curved-optical-transfer-v1': 'curved_optical',
     'ray-to-signature-consistency-v1': 'cross_product',
     'focal-plane-array-v1': 'focal_plane_array',
   }
