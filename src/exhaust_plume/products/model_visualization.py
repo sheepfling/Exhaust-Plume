@@ -1903,6 +1903,7 @@ def _moc_visualization(
       'maximum_free_boundary_normal_velocity_residual_fraction',
       'maximum_shape_residual_m',
       'maximum_entropy_transport_residual',
+      'maximum_entropy_production_fraction',
     ):
       value = getattr(source, name, None)
       if value is not None and isfinite(float(value)):

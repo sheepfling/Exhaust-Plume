@@ -3609,3 +3609,18 @@ not place a shock in the 2-D mesh, transport entropy through the mixed-regime
 field, close the free boundary, or create a physical ``MocChainCell``.  The
 canonical field, resolution ladder, accepted physical shock lengths, and
 external product validation remain required before any production promotion.
+
+## Entropy-inequality evidence checkpoint
+
+The coupled constant-gamma field and its independent audit now distinguish
+entropy loss from entropy production.  A shock or numerically resolved
+compressive layer may increase the entropy proxy; the local gate rejects only
+loss below the inlet entropy envelope and retains the maximum production
+fraction for inspection and visualization.  The independent audit recomputes
+both values and rejects a tampered report.
+
+This corrects the direction of the research-lane entropy gate but does not
+identify a resolved shock, close the free boundary, establish a refinement-
+stable physical field, or authorize a chain cell.  The actual global case
+still remains an explicit free-boundary failure, and the production,
+canonical, and external-validation gates remain open.

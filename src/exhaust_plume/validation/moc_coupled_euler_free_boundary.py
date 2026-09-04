@@ -3,9 +3,10 @@
 The model-side solver stores a conservative field and its normalized residual
 channels.  This module reconstructs the curvilinear mesh, thermodynamic state,
 interior Rusanov face fluxes, specified-pressure material-streamline boundary
-flux, and entropy-proxy bounds from that retained data.  It intentionally does
-not promote the field: a passing audit is local evidence only until the case
-ladder, external observations, and contract review are complete.
+flux, and an entropy inequality from that retained data.  Entropy production is
+retained as diagnostic evidence while entropy loss remains a local failure.  It
+intentionally does not promote the field: a passing audit is local evidence only
+until the case ladder, external observations, and contract review are complete.
 """
 
 from __future__ import annotations
@@ -82,6 +83,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   maximum_free_boundary_pressure_residual_Pa: float | None = None
   maximum_free_boundary_normal_velocity_residual_fraction: float | None = None
   maximum_entropy_transport_residual: float | None = None
+  maximum_entropy_production_fraction: float | None = None
   geometry_verified: bool = False
   state_samples_verified: bool = False
   thermodynamics_verified: bool = False
@@ -90,6 +92,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   free_boundary_report_verified: bool = False
   pressure_budget_verified: bool = False
   transonic_transition_verified: bool = False
+  entropy_report_verified: bool = False
   entropy_transport_verified: bool = False
   promotion_flags_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -139,6 +142,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'maximum_free_boundary_pressure_residual_Pa',
       'maximum_free_boundary_normal_velocity_residual_fraction',
       'maximum_entropy_transport_residual',
+      'maximum_entropy_production_fraction',
     ):
       value = getattr(self, name)
       if value is not None:
@@ -157,6 +161,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_report_verified',
       'free_boundary_report_verified',
       'transonic_transition_verified',
+      'entropy_report_verified',
       'entropy_transport_verified',
       'promotion_flags_verified',
       'chain_promotion_blocked',
@@ -198,6 +203,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.free_boundary_report_verified
       and self.pressure_budget_verified
       and self.transonic_transition_verified
+      and self.entropy_report_verified
       and self.entropy_transport_verified
       and self.promotion_flags_verified
       and self.chain_promotion_blocked
@@ -238,6 +244,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'maximum_entropy_transport_residual': (
         self.maximum_entropy_transport_residual
       ),
+      'maximum_entropy_production_fraction': (
+        self.maximum_entropy_production_fraction
+      ),
       'geometry_verified': self.geometry_verified,
       'state_samples_verified': self.state_samples_verified,
       'thermodynamics_verified': self.thermodynamics_verified,
@@ -246,6 +255,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'free_boundary_report_verified': self.free_boundary_report_verified,
       'pressure_budget_verified': self.pressure_budget_verified,
       'transonic_transition_verified': self.transonic_transition_verified,
+      'entropy_report_verified': self.entropy_report_verified,
       'entropy_transport_verified': self.entropy_transport_verified,
       'promotion_flags_verified': self.promotion_flags_verified,
       'physical_closure_verified': self.physical_closure_verified,
@@ -930,17 +940,18 @@ def _audit_field(
   # copy comparison from the raw payload before returning through the caller.
   entropy_minimum = min(inlet_entropy)
   entropy_maximum = max(inlet_entropy)
-  entropy_residual = 0.0
+  entropy_loss_residual = 0.0
+  entropy_production_fraction = 0.0
   for value in entropy_values:
     if value < entropy_minimum:
-      entropy_residual = max(
-        entropy_residual,
+      entropy_loss_residual = max(
+        entropy_loss_residual,
         (entropy_minimum - value) / max(entropy_maximum, 1.0e-12),
       )
     ####
     if value > entropy_maximum:
-      entropy_residual = max(
-        entropy_residual,
+      entropy_production_fraction = max(
+        entropy_production_fraction,
         (value - entropy_maximum) / max(entropy_maximum, 1.0e-12),
       )
     ####
@@ -956,8 +967,9 @@ def _audit_field(
     'top_pressure': top_pressure,
     'top_normal_velocity': top_normal_velocity,
     'speeds': np.asarray(speeds, dtype=float),
-    'entropy_residual': entropy_residual,
-    'entropy_verified': entropy_residual <= 0.05,
+    'entropy_residual': entropy_loss_residual,
+    'entropy_production_fraction': entropy_production_fraction,
+    'entropy_verified': entropy_loss_residual <= 0.05,
     'pressure_budget': pressure_budget,
     'expected_cell_count': expected_cell_count,
   }
@@ -1035,6 +1047,22 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     )
   )
   transonic_transition_verified = _audit_transonic_transition(candidate)
+  entropy_report_verified = bool(
+    candidate.maximum_entropy_transport_residual is not None
+    and np.isclose(
+      candidate.maximum_entropy_transport_residual,
+      raw['entropy_residual'],
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and candidate.maximum_entropy_production_fraction is not None
+    and np.isclose(
+      candidate.maximum_entropy_production_fraction,
+      raw['entropy_production_fraction'],
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+  )
   maxima = tuple(float(np.max(recomputed[..., index])) for index in range(_CHANNEL_COUNT))
   residuals_verified = maxima[4] <= candidate.request.euler_residual_tolerance
   pressure = np.asarray(raw['top_pressure'], dtype=float)
@@ -1079,6 +1107,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not transonic_transition_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
     message = 'candidate scalar transonic transition evidence does not match the control section'
+  elif not entropy_report_verified:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
+    message = 'candidate entropy-loss and entropy-production diagnostics do not match the field'
   elif not boundary_report_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
     message = 'candidate free-boundary diagnostic arrays do not match the field'
@@ -1114,6 +1145,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     maximum_free_boundary_pressure_residual_Pa=pressure_residual,
     maximum_free_boundary_normal_velocity_residual_fraction=normal_fraction,
     maximum_entropy_transport_residual=float(raw['entropy_residual']),
+    maximum_entropy_production_fraction=float(raw['entropy_production_fraction']),
     geometry_verified=bool(raw['geometry_verified']),
     state_samples_verified=bool(raw['state_samples_verified']),
     thermodynamics_verified=bool(raw['thermodynamics_verified']),
@@ -1122,6 +1154,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     free_boundary_report_verified=boundary_report_verified,
     pressure_budget_verified=pressure_budget_verified,
     transonic_transition_verified=transonic_transition_verified,
+    entropy_report_verified=entropy_report_verified,
     entropy_transport_verified=bool(raw['entropy_verified']),
     promotion_flags_verified=promotion_flags_verified,
     chain_promotion_blocked=True,

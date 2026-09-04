@@ -388,6 +388,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   maximum_free_boundary_normal_velocity_residual_fraction: float | None = None
   maximum_shape_residual_m: float | None = None
   maximum_entropy_transport_residual: float | None = None
+  maximum_entropy_production_fraction: float | None = None
   coupled_euler_field_verified: bool = False
   free_boundary_condition_verified: bool = False
   entropy_transport_verified: bool = False
@@ -550,6 +551,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'maximum_free_boundary_normal_velocity_residual_fraction',
       'maximum_shape_residual_m',
       'maximum_entropy_transport_residual',
+      'maximum_entropy_production_fraction',
     ):
       value = getattr(self, name)
       if value is not None:
@@ -730,6 +732,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'maximum_shape_residual_m': self.maximum_shape_residual_m,
       'maximum_entropy_transport_residual': (
         self.maximum_entropy_transport_residual
+      ),
+      'maximum_entropy_production_fraction': (
+        self.maximum_entropy_production_fraction
       ),
       'coupled_euler_field_verified': self.coupled_euler_field_verified,
       'free_boundary_condition_verified': self.free_boundary_condition_verified,
@@ -1491,7 +1496,16 @@ def _entropy_diagnostics(
   inlet_states: tuple[np.ndarray, ...],
   gamma: float,
   gas_constant: float,
-) -> tuple[float, bool]:
+) -> tuple[float, float, bool]:
+  """Measure entropy loss separately from physically allowed production.
+
+  A shock or a numerically resolved compressive layer must be allowed to
+  increase the entropy proxy.  The local gate therefore rejects only entropy
+  loss below the inlet envelope, while retaining the largest production
+  fraction as diagnostic evidence.  This is still a research-lane inequality
+  check: it does not identify a resolved shock or close the free boundary.
+  """
+
   inlet_entropy = []
   for state in inlet_states:
     rho, _u, _v, pressure, _temperature, _sound_speed = (
@@ -1501,7 +1515,8 @@ def _entropy_diagnostics(
   ####
   minimum_inlet = min(inlet_entropy)
   maximum_inlet = max(inlet_entropy)
-  residual = 0.0
+  loss_residual = 0.0
+  production_fraction = 0.0
   valid = True
   for state in states.reshape((-1, 4)):
     rho, _u, _v, pressure, _temperature, _sound_speed = (
@@ -1513,19 +1528,20 @@ def _entropy_diagnostics(
       continue
     ####
     if entropy_proxy < minimum_inlet:
-      residual = max(
-        residual,
+      loss_residual = max(
+        loss_residual,
         (minimum_inlet - entropy_proxy) / maximum(maximum_inlet, 1.0e-12),
       )
     ####
     if entropy_proxy > maximum_inlet:
-      residual = max(
-        residual,
-        (entropy_proxy - maximum_inlet) / maximum(maximum_inlet, 1.0e-12),
+      production_fraction = max(
+        production_fraction,
+        (entropy_proxy - maximum_inlet)
+        / maximum(maximum_inlet, 1.0e-12),
       )
     ####
   ####
-  return residual, valid and residual <= 0.05
+  return loss_residual, production_fraction, valid and loss_residual <= 0.05
 ####
 
 
@@ -1614,6 +1630,7 @@ def _result_from_field(
   gamma: float,
   gas_constant: float,
   entropy_residual: float | None,
+  entropy_production_fraction: float | None,
   entropy_verified: bool,
   field_verified: bool,
   boundary_verified: bool,
@@ -1691,6 +1708,7 @@ def _result_from_field(
       else float(max(shape_residual_history))
     ),
     maximum_entropy_transport_residual=entropy_residual,
+    maximum_entropy_production_fraction=entropy_production_fraction,
     coupled_euler_field_verified=field_verified,
     free_boundary_condition_verified=boundary_verified,
     entropy_transport_verified=entropy_verified,
@@ -1882,6 +1900,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   )
   pseudo_iteration_count = 0
   entropy_residual = None
+  entropy_production_fraction = None
   entropy_verified = False
   field_verified = False
   boundary_verified = False
@@ -2018,7 +2037,11 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         request.mixed_regime_request.control_section.points_m[1:],
       )
     )
-    entropy_residual, entropy_verified = _entropy_diagnostics(
+    (
+      entropy_residual,
+      entropy_production_fraction,
+      entropy_verified,
+    ) = _entropy_diagnostics(
       states,
       inlet_states,
       gamma,
@@ -2083,6 +2106,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     gamma,
     request.gas_constant_J_kgK,
     entropy_residual,
+    entropy_production_fraction,
     entropy_verified,
     field_verified,
     boundary_verified,

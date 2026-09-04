@@ -71,6 +71,9 @@ next product can make a stronger claim:
    refinement and a terminal criterion before fitting cells. A named
    reflected/mild-attached case-ladder runner now provides separated local
    evidence for this work; it does not satisfy the canonical closure gate.
+   The coupled research lane now treats entropy production as allowable shock
+   evidence while retaining an independently checked entropy-loss gate; this
+   improves physical interpretation but does not close the field.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;

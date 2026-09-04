@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from math import cos, sin
 
+import numpy as np
 import pytest
 
 import exhaust_plume.models.moc.coupled_euler_free_boundary as coupled_euler
@@ -1657,6 +1658,10 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert result.coupled_euler_field_verified
   assert result.conservative_euler_residuals_measured
   assert result.conservative_euler_residuals_verified
+  assert result.entropy_transport_verified
+  assert result.maximum_entropy_transport_residual == pytest.approx(0.0)
+  assert result.maximum_entropy_production_fraction is not None
+  assert result.maximum_entropy_production_fraction > 0.0
   assert len(result.cell_vertices_by_cell_m) == len(
     result.conservative_states_by_cell
   )
@@ -1722,6 +1727,8 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert audit.residual_report_verified
   assert audit.free_boundary_report_verified
   assert audit.pressure_budget_verified
+  assert audit.entropy_report_verified
+  assert audit.entropy_transport_verified
   assert audit.promotion_flags_verified
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
@@ -1759,6 +1766,19 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
   )
   assert not transition_audit.transonic_transition_verified
+  assert result.maximum_entropy_production_fraction is not None
+  tampered_entropy = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(
+      result,
+      maximum_entropy_production_fraction=(
+        result.maximum_entropy_production_fraction * 1.01
+      ),
+    )
+  )
+  assert tampered_entropy.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
+  )
+  assert not tampered_entropy.entropy_report_verified
   tampered_vertices = list(result.cell_vertices_by_cell_m)
   tampered_vertices[0] = (
     (tampered_vertices[0][0][0] + 1.0e-3, tampered_vertices[0][0][1]),
@@ -1797,6 +1817,52 @@ def test_coupled_euler_free_boundary_flux_has_no_mass_or_energy_transport():
   assert flux[1] == pytest.approx(101325.0 * 0.6 * 2.5)
   assert flux[2] == pytest.approx(101325.0 * 0.8 * 2.5)
   assert wave > 0.0
+####
+
+
+def test_coupled_euler_entropy_gate_allows_production_but_rejects_loss():
+  inlet = coupled_euler._conservative_from_primitive(
+    1.0,
+    100.0,
+    0.0,
+    100000.0,
+    1.4,
+  )
+  production = coupled_euler._conservative_from_primitive(
+    0.95,
+    100.0,
+    0.0,
+    100000.0,
+    1.4,
+  )
+  loss = coupled_euler._conservative_from_primitive(
+    1.1,
+    100.0,
+    0.0,
+    100000.0,
+    1.4,
+  )
+  production_loss, production_gain, production_verified = (
+    coupled_euler._entropy_diagnostics(
+      np.asarray((production,)),
+      (inlet,),
+      1.4,
+      287.05,
+    )
+  )
+  loss_residual, loss_gain, loss_verified = coupled_euler._entropy_diagnostics(
+    np.asarray((loss,)),
+    (inlet,),
+    1.4,
+    287.05,
+  )
+
+  assert production_loss == pytest.approx(0.0)
+  assert production_gain > 0.0
+  assert production_verified
+  assert loss_residual > 0.05
+  assert loss_gain == pytest.approx(0.0)
+  assert not loss_verified
 ####
 
 

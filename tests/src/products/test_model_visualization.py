@@ -270,6 +270,7 @@ def _coupled_euler_result() -> SimpleNamespace:
     maximum_free_boundary_normal_velocity_residual_fraction=0.02,
     maximum_shape_residual_m=0.0005,
     maximum_entropy_transport_residual=0.01,
+    maximum_entropy_production_fraction=0.03,
     pseudo_iteration_count=12,
     shape_iteration_count=3,
     subsonic_pressure_budget=SimpleNamespace(
@@ -425,6 +426,9 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert bundle.diagnostics[
     'coupled_euler_pressure_budget_minimum_additional_total_pressure_loss_fraction'
   ] == pytest.approx(0.5)
+  assert bundle.diagnostics[
+    'coupled_euler_maximum_entropy_production_fraction'
+  ] == pytest.approx(0.03)
   assert bundle.claims.production_claim_allowed is False
   assert any(
     'coupled-Euler/free-boundary channels are research diagnostics' in warning
