@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from enum import Enum, IntEnum
+from math import isfinite
 from pathlib import Path
 import re
 from typing import Any, Mapping
@@ -109,14 +110,20 @@ class ProviderBoundComparisonEvidence(ValidationModel):
   claim_id: str = Field(min_length=1)
   provider_id: str = Field(min_length=1)
   provider_version: str = Field(min_length=1)
+  provider_snapshot_id: str = Field(min_length=1)
   product_id: str = Field(min_length=1)
   benchmark_id: str = Field(min_length=1)
   external_operator_id: str = Field(min_length=1)
   internal_operator_ids: tuple[str, ...] = Field(min_length=1)
   measurement_space: str = Field(min_length=1)
+  coordinate_frame_id: str = Field(min_length=1)
   metric_ids: tuple[str, ...] = Field(min_length=1)
+  metric_results: Mapping[str, float] = Field(default_factory=dict)
+  metric_tolerances: Mapping[str, float] = Field(default_factory=dict)
+  coverage: Mapping[str, Any] = Field(default_factory=dict)
   source_asset_ids: tuple[str, ...] = Field(min_length=1)
   source_asset_sha256: tuple[str, ...] = Field(min_length=1)
+  provider_output_ids: tuple[str, ...] = Field(min_length=1)
   provider_output_sha256: tuple[str, ...] = Field(min_length=1)
   operator_manifest_sha256: str
   calibration_case_ids: tuple[str, ...] = ()
@@ -130,6 +137,7 @@ class ProviderBoundComparisonEvidence(ValidationModel):
     'internal_operator_ids',
     'metric_ids',
     'source_asset_ids',
+    'provider_output_ids',
     'calibration_case_ids',
     'validation_case_ids',
   )
@@ -181,6 +189,34 @@ class ProviderBoundComparisonEvidence(ValidationModel):
         raise ValueError('accepted comparison evidence requires uncertainty metadata')
       if not self.applicability_domain:
         raise ValueError('accepted comparison evidence requires an applicability domain')
+      if not self.coverage:
+        raise ValueError('accepted comparison evidence requires coverage metadata')
+    missing_results = set(self.metric_ids) - set(self.metric_results)
+    if missing_results:
+      raise ValueError(
+        'comparison evidence must report every declared metric result'
+      )
+    missing_tolerances = set(self.metric_ids) - set(self.metric_tolerances)
+    if missing_tolerances:
+      raise ValueError(
+        'comparison evidence must declare a tolerance for every metric'
+      )
+    if any(
+      not isfinite(float(value))
+      for values in (self.metric_results.values(), self.metric_tolerances.values())
+      for value in values
+    ):
+      raise ValueError('comparison evidence metric values and tolerances must be finite')
+    if any(float(value) < 0.0 for value in self.metric_tolerances.values()):
+      raise ValueError('comparison evidence metric tolerances must be nonnegative')
+    if len(self.source_asset_ids) != len(self.source_asset_sha256):
+      raise ValueError(
+        'source_asset_ids and source_asset_sha256 must have matching lengths'
+      )
+    if len(self.provider_output_ids) != len(self.provider_output_sha256):
+      raise ValueError(
+        'provider_output_ids and provider_output_sha256 must have matching lengths'
+      )
     ####
     return self
   ####

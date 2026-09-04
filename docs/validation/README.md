@@ -241,9 +241,10 @@ provenance; an unacquired evidence level cannot be marked accepted.
 Accepted quantitative claims must also carry a
 `ProviderBoundComparisonEvidence` record. That envelope binds the claim to
 the provider version, product and benchmark IDs, external and internal
-operator IDs, measurement space, source-asset digests, provider-output
-digests, operator-manifest digest, applicability domain, uncertainty, and a
-validation case set. If calibration cases are supplied, they must be disjoint
-from validation cases. A diagnostic or blocked envelope may be recorded for
-handoff purposes, but it cannot satisfy an accepted claim. This is a promotion
-guard only; it does not manufacture the still-missing provider-bound data.
+operator IDs, measurement space, coordinate frame, source snapshot, coverage,
+metric results and tolerances, source-asset digests, provider-output digests,
+operator-manifest digest, applicability domain, uncertainty, and a validation
+case set. If calibration cases are supplied, they must be disjoint from
+validation cases. A diagnostic or blocked envelope may be recorded for handoff
+purposes, but it cannot satisfy an accepted claim. This is a promotion guard
+only; it does not manufacture the still-missing provider-bound data.

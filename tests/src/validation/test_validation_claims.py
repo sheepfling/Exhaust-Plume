@@ -75,14 +75,20 @@ def _accepted_comparison_evidence(**overrides: object) -> ProviderBoundCompariso
     'claim_id': 'claim-accepted',
     'provider_id': 'plume.provider.v1',
     'provider_version': '1.2.3',
+    'provider_snapshot_id': 'snapshot-1',
     'product_id': 'plume.visual.sectioned-tube@1',
     'benchmark_id': 'CJ-UEJ-001',
     'external_operator_id': 'operator.extract.sectioned_tube_mach_disk_position',
     'internal_operator_ids': ('op.visual.feature-extractor',),
     'measurement_space': 'physical-geometry',
+    'coordinate_frame_id': 'nozzle-exit-frame',
     'metric_ids': ('shock-spacing',),
+    'metric_results': {'shock-spacing': 0.1},
+    'metric_tolerances': {'shock-spacing': 0.5},
+    'coverage': {'matched_points': 10, 'observed_points': 10},
     'source_asset_ids': ('source-1',),
     'source_asset_sha256': ('a' * 64,),
+    'provider_output_ids': ('output-1',),
     'provider_output_sha256': ('b' * 64,),
     'operator_manifest_sha256': 'c' * 64,
     'calibration_case_ids': ('calibration-1',),
@@ -156,4 +162,14 @@ def test_bound_evidence_must_match_claim_identity() -> None:
       comparison_evidence=_accepted_comparison_evidence(claim_id='other-claim'),
       status=ClaimStatus.ACCEPTED,
     )
+  ####
+
+
+def test_bound_evidence_requires_one_digest_per_named_asset_and_output() -> None:
+  with pytest.raises(ValueError, match='source_asset_ids and source_asset_sha256'):
+    _accepted_comparison_evidence(source_asset_ids=('source-1', 'source-2'))
+  ####
+
+  with pytest.raises(ValueError, match='provider_output_ids and provider_output_sha256'):
+    _accepted_comparison_evidence(provider_output_ids=('output-1', 'output-2'))
   ####
