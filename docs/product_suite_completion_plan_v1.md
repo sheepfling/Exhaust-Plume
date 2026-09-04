@@ -360,6 +360,22 @@ identify the unresolved coupled closure, while the reference remains
 non-canonical, chain promotion remains blocked, and production claims remain
 false.  A tampered reported residual is rejected by the independent operator.
 
+The next P2.1 evidence slice adds an independently measured resolution ladder
+for the same reference.  The refinement operator requires a coarse-to-fine
+sequence (the current regression case is 5/7/9 axial stations), one exact
+request/handoff/control-section seam, fixed physical solver parameters, actual
+mesh growth, independently reproduced conservative-Euler evidence, and stable
+post-entrance free-boundary geometry at normalized axial locations.  The two
+seeded entrance stations remain covered by the single-case audit but are not
+silently labeled converged geometry.  The current ladder passes its local
+research checks: node/cell counts grow from 21/27 to 37/51, outlet-height
+deltas are zero, and post-entrance shape deltas are below `5e-10 m`.  The
+conservative-Euler maxima (about 1.52, 2.60, and 3.14 across the cases) are
+retained as diagnostic evidence and are deliberately not treated as a
+monotone convergence claim.  This closes only numerical-sensitivity evidence
+for the mapped reference; `physical_closure_verified`, canonical free-boundary
+acceptance, chain promotion, and production claims remain false.
+
 ### Next implementation slice
 
 The next physics slice remains completion of `P2.1`: a solver-owned

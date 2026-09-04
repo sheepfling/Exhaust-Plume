@@ -3519,3 +3519,25 @@ mapped stream-tube field still keeps
 chain promotion blocked.  The next implementation step remains a coupled
 reflected 2-D Euler/free-boundary solve whose residuals can be reduced and
 independently validated across a resolution ladder.
+
+## Variable-entropy resolution-ladder checkpoint
+
+The variable-entropy reference now has a separate independent refinement
+operator,
+``measure_mixed_regime_variable_entropy_free_boundary_refinement``.  It
+remeasures each case from its retained request, entropy handoff, and control
+section, requires a strictly increasing resolution sequence and actual mesh
+growth, and compares the post-entrance free-boundary segment at normalized
+axial locations.  The current 5/7/9-station regression ladder passes with
+node/cell counts of 21/27, 29/39, and 37/51; outlet-height deltas are zero and
+post-entrance shape deltas remain below ``5e-10 m``.
+
+The two seeded entrance stations remain covered by the single-case audit but
+are intentionally excluded from the converged-shape comparison because their
+locations are resolution-dependent in this mapped reference.  The ladder
+also retains the independently reproduced conservative-Euler maxima
+(``1.52``, ``2.60``, and ``3.14`` for the current cases) without requiring
+them to decrease; their growth is diagnostic evidence of the unresolved
+coupled closure.  This is numerical-sensitivity evidence for a research
+reference only: it does not close the canonical downstream field, authorize a
+continued chain, or change any product/release gate.

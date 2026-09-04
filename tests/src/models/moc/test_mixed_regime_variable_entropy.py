@@ -14,8 +14,11 @@ from exhaust_plume.models.moc import (
   solve_normal_shock_terminal,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase,
+  MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus,
   MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus,
   measure_mixed_regime_variable_entropy_free_boundary,
+  measure_mixed_regime_variable_entropy_free_boundary_refinement,
 )
 
 
@@ -314,4 +317,114 @@ def test_variable_entropy_measurement_rejects_conservative_residual_mutation() -
   )
   assert not measurement.conservative_euler_residuals_verified
   assert not measurement.reference_verified
+####
+
+
+def test_variable_entropy_refinement_ladder_measures_geometry_and_audit() -> None:
+  cases = tuple(
+    MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase(
+      resolution=resolution,
+      result=_solve(axial_station_count=resolution)[-1],
+    )
+    for resolution in (5, 7, 9)
+  )
+
+  measurement = measure_mixed_regime_variable_entropy_free_boundary_refinement(
+    cases,
+    expected_resolutions=(5, 7, 9),
+  )
+
+  assert measurement.status is (
+    MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.CONVERGED
+  )
+  assert measurement.converged
+  assert measurement.resolutions == (5, 7, 9)
+  assert measurement.axial_station_counts == (5, 7, 9)
+  assert measurement.node_counts == (21, 29, 37)
+  assert measurement.cell_counts == (27, 39, 51)
+  assert measurement.request_consistent
+  assert measurement.handoff_consistent
+  assert measurement.control_section_consistent
+  assert measurement.solver_parameters_consistent
+  assert measurement.case_measurements_verified
+  assert measurement.conservative_euler_evidence_verified
+  assert measurement.mesh_resolution_verified
+  assert measurement.geometry_sensitivity_verified
+  assert measurement.refinement_convergence_verified
+  assert len(measurement.outlet_height_delta_residuals_m) == 2
+  assert len(measurement.free_boundary_shape_delta_residuals_m) == 2
+  assert all(
+    residual <= 1.0e-6
+    for residual in measurement.free_boundary_shape_delta_residuals_m
+  )
+  assert all(
+    residual is not None and residual > 0.0
+    for residual in measurement.maximum_conservative_euler_residuals
+  )
+  assert measurement.physical_closure_verified is False
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.canonical_euler_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  report = measurement.as_report()
+  assert report['operator_id'] == (
+    'op.moc.mixed-regime-variable-entropy-free-boundary-refinement'
+  )
+  assert report['checks']['resolution_order_verified']
+  assert report['checks']['refinement_convergence_verified']
+  assert report['canonical_reflected_moc_closure_verified'] is False
+####
+
+
+def test_variable_entropy_refinement_requires_coarse_to_fine_order() -> None:
+  cases = tuple(
+    MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase(
+      resolution=resolution,
+      result=_solve(axial_station_count=resolution)[-1],
+    )
+    for resolution in (5, 7)
+  )
+
+  measurement = measure_mixed_regime_variable_entropy_free_boundary_refinement(
+    tuple(reversed(cases)),
+  )
+
+  assert measurement.status is (
+    MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.RESOLUTION_FAILURE
+  )
+  assert not measurement.converged
+####
+
+
+def test_variable_entropy_refinement_rejects_case_audit_mutation() -> None:
+  results = tuple(_solve(axial_station_count=resolution)[-1] for resolution in (5, 7))
+  assert results[1].maximum_conservative_euler_residual is not None
+  changed = replace(
+    results[1],
+    maximum_conservative_euler_residual=(
+      results[1].maximum_conservative_euler_residual + 1.0
+    ),
+  )
+  cases = (
+    MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase(
+      resolution=5,
+      result=results[0],
+    ),
+    MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase(
+      resolution=7,
+      result=changed,
+    ),
+  )
+
+  measurement = measure_mixed_regime_variable_entropy_free_boundary_refinement(
+    cases,
+  )
+
+  assert measurement.status is (
+    MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.CASE_FAILURE
+  )
+  assert not measurement.converged
+  assert not measurement.case_measurements_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
 ####

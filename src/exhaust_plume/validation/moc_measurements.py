@@ -162,6 +162,7 @@ __all__ = (
   'MOC_MIXED_REGIME_ENTROPY_HANDOFF_OPERATOR_ID',
   'MOC_MIXED_REGIME_ENTROPY_TRANSPORT_OPERATOR_ID',
   'MOC_MIXED_REGIME_VARIABLE_ENTROPY_FREE_BOUNDARY_OPERATOR_ID',
+  'MOC_MIXED_REGIME_VARIABLE_ENTROPY_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
@@ -218,6 +219,9 @@ __all__ = (
   'MocMixedRegimeEntropyTransportMeasurementStatus',
   'MocMixedRegimeVariableEntropyFreeBoundaryMeasurement',
   'MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus',
+  'MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase',
+  'MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurement',
+  'MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus',
   'MocTerminalClosureMeasurement',
   'MocTerminalClosureMeasurementStatus',
   'MocTerminalClosureObservation',
@@ -261,6 +265,7 @@ __all__ = (
   'measure_mixed_regime_entropy_handoff',
   'measure_mixed_regime_entropy_transport_boundary',
   'measure_mixed_regime_variable_entropy_free_boundary',
+  'measure_mixed_regime_variable_entropy_free_boundary_refinement',
   'measure_moc_terminal_closure',
   'measure_moc_shock_cell',
   'measure_moc_shock_cell_chain',
@@ -352,6 +357,9 @@ MOC_MIXED_REGIME_ENTROPY_TRANSPORT_OPERATOR_ID = (
 )
 MOC_MIXED_REGIME_VARIABLE_ENTROPY_FREE_BOUNDARY_OPERATOR_ID = (
   'op.moc.mixed-regime-variable-entropy-free-boundary'
+)
+MOC_MIXED_REGIME_VARIABLE_ENTROPY_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID = (
+  'op.moc.mixed-regime-variable-entropy-free-boundary-refinement'
 )
 
 Point = tuple[float, float]
@@ -6125,6 +6133,731 @@ def measure_mixed_regime_variable_entropy_free_boundary(
       'map, structured scalar field, closed mesh perimeter, ambient/tangency '
       'condition, and declared local residuals; canonical 2-D Euler/free-'
       'boundary closure remains pending'
+    ),
+  )
+####
+
+
+class MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus(
+  str,
+  Enum,
+):
+  """Outcome of comparing variable-entropy reference resolutions."""
+
+  CONVERGED = 'converged'
+  INVALID_INPUT = 'invalid_input'
+  RESOLUTION_FAILURE = 'resolution_failure'
+  CASE_FAILURE = 'case_failure'
+  CONSISTENCY_FAILURE = 'consistency_failure'
+  SENSITIVITY_FAILURE = 'sensitivity_failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase:
+  """One solver-owned variable-entropy result at a declared resolution."""
+
+  resolution: int
+  result: MocMixedRegimeVariableEntropyFreeBoundaryResult
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.resolution, bool)
+      or not isinstance(self.resolution, int)
+      or self.resolution < 5
+    ):
+      raise ValueError('resolution must be an integer greater than or equal to 5')
+    ####
+    if not isinstance(
+      self.result,
+      MocMixedRegimeVariableEntropyFreeBoundaryResult,
+    ):
+      raise TypeError(
+        'result must be a MocMixedRegimeVariableEntropyFreeBoundaryResult'
+      )
+    ####
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurement:
+  """Independent resolution evidence for the mapped variable-entropy lane.
+
+  A passing result means that independently measured geometry and local audit
+  evidence are stable over the supplied mesh resolutions.  It does not
+  validate the missing coupled two-dimensional Euler/free-boundary law and can
+  never promote this reference into a continued shock-cell chain.
+  """
+
+  status: MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus
+  operator_id: str = (
+    MOC_MIXED_REGIME_VARIABLE_ENTROPY_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID
+  )
+  cases: tuple[MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase, ...] = ()
+  measurements: tuple[MocMixedRegimeVariableEntropyFreeBoundaryMeasurement, ...] = ()
+  resolutions: tuple[int, ...] = ()
+  axial_station_counts: tuple[int, ...] = ()
+  transverse_station_counts: tuple[int, ...] = ()
+  node_counts: tuple[int, ...] = ()
+  cell_counts: tuple[int, ...] = ()
+  outlet_heights_m: tuple[float | None, ...] = ()
+  maximum_conservative_euler_residuals: tuple[float | None, ...] = ()
+  resolution_order_verified: bool = False
+  request_consistent: bool = False
+  handoff_consistent: bool = False
+  control_section_consistent: bool = False
+  solver_parameters_consistent: bool = False
+  case_measurements_verified: bool = False
+  conservative_euler_evidence_verified: bool = False
+  mesh_resolution_verified: bool = False
+  geometry_sensitivity_verified: bool = False
+  refinement_convergence_verified: bool = False
+  physical_closure_verified: bool = False
+  canonical_free_boundary_verified: bool = False
+  canonical_euler_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  geometry_sample_fractions: tuple[float, ...] = ()
+  outlet_height_delta_residuals_m: tuple[float, ...] = ()
+  free_boundary_shape_delta_residuals_m: tuple[float, ...] = ()
+  claim_status: str = 'not_accepted'
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus'
+      )
+    ####
+    cases = tuple(self.cases)
+    measurements = tuple(self.measurements)
+    if len(cases) != len(measurements):
+      raise ValueError('cases and measurements must have equal lengths')
+    ####
+    if any(
+      not isinstance(
+        case,
+        MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase,
+      )
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain '
+        'MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase values'
+      )
+    ####
+    if any(
+      not isinstance(
+        measurement,
+        MocMixedRegimeVariableEntropyFreeBoundaryMeasurement,
+      )
+      for measurement in measurements
+    ):
+      raise TypeError(
+        'measurements must contain '
+        'MocMixedRegimeVariableEntropyFreeBoundaryMeasurement values'
+      )
+    ####
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'measurements', measurements)
+    results = tuple(case.result for case in cases)
+    object.__setattr__(
+      self,
+      'resolutions',
+      tuple(case.resolution for case in cases),
+    )
+    object.__setattr__(
+      self,
+      'axial_station_counts',
+      tuple(int(result.axial_station_count) for result in results),
+    )
+    object.__setattr__(
+      self,
+      'transverse_station_counts',
+      tuple(int(result.transverse_station_count) for result in results),
+    )
+    object.__setattr__(
+      self,
+      'node_counts',
+      tuple(measurement.node_count for measurement in measurements),
+    )
+    object.__setattr__(
+      self,
+      'cell_counts',
+      tuple(measurement.cell_count for measurement in measurements),
+    )
+    object.__setattr__(
+      self,
+      'outlet_heights_m',
+      tuple(result.outlet_height_m for result in results),
+    )
+    object.__setattr__(
+      self,
+      'maximum_conservative_euler_residuals',
+      tuple(
+        measurement.maximum_conservative_euler_residual
+        for measurement in measurements
+      ),
+    )
+    for name in (
+      'outlet_heights_m',
+      'maximum_conservative_euler_residuals',
+      'outlet_height_delta_residuals_m',
+      'free_boundary_shape_delta_residuals_m',
+    ):
+      values = tuple(
+        None if value is None else float(value)
+        for value in getattr(self, name)
+      )
+      if any(
+        value is not None
+        and (not isfinite(value) or (value <= 0.0 if name == 'outlet_heights_m' else value < 0.0))
+        for value in values
+      ):
+        raise ValueError(
+          f'{name} must contain finite positive or nonnegative values'
+        )
+      ####
+      object.__setattr__(self, name, values)
+    ####
+    fractions = tuple(float(value) for value in self.geometry_sample_fractions)
+    if any(not isfinite(value) or value < 0.0 or value > 1.0 for value in fractions):
+      raise ValueError(
+        'geometry_sample_fractions must contain finite values in [0, 1]'
+      )
+    ####
+    object.__setattr__(self, 'geometry_sample_fractions', fractions)
+    for name in (
+      'resolution_order_verified',
+      'request_consistent',
+      'handoff_consistent',
+      'control_section_consistent',
+      'solver_parameters_consistent',
+      'case_measurements_verified',
+      'conservative_euler_evidence_verified',
+      'mesh_resolution_verified',
+      'geometry_sensitivity_verified',
+      'refinement_convergence_verified',
+      'physical_closure_verified',
+      'canonical_free_boundary_verified',
+      'canonical_euler_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'claim_status', str(self.claim_status))
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.CONVERGED
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    """Return JSON-compatible variable-entropy refinement evidence."""
+
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'case_count': len(self.cases),
+      'resolutions': list(self.resolutions),
+      'counts': {
+        'axial_station_counts': list(self.axial_station_counts),
+        'transverse_station_counts': list(self.transverse_station_counts),
+        'node_counts': list(self.node_counts),
+        'cell_counts': list(self.cell_counts),
+      },
+      'outlet_heights_m': list(self.outlet_heights_m),
+      'maximum_conservative_euler_residuals': list(
+        self.maximum_conservative_euler_residuals
+      ),
+      'cases': [
+        {
+          'resolution': case.resolution,
+          'result': case.result.as_report(),
+          'measurement': measurement.as_report(),
+        }
+        for case, measurement in zip(self.cases, self.measurements, strict=True)
+      ],
+      'checks': {
+        'resolution_order_verified': self.resolution_order_verified,
+        'request_consistent': self.request_consistent,
+        'handoff_consistent': self.handoff_consistent,
+        'control_section_consistent': self.control_section_consistent,
+        'solver_parameters_consistent': self.solver_parameters_consistent,
+        'case_measurements_verified': self.case_measurements_verified,
+        'conservative_euler_evidence_verified': (
+          self.conservative_euler_evidence_verified
+        ),
+        'mesh_resolution_verified': self.mesh_resolution_verified,
+        'geometry_sensitivity_verified': self.geometry_sensitivity_verified,
+        'refinement_convergence_verified': self.refinement_convergence_verified,
+      },
+      'geometry_sample_fractions': list(self.geometry_sample_fractions),
+      'residuals': {
+        'outlet_height_delta_residuals_m': list(
+          self.outlet_height_delta_residuals_m
+        ),
+        'free_boundary_shape_delta_residuals_m': list(
+          self.free_boundary_shape_delta_residuals_m
+        ),
+      },
+      'physical_closure_verified': self.physical_closure_verified,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'canonical_reflected_moc_closure_verified': False,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': self.claim_status,
+      'message': self.message,
+    }
+  ####
+####
+
+
+def _variable_entropy_free_boundary_refinement_failure(
+  status: MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus,
+  message: str,
+  **kwargs: object,
+) -> MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurement:
+  return MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurement(
+    status=status,
+    physical_closure_verified=False,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=message,
+    **kwargs,
+  )
+####
+
+
+def _variable_entropy_free_boundary_height_at_fraction(
+  result: MocMixedRegimeVariableEntropyFreeBoundaryResult,
+  fraction: float,
+  *,
+  start_index: int = 0,
+) -> float | None:
+  heights = tuple(result.free_boundary_heights_m)
+  if (
+    len(heights) != result.axial_station_count
+    or start_index < 0
+    or start_index >= len(heights) - 1
+  ):
+    return None
+  ####
+  comparable_heights = heights[start_index:]
+  if any(
+    not isfinite(height) or height <= 0.0 for height in comparable_heights
+  ):
+    return None
+  ####
+  location = float(fraction) * (len(comparable_heights) - 1)
+  lower = int(location)
+  upper = min(lower + 1, len(comparable_heights) - 1)
+  weight = location - lower
+  return (
+    (1.0 - weight) * comparable_heights[lower]
+    + weight * comparable_heights[upper]
+  )
+####
+
+
+def measure_mixed_regime_variable_entropy_free_boundary_refinement(
+  cases: Sequence[MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase],
+  *,
+  expected_resolutions: Sequence[int] | None = None,
+  geometry_tolerance_m: float = 1.0e-6,
+  outlet_height_tolerance_m: float = 1.0e-6,
+  position_tolerance_m: float = 1.0e-8,
+  state_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance_rad: float = 2.0e-2,
+  residual_tolerance: float = 1.0e-7,
+  continuity_tolerance: float = 0.25,
+  entropy_transport_tolerance: float = 0.25,
+) -> MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurement:
+  """Compare independently measured variable-entropy results by resolution.
+
+  The post-entrance free-boundary segment is compared at normalized axial
+  locations so the operator can compare meshes with different station counts.
+  The two seeded entrance stations remain covered by each single-case audit;
+  they are not silently treated as converged geometry.  Conservative Euler
+  residuals are retained as independently reproduced evidence, but their
+  magnitude is diagnostic and is deliberately not used as a monotone
+  convergence claim.
+  """
+
+  for name, value in (
+    ('geometry_tolerance_m', geometry_tolerance_m),
+    ('outlet_height_tolerance_m', outlet_height_tolerance_m),
+    ('position_tolerance_m', position_tolerance_m),
+    ('state_tolerance', state_tolerance),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance_rad', tangent_tolerance_rad),
+    ('residual_tolerance', residual_tolerance),
+    ('continuity_tolerance', continuity_tolerance),
+    ('entropy_transport_tolerance', entropy_transport_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
+  try:
+    items = tuple(cases)
+  except TypeError:
+    return _variable_entropy_free_boundary_refinement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must be iterable',
+    )
+  ####
+  if len(items) < 2:
+    return _variable_entropy_free_boundary_refinement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'at least two variable-entropy refinement cases are required',
+    )
+  ####
+  if any(
+    not isinstance(
+      case,
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase,
+    )
+    for case in items
+  ):
+    return _variable_entropy_free_boundary_refinement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+      'refinement cases must contain '
+      'MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase values',
+    )
+  ####
+  resolutions = tuple(case.resolution for case in items)
+  resolution_order_verified = all(
+    right > left for left, right in zip(resolutions, resolutions[1:])
+  )
+  if not resolution_order_verified:
+    return _variable_entropy_free_boundary_refinement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.RESOLUTION_FAILURE,
+      'refinement resolutions must be strictly increasing from coarse to fine',
+    )
+  ####
+  if expected_resolutions is not None:
+    try:
+      expected = tuple(expected_resolutions)
+    except TypeError:
+      return _variable_entropy_free_boundary_refinement_failure(
+        MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+        'expected_resolutions must be iterable when supplied',
+      )
+    ####
+    if any(
+      isinstance(value, bool) or not isinstance(value, int) for value in expected
+    ):
+      return _variable_entropy_free_boundary_refinement_failure(
+        MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.INVALID_INPUT,
+        'expected_resolutions must contain integer values',
+      )
+    ####
+    if expected != resolutions:
+      return _variable_entropy_free_boundary_refinement_failure(
+        MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.RESOLUTION_FAILURE,
+        'declared refinement resolutions do not match expected_resolutions',
+      )
+    ####
+  ####
+
+  def _measure_case(
+    case: MocMixedRegimeVariableEntropyFreeBoundaryRefinementCase,
+  ) -> MocMixedRegimeVariableEntropyFreeBoundaryMeasurement:
+    result = case.result
+    if result.handoff is None:
+      return _variable_entropy_measurement_failure(
+        MocMixedRegimeVariableEntropyFreeBoundaryMeasurementStatus.HANDOFF_FAILURE,
+        reference=result,
+        message='variable-entropy result does not retain an entropy handoff',
+      )
+    ####
+    return measure_mixed_regime_variable_entropy_free_boundary(
+      result.request,
+      result.handoff,
+      result.control_section,
+      result,
+      position_tolerance_m=position_tolerance_m,
+      state_tolerance=state_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance_rad=tangent_tolerance_rad,
+      residual_tolerance=residual_tolerance,
+      continuity_tolerance=continuity_tolerance,
+      entropy_transport_tolerance=entropy_transport_tolerance,
+    )
+  ####
+
+  measurements = tuple(_measure_case(case) for case in items)
+  results = tuple(case.result for case in items)
+  case_measurements_verified = all(
+    measurement.reference_verified for measurement in measurements
+  )
+  conservative_euler_evidence_verified = all(
+    measurement.conservative_euler_residuals_verified
+    and measurement.maximum_conservative_euler_residual is not None
+    and isfinite(float(measurement.maximum_conservative_euler_residual))
+    for measurement in measurements
+  )
+  request_consistent = all(
+    result.request == results[0].request for result in results[1:]
+  )
+  first_handoff = results[0].handoff
+  handoff_consistent = bool(
+    first_handoff is not None
+    and all(result.handoff == first_handoff for result in results[1:])
+  )
+  control_section_consistent = all(
+    result.control_section == results[0].control_section
+    for result in results[1:]
+  )
+
+  def _consistent_float(values: Sequence[float]) -> bool:
+    if not values:
+      return False
+    ####
+    reference = float(values[0])
+    return all(
+      abs(float(value) - reference)
+      <= 1.0e-12 * max(1.0, abs(float(value)), abs(reference))
+      for value in values[1:]
+    )
+  ####
+
+  def _consistent_sequence(values: Sequence[Sequence[float]]) -> bool:
+    if not values:
+      return False
+    ####
+    reference = tuple(float(value) for value in values[0])
+    return all(
+      len(value) == len(reference)
+      and all(
+        abs(float(item) - expected)
+        <= 1.0e-12 * max(1.0, abs(float(item)), abs(expected))
+        for item, expected in zip(value, reference, strict=True)
+      )
+      for value in values[1:]
+    )
+  ####
+
+  solver_parameters_consistent = bool(
+    len({result.model for result in results}) == 1
+    and _consistent_float(tuple(result.ambient_pressure_Pa for result in results))
+    and _consistent_float(tuple(result.downstream_length_m for result in results))
+    and _consistent_float(
+      tuple(result.initial_outlet_height_m for result in results)
+    )
+    and _consistent_float(tuple(result.inlet_height_m for result in results))
+    and len({result.transverse_station_count for result in results}) == 1
+    and _consistent_sequence(tuple(result.transverse_fractions for result in results))
+    and _consistent_sequence(
+      tuple(result.source_arc_length_by_transverse_index_m for result in results)
+    )
+    and _consistent_sequence(
+      tuple(result.source_total_pressure_by_transverse_index_Pa for result in results)
+    )
+    and _consistent_sequence(
+      tuple(result.source_gamma_by_transverse_index for result in results)
+    )
+  )
+  node_counts = tuple(measurement.node_count for measurement in measurements)
+  cell_counts = tuple(measurement.cell_count for measurement in measurements)
+  mesh_resolution_verified = bool(
+    all(
+      case.resolution == result.axial_station_count
+      and len(result.free_boundary_heights_m) == result.axial_station_count
+      and len(result.free_boundary_points_m) == result.axial_station_count
+      and measurement.axial_station_count == result.axial_station_count
+      and measurement.transverse_station_count == result.transverse_station_count
+      for case, result, measurement in zip(
+        items,
+        results,
+        measurements,
+        strict=True,
+      )
+    )
+    and all(right > left for left, right in zip(node_counts, node_counts[1:]))
+    and all(right > left for left, right in zip(cell_counts, cell_counts[1:]))
+  )
+
+  outlet_heights = tuple(result.outlet_height_m for result in results)
+  if all(height is not None for height in outlet_heights):
+    resolved_outlet_heights = tuple(
+      height for height in outlet_heights if height is not None
+    )
+    outlet_height_delta_residuals = tuple(
+      abs(current - previous)
+      for previous, current in zip(
+        resolved_outlet_heights,
+        resolved_outlet_heights[1:],
+      )
+    )
+  else:
+    outlet_height_delta_residuals = ()
+  ####
+
+  geometry_sample_fractions = (
+    0.0,
+    0.125,
+    0.25,
+    0.375,
+    0.5,
+    0.625,
+    0.75,
+    0.875,
+    1.0,
+  )
+  sampled_heights = tuple(
+    tuple(
+      _variable_entropy_free_boundary_height_at_fraction(
+        result,
+        fraction,
+        start_index=2,
+      )
+      for fraction in geometry_sample_fractions
+    )
+    for result in results
+  )
+  if all(
+    height is not None for sample in sampled_heights for height in sample
+  ):
+    free_boundary_shape_delta_residuals = tuple(
+      max(
+        abs(float(current) - float(previous))
+        for previous, current in zip(
+          sampled_heights[index - 1],
+          sampled_heights[index],
+          strict=True,
+        )
+      )
+      for index in range(1, len(sampled_heights))
+    )
+  else:
+    free_boundary_shape_delta_residuals = ()
+  ####
+  geometry_sensitivity_verified = bool(
+    len(free_boundary_shape_delta_residuals) == len(items) - 1
+    and all(
+      residual <= float(geometry_tolerance_m)
+      for residual in free_boundary_shape_delta_residuals
+    )
+  )
+  outlet_height_stability_verified = bool(
+    len(outlet_height_delta_residuals) == len(items) - 1
+    and all(
+      residual <= float(outlet_height_tolerance_m)
+      for residual in outlet_height_delta_residuals
+    )
+  )
+  refinement_convergence_verified = bool(
+    case_measurements_verified
+    and conservative_euler_evidence_verified
+    and mesh_resolution_verified
+    and geometry_sensitivity_verified
+    and outlet_height_stability_verified
+  )
+  common = {
+    'cases': items,
+    'measurements': measurements,
+    'resolution_order_verified': resolution_order_verified,
+    'request_consistent': request_consistent,
+    'handoff_consistent': handoff_consistent,
+    'control_section_consistent': control_section_consistent,
+    'solver_parameters_consistent': solver_parameters_consistent,
+    'case_measurements_verified': case_measurements_verified,
+    'conservative_euler_evidence_verified': (
+      conservative_euler_evidence_verified
+    ),
+    'mesh_resolution_verified': mesh_resolution_verified,
+    'geometry_sensitivity_verified': geometry_sensitivity_verified,
+    'refinement_convergence_verified': refinement_convergence_verified,
+    'geometry_sample_fractions': geometry_sample_fractions,
+    'outlet_height_delta_residuals_m': outlet_height_delta_residuals,
+    'free_boundary_shape_delta_residuals_m': (
+      free_boundary_shape_delta_residuals
+    ),
+  }
+  if not case_measurements_verified:
+    return _variable_entropy_free_boundary_refinement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.CASE_FAILURE,
+      'one or more variable-entropy cases failed independent measurement',
+      **common,
+    )
+  ####
+  if not (
+    request_consistent
+    and handoff_consistent
+    and control_section_consistent
+    and solver_parameters_consistent
+    and mesh_resolution_verified
+  ):
+    return _variable_entropy_free_boundary_refinement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.CONSISTENCY_FAILURE,
+      'refinement cases must retain one exact request, entropy handoff, '
+      'control section, and fixed solver parameters while the mesh grows',
+      **common,
+    )
+  ####
+  if not refinement_convergence_verified:
+    return _variable_entropy_free_boundary_refinement_failure(
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.SENSITIVITY_FAILURE,
+      'variable-entropy geometry or declared refinement evidence exceeded '
+      'the supplied stability tolerances',
+      **common,
+    )
+  ####
+  return MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurement(
+    status=(
+      MocMixedRegimeVariableEntropyFreeBoundaryRefinementMeasurementStatus.CONVERGED
+    ),
+    cases=items,
+    measurements=measurements,
+    resolution_order_verified=True,
+    request_consistent=True,
+    handoff_consistent=True,
+    control_section_consistent=True,
+    solver_parameters_consistent=True,
+    case_measurements_verified=True,
+    conservative_euler_evidence_verified=True,
+    mesh_resolution_verified=True,
+    geometry_sensitivity_verified=True,
+    refinement_convergence_verified=True,
+    physical_closure_verified=False,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    geometry_sample_fractions=geometry_sample_fractions,
+    outlet_height_delta_residuals_m=outlet_height_delta_residuals,
+    free_boundary_shape_delta_residuals_m=(
+      free_boundary_shape_delta_residuals
+    ),
+    claim_status=(
+      'independent-variable-entropy-free-boundary-refinement-evidence; '
+      'geometry-and-output-sensitivity-only; conservative-Euler-residuals-'
+      'diagnostic; canonical-2d-euler-free-boundary-and-external-validation-'
+      'pending'
+    ),
+    message=(
+      'independent variable-entropy reference measurements are stable across '
+      'the declared resolutions; conservative Euler residuals are retained as '
+      'diagnostic evidence and are not a canonical closure or production claim'
     ),
   )
 ####
