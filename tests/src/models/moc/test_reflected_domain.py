@@ -1991,6 +1991,8 @@ def test_global_coupled_euler_free_boundary_refinement_keeps_actual_seam_open():
   assert run.measurement.conservative_residuals_finite
   assert run.measurement.boundary_diagnostics_finite
   assert run.measurement.pressure_budget_diagnostics_verified
+  assert run.measurement.entropy_production_maps_verified
+  assert len(run.measurement.maximum_entropy_production_fractions) == 3
   assert run.measurement.local_closure_verified is False
   assert run.measurement.fidelity_isolation_verified
   assert run.measurement.physical_closure_verified is False
@@ -2042,6 +2044,8 @@ def test_global_coupled_euler_free_boundary_compatible_refinement_is_local_only(
   assert run.measurement.conservative_residuals_finite
   assert run.measurement.boundary_diagnostics_finite
   assert run.measurement.pressure_budget_diagnostics_verified
+  assert run.measurement.entropy_production_maps_verified
+  assert len(run.measurement.maximum_entropy_production_fractions) == 2
   assert run.measurement.local_closure_verified
   assert run.measurement.fidelity_isolation_verified
   assert run.measurement.physical_closure_verified is False

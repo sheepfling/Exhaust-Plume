@@ -172,6 +172,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
   maximum_conservative_euler_residuals: tuple[float, ...] = ()
   maximum_free_boundary_pressure_residuals_Pa: tuple[float, ...] = ()
   maximum_free_boundary_normal_velocity_residual_fractions: tuple[float, ...] = ()
+  maximum_entropy_production_fractions: tuple[float, ...] = ()
   outlet_heights_m: tuple[float, ...] = ()
   resolution_order_verified: bool = False
   mesh_growth_verified: bool = False
@@ -179,6 +180,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
   conservative_residuals_finite: bool = False
   boundary_diagnostics_finite: bool = False
   pressure_budget_diagnostics_verified: bool = False
+  entropy_production_maps_verified: bool = False
   local_closure_verified: bool = False
   fidelity_isolation_verified: bool = False
   physical_closure_verified: bool = False
@@ -242,6 +244,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
       'maximum_conservative_euler_residuals',
       'maximum_free_boundary_pressure_residuals_Pa',
       'maximum_free_boundary_normal_velocity_residual_fractions',
+      'maximum_entropy_production_fractions',
       'outlet_heights_m',
     ):
       values = tuple(getattr(self, name))
@@ -267,6 +270,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
       'boundary_diagnostics_finite',
       'local_closure_verified',
       'fidelity_isolation_verified',
+      'entropy_production_maps_verified',
       'physical_closure_verified',
       'canonical_free_boundary_verified',
       'canonical_euler_verified',
@@ -315,6 +319,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
       and self.conservative_residuals_finite
       and self.boundary_diagnostics_finite
       and self.pressure_budget_diagnostics_verified
+      and self.entropy_production_maps_verified
       and self.local_closure_verified
       and self.fidelity_isolation_verified
       and not self.physical_closure_verified
@@ -343,6 +348,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
       'maximum_free_boundary_normal_velocity_residual_fractions': (
         self.maximum_free_boundary_normal_velocity_residual_fractions
       ),
+      'maximum_entropy_production_fractions': (
+        self.maximum_entropy_production_fractions
+      ),
       'outlet_heights_m': self.outlet_heights_m,
       'resolution_order_verified': self.resolution_order_verified,
       'mesh_growth_verified': self.mesh_growth_verified,
@@ -350,6 +358,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
       'conservative_residuals_finite': self.conservative_residuals_finite,
       'boundary_diagnostics_finite': self.boundary_diagnostics_finite,
       'pressure_budget_diagnostics_verified': self.pressure_budget_diagnostics_verified,
+      'entropy_production_maps_verified': self.entropy_production_maps_verified,
       'local_closure_verified': self.local_closure_verified,
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'physical_closure_verified': self.physical_closure_verified,
@@ -514,6 +523,7 @@ def _measurement_status(
   conservative_residuals_finite: bool,
   boundary_diagnostics_finite: bool,
   pressure_budget_diagnostics_verified: bool,
+  entropy_production_maps_verified: bool,
   local_closure_verified: bool,
   fidelity_isolation_verified: bool,
 ) -> tuple[MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus, str]:
@@ -528,10 +538,11 @@ def _measurement_status(
     or not conservative_residuals_finite
     or not boundary_diagnostics_finite
     or not pressure_budget_diagnostics_verified
+    or not entropy_production_maps_verified
   ):
     return (
       MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus.AUDIT_FAILURE,
-      'independent coupled Euler audits did not cover finite field and boundary diagnostics',
+      'independent coupled Euler audits did not cover finite field, boundary, and entropy-map diagnostics',
     )
   ####
   if not fidelity_isolation_verified:
@@ -621,6 +632,10 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
     )
     for case in retained_cases
   )
+  entropy_production_fractions = tuple(
+    _diagnostic_value(case.audit.maximum_entropy_production_fraction)
+    for case in retained_cases
+  )
   outlet_heights = tuple(
     float(case.result.free_boundary_points_m[-1][1])
     if case.result.free_boundary_points_m
@@ -656,6 +671,9 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
   pressure_budget_diagnostics_verified = all(
     case.audit.pressure_budget_verified for case in retained_cases
   )
+  entropy_production_maps_verified = all(
+    case.audit.entropy_production_map_verified for case in retained_cases
+  )
   local_closure_verified = all(
     case.local_closure_verified for case in retained_cases
   )
@@ -674,6 +692,7 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
     conservative_residuals_finite=conservative_residuals_finite,
     boundary_diagnostics_finite=boundary_diagnostics_finite,
     pressure_budget_diagnostics_verified=pressure_budget_diagnostics_verified,
+    entropy_production_maps_verified=entropy_production_maps_verified,
     local_closure_verified=local_closure_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
   )
@@ -686,6 +705,7 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
     maximum_conservative_euler_residuals=euler_residuals,
     maximum_free_boundary_pressure_residuals_Pa=pressure_residuals,
     maximum_free_boundary_normal_velocity_residual_fractions=normal_residuals,
+    maximum_entropy_production_fractions=entropy_production_fractions,
     outlet_heights_m=outlet_heights,
     resolution_order_verified=resolution_order_verified,
     mesh_growth_verified=mesh_growth_verified,
@@ -693,6 +713,7 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
     conservative_residuals_finite=conservative_residuals_finite,
     boundary_diagnostics_finite=boundary_diagnostics_finite,
     pressure_budget_diagnostics_verified=pressure_budget_diagnostics_verified,
+    entropy_production_maps_verified=entropy_production_maps_verified,
     local_closure_verified=local_closure_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
     physical_closure_verified=False,

@@ -3640,3 +3640,9 @@ may include numerical compression or unresolved mixing, and a near-sonic
 mask is not a resolved shock boundary.  The global field remains
 non-promotable until a solver-owned mixed-regime closure, stable refinement,
 and accepted external measurements exist.
+
+The coupled-Euler refinement runner now carries the maximum entropy-production
+fraction at every resolution and requires the independent per-cell map audit
+before reporting a locally consistent ladder.  This closes the resolution-
+evidence provenance seam for the new visualization channel; it does not
+reduce the conservative residuals or promote the research field.

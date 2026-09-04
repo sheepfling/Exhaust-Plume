@@ -592,3 +592,16 @@ visualization product, but they are not shock identification, radiance, or
 production closure.  Missing channels remain unavailable; the coupled lane
 still requires a solver-owned mixed-regime field, stable refinement, and
 provider-bound validation before any promotion.
+
+### Refinement-level entropy-map checkpoint
+
+The coupled-Euler refinement measurement now requires every resolution case to
+carry an independently verified per-cell entropy-production map.  It retains
+the maximum production fraction per resolution and reports a dedicated
+``entropy_production_maps_verified`` gate.  This prevents an aggregate
+entropy scalar from masking a missing or altered cell-level field in a
+research ladder.
+
+The gate strengthens reproducibility evidence only.  It does not turn the
+coupled ladder into a shock-resolved solution or close the canonical
+mixed-regime/free-boundary, physical-length, or external-validation gates.
