@@ -138,8 +138,11 @@ from exhaust_plume.models.moc.mixed_regime_variable_entropy import (
 )
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
+  MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
+  MocReflectedDomainCoupledEulerSubsonicPressureBudget,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
   solve_reflected_domain_coupled_euler_free_boundary,
 )
 from exhaust_plume.models.moc.boundary import (
@@ -795,8 +798,11 @@ __all__ = (
   'MocMixedRegimeVariableEntropyFreeBoundaryStatus',
   'MocMixedRegimeVariableEntropyFreeBoundaryResult',
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
+  'MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus',
+  'MocReflectedDomainCoupledEulerSubsonicPressureBudget',
   'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
   'MocReflectedDomainCoupledEulerFreeBoundaryResult',
+  'assess_reflected_domain_coupled_euler_subsonic_pressure_budget',
   'solve_mixed_regime_planar_free_boundary_reference',
   'build_mixed_regime_entropy_handoff',
   'solve_mixed_regime_entropy_transport_boundary',

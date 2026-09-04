@@ -470,6 +470,18 @@ upstream pressure budget or authorize a canonical closure.  This is a
 boundary-condition experiment recorded for the next 2-D solver slice, not a
 relaxation of the promotion gates.
 
+The coupled-field result now also retains a typed, independently recomputed
+subsonic pressure-budget diagnostic.  It compares the ambient target against
+the isentropic static-pressure bounds implied by the outer control-section
+total pressure and reports the minimum additional total-pressure loss needed
+to reach a target below the sonic-limit bound.  The actual global case is
+explicitly ``below-isentropic-subsonic-pressure-bounds`` (about 47.5% minimum
+additional total-pressure reduction for the current fixture), while the
+compatible research fixture is within the bounds.  This is a one-dimensional
+reachability diagnostic only: a future 2-D continued shock/mixing solve may
+change the budget through entropy production, so the diagnostic explains the
+next physics seam without becoming a closure or promotion gate.
+
 After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound
 VIS/SIG/RAY/FPA comparisons (`P4`), then refresh the exact-candidate freeze

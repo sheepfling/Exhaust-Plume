@@ -178,6 +178,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
   case_audits_verified: bool = False
   conservative_residuals_finite: bool = False
   boundary_diagnostics_finite: bool = False
+  pressure_budget_diagnostics_verified: bool = False
   local_closure_verified: bool = False
   fidelity_isolation_verified: bool = False
   physical_closure_verified: bool = False
@@ -313,6 +314,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
       and self.case_audits_verified
       and self.conservative_residuals_finite
       and self.boundary_diagnostics_finite
+      and self.pressure_budget_diagnostics_verified
       and self.local_closure_verified
       and self.fidelity_isolation_verified
       and not self.physical_closure_verified
@@ -347,6 +349,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
       'case_audits_verified': self.case_audits_verified,
       'conservative_residuals_finite': self.conservative_residuals_finite,
       'boundary_diagnostics_finite': self.boundary_diagnostics_finite,
+      'pressure_budget_diagnostics_verified': self.pressure_budget_diagnostics_verified,
       'local_closure_verified': self.local_closure_verified,
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'physical_closure_verified': self.physical_closure_verified,
@@ -510,6 +513,7 @@ def _measurement_status(
   case_audits_verified: bool,
   conservative_residuals_finite: bool,
   boundary_diagnostics_finite: bool,
+  pressure_budget_diagnostics_verified: bool,
   local_closure_verified: bool,
   fidelity_isolation_verified: bool,
 ) -> tuple[MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus, str]:
@@ -519,7 +523,12 @@ def _measurement_status(
       'requested coupled Euler resolutions are not a strictly growing ladder',
     )
   ####
-  if not case_audits_verified or not conservative_residuals_finite or not boundary_diagnostics_finite:
+  if (
+    not case_audits_verified
+    or not conservative_residuals_finite
+    or not boundary_diagnostics_finite
+    or not pressure_budget_diagnostics_verified
+  ):
     return (
       MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus.AUDIT_FAILURE,
       'independent coupled Euler audits did not cover finite field and boundary diagnostics',
@@ -644,6 +653,9 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
     and all(isfinite(value) for value in case.result.free_boundary_points_m[-1])
     for case in retained_cases
   )
+  pressure_budget_diagnostics_verified = all(
+    case.audit.pressure_budget_verified for case in retained_cases
+  )
   local_closure_verified = all(
     case.local_closure_verified for case in retained_cases
   )
@@ -661,6 +673,7 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
     case_audits_verified=case_audits_verified,
     conservative_residuals_finite=conservative_residuals_finite,
     boundary_diagnostics_finite=boundary_diagnostics_finite,
+    pressure_budget_diagnostics_verified=pressure_budget_diagnostics_verified,
     local_closure_verified=local_closure_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
   )
@@ -679,6 +692,7 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
     case_audits_verified=case_audits_verified,
     conservative_residuals_finite=conservative_residuals_finite,
     boundary_diagnostics_finite=boundary_diagnostics_finite,
+    pressure_budget_diagnostics_verified=pressure_budget_diagnostics_verified,
     local_closure_verified=local_closure_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
     physical_closure_verified=False,

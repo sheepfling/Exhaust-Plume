@@ -3575,3 +3575,21 @@ and ``physical_closure_verified`` remain false, chain promotion remains
 blocked, and no production claim is enabled.  The next physics seam is still
 the coupled reflected 2-D Euler/free-boundary solve, followed by repeated
 case/resolution evidence.
+
+## Coupled-Euler pressure-budget checkpoint
+
+The coupled finite-volume research result now carries a typed pressure-budget
+diagnostic independently rederived from the outer control-section total
+pressure.  It reports the isentropic strict-subsonic pressure bounds, the
+maximum total pressure compatible with the requested ambient target at the
+sonic limit, and the minimum additional total-pressure reduction implied by
+that bound.  The actual global case is below the bound and requires about
+47.5% additional reduction for the current fixture; the compatible research
+fixture is within the range.
+
+This is deliberately non-gating evidence.  A continued two-dimensional
+shock/mixing solve can add entropy and change the budget, so the diagnostic
+does not replace the canonical reflected free-boundary/Euler closure, refine
+the production shock-cell fit, or authorize any product claim.  The next
+physics seam is a solver-owned continued supersonic/mixed-regime closure with
+its own independent audit and cross-case evidence.

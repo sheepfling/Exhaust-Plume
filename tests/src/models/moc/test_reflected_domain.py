@@ -26,6 +26,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
+  MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
   MocProductionShockCellFitStatus,
@@ -60,6 +61,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_coupled_euler_free_boundary,
+  assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   moc_reflected_domain_global_physical_closure_fingerprint,
@@ -1670,6 +1672,19 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert result.production_claim_allowed is False
   assert result.maximum_free_boundary_pressure_residual_Pa is not None
   assert result.maximum_free_boundary_pressure_residual_Pa > 0.1 * request.ambient_pressure_Pa
+  assert result.subsonic_pressure_budget is not None
+  assert result.subsonic_pressure_budget.status is (
+    MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus
+    .BELOW_ISENTROPIC_SUBSONIC_BOUNDS
+  )
+  assert not result.subsonic_pressure_budget.reachable_without_additional_entropy
+  assert result.subsonic_pressure_budget.subsonic_static_pressure_lower_bound_Pa > (
+    request.ambient_pressure_Pa
+  )
+  assert result.subsonic_pressure_budget.minimum_additional_total_pressure_loss_fraction > 0.4
+  assert result.as_report()['subsonic_pressure_budget']['status'] == (
+    'below-isentropic-subsonic-pressure-bounds'
+  )
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   )
@@ -1680,6 +1695,7 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert audit.residual_channels_recomputed
   assert audit.residual_report_verified
   assert audit.free_boundary_report_verified
+  assert audit.pressure_budget_verified
   assert audit.promotion_flags_verified
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
@@ -1695,6 +1711,17 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert tampered_audit.status is (
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.RESIDUAL_FAILURE
   )
+  tampered_budget = replace(
+    result.subsonic_pressure_budget,
+    reference_total_pressure_Pa=result.subsonic_pressure_budget.reference_total_pressure_Pa * 1.01,
+  )
+  pressure_budget_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(result, subsonic_pressure_budget=tampered_budget)
+  )
+  assert pressure_budget_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.PRESSURE_BUDGET_FAILURE
+  )
+  assert not pressure_budget_audit.pressure_budget_verified
   tampered_vertices = list(result.cell_vertices_by_cell_m)
   tampered_vertices[0] = (
     (tampered_vertices[0][0][0] + 1.0e-3, tampered_vertices[0][0][1]),
@@ -1735,6 +1762,15 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert result.coupled_euler_field_verified
   assert result.free_boundary_condition_verified
   assert result.entropy_transport_verified
+  assert result.subsonic_pressure_budget is not None
+  assert result.subsonic_pressure_budget.status is (
+    MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus
+    .WITHIN_ISENTROPIC_SUBSONIC_BOUNDS
+  )
+  direct_budget = assess_reflected_domain_coupled_euler_subsonic_pressure_budget(
+    coupled_request
+  )
+  assert direct_budget == result.subsonic_pressure_budget
   assert result.canonical_free_boundary_verified is False
   assert result.canonical_euler_verified is False
   assert result.external_validation_verified is False
@@ -1762,6 +1798,7 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert audit.residual_channels_recomputed
   assert audit.residual_report_verified
   assert audit.free_boundary_report_verified
+  assert audit.pressure_budget_verified
   assert audit.promotion_flags_verified
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
@@ -1798,6 +1835,7 @@ def test_global_coupled_euler_free_boundary_refinement_keeps_actual_seam_open():
   assert run.measurement.case_audits_verified
   assert run.measurement.conservative_residuals_finite
   assert run.measurement.boundary_diagnostics_finite
+  assert run.measurement.pressure_budget_diagnostics_verified
   assert run.measurement.local_closure_verified is False
   assert run.measurement.fidelity_isolation_verified
   assert run.measurement.physical_closure_verified is False
@@ -1848,6 +1886,7 @@ def test_global_coupled_euler_free_boundary_compatible_refinement_is_local_only(
   assert run.measurement.case_audits_verified
   assert run.measurement.conservative_residuals_finite
   assert run.measurement.boundary_diagnostics_finite
+  assert run.measurement.pressure_budget_diagnostics_verified
   assert run.measurement.local_closure_verified
   assert run.measurement.fidelity_isolation_verified
   assert run.measurement.physical_closure_verified is False

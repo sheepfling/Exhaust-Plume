@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
+  MocReflectedDomainCoupledEulerSubsonicPressureBudget,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
 )
 
@@ -48,6 +49,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   RESIDUAL_FAILURE = 'coupled-euler-audit-residual-failure'
   ENTROPY_FAILURE = 'coupled-euler-audit-entropy-failure'
   BOUNDARY_FAILURE = 'coupled-euler-audit-boundary-failure'
+  PRESSURE_BUDGET_FAILURE = 'coupled-euler-audit-pressure-budget-failure'
   FLAG_FAILURE = 'coupled-euler-audit-promotion-flag-failure'
 ####
 
@@ -78,6 +80,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   residual_channels_recomputed: bool = False
   residual_report_verified: bool = False
   free_boundary_report_verified: bool = False
+  pressure_budget_verified: bool = False
   entropy_transport_verified: bool = False
   promotion_flags_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -183,6 +186,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.residual_channels_recomputed
       and self.residual_report_verified
       and self.free_boundary_report_verified
+      and self.pressure_budget_verified
       and self.entropy_transport_verified
       and self.promotion_flags_verified
       and self.chain_promotion_blocked
@@ -229,6 +233,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_channels_recomputed': self.residual_channels_recomputed,
       'residual_report_verified': self.residual_report_verified,
       'free_boundary_report_verified': self.free_boundary_report_verified,
+      'pressure_budget_verified': self.pressure_budget_verified,
       'entropy_transport_verified': self.entropy_transport_verified,
       'promotion_flags_verified': self.promotion_flags_verified,
       'physical_closure_verified': self.physical_closure_verified,
@@ -467,6 +472,67 @@ def _ambient_ghost(
 ####
 
 
+def _rederive_subsonic_pressure_budget(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> dict[str, Any]:
+  """Recompute the pressure budget without calling the model helper."""
+
+  request = candidate.request
+  if request is None:
+    raise ValueError('candidate must retain its coupled Euler request')
+  ####
+  sample = request.mixed_regime_request.control_section.samples[-1]
+  gamma = float(sample.gamma)
+  target_pressure = float(request.mixed_regime_request.ambient_pressure_Pa)
+  reference_total_pressure = float(sample.total_pressure_Pa)
+  if not isfinite(gamma) or gamma <= 1.0:
+    raise ArithmeticError('audited control-section gamma is invalid')
+  ####
+  if not isfinite(target_pressure) or target_pressure <= 0.0:
+    raise ArithmeticError('audited target ambient pressure is invalid')
+  ####
+  if not isfinite(reference_total_pressure) or reference_total_pressure <= 0.0:
+    raise ArithmeticError('audited outer control-section total pressure is invalid')
+  ####
+  sonic_pressure_factor = (1.0 + 0.5 * (gamma - 1.0)) ** (
+    gamma / (gamma - 1.0)
+  )
+  lower_bound = reference_total_pressure / sonic_pressure_factor
+  upper_bound = reference_total_pressure
+  maximum_compatible_total_pressure = target_pressure * sonic_pressure_factor
+  compatibility_ratio = maximum_compatible_total_pressure / reference_total_pressure
+  pressure_scale = max(target_pressure, lower_bound, upper_bound, 1.0)
+  tolerance = 1.0e-10 * pressure_scale
+  if target_pressure < lower_bound - tolerance:
+    status = 'below-isentropic-subsonic-pressure-bounds'
+  elif target_pressure > upper_bound + tolerance:
+    status = 'above-isentropic-subsonic-pressure-bounds'
+  else:
+    status = 'within-isentropic-subsonic-pressure-bounds'
+  ####
+  return {
+    'status': status,
+    'target_static_pressure_Pa': target_pressure,
+    'reference_total_pressure_Pa': reference_total_pressure,
+    'subsonic_static_pressure_lower_bound_Pa': lower_bound,
+    'subsonic_static_pressure_upper_bound_Pa': upper_bound,
+    'maximum_total_pressure_compatible_with_target_Pa': (
+      maximum_compatible_total_pressure
+    ),
+    'total_pressure_compatibility_ratio': compatibility_ratio,
+    'minimum_additional_total_pressure_loss_fraction': max(
+      0.0,
+      1.0 - compatibility_ratio,
+    ),
+    'gamma': gamma,
+    'reachable_without_additional_entropy': (
+      status == 'within-isentropic-subsonic-pressure-bounds'
+    ),
+    'source': 'derived-outer-control-section-isentropic-pressure-budget',
+  }
+####
+
+
 def _audit_field(
   candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
 ) -> dict[str, Any]:
@@ -525,6 +591,7 @@ def _audit_field(
     raise ArithmeticError('audited control section has nonuniform gamma')
   ####
   gamma = gammas[0]
+  pressure_budget = _rederive_subsonic_pressure_budget(candidate)
   thermodynamic_inputs_verified = True
   for sample in control.samples:
     pressure_factor = 1.0 + 0.5 * (gamma - 1.0) * sample.mach * sample.mach
@@ -800,6 +867,7 @@ def _audit_field(
     'speeds': np.asarray(speeds, dtype=float),
     'entropy_residual': entropy_residual,
     'entropy_verified': entropy_residual <= 0.05,
+    'pressure_budget': pressure_budget,
     'expected_cell_count': expected_cell_count,
   }
 ####
@@ -845,6 +913,36 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   recomputed = np.asarray(raw['recomputed_channels'], dtype=float)
   reported = np.asarray(raw['reported_channels'], dtype=float)
   report_verified = bool(np.allclose(recomputed, reported, rtol=3.0e-6, atol=1.0e-10))
+  expected_budget = raw['pressure_budget']
+  reported_budget = candidate.subsonic_pressure_budget
+  pressure_budget_verified = bool(
+    isinstance(
+      reported_budget,
+      MocReflectedDomainCoupledEulerSubsonicPressureBudget,
+    )
+    and reported_budget.status.value == expected_budget['status']
+    and reported_budget.source == expected_budget['source']
+    and reported_budget.reachable_without_additional_entropy
+    == expected_budget['reachable_without_additional_entropy']
+    and all(
+      np.isclose(
+        getattr(reported_budget, name),
+        expected_budget[name],
+        rtol=3.0e-6,
+        atol=1.0e-10,
+      )
+      for name in (
+        'target_static_pressure_Pa',
+        'reference_total_pressure_Pa',
+        'subsonic_static_pressure_lower_bound_Pa',
+        'subsonic_static_pressure_upper_bound_Pa',
+        'maximum_total_pressure_compatible_with_target_Pa',
+        'total_pressure_compatibility_ratio',
+        'minimum_additional_total_pressure_loss_fraction',
+        'gamma',
+      )
+    )
+  )
   maxima = tuple(float(np.max(recomputed[..., index])) for index in range(_CHANNEL_COUNT))
   residuals_verified = maxima[4] <= candidate.request.euler_residual_tolerance
   pressure = np.asarray(raw['top_pressure'], dtype=float)
@@ -883,6 +981,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not report_verified or not residuals_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.RESIDUAL_FAILURE
     message = 'independent conservative residuals disagree or exceed tolerance'
+  elif not pressure_budget_verified:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.PRESSURE_BUDGET_FAILURE
+    message = 'candidate subsonic pressure-budget diagnostic does not match the request'
   elif not boundary_report_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
     message = 'candidate free-boundary diagnostic arrays do not match the field'
@@ -924,6 +1025,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     residual_channels_recomputed=True,
     residual_report_verified=report_verified and residuals_verified,
     free_boundary_report_verified=boundary_report_verified,
+    pressure_budget_verified=pressure_budget_verified,
     entropy_transport_verified=bool(raw['entropy_verified']),
     promotion_flags_verified=promotion_flags_verified,
     chain_promotion_blocked=True,
