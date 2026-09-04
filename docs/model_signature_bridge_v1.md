@@ -87,6 +87,16 @@ straight support and is split by axial section planes. Curved and planar models
 fail with a typed `ModelSignatureBlockedError` until their transport providers
 are implemented.
 
+Atmospheric transmission is a separate, caller-owned measurement operator. Use
+`AtmosphericPathLayer` and `compose_atmospheric_path_layers` when a path must
+be represented as explicit near-observer-to-far-source homogeneous layers;
+`apply_atmospheric_path_layers` then combines the source spectrum with the
+composed transmittance and path radiance. Layer source functions and absorption
+coefficients must be supplied in the measurement space. The operator does not
+infer altitude-dependent temperature, composition, scattering, or chemistry,
+and therefore does not raise the Signature product's physical or production
+claim ceiling.
+
 `assess_model_signature_readiness` exposes the same decision without running
 the solver, which lets product orchestration display a blocked lane rather
 than silently substituting a lower-fidelity geometry.

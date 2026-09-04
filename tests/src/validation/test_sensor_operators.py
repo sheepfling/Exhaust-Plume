@@ -5,7 +5,10 @@ import math
 import pytest
 
 from exhaust_plume.validation import (
+  AtmosphericPathLayer,
   apply_atmospheric_path_transfer,
+  apply_atmospheric_path_layers,
+  compose_atmospheric_path_layers,
   integrate_bandpass_detector_rows,
   integrate_los_fov_spectrum,
 )
@@ -36,6 +39,64 @@ def test_atmospheric_path_transfer_invalid_rows_are_zeroed() -> None:
 
   assert result.values == ((5.0, 0.0),)
   assert result.validity_mask == ((True, False),)
+####
+
+
+def test_atmospheric_layers_compose_near_to_far_and_apply_path_radiance() -> None:
+  wavelengths = (1.0e-6, 2.0e-6)
+  layers = (
+    AtmosphericPathLayer(
+      source_function_w_sr_m=(1.0, 2.0),
+      absorption_coefficient_per_m=(1.0, 1.0),
+      length_m=1.0,
+      layer_id='near-observer',
+    ),
+    AtmosphericPathLayer(
+      source_function_w_sr_m=(3.0, 4.0),
+      absorption_coefficient_per_m=(1.0, 1.0),
+      length_m=1.0,
+      layer_id='far-source',
+    ),
+  )
+
+  transfer = compose_atmospheric_path_layers(wavelengths, layers)
+  transmission = math.exp(-1.0)
+  expected_path = tuple(
+    (near + far * transmission) * (1.0 - transmission)
+    for near, far in zip((1.0, 2.0), (3.0, 4.0), strict=True)
+  )
+  assert transfer.path_radiance_w_sr_m == pytest.approx(expected_path)
+  assert transfer.transmittance == pytest.approx((math.exp(-2.0), math.exp(-2.0)))
+  assert transfer.optical_depth == pytest.approx((2.0, 2.0))
+  assert transfer.layer_ids == ('near-observer', 'far-source')
+
+  applied = apply_atmospheric_path_layers(
+    wavelengths,
+    ((10.0, 20.0),),
+    layers,
+  )
+  assert len(applied.values) == 1
+  assert applied.values[0] == pytest.approx(tuple(
+    source * math.exp(-2.0) + path
+    for source, path in zip((10.0, 20.0), expected_path, strict=True)
+  ))
+  assert applied.source_semantics == 'source-plus-path-radiance'
+  assert applied.validity_mask == ((True, True),)
+####
+
+
+def test_atmospheric_layers_reject_mismatched_wavelength_rows() -> None:
+  with pytest.raises(ValueError, match='does not match wavelengths_m'):
+    compose_atmospheric_path_layers(
+      (1.0e-6, 2.0e-6),
+      (
+        AtmosphericPathLayer(
+          source_function_w_sr_m=(1.0,),
+          absorption_coefficient_per_m=(1.0,),
+          length_m=1.0,
+        ),
+      ),
+    )
 ####
 
 

@@ -398,12 +398,16 @@ from exhaust_plume.validation.spectral_comparisons import (
 )
 from exhaust_plume.validation.sensor_operators import (
   ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
+  AtmosphericPathLayer,
+  AtmosphericPathTransfer,
   BANDPASS_DETECTOR_OPERATOR_ID,
   LOS_FOV_SPECTRUM_OPERATOR_ID,
   BandpassDetectorSpectrum,
   PathTransferredSpectrum,
   SensorFovSpectrum,
   apply_atmospheric_path_transfer,
+  apply_atmospheric_path_layers,
+  compose_atmospheric_path_layers,
   integrate_bandpass_detector_rows,
   integrate_los_fov_spectrum,
 )
@@ -689,7 +693,11 @@ __all__ = (
   'ValidationClaim',
   'ValidationRegistry',
   'BandpassDetectorSpectrum',
+  'AtmosphericPathLayer',
+  'AtmosphericPathTransfer',
   'apply_atmospheric_path_transfer',
+  'apply_atmospheric_path_layers',
+  'compose_atmospheric_path_layers',
   'default_nozzle_geometries',
   'default_pressure_sweep',
   'default_validity_cases',

@@ -11,9 +11,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import cos, fsum, isfinite, pi, sqrt
+from collections.abc import Sequence
 from typing import Literal
 
 from exhaust_plume.validation.measurement_operators import sample_spectral_rows
+from exhaust_plume.radiation.gray import HomogeneousSegment, compose_homogeneous_segments
 
 
 ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID = 'op.atmosphere.path-transfer'
@@ -96,6 +98,116 @@ def _unit_direction(value: tuple[float, float, float] | list[float], field_name:
   ####
   return direction
 ####
+
+
+@dataclass(frozen=True, slots=True)
+class AtmosphericPathLayer:
+  """One caller-supplied homogeneous atmospheric layer.
+
+  Layers are supplied in near-observer to far-source order.  The source
+  function and absorption coefficient are explicit optical inputs; this
+  contract does not infer temperature, composition, scattering, or line
+  spectra from altitude.
+  """
+
+  source_function_w_sr_m: tuple[float, ...]
+  absorption_coefficient_per_m: tuple[float, ...]
+  length_m: float
+  layer_id: str = 'atmospheric-path-layer'
+
+  def __post_init__(self) -> None:
+    source = tuple(float(value) for value in self.source_function_w_sr_m)
+    absorption = tuple(float(value) for value in self.absorption_coefficient_per_m)
+    if not source or len(source) != len(absorption):
+      raise ValueError('atmospheric layer spectra must have matching nonzero lengths')
+    if any(not isfinite(value) or value < 0.0 for value in source + absorption):
+      raise ValueError('atmospheric layer spectra must be finite and nonnegative')
+    if not isfinite(self.length_m) or self.length_m < 0.0:
+      raise ValueError('atmospheric layer length_m must be finite and nonnegative')
+    if not self.layer_id:
+      raise ValueError('atmospheric layer_id must not be empty')
+    object.__setattr__(self, 'source_function_w_sr_m', source)
+    object.__setattr__(self, 'absorption_coefficient_per_m', absorption)
+    object.__setattr__(self, 'length_m', float(self.length_m))
+
+
+@dataclass(frozen=True, slots=True)
+class AtmosphericPathTransfer:
+  """Composed atmospheric path source, transmittance, and optical depth."""
+
+  wavelengths_m: tuple[float, ...]
+  path_radiance_w_sr_m: tuple[float, ...]
+  transmittance: tuple[float, ...]
+  optical_depth: tuple[float, ...]
+  layer_ids: tuple[str, ...]
+  operator_id: str = ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID
+
+
+def compose_atmospheric_path_layers(
+    wavelengths_m: tuple[float, ...] | list[float],
+    layers: Sequence[AtmosphericPathLayer],
+) -> AtmosphericPathTransfer:
+  """Compose explicit atmospheric layers in near-observer order.
+
+  The returned ``path_radiance_w_sr_m`` is the atmospheric source contribution
+  at the observer.  A plume/source radiance ``L_source`` is combined with it
+  by ``L_observer = L_source * transmittance + path_radiance``.
+  """
+
+  wavelengths = _axis(wavelengths_m, 'wavelengths_m')
+  selected_layers = tuple(layers)
+  if not selected_layers:
+    raise ValueError('atmospheric path requires at least one layer')
+  if not all(isinstance(layer, AtmosphericPathLayer) for layer in selected_layers):
+    raise TypeError('layers must contain AtmosphericPathLayer values')
+  ####
+  segments = []
+  for index, layer in enumerate(selected_layers):
+    if len(layer.source_function_w_sr_m) != len(wavelengths):
+      raise ValueError(f'atmospheric layer {index} spectrum does not match wavelengths_m')
+    segments.append(HomogeneousSegment(
+      source_function_w_sr_m=layer.source_function_w_sr_m,
+      absorption_coefficient_per_m=layer.absorption_coefficient_per_m,
+      length_m=layer.length_m,
+    ))
+  transfer = compose_homogeneous_segments(tuple(segments))
+  return AtmosphericPathTransfer(
+    wavelengths_m=wavelengths,
+    path_radiance_w_sr_m=transfer.source_radiance_w_sr_m,
+    transmittance=transfer.background_transmittance,
+    optical_depth=transfer.optical_depth,
+    layer_ids=tuple(layer.layer_id for layer in selected_layers),
+  )
+
+
+def apply_atmospheric_path_layers(
+    wavelengths_m: tuple[float, ...] | list[float],
+    source_spectral_radiance: tuple[tuple[float, ...], ...]
+    | list[tuple[float, ...]]
+    | list[list[float]],
+    layers: Sequence[AtmosphericPathLayer],
+    *,
+    validity_mask: tuple[tuple[bool, ...], ...]
+    | list[tuple[bool, ...]]
+    | list[list[bool]]
+    | None = None,
+) -> PathTransferredSpectrum:
+  """Apply one composed atmospheric path to every source-radiance row."""
+
+  transfer = compose_atmospheric_path_layers(wavelengths_m, layers)
+  source = _matrix(
+    source_spectral_radiance,
+    column_count=len(transfer.wavelengths_m),
+    field_name='source_spectral_radiance',
+    minimum=0.0,
+  )
+  return apply_atmospheric_path_transfer(
+    transfer.wavelengths_m,
+    source,
+    (transfer.transmittance,) * len(source),
+    validity_mask=validity_mask,
+    path_radiance=(transfer.path_radiance_w_sr_m,) * len(source),
+  )
 
 
 @dataclass(frozen=True, slots=True)
@@ -434,12 +546,16 @@ def integrate_bandpass_detector_rows(
 
 __all__ = (
   'ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID',
+  'AtmosphericPathLayer',
+  'AtmosphericPathTransfer',
   'BANDPASS_DETECTOR_OPERATOR_ID',
   'BandpassDetectorSpectrum',
   'LOS_FOV_SPECTRUM_OPERATOR_ID',
   'PathTransferredSpectrum',
   'SensorFovSpectrum',
   'apply_atmospheric_path_transfer',
+  'apply_atmospheric_path_layers',
+  'compose_atmospheric_path_layers',
   'integrate_bandpass_detector_rows',
   'integrate_los_fov_spectrum',
 )
