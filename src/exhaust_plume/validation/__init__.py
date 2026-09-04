@@ -211,6 +211,12 @@ from exhaust_plume.validation.moc_reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRefinementRun,
   run_reflected_domain_mixed_regime_boundary_refinement,
 )
+from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
+  MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_AUDIT_OPERATOR_ID,
+  MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus,
+  MocReflectedDomainCoupledEulerFreeBoundaryAudit,
+  measure_reflected_domain_coupled_euler_free_boundary,
+)
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -515,6 +521,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_DOWNSTREAM_BOUNDARY_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_AUDIT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
@@ -580,6 +587,9 @@ __all__ = (
   'MocReflectedDomainDownstreamBoundaryMeasurementStatus',
   'MocReflectedDomainMixedRegimeBoundaryMeasurementStatus',
   'MocReflectedDomainMixedRegimeBoundaryMeasurement',
+  'MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus',
+  'MocReflectedDomainCoupledEulerFreeBoundaryAudit',
+  'measure_reflected_domain_coupled_euler_free_boundary',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainMixedRegimeBoundaryRefinementStatus',
   'MocReflectedDomainMixedRegimeBoundaryRefinementCase',

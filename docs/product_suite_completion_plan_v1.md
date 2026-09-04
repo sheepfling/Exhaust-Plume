@@ -260,6 +260,11 @@ claim is authorized.
       gate for solver-owned reflected/mixed-regime boundary closure.
 - [x] Add a fresh global-to-mixed-regime reference resolution ladder with
       independent case audits and explicit research-only promotion stops.
+- [x] Add an isolated constant-gamma coupled Euler/free-boundary research
+      lane with conservative-state, boundary, entropy, and positivity
+      diagnostics; keep it below canonical and production promotion.
+- [x] Add an independent re-derivation of the coupled-field flux, mesh,
+      thermodynamic, entropy, and free-boundary diagnostics.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -423,6 +428,25 @@ about ``1.10e-6 m``.  Residual maxima increase across this mapped reference
 ladder and remain diagnostic rather than a convergence or production claim.
 The new evidence explicitly keeps canonical free-boundary/Euler, external,
 physical-closure, chain-promotion, and production flags false.
+
+The first coupled-field slice now lives in the separate
+``coupled_euler_free_boundary`` module.  It carries an explicit total
+temperature and gas constant, rejects nonuniform-gamma input, advances a
+curvilinear finite-volume conservative Euler field, imposes an ambient
+pressure ghost state on the moving outer boundary, and updates that boundary
+from the computed flow slope and pressure mismatch.  It retains normalized
+mass, momentum, energy, positivity, entropy-proxy, pressure, and normal-flow
+diagnostics.  A pressure-compatible research fixture reaches local closure,
+but the actual global case remains a typed ``FREE_BOUNDARY_FAILURE``: the
+inherited control section enters with static pressure well above ambient and
+cannot yet satisfy the coupled pressure/tangency seam.  This is useful physics
+evidence and an explicit blocker, not a canonical closure or a production
+shock-cell input.  The next slice is an independent re-derivation of these
+finite-volume and free-boundary diagnostics.  That audit now reconstructs the
+curvilinear mesh, conservative face fluxes, thermodynamic state, entropy
+bounds, and boundary reports from the retained field, and detects tampered
+residual channels.  The next slice is a coupled case and resolution ladder
+with the actual upstream-to-ambient seam represented explicitly.
 
 After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound

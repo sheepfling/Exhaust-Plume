@@ -1147,6 +1147,7 @@ def run_reflected_domain_mixed_regime_boundary_refinement(
       return tuple(value)
     except TypeError as error:
       raise ValueError(f'{name} must be an iterable or None') from error
+    ####
   ####
 
   resolved_outer_indices = optional_tuple(
@@ -1343,7 +1344,6 @@ def run_reflected_domain_mixed_regime_boundary_refinement(
     continuity_tolerance=audit_continuity_tolerance,
     entropy_transport_tolerance=audit_entropy_transport_tolerance,
   )
-  ####
   upstream_global_physical_closure_verified = bool(
     closures and all(closure.physical_closure_verified for closure in closures)
   )

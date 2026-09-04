@@ -24,6 +24,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalPhysicalClosureStatus,
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainDownstreamBoundaryStatus,
+  MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
   MocProductionShockCellFitStatus,
@@ -57,6 +59,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_shock_remesh,
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
+  solve_reflected_domain_coupled_euler_free_boundary,
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   moc_reflected_domain_global_physical_closure_fingerprint,
@@ -98,6 +101,10 @@ from exhaust_plume.validation.moc_reflected_domain_mixed_regime import (
   measure_reflected_domain_mixed_regime_boundary,
   measure_reflected_domain_mixed_regime_boundary_refinement,
   run_reflected_domain_mixed_regime_boundary_refinement,
+)
+from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
+  MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus,
+  measure_reflected_domain_coupled_euler_free_boundary,
 )
 from exhaust_plume.validation.moc_reflected_domain_refinement import (
   MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
@@ -1616,6 +1623,118 @@ def test_global_mixed_regime_boundary_refinement_reexecutes_without_promotion():
     MocReflectedDomainMixedRegimeBoundaryRefinementStatus.RESOLUTION_FAILURE
   )
   assert not reversed_measurement.converged
+####
+
+
+def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  coupled_request = MocReflectedDomainCoupledEulerFreeBoundaryRequest(
+    mixed_regime_request=request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
+
+  assert result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus.FREE_BOUNDARY_FAILURE
+  )
+  assert result.coupled_euler_field_verified
+  assert result.conservative_euler_residuals_measured
+  assert result.conservative_euler_residuals_verified
+  assert result.free_boundary_condition_verified is False
+  assert result.physical_closure_verified is False
+  assert result.canonical_euler_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.maximum_free_boundary_pressure_residual_Pa is not None
+  assert result.maximum_free_boundary_pressure_residual_Pa > 0.1 * request.ambient_pressure_Pa
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+  )
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+  assert audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
+  )
+  assert audit.residual_channels_recomputed
+  assert audit.residual_report_verified
+  assert audit.free_boundary_report_verified
+  assert audit.promotion_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  tampered_channels = list(result.residual_channels_by_cell)
+  tampered_channels[0] = (
+    tampered_channels[0][0] + 1.0,
+    *tampered_channels[0][1:],
+  )
+  tampered_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(result, residual_channels_by_cell=tuple(tampered_channels))
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.RESIDUAL_FAILURE
+  )
+####
+
+
+def test_global_coupled_euler_free_boundary_converges_only_for_compatible_research_case():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  compatible_request = replace(
+    mixed_request,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+  )
+  coupled_request = MocReflectedDomainCoupledEulerFreeBoundaryRequest(
+    mixed_regime_request=compatible_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
+
+  assert result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONVERGED_LOCAL_PHYSICAL_CLOSURE
+  )
+  assert result.converged
+  assert result.physical_closure_verified
+  assert result.coupled_euler_field_verified
+  assert result.free_boundary_condition_verified
+  assert result.entropy_transport_verified
+  assert result.canonical_free_boundary_verified is False
+  assert result.canonical_euler_verified is False
+  assert result.external_validation_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert len(result.free_boundary_points_m) == 9
+  assert len(result.conservative_states_by_cell) == 32
+  assert result.residual_channel_coverage == {
+    'mass': True,
+    'streamwise_momentum': True,
+    'transverse_momentum': True,
+    'energy': True,
+    'euler': True,
+  }
+  assert result.as_report()['claim_status'].startswith('research-only')
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+  assert audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.CONVERGED_LOCAL_AUDIT
+  )
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.residual_channels_recomputed
+  assert audit.residual_report_verified
+  assert audit.free_boundary_report_verified
+  assert audit.promotion_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
 ####
 
 

@@ -136,6 +136,12 @@ from exhaust_plume.models.moc.mixed_regime_variable_entropy import (
   MocMixedRegimeVariableEntropyFreeBoundaryResult,
   solve_mixed_regime_variable_entropy_free_boundary,
 )
+from exhaust_plume.models.moc.coupled_euler_free_boundary import (
+  MocReflectedDomainCoupledEulerFreeBoundaryStatus,
+  MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  solve_reflected_domain_coupled_euler_free_boundary,
+)
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
@@ -788,10 +794,14 @@ __all__ = (
   'MocMixedRegimeEntropyTransportResult',
   'MocMixedRegimeVariableEntropyFreeBoundaryStatus',
   'MocMixedRegimeVariableEntropyFreeBoundaryResult',
+  'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
+  'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
+  'MocReflectedDomainCoupledEulerFreeBoundaryResult',
   'solve_mixed_regime_planar_free_boundary_reference',
   'build_mixed_regime_entropy_handoff',
   'solve_mixed_regime_entropy_transport_boundary',
   'solve_mixed_regime_variable_entropy_free_boundary',
+  'solve_reflected_domain_coupled_euler_free_boundary',
   'MocChainPlannerKind',
   'MocAmbientClosedChainSourceMode',
   'MocChainPlannerResult',
