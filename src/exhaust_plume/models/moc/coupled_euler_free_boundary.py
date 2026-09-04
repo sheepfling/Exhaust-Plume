@@ -45,6 +45,9 @@ __all__ = (
 COUPLED_EULER_FREE_BOUNDARY_MODEL = (
   'research-coupled-calorically-perfect-euler-free-boundary'
 )
+COUPLED_EULER_FREE_BOUNDARY_FLUX_MODEL = (
+  'specified-pressure-material-streamline-v1'
+)
 _CHANNEL_NAMES = (
   'mass',
   'streamwise_momentum',
@@ -213,7 +216,10 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   gas_constant_J_kgK: float = 287.05
   axial_cell_count: int = 12
   transverse_cell_count: int = 6
-  cfl_number: float = 0.35
+  # The pressure-boundary flux is less diffusive than the former ghost-state
+  # Rusanov boundary.  A higher, still sub-unit CFL keeps the research ladder
+  # within its explicit pseudo-time budget as the mesh is refined.
+  cfl_number: float = 0.85
   max_pseudo_iterations: int = 1200
   max_shape_iterations: int = 18
   euler_residual_tolerance: float = 5.0e-4
@@ -328,6 +334,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'shape_relaxation': self.shape_relaxation,
       'pressure_shape_relaxation': self.pressure_shape_relaxation,
       'outlet_static_pressure_Pa': self.outlet_static_pressure_Pa,
+      'free_boundary_flux_model': COUPLED_EULER_FREE_BOUNDARY_FLUX_MODEL,
       'claim_status': (
         'constant-gamma-coupled-euler-free-boundary-research-lane; '
         'independent-audit-and-external-validation-required'
@@ -1101,6 +1108,41 @@ def _wall_flux(
 ####
 
 
+def _specified_pressure_wall_flux(
+  state: np.ndarray,
+  boundary_pressure: float,
+  normal_x: float,
+  normal_y: float,
+  face_length: float,
+  gamma: float,
+  gas_constant: float,
+) -> tuple[np.ndarray, float]:
+  """Return an inviscid pressure-boundary flux with no mass crossing.
+
+  The outer plume boundary is a material streamline with a prescribed ambient
+  pressure.  A Rusanov ghost state carries a numerical mass and energy flux
+  whenever the interior normal velocity is nonzero, which makes the boundary
+  condition inconsistent with the free-boundary tangency constraint.  The
+  pressure-boundary flux is the integral of the inviscid wall flux using the
+  prescribed pressure: mass and energy flux are zero, while the pressure
+  impulse acts on the boundary.  The interior sound speed remains the local
+  pseudo-time wave-speed estimate.
+  """
+
+  _rho, _u, _v, _pressure, _temperature, sound_speed = (
+    _primitive_from_conservative(state, gamma, gas_constant)
+  )
+  if not isfinite(boundary_pressure) or boundary_pressure <= 0.0:
+    raise ValueError('specified pressure boundary must be finite and positive')
+  ####
+  return (
+    np.array((0.0, boundary_pressure * normal_x, boundary_pressure * normal_y, 0.0))
+    * face_length,
+    sound_speed,
+  )
+####
+
+
 def _ambient_ghost_state(
   state: np.ndarray,
   ambient_pressure: float,
@@ -1214,17 +1256,9 @@ def _cell_residuals(
             gas_constant,
           )
         elif edge_index == 2 and j == transverse_count - 1:
-          ghost = _ambient_ghost_state(
+          flux, wave = _specified_pressure_wall_flux(
             state,
             ambient_pressure,
-            normal_x,
-            normal_y,
-            gamma,
-            gas_constant,
-          )
-          flux, wave = _rusanov_flux(
-            state,
-            ghost,
             normal_x,
             normal_y,
             face_length,

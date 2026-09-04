@@ -440,9 +440,11 @@ physical-closure, chain-promotion, and production flags false.
 The first coupled-field slice now lives in the separate
 ``coupled_euler_free_boundary`` module.  It carries an explicit total
 temperature and gas constant, rejects nonuniform-gamma input, advances a
-curvilinear finite-volume conservative Euler field, imposes an ambient
-pressure ghost state on the moving outer boundary, and updates that boundary
-from the computed flow slope and pressure mismatch.  It retains normalized
+curvilinear finite-volume conservative Euler field, imposes a specified-
+pressure material-streamline flux on the moving outer boundary, and updates
+that boundary from the computed flow slope and pressure mismatch.  The
+boundary flux has zero normal mass and energy transport; the ambient pressure
+enters through the normal momentum flux.  It retains normalized
 mass, momentum, energy, positivity, entropy-proxy, pressure, and normal-flow
 diagnostics.  A pressure-compatible research fixture reaches local closure,
 but the actual global case remains a typed ``FREE_BOUNDARY_FAILURE``: the
@@ -463,11 +465,23 @@ validation, chain promotion, and production claims false.  The next physics
 slice is to close and independently validate the actual global planar-MOC
 field, not to reinterpret this ladder as a production shock-cell input.
 
+An audit-driven boundary correction now gives the moving outer edge an explicit
+``specified-pressure-material-streamline-v1`` flux: normal mass and energy
+transport are zero and the ambient pressure enters only through the normal
+momentum flux.  The independent audit re-derives that flux rather than calling
+the solver helper.  The refined 6/3, 8/4, and 10/5 coupled cases now retain
+finite residual audits under the explicit pseudo-time budget, while the actual
+global case remains a typed free-boundary failure and the compatible case
+remains local research evidence.  This corrects the boundary discretization;
+it does not close the canonical mixed-regime field or alter any promotion gate.
+
 The coupled-field request now also accepts an explicit optional downstream
 static-pressure condition for a subsonic truncated outlet.  When supplied,
 the finite-volume residual uses a solver-owned pressure ghost state; when it
 is omitted, the prior extrapolated-outflow research behavior is retained for
-backward compatibility.  Exercising the actual global case with the
+backward compatibility.  The moving outer boundary is a separate
+specified-pressure material streamline, not the outlet ghost condition.
+Exercising the actual global case with the
 ambient-pressure outlet leaves the result correctly typed as
 ``FREE_BOUNDARY_FAILURE``: the added terminal condition does not repair the
 upstream pressure budget or authorize a canonical closure.  This is a

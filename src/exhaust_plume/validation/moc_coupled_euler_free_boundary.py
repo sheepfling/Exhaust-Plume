@@ -448,6 +448,31 @@ def _wall_flux(
 ####
 
 
+def _specified_pressure_wall_flux(
+  state: np.ndarray,
+  boundary_pressure: float,
+  normal_x: float,
+  normal_y: float,
+  length: float,
+  gamma: float,
+  gas_constant: float,
+) -> tuple[np.ndarray, float]:
+  """Re-derive the solver's pressure-boundary flux independently."""
+
+  _density, _velocity_u, _velocity_v, _pressure, _temperature, sound_speed = (
+    _primitive(state, gamma, gas_constant)
+  )
+  if not isfinite(boundary_pressure) or boundary_pressure <= 0.0:
+    raise ValueError('specified pressure boundary must be finite and positive')
+  ####
+  return (
+    np.array((0.0, boundary_pressure * normal_x, boundary_pressure * normal_y, 0.0))
+    * length,
+    sound_speed,
+  )
+####
+
+
 def _ambient_ghost(
   state: np.ndarray,
   ambient_pressure: float,
@@ -758,15 +783,9 @@ def _audit_field(
             gas_constant,
           )
         elif edge_index == 2 and j == transverse_count - 1:
-          ghost = _ambient_ghost(
+          flux, wave = _specified_pressure_wall_flux(
             state,
             mixed.ambient_pressure_Pa,
-            gamma,
-            gas_constant,
-          )
-          flux, wave = _rusanov(
-            state,
-            ghost,
             normal_x,
             normal_y,
             length,

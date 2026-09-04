@@ -5,6 +5,7 @@ from math import cos, sin
 
 import pytest
 
+import exhaust_plume.models.moc.coupled_euler_free_boundary as coupled_euler
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
@@ -1660,6 +1661,9 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert all(len(cell) == 4 for cell in result.cell_vertices_by_cell_m)
   assert result.free_boundary_condition_verified is False
   assert result.request is not None
+  assert result.as_report()['request']['free_boundary_flux_model'] == (
+    'specified-pressure-material-streamline-v1'
+  )
   assert result.request.outlet_static_pressure_Pa == pytest.approx(
     request.ambient_pressure_Pa
   )
@@ -1733,6 +1737,33 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert geometry_audit.status is (
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.GEOMETRY_FAILURE
   )
+####
+
+
+def test_coupled_euler_free_boundary_flux_has_no_mass_or_energy_transport():
+  state = coupled_euler._conservative_from_primitive(
+    density=1.2,
+    velocity_u=240.0,
+    velocity_v=35.0,
+    pressure=180000.0,
+    gamma=1.4,
+  )
+
+  flux, wave = coupled_euler._specified_pressure_wall_flux(
+    state,
+    boundary_pressure=101325.0,
+    normal_x=0.6,
+    normal_y=0.8,
+    face_length=2.5,
+    gamma=1.4,
+    gas_constant=287.05,
+  )
+
+  assert flux[0] == pytest.approx(0.0)
+  assert flux[3] == pytest.approx(0.0)
+  assert flux[1] == pytest.approx(101325.0 * 0.6 * 2.5)
+  assert flux[2] == pytest.approx(101325.0 * 0.8 * 2.5)
+  assert wave > 0.0
 ####
 
 
