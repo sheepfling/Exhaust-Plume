@@ -256,6 +256,8 @@ claim is authorized.
       handoff with exact provider-identity matching.
 - [x] Keep reflected and mild-attached global-Euler resolution ladders as
       separately named, fingerprint-bound research cases.
+- [x] Expose the retained downstream continuation law and a hard readiness
+      gate for solver-owned reflected/mixed-regime boundary closure.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
