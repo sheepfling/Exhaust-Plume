@@ -2,10 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from scripts.validate_provider_comparisons import (
   build_comparison_plan,
   build_unimplemented_boundaries,
   execute_visual_feature_probe,
+)
+from exhaust_plume.validation.claims import (
+  ComparisonEvidenceStatus,
+  ProviderBoundComparisonEvidence,
 )
 
 
@@ -62,6 +68,8 @@ def test_provider_comparisons_remain_blocked_without_required_observables() -> N
   ]
   assert all(comparison['comparison_status'] == 'blocked' for comparison in comparisons)
   assert all(comparison['claim_status'] == 'not_accepted' for comparison in comparisons)
+  assert all(comparison['evidence_status'] == 'blocked' for comparison in comparisons)
+  assert all(comparison['provider_bound_evidence'] is None for comparison in comparisons)
   assert len(comparisons) == 10
   assert {comparison['alignment_id'] for comparison in comparisons} == {
     'MVP-A-043',
@@ -113,6 +121,75 @@ def test_operator_execution_diagnostics_do_not_promote_a_blocked_comparison() ->
   assert comparison['operator_execution']['status'] == 'partial-overlap-diagnostic'
   assert comparison['comparison_status'] == 'blocked'
   assert comparison['claim_status'] == 'not_accepted'
+
+
+def _accepted_spectral_evidence() -> ProviderBoundComparisonEvidence:
+  return ProviderBoundComparisonEvidence(
+    evidence_id='evidence-064',
+    claim_id='SIG-MVP-A-064',
+    provider_id='signature.provider.v1',
+    provider_version='1.0.0',
+    provider_snapshot_id='signature-snapshot-1',
+    product_id='plume.signature.spectral-radiant-intensity@1',
+    benchmark_id='RP-EMAP-RAD-001',
+    external_operator_id='operator.spectrum.peak_normalize_after_sensor_sampling',
+    internal_operator_ids=(
+      'op.sensor.spectral-sampling',
+      'op.sensor.peak-normalize-spectrum',
+    ),
+    measurement_space='relative-shape',
+    coordinate_frame_id='observer-frame',
+    metric_ids=(
+      'metric.signature.relative_shape_rmse',
+      'metric.signature.band_location_error',
+    ),
+    metric_results={
+      'metric.signature.relative_shape_rmse': 0.01,
+      'metric.signature.band_location_error': 1.0e-9,
+    },
+    metric_tolerances={
+      'metric.signature.relative_shape_rmse': 0.05,
+      'metric.signature.band_location_error': 2.0e-9,
+    },
+    coverage={'observed_samples': 100, 'coverage_fraction': 1.0},
+    source_asset_ids=('emap-spectrum',),
+    source_asset_sha256=('a' * 64,),
+    provider_output_ids=('signature-output',),
+    provider_output_sha256=('b' * 64,),
+    operator_manifest_sha256='c' * 64,
+    validation_case_ids=('emap-validation-1',),
+    uncertainty={'relative_shape_rmse': 0.005},
+    applicability_domain={'wavelength_m': [5.0e-7, 8.5e-7]},
+    status=ComparisonEvidenceStatus.ACCEPTED,
+  )
+
+
+def test_provider_bound_evidence_can_promote_only_a_matching_comparison() -> None:
+  comparisons = build_comparison_plan(
+    observations=_observations(),
+    providers=_providers(),
+    operator_crosswalk_status='complete-scoped',
+    provider_bound_evidence={'SIG-MVP-A-064': _accepted_spectral_evidence()},
+  )
+
+  accepted = next(item for item in comparisons if item['comparison_id'] == 'SIG-MVP-A-064')
+  blocked = next(item for item in comparisons if item['comparison_id'] == 'SIG-MVP-A-066')
+  assert accepted['comparison_status'] == 'accepted'
+  assert accepted['claim_status'] == 'accepted'
+  assert accepted['evidence_status'] == 'accepted'
+  assert accepted['provider_bound_evidence']['evidence_id'] == 'evidence-064'
+  assert blocked['comparison_status'] == 'blocked'
+  assert blocked['claim_status'] == 'not_accepted'
+
+
+def test_provider_bound_evidence_requires_a_complete_operator_crosswalk() -> None:
+  with pytest.raises(ValueError, match='complete-scoped operator crosswalk'):
+    build_comparison_plan(
+      observations=_observations(),
+      providers=_providers(),
+      operator_crosswalk_status='pending',
+      provider_bound_evidence={'SIG-MVP-A-064': _accepted_spectral_evidence()},
+    )
 
 
 def test_visual_feature_probe_reports_missing_feature_and_branch_contract() -> None:

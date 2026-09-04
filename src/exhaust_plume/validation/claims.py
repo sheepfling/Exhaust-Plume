@@ -217,6 +217,17 @@ class ProviderBoundComparisonEvidence(ValidationModel):
       raise ValueError(
         'provider_output_ids and provider_output_sha256 must have matching lengths'
       )
+    if self.status is ComparisonEvidenceStatus.ACCEPTED:
+      exceeded = tuple(
+        metric_id
+        for metric_id in self.metric_ids
+        if abs(float(self.metric_results[metric_id]))
+        > float(self.metric_tolerances[metric_id])
+      )
+      if exceeded:
+        raise ValueError(
+          'accepted comparison evidence has metrics outside declared tolerances'
+        )
     ####
     return self
   ####

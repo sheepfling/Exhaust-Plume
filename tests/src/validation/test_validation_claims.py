@@ -173,3 +173,12 @@ def test_bound_evidence_requires_one_digest_per_named_asset_and_output() -> None
   with pytest.raises(ValueError, match='provider_output_ids and provider_output_sha256'):
     _accepted_comparison_evidence(provider_output_ids=('output-1', 'output-2'))
   ####
+
+
+def test_accepted_bound_evidence_requires_metrics_within_tolerance() -> None:
+  with pytest.raises(ValueError, match='outside declared tolerances'):
+    _accepted_comparison_evidence(
+      metric_results={'shock-spacing': 0.6},
+      metric_tolerances={'shock-spacing': 0.5},
+    )
+  ####

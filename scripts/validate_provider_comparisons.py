@@ -34,6 +34,10 @@ try:
     SpectralMeasurementSpace,
     compare_declared_peak_normalized_spectral_shape,
   )
+  from exhaust_plume.validation.claims import (
+    ComparisonEvidenceStatus,
+    ProviderBoundComparisonEvidence,
+  )
   from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus
@@ -45,6 +49,10 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution
     SpectralCurve,
     SpectralMeasurementSpace,
     compare_declared_peak_normalized_spectral_shape,
+  )
+  from exhaust_plume.validation.claims import (
+    ComparisonEvidenceStatus,
+    ProviderBoundComparisonEvidence,
   )
   from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
 
@@ -409,6 +417,8 @@ def _comparison(
     'required_provider_outputs': required_provider_outputs,
     'comparison_status': 'blocked',
     'claim_status': 'not_accepted',
+    'evidence_status': ComparisonEvidenceStatus.BLOCKED.value,
+    'provider_bound_evidence': None,
     'blockers': blockers,
   }
 
@@ -419,6 +429,7 @@ def build_comparison_plan(
     providers: Mapping[str, Any],
     operator_crosswalk_status: str,
     operator_executions: Mapping[str, Mapping[str, Any]] | None = None,
+    provider_bound_evidence: Mapping[str, ProviderBoundComparisonEvidence] | None = None,
 ) -> list[dict[str, Any]]:
   """Build explicit comparison blockers without guessing operator aliases."""
 
@@ -617,6 +628,49 @@ def build_comparison_plan(
       execution = operator_executions.get(comparison['comparison_id'])
       if execution is not None:
         comparison['operator_execution'] = dict(execution)
+  evidence_by_comparison = {} if provider_bound_evidence is None else dict(provider_bound_evidence)
+  comparison_ids = {str(comparison['comparison_id']) for comparison in comparisons}
+  unknown_evidence_ids = set(evidence_by_comparison) - comparison_ids
+  if unknown_evidence_ids:
+    raise ValueError(
+      'provider-bound evidence contains unknown comparison IDs: '
+      + ', '.join(sorted(unknown_evidence_ids))
+    )
+  for comparison in comparisons:
+    evidence = evidence_by_comparison.get(str(comparison['comparison_id']))
+    if evidence is None:
+      continue
+    if evidence.claim_id != comparison['comparison_id']:
+      raise ValueError(
+        'provider-bound evidence claim_id must match comparison_id'
+      )
+    for field_name in ('product_id', 'benchmark_id', 'measurement_operator_id'):
+      evidence_field = (
+        'external_operator_id' if field_name == 'measurement_operator_id'
+        else field_name
+      )
+      if getattr(evidence, evidence_field) != comparison[field_name]:
+        raise ValueError(
+          f'provider-bound evidence {evidence_field} must match comparison {field_name}'
+        )
+    if not set(comparison['metric_ids']) <= set(evidence.metric_ids):
+      raise ValueError(
+        'provider-bound evidence must include every comparison metric'
+      )
+    if (
+      evidence.status is ComparisonEvidenceStatus.ACCEPTED
+      and operator_crosswalk_status != 'complete-scoped'
+    ):
+      raise ValueError(
+        'accepted provider-bound evidence requires a complete-scoped operator crosswalk'
+      )
+    comparison['evidence_status'] = evidence.status.value
+    comparison['provider_bound_evidence'] = evidence.model_dump(mode='json')
+    if evidence.status is ComparisonEvidenceStatus.ACCEPTED:
+      comparison['comparison_status'] = 'accepted'
+      comparison['claim_status'] = 'accepted'
+    elif evidence.status is ComparisonEvidenceStatus.DIAGNOSTIC:
+      comparison['comparison_status'] = 'diagnostic'
   ####
   return comparisons
 
