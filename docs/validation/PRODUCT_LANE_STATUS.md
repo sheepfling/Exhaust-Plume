@@ -29,8 +29,10 @@ The cross-cutting CHEM-0 source-property primitive is locally verified in
 and composition basis, supports constant or bounded tabulated `c_p(T)`, and
 checks composition round trips, mixture `R/c_p/c_v/gamma`, density, enthalpy,
 and bounded enthalpy inversion. This is property evidence only: the primitive
-is not yet a source-bound Signature provider and does not change any product
-lane's claim ceiling or release status.
+is not a chemistry or Signature provider. Its derived state can now be bound
+to the explicit LTE line-source bridge for source-temperature and composition
+provenance, while line optical depths/populations remain caller-owned. This
+does not change any product lane's claim ceiling or release status.
 
 The cross-product operator evidence is recorded in
 [`ray_signature_consistency_v1.json`](ray_signature_consistency_v1.json). It

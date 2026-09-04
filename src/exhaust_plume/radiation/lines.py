@@ -17,6 +17,7 @@ from typing import Any, Sequence, cast
 import numpy as np
 from scipy.special import wofz
 
+from exhaust_plume.models.gas import FrozenMixtureState
 from exhaust_plume.radiation.planck import planck_spectral_radiance_W_m2_sr_m
 
 __all__ = (
@@ -173,6 +174,7 @@ class LineRadiationProfile:
   source_temperature_K: float
   path_length_m: float
   profile_id: str = 'explicit-lte-line-profile'
+  source_mixture_state: FrozenMixtureState | None = None
 
   def __post_init__(self) -> None:
     wavelengths = _strict_wavelength_axis(self.wavelengths_m)
@@ -189,11 +191,52 @@ class LineRadiationProfile:
     if not profile_id:
       raise ValueError('profile_id must not be empty')
     ####
+    mixture_state = self.source_mixture_state
+    if mixture_state is not None:
+      if not isinstance(mixture_state, FrozenMixtureState):
+        raise TypeError('source_mixture_state must be a FrozenMixtureState or None')
+      ####
+      temperature_scale = max(temperature, mixture_state.temperature_K, 1.0)
+      if abs(temperature - mixture_state.temperature_K) > 1.0e-12 * temperature_scale:
+        raise ValueError('source_temperature_K must match source_mixture_state.temperature_K')
+      ####
+    ####
     object.__setattr__(self, 'wavelengths_m', wavelengths)
     object.__setattr__(self, 'lines', lines)
     object.__setattr__(self, 'source_temperature_K', temperature)
     object.__setattr__(self, 'path_length_m', path_length)
     object.__setattr__(self, 'profile_id', profile_id)
+    object.__setattr__(self, 'source_mixture_state', mixture_state)
+  ####
+
+  @classmethod
+  def from_frozen_mixture_state(
+    cls,
+    wavelengths_m: Sequence[float],
+    lines: Sequence[SpectralLine],
+    mixture_state: FrozenMixtureState,
+    path_length_m: float,
+    *,
+    profile_id: str = 'chem-0-lte-line-profile',
+  ) -> 'LineRadiationProfile':
+    """Bind an explicit CHEM-0 state to the LTE Planck source temperature.
+
+    The mixture state supplies source-state provenance only.  This constructor
+    does not infer line populations, optical depths, pressure broadening, or
+    species-specific line widths.
+    """
+
+    if not isinstance(mixture_state, FrozenMixtureState):
+      raise TypeError('mixture_state must be a FrozenMixtureState')
+    ####
+    return cls(
+      wavelengths_m=tuple(wavelengths_m),
+      lines=tuple(lines),
+      source_temperature_K=mixture_state.temperature_K,
+      path_length_m=path_length_m,
+      profile_id=profile_id,
+      source_mixture_state=mixture_state,
+    )
   ####
 
   @property
@@ -228,11 +271,28 @@ class LineRadiationProfile:
       'lines': tuple(line.as_report() for line in self.lines),
       'source_temperature_K': self.source_temperature_K,
       'path_length_m': self.path_length_m,
+      'source_thermochemistry': (
+        None
+        if self.source_mixture_state is None
+        else {
+          'model': 'chem-0-explicit-frozen-mixture-v1',
+          'mixture_id': self.source_mixture_state.mixture_id,
+          'temperature_K': self.source_mixture_state.temperature_K,
+          'species_mass_fractions': tuple(
+            (item.species, item.mass_fraction)
+            for item in self.source_mixture_state.species_mass_fractions
+          ),
+          'species_mole_fractions': tuple(
+            (item.species, item.mole_fraction)
+            for item in self.source_mixture_state.species_mole_fractions
+          ),
+        }
+      ),
       'source_model': 'LTE-Planck-source',
       'line_shape_model': 'normalized-wavelength-domain-Voigt',
       'claim_status': (
         'spectral-engineering-with-explicit-line-optical-depths; '
-        'no-chemistry-population-closure-or-external-validation'
+        'CHEM-0-source-state-bound-but-no-population-closure-or-external-validation'
       ),
     }
   ####

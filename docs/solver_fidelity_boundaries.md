@@ -17,7 +17,9 @@ composition provenance, but it has no reactions, entropy reference, molecular
 populations, particle model, or external validation. It therefore cannot raise
 the claim ceiling of the basic, reduced-order, planar-MOC, Signature,
 ray-transfer, or FPA lanes until it is coupled through their contracts and
-independently validated.
+independently validated. The LTE line bridge may now bind a derived CHEM-0
+state for source-temperature and composition provenance, but its line
+optical depths and populations remain caller-owned.
 
 ## Boundary matrix
 

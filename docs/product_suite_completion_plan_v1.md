@@ -530,11 +530,13 @@ composition in each derived state. The report identifies reactions as
 disabled and keeps `production_claim_allowed=false`.
 
 This is a cross-cutting CHEM-0 source primitive, not a chemistry or Signature
-provider. It is intentionally not wired into the existing flow, radiation,
-ray, or FPA lanes yet: formation/species entropy data, pressure broadening,
-non-LTE populations, reacting/afterburning behavior, particle loading, and
-provider-bound validation remain open. The property tests close only the
-composition and thermodynamic identities for this declared local lane.
+provider. The explicit LTE line bridge may bind its derived state for source
+temperature and composition provenance, but no general flow/radiation
+provider consumes the mixture yet. Formation/species entropy data, pressure
+broadening, non-LTE populations, reacting/afterburning behavior, particle
+loading, and provider-bound validation remain open. The property tests close
+only the composition and thermodynamic identities for this declared local
+lane.
 
 After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound

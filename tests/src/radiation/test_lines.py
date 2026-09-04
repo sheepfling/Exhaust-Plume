@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from exhaust_plume.models.gas import FrozenMixtureGas, SpeciesDefinition, SpeciesMassFraction
 from exhaust_plume.radiation import (
   BOLTZMANN_J_K,
   SPEED_OF_LIGHT_M_S,
@@ -67,6 +68,52 @@ def test_lte_line_profile_derives_planck_source_and_line_opacity() -> None:
   assert report['source_model'] == 'LTE-Planck-source'
   assert report['line_shape_model'] == 'normalized-wavelength-domain-Voigt'
   assert report['claim_status'].startswith('spectral-engineering')
+####
+
+
+def test_lte_line_profile_can_bind_a_chem0_source_state_without_inferencing_lines() -> None:
+  mixture = FrozenMixtureGas(
+    mixture_id='test-chem0-source',
+    species=(
+      SpeciesDefinition(
+        species='test-gas',
+        molecular_weight_kg_per_mol=0.020,
+        cp_JpkgK=1_000.0,
+      ),
+    ),
+    species_mass_fractions=(SpeciesMassFraction(species='test-gas', mass_fraction=1.0),),
+    valid_temperature_range_K=(300.0, 2_000.0),
+  )
+  state = mixture.state_at(120_000.0, 1_200.0)
+  line = SpectralLine(
+    center_wavelength_m=2.0e-6,
+    integrated_optical_depth_m=4.0e-7,
+    doppler_sigma_m=5.0e-8,
+    label='chem0-bound-line',
+  )
+
+  profile = LineRadiationProfile.from_frozen_mixture_state(
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+    lines=(line,),
+    mixture_state=state,
+    path_length_m=2.0,
+  )
+  report = profile.as_report()
+
+  assert profile.source_temperature_K == pytest.approx(state.temperature_K)
+  assert profile.source_mixture_state == state
+  assert report['source_thermochemistry']['model'] == 'chem-0-explicit-frozen-mixture-v1'  # type: ignore[index]
+  assert report['source_thermochemistry']['mixture_id'] == 'test-chem0-source'  # type: ignore[index]
+  assert 'no-population-closure' in report['claim_status']
+  with pytest.raises(ValueError, match='must match'):
+    LineRadiationProfile(
+      wavelengths_m=(1.0e-6, 2.0e-6),
+      lines=(line,),
+      source_temperature_K=1_100.0,
+      path_length_m=1.0,
+      source_mixture_state=state,
+    )
+  ####
 ####
 
 
