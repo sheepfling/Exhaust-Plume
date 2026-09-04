@@ -1101,6 +1101,19 @@ def test_global_euler_shock_boundary_closes_continuous_source_frontier():
   assert measurement.incoming_handoff_verified
   assert measurement.endpoint_tangents_verified
   assert measurement.upstream_sampling_verified
+  assert measurement.source_frontier_sampling_verified
+  assert measurement.source_frontier_sample_count == len(
+    result.remeshed_shock_points_m
+  )
+  assert measurement.maximum_source_frontier_state_residual == pytest.approx(0.0)
+  assert measurement.maximum_source_frontier_static_pressure_residual_Pa == pytest.approx(
+    0.0,
+    abs=1.0e-8,
+  )
+  assert measurement.maximum_source_frontier_total_pressure_residual_Pa == pytest.approx(
+    0.0,
+    abs=1.0e-8,
+  )
   assert measurement.ambient_boundary_verified
   assert measurement.physical_closure_verified
   assert measurement.fidelity_isolation_verified
@@ -1115,10 +1128,34 @@ def test_global_euler_shock_boundary_closes_continuous_source_frontier():
   assert tampered_measurement.endpoint_tangents_verified is False
   assert tampered_measurement.converged is False
 
+  assert result.shock_boundary is not None
+  tampered_total_pressure = (
+    result.shock_boundary.upstream_total_pressure_Pa[0] + 1.0,
+    *result.shock_boundary.upstream_total_pressure_Pa[1:],
+  )
+  tampered_frontier = replace(
+    result,
+    shock_boundary=replace(
+      result.shock_boundary,
+      upstream_total_pressure_Pa=tampered_total_pressure,
+    ),
+  )
+  tampered_frontier_measurement = (
+    measure_moc_reflected_domain_global_euler_shock_boundary(
+      tampered_frontier,
+    )
+  )
+  assert tampered_frontier_measurement.status is (
+    MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.FRONTIER_FAILURE
+  )
+  assert tampered_frontier_measurement.source_frontier_sampling_verified is False
+  assert tampered_frontier_measurement.converged is False
+
   report = result.as_report()
   assert report['source_frontier_verified'] is True
   assert report['shock_boundary']['zero_strength_endpoints_allowed'] is True
   assert report['physical_field']['physical_closure_verified'] is True
+  assert measurement.as_report()['checks']['source_frontier_sampling_verified'] is True
 
 
 def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promotion():

@@ -3389,3 +3389,22 @@ validation is still required. The next physics work is to replace the current
 research downstream turn/perimeter law with a solver-owned globally coupled
 reflected/mixed-regime closure, then repeat this runner across reflected and
 mild-attached cases before considering production shock-cell fitting.
+
+## Dense source-frontier audit checkpoint
+
+The global exact-Euler measurement now exposes the dense source handoff rather
+than reporting only its terminal centerline state. For every retained shock
+sample, the independent operator re-extracts the bounded source state, static
+pressure, and total pressure and compares them with the upstream evidence
+carried by the Euler shock curve. The report records the sample count and the
+maximum state, static-pressure, and total-pressure residuals. A tampered
+interior pressure sample is therefore rejected as a typed frontier failure,
+even when the local shock curve itself still reports convergence.
+
+This closes an observability and provenance gap; it is not a new physical
+closure law. The candidate remains a bounded local exact-Euler research field:
+canonical reflected/free-boundary, coupled mixed-regime, refinement,
+provider-bound validation, chain promotion, and production claims remain
+blocked. The next implementation slice is solver-owned downstream boundary
+closure, followed by repeated reflected/mild-attached case and resolution
+evidence.

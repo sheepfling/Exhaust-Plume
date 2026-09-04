@@ -16595,6 +16595,11 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
   shock_sample_count: int
   field_cell_count: int
   source_frontier_x_m: float | None = None
+  source_frontier_sample_count: int = 0
+  source_frontier_sampling_verified: bool = False
+  maximum_source_frontier_state_residual: float | None = None
+  maximum_source_frontier_static_pressure_residual_Pa: float | None = None
+  maximum_source_frontier_total_pressure_residual_Pa: float | None = None
   first_endpoint_tangent_residual_rad: float | None = None
   last_endpoint_tangent_residual_rad: float | None = None
   maximum_shock_jump_mass_residual: float | None = None
@@ -16617,7 +16622,11 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
     object.__setattr__(self, 'operator_id', operator_id)
     if self.solver_status is not None:
       object.__setattr__(self, 'solver_status', str(self.solver_status))
-    for name in ('shock_sample_count', 'field_cell_count'):
+    for name in (
+      'shock_sample_count',
+      'field_cell_count',
+      'source_frontier_sample_count',
+    ):
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
@@ -16640,11 +16649,15 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
       'chain_promotion_blocked',
       'production_claim_allowed',
       'fidelity_isolation_verified',
+      'source_frontier_sampling_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
     for name in (
       'source_frontier_x_m',
+      'maximum_source_frontier_state_residual',
+      'maximum_source_frontier_static_pressure_residual_Pa',
+      'maximum_source_frontier_total_pressure_residual_Pa',
       'first_endpoint_tangent_residual_rad',
       'last_endpoint_tangent_residual_rad',
       'maximum_shock_jump_mass_residual',
@@ -16700,6 +16713,16 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
       'shock_sample_count': self.shock_sample_count,
       'field_cell_count': self.field_cell_count,
       'source_frontier_x_m': self.source_frontier_x_m,
+      'source_frontier_sample_count': self.source_frontier_sample_count,
+      'maximum_source_frontier_state_residual': (
+        self.maximum_source_frontier_state_residual
+      ),
+      'maximum_source_frontier_static_pressure_residual_Pa': (
+        self.maximum_source_frontier_static_pressure_residual_Pa
+      ),
+      'maximum_source_frontier_total_pressure_residual_Pa': (
+        self.maximum_source_frontier_total_pressure_residual_Pa
+      ),
       'first_endpoint_tangent_residual_rad': (
         self.first_endpoint_tangent_residual_rad
       ),
@@ -16722,6 +16745,7 @@ class MocReflectedDomainGlobalEulerShockBoundaryMeasurement:
         'initial_geometry_verified': self.initial_geometry_verified,
         'remeshed_geometry_verified': self.remeshed_geometry_verified,
         'source_frontier_verified': self.source_frontier_verified,
+        'source_frontier_sampling_verified': self.source_frontier_sampling_verified,
         'endpoint_tangents_verified': self.endpoint_tangents_verified,
         'upstream_sampling_verified': self.upstream_sampling_verified,
         'incoming_handoff_verified': self.incoming_handoff_verified,
@@ -16768,6 +16792,11 @@ def _reflected_domain_global_euler_shock_boundary_measurement_failure(
   shock_sample_count: int = 0,
   field_cell_count: int = 0,
   source_frontier_x_m: float | None = None,
+  source_frontier_sample_count: int = 0,
+  source_frontier_sampling_verified: bool = False,
+  maximum_source_frontier_state_residual: float | None = None,
+  maximum_source_frontier_static_pressure_residual_Pa: float | None = None,
+  maximum_source_frontier_total_pressure_residual_Pa: float | None = None,
   first_endpoint_tangent_residual_rad: float | None = None,
   last_endpoint_tangent_residual_rad: float | None = None,
   maximum_shock_jump_mass_residual: float | None = None,
@@ -16802,6 +16831,15 @@ def _reflected_domain_global_euler_shock_boundary_measurement_failure(
     shock_sample_count=shock_sample_count,
     field_cell_count=field_cell_count,
     source_frontier_x_m=source_frontier_x_m,
+    source_frontier_sample_count=source_frontier_sample_count,
+    source_frontier_sampling_verified=source_frontier_sampling_verified,
+    maximum_source_frontier_state_residual=maximum_source_frontier_state_residual,
+    maximum_source_frontier_static_pressure_residual_Pa=(
+      maximum_source_frontier_static_pressure_residual_Pa
+    ),
+    maximum_source_frontier_total_pressure_residual_Pa=(
+      maximum_source_frontier_total_pressure_residual_Pa
+    ),
     first_endpoint_tangent_residual_rad=first_endpoint_tangent_residual_rad,
     last_endpoint_tangent_residual_rad=last_endpoint_tangent_residual_rad,
     maximum_shock_jump_mass_residual=maximum_shock_jump_mass_residual,
@@ -16979,6 +17017,10 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     source_band.static_pressure_at(point, position_tolerance_m=position_tolerance)
     for point in points
   )
+  sampled_total_pressures = tuple(
+    source_band.total_pressure_at(point, position_tolerance_m=position_tolerance)
+    for point in points
+  )
   source_frontier_state = source_band.state_at(
     points[-1],
     position_tolerance_m=position_tolerance,
@@ -17026,32 +17068,123 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
       and pressure > 0.0
       for pressure in sampled_pressures
     )
+    and all(
+      pressure is not None
+      and isfinite(float(pressure))
+      and pressure > 0.0
+      for pressure in sampled_total_pressures
+    )
   )
+  source_frontier_sample_count = len(points)
+  source_frontier_sampling_verified = False
+  maximum_source_frontier_state_residual: float | None = None
+  maximum_source_frontier_static_pressure_residual: float | None = None
+  maximum_source_frontier_total_pressure_residual: float | None = None
   curve = result.shock_boundary
   if curve is not None:
-    upstream_sampling_verified = upstream_sampling_verified and bool(
+    curve_sequences_match = bool(
       len(curve.upstream_states) == len(points)
       and len(curve.upstream_static_pressure_Pa) == len(points)
-      and all(
-        _caustic_state_matches(
-          actual,
-          expected,
-          position_tolerance_m=position_tolerance,
-          state_tolerance=invariant_tolerance_value,
-        )
-        and _pressure_matches(
-          actual_pressure,
-          expected_pressure,
-          pressure_tolerance=pressure_tolerance_value,
-        )
-        for actual, expected, actual_pressure, expected_pressure in zip(
-          curve.upstream_states,
-          sampled_states,
-          curve.upstream_static_pressure_Pa,
-          sampled_pressures,
-          strict=True,
+      and len(curve.upstream_total_pressure_Pa) == len(points)
+    )
+    if curve_sequences_match:
+      state_residuals: list[float] = []
+      static_pressure_residuals: list[float] = []
+      total_pressure_residuals: list[float] = []
+      for (
+        actual_state,
+        expected_state,
+        actual_static_pressure,
+        expected_static_pressure,
+        actual_total_pressure,
+        expected_total_pressure,
+      ) in zip(
+        curve.upstream_states,
+        sampled_states,
+        curve.upstream_static_pressure_Pa,
+        sampled_pressures,
+        curve.upstream_total_pressure_Pa,
+        sampled_total_pressures,
+        strict=True,
+      ):
+        if isinstance(actual_state, CharacteristicState) and isinstance(
+          expected_state,
+          CharacteristicState,
+        ):
+          state_residuals.append(
+            max(
+              abs(actual_state.x_m - expected_state.x_m),
+              abs(actual_state.y_m - expected_state.y_m),
+              abs(actual_state.theta_rad - expected_state.theta_rad),
+              abs(actual_state.mach - expected_state.mach),
+              abs(actual_state.gamma - expected_state.gamma),
+            )
+          )
+        if (
+          isinstance(actual_static_pressure, (int, float))
+          and isinstance(expected_static_pressure, (int, float))
+          and isfinite(float(actual_static_pressure))
+          and isfinite(float(expected_static_pressure))
+        ):
+          static_pressure_residuals.append(
+            abs(float(actual_static_pressure) - float(expected_static_pressure))
+          )
+        if (
+          isinstance(actual_total_pressure, (int, float))
+          and isinstance(expected_total_pressure, (int, float))
+          and isfinite(float(actual_total_pressure))
+          and isfinite(float(expected_total_pressure))
+        ):
+          total_pressure_residuals.append(
+            abs(float(actual_total_pressure) - float(expected_total_pressure))
+          )
+      maximum_source_frontier_state_residual = max(
+        state_residuals,
+        default=None,
+      )
+      maximum_source_frontier_static_pressure_residual = max(
+        static_pressure_residuals,
+        default=None,
+      )
+      maximum_source_frontier_total_pressure_residual = max(
+        total_pressure_residuals,
+        default=None,
+      )
+      source_frontier_sampling_verified = bool(
+        len(state_residuals) == len(points)
+        and len(static_pressure_residuals) == len(points)
+        and len(total_pressure_residuals) == len(points)
+        and all(
+          _caustic_state_matches(
+            actual,
+            expected,
+            position_tolerance_m=position_tolerance,
+            state_tolerance=invariant_tolerance_value,
+          )
+          and _pressure_matches(
+            actual_static_pressure,
+            expected_static_pressure,
+            pressure_tolerance=pressure_tolerance_value,
+          )
+          and _pressure_matches(
+            actual_total_pressure,
+            expected_total_pressure,
+            pressure_tolerance=pressure_tolerance_value,
+          )
+          for actual, expected, actual_static_pressure, expected_static_pressure,
+          actual_total_pressure, expected_total_pressure in zip(
+            curve.upstream_states,
+            sampled_states,
+            curve.upstream_static_pressure_Pa,
+            sampled_pressures,
+            curve.upstream_total_pressure_Pa,
+            sampled_total_pressures,
+            strict=True,
+          )
         )
       )
+    upstream_sampling_verified = (
+      upstream_sampling_verified and source_frontier_sampling_verified
     )
   else:
     upstream_sampling_verified = False
@@ -17148,6 +17281,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
   physical_closure_verified = bool(
     result.physical_closure_verified
     and source_frontier_verified
+    and source_frontier_sampling_verified
     and endpoint_tangents_verified
     and upstream_sampling_verified
     and incoming_handoff_verified
@@ -17198,6 +17332,17 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     source_frontier_x_m=(
       None if source_frontier_state is None else source_frontier_state.x_m
     ),
+    source_frontier_sample_count=source_frontier_sample_count,
+    source_frontier_sampling_verified=source_frontier_sampling_verified,
+    maximum_source_frontier_state_residual=(
+      maximum_source_frontier_state_residual
+    ),
+    maximum_source_frontier_static_pressure_residual_Pa=(
+      maximum_source_frontier_static_pressure_residual
+    ),
+    maximum_source_frontier_total_pressure_residual_Pa=(
+      maximum_source_frontier_total_pressure_residual
+    ),
     first_endpoint_tangent_residual_rad=first_residual,
     last_endpoint_tangent_residual_rad=last_residual,
     maximum_shock_jump_mass_residual=(None if maximums is None else maximums[0]),
@@ -17208,6 +17353,9 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
   if not source_frontier_verified:
     status = MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.FRONTIER_FAILURE
     message = 'source centerline frontier seam failed independent measurement'
+  elif not source_frontier_sampling_verified:
+    status = MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.FRONTIER_FAILURE
+    message = 'dense source frontier samples failed independent measurement'
   elif not endpoint_tangents_verified or not upstream_sampling_verified:
     status = MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus.GEOMETRY_FAILURE
     message = 'source-coupled shock geometry failed independent measurement'
