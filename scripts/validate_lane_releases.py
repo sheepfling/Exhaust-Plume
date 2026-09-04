@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import sys
 from typing import Any
 
@@ -20,6 +21,53 @@ MATRIX_PATH = REPO_ROOT / 'docs' / 'solver_fidelity_matrix_v1.json'
 PRODUCT_REPORT_PATH = REPO_ROOT / 'docs' / 'validation' / 'product_lane_validation_v1.json'
 RELEASE_FREEZE_PATH = REPO_ROOT / 'docs' / 'validation' / 'release_freeze_v1.json'
 PROVIDER_PREFLIGHT_PATH = REPO_ROOT / 'docs' / 'validation' / 'provider_comparison_preflight_v1.json'
+
+
+def _git_head_commit() -> str | None:
+  """Return the committed candidate HEAD when this runs inside a checkout."""
+
+  try:
+    completed = subprocess.run(
+      (
+        'git',
+        '-C',
+        str(REPO_ROOT),
+        'rev-parse',
+        '--verify',
+        'HEAD',
+      ),
+      capture_output=True,
+      check=True,
+      text=True,
+    )
+  except (OSError, subprocess.CalledProcessError):
+    return None
+  commit = completed.stdout.strip()
+  return commit or None
+####
+
+
+def _git_worktree_clean() -> bool | None:
+  """Return whether the checkout has no staged, unstaged, or untracked files."""
+
+  try:
+    completed = subprocess.run(
+      (
+        'git',
+        '-C',
+        str(REPO_ROOT),
+        'status',
+        '--porcelain',
+        '--untracked-files=all',
+      ),
+      capture_output=True,
+      check=True,
+      text=True,
+    )
+  except (OSError, subprocess.CalledProcessError):
+    return None
+  return completed.stdout == ''
+####
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -151,8 +199,40 @@ def build_lane_release_manifest() -> dict[str, Any]:
   fpa = next(record for record in lane_records if record['lane_id'] == 'focal-plane-array-v1')
   fpa_provider_guard = fpa['provider_ids'] == [] and fpa['local_release_status'] == 'scoped-downstream-boundary'
   blockers = list(release_freeze.get('release_blockers', []))
+  candidate_head_commit = _git_head_commit()
+  candidate_worktree_clean = _git_worktree_clean()
+  recorded_freeze_head_commit = release_freeze.get('head_commit')
+  validated_code_commit = release_freeze.get(
+    'validated_code_commit',
+    release_freeze.get('head_commit'),
+  )
+  freeze_matches_candidate_head = bool(
+    candidate_head_commit is not None
+    and isinstance(recorded_freeze_head_commit, str)
+    and candidate_head_commit == recorded_freeze_head_commit
+  )
+  candidate_matches_validated_code_commit = bool(
+    candidate_head_commit is not None
+    and isinstance(validated_code_commit, str)
+    and candidate_head_commit == validated_code_commit
+  )
+  if candidate_head_commit is None:
+    blockers.append('candidate HEAD could not be resolved from the release checkout')
+  elif not freeze_matches_candidate_head:
+    blockers.append(
+      'release freeze does not identify the current candidate HEAD; refresh '
+      'release evidence after the final code and documentation commit'
+    )
+  if candidate_worktree_clean is not True:
+    blockers.append(
+      'candidate worktree is not clean; release evidence must be generated '
+      'from a committed candidate'
+    )
   if provider_preflight.get('release_ready') is not True:
     blockers.append('provider comparison preflight is not externally accepted')
+  release_provenance_ready = bool(
+    freeze_matches_candidate_head and candidate_worktree_clean is True
+  )
   return {
     'report_id': 'exhaust-plume-lane-release-manifest-v1',
     'schema_version': 'plume.lane-release-manifest@1',
@@ -160,10 +240,17 @@ def build_lane_release_manifest() -> dict[str, Any]:
     # after the code and wheel evidence are produced. Keep the manifest tied
     # to the validated code tranche while retaining the actual branch HEAD in
     # the freeze record.
-    'source_commit': release_freeze.get(
-      'validated_code_commit',
-      release_freeze.get('head_commit'),
-    ),
+    'source_commit': validated_code_commit,
+    'release_provenance': {
+      'candidate_head_commit': candidate_head_commit,
+      'recorded_freeze_head_commit': recorded_freeze_head_commit,
+      'validated_code_commit': validated_code_commit,
+      'candidate_head_matches_recorded_freeze': freeze_matches_candidate_head,
+      'candidate_head_matches_validated_code_commit': (
+        candidate_matches_validated_code_commit
+      ),
+      'candidate_worktree_clean': candidate_worktree_clean,
+    },
     'wheel_sha256': release_freeze.get('repository_quality', {}).get('wheel_sha256'),
     'release_policy': {
       'local_release_definition': 'versioned lane evidence plus an explicit claim ceiling; it is not an external validation claim',
@@ -176,10 +263,18 @@ def build_lane_release_manifest() -> dict[str, Any]:
       'low_fidelity_promotion_detected': bool(violations),
       'fpa_provider_guard_passed': fpa_provider_guard,
       'provider_preflight_release_ready': provider_preflight.get('release_ready') is True,
+      'release_freeze_matches_candidate_head': freeze_matches_candidate_head,
+      'candidate_worktree_clean': candidate_worktree_clean is True,
     },
     'lanes': lane_records,
     'umbrella_release': {
-      'release_ready': not blockers and not violations and not active_local_failures and fpa_provider_guard,
+      'release_ready': (
+        not blockers
+        and not violations
+        and not active_local_failures
+        and fpa_provider_guard
+        and release_provenance_ready
+      ),
       'blockers': blockers,
     },
   }

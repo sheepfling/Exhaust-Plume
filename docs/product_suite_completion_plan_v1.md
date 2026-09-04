@@ -220,7 +220,11 @@ The suite is releasable only when all of these conditions are true:
 7. Full pytest, lane partitioning, Ruff, Pyright, documentation checks,
    public-contract asset checks, wheel build, and installed-wheel smoke pass
    on the exact candidate commit.
-8. The release manifest reports no promotion violation and
+8. The release checkout is clean and the release freeze records that exact
+   candidate `HEAD`; a documentation-only refresh may retain an older
+   `validated_code_commit`, but it must not silently describe a different
+   candidate.
+9. The release manifest reports no promotion violation and
    `release_ready=true`.
 
 Until then, the branch may be committed and pushed as an integration

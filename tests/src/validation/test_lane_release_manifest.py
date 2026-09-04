@@ -33,4 +33,14 @@ def test_lane_manifest_uses_validated_code_tranche_when_head_is_docs_only() -> N
     Path('docs/validation/release_freeze_v1.json').read_text(encoding='utf-8'),
   )
   assert freeze['head_commit'] != freeze['validated_code_commit']
-  assert build_lane_release_manifest()['source_commit'] == freeze['validated_code_commit']
+  report = build_lane_release_manifest()
+  assert report['source_commit'] == freeze['validated_code_commit']
+  provenance = report['release_provenance']
+  assert provenance['recorded_freeze_head_commit'] == freeze['head_commit']
+  assert provenance['validated_code_commit'] == freeze['validated_code_commit']
+  assert report['checks']['release_freeze_matches_candidate_head'] is (
+    provenance['candidate_head_commit'] == freeze['head_commit']
+  )
+  assert report['checks']['candidate_worktree_clean'] is (
+    provenance['candidate_worktree_clean'] is True
+  )
