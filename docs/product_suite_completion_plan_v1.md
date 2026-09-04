@@ -371,6 +371,18 @@ its typed contract and recorded claim ceiling.
   a camera/detector observation contract and a source-bound image comparison;
   deterministic expected counts are not measured-image evidence.
 
+### P4.1 curved-optical evidence checkpoint
+
+The curved gray-transfer lane is now recorded independently in the product
+validation report and release manifest (`4f5a317`). Its provider identity,
+snapshot serialization, hit/validity masks, and transfer outputs pass local
+diagnostic checks. The piecewise-capsule path refinement remains explicitly
+``nonmonotonic-observed-not-promoted``; the lane is therefore
+``diagnostic-only`` and ``not-released-validation-pending``. Promotion still
+requires a convergent curved-path/operator treatment and a provider-bound
+observer/path/scenario comparison. This checkpoint does not change the
+straight optical lane or add a curved-flow, chemistry, detector, or FPA claim.
+
 ### P2.1 evidence checkpoint
 
 The first P2.1 evidence-plumbing slice is complete on the candidate branch at
