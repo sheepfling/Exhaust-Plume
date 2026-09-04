@@ -213,6 +213,10 @@ evaluation layers for the four strict `ProductResult` families:
   explicitly retained field/path overlays. The bundle digest, claim ceiling,
   diagnostics, and warnings travel with the artifacts; rendering cannot
   promote a research or approximate lane.
+- `render_model_visualization_gallery_set` wraps those per-lane galleries into
+  an exact five-lane acceptance set. Each lane remains in its own directory
+  with its own bundle/spec digest and claim metadata; the top-level manifest
+  proves lane completeness without creating a merged physical result.
 - The strict ray contract still has no hit mask, optical depth, or intersection
   interval. The gallery records that limitation and does not infer it from
   zero radiance or unit transmittance. The strict visual contract likewise does

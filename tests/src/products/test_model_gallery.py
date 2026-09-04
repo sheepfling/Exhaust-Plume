@@ -11,6 +11,7 @@ from exhaust_plume.api import AxisScale
 from exhaust_plume.api.v1 import ApplicabilityStatus, GeometryClaim, VisualSection
 from exhaust_plume.products import (
   MODEL_GALLERY_MANIFEST_SCHEMA,
+  MODEL_GALLERY_SET_MANIFEST_SCHEMA,
   ModelVisualizationClaims,
   ModelVisualizationGallerySpec,
   ModelVisualizationLane,
@@ -19,6 +20,7 @@ from exhaust_plume.products import (
   ModelVisualPath,
   StandardizedModelVisualization,
   render_model_visualization_gallery,
+  render_model_visualization_gallery_set,
 )
 from exhaust_plume.providers.prescribed_visual import PrescribedVisualDefinition
 
@@ -121,6 +123,42 @@ def test_model_gallery_can_export_json_without_plot_dependency(tmp_path: Path) -
   manifest = render_model_visualization_gallery(bundle, tmp_path / 'json-only', render_plots=False)
   assert len(manifest.artifacts) == 2
   assert all((tmp_path / 'json-only' / artifact.path).exists() for artifact in manifest.artifacts)
+
+
+def test_model_gallery_set_renders_exactly_one_independent_bundle_per_lane(tmp_path: Path) -> None:
+  bundles = tuple(replace(_bundle(), lane=lane) for lane in ModelVisualizationLane)
+  manifest = render_model_visualization_gallery_set(
+    bundles,
+    tmp_path / 'all-five',
+    render_plots=False,
+  )
+  payload = json.loads(manifest.manifest_path.read_text(encoding='utf-8'))
+
+  assert manifest.schema == MODEL_GALLERY_SET_MANIFEST_SCHEMA
+  assert payload['lane_count'] == 5
+  assert payload['lane_ids'] == [lane.value for lane in ModelVisualizationLane]
+  assert len({lane['bundle_digest_sha256'] for lane in payload['lanes']}) == 5
+  assert all(
+    (tmp_path / 'all-five' / lane['manifest_path']).exists()
+    for lane in payload['lanes']
+  )
+  assert all(
+    all((tmp_path / 'all-five' / artifact['path']).exists() for artifact in lane['artifacts'])
+    for lane in payload['lanes']
+  )
+  assert any('independently rendered bundle' in guardrail for guardrail in payload['guardrails'])
+
+
+def test_model_gallery_set_rejects_missing_or_rebound_lanes(tmp_path: Path) -> None:
+  bundle = _bundle()
+  with pytest.raises(ValueError, match='exactly the five model lanes'):
+    render_model_visualization_gallery_set((bundle,), tmp_path / 'missing', render_plots=False)
+  with pytest.raises(ValueError, match='does not match bundle lane'):
+    render_model_visualization_gallery_set(
+      {ModelVisualizationLane.CURVED_INTEGRAL: bundle},
+      tmp_path / 'rebound',
+      render_plots=False,
+    )
 
 
 @pytest.mark.parametrize('lane', ModelVisualizationLane)

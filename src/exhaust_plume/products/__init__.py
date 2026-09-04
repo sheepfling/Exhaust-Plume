@@ -111,12 +111,16 @@ from exhaust_plume.products.model_visualization import (
 )
 from exhaust_plume.products.workflow_model_gallery import (
     MODEL_GALLERY_MANIFEST_SCHEMA,
+    MODEL_GALLERY_SET_MANIFEST_SCHEMA,
     MODEL_GALLERY_SPEC_SCHEMA,
     ModelGalleryArtifact,
     ModelVisualizationGalleryManifest,
+    ModelVisualizationGallerySetManifest,
     ModelVisualizationGallerySpec,
     render_model_visualization_gallery,
+    render_model_visualization_gallery_set,
     write_model_gallery_manifest,
+    write_model_gallery_set_manifest,
 )
 from exhaust_plume.products.model_signature import (
     GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
@@ -194,6 +198,7 @@ __all__ = (
     'MODEL_VISUALIZATION_LANES',
     'MODEL_VISUALIZATION_SCHEMA',
     'MODEL_GALLERY_MANIFEST_SCHEMA',
+    'MODEL_GALLERY_SET_MANIFEST_SCHEMA',
     'MODEL_GALLERY_SPEC_SCHEMA',
     'MISSION_TIMELINE_SCHEMA',
     'ModelVisualizationClaims',
@@ -203,6 +208,7 @@ __all__ = (
     'ModelVisualPath',
     'ModelGalleryArtifact',
     'ModelVisualizationGalleryManifest',
+    'ModelVisualizationGallerySetManifest',
     'ModelVisualizationGallerySpec',
     'ModelSignatureAssessment',
     'ModelSignatureBlockedError',
@@ -263,6 +269,7 @@ __all__ = (
     'render_plume_flux_gallery',
     'render_product_gallery',
     'render_model_visualization_gallery',
+    'render_model_visualization_gallery_set',
     'render_fpa_gallery',
     'render_sectioned_tube_gallery',
     'render_spectral_radiant_intensity_gallery',
@@ -275,6 +282,7 @@ __all__ = (
     'write_signature_table_asset',
     'write_gallery_manifest',
     'write_model_gallery_manifest',
+    'write_model_gallery_set_manifest',
     'write_interactive_product_gallery',
     'write_interactive_fpa_gallery',
     'write_fpa_gallery_manifest',

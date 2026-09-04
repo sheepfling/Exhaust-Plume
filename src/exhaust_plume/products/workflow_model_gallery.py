@@ -14,27 +14,35 @@ import json
 from math import cos, pi, sin
 from pathlib import Path
 import re
-from typing import Any, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from exhaust_plume.api import AxisScale
 from exhaust_plume.contracts.common_v1 import canonical_digest
 from exhaust_plume.products.model_visualization import (
+  MODEL_VISUALIZATION_LANES,
   ModelVisualField,
   ModelVisualPath,
+  ModelVisualizationLane,
   StandardizedModelVisualization,
 )
 
 __all__ = (
   'MODEL_GALLERY_MANIFEST_SCHEMA',
+  'MODEL_GALLERY_SET_MANIFEST_SCHEMA',
   'MODEL_GALLERY_SPEC_SCHEMA',
   'ModelGalleryArtifact',
   'ModelVisualizationGalleryManifest',
+  'ModelVisualizationGallerySetManifest',
   'ModelVisualizationGallerySpec',
   'render_model_visualization_gallery',
+  'render_model_visualization_gallery_set',
   'write_model_gallery_manifest',
+  'write_model_gallery_set_manifest',
 )
 
 MODEL_GALLERY_MANIFEST_SCHEMA = 'plume.visualization.model-gallery@1'
+MODEL_GALLERY_SET_MANIFEST_SCHEMA = 'plume.visualization.model-gallery-set@1'
 MODEL_GALLERY_SPEC_SCHEMA = 'plume.visualization.model-spec@1'
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _VIEW_KIND = re.compile(r'^model\.[a-z][a-z0-9_.-]*$')
@@ -178,6 +186,54 @@ class ModelVisualizationGalleryManifest:
       'spec_digest_sha256': self.spec.digest_sha256(),
       'source': dict(self.source),
       'artifacts': [artifact.model_dump() for artifact in self.artifacts],
+      'guardrails': list(self.guardrails),
+    }
+  ####
+
+  def canonical_json(self) -> str:
+    return json.dumps(
+      self.model_dump(),
+      sort_keys=True,
+      indent=2,
+      ensure_ascii=True,
+      allow_nan=False,
+    ) + '\n'
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class ModelVisualizationGallerySetManifest:
+  """Top-level manifest for an independent gallery of all five model lanes."""
+
+  schema: str
+  lane_manifests: tuple[ModelVisualizationGalleryManifest, ...]
+  guardrails: tuple[str, ...]
+  manifest_path: Path
+
+  def model_dump(self) -> dict[str, Any]:
+    lanes: list[dict[str, Any]] = []
+    for manifest in self.lane_manifests:
+      prefix = Path(manifest.lane_id)
+      lanes.append({
+        'lane_id': manifest.lane_id,
+        'bundle_digest_sha256': manifest.source['bundle_digest_sha256'],
+        'manifest_path': (prefix / manifest.manifest_path.name).as_posix(),
+        'artifacts': [
+          {
+            **artifact.model_dump(),
+            'path': (prefix / artifact.path).as_posix(),
+          }
+          for artifact in manifest.artifacts
+        ],
+        'source': dict(manifest.source),
+        'spec_digest_sha256': manifest.spec.digest_sha256(),
+      })
+    return {
+      'schema': self.schema,
+      'lane_ids': [lane['lane_id'] for lane in lanes],
+      'lane_count': len(lanes),
+      'lanes': lanes,
       'guardrails': list(self.guardrails),
     }
   ####
@@ -502,6 +558,133 @@ def write_model_gallery_manifest(
   output.parent.mkdir(parents=True, exist_ok=True)
   output.write_text(manifest.canonical_json(), encoding='utf-8')
   return output
+####
+
+
+def _coerce_model_lane(value: ModelVisualizationLane | str) -> ModelVisualizationLane:
+  if isinstance(value, ModelVisualizationLane):
+    return value
+  try:
+    return ModelVisualizationLane(value)
+  except (TypeError, ValueError) as error:
+    raise ValueError(f'unknown model visualization lane: {value!r}') from error
+####
+
+
+def _normalize_gallery_bundles(
+  bundles: Sequence[StandardizedModelVisualization]
+  | Mapping[ModelVisualizationLane | str, StandardizedModelVisualization],
+) -> dict[ModelVisualizationLane, StandardizedModelVisualization]:
+  if isinstance(bundles, Mapping):
+    entries = tuple(bundles.items())
+  else:
+    entries = tuple((None, bundle) for bundle in bundles)
+  if not entries:
+    raise ValueError('model visualization gallery set requires at least one bundle')
+  normalized: dict[ModelVisualizationLane, StandardizedModelVisualization] = {}
+  for key, bundle in entries:
+    if not isinstance(bundle, StandardizedModelVisualization):
+      raise TypeError('gallery set bundles must be StandardizedModelVisualization values')
+    lane = bundle.lane if key is None else _coerce_model_lane(key)
+    if key is not None and lane is not bundle.lane:
+      raise ValueError(
+        f'gallery set key {lane.value!r} does not match bundle lane {bundle.lane.value!r}'
+      )
+    if lane in normalized:
+      raise ValueError(f'duplicate model visualization lane: {lane.value}')
+    normalized[lane] = bundle
+  missing = tuple(lane.value for lane in MODEL_VISUALIZATION_LANES if lane not in normalized)
+  unexpected = tuple(lane.value for lane in normalized if lane not in MODEL_VISUALIZATION_LANES)
+  if missing or unexpected:
+    details = []
+    if missing:
+      details.append(f'missing={missing!r}')
+    if unexpected:
+      details.append(f'unexpected={unexpected!r}')
+    raise ValueError('gallery set requires exactly the five model lanes: ' + ', '.join(details))
+  return normalized
+####
+
+
+def _normalize_gallery_specs(
+  specs: Mapping[ModelVisualizationLane | str, ModelVisualizationGallerySpec] | None,
+  bundles: Mapping[ModelVisualizationLane, StandardizedModelVisualization],
+) -> dict[ModelVisualizationLane, ModelVisualizationGallerySpec]:
+  if specs is None:
+    return {}
+  normalized: dict[ModelVisualizationLane, ModelVisualizationGallerySpec] = {}
+  for key, spec in specs.items():
+    lane = _coerce_model_lane(key)
+    if lane in normalized:
+      raise ValueError(f'duplicate model gallery spec lane: {lane.value}')
+    if not isinstance(spec, ModelVisualizationGallerySpec):
+      raise TypeError('gallery set specs must be ModelVisualizationGallerySpec values')
+    if lane not in bundles:
+      raise ValueError(f'model gallery spec has no matching bundle: {lane.value}')
+    spec.validate_for_bundle(bundles[lane])
+    normalized[lane] = spec
+  return normalized
+####
+
+
+def write_model_gallery_set_manifest(
+  manifest: ModelVisualizationGallerySetManifest,
+  path: str | Path | None = None,
+) -> Path:
+  """Write the deterministic top-level five-lane gallery manifest."""
+
+  if not isinstance(manifest, ModelVisualizationGallerySetManifest):
+    raise TypeError('manifest must be ModelVisualizationGallerySetManifest')
+  output = manifest.manifest_path if path is None else Path(path)
+  output.parent.mkdir(parents=True, exist_ok=True)
+  output.write_text(manifest.canonical_json(), encoding='utf-8')
+  return output
+####
+
+
+def render_model_visualization_gallery_set(
+  bundles: Sequence[StandardizedModelVisualization]
+  | Mapping[ModelVisualizationLane | str, StandardizedModelVisualization],
+  output_dir: str | Path,
+  *,
+  specs: Mapping[ModelVisualizationLane | str, ModelVisualizationGallerySpec] | None = None,
+  render_plots: bool = True,
+) -> ModelVisualizationGallerySetManifest:
+  """Render one independent gallery and manifest for each of the five lanes.
+
+  The set wrapper provides navigation and completeness evidence only. It does
+  not merge bundle geometry, channels, fields, or claims across lanes.
+  """
+
+  if not isinstance(render_plots, bool):
+    raise TypeError('render_plots must be bool')
+  normalized = _normalize_gallery_bundles(bundles)
+  normalized_specs = _normalize_gallery_specs(specs, normalized)
+  output = Path(output_dir)
+  output.mkdir(parents=True, exist_ok=True)
+  manifests: list[ModelVisualizationGalleryManifest] = []
+  for lane in MODEL_VISUALIZATION_LANES:
+    bundle = normalized[lane]
+    lane_manifest = render_model_visualization_gallery(
+      bundle,
+      output / lane.value,
+      spec=normalized_specs.get(lane),
+      render_plots=render_plots,
+    )
+    manifests.append(lane_manifest)
+  manifest = ModelVisualizationGallerySetManifest(
+    schema=MODEL_GALLERY_SET_MANIFEST_SCHEMA,
+    lane_manifests=tuple(manifests),
+    guardrails=(
+      'the set contains exactly one independently rendered bundle for each declared model lane',
+      'lane digests, provenance, fidelity, validation, and claim ceilings remain independent',
+      'the set manifest is navigation/completeness evidence and is not a merged physical result',
+      'rendering a lane cannot promote a research, approximate, or unvalidated model',
+    ),
+    manifest_path=output / 'model_gallery_set_manifest.json',
+  )
+  write_model_gallery_set_manifest(manifest)
+  return manifest
 ####
 
 

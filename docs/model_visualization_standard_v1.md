@@ -30,6 +30,14 @@ selects a station, field/channel, and named paths without changing the source
 bundle. The gallery emits JSON plus optional 3-D, orthographic, channel, and
 field/path views; it does not create a provider result or a validation claim.
 
+`render_model_visualization_gallery_set(bundles, output_dir)` is the
+five-lane acceptance entry point. It requires exactly one bundle for each
+declared lane and writes one independent sub-gallery plus manifest per lane,
+along with a top-level `model_gallery_set_manifest.json`. The top-level file is
+navigation and completeness evidence only: it preserves each bundle digest,
+view-spec digest, provenance, and claim ceiling and never merges model fields
+or promotes a lower-fidelity lane.
+
 `standardize_all_model_visualizations` requires exactly one result for each of
 the five lane IDs. `evaluate_standardized_model_visualization` runs the
 sectioned-tube definition through the existing canonical v1 provider path and
