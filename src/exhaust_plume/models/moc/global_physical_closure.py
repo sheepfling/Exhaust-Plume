@@ -394,8 +394,8 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
   canonical_euler_verified: bool = False
   refinement_verified: bool = False
   external_validation_verified: bool = False
-  promotion_evidence: MocReflectedDomainPromotionEvidence | None = None
   message: str = ''
+  promotion_evidence: MocReflectedDomainPromotionEvidence | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalPhysicalClosureStatus):
