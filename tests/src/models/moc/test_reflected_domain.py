@@ -22,6 +22,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalShockRemeshStatus,
   MocReflectedDomainGlobalEulerShockBoundaryStatus,
   MocReflectedDomainGlobalPhysicalClosureStatus,
+  MocReflectedDomainGlobalPhysicalClosureResult,
+  MocReflectedDomainPromotionEvidence,
   MocProductionShockCellFitStatus,
   MocGlobalEulerContinuedChainReference,
   MocReflectedDomainOuterSourceStatus,
@@ -53,6 +55,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
   fit_reflected_domain_production_shock_cell,
+  moc_reflected_domain_global_physical_closure_fingerprint,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
   solve_uniform_attached_shock_field,
@@ -1151,6 +1154,24 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   # The legacy audit intentionally checks a uniform p0 lineage.  The new
   # closure gate checks each shock sample against its own entropy loss.
   assert closure.field_audit.entropy_lineage_verified is False
+  closure_fingerprint = (
+    moc_reflected_domain_global_physical_closure_fingerprint(closure)
+  )
+  assert closure_fingerprint == (
+    moc_reflected_domain_global_physical_closure_fingerprint(closure)
+  )
+  refinement_evidence = MocReflectedDomainPromotionEvidence(
+    closure_fingerprint=closure_fingerprint,
+    refinement_evidence_id='refinement-run-test-global-euler-9',
+  )
+  evidence_bound = closure.bind_promotion_evidence(refinement_evidence)
+  assert evidence_bound.promotion_evidence_bound
+  assert evidence_bound.refinement_verified
+  assert evidence_bound.canonical_euler_verified is False
+  assert evidence_bound.production_promotion_gates[
+    'refinement_verified'
+  ] is True
+  assert evidence_bound.production_claim_allowed is False
   assert closure.production_claim_allowed is False
   assert closure.chain_promotion_blocked
   assert closure.as_chain_termination_decision().reason is (
@@ -1161,10 +1182,10 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   assert closure.global_euler.physical_field is not None
   closed_field = closure.global_euler.physical_field.field
   fit = fit_reflected_domain_production_shock_cell(
-    closure,
+    evidence_bound,
     start_x_m=0.5,
     end_x_m=closed_field.ambient_boundary_points_m[-1][0] + 0.05,
-    incoming_frontier=closure.incoming_handoff,
+    incoming_frontier=evidence_bound.incoming_handoff,
   )
 
   assert fit.status is MocProductionShockCellFitStatus.CONVERGED_LOCAL_FIT
@@ -1173,6 +1194,8 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   assert fit.shock_fit_verified
   assert fit.candidate_field is closed_field
   assert fit.candidate_cell is not None
+  assert fit.closure is evidence_bound
+  assert fit.production_promotion_gates['refinement_verified'] is True
   assert fit.production_claim_allowed is False
   assert fit.chain_promotion_blocked
   assert fit.as_chain_termination_decision().reason is (
@@ -1180,6 +1203,52 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   )
   with pytest.raises(ValueError, match='promotion'):
     fit.as_production_chain_cell()
+
+
+def test_global_physical_closure_rejects_evidence_for_a_different_field():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  closure = solve_reflected_domain_global_physical_closure(
+    source,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    sample_count=9,
+    shock_angle_tolerance_rad=0.02,
+  )
+  assert closure.physical_closure_verified
+  assert closure.global_euler is not None
+  changed_euler = replace(closure.global_euler, message='different-run')
+  changed_closure = replace(closure, global_euler=changed_euler)
+  evidence = MocReflectedDomainPromotionEvidence(
+    closure_fingerprint=(
+      moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    ),
+    refinement_evidence_id='refinement-run-test-global-euler-9',
+  )
+
+  with pytest.raises(ValueError, match='does not match'):
+    changed_closure.bind_promotion_evidence(evidence)
+
+
+def test_global_physical_closure_requires_evidence_for_promoted_gate():
+  with pytest.raises(ValueError, match='matching promotion evidence'):
+    replace(
+      MocReflectedDomainGlobalPhysicalClosureResult(
+        status=MocReflectedDomainGlobalPhysicalClosureStatus.INVALID_INPUT,
+        source_band=None,
+        global_remesh=None,
+        global_euler=None,
+      ),
+      refinement_verified=True,
+    )
 
 
 def test_production_shock_cell_fit_requires_the_exact_typed_frontier():

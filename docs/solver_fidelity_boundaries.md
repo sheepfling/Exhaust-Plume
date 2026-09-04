@@ -1672,6 +1672,17 @@ both APIs keep ``chain_promotion_blocked=true`` and
 ``production_claim_allowed=false`` in the current checkpoint, and no lower
 fidelity product provider consumes the candidate.
 
+Promotion evidence now has an explicit binding seam. A
+``MocReflectedDomainPromotionEvidence`` record carries owner-produced evidence
+IDs for the canonical free-boundary, canonical Euler, refinement, and external
+validation gates, plus the deterministic
+``moc_reflected_domain_global_physical_closure_fingerprint``. The closure only
+accepts the record through ``bind_promotion_evidence`` after its local physical
+closure has passed and the fingerprint matches the retained field. A partial
+bundle may be recorded while work proceeds in separate packets, but every gate
+is still required by ``production_claim_allowed``. The seam binds identity; it
+does not manufacture, infer, or independently certify the referenced evidence.
+
 The companion higher-fidelity view is an evaluation artifact rather than a
 mainline product surface. It exposes the retained shock, ambient perimeter,
 reflected centerline, characteristic mesh, per-cell Mach/pressure/total-

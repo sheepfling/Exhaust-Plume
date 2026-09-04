@@ -306,7 +306,9 @@ from exhaust_plume.models.moc.reflected_domain import (
 )
 from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureStatus,
+  MocReflectedDomainPromotionEvidence,
   MocReflectedDomainGlobalPhysicalClosureResult,
+  moc_reflected_domain_global_physical_closure_fingerprint,
   solve_reflected_domain_global_physical_closure,
   MocProductionShockCellFitStatus,
   MocProductionShockCellFitResult,
@@ -993,7 +995,9 @@ __all__ = (
   'solve_reflected_domain_outer_source_curve',
   'solve_reflected_domain_remesh',
   'MocReflectedDomainGlobalPhysicalClosureStatus',
+  'MocReflectedDomainPromotionEvidence',
   'MocReflectedDomainGlobalPhysicalClosureResult',
+  'moc_reflected_domain_global_physical_closure_fingerprint',
   'solve_reflected_domain_global_physical_closure',
   'MocProductionShockCellFitStatus',
   'MocProductionShockCellFitResult',

@@ -20,8 +20,10 @@ blocked.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, replace
 from enum import Enum
+from hashlib import sha256
 from math import hypot, isfinite, log
 from types import MappingProxyType
 from typing import Any
@@ -50,7 +52,9 @@ from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MocReflectedDomainGlobalPhysicalClosureStatus',
+  'MocReflectedDomainPromotionEvidence',
   'MocReflectedDomainGlobalPhysicalClosureResult',
+  'moc_reflected_domain_global_physical_closure_fingerprint',
   'solve_reflected_domain_global_physical_closure',
   'MocProductionShockCellFitStatus',
   'MocProductionShockCellFitResult',
@@ -232,6 +236,146 @@ def _variable_entropy_transport_audit(
 
 
 @dataclass(frozen=True, slots=True)
+class MocReflectedDomainPromotionEvidence:
+  """References to independently verified gates for one exact closure.
+
+  The evidence IDs identify owner-produced canonical, refinement, or external
+  validation records.  This value does not manufacture those records or
+  inspect their contents; it binds their accepted gate decisions to the
+  deterministic closure fingerprint so a result cannot silently carry gates
+  from a different solver run.
+  """
+
+  closure_fingerprint: str
+  canonical_free_boundary_evidence_id: str | None = None
+  canonical_euler_evidence_id: str | None = None
+  refinement_evidence_id: str | None = None
+  external_validation_evidence_id: str | None = None
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.closure_fingerprint, str):
+      raise TypeError('closure_fingerprint must be a string')
+    fingerprint = self.closure_fingerprint
+    if len(fingerprint) != 64 or any(
+      character not in '0123456789abcdef'
+      for character in fingerprint
+    ):
+      raise ValueError(
+        'closure_fingerprint must be a 64-character lowercase SHA-256 digest'
+      )
+    object.__setattr__(self, 'closure_fingerprint', fingerprint)
+    for name in (
+      'canonical_free_boundary_evidence_id',
+      'canonical_euler_evidence_id',
+      'refinement_evidence_id',
+      'external_validation_evidence_id',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        if not isinstance(value, str):
+          raise TypeError(f'{name} must be a string when supplied')
+        if not value:
+          raise ValueError(f'{name} must be non-empty when supplied')
+
+  @property
+  def canonical_free_boundary_verified(self) -> bool:
+    return self.canonical_free_boundary_evidence_id is not None
+
+  @property
+  def canonical_euler_verified(self) -> bool:
+    return self.canonical_euler_evidence_id is not None
+
+  @property
+  def refinement_verified(self) -> bool:
+    return self.refinement_evidence_id is not None
+
+  @property
+  def external_validation_verified(self) -> bool:
+    return self.external_validation_evidence_id is not None
+
+  @property
+  def has_verified_gate(self) -> bool:
+    return bool(
+      self.canonical_free_boundary_verified
+      or self.canonical_euler_verified
+      or self.refinement_verified
+      or self.external_validation_verified
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'closure_fingerprint': self.closure_fingerprint,
+      'canonical_free_boundary_evidence_id': (
+        self.canonical_free_boundary_evidence_id
+      ),
+      'canonical_euler_evidence_id': self.canonical_euler_evidence_id,
+      'refinement_evidence_id': self.refinement_evidence_id,
+      'external_validation_evidence_id': (
+        self.external_validation_evidence_id
+      ),
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'canonical_euler_verified': self.canonical_euler_verified,
+      'refinement_verified': self.refinement_verified,
+      'external_validation_verified': self.external_validation_verified,
+      'has_verified_gate': self.has_verified_gate,
+    }
+
+
+def moc_reflected_domain_global_physical_closure_fingerprint(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+) -> str:
+  """Return the stable identity of a closure before promotion evidence.
+
+  Promotion metadata and the human-readable message are intentionally not
+  part of this identity.  The retained solver outputs, independent audits,
+  local gate inputs, and entropy residual are included so binding evidence to
+  a different field or altered local result fails closed.
+  """
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  payload = {
+    'status': closure.status.value,
+    'source_band': (
+      None if closure.source_band is None else closure.source_band.as_report()
+    ),
+    'global_remesh': (
+      None if closure.global_remesh is None else closure.global_remesh.as_report()
+    ),
+    'global_euler': (
+      None if closure.global_euler is None else closure.global_euler.as_report()
+    ),
+    'global_audit': (
+      None if closure.global_audit is None else closure.global_audit.as_report()
+    ),
+    'field_audit': (
+      None if closure.field_audit is None else closure.field_audit.as_report()
+    ),
+    'local_gates': {
+      'source_frontier_verified': closure.source_frontier_verified,
+      'incoming_handoff_verified': closure.incoming_handoff_verified,
+      'variable_entropy_transport_verified': (
+        closure.variable_entropy_transport_verified
+      ),
+      'maximum_entropy_lineage_residual': (
+        closure.maximum_entropy_lineage_residual
+      ),
+      'cell_euler_residuals_verified': closure.cell_euler_residuals_verified,
+    },
+  }
+  serialized = json.dumps(
+    payload,
+    sort_keys=True,
+    separators=(',', ':'),
+    ensure_ascii=True,
+    default=str,
+  )
+  return sha256(serialized.encode('utf-8')).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalPhysicalClosureResult:
   """A globally coupled local physical closure with explicit claim gates."""
 
@@ -250,6 +394,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
   canonical_euler_verified: bool = False
   refinement_verified: bool = False
   external_validation_verified: bool = False
+  promotion_evidence: MocReflectedDomainPromotionEvidence | None = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -286,6 +431,32 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+    if self.promotion_evidence is not None and not isinstance(
+      self.promotion_evidence,
+      MocReflectedDomainPromotionEvidence,
+    ):
+      raise TypeError(
+        'promotion_evidence must be a MocReflectedDomainPromotionEvidence or None'
+      )
+    for gate_name, evidence_name in (
+      (
+        'canonical_free_boundary_verified',
+        'canonical_free_boundary_verified',
+      ),
+      ('canonical_euler_verified', 'canonical_euler_verified'),
+      ('refinement_verified', 'refinement_verified'),
+      ('external_validation_verified', 'external_validation_verified'),
+    ):
+      if (
+        getattr(self, gate_name)
+        and (
+          self.promotion_evidence is None
+          or not getattr(self.promotion_evidence, evidence_name)
+        )
+      ):
+        raise ValueError(
+          f'{gate_name} requires matching promotion evidence'
+        )
     if self.maximum_entropy_lineage_residual is not None:
       residual = float(self.maximum_entropy_lineage_residual)
       if not isfinite(residual) or residual < 0.0:
@@ -333,13 +504,84 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
   def production_promotion_gates(self) -> Mapping[str, bool]:
     """Return the gates still required before a product claim."""
 
+    evidence = self.promotion_evidence
+    evidence_bound = bool(
+      evidence is not None
+      and evidence.has_verified_gate
+      and evidence.closure_fingerprint
+      == moc_reflected_domain_global_physical_closure_fingerprint(self)
+    )
     return MappingProxyType({
       'physical_closure_verified': self.physical_closure_verified,
-      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
-      'canonical_euler_verified': self.canonical_euler_verified,
-      'refinement_verified': self.refinement_verified,
-      'external_validation_verified': self.external_validation_verified,
+      'canonical_free_boundary_verified': bool(
+        evidence_bound
+        and self.canonical_free_boundary_verified
+        and evidence.canonical_free_boundary_verified
+      ),
+      'canonical_euler_verified': bool(
+        evidence_bound
+        and self.canonical_euler_verified
+        and evidence.canonical_euler_verified
+      ),
+      'refinement_verified': bool(
+        evidence_bound
+        and self.refinement_verified
+        and evidence.refinement_verified
+      ),
+      'external_validation_verified': bool(
+        evidence_bound
+        and self.external_validation_verified
+        and evidence.external_validation_verified
+      ),
     })
+
+  @property
+  def promotion_evidence_bound(self) -> bool:
+    evidence = self.promotion_evidence
+    return bool(
+      evidence is not None
+      and evidence.has_verified_gate
+      and evidence.closure_fingerprint
+      == moc_reflected_domain_global_physical_closure_fingerprint(self)
+    )
+
+  def bind_promotion_evidence(
+    self,
+    evidence: MocReflectedDomainPromotionEvidence,
+  ) -> MocReflectedDomainGlobalPhysicalClosureResult:
+    """Bind independently produced gate records to this exact closure.
+
+    The local closure must already be physically verified.  A partial evidence
+    bundle is allowed so canonical, refinement, and provider validation can be
+    completed in separate work packets; all four records are still required
+    by ``production_claim_allowed``.
+    """
+
+    if not isinstance(evidence, MocReflectedDomainPromotionEvidence):
+      raise TypeError(
+        'evidence must be a MocReflectedDomainPromotionEvidence'
+      )
+    if not self.physical_closure_verified:
+      raise ValueError(
+        'promotion evidence requires a locally physically verified closure'
+      )
+    fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(self)
+    if evidence.closure_fingerprint != fingerprint:
+      raise ValueError(
+        'promotion evidence closure_fingerprint does not match this closure'
+      )
+    if not evidence.has_verified_gate:
+      raise ValueError(
+        'promotion evidence must contain at least one verified gate record'
+      )
+    return replace(
+      self,
+      canonical_free_boundary_verified=evidence.canonical_free_boundary_verified,
+      canonical_euler_verified=evidence.canonical_euler_verified,
+      refinement_verified=evidence.refinement_verified,
+      external_validation_verified=evidence.external_validation_verified,
+      promotion_evidence=evidence,
+    )
 
   @property
   def chain_promotion_blocked(self) -> bool:
@@ -374,6 +616,7 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         'incoming_handoff_verified': self.incoming_handoff_verified,
         'variable_entropy_transport_verified': self.variable_entropy_transport_verified,
         'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+        'promotion_evidence_bound': self.promotion_evidence_bound,
         'production_promotion_gates': dict(self.production_promotion_gates),
         'chain_promotion_blocked': self.chain_promotion_blocked,
         'production_claim_allowed': self.production_claim_allowed,
@@ -391,6 +634,15 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       'variable_entropy_transport_verified': self.variable_entropy_transport_verified,
       'maximum_entropy_lineage_residual': self.maximum_entropy_lineage_residual,
       'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+      'closure_fingerprint': (
+        moc_reflected_domain_global_physical_closure_fingerprint(self)
+      ),
+      'promotion_evidence_bound': self.promotion_evidence_bound,
+      'promotion_evidence': (
+        None
+        if self.promotion_evidence is None
+        else self.promotion_evidence.as_report()
+      ),
       'production_promotion_gates': dict(self.production_promotion_gates),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
