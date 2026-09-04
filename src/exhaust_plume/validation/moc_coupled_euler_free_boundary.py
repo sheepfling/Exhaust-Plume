@@ -2,10 +2,10 @@
 
 The model-side solver stores a conservative field and its normalized residual
 channels.  This module reconstructs the curvilinear mesh, thermodynamic state,
-Rusanov face fluxes, ambient boundary condition, and entropy-proxy bounds from
-that retained data.  It intentionally does not promote the field: a passing
-audit is local evidence only until the case ladder, external observations, and
-contract review are complete.
+interior Rusanov face fluxes, specified-pressure material-streamline boundary
+flux, and entropy-proxy bounds from that retained data.  It intentionally does
+not promote the field: a passing audit is local evidence only until the case
+ladder, external observations, and contract review are complete.
 """
 
 from __future__ import annotations
