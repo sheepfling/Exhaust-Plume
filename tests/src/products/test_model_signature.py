@@ -4,10 +4,12 @@ import pytest
 
 from exhaust_plume.products import (
     GrayRadiationProfile,
+    LineRadiationProfile,
     ModelSignatureBlockedError,
     ModelSignatureReadiness,
     ModelSignatureSampling,
     SectionedGrayRadiationProfile,
+    SpectralLine,
     ModelVisualizationLane,
     assess_model_signature_readiness,
     evaluate_model_signature,
@@ -192,4 +194,41 @@ def test_sectioned_gray_profile_does_not_enter_curved_transport_lane() -> None:
     assessment = assess_model_signature_readiness(curved, optical_profile=profile)
     assert assessment.readiness is ModelSignatureReadiness.BLOCKED_INVALID_SUPPORT
     assert "straight section support" in assessment.reasons[0]
+####
+
+
+def test_explicit_lte_line_profile_enters_signature_as_spectral_engineering() -> None:
+    bundle = _straight_bundles()[0]
+    profile = LineRadiationProfile(
+        wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+        lines=(
+            SpectralLine(
+                center_wavelength_m=2.0e-6,
+                integrated_optical_depth_m=4.0e-7,
+                doppler_sigma_m=5.0e-8,
+                label="test-line",
+            ),
+        ),
+        source_temperature_K=1_200.0,
+        path_length_m=1.0,
+        profile_id="test-lte-line-profile",
+    )
+
+    assessment = assess_model_signature_readiness(bundle, optical_profile=profile)
+    signature = evaluate_model_signature(
+        bundle,
+        profile,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    assert assessment.ready
+    assert "LTE" in assessment.claim_ceiling
+    assert signature.metadata.claims.radiation.value == "spectral_engineering"
+    assert signature.metadata.provenance.metadata["optical_profile_mode"] == "lte-line-by-line-voigt"
+    assert signature.metadata.provenance.metadata["signature_adapter_schema"].endswith("@1")
+    assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
+    assert any(value > 0.0 for row in signature.spectral_radiant_intensity for value in row)
 ####

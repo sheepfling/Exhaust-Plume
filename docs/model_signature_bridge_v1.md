@@ -3,9 +3,11 @@
 The flow model and the signature product remain separate contracts. A flow
 result containing temperature, pressure, or a visual envelope does not contain
 spectral source radiance or optical depth. The bridge therefore requires an
-explicit `GrayRadiationProfile` (homogeneous) or
+explicit `GrayRadiationProfile` (homogeneous),
 `SectionedGrayRadiationProfile` (one source/absorption spectrum per straight
-support section) and records the flow lane in Signature provenance.
+support section), or `LineRadiationProfile` (an explicit LTE line source with
+caller-owned optical depths). Every profile records the flow lane in
+Signature provenance.
 
 `GrayRadiationProfile.from_blackbody(...)` supplies an auditable thermal
 continuum source using the SI Planck law and a caller-supplied gray
@@ -21,22 +23,32 @@ result in near-to-far ray order. It is still a piecewise-homogeneous gray
 approximation: it does not infer temperature, species, or absorption from a
 flow lane, and it does not enable curved-flow or planar-MOC transport.
 
+`LineRadiationProfile` supplies the next physical source-term seam. It uses an
+LTE Planck source and sums normalized wavelength-domain Voigt profiles from
+explicit `SpectralLine` optical-depth primitives. `SpectralLine.from_thermal_width(...)`
+can derive Doppler width from an explicitly supplied temperature and molecular
+mass, but line populations, chemical composition, pressure broadening data,
+and non-LTE effects remain caller-owned. The bridge labels this path
+`radiation=spectral_engineering`; it remains non-production until source and
+measurement validation gates pass.
+
 ## Lane matrix
 
 | Flow lane | Current signature path | Status | Ceiling |
 | --- | --- | --- | --- |
-| `shock-cell-basic-v1` | Straight sectioned support + explicit gray profile + orthographic ray integration | Ready with profile | Gray approximate; visual model remains low-order |
-| `shock-cell-reduced-order-v1` | Same bridge | Ready with profile | Gray approximate; downstream train remains calibrated/reduced-order |
-| `straight-integral-v1` | Same bridge | Ready with profile | Gray approximate; top-hat integral geometry is not resolved radiation |
-| `washed-integral-v1` | Isolated `plume.curved-gray-ray-transfer` path provider | Gray-approximate only; production claim blocked | No resolved curved-flow radiation, chemistry, atmosphere, detector, or FPA claim |
+| `shock-cell-basic-v1` | Straight sectioned support + explicit gray or LTE line profile + orthographic ray integration | Ready with profile | Gray approximate or spectral engineering; visual model remains low-order |
+| `shock-cell-reduced-order-v1` | Same bridge | Ready with profile | Gray approximate or spectral engineering; downstream train remains calibrated/reduced-order |
+| `straight-integral-v1` | Same bridge | Ready with profile | Gray approximate or spectral engineering; top-hat integral geometry is not resolved radiation |
+| `washed-integral-v1` | Isolated `plume.curved-gray-ray-transfer` path provider | Gray/line engineering only; production claim blocked | No resolved curved-flow radiation, chemistry, atmosphere, detector, or FPA claim |
 | `planar-moc-primitives-v1` | Requires planar field/ray transport | Blocked | The sectioned-tube envelope is illustrative only |
 
 The four supported lanes produce the canonical
 `plume.signature.spectral-radiant-intensity@1` result through
-`evaluate_model_signature`. The returned metadata declares
-`radiation=gray_approximate`, `derivation=adapted`, and
-`production_claim_allowed=false`. The result is not a chemistry, molecular
-spectroscopy, atmospheric-path, detector, or focal-plane-array prediction.
+`evaluate_model_signature`. Gray profiles declare
+`radiation=gray_approximate`; line profiles declare
+`radiation=spectral_engineering`. Both declare `derivation=adapted` and
+`production_claim_allowed=false`. Neither path is a chemical-population,
+atmospheric-path, detector, or focal-plane-array prediction.
 
 ## Required handoff
 
@@ -79,6 +91,31 @@ sectioned_profile = SectionedGrayRadiationProfile.from_blackbody(
   profile_id='caller-owned-sectioned-gray-profile-v1',
 )
 ```
+
+For an explicit LTE line source, provide the line optical-depth primitives
+and use the same transport entry point:
+
+```python
+from exhaust_plume.products import LineRadiationProfile, SpectralLine
+
+line_profile = LineRadiationProfile(
+  wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+  lines=(SpectralLine.from_thermal_width(
+    center_wavelength_m=2.0e-6,
+    integrated_optical_depth_m=4.0e-7,
+    temperature_K=1_200.0,
+    molecular_mass_kg=4.65e-26,
+    label='caller-owned-line-v1',
+  ),),
+  source_temperature_K=1_200.0,
+  path_length_m=1.0,
+  profile_id='caller-owned-lte-line-profile-v1',
+)
+```
+
+This profile is a source/opacity model, not a chemistry solver. Its line
+strength and pressure-broadening inputs must be supplied and versioned by the
+caller; the provider does not infer them from plume temperature or geometry.
 
 The optical profile is caller-owned and is never inferred from the flow
 channels. Straight variable-radius supports use the existing conservative

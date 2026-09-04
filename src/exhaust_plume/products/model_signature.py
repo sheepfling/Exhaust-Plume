@@ -3,14 +3,15 @@
 Flow models do not become spectral signatures merely because they contain
 temperature, pressure, or a visual envelope.  This module makes the missing
 radiation seam explicit.  The three straight lanes can be evaluated through
-the bounded gray ray-transfer provider when a caller supplies an optical
-profile.  Curved integral and planar-MOC lanes remain typed transport blocks
-until their own optical geometry providers exist.
+the bounded ray-transfer provider when a caller supplies an optical profile;
+that profile may be gray or an explicit LTE line source.  Curved integral and
+planar-MOC lanes remain typed transport blocks until their own optical
+geometry providers exist.
 
-The resulting signature is an engineering gray approximation.  It carries
-the flow-lane lineage and claim ceiling, but it does not claim chemistry,
-molecular spectroscopy, atmosphere, detector response, or external
-validation.
+The resulting signature is either a gray approximation or explicit spectral
+engineering evidence.  It carries the flow-lane lineage and claim ceiling,
+but it does not claim chemical population closure, atmosphere, detector
+response, or external validation.
 """
 
 from __future__ import annotations
@@ -49,14 +50,19 @@ from exhaust_plume.providers.gray_ray_transfer import (
 from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
 from exhaust_plume.radiation import (
     FarFieldRayIntegration,
+    LineRadiationProfile,
+    SpectralLine,
     far_field_from_rays,
     planck_spectral_radiance_W_m2_sr_m,
 )
 
 __all__ = (
     "GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA",
+    "LINE_MODEL_SIGNATURE_ADAPTER_SCHEMA",
     "GrayRadiationProfile",
     "GrayOpticalProfile",
+    "LineRadiationProfile",
+    "SpectralLine",
     "SectionedGrayRadiationProfile",
     "ModelSignatureAssessment",
     "ModelSignatureBlockedError",
@@ -68,6 +74,7 @@ __all__ = (
 
 
 GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA = "plume.signature.model-gray-bridge@1"
+LINE_MODEL_SIGNATURE_ADAPTER_SCHEMA = "plume.signature.model-lte-line-bridge@1"
 
 Vector3: TypeAlias = tuple[float, float, float]
 
@@ -276,7 +283,9 @@ class SectionedGrayRadiationProfile:
 
 
 
-GrayOpticalProfile: TypeAlias = GrayRadiationProfile | SectionedGrayRadiationProfile
+GrayOpticalProfile: TypeAlias = (
+    GrayRadiationProfile | SectionedGrayRadiationProfile | LineRadiationProfile
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -363,6 +372,45 @@ class ModelSignatureBlockedError(ValueError):
 ####
 
 
+def _profile_adapter_schema(profile: GrayOpticalProfile | None) -> str:
+    return (
+        LINE_MODEL_SIGNATURE_ADAPTER_SCHEMA
+        if isinstance(profile, LineRadiationProfile)
+        else GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA
+    )
+####
+
+
+def _profile_claim_ceiling(profile: GrayOpticalProfile | None) -> str:
+    if isinstance(profile, LineRadiationProfile):
+        return (
+            "explicit LTE line-source/Voigt spectral engineering; no chemical "
+            "population closure, atmosphere, detector, or external validation"
+        )
+    ####
+    return "gray-approximate; no chemistry, atmosphere, detector, or external validation"
+####
+
+
+def _profile_mode(profile: GrayOpticalProfile) -> str:
+    if isinstance(profile, LineRadiationProfile):
+        return "lte-line-by-line-voigt"
+    ####
+    if isinstance(profile, SectionedGrayRadiationProfile):
+        return "piecewise-axial-section"
+    ####
+    return "homogeneous"
+####
+
+
+def _profile_section_count(profile: GrayOpticalProfile) -> int:
+    if isinstance(profile, SectionedGrayRadiationProfile):
+        return len(profile.source_function_w_sr_m_by_section)
+    ####
+    return 1
+####
+
+
 def _support_from_visualization(visualization: StandardizedModelVisualization) -> SectionedTubeSupport:
     sections = visualization.sectioned_tube.sections
     return SectionedTubeSupport(
@@ -401,8 +449,11 @@ def assess_model_signature_readiness(
         raise TypeError("visualization must be StandardizedModelVisualization")
     ####
     lane = visualization.lane
-    profile_ready = optical_profile is not None
-    common_ceiling = "gray-approximate; no chemistry, atmosphere, detector, or external validation"
+    profile_ready = isinstance(
+        optical_profile,
+        (GrayRadiationProfile, SectionedGrayRadiationProfile, LineRadiationProfile),
+    )
+    common_ceiling = _profile_claim_ceiling(optical_profile)
     if lane in _STRAIGHT_SIGNATURE_LANES or lane in _CURVED_SIGNATURE_LANES:
         support_ready, _support, support_reason = _support_readiness(
             visualization,
@@ -421,7 +472,9 @@ def assess_model_signature_readiness(
             reasons.append(support_reason)
         ####
         if not profile_ready:
-            reasons.append("an explicit wavelength-resolved gray source/absorption profile is required")
+            reasons.append(
+                "an explicit supported wavelength-resolved source/absorption profile is required"
+            )
         ####
         if not support_ready:
             readiness = ModelSignatureReadiness.BLOCKED_INVALID_SUPPORT
@@ -431,7 +484,7 @@ def assess_model_signature_readiness(
             readiness = ModelSignatureReadiness.READY
         ####
         return ModelSignatureAssessment(
-            schema=GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
+            schema=_profile_adapter_schema(optical_profile),
             lane_id=visualization.lane_id,
             model_id=visualization.model_id,
             readiness=readiness,
@@ -449,7 +502,7 @@ def assess_model_signature_readiness(
         "the sectioned-tube envelope is illustrative and cannot stand in for the MOC field",
     )
     return ModelSignatureAssessment(
-        schema=GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
+        schema=_profile_adapter_schema(optical_profile),
         lane_id=visualization.lane_id,
         model_id=visualization.model_id,
         readiness=ModelSignatureReadiness.BLOCKED_PLANAR_TRANSPORT,
@@ -578,8 +631,10 @@ def _attach_flow_lineage(
     parent = signature.metadata
     parent_provenance = parent.provenance
     optical_profile_digest = canonical_digest(profile)
+    adapter_schema = _profile_adapter_schema(profile)
+    claim_ceiling = _profile_claim_ceiling(profile)
     lineage_payload = {
-        "adapter_schema": GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
+        "adapter_schema": adapter_schema,
         "flow_lane": visualization.lane_id,
         "flow_model_id": visualization.model_id,
         "flow_model_version": visualization.model_version,
@@ -598,19 +653,13 @@ def _attach_flow_lineage(
                 "flow_model_fidelity": visualization.claims.model_fidelity,
                 "flow_model_validation": visualization.claims.validation_level,
                 "flow_geometry_claim": visualization.claims.geometry_claim.value,
-                "signature_adapter_schema": GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA,
-                "signature_claim_ceiling": "gray-approximate; no chemistry, atmosphere, detector, or external validation",
+                "signature_adapter_schema": adapter_schema,
+                "signature_claim_ceiling": claim_ceiling,
                 "optical_profile_id": profile.profile_id,
                 "optical_profile_digest": optical_profile_digest,
-                "optical_profile_mode": (
-                    "piecewise-axial-section"
-                    if isinstance(profile, SectionedGrayRadiationProfile)
-                    else "homogeneous"
-                ),
+                "optical_profile_mode": _profile_mode(profile),
                 "optical_profile_section_count": str(
-                    len(profile.source_function_w_sr_m_by_section)
-                    if isinstance(profile, SectionedGrayRadiationProfile)
-                    else 1
+                    _profile_section_count(profile)
                 ),
                 "ray_grid_policy": f"{sampling.transverse_sample_count}x{sampling.transverse_sample_count} per observer direction",
                 "signature_time_model": time_model.value,
@@ -628,7 +677,11 @@ def _attach_flow_lineage(
         update={
             "claims": ProductClaims(
                 geometry=GeometryClaim.NOT_APPLICABLE,
-                radiation=RadiationClaim.GRAY_APPROXIMATE,
+                radiation=(
+                    RadiationClaim.SPECTRAL_ENGINEERING
+                    if isinstance(profile, LineRadiationProfile)
+                    else RadiationClaim.GRAY_APPROXIMATE
+                ),
                 time_model=time_model,
                 derivation=Derivation.ADAPTED,
                 consistency=parent.claims.consistency,
@@ -642,7 +695,13 @@ def _attach_flow_lineage(
             "provenance": provenance,
             "warnings": parent.warnings
             + (
-                "signature uses an explicit gray optical profile; no chemistry or molecular spectral source was inferred",
+                (
+                    "signature uses an explicit LTE line-source profile with "
+                    "caller-supplied Voigt optical depths; no chemical population "
+                    "closure was inferred"
+                    if isinstance(profile, LineRadiationProfile)
+                    else "signature uses an explicit gray optical profile; no chemistry or molecular spectral source was inferred"
+                ),
                 f"flow geometry came from {visualization.lane_id} and retains its declared fidelity ceiling",
                 "signature is not a detector, atmospheric-path, or focal-plane-array prediction",
             ),
@@ -676,8 +735,14 @@ def evaluate_model_signature(
     if not isinstance(visualization, StandardizedModelVisualization):
         raise TypeError("visualization must be StandardizedModelVisualization")
     ####
-    if not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
-        raise TypeError("optical_profile must be GrayRadiationProfile or SectionedGrayRadiationProfile")
+    if not isinstance(
+        optical_profile,
+        (GrayRadiationProfile, SectionedGrayRadiationProfile, LineRadiationProfile),
+    ):
+        raise TypeError(
+            "optical_profile must be a GrayRadiationProfile, "
+            "SectionedGrayRadiationProfile, or LineRadiationProfile"
+        )
     ####
     if not isinstance(allow_partial_results, bool):
         raise TypeError("allow_partial_results must be bool")

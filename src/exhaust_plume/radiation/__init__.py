@@ -15,6 +15,13 @@ from exhaust_plume.radiation.planck import (
   PLANCK_C2_M_K,
   planck_spectral_radiance_W_m2_sr_m,
 )
+from exhaust_plume.radiation.lines import (
+  BOLTZMANN_J_K,
+  SPEED_OF_LIGHT_M_S,
+  LineRadiationProfile,
+  SpectralLine,
+  voigt_line_shape_per_m,
+)
 
 __all__ = (
   'GrayTransferResult',
@@ -26,4 +33,9 @@ __all__ = (
   'PLANCK_C1_W_M2',
   'PLANCK_C2_M_K',
   'planck_spectral_radiance_W_m2_sr_m',
+  'BOLTZMANN_J_K',
+  'SPEED_OF_LIGHT_M_S',
+  'LineRadiationProfile',
+  'SpectralLine',
+  'voigt_line_shape_per_m',
 )

@@ -128,16 +128,20 @@ The current local composition includes:
 - deterministic table lookup with explicit wavelength, angular, and time
   policies;
 - explicit homogeneous and sectioned gray source/absorption profiles;
+- explicit LTE Planck line sources with caller-owned Voigt optical-depth
+  primitives;
 - straight and separately labeled curved gray transfer;
 - atmospheric layers as caller-owned measurement operators;
 - mission-time visual/signature evaluators;
 - exact angular heatmaps, direction traces, source trajectories, and typed
   point queries that preserve result IDs, status, masks, and uncertainty.
 
-The next promotion boundary requires a physically resolved source model and
-provider-bound measurement evidence. No static table or gray profile may be
-relabelled as chemistry, molecular spectroscopy, atmosphere-corrected
-radiance, or production Signature evidence.
+The next promotion boundary requires a source-bound resolved radiation model
+and provider-bound measurement evidence. The LTE line profile is a
+spectral-engineering source primitive, not a chemistry or non-LTE population
+solver; no table, gray profile, or explicit line profile may be relabelled as
+validated molecular spectroscopy, atmosphere-corrected radiance, or
+production Signature evidence.
 
 ### Focal-plane array
 
@@ -481,6 +485,22 @@ compatible research fixture is within the bounds.  This is a one-dimensional
 reachability diagnostic only: a future 2-D continued shock/mixing solve may
 change the budget through entropy production, so the diagnostic explains the
 next physics seam without becoming a closure or promotion gate.
+
+### Explicit LTE line-source Signature checkpoint
+
+The Signature bridge now accepts an explicit `LineRadiationProfile` alongside
+the existing gray profiles. It derives an LTE Planck source and a summed
+normalized Voigt absorption spectrum from caller-owned line-integrated optical
+depths; Doppler widths may be derived from explicitly supplied temperature and
+molecular mass. The line path is exposed through the existing ray-transfer
+and far-field operators with a distinct adapter schema and
+`radiation=spectral_engineering` metadata.
+
+This advances the physical source contract without inventing chemistry: line
+populations, composition, pressure-broadening inputs, non-LTE effects,
+atmosphere, and external validation remain open. The new source path is
+therefore locally tested but non-production, and the provider-bound Signature,
+ray, FPA, and release gates remain unchanged.
 
 After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound

@@ -29,8 +29,10 @@ from exhaust_plume.products import (
     ModelSignatureSampling,
     ModelSignatureReadiness,
     ModelVisualizationLane,
+    LineRadiationProfile,
     SignatureTimelineQuery,
     SectionedGrayRadiationProfile,
+    SpectralLine,
     evaluate_model_signature,
     standardize_model_visualization,
 )
@@ -409,6 +411,47 @@ def test_mission_signature_evaluator_accepts_section_varying_profile_resolver() 
     assert isinstance(sample.optical_profile, SectionedGrayRadiationProfile)
     assert sample.signature.metadata.provenance.metadata["optical_profile_mode"] == "piecewise-axial-section"
     assert sample.signature.metadata.claims.time_model is TimeModel.PRESCRIBED_TRANSIENT
+####
+
+
+def test_mission_signature_evaluator_accepts_explicit_lte_line_profile_resolver() -> None:
+    visualization = _straight_bundles()[0]
+
+    def line_profile_for_state(_state: MissionState) -> LineRadiationProfile:
+        return LineRadiationProfile(
+            wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+            lines=(
+                SpectralLine.from_thermal_width(
+                    center_wavelength_m=2.0e-6,
+                    integrated_optical_depth_m=0.4,
+                    temperature_K=1_200.0,
+                    molecular_mass_kg=4.65e-26,
+                    label="mission-line",
+                ),
+            ),
+            source_temperature_K=1_200.0,
+            path_length_m=1.0,
+            profile_id="mission-lte-line",
+        )
+    ####
+
+    evaluator = MissionSignatureEvaluator(
+        timeline=_timeline(),
+        visualization_at=lambda _state: visualization,
+        optical_profile_at=line_profile_for_state,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    sample = evaluator.sample_at(5.0)
+
+    assert isinstance(sample.optical_profile, LineRadiationProfile)
+    assert sample.signature.metadata.claims.radiation.value == "spectral_engineering"
+    assert sample.signature.metadata.provenance.metadata["optical_profile_mode"] == "lte-line-by-line-voigt"
+    assert sample.signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
+    assert sample.signature.spectral_radiant_intensity[0][1] > 0.0
 ####
 
 

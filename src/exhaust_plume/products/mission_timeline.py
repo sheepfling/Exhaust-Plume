@@ -37,6 +37,7 @@ from exhaust_plume.api.v1 import (
 from exhaust_plume.products.model_signature import (
     GrayOpticalProfile,
     GrayRadiationProfile,
+    LineRadiationProfile,
     ModelSignatureAssessment,
     ModelSignatureBlockedError,
     ModelSignatureSampling,
@@ -597,8 +598,11 @@ class MissionSignatureEvaluator:
         if not isinstance(visualization, StandardizedModelVisualization):
             raise TypeError("visualization_at must return StandardizedModelVisualization")
         ####
-        if not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
-            raise TypeError("optical_profile_at must return a supported gray optical profile")
+        if not isinstance(
+            optical_profile,
+            (GrayRadiationProfile, SectionedGrayRadiationProfile, LineRadiationProfile),
+        ):
+            raise TypeError("optical_profile_at must return a supported optical profile")
         ####
         signature = evaluate_model_signature(
             visualization,
@@ -737,8 +741,11 @@ class MissionProductEvaluator:
     def _evaluate_visual_sample(self, visual_sample: MissionVisualizationSample) -> MissionProductSample:
         state = visual_sample.state
         optical_profile = None if self.optical_profile_at is None else self.optical_profile_at(state)
-        if optical_profile is not None and not isinstance(optical_profile, (GrayRadiationProfile, SectionedGrayRadiationProfile)):
-            raise TypeError("optical_profile_at must return a supported gray optical profile")
+        if optical_profile is not None and not isinstance(
+            optical_profile,
+            (GrayRadiationProfile, SectionedGrayRadiationProfile, LineRadiationProfile),
+        ):
+            raise TypeError("optical_profile_at must return a supported optical profile")
         ####
         assessment = assess_model_signature_readiness(
             visual_sample.visualization,
