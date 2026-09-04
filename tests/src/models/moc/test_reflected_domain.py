@@ -119,6 +119,11 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import 
   measure_reflected_domain_coupled_euler_free_boundary_refinement,
   run_reflected_domain_coupled_euler_free_boundary_refinement,
 )
+from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
+  MocReflectedDomainCoupledEulerPressureContinuationStatus,
+  measure_reflected_domain_coupled_euler_pressure_continuation,
+  run_reflected_domain_coupled_euler_pressure_continuation,
+)
 from exhaust_plume.validation.moc_reflected_domain_refinement import (
   MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
   MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus,
@@ -2103,6 +2108,78 @@ def test_global_coupled_euler_free_boundary_compatible_refinement_is_local_only(
     MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus.RESOLUTION_FAILURE
   )
   assert not reversed_measurement.converged
+####
+
+
+def test_coupled_euler_pressure_continuation_reconciles_boundary_seam_without_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  coupled_request = MocReflectedDomainCoupledEulerFreeBoundaryRequest(
+    mixed_regime_request=mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  compatible_pressure = (
+    mixed_request.control_section.samples[-1].static_pressure_Pa
+  )
+  actual_pressure = mixed_request.ambient_pressure_Pa
+
+  run = run_reflected_domain_coupled_euler_pressure_continuation(
+    coupled_request,
+    (compatible_pressure, actual_pressure),
+  )
+
+  assert run.requested_target_ambient_pressures_Pa == (
+    compatible_pressure,
+    actual_pressure,
+  )
+  assert run.fresh_solver_invocation_verified
+  assert run.fidelity_isolation_verified
+  assert run.source_closure_fingerprint == mixed_request.closure_fingerprint
+  assert run.measurement.status is (
+    MocReflectedDomainCoupledEulerPressureContinuationStatus.CASE_FAILURE
+  )
+  assert run.measurement.pressure_order_verified
+  assert run.measurement.source_closure_identity_verified
+  assert run.measurement.case_audits_verified
+  assert run.measurement.diagnostics_finite
+  assert run.measurement.pressure_budget_trend_verified
+  assert run.measurement.independent_evidence_verified
+  assert run.measurement.local_closure_verified is False
+  assert run.independent_evidence_verified
+  assert run.converged is False
+  assert run.production_claim_allowed is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.measurement.physical_closure_verified is False
+  assert run.measurement.canonical_euler_verified is False
+  assert run.measurement.external_validation_verified is False
+  assert run.measurement.minimum_additional_total_pressure_loss_fractions[0] == (
+    pytest.approx(0.0)
+  )
+  assert run.measurement.minimum_additional_total_pressure_loss_fractions[1] > 0.4
+  assert run.cases[0].local_closure_verified
+  assert run.cases[1].local_closure_verified is False
+  assert run.cases[1].audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
+  )
+  assert run.as_report()['measurement']['independent_evidence_verified']
+  assert run.as_report()['cases'][1]['target_ambient_pressure_Pa'] == pytest.approx(
+    actual_pressure
+  )
+
+  reversed_measurement = measure_reflected_domain_coupled_euler_pressure_continuation(
+    tuple(reversed(run.cases))
+  )
+  assert reversed_measurement.status is (
+    MocReflectedDomainCoupledEulerPressureContinuationStatus.PRESSURE_ORDER_FAILURE
+  )
+  assert reversed_measurement.pressure_order_verified is False
+  assert reversed_measurement.source_closure_identity_verified
+  assert reversed_measurement.case_audits_verified
+  assert reversed_measurement.independent_evidence_verified is False
 ####
 
 

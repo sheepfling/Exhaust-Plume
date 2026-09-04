@@ -621,3 +621,22 @@ canonical closure.  The actual-ambient case remains below the coupled
 pressure/tangency gate, the scalar transonic reference remains a diagnostic,
 and chain promotion, external validation, and production claims remain
 blocked.
+
+### Coupled-Euler pressure-continuation checkpoint
+
+The coupled-Euler research lane now exposes a separate pressure-target
+continuation operator.  It runs a fresh, independently audited field solve for
+each strictly decreasing ambient-pressure target, while retaining one exact
+upstream global-closure fingerprint and all numerical controls.  The report
+keeps the free-boundary residuals, outlet heights, scalar pressure-budget loss
+fractions, solver statuses, and audit statuses aligned by target.  A compatible
+control-section case can therefore be followed toward the actual ambient
+target without reusing a prior field or silently changing the optional outlet
+condition.
+
+The current ladder passes independent diagnostic coverage and the expected
+pressure-loss trend, but its actual-ambient endpoint remains a typed
+free-boundary case failure.  The ladder's research evidence is useful for
+locating the pressure/entropy closure seam; it does not satisfy canonical
+mixed-regime closure, accepted physical cell length, external validation,
+chain promotion, or production claims.
