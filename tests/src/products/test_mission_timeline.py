@@ -6,6 +6,7 @@ import pytest
 
 from exhaust_plume.api.v1 import (
     Pose,
+    SampleStatusCode,
     SPECTRAL_RAY_TRANSFER_V1,
     SpectralRayTransferRequest,
     TimeModel,
@@ -28,6 +29,7 @@ from exhaust_plume.products import (
     ModelSignatureSampling,
     ModelSignatureReadiness,
     ModelVisualizationLane,
+    SignatureTimelineQuery,
     SectionedGrayRadiationProfile,
     evaluate_model_signature,
     standardize_model_visualization,
@@ -220,6 +222,34 @@ def test_mission_evaluator_resolves_and_records_prescribed_time_state() -> None:
     assert final.signature.metadata.snapshot.ambient_state_digest_sha256 != (initial.signature.metadata.snapshot.ambient_state_digest_sha256)
     assert midpoint.signature.spectral_radiant_intensity != initial.signature.spectral_radiant_intensity
     assert final.signature.spectral_radiant_intensity != initial.signature.spectral_radiant_intensity
+
+
+def test_mission_signature_query_re_evaluates_an_arbitrary_time_without_output_interpolation() -> None:
+    timeline = _timeline()
+    visualization = _straight_bundles()[0]
+    evaluator = MissionSignatureEvaluator(
+        timeline=timeline,
+        visualization_at=lambda _state: visualization,
+        optical_profile_at=_profile_for_state,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    query = evaluator.query_at(time_s=5.0, direction_index=0, wavelength_index=1)
+    evaluated = evaluator.evaluate_at(5.0)
+
+    assert isinstance(query, SignatureTimelineQuery)
+    assert query.time_s == pytest.approx(5.0)
+    assert query.direction == (1.0, 0.0, 0.0)
+    assert query.wavelength_m == pytest.approx(2.0e-6)
+    assert query.spectral_radiant_intensity_w_sr_m == pytest.approx(
+        evaluated.spectral_radiant_intensity[0][1]
+    )
+    assert query.source_result_id == evaluated.metadata.result_id
+    assert query.valid is True
+    assert query.status.code is SampleStatusCode.OK
 
 
 def test_mission_fpa_evaluator_composes_explicit_ray_detector_and_adc_at_time() -> None:

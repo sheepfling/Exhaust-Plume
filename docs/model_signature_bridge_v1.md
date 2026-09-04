@@ -180,6 +180,14 @@ trajectory/atmosphere model, throttle-to-nozzle closure, propellant depletion
 model, chemistry model, and optical-property source must be connected and
 validated. No such physics is inferred by the schedule adapter.
 
+`MissionSignatureEvaluator.query_at(...)` is the arbitrary-time point-query
+seam. It first resolves the prescribed mission state and re-runs the explicit
+flow and optical callbacks at that state, then selects one direction and
+wavelength from the resulting Signature. It therefore supports a moving or
+throttling vehicle without interpolating neighboring Signature values. The
+returned query retains the exact result ID, status, validity, uncertainty, and
+spectral radiant-intensity units.
+
 ## Mission-time FPA composition
 
 `MissionFpaEvaluator` is the separate downstream composition seam for a

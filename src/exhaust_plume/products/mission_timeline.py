@@ -27,6 +27,7 @@ from exhaust_plume.contracts.ray_transfer_v1 import (
 from exhaust_plume.api.v1 import (
     Pose,
     SnapshotMetadata,
+    SpectralSignatureRequest,
     SpectralSignatureResult,
     TimeModel,
     VisualSectionedTubeRequest,
@@ -46,6 +47,11 @@ from exhaust_plume.products.model_signature import (
 from exhaust_plume.products.model_visualization import (
     StandardizedModelVisualization,
     evaluate_standardized_model_visualization,
+)
+from exhaust_plume.products.signature_timeline import (
+    SignatureTimeline,
+    SignatureTimelineQuery,
+    SignatureTimelineSample,
 )
 from exhaust_plume.validation.fpa_operators import (
     DetectorResponse,
@@ -550,6 +556,39 @@ class MissionSignatureEvaluator:
         """Return the far-field spectral radiant-intensity product at one time."""
 
         return self.sample_at(time_s).signature
+
+    def query_at(
+        self,
+        *,
+        time_s: float,
+        direction_index: int,
+        wavelength_index: int,
+    ) -> SignatureTimelineQuery:
+        """Resolve and query one Signature point at an arbitrary mission time.
+
+        The mission state and caller-owned flow/optical resolvers are evaluated
+        at ``time_s``.  Only the resulting point is selected; no values from
+        neighboring Signature results are interpolated.
+        """
+
+        sample = self.sample_at(time_s)
+        sampling = self.sampling or ModelSignatureSampling()
+        request = SpectralSignatureRequest(
+            direction_frame_id=sample.visualization.frame_id,
+            operating_point_id=sample.state.operating_point_id,
+            source_to_observer_directions=sampling.source_to_observer_directions,
+            wavelengths_m=sample.optical_profile.wavelengths_m,
+            allow_partial_results=self.allow_partial_results,
+        )
+        timeline_sample = SignatureTimelineSample(
+            request=request,
+            result=sample.signature,
+        )
+        return SignatureTimeline((timeline_sample,)).query_at(
+            time_s=sample.state.time_s,
+            direction_index=direction_index,
+            wavelength_index=wavelength_index,
+        )
 
     def evaluate_cursor(self, cursor: MissionCursor) -> MissionSignatureSample:
         """Evaluate the state held by a cursor created from this timeline."""
