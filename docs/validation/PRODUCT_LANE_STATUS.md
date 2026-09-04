@@ -11,7 +11,7 @@ solver fidelity attached to a provider profile.
 | `planar-moc-primitives-v1` | `plume.visual.planar-moc` -> `plume.visual.sectioned-tube@1` | Research-only lifecycle, retained planar field envelope, and claim-ceiling checks pass alongside the existing MOC diagnostic evidence | CJ-UEJ MOC diagnostic quantifies 10/19 centerline points (RMSE 0.06577) but remains not accepted; coupled reflected-field closure, production shock fitting, disjoint closure evidence, and provider-specific external validation remain pending | Research-only illustrative planar visualization; no production VIS/SIG/RAY/FPA claim |
 | `shock-cell-basic-v1` | `plume.straight-analytical` and `plume.shock-cell-analytical` -> `plume.visual.sectioned-tube@1` | Both bounded visual providers pass contract, deterministic-serialization, conformance, finite/positive geometry, straight-axis, arc/extent, channel-shape, and claim-ceiling checks | Corpus structure is verified; provider-specific benchmark/operator comparison remains pending | Engineering-approximate straight visual geometry and named features only; no spectral, ray, detector, mixing, or curved-flow claim |
 | `shock-cell-reduced-order-v1` | `plume.shock-train-reduced-order` -> `plume.visual.sectioned-tube@1` | Explicit calibration, physical-versus-safety termination, reduced-order geometry labels, visual-only capability, and canonical conformance checks pass | CJ-UEJ archive is verified; the same-phase pressure-extrema spacing operator is diagnostic-only, and the closure calibration/validation split remains blocked | Experimental visual envelope only; downstream cells are scaled reduced-order geometry; no resolved MOC, spectral, ray, detector, or FPA claim |
-| `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, no-extrapolation, fixed-angle exact-only tables, time-axis, partial-result, reproducible fixture digest, measurement-space mismatch guard, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table and interpolation behavior only; no geometry, ray field, atmosphere, optics, or detector claim |
+| `signature-table-mvp-v1` | `signature.table-lookup` -> `plume.signature.spectral-radiant-intensity@1` | Table shape, interpolation, no-extrapolation, fixed-angle exact-only tables, time-axis, partial-result, reproducible fixture digest, measurement-space mismatch guard, explicit LTE line-source bridge, provenance, and conformance tests | Pending a verified source asset and intrinsic-signature evidence | Versioned table/interpolation and caller-bound LTE line-source spectral engineering only; no chemistry, geometry, ray field, atmosphere, optics, or detector claim |
 | `washed-integral-v1` | `plume.visual.curved-integral` -> `plume.visual.sectioned-tube@1` | Canonical lifecycle, snapshot, curved sectioned-tube output, claim ceiling, and conformance tests pass | Provider-specific benchmark/operator comparison and curved-flow validation remain pending | Engineering-approximate curved visual geometry only; no spectral, ray, detector, or FPA claim |
 | `optical-transfer-v1` | `plume.gray-ray-transfer` -> `plume.optical.spectral-ray-transfer@1` | Exact finite-cylinder intervals, homogeneous and piecewise-axial slab/chord transfer, layer separation, miss semantics, and analytic/refinement checks | External sensor/path comparisons remain pending; gray analytic evidence is not corpus validation | Homogeneous or piecewise-axial gray transfer through a straight support only; no chemistry, atmosphere, detector, or FPA claim |
 | `curved-optical-transfer-v1` | `plume.curved-gray-ray-transfer` -> `plume.optical.spectral-ray-transfer@1` | Curved sectioned-support path intersections and homogeneous gray segment composition pass local provider checks | Curved path/operator comparison and external validation remain pending | Gray engineering transfer through conservative piecewise capsule supports only; no resolved curved-flow radiation or detector claim |
@@ -271,14 +271,14 @@ be accepted.
 
 ## Working branch
 
-The clean integration candidate is isolated on `integration/full-suite`, with
-the working checkout `work/washed-integral-visual` currently at the same
-commit. The original `feature/post-a1-implementation` worktree remains
-intentionally untouched. The bounded provider, solver-boundary, validation,
-and downstream FPA changes recorded here are committed and pushed; future
-higher-fidelity work must branch from an explicitly accepted lane rather than
-mutate the basic provider in place. Remote PRs #5, #6, and #7 are merged into
-remote `main`.
+The active clean integration candidate is isolated on the dedicated
+`work/washed-integral-visual` branch; `main` remains untouched. The historical
+`integration/full-suite` branch and the original `feature/post-a1-implementation`
+worktree remain intentionally separate. The bounded provider, solver-boundary,
+validation, and downstream FPA changes recorded here are committed and pushed;
+future higher-fidelity work must branch from an explicitly accepted lane rather
+than mutate the basic provider in place. Remote PRs #5, #6, and #7 are merged
+into remote `main`.
 
 The branch checks are:
 
@@ -301,9 +301,9 @@ python3 scripts/validate_provider_comparisons.py \
 ```
 
 This command currently passes the VIS provider/conformance cases, SIG table
-interpolation cases, the synthetic ray-to-signature operator checks, the
-deterministic FPA detector/ADC boundary, and source-bound FPA view projection
-checks. Its report intentionally remains
+interpolation and explicit LTE line-source cases, the synthetic
+ray-to-signature operator checks, the deterministic FPA detector/ADC boundary,
+and source-bound FPA view projection checks. Its report intentionally remains
 `release_ready: false` until external measurement-operator comparisons and
 product-specific gate acceptance are complete.
 
