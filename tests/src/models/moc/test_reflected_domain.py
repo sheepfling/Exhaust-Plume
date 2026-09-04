@@ -106,6 +106,11 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus,
   measure_reflected_domain_coupled_euler_free_boundary,
 )
+from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import (
+  MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus,
+  measure_reflected_domain_coupled_euler_free_boundary_refinement,
+  run_reflected_domain_coupled_euler_free_boundary_refinement,
+)
 from exhaust_plume.validation.moc_reflected_domain_refinement import (
   MocReflectedDomainGlobalEulerShockBoundaryCrossCase,
   MocReflectedDomainGlobalEulerShockBoundaryCrossCaseStatus,
@@ -1735,6 +1740,103 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
+
+
+def test_global_coupled_euler_free_boundary_refinement_keeps_actual_seam_open():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  coupled_request = MocReflectedDomainCoupledEulerFreeBoundaryRequest(
+    mixed_regime_request=mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+  )
+
+  run = run_reflected_domain_coupled_euler_free_boundary_refinement(
+    coupled_request,
+    ((6, 3), (8, 4), (10, 5)),
+  )
+
+  assert run.requested_resolutions == ((6, 3), (8, 4), (10, 5))
+  assert len(run.cases) == 3
+  assert run.fresh_solver_invocation_verified
+  assert run.fidelity_isolation_verified
+  assert run.measurement.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus.CASE_FAILURE
+  )
+  assert run.measurement.resolution_order_verified
+  assert run.measurement.mesh_growth_verified
+  assert run.measurement.case_audits_verified
+  assert run.measurement.conservative_residuals_finite
+  assert run.measurement.boundary_diagnostics_finite
+  assert run.measurement.local_closure_verified is False
+  assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.physical_closure_verified is False
+  assert run.measurement.canonical_euler_verified is False
+  assert run.measurement.external_validation_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.measurement.production_claim_allowed is False
+  assert run.production_claim_allowed is False
+  assert len(run.configuration_fingerprint) == 64
+  assert all(
+    case.audit.status is (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
+    )
+    for case in run.cases
+  )
+####
+
+
+def test_global_coupled_euler_free_boundary_compatible_refinement_is_local_only():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  compatible_request = replace(
+    mixed_request,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+  )
+  coupled_request = MocReflectedDomainCoupledEulerFreeBoundaryRequest(
+    mixed_regime_request=compatible_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  run = run_reflected_domain_coupled_euler_free_boundary_refinement(
+    coupled_request,
+    ((6, 3), (8, 4)),
+  )
+
+  assert run.measurement.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus
+    .CONVERGED_RESEARCH_LADDER
+  )
+  assert run.measurement.converged
+  assert run.measurement.local_consistency_verified
+  assert run.measurement.resolution_order_verified
+  assert run.measurement.mesh_growth_verified
+  assert run.measurement.case_audits_verified
+  assert run.measurement.conservative_residuals_finite
+  assert run.measurement.boundary_diagnostics_finite
+  assert run.measurement.local_closure_verified
+  assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.physical_closure_verified is False
+  assert run.measurement.canonical_free_boundary_verified is False
+  assert run.measurement.canonical_euler_verified is False
+  assert run.measurement.external_validation_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.measurement.production_claim_allowed is False
+  reversed_measurement = measure_reflected_domain_coupled_euler_free_boundary_refinement(
+    tuple(reversed(run.cases))
+  )
+  assert reversed_measurement.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus.RESOLUTION_FAILURE
+  )
+  assert not reversed_measurement.converged
 ####
 
 

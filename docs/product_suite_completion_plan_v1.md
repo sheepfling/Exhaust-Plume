@@ -265,6 +265,8 @@ claim is authorized.
       diagnostics; keep it below canonical and production promotion.
 - [x] Add an independent re-derivation of the coupled-field flux, mesh,
       thermodynamic, entropy, and free-boundary diagnostics.
+- [x] Add a fresh coupled-field case/resolution ladder that records finite
+      independent audits and preserves the actual global-seam failure.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -441,12 +443,19 @@ but the actual global case remains a typed ``FREE_BOUNDARY_FAILURE``: the
 inherited control section enters with static pressure well above ambient and
 cannot yet satisfy the coupled pressure/tangency seam.  This is useful physics
 evidence and an explicit blocker, not a canonical closure or a production
-shock-cell input.  The next slice is an independent re-derivation of these
-finite-volume and free-boundary diagnostics.  That audit now reconstructs the
+shock-cell input.  An independent re-derivation now reconstructs the
 curvilinear mesh, conservative face fluxes, thermodynamic state, entropy
 bounds, and boundary reports from the retained field, and detects tampered
-residual channels.  The next slice is a coupled case and resolution ladder
-with the actual upstream-to-ambient seam represented explicitly.
+residual channels.  The follow-on ladder reruns fresh solver instances at
+strictly growing ``(axial, transverse)`` meshes and audits every case.  The
+actual global request remains ``CASE_FAILURE`` at the tested meshes because
+the inherited control-section pressure/tangency seam is still open; the
+pressure-compatible fixture reaches ``CONVERGED_RESEARCH_LADDER`` only as a
+local research result.  Both paths retain finite diagnostic records and keep
+physical closure, canonical Euler/free-boundary acceptance, external
+validation, chain promotion, and production claims false.  The next physics
+slice is to close and independently validate the actual global planar-MOC
+field, not to reinterpret this ladder as a production shock-cell input.
 
 After that gate, the order is fixed: close the coupled field (`P2`), run the
 case/resolution ladder, fit cells (`P3`), acquire and execute provider-bound

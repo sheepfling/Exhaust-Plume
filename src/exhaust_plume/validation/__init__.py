@@ -217,6 +217,16 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryAudit,
   measure_reflected_domain_coupled_euler_free_boundary,
 )
+from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import (
+  MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID,
+  MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus,
+  MocReflectedDomainCoupledEulerFreeBoundaryRefinementCase,
+  MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement,
+  measure_reflected_domain_coupled_euler_free_boundary_refinement,
+  MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID,
+  MocReflectedDomainCoupledEulerFreeBoundaryRefinementRun,
+  run_reflected_domain_coupled_euler_free_boundary_refinement,
+)
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -590,6 +600,14 @@ __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus',
   'MocReflectedDomainCoupledEulerFreeBoundaryAudit',
   'measure_reflected_domain_coupled_euler_free_boundary',
+  'MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_REFINEMENT_OPERATOR_ID',
+  'MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus',
+  'MocReflectedDomainCoupledEulerFreeBoundaryRefinementCase',
+  'MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement',
+  'measure_reflected_domain_coupled_euler_free_boundary_refinement',
+  'MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID',
+  'MocReflectedDomainCoupledEulerFreeBoundaryRefinementRun',
+  'run_reflected_domain_coupled_euler_free_boundary_refinement',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainMixedRegimeBoundaryRefinementStatus',
   'MocReflectedDomainMixedRegimeBoundaryRefinementCase',
