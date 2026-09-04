@@ -10,12 +10,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
+import json
 from math import isfinite
 from typing import Any, Sequence
 
+from exhaust_plume.models.moc.chain import MocChainBoundarySample
+from exhaust_plume.models.moc.global_physical_closure import (
+  MocReflectedDomainGlobalPhysicalClosureResult,
+  MocReflectedDomainGlobalPhysicalClosureStatus,
+  solve_reflected_domain_global_physical_closure,
+)
 from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainGlobalEulerShockBoundaryResult,
 )
+from exhaust_plume.util.aero.shock_validity import ShockBranch
 from exhaust_plume.validation.moc_measurements import (
   MocReflectedDomainGlobalEulerShockBoundaryMeasurement,
   MocReflectedDomainGlobalEulerShockBoundaryMeasurementStatus,
@@ -28,6 +38,9 @@ __all__ = (
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementCase',
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement',
   'measure_moc_reflected_domain_global_euler_shock_boundary_refinement',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID',
+  'MocReflectedDomainGlobalEulerShockBoundaryRefinementRun',
+  'run_moc_reflected_domain_global_euler_shock_boundary_refinement',
 )
 
 
@@ -657,4 +670,510 @@ def measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
       'ladder; canonical and external promotion gates remain pending'
     )
   return _failure(status, message, **common)
+  ####
+
+
+MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID = (
+  'op.moc.reflected-domain-global-euler-shock-boundary-refinement-run'
+)
+
+
+def _refinement_fingerprint(payload: Any) -> str:
+  serialized = json.dumps(
+    payload,
+    sort_keys=True,
+    separators=(',', ':'),
+    ensure_ascii=True,
+    default=str,
+  )
+  return sha256(serialized.encode('utf-8')).hexdigest()
+
+
+def _state_fingerprint_payload(state: Any) -> dict[str, float]:
+  return {
+    'x_m': float(state.x_m),
+    'y_m': float(state.y_m),
+    'theta_rad': float(state.theta_rad),
+    'mach': float(state.mach),
+    'gamma': float(state.gamma),
+  }
+
+
+def _boundary_fingerprint_payload(
+  sample: MocChainBoundarySample,
+) -> dict[str, Any]:
+  return {
+    'state': _state_fingerprint_payload(sample.state),
+    'total_pressure_Pa': float(sample.total_pressure_Pa),
+  }
+
+
+def _source_band_fingerprint(
+  source_band: Any,
+) -> str:
+  return _refinement_fingerprint({
+    'report': source_band.as_report(),
+    'centerline_source_states': [
+      _state_fingerprint_payload(state)
+      for state in source_band.centerline_source_states
+    ],
+    'outer_source_states': [
+      _state_fingerprint_payload(state)
+      for state in source_band.outer_source_states
+    ],
+    'centerline_total_pressure_Pa': list(
+      source_band.centerline_total_pressure_Pa
+    ),
+    'outer_total_pressure_Pa': list(source_band.outer_total_pressure_Pa),
+    'incoming_handoff': [
+      _boundary_fingerprint_payload(sample)
+      for sample in source_band.incoming_handoff
+    ],
+  })
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
+  """Fresh solver execution plus independent resolution-ladder evidence.
+
+  The existing refinement measurement intentionally audits retained fields and
+  does not rerun a solver.  This result records the complementary execution
+  seam: one immutable source band, one declared shock-resolution ladder, and a
+  fresh global physical-closure solve for every resolution.  It remains a
+  local research result even when the independent ladder converges.
+  """
+
+  source_band: MocReflectedDomainAlternatingSourceResult
+  requested_resolutions: tuple[int, ...]
+  closures: tuple[MocReflectedDomainGlobalPhysicalClosureResult, ...]
+  cases: tuple[
+    MocReflectedDomainGlobalEulerShockBoundaryRefinementCase,
+    ...
+  ]
+  measurement: MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement
+  source_band_fingerprint: str
+  configuration: tuple[tuple[str, Any], ...]
+  configuration_fingerprint: str
+  fresh_solver_invocation_verified: bool
+  local_physical_closure_verified: bool
+  fidelity_isolation_verified: bool
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.source_band, MocReflectedDomainAlternatingSourceResult):
+      raise TypeError(
+        'source_band must be a MocReflectedDomainAlternatingSourceResult'
+      )
+    resolutions = tuple(self.requested_resolutions)
+    if not resolutions:
+      raise ValueError('requested_resolutions must not be empty')
+    if any(
+      isinstance(resolution, bool)
+      or not isinstance(resolution, int)
+      or resolution < 1
+      for resolution in resolutions
+    ):
+      raise ValueError(
+        'requested_resolutions must contain positive integers'
+      )
+    closures = tuple(self.closures)
+    if len(closures) != len(resolutions):
+      raise ValueError('closures must match requested_resolutions')
+    if any(
+      not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult)
+      for closure in closures
+    ):
+      raise TypeError(
+        'closures must contain MocReflectedDomainGlobalPhysicalClosureResult values'
+      )
+    cases = tuple(self.cases)
+    if any(
+      not isinstance(
+        case,
+        MocReflectedDomainGlobalEulerShockBoundaryRefinementCase,
+      )
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain global Euler refinement case values'
+      )
+    case_resolutions = tuple(case.resolution for case in cases)
+    if len(set(case_resolutions)) != len(case_resolutions):
+      raise ValueError('cases must not repeat a resolution')
+    if any(resolution not in resolutions for resolution in case_resolutions):
+      raise ValueError('cases must use requested resolutions')
+    if not isinstance(
+      self.measurement,
+      MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement,
+    ):
+      raise TypeError(
+        'measurement must be a global Euler refinement measurement'
+      )
+    if self.measurement.cases and tuple(self.measurement.cases) != cases:
+      raise ValueError('measurement cases must match retained run cases')
+    object.__setattr__(self, 'requested_resolutions', resolutions)
+    object.__setattr__(self, 'closures', closures)
+    object.__setattr__(self, 'cases', cases)
+    configuration = tuple(self.configuration)
+    if any(
+      not isinstance(item, tuple)
+      or len(item) != 2
+      or not isinstance(item[0], str)
+      for item in configuration
+    ):
+      raise ValueError(
+        'configuration must contain (name, value) pairs'
+      )
+    object.__setattr__(self, 'configuration', configuration)
+    for name in (
+      'source_band_fingerprint',
+      'configuration_fingerprint',
+    ):
+      value = str(getattr(self, name))
+      if not value:
+        raise ValueError(f'{name} must be a non-empty string')
+      object.__setattr__(self, name, value)
+    for name in (
+      'fresh_solver_invocation_verified',
+      'local_physical_closure_verified',
+      'fidelity_isolation_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    """Whether the independent retained-field ladder converged."""
+
+    return self.measurement.converged
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    """Whether fresh execution and local evidence agree without promotion."""
+
+    return bool(
+      self.measurement.local_consistency_verified
+      and self.fresh_solver_invocation_verified
+      and len(self.cases) == len(self.requested_resolutions)
+      and self.local_physical_closure_verified
+      and self.fidelity_isolation_verified
+    )
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return bool(
+      self.closures
+      and all(closure.chain_promotion_blocked for closure in self.closures)
+    )
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.measurement.status.value,
+      'operator_id': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID
+      ),
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'source_band_fingerprint': self.source_band_fingerprint,
+      'configuration_fingerprint': self.configuration_fingerprint,
+      'configuration': dict(self.configuration),
+      'requested_resolutions': list(self.requested_resolutions),
+      'closures': [
+        {
+          'resolution': resolution,
+          'status': closure.status.value,
+          'converged': closure.converged,
+          'physical_closure_verified': closure.physical_closure_verified,
+          'global_euler_status': (
+            None
+            if closure.global_euler is None
+            else closure.global_euler.status.value
+          ),
+          'global_euler_retained': closure.global_euler is not None,
+          'chain_promotion_blocked': closure.chain_promotion_blocked,
+          'production_claim_allowed': closure.production_claim_allowed,
+        }
+        for resolution, closure in zip(
+          self.requested_resolutions,
+          self.closures,
+          strict=True,
+        )
+      ],
+      'cases': [
+        {
+          'resolution': case.resolution,
+          'solver_status': case.result.status.value,
+        }
+        for case in self.cases
+      ],
+      'measurement': self.measurement.as_report(),
+      'checks': {
+        'fresh_solver_invocation_verified': (
+          self.fresh_solver_invocation_verified
+        ),
+        'local_physical_closure_verified': (
+          self.local_physical_closure_verified
+        ),
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'claim_status': (
+        'fresh-global-physical-closure-resolution-run; '
+        'local-research-field-only'
+      ),
+      'message': self.message,
+    }
+
+
+def run_moc_reflected_domain_global_euler_shock_boundary_refinement(
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  resolutions: Sequence[int],
+  *,
+  outer_source_indices: Sequence[int] | None = None,
+  target_centerline_indices: Sequence[int] | None = None,
+  compression_amplitude_lower_rad: float = 0.005,
+  compression_amplitude_upper_rad: float = 0.05,
+  compression_envelope_skews: Sequence[float] = (-0.75, 0.0, 0.75),
+  closure_tolerance_m: float = 1.0e-6,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  attachment_pressure_tolerance: float = 1.0e-8,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  shock_angle_tolerance_rad: float = 1.0e-2,
+  euler_reconciliation_shock_angle_tolerance_rad: float = 1.0e-8,
+  euler_reconciliation_residual_tolerance: float = 1.0e-8,
+  maximum_segment_iterations: int = 24,
+  maximum_boundary_iterations: int = 16,
+  maximum_shooting_iterations: int = 40,
+  maximum_bracket_scan_samples: int = 0,
+  maximum_attempts: int = 64,
+) -> MocReflectedDomainGlobalEulerShockBoundaryRefinementRun:
+  """Run fresh global closures and independently audit their shock ladder.
+
+  ``resolutions`` controls only the retained shock-path sample count; the
+  source band remains fixed for every run.  This makes the evidence useful for
+  separating discretization behavior from upstream-source changes.  A missing
+  global Euler result is retained as a typed closure failure and prevents the
+  refinement measurement from silently dropping that resolution.
+  """
+
+  if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
+    raise TypeError(
+      'source_band must be a MocReflectedDomainAlternatingSourceResult'
+    )
+  try:
+    requested_resolutions = tuple(resolutions)
+  except TypeError as error:
+    raise ValueError('resolutions must be an iterable of positive integers') from error
+  if not requested_resolutions:
+    raise ValueError('resolutions must not be empty')
+  if any(
+    isinstance(resolution, bool)
+    or not isinstance(resolution, int)
+    or resolution < 1
+    for resolution in requested_resolutions
+  ):
+    raise ValueError('resolutions must contain positive integers')
+
+  def optional_tuple(
+    value: Sequence[Any] | None,
+    name: str,
+  ) -> tuple[Any, ...] | None:
+    if value is None:
+      return None
+    try:
+      return tuple(value)
+    except TypeError as error:
+      raise ValueError(f'{name} must be an iterable or None') from error
+
+  resolved_outer_indices = optional_tuple(
+    outer_source_indices,
+    'outer_source_indices',
+  )
+  resolved_centerline_indices = optional_tuple(
+    target_centerline_indices,
+    'target_centerline_indices',
+  )
+  resolved_skews = optional_tuple(
+    compression_envelope_skews,
+    'compression_envelope_skews',
+  )
+  resolved_handoff = optional_tuple(incoming_handoff, 'incoming_handoff')
+  if resolved_handoff is not None and any(
+    not isinstance(sample, MocChainBoundarySample)
+    for sample in resolved_handoff
+  ):
+    raise TypeError(
+      'incoming_handoff must contain MocChainBoundarySample values'
+    )
+  resolved_source_handoff = (
+    source_band.incoming_handoff
+    if resolved_handoff is None
+    else resolved_handoff
+  )
+  source_fingerprint = _source_band_fingerprint(source_band)
+  configuration_payload: dict[str, Any] = {
+    'operator_id': (
+      MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID
+    ),
+    'source_band_fingerprint': source_fingerprint,
+    'requested_resolutions': list(requested_resolutions),
+    'outer_source_indices': (
+      None
+      if resolved_outer_indices is None
+      else list(resolved_outer_indices)
+    ),
+    'target_centerline_indices': (
+      None
+      if resolved_centerline_indices is None
+      else list(resolved_centerline_indices)
+    ),
+    'compression_amplitude_lower_rad': compression_amplitude_lower_rad,
+    'compression_amplitude_upper_rad': compression_amplitude_upper_rad,
+    'compression_envelope_skews': (
+      None if resolved_skews is None else list(resolved_skews)
+    ),
+    'closure_tolerance_m': closure_tolerance_m,
+    'incoming_handoff': [
+      _boundary_fingerprint_payload(sample)
+      for sample in resolved_source_handoff
+    ],
+    'branch': getattr(branch, 'value', str(branch)),
+    'position_tolerance_m': position_tolerance_m,
+    'invariant_tolerance': invariant_tolerance,
+    'attachment_pressure_tolerance': attachment_pressure_tolerance,
+    'pressure_tolerance': pressure_tolerance,
+    'tangent_tolerance': tangent_tolerance,
+    'shock_angle_tolerance_rad': shock_angle_tolerance_rad,
+    'euler_reconciliation_shock_angle_tolerance_rad': (
+      euler_reconciliation_shock_angle_tolerance_rad
+    ),
+    'euler_reconciliation_residual_tolerance': (
+      euler_reconciliation_residual_tolerance
+    ),
+    'maximum_segment_iterations': maximum_segment_iterations,
+    'maximum_boundary_iterations': maximum_boundary_iterations,
+    'maximum_shooting_iterations': maximum_shooting_iterations,
+    'maximum_bracket_scan_samples': maximum_bracket_scan_samples,
+    'maximum_attempts': maximum_attempts,
+  }
+  configuration = tuple(
+    (name, configuration_payload[name])
+    for name in sorted(configuration_payload)
+  )
+  configuration_fingerprint = _refinement_fingerprint(configuration_payload)
+
+  closures: list[MocReflectedDomainGlobalPhysicalClosureResult] = []
+  cases: list[MocReflectedDomainGlobalEulerShockBoundaryRefinementCase] = []
+  for resolution in requested_resolutions:
+    try:
+      closure = solve_reflected_domain_global_physical_closure(
+        source_band,
+        outer_source_indices=resolved_outer_indices,
+        target_centerline_indices=resolved_centerline_indices,
+        compression_amplitude_lower_rad=compression_amplitude_lower_rad,
+        compression_amplitude_upper_rad=compression_amplitude_upper_rad,
+        compression_envelope_skews=(
+          () if resolved_skews is None else resolved_skews
+        ),
+        closure_tolerance_m=closure_tolerance_m,
+        incoming_handoff=resolved_handoff,
+        sample_count=resolution,
+        branch=branch,
+        position_tolerance_m=position_tolerance_m,
+        invariant_tolerance=invariant_tolerance,
+        attachment_pressure_tolerance=attachment_pressure_tolerance,
+        pressure_tolerance=pressure_tolerance,
+        tangent_tolerance=tangent_tolerance,
+        shock_angle_tolerance_rad=shock_angle_tolerance_rad,
+        euler_reconciliation_shock_angle_tolerance_rad=(
+          euler_reconciliation_shock_angle_tolerance_rad
+        ),
+        euler_reconciliation_residual_tolerance=(
+          euler_reconciliation_residual_tolerance
+        ),
+        maximum_segment_iterations=maximum_segment_iterations,
+        maximum_boundary_iterations=maximum_boundary_iterations,
+        maximum_shooting_iterations=maximum_shooting_iterations,
+        maximum_bracket_scan_samples=maximum_bracket_scan_samples,
+        maximum_attempts=maximum_attempts,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      closure = MocReflectedDomainGlobalPhysicalClosureResult(
+        status=MocReflectedDomainGlobalPhysicalClosureStatus.GLOBAL_REMESH_FAILURE,
+        source_band=source_band,
+        global_remesh=None,
+        global_euler=None,
+        message=f'fresh global physical closure raised: {error}',
+      )
+    closures.append(closure)
+    if closure.global_euler is not None:
+      cases.append(
+        MocReflectedDomainGlobalEulerShockBoundaryRefinementCase(
+          resolution=resolution,
+          result=closure.global_euler,
+        )
+      )
+
+  if len(cases) == len(requested_resolutions):
+    measurement = measure_moc_reflected_domain_global_euler_shock_boundary_refinement(
+      tuple(cases),
+    )
+    message = (
+      'fresh global physical-closure resolution ladder completed; '
+      'independent global-Euler evidence remains below canonical and external '
+      'promotion gates'
+    )
+  else:
+    missing = tuple(
+      resolution
+      for resolution, closure in zip(
+        requested_resolutions,
+        closures,
+        strict=True,
+      )
+      if closure.global_euler is None
+    )
+    measurement = _failure(
+      MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.CASE_FAILURE,
+      'fresh global physical closure did not retain a global Euler result at '
+      f'resolution(s) {missing}',
+    )
+    message = measurement.message
+  local_physical_closure_verified = bool(
+    closures and all(closure.physical_closure_verified for closure in closures)
+  )
+  fidelity_isolation_verified = bool(
+    closures
+    and all(
+      closure.chain_promotion_blocked
+      and not closure.production_claim_allowed
+      for closure in closures
+    )
+  )
+  return MocReflectedDomainGlobalEulerShockBoundaryRefinementRun(
+    source_band=source_band,
+    requested_resolutions=requested_resolutions,
+    closures=tuple(closures),
+    cases=tuple(cases),
+    measurement=measurement,
+    source_band_fingerprint=source_fingerprint,
+    configuration=configuration,
+    configuration_fingerprint=configuration_fingerprint,
+    fresh_solver_invocation_verified=(
+      len(closures) == len(requested_resolutions)
+    ),
+    local_physical_closure_verified=local_physical_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=message,
+  )
   ####

@@ -3368,3 +3368,24 @@ closure, additional resolution and reflected/attached cases, external
 calibration/validation comparison, and production next-cell shock fitting in a
 dedicated resolved-planar-MOC provider. Lower-fidelity visualization,
 signature, optical-transfer, and focal-plane-array providers remain isolated.
+
+## Fresh global-closure refinement-run checkpoint
+
+The global-Euler refinement lane now has an executable run wrapper:
+``run_moc_reflected_domain_global_euler_shock_boundary_refinement``. It keeps
+one verified source band fixed, invokes the global physical-closure solver once
+for every declared shock sample resolution, retains typed closure failures, and
+passes only the complete retained ladder to the independent refinement
+measurement. The run report carries a deterministic source-band fingerprint,
+configuration fingerprint, per-resolution solver status, and the local
+physical-closure/fidelity checks needed to distinguish a real resolution run
+from a hand-assembled result list.
+
+This improves reproducibility evidence but does not change the physical claim
+ceiling. Even a converged fresh ladder remains a bounded local exact-Euler
+research result: chain promotion stays blocked, canonical reflected
+free-boundary and dense frontier coupling remain open, and indexed external
+validation is still required. The next physics work is to replace the current
+research downstream turn/perimeter law with a solver-owned globally coupled
+reflected/mixed-regime closure, then repeat this runner across reflected and
+mild-attached cases before considering production shock-cell fitting.

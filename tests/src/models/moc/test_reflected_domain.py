@@ -88,8 +88,10 @@ from exhaust_plume.validation.moc_measurements import (
 )
 from exhaust_plume.validation.moc_reflected_domain_refinement import (
   MocReflectedDomainGlobalEulerShockBoundaryRefinementCase,
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementRun,
   MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus,
   measure_moc_reflected_domain_global_euler_shock_boundary_refinement,
+  run_moc_reflected_domain_global_euler_shock_boundary_refinement,
 )
 
 
@@ -1547,6 +1549,70 @@ def test_global_euler_shock_boundary_refinement_audits_resolution_ladder():
   assert tampered_measurement.case_audits_verified is False
   assert tampered_measurement.audits[-1].endpoint_tangents_verified is False
   assert tampered_measurement.converged is False
+
+
+def test_global_euler_refinement_runner_reexecutes_each_resolution_without_promotion():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(patch, ambient_pressure)
+
+  run = run_moc_reflected_domain_global_euler_shock_boundary_refinement(
+    source,
+    (5, 9, 11),
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(0.0,),
+    shock_angle_tolerance_rad=0.02,
+  )
+
+  assert isinstance(
+    run,
+    MocReflectedDomainGlobalEulerShockBoundaryRefinementRun,
+  )
+  assert run.requested_resolutions == (5, 9, 11)
+  assert len(run.closures) == 3
+  assert len(run.cases) == 3
+  assert run.fresh_solver_invocation_verified
+  assert run.local_physical_closure_verified
+  assert run.fidelity_isolation_verified
+  assert run.measurement.converged
+  assert run.local_consistency_verified
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  assert len(run.source_band_fingerprint) == 64
+  assert len(run.configuration_fingerprint) == 64
+  report = run.as_report()
+  assert report['requested_resolutions'] == [5, 9, 11]
+  assert report['configuration']['requested_resolutions'] == [5, 9, 11]
+  assert report['checks']['chain_promotion_blocked'] is True
+  assert report['checks']['production_claim_allowed'] is False
+
+
+def test_global_euler_refinement_runner_retains_missing_resolution_as_failure():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(patch, ambient_pressure)
+
+  run = run_moc_reflected_domain_global_euler_shock_boundary_refinement(
+    source,
+    (1,),
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_envelope_skews=(0.0,),
+  )
+
+  assert run.fresh_solver_invocation_verified
+  assert run.cases == ()
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus.CASE_FAILURE
+  )
+  assert run.local_consistency_verified is False
+  assert run.chain_promotion_blocked
+  assert run.as_report()['closures'][0]['global_euler_retained'] is False
 
 
 def test_global_euler_shock_boundary_rejects_invalid_tolerance_as_typed_result():

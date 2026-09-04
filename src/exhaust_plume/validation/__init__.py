@@ -271,6 +271,9 @@ from exhaust_plume.validation.moc_reflected_domain_refinement import (
   MocReflectedDomainGlobalEulerShockBoundaryRefinementCase,
   MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement,
   measure_moc_reflected_domain_global_euler_shock_boundary_refinement,
+  MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID,
+  MocReflectedDomainGlobalEulerShockBoundaryRefinementRun,
+  run_moc_reflected_domain_global_euler_shock_boundary_refinement,
 )
 from exhaust_plume.validation.moc_euler_characteristic import (
   MOC_EULER_AMBIENT_FIRST_WEDGE_CHARACTERISTIC_AUDIT_OPERATOR_ID,
@@ -479,6 +482,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_SHOCK_REMESH_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_EULER_SHOCK_BOUNDARY_REFINEMENT_RUN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_ALTERNATING_PHYSICAL_FIELD_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_OUTER_SOURCE_OPERATOR_ID',
@@ -538,6 +542,8 @@ __all__ = (
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementStatus',
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementCase',
   'MocReflectedDomainGlobalEulerShockBoundaryRefinementMeasurement',
+  'MocReflectedDomainGlobalEulerShockBoundaryRefinementRun',
+  'run_moc_reflected_domain_global_euler_shock_boundary_refinement',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurement',
   'MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus',
   'MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase',
