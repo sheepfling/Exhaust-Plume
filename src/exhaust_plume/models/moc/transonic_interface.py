@@ -867,6 +867,9 @@ class MocTransonicShockInterfaceFieldPlacementStatus(str, Enum):
   PROFILE_BUILD_FAILURE = (
     'transonic-interface-field-placement-profile-build-failure'
   )
+  TARGET_PRESSURE_UNREACHABLE = (
+    'transonic-interface-field-placement-target-pressure-unreachable'
+  )
   INDEPENDENT_AUDIT_FAILURE = (
     'transonic-interface-field-placement-independent-audit-failure'
   )
@@ -880,6 +883,9 @@ class MocTransonicShockInterfaceFieldPlacementRequest:
   The placement rule is deliberately mesh-bound.  It starts after the
   retained shock endpoint, chooses the retained cell-strip midpoint nearest a
   prescribed downstream fraction, and samples only inside the closed field.
+  When a downstream static-pressure target is supplied, every retained
+  candidate is evaluated against the derived normal-shock profile and an
+  unreachable target returns a typed stop with the best candidate retained.
   It does not extrapolate a state, project a shock surface, or close the
   downstream mixed-regime field.
   """
@@ -895,6 +901,8 @@ class MocTransonicShockInterfaceFieldPlacementRequest:
   state_tolerance: float = 1.0e-6
   pressure_tolerance: float = 1.0e-8
   source: str = 'solver-owned-post-shock-field-cross-section-rule-v1'
+  target_downstream_static_pressure_Pa: float | None = None
+  target_pressure_tolerance_fraction: float = 0.02
 
   def __post_init__(self) -> None:
     if not isinstance(self.field, MocPhysicalPostShockFieldResult):
@@ -938,6 +946,34 @@ class MocTransonicShockInterfaceFieldPlacementRequest:
         raise ValueError(f'{name} must be positive')
       ####
     ####
+    if self.target_downstream_static_pressure_Pa is not None:
+      target_pressure = _finite(
+        'target_downstream_static_pressure_Pa',
+        self.target_downstream_static_pressure_Pa,
+      )
+      if target_pressure <= 0.0:
+        raise ValueError(
+          'target_downstream_static_pressure_Pa must be positive when supplied'
+        )
+      ####
+      object.__setattr__(
+        self,
+        'target_downstream_static_pressure_Pa',
+        target_pressure,
+      )
+    ####
+    target_tolerance = _finite(
+      'target_pressure_tolerance_fraction',
+      self.target_pressure_tolerance_fraction,
+    )
+    if target_tolerance <= 0.0:
+      raise ValueError('target_pressure_tolerance_fraction must be positive')
+    ####
+    object.__setattr__(
+      self,
+      'target_pressure_tolerance_fraction',
+      target_tolerance,
+    )
     profile_id = str(self.profile_id)
     source = str(self.source)
     if not profile_id:
@@ -966,6 +1002,12 @@ class MocTransonicShockInterfaceFieldPlacementRequest:
       'position_tolerance_m': self.position_tolerance_m,
       'state_tolerance': self.state_tolerance,
       'pressure_tolerance': self.pressure_tolerance,
+      'target_downstream_static_pressure_Pa': (
+        self.target_downstream_static_pressure_Pa
+      ),
+      'target_pressure_tolerance_fraction': (
+        self.target_pressure_tolerance_fraction
+      ),
     }
   ####
 ####
@@ -984,6 +1026,7 @@ class MocTransonicShockInterfaceFieldPlacementResult:
   upper_ordinate_m: float | None = None
   sample_points_m: tuple[tuple[float, float], ...] = ()
   profile_result: MocTransonicShockInterfaceFieldProfileResult | None = None
+  target_pressure_residual_fraction: float | None = None
   independent_measurement: Any | None = None
   field_lineage_verified: bool = False
   cross_section_verified: bool = False
@@ -1047,6 +1090,22 @@ class MocTransonicShockInterfaceFieldPlacementResult:
       raise TypeError(
         'profile_result must be a '
         'MocTransonicShockInterfaceFieldProfileResult or None'
+      )
+    ####
+    if self.target_pressure_residual_fraction is not None:
+      target_residual = _finite(
+        'target_pressure_residual_fraction',
+        self.target_pressure_residual_fraction,
+      )
+      if target_residual < 0.0:
+        raise ValueError(
+          'target_pressure_residual_fraction must be nonnegative when supplied'
+        )
+      ####
+      object.__setattr__(
+        self,
+        'target_pressure_residual_fraction',
+        target_residual,
       )
     ####
     for name in (
@@ -1123,6 +1182,13 @@ class MocTransonicShockInterfaceFieldPlacementResult:
       'profile_result': (
         None if self.profile_result is None else self.profile_result.as_report()
       ),
+      'target_downstream_static_pressure_Pa': (
+        self.request.target_downstream_static_pressure_Pa
+      ),
+      'target_pressure_tolerance_fraction': (
+        self.request.target_pressure_tolerance_fraction
+      ),
+      'target_pressure_residual_fraction': self.target_pressure_residual_fraction,
       'independent_measurement': (
         None
         if audit is None or not hasattr(audit, 'as_report')
@@ -2271,6 +2337,48 @@ def _field_cross_section_candidates(
 ####
 
 
+def _target_pressure_residual_fraction(
+  profile: MocTransonicShockInterfaceProfile,
+  target_pressure_Pa: float,
+) -> float:
+  """Compare a derived post-shock profile with one declared pressure target."""
+
+  return max(
+    (
+      abs(sample.static_pressure_Pa - target_pressure_Pa)
+      / max(sample.static_pressure_Pa, target_pressure_Pa, 1.0)
+      for sample in profile.downstream_samples
+    ),
+    default=float('inf'),
+  )
+####
+
+
+class _TargetPressurePlacementFailure(RuntimeError):
+  """Carry the best in-domain candidate when a pressure target is missed."""
+
+  def __init__(
+    self,
+    candidate: tuple[
+      int,
+      float,
+      float,
+      float,
+      tuple[tuple[float, float], ...],
+      MocTransonicShockInterfaceFieldProfileResult,
+    ],
+    residual_fraction: float,
+  ) -> None:
+    self.candidate = candidate
+    self.residual_fraction = residual_fraction
+    super().__init__(
+      'no retained post-shock cross-section met the declared downstream '
+      f'static-pressure target; best relative residual was {residual_fraction:.6g}'
+    )
+  ####
+####
+
+
 def _derive_field_placement(
   request: MocTransonicShockInterfaceFieldPlacementRequest,
 ) -> tuple[
@@ -2280,9 +2388,19 @@ def _derive_field_placement(
   float,
   tuple[tuple[float, float], ...],
   MocTransonicShockInterfaceFieldProfileResult,
+  float | None,
 ]:
   candidates = _field_cross_section_candidates(request)
   last_profile: MocTransonicShockInterfaceFieldProfileResult | None = None
+  best_candidate: tuple[
+    int,
+    float,
+    float,
+    float,
+    tuple[tuple[float, float], ...],
+    MocTransonicShockInterfaceFieldProfileResult,
+  ] | None = None
+  best_residual = float('inf')
   for rank, x_m in enumerate(candidates):
     interval = _field_vertical_interval(
       request.field,
@@ -2323,9 +2441,38 @@ def _derive_field_placement(
       profile_request
     )
     last_profile = profile_result
-    if profile_result.converged:
-      return rank, x_m, sampled_lower, sampled_upper, sample_points, profile_result
+    if not profile_result.converged or profile_result.profile is None:
+      continue
     ####
+    candidate = (
+      rank,
+      x_m,
+      sampled_lower,
+      sampled_upper,
+      sample_points,
+      profile_result,
+    )
+    target_pressure = request.target_downstream_static_pressure_Pa
+    if target_pressure is None:
+      return (*candidate, None)
+    ####
+    residual_fraction = _target_pressure_residual_fraction(
+      profile_result.profile,
+      target_pressure,
+    )
+    if residual_fraction < best_residual:
+      best_candidate = candidate
+      best_residual = residual_fraction
+    ####
+    if residual_fraction <= request.target_pressure_tolerance_fraction:
+      return (*candidate, residual_fraction)
+    ####
+  ####
+  if (
+    best_candidate is not None
+    and request.target_downstream_static_pressure_Pa is not None
+  ):
+    raise _TargetPressurePlacementFailure(best_candidate, best_residual)
   ####
   if last_profile is not None:
     raise RuntimeError(
@@ -2351,6 +2498,7 @@ def _field_placement_failure(
   upper_ordinate_m: float | None = None,
   sample_points_m: tuple[tuple[float, float], ...] = (),
   profile_result: MocTransonicShockInterfaceFieldProfileResult | None = None,
+  target_pressure_residual_fraction: float | None = None,
   independent_measurement: Any | None = None,
   field_lineage_verified: bool = False,
   cross_section_verified: bool = False,
@@ -2367,6 +2515,7 @@ def _field_placement_failure(
     upper_ordinate_m=upper_ordinate_m,
     sample_points_m=sample_points_m,
     profile_result=profile_result,
+    target_pressure_residual_fraction=target_pressure_residual_fraction,
     independent_measurement=independent_measurement,
     field_lineage_verified=field_lineage_verified,
     cross_section_verified=cross_section_verified,
@@ -2415,7 +2564,33 @@ def build_moc_transonic_shock_interface_profile_from_field_placement(
       upper,
       sample_points,
       profile_result,
+      target_pressure_residual_fraction,
     ) = _derive_field_placement(request)
+  except _TargetPressurePlacementFailure as error:
+    (
+      selected_rank,
+      cross_section_x,
+      lower,
+      upper,
+      sample_points,
+      profile_result,
+    ) = error.candidate
+    return _field_placement_failure(
+      MocTransonicShockInterfaceFieldPlacementStatus
+      .TARGET_PRESSURE_UNREACHABLE,
+      request,
+      field=field,
+      selected_candidate_rank=selected_rank,
+      cross_section_x_m=cross_section_x,
+      lower_ordinate_m=lower,
+      upper_ordinate_m=upper,
+      sample_points_m=sample_points,
+      profile_result=profile_result,
+      target_pressure_residual_fraction=error.residual_fraction,
+      field_lineage_verified=True,
+      cross_section_verified=True,
+      message=str(error),
+    )
   except ValueError as error:
     return _field_placement_failure(
       MocTransonicShockInterfaceFieldPlacementStatus.FIELD_GEOMETRY_FAILURE,
@@ -2465,6 +2640,7 @@ def build_moc_transonic_shock_interface_profile_from_field_placement(
     upper_ordinate_m=upper,
     sample_points_m=sample_points,
     profile_result=profile_result,
+    target_pressure_residual_fraction=target_pressure_residual_fraction,
     field_lineage_verified=True,
     cross_section_verified=True,
     profile_verified=True,
@@ -2530,6 +2706,7 @@ def build_moc_transonic_shock_interface_profile_from_field_placement(
     upper_ordinate_m=upper,
     sample_points_m=sample_points,
     profile_result=profile_result,
+    target_pressure_residual_fraction=target_pressure_residual_fraction,
     independent_measurement=audit,
     field_lineage_verified=True,
     cross_section_verified=True,

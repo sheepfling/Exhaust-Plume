@@ -4036,3 +4036,20 @@ is retained as research input for the missing shock/mixing entropy treatment,
 while global overlap, physical closure, external validation, and production
 claims remain false.  The next implementation seam is the solver-owned
 transonic/frontier treatment that can supply that missing physical budget.
+
+## Target-pressure-aware transonic placement checkpoint
+
+The solver-owned transonic placement request now optionally carries a declared
+downstream static-pressure target and relative tolerance.  Candidate
+cross-sections are evaluated in solver order using their derived normal-shock
+profiles; a candidate is accepted only when its sampled profile meets the
+target, while an unreachable target returns the typed
+`TARGET_PRESSURE_UNREACHABLE` result with the best in-domain candidate and
+residual retained for diagnosis.
+
+The independent audit repeats the candidate ordering, field sampling, and
+target residual calculation.  This is an executable local pressure-budget
+gate, not a claim that the transonic/frontier closure is complete: the
+surrounding C-/C+ field, ambient/centerline boundaries, global remesh
+feedback, physical shock-cell length, Signature/FPA promotion, and external
+validation remain separate work and remain closed.

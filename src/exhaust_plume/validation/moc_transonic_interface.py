@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import hypot, isclose, log, pi, sqrt
+from math import hypot, isclose, isfinite, log, pi, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.primitives import CharacteristicState
@@ -1082,6 +1082,8 @@ class MocTransonicShockInterfaceFieldPlacementAudit:
   lower_ordinate_residual_m: float | None
   upper_ordinate_residual_m: float | None
   maximum_sample_point_residual_m: float | None
+  target_pressure_verified: bool
+  target_pressure_residual_fraction: float | None
   profile_audit: MocTransonicShockInterfaceFieldProfileAudit | None
   message: str = ''
 
@@ -1111,6 +1113,7 @@ class MocTransonicShockInterfaceFieldPlacementAudit:
       'selected_candidate_verified',
       'profile_verified',
       'full_field_cross_section_verified',
+      'target_pressure_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -1121,13 +1124,14 @@ class MocTransonicShockInterfaceFieldPlacementAudit:
       'lower_ordinate_residual_m',
       'upper_ordinate_residual_m',
       'maximum_sample_point_residual_m',
+      'target_pressure_residual_fraction',
     ):
       value = getattr(self, name)
       if value is None:
         continue
       ####
       numeric = float(value)
-      if numeric < 0.0:
+      if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be nonnegative when supplied')
       ####
       object.__setattr__(self, name, numeric)
@@ -1164,6 +1168,10 @@ class MocTransonicShockInterfaceFieldPlacementAudit:
       'lower_ordinate_residual_m': self.lower_ordinate_residual_m,
       'upper_ordinate_residual_m': self.upper_ordinate_residual_m,
       'maximum_sample_point_residual_m': self.maximum_sample_point_residual_m,
+      'target_pressure_verified': self.target_pressure_verified,
+      'target_pressure_residual_fraction': (
+        self.target_pressure_residual_fraction
+      ),
       'profile_audit': (
         None if self.profile_audit is None else self.profile_audit.as_report()
       ),
@@ -1228,6 +1236,52 @@ def _independent_field_interval(
 ####
 
 
+def _independent_target_pressure_residual(
+  field: Any,
+  points: tuple[tuple[float, float], ...],
+  request: Any,
+) -> float | None:
+  target_pressure = request.target_downstream_static_pressure_Pa
+  if target_pressure is None:
+    return None
+  ####
+  residuals: list[float] = []
+  for point in points:
+    state = field.state_at(
+      point,
+      position_tolerance_m=request.position_tolerance_m,
+    )
+    total_pressure = field.total_pressure_at(
+      point,
+      position_tolerance_m=request.position_tolerance_m,
+    )
+    if state is None or total_pressure is None:
+      raise ValueError(
+        'independent target-pressure audit could not sample the retained field'
+      )
+    ####
+    factor = 1.0 + 0.5 * (state.gamma - 1.0) * state.mach**2
+    static_pressure = total_pressure / factor ** (
+      state.gamma / (state.gamma - 1.0)
+    )
+    upstream = MocTransonicShockInterfaceSample(
+      point_m=point,
+      mach=state.mach,
+      flow_angle_rad=state.theta_rad,
+      static_pressure_Pa=static_pressure,
+      total_pressure_Pa=total_pressure,
+      gamma=state.gamma,
+    )
+    expected_downstream = _normal_shock_profile_expected(upstream)
+    residuals.append(
+      abs(expected_downstream.static_pressure_Pa - target_pressure)
+      / max(expected_downstream.static_pressure_Pa, target_pressure, 1.0)
+    )
+  ####
+  return max(residuals, default=float('inf'))
+####
+
+
 def _independent_placement_geometry(
   result: MocTransonicShockInterfaceFieldPlacementResult,
 ) -> tuple[
@@ -1236,6 +1290,7 @@ def _independent_placement_geometry(
   float,
   float,
   tuple[tuple[float, float], ...],
+  float | None,
 ]:
   request = result.request
   field = request.field
@@ -1268,6 +1323,15 @@ def _independent_placement_geometry(
   ordered = tuple(
     sorted(candidates, key=lambda candidate: (abs(candidate - target_x), candidate))
   )
+  best_candidate: tuple[
+    int,
+    float,
+    float,
+    float,
+    tuple[tuple[float, float], ...],
+    float | None,
+  ] | None = None
+  best_residual = float('inf')
   for rank, x_m in enumerate(ordered):
     interval = _independent_field_interval(
       field,
@@ -1311,8 +1375,30 @@ def _independent_placement_geometry(
       ####
     ####
     if valid:
-      return rank, x_m, sampled_lower, sampled_upper, points
+      residual = _independent_target_pressure_residual(field, points, request)
+      candidate = (
+        rank,
+        x_m,
+        sampled_lower,
+        sampled_upper,
+        points,
+        residual,
+      )
+      if request.target_downstream_static_pressure_Pa is None:
+        return candidate
+      ####
+      assert residual is not None
+      if residual < best_residual:
+        best_candidate = candidate
+        best_residual = residual
+      ####
+      if residual <= request.target_pressure_tolerance_fraction:
+        return candidate
+      ####
     ####
+  ####
+  if best_candidate is not None:
+    return best_candidate
   ####
   raise ValueError('no independently valid post-shock cross-section candidate')
 ####
@@ -1352,10 +1438,17 @@ def measure_moc_transonic_shock_interface_field_placement(
   lower_residual = None
   upper_residual = None
   maximum_point_residual = None
+  target_pressure_verified = request.target_downstream_static_pressure_Pa is None
+  target_pressure_residual_fraction = None
   try:
-    expected_rank, expected_x, expected_lower, expected_upper, expected_points = (
-      _independent_placement_geometry(result)
-    )
+    (
+      expected_rank,
+      expected_x,
+      expected_lower,
+      expected_upper,
+      expected_points,
+      expected_target_residual,
+    ) = _independent_placement_geometry(result)
     rederived = True
     selected_candidate_verified = bool(
       result.selected_candidate_rank == expected_rank
@@ -1379,6 +1472,19 @@ def measure_moc_transonic_shock_interface_field_placement(
         )
       ]
       maximum_point_residual = max(residuals, default=0.0)
+    ####
+    target_pressure_residual_fraction = expected_target_residual
+    if request.target_downstream_static_pressure_Pa is not None:
+      target_pressure_verified = bool(
+        expected_target_residual is not None
+        and expected_target_residual
+        <= request.target_pressure_tolerance_fraction
+        and result.target_pressure_residual_fraction is not None
+        and abs(
+          result.target_pressure_residual_fraction - expected_target_residual
+        )
+        <= 1.0e-12
+      )
     ####
     tolerance = request.position_tolerance_m
     cross_section_verified = bool(
@@ -1422,6 +1528,7 @@ def measure_moc_transonic_shock_interface_field_placement(
     and result.cross_section_verified
     and cross_section_verified
     and selected_candidate_verified
+    and target_pressure_verified
     and result.profile_verified
     and profile_verified
   )
@@ -1442,6 +1549,8 @@ def measure_moc_transonic_shock_interface_field_placement(
     lower_ordinate_residual_m=lower_residual,
     upper_ordinate_residual_m=upper_residual,
     maximum_sample_point_residual_m=maximum_point_residual,
+    target_pressure_verified=target_pressure_verified,
+    target_pressure_residual_fraction=target_pressure_residual_fraction,
     profile_audit=profile_audit,
     message=(
       'field geometry, candidate ordering, sampled state regime, and the '

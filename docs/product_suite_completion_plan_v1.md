@@ -1559,3 +1559,20 @@ solver-owned first-iteration neighbor profiles before entering the same
 bounded runner.  These are local research outcomes only: the global/coupled
 closure and production claim gates remain blocked, as do physical shock-cell
 fitting, provider-bound validation, and Signature/FPA promotion.
+
+### Target-pressure-aware solver-owned placement checkpoint
+
+The solver-owned physical-field placement request now accepts an explicit
+downstream static-pressure target and tolerance.  It evaluates every retained
+post-shock cross-section using the derived normal-shock profile, selects only
+an in-domain candidate whose sampled profile meets the target, and retains the
+best candidate when no target is reachable.  The independent placement audit
+re-derives candidate ordering, target residual, and the typed
+`TARGET_PRESSURE_UNREACHABLE` stop.
+
+This makes the missing transonic/frontier pressure budget executable instead
+of treating a fixed post-shock fraction as a solution.  It remains a local
+normal-shock placement gate: it does not solve the surrounding C-/C+ field,
+ambient/centerline closure, feedback into the global remesh, physical cell
+length, Signature/FPA promotion, or external validation.  A target miss is
+therefore preserved as evidence for the next mixed-regime solver slice.

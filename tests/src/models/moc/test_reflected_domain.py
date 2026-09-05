@@ -2729,6 +2729,76 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
 ####
 
 
+def test_solver_owned_transonic_placement_binds_declared_pressure_target():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  field = closure.global_euler.physical_field.field
+
+  baseline = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(field=field)
+  )
+  assert baseline.converged
+  assert baseline.profile is not None
+  target_pressure = baseline.profile.downstream_samples[0].static_pressure_Pa
+  targeted = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=field,
+      target_downstream_static_pressure_Pa=target_pressure,
+      target_pressure_tolerance_fraction=0.01,
+    )
+  )
+
+  assert targeted.status is (
+    MocTransonicShockInterfaceFieldPlacementStatus.CONVERGED_SOLVER_PLACEMENT
+  )
+  assert targeted.converged
+  assert targeted.target_pressure_residual_fraction is not None
+  assert targeted.target_pressure_residual_fraction <= 0.01
+  assert targeted.as_report()['target_downstream_static_pressure_Pa'] == pytest.approx(
+    target_pressure
+  )
+  audit = measure_moc_transonic_shock_interface_field_placement(targeted)
+  assert audit.status is MocTransonicShockInterfaceFieldPlacementAuditStatus.VERIFIED
+  assert audit.target_pressure_verified
+  assert audit.target_pressure_residual_fraction == pytest.approx(
+    targeted.target_pressure_residual_fraction
+  )
+####
+
+
+def test_solver_owned_transonic_placement_stops_on_unreachable_pressure_target():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  field = closure.global_euler.physical_field.field
+  result = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=field,
+      target_downstream_static_pressure_Pa=1.0e-6,
+      target_pressure_tolerance_fraction=1.0e-6,
+    )
+  )
+
+  assert result.status is (
+    MocTransonicShockInterfaceFieldPlacementStatus.TARGET_PRESSURE_UNREACHABLE
+  )
+  assert result.converged is False
+  assert result.profile_result is not None
+  assert result.profile_result.converged
+  assert result.target_pressure_residual_fraction is not None
+  assert result.target_pressure_residual_fraction > 0.9
+  audit = measure_moc_transonic_shock_interface_field_placement(result)
+  assert audit.status is (
+    MocTransonicShockInterfaceFieldPlacementAuditStatus.RESULT_FAILURE
+  )
+  assert audit.target_pressure_verified is False
+  assert audit.converged is False
+####
+
+
 def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open():
   closure = _global_physical_closure_for_mixed_regime()
   run = run_reflected_domain_global_coupled_downstream_refinement(
