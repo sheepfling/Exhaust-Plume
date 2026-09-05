@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -170,6 +172,45 @@ def test_lte_population_closure_derives_a_source_bound_line_without_inventing_sp
     'spectral-engineering-with-explicit-lte-population-closure'
   )
   assert line.as_report()['population_closure']['model'] == 'lte-boltzmann-population-closure-v1'  # type: ignore[index]
+####
+
+
+def test_lte_population_closure_rejects_public_constructor_values_that_do_not_recompute_from_state() -> None:
+  mixture = FrozenMixtureGas(
+    mixture_id='test-lte-population-bound-values',
+    species=(
+      SpeciesDefinition(
+        species='test-gas',
+        molecular_weight_kg_per_mol=0.020,
+        cp_JpkgK=1_000.0,
+      ),
+    ),
+    species_mass_fractions=(SpeciesMassFraction(species='test-gas', mass_fraction=1.0),),
+    valid_temperature_range_K=(300.0, 2_000.0),
+  )
+  state = mixture.state_at(120_000.0, 1_200.0)
+  closure = LtePopulationClosure.from_state(
+    LteTransition(
+      species='test-gas',
+      center_wavelength_m=2.0e-6,
+      lower_state_energy_J=0.0,
+      upper_state_energy_J=1.0e-20,
+      lower_degeneracy=1.0,
+      upper_degeneracy=1.0,
+      integrated_absorption_cross_section_m3=4.0e-28,
+      molecular_mass_kg=3.32e-26,
+    ),
+    state,
+    partition_function=4.0,
+    path_length_m=2.0,
+  )
+
+  with pytest.raises(ValueError, match='integrated_optical_depth_m'):
+    replace(
+      closure,
+      integrated_optical_depth_m=closure.integrated_optical_depth_m * 2.0,
+    )
+  ####
 ####
 
 

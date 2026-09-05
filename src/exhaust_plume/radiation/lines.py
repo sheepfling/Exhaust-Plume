@@ -136,6 +136,26 @@ class LteTransition:
 ####
 
 
+def _transition_species_mole_fraction(
+  transition: LteTransition,
+  mixture_state: FrozenMixtureState,
+) -> float:
+  """Return the unique frozen-mixture fraction used by one transition."""
+
+  matching_species = tuple(
+    item.mole_fraction
+    for item in mixture_state.species_mole_fractions
+    if item.species == transition.species
+  )
+  if len(matching_species) != 1:
+    raise ValueError(
+      f"transition species {transition.species!r} is not present exactly once in the mixture state"
+    )
+  ####
+  return float(matching_species[0])
+####
+
+
 @dataclass(frozen=True, slots=True)
 class LtePopulationClosure:
   """One explicit LTE population calculation bound to a CHEM-0 state.
@@ -194,6 +214,55 @@ class LtePopulationClosure:
     if lower_fraction > 1.0 or upper_fraction > 1.0:
       raise ValueError('population fractions must not exceed one')
     ####
+    species_mole_fraction = _transition_species_mole_fraction(
+      self.transition,
+      self.mixture_state,
+    )
+    temperature = self.mixture_state.temperature_K
+    lower_weight = self.transition.lower_degeneracy * exp(
+      -self.transition.lower_state_energy_J / (BOLTZMANN_J_K * temperature)
+    )
+    upper_weight = self.transition.upper_degeneracy * exp(
+      -self.transition.upper_state_energy_J / (BOLTZMANN_J_K * temperature)
+    )
+    weight_sum = lower_weight + upper_weight
+    if partition + 1.0e-14 * max(partition, weight_sum, 1.0) < weight_sum:
+      raise ValueError(
+        'partition_function must include at least the declared lower and upper state weights'
+      )
+    ####
+    expected_lower_fraction = lower_weight / partition
+    expected_upper_fraction = upper_weight / partition
+    total_number_density = self.mixture_state.pressure_Pa / (
+      BOLTZMANN_J_K * temperature
+    )
+    species_number_density = total_number_density * species_mole_fraction
+    expected_lower_density = species_number_density * expected_lower_fraction
+    expected_upper_density = species_number_density * expected_upper_fraction
+    expected_stimulated = 1.0 - exp(
+      -(self.transition.upper_state_energy_J - self.transition.lower_state_energy_J)
+      / (BOLTZMANN_J_K * temperature)
+    )
+    expected_integrated = (
+      expected_lower_density
+      * self.transition.integrated_absorption_cross_section_m3
+      * expected_stimulated
+      * path_length
+    )
+    derived_values = (
+      ('lower_population_fraction', lower_fraction, expected_lower_fraction),
+      ('upper_population_fraction', upper_fraction, expected_upper_fraction),
+      ('lower_number_density_per_m3', lower_density, expected_lower_density),
+      ('upper_number_density_per_m3', upper_density, expected_upper_density),
+      ('stimulated_emission_factor', stimulated, expected_stimulated),
+      ('integrated_optical_depth_m', integrated, expected_integrated),
+    )
+    for name, actual, expected in derived_values:
+      tolerance = 1.0e-12 * max(abs(actual), abs(expected), 1.0)
+      if abs(actual - expected) > tolerance:
+        raise ValueError(f'{name} does not match the declared LTE source state')
+      ####
+    ####
     object.__setattr__(self, 'partition_function', partition)
     object.__setattr__(self, 'path_length_m', path_length)
     object.__setattr__(self, 'lower_population_fraction', lower_fraction)
@@ -223,16 +292,7 @@ class LtePopulationClosure:
     ####
     partition = _finite_positive('partition_function', partition_function)
     path_length = _finite_positive('path_length_m', path_length_m)
-    matching_species = tuple(
-      item.mole_fraction
-      for item in mixture_state.species_mole_fractions
-      if item.species == transition.species
-    )
-    if len(matching_species) != 1:
-      raise ValueError(
-        f"transition species {transition.species!r} is not present exactly once in the mixture state"
-      )
-    ####
+    species_mole_fraction = _transition_species_mole_fraction(transition, mixture_state)
     temperature = mixture_state.temperature_K
     lower_weight = transition.lower_degeneracy * exp(
       -transition.lower_state_energy_J / (BOLTZMANN_J_K * temperature)
@@ -249,7 +309,7 @@ class LtePopulationClosure:
     lower_fraction = lower_weight / partition
     upper_fraction = upper_weight / partition
     total_number_density = mixture_state.pressure_Pa / (BOLTZMANN_J_K * temperature)
-    species_number_density = total_number_density * matching_species[0]
+    species_number_density = total_number_density * species_mole_fraction
     lower_density = species_number_density * lower_fraction
     upper_density = species_number_density * upper_fraction
     stimulated = 1.0 - exp(
