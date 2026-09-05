@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 import exhaust_plume.models.moc.coupled_euler_free_boundary as coupled_euler
+import exhaust_plume.validation.moc_global_coupled_downstream_feedback as downstream_feedback
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
@@ -2550,6 +2551,53 @@ def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor
     )
     for item in run.iterations
   )
+####
+
+
+def test_global_coupled_downstream_feedback_does_not_alias_geometry_consumption_to_lineage(
+  monkeypatch: pytest.MonkeyPatch,
+):
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+
+  def reject_geometry_consumption(
+    _result: object,
+    *,
+    pressure: bool,
+  ) -> bool:
+    return bool(pressure)
+  ####
+
+  monkeypatch.setattr(
+    downstream_feedback,
+    '_solver_owned_neighbor_profile_consumed',
+    reject_geometry_consumption,
+  )
+  run = run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+  )
+
+  assert run.geometry_profile_lineage_verified
+  assert not run.geometry_profile_consumption_verified
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.PROFILE_FAILURE
+  )
+  assert not run.converged
 ####
 
 
