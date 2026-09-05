@@ -18,6 +18,7 @@ from math import isfinite
 from typing import Any
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
+  PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
@@ -97,6 +98,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
   response_lineage_verified: bool = False
   pressure_profile_consumption_verified: bool = False
   geometry_profile_consumption_verified: bool = False
+  initial_state_lineage_verified: bool = True
 
   def __post_init__(self) -> None:
     index = self.iteration_index
@@ -175,6 +177,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
       'response_lineage_verified',
       'pressure_profile_consumption_verified',
       'geometry_profile_consumption_verified',
+      'initial_state_lineage_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -277,6 +280,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
       'geometry_profile_consumption_verified': (
         self.geometry_profile_consumption_verified
       ),
+      'initial_state_lineage_verified': self.initial_state_lineage_verified,
       'response_coverage_verified': self.response_coverage_verified,
       'response_residuals_verified': self.response_residuals_verified,
       'response_channels_finite': self.response_channels_finite,
@@ -326,6 +330,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
   response_coverage_verified: bool = False
   response_residuals_verified: bool = False
   local_coupled_field_verified: bool = False
+  initial_state_lineage_verified: bool = False
   pressure_update_convergence_verified: bool = False
   fidelity_isolation_verified: bool = False
   global_coupling_verified: bool = False
@@ -401,6 +406,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'response_coverage_verified',
       'response_residuals_verified',
       'local_coupled_field_verified',
+      'initial_state_lineage_verified',
       'pressure_update_convergence_verified',
       'fidelity_isolation_verified',
       'global_coupling_verified',
@@ -448,6 +454,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       and self.response_coverage_verified
       and self.response_residuals_verified
       and self.local_coupled_field_verified
+      and self.initial_state_lineage_verified
       and self.pressure_update_convergence_verified
       and self.fidelity_isolation_verified
     )
@@ -482,6 +489,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'response_coverage_verified': self.response_coverage_verified,
       'response_residuals_verified': self.response_residuals_verified,
       'local_coupled_field_verified': self.local_coupled_field_verified,
+      'initial_state_lineage_verified': self.initial_state_lineage_verified,
       'pressure_update_convergence_verified': (
         self.pressure_update_convergence_verified
       ),
@@ -628,6 +636,7 @@ def _status_for_run(
   response_coverage_verified: bool,
   response_residuals_verified: bool,
   local_coupled_field_verified: bool,
+  initial_state_lineage_verified: bool,
   pressure_update_convergence_verified: bool,
   fidelity_isolation_verified: bool,
 ) -> tuple[MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus, str]:
@@ -636,6 +645,13 @@ def _status_for_run(
       MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.SOLVER_FAILURE,
       'the feedback ladder did not retain a locally audited fresh coupled '
       'field for every attempted step',
+    )
+  ####
+  if not initial_state_lineage_verified:
+    return (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.FIDELITY_FAILURE,
+      'exact physical-field feedback iterations did not retain the solver-owned '
+      'initial-state lineage',
     )
   ####
   if not fidelity_isolation_verified:
@@ -797,6 +813,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile | None
   ) = None
   pressure_update_convergence_verified = False
+  initial_state_lineage_verified = True
   pressure_profile_alignment_verified = True
   geometry_profile_alignment_verified = True
   stop_reason: str | None = None
@@ -840,6 +857,25 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError):
         response = None
+      ####
+    ####
+    iteration_initial_state_lineage_verified = True
+    if inlet_boundary_mode is (
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ):
+      field = result.coupled_field
+      iteration_initial_state_lineage_verified = bool(
+        field is not None
+        and field.initial_state_field_bound
+        and field.initial_state_source == PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE
+      )
+      if not iteration_initial_state_lineage_verified:
+        initial_state_lineage_verified = False
+        stop_reason = (
+          'exact physical-field feedback iteration did not retain the '
+          'solver-owned exact initial-state source'
+        )
       ####
     ####
     response_lineage_verified = bool(
@@ -1018,6 +1054,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         geometry_profile_consumption_verified=(
           geometry_profile_consumption_verified
         ),
+        initial_state_lineage_verified=iteration_initial_state_lineage_verified,
       )
     )
     if not result.local_coupled_field_verified:
@@ -1111,6 +1148,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     response_coverage_verified=response_coverage_verified,
     response_residuals_verified=response_residuals_verified,
     local_coupled_field_verified=local_coupled_field_verified,
+    initial_state_lineage_verified=initial_state_lineage_verified,
     pressure_update_convergence_verified=pressure_update_convergence_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
   )
@@ -1138,6 +1176,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     response_coverage_verified=response_coverage_verified,
     response_residuals_verified=response_residuals_verified,
     local_coupled_field_verified=local_coupled_field_verified,
+    initial_state_lineage_verified=initial_state_lineage_verified,
     pressure_update_convergence_verified=pressure_update_convergence_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
     message=message,

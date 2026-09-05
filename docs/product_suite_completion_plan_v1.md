@@ -1523,6 +1523,13 @@ not evidence of upstream/global feedback, canonical reflected closure,
 refinement, accepted physical shock-cell length, provider validation, or
 production Visualization, Signature, or FPA status.
 
+The downstream feedback ladder now carries the same initial-state lineage
+through every fresh exact-field iteration.  Selecting the solver-owned exact
+continuation mode requires each retained coupled field to report the exact
+physical-field sample source; a missing source is a typed fidelity failure,
+not an inlet-only fallback.  This closes a multi-iteration provenance gap
+while leaving the upstream/global re-solve and canonical closure gates open.
+
 ### Global/coupled downstream boundary-response checkpoint
 
 The coupled-field result now retains one static-pressure sample for each

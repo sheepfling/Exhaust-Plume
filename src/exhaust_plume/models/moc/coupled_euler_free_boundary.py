@@ -75,6 +75,7 @@ __all__ = (
   'MocPhysicalFieldContinuationProfile',
   'MocPhysicalFieldContinuationProfileResult',
   'MocPhysicalFieldShockFrontConditionResult',
+  'PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE',
   'build_reflected_domain_coupled_euler_free_boundary_request',
   'assess_reflected_domain_coupled_euler_subsonic_pressure_budget',
   'assess_reflected_domain_coupled_euler_pressure_profile_compatibility',

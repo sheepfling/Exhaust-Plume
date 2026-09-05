@@ -137,6 +137,7 @@ from exhaust_plume.models.moc.mixed_regime_variable_entropy import (
   solve_mixed_regime_variable_entropy_free_boundary,
 )
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
+  PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
@@ -902,6 +903,7 @@ __all__ = (
   'MocMixedRegimeVariableEntropyFreeBoundaryResult',
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
   'MocReflectedDomainCoupledEulerInletBoundaryMode',
+  'PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudget',
   'MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus',

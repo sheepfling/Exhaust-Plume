@@ -2522,6 +2522,7 @@ def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor
   assert run.converged
   assert run.geometry_profile_consumption_verified
   assert run.local_coupled_field_verified
+  assert run.initial_state_lineage_verified
   assert run.response_residuals_verified
   assert run.global_coupling_verified is False
   assert run.downstream_boundary_closure_verified is False
@@ -2534,6 +2535,11 @@ def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor
     and item.result.coupled_field is not None
     and item.result.coupled_field.free_boundary_pressure_profile_consumed
     and item.result.coupled_field.free_boundary_geometry_profile_consumed
+    and item.initial_state_lineage_verified
+    and item.result.coupled_field.initial_state_field_bound
+    and item.result.coupled_field.initial_state_source == (
+      'solver-owned-exact-physical-field-samples-v1'
+    )
     for item in run.iterations
   )
 ####
