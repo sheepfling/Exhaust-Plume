@@ -660,6 +660,26 @@ the planar visualization exposes it as a diagnostic.  This makes the current
 failure actionable without treating the scalar transition or a downstream
 shape relaxation as a placed shock or a canonical closure.
 
+### P2.2 solver-owned pressure-profile compatibility checkpoint
+
+The global-to-coupled pressure feedback path now has its own typed
+compatibility record.  It evaluates every solver-owned downstream pressure
+target against the isentropic subsonic budget implied by the outer
+control-section total pressure, retaining the target extrema, below/within/
+above counts, worst-case compatible total pressure, and required additional
+loss fraction.  This closes an evidence-accounting gap: the prior ambient
+pressure budget could be within bounds while a supplied feedback profile was
+below the local sonic-limit budget.
+
+The independent coupled-field audit rederives this profile diagnostic without
+calling the model helper and verifies tamper detection.  A below-budget
+profile remains valid research input for investigating shock and mixing
+physics, but the diagnostic is deliberately non-gating and cannot turn the
+global overlap response, physical closure, external validation, or production
+claim gates green.  The next closure seam is still a solver-owned physical
+transonic/frontier treatment that can account for the required entropy and
+match the retained global boundary in measurement space.
+
 ### Explicit LTE line-source Signature checkpoint
 
 The Signature bridge now accepts an explicit `LineRadiationProfile` alongside

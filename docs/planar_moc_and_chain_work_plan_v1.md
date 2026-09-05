@@ -3978,3 +3978,19 @@ that update policy.  The global/coupled overlap response still fails its
 pressure, tangent, and normal residual gate, so canonical closure, continued
 chain promotion, physical shock-cell fitting, Signature/FPA promotion, and
 external validation remain blocked.
+
+## Downstream pressure-profile compatibility checkpoint
+
+The coupled result now retains a separate typed diagnostic for the full
+solver-owned downstream pressure profile.  It evaluates each target against
+the outer control-section isentropic subsonic range and reports the target
+extrema, below/within/above counts, worst-case compatible total pressure, and
+the minimum additional loss fraction.  This catches the case where the
+ambient target is compatible but the global feedback profile is not.
+
+The independent audit recomputes the profile record and detects a tampered
+record.  The diagnostic is intentionally non-gating: a below-budget profile
+is retained as research input for the missing shock/mixing entropy treatment,
+while global overlap, physical closure, external validation, and production
+claims remain false.  The next implementation seam is the solver-owned
+transonic/frontier treatment that can supply that missing physical budget.

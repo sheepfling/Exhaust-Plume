@@ -62,6 +62,8 @@ __all__ = (
   'MocReflectedDomainCoupledEulerInletBoundaryMode',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudget',
+  'MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus',
+  'MocReflectedDomainCoupledEulerPressureProfileCompatibility',
   'MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus',
   'MocReflectedDomainCoupledEulerControlSectionCompatibility',
   'MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus',
@@ -73,6 +75,7 @@ __all__ = (
   'MocPhysicalFieldShockFrontConditionResult',
   'build_reflected_domain_coupled_euler_free_boundary_request',
   'assess_reflected_domain_coupled_euler_subsonic_pressure_budget',
+  'assess_reflected_domain_coupled_euler_pressure_profile_compatibility',
   'assess_reflected_domain_coupled_euler_transonic_transition',
   'assess_reflected_domain_coupled_euler_control_section_compatibility',
   'assess_reflected_domain_coupled_euler_transonic_frontier_compatibility',
@@ -269,6 +272,182 @@ class MocReflectedDomainCoupledEulerSubsonicPressureBudget:
       'source': self.source,
       'claim_status': (
         'diagnostic-only-isentropic-subsonic-pressure-budget; '
+        'two-dimensional entropy production and canonical closure remain open'
+      ),
+    }
+  ####
+####
+
+
+class MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus(
+  str,
+  Enum,
+):
+  """Classify every solver-owned downstream pressure target."""
+
+  ALL_TARGETS_WITHIN_ISENTROPIC_SUBSONIC_BOUNDS = (
+    'all-targets-within-isentropic-subsonic-pressure-bounds'
+  )
+  SOME_TARGETS_BELOW_ISENTROPIC_SUBSONIC_BOUNDS = (
+    'some-targets-below-isentropic-subsonic-pressure-bounds'
+  )
+  SOME_TARGETS_ABOVE_ISENTROPIC_SUBSONIC_BOUNDS = (
+    'some-targets-above-isentropic-subsonic-pressure-bounds'
+  )
+  TARGETS_SPAN_BELOW_AND_ABOVE_ISENTROPIC_SUBSONIC_BOUNDS = (
+    'targets-span-below-and-above-isentropic-subsonic-pressure-bounds'
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainCoupledEulerPressureProfileCompatibility:
+  """Diagnostic reachability evidence for a solver-owned pressure profile.
+
+  The profile targets are compared independently at every coupled cell
+  column with the isentropic subsonic pressure range implied by the outer
+  control-section total pressure.  This does not reject a two-dimensional
+  field: shocks and mixing may add entropy, so the result identifies the
+  missing physical budget instead of asserting that the profile is impossible.
+  """
+
+  status: MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus
+  target_count: int
+  target_pressure_min_Pa: float
+  target_pressure_max_Pa: float
+  reference_total_pressure_Pa: float
+  subsonic_static_pressure_lower_bound_Pa: float
+  subsonic_static_pressure_upper_bound_Pa: float
+  minimum_compatible_total_pressure_Pa: float
+  minimum_total_pressure_compatibility_ratio: float
+  minimum_additional_total_pressure_loss_fraction: float
+  below_bound_count: int
+  within_bound_count: int
+  above_bound_count: int
+  gamma: float
+  source: str = 'derived-downstream-pressure-profile-isentropic-budget'
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus'
+      )
+    ####
+    if (
+      isinstance(self.target_count, bool)
+      or not isinstance(self.target_count, int)
+      or self.target_count <= 0
+    ):
+      raise ValueError('target_count must be a positive integer')
+    ####
+    for name in (
+      'target_pressure_min_Pa',
+      'target_pressure_max_Pa',
+      'reference_total_pressure_Pa',
+      'subsonic_static_pressure_lower_bound_Pa',
+      'subsonic_static_pressure_upper_bound_Pa',
+      'minimum_compatible_total_pressure_Pa',
+      'minimum_total_pressure_compatibility_ratio',
+      'gamma',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    loss_fraction = float(self.minimum_additional_total_pressure_loss_fraction)
+    if not isfinite(loss_fraction) or not 0.0 <= loss_fraction < 1.0:
+      raise ValueError(
+        'minimum_additional_total_pressure_loss_fraction must be finite '
+        'and in the [0, 1) interval'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'minimum_additional_total_pressure_loss_fraction',
+      loss_fraction,
+    )
+    if self.subsonic_static_pressure_lower_bound_Pa > (
+      self.subsonic_static_pressure_upper_bound_Pa
+    ):
+      raise ValueError('subsonic pressure bounds must be ordered')
+    ####
+    if self.target_pressure_min_Pa > self.target_pressure_max_Pa:
+      raise ValueError('target pressure extrema must be ordered')
+    ####
+    if self.gamma <= 1.0:
+      raise ValueError('gamma must be greater than one')
+    ####
+    for name in ('below_bound_count', 'within_bound_count', 'above_bound_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
+    if (
+      self.below_bound_count
+      + self.within_bound_count
+      + self.above_bound_count
+      != self.target_count
+    ):
+      raise ValueError(
+        'pressure-profile compatibility counts must sum to target_count'
+      )
+    ####
+    source = str(self.source)
+    if not source:
+      raise ValueError('source must be a non-empty string')
+    ####
+    object.__setattr__(self, 'source', source)
+  ####
+
+  @property
+  def all_targets_within_isentropic_subsonic_bounds(self) -> bool:
+    """Whether no profile target crosses the retained isentropic budget."""
+
+    return self.status is (
+      MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus
+      .ALL_TARGETS_WITHIN_ISENTROPIC_SUBSONIC_BOUNDS
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'target_count': self.target_count,
+      'target_pressure_min_Pa': self.target_pressure_min_Pa,
+      'target_pressure_max_Pa': self.target_pressure_max_Pa,
+      'reference_total_pressure_Pa': self.reference_total_pressure_Pa,
+      'subsonic_static_pressure_lower_bound_Pa': (
+        self.subsonic_static_pressure_lower_bound_Pa
+      ),
+      'subsonic_static_pressure_upper_bound_Pa': (
+        self.subsonic_static_pressure_upper_bound_Pa
+      ),
+      'minimum_compatible_total_pressure_Pa': (
+        self.minimum_compatible_total_pressure_Pa
+      ),
+      'minimum_total_pressure_compatibility_ratio': (
+        self.minimum_total_pressure_compatibility_ratio
+      ),
+      'minimum_additional_total_pressure_loss_fraction': (
+        self.minimum_additional_total_pressure_loss_fraction
+      ),
+      'below_bound_count': self.below_bound_count,
+      'within_bound_count': self.within_bound_count,
+      'above_bound_count': self.above_bound_count,
+      'gamma': self.gamma,
+      'all_targets_within_isentropic_subsonic_bounds': (
+        self.all_targets_within_isentropic_subsonic_bounds
+      ),
+      'source': self.source,
+      'claim_status': (
+        'diagnostic-only-downstream-pressure-profile-isentropic-budget; '
         'two-dimensional entropy production and canonical closure remain open'
       ),
     }
@@ -1517,6 +1696,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   subsonic_pressure_budget: (
     MocReflectedDomainCoupledEulerSubsonicPressureBudget | None
   ) = None
+  free_boundary_pressure_profile_compatibility: (
+    MocReflectedDomainCoupledEulerPressureProfileCompatibility | None
+  ) = None
   transonic_transition: MocTransonicTransitionResult | None = None
   transonic_transition_audit: MocTransonicTransitionAudit | None = None
   transonic_shock_geometry: MocTransonicShockGeometryResult | None = None
@@ -1708,6 +1890,18 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       raise TypeError(
         'subsonic_pressure_budget must be a '
         'MocReflectedDomainCoupledEulerSubsonicPressureBudget or None'
+      )
+    ####
+    if (
+      self.free_boundary_pressure_profile_compatibility is not None
+      and not isinstance(
+        self.free_boundary_pressure_profile_compatibility,
+        MocReflectedDomainCoupledEulerPressureProfileCompatibility,
+      )
+    ):
+      raise TypeError(
+        'free_boundary_pressure_profile_compatibility must be a '
+        'MocReflectedDomainCoupledEulerPressureProfileCompatibility or None'
       )
     ####
     if self.transonic_transition is not None and not isinstance(
@@ -2065,6 +2259,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
           if self.control_section_compatibility is None
           else self.control_section_compatibility.as_report()
         ),
+        'free_boundary_pressure_profile_compatibility': (
+          None
+          if self.free_boundary_pressure_profile_compatibility is None
+          else self.free_boundary_pressure_profile_compatibility.as_report()
+        ),
         'transonic_shock_interface_consumed': (
           self.transonic_shock_interface_consumed
         ),
@@ -2214,6 +2413,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         None
         if self.subsonic_pressure_budget is None
         else self.subsonic_pressure_budget.as_report()
+      ),
+      'free_boundary_pressure_profile_compatibility': (
+        None
+        if self.free_boundary_pressure_profile_compatibility is None
+        else self.free_boundary_pressure_profile_compatibility.as_report()
       ),
       'transonic_transition': (
         None
@@ -2374,6 +2578,104 @@ def assess_reflected_domain_coupled_euler_subsonic_pressure_budget(
       0.0,
       1.0 - compatibility_ratio,
     ),
+    gamma=gamma,
+  )
+####
+
+
+def assess_reflected_domain_coupled_euler_pressure_profile_compatibility(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+) -> MocReflectedDomainCoupledEulerPressureProfileCompatibility | None:
+  """Derive the per-column budget for an optional pressure profile.
+
+  The pressure profile is a solver-owned downstream handoff.  This diagnostic
+  makes its target range explicit without changing the field solve or treating
+  the one-dimensional budget as a two-dimensional closure proof.
+  """
+
+  if not isinstance(
+    request,
+    MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  ):
+    raise TypeError(
+      'request must be a '
+      'MocReflectedDomainCoupledEulerFreeBoundaryRequest'
+    )
+  ####
+  profile = request.free_boundary_pressure_profile_Pa
+  if profile is None:
+    return None
+  ####
+  targets = tuple(float(value) for value in profile)
+  if len(targets) != request.axial_cell_count:
+    raise ValueError(
+      'free-boundary pressure profile must contain one target per axial cell'
+    )
+  ####
+  if any(not isfinite(value) or value <= 0.0 for value in targets):
+    raise ValueError('free-boundary pressure profile targets must be positive')
+  ####
+  sample = request.mixed_regime_request.control_section.samples[-1]
+  gamma = float(sample.gamma)
+  reference_total_pressure = float(sample.total_pressure_Pa)
+  if not isfinite(gamma) or gamma <= 1.0:
+    raise ValueError('control-section gamma must be finite and greater than one')
+  ####
+  if not isfinite(reference_total_pressure) or reference_total_pressure <= 0.0:
+    raise ValueError(
+      'outer control-section total pressure must be finite and positive'
+    )
+  ####
+  sonic_pressure_factor = (1.0 + 0.5 * (gamma - 1.0)) ** (
+    gamma / (gamma - 1.0)
+  )
+  lower_bound = reference_total_pressure / sonic_pressure_factor
+  upper_bound = reference_total_pressure
+  pressure_scale = max(*targets, lower_bound, upper_bound, 1.0)
+  tolerance = 1.0e-10 * pressure_scale
+  below_bound_count = sum(value < lower_bound - tolerance for value in targets)
+  above_bound_count = sum(value > upper_bound + tolerance for value in targets)
+  within_bound_count = len(targets) - below_bound_count - above_bound_count
+  if below_bound_count and above_bound_count:
+    status = (
+      MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus
+      .TARGETS_SPAN_BELOW_AND_ABOVE_ISENTROPIC_SUBSONIC_BOUNDS
+    )
+  elif below_bound_count:
+    status = (
+      MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus
+      .SOME_TARGETS_BELOW_ISENTROPIC_SUBSONIC_BOUNDS
+    )
+  elif above_bound_count:
+    status = (
+      MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus
+      .SOME_TARGETS_ABOVE_ISENTROPIC_SUBSONIC_BOUNDS
+    )
+  else:
+    status = (
+      MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus
+      .ALL_TARGETS_WITHIN_ISENTROPIC_SUBSONIC_BOUNDS
+    )
+  ####
+  minimum_compatible_total_pressure = min(targets) * sonic_pressure_factor
+  compatibility_ratio = minimum_compatible_total_pressure / reference_total_pressure
+  return MocReflectedDomainCoupledEulerPressureProfileCompatibility(
+    status=status,
+    target_count=len(targets),
+    target_pressure_min_Pa=min(targets),
+    target_pressure_max_Pa=max(targets),
+    reference_total_pressure_Pa=reference_total_pressure,
+    subsonic_static_pressure_lower_bound_Pa=lower_bound,
+    subsonic_static_pressure_upper_bound_Pa=upper_bound,
+    minimum_compatible_total_pressure_Pa=minimum_compatible_total_pressure,
+    minimum_total_pressure_compatibility_ratio=compatibility_ratio,
+    minimum_additional_total_pressure_loss_fraction=max(
+      0.0,
+      1.0 - compatibility_ratio,
+    ),
+    below_bound_count=below_bound_count,
+    within_bound_count=within_bound_count,
+    above_bound_count=above_bound_count,
     gamma=gamma,
   )
 ####
@@ -2566,6 +2868,13 @@ def _failure(
     request=request,
     message=message,
     subsonic_pressure_budget=subsonic_pressure_budget,
+    free_boundary_pressure_profile_compatibility=(
+      None
+      if request is None
+      else assess_reflected_domain_coupled_euler_pressure_profile_compatibility(
+        request
+      )
+    ),
     transonic_transition=transonic_transition,
     transonic_transition_audit=transonic_transition_audit,
     transonic_frontier_compatibility=transonic_frontier_compatibility,
@@ -4221,6 +4530,9 @@ def _result_from_field(
   pressure_budget = (
     assess_reflected_domain_coupled_euler_subsonic_pressure_budget(request)
   )
+  pressure_profile_compatibility = (
+    assess_reflected_domain_coupled_euler_pressure_profile_compatibility(request)
+  )
   transonic_transition = assess_reflected_domain_coupled_euler_transonic_transition(
     request
   )
@@ -4306,6 +4618,9 @@ def _result_from_field(
       for index in np.ndindex(corners.shape[:2])
     ),
     subsonic_pressure_budget=pressure_budget,
+    free_boundary_pressure_profile_compatibility=(
+      pressure_profile_compatibility
+    ),
     transonic_transition=transonic_transition,
     transonic_transition_audit=transonic_transition_audit,
     transonic_shock_geometry=transonic_shock_geometry,

@@ -35,6 +35,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
+  MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus,
   MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus,
   MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus,
   MocTransonicShockGeometryRequest,
@@ -92,6 +93,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_coupled_euler_free_boundary,
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
+  assess_reflected_domain_coupled_euler_pressure_profile_compatibility,
   assess_reflected_domain_coupled_euler_transonic_transition,
   assess_reflected_domain_coupled_euler_control_section_compatibility,
   assess_reflected_domain_coupled_euler_transonic_frontier_compatibility,
@@ -2498,9 +2500,46 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
   assert response_consumed.coupled_field is not None
   assert response_consumed.closure_lineage_verified
   assert response_consumed.coupled_field.free_boundary_pressure_profile_consumed
+  assert (
+    response_consumed.coupled_field.free_boundary_pressure_profile_compatibility
+    is not None
+  )
+  pressure_profile_compatibility = (
+    response_consumed.coupled_field.free_boundary_pressure_profile_compatibility
+  )
+  assert pressure_profile_compatibility.status is (
+    MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus
+    .SOME_TARGETS_BELOW_ISENTROPIC_SUBSONIC_BOUNDS
+  )
+  assert pressure_profile_compatibility.below_bound_count > 0
+  assert not pressure_profile_compatibility.all_targets_within_isentropic_subsonic_bounds
+  assert (
+    assess_reflected_domain_coupled_euler_pressure_profile_compatibility(
+      response_consumed.coupled_request
+    )
+    == pressure_profile_compatibility
+  )
   assert response_consumed.coupled_field_audit is not None
   assert response_consumed.coupled_field_audit.free_boundary_report_verified
+  assert response_consumed.coupled_field_audit.pressure_profile_compatibility_verified
   assert response_consumed.boundary_pressure_profile == feedback_profile
+  tampered_profile = replace(
+    pressure_profile_compatibility,
+    target_pressure_min_Pa=(
+      pressure_profile_compatibility.target_pressure_min_Pa * 1.01
+    ),
+  )
+  tampered_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(
+      response_consumed.coupled_field,
+      free_boundary_pressure_profile_compatibility=tampered_profile,
+    )
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .PRESSURE_PROFILE_COMPATIBILITY_FAILURE
+  )
+  assert not tampered_audit.pressure_profile_compatibility_verified
   assert response_consumed.global_coupling_verified is False
   assert response_consumed.downstream_boundary_closure_verified is False
   assert response_consumed.production_claim_allowed is False

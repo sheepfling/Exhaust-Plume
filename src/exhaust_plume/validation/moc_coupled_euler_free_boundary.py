@@ -22,6 +22,7 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerControlSectionCompatibility,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
+  MocReflectedDomainCoupledEulerPressureProfileCompatibility,
   MocReflectedDomainCoupledEulerSubsonicPressureBudget,
   MocReflectedDomainCoupledEulerTransonicFrontierCompatibility,
   MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus,
@@ -165,6 +166,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   ENTROPY_FAILURE = 'coupled-euler-audit-entropy-failure'
   BOUNDARY_FAILURE = 'coupled-euler-audit-boundary-failure'
   PRESSURE_BUDGET_FAILURE = 'coupled-euler-audit-pressure-budget-failure'
+  PRESSURE_PROFILE_COMPATIBILITY_FAILURE = (
+    'coupled-euler-audit-pressure-profile-compatibility-failure'
+  )
   TRANSONIC_TRANSITION_FAILURE = 'coupled-euler-audit-transonic-transition-failure'
   TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE = (
     'coupled-euler-audit-transonic-frontier-compatibility-failure'
@@ -226,6 +230,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   free_boundary_report_verified: bool = False
   free_boundary_geometry_profile_verified: bool = False
   pressure_budget_verified: bool = False
+  pressure_profile_compatibility_verified: bool = False
   transonic_transition_verified: bool = False
   transonic_frontier_compatibility_verified: bool = False
   transonic_shock_geometry_verified: bool = False
@@ -309,6 +314,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_report_verified',
       'free_boundary_report_verified',
       'free_boundary_geometry_profile_verified',
+      'pressure_profile_compatibility_verified',
       'transonic_transition_verified',
       'transonic_frontier_compatibility_verified',
       'transonic_shock_geometry_verified',
@@ -374,6 +380,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
         or self.free_boundary_geometry_profile_verified
       )
       and self.pressure_budget_verified
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.free_boundary_pressure_profile_Pa
+          is not None
+        )
+        or self.pressure_profile_compatibility_verified
+      )
       and self.transonic_transition_verified
       and self.transonic_shock_geometry_verified
       and self.transonic_shock_interface_verified
@@ -461,6 +476,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
         self.free_boundary_geometry_profile_verified
       ),
       'pressure_budget_verified': self.pressure_budget_verified,
+      'pressure_profile_compatibility_verified': (
+        self.pressure_profile_compatibility_verified
+      ),
       'transonic_transition_verified': self.transonic_transition_verified,
       'transonic_frontier_compatibility_verified': (
         self.transonic_frontier_compatibility_verified
@@ -510,6 +528,7 @@ def _failure(
   message: str,
   *,
   pressure_budget_verified: bool = False,
+  pressure_profile_compatibility_verified: bool = False,
   transonic_transition_verified: bool = False,
   transonic_frontier_compatibility_verified: bool = False,
   control_section_compatibility_verified: bool = False,
@@ -520,6 +539,9 @@ def _failure(
     candidate=candidate,
     solver_status=None if candidate is None else candidate.status.value,
     pressure_budget_verified=pressure_budget_verified,
+    pressure_profile_compatibility_verified=(
+      pressure_profile_compatibility_verified
+    ),
     transonic_transition_verified=transonic_transition_verified,
     transonic_frontier_compatibility_verified=(
       transonic_frontier_compatibility_verified
@@ -912,6 +934,136 @@ def _rederive_subsonic_pressure_budget(
     ),
     'source': 'derived-outer-control-section-isentropic-pressure-budget',
   }
+####
+
+
+def _rederive_pressure_profile_compatibility(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> dict[str, Any] | None:
+  """Recompute the solver-owned pressure-profile budget independently."""
+
+  request = candidate.request
+  if request is None:
+    raise ValueError('candidate must retain its coupled Euler request')
+  ####
+  profile = request.free_boundary_pressure_profile_Pa
+  if profile is None:
+    return None
+  ####
+  targets = tuple(float(value) for value in profile)
+  if len(targets) != request.axial_cell_count:
+    raise ArithmeticError('audited pressure profile count does not match the mesh')
+  ####
+  if any(not isfinite(value) or value <= 0.0 for value in targets):
+    raise ArithmeticError('audited pressure profile contains an invalid target')
+  ####
+  sample = request.mixed_regime_request.control_section.samples[-1]
+  gamma = float(sample.gamma)
+  reference_total_pressure = float(sample.total_pressure_Pa)
+  if not isfinite(gamma) or gamma <= 1.0:
+    raise ArithmeticError('audited control-section gamma is invalid')
+  ####
+  if not isfinite(reference_total_pressure) or reference_total_pressure <= 0.0:
+    raise ArithmeticError('audited outer control-section total pressure is invalid')
+  ####
+  sonic_pressure_factor = (1.0 + 0.5 * (gamma - 1.0)) ** (
+    gamma / (gamma - 1.0)
+  )
+  lower_bound = reference_total_pressure / sonic_pressure_factor
+  upper_bound = reference_total_pressure
+  pressure_scale = max(*targets, lower_bound, upper_bound, 1.0)
+  tolerance = 1.0e-10 * pressure_scale
+  below_bound_count = sum(value < lower_bound - tolerance for value in targets)
+  above_bound_count = sum(value > upper_bound + tolerance for value in targets)
+  within_bound_count = len(targets) - below_bound_count - above_bound_count
+  if below_bound_count and above_bound_count:
+    status = 'targets-span-below-and-above-isentropic-subsonic-pressure-bounds'
+  elif below_bound_count:
+    status = 'some-targets-below-isentropic-subsonic-pressure-bounds'
+  elif above_bound_count:
+    status = 'some-targets-above-isentropic-subsonic-pressure-bounds'
+  else:
+    status = 'all-targets-within-isentropic-subsonic-pressure-bounds'
+  ####
+  minimum_compatible_total_pressure = min(targets) * sonic_pressure_factor
+  compatibility_ratio = minimum_compatible_total_pressure / reference_total_pressure
+  return {
+    'status': status,
+    'target_count': len(targets),
+    'target_pressure_min_Pa': min(targets),
+    'target_pressure_max_Pa': max(targets),
+    'reference_total_pressure_Pa': reference_total_pressure,
+    'subsonic_static_pressure_lower_bound_Pa': lower_bound,
+    'subsonic_static_pressure_upper_bound_Pa': upper_bound,
+    'minimum_compatible_total_pressure_Pa': minimum_compatible_total_pressure,
+    'minimum_total_pressure_compatibility_ratio': compatibility_ratio,
+    'minimum_additional_total_pressure_loss_fraction': max(
+      0.0,
+      1.0 - compatibility_ratio,
+    ),
+    'below_bound_count': below_bound_count,
+    'within_bound_count': within_bound_count,
+    'above_bound_count': above_bound_count,
+    'gamma': gamma,
+    'all_targets_within_isentropic_subsonic_bounds': (
+      status == 'all-targets-within-isentropic-subsonic-pressure-bounds'
+    ),
+    'source': 'derived-downstream-pressure-profile-isentropic-budget',
+  }
+####
+
+
+def _pressure_profile_compatibility_matches(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> bool:
+  """Verify the retained pressure-profile diagnostic without model helpers."""
+
+  try:
+    expected = _rederive_pressure_profile_compatibility(candidate)
+  except (ArithmeticError, TypeError, ValueError):
+    return False
+  ####
+  reported = candidate.free_boundary_pressure_profile_compatibility
+  if expected is None:
+    return reported is None
+  ####
+  if not isinstance(
+    reported,
+    MocReflectedDomainCoupledEulerPressureProfileCompatibility,
+  ):
+    return False
+  ####
+  if (
+    reported.status.value != expected['status']
+    or reported.target_count != expected['target_count']
+    or reported.below_bound_count != expected['below_bound_count']
+    or reported.within_bound_count != expected['within_bound_count']
+    or reported.above_bound_count != expected['above_bound_count']
+    or reported.source != expected['source']
+    or reported.all_targets_within_isentropic_subsonic_bounds
+    != expected['all_targets_within_isentropic_subsonic_bounds']
+  ):
+    return False
+  ####
+  return all(
+    np.isclose(
+      getattr(reported, name),
+      expected[name],
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    for name in (
+      'target_pressure_min_Pa',
+      'target_pressure_max_Pa',
+      'reference_total_pressure_Pa',
+      'subsonic_static_pressure_lower_bound_Pa',
+      'subsonic_static_pressure_upper_bound_Pa',
+      'minimum_compatible_total_pressure_Pa',
+      'minimum_total_pressure_compatibility_ratio',
+      'minimum_additional_total_pressure_loss_fraction',
+      'gamma',
+    )
+  )
 ####
 
 
@@ -2399,6 +2551,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     except (ArithmeticError, TypeError, ValueError):
       pressure_budget_verified = False
     ####
+    pressure_profile_compatibility_verified = (
+      _pressure_profile_compatibility_matches(candidate)
+    )
     promotion_flags_verified = bool(
       candidate.chain_promotion_blocked
       and not candidate.production_claim_allowed
@@ -2410,6 +2565,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       transition_verified
       and control_verified
       and pressure_budget_verified
+      and pressure_profile_compatibility_verified
       and promotion_flags_verified
     ):
       return _failure(
@@ -2417,8 +2573,8 @@ def measure_reflected_domain_coupled_euler_free_boundary(
         .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE,
         candidate,
         'typed transonic-frontier stop did not retain independently '
-        'reproducible transition, pressure-budget, control-seam, or '
-        'promotion evidence',
+        'reproducible transition, pressure-budget, pressure-profile, '
+        'control-seam, or promotion evidence',
       )
     ####
     return _failure(
@@ -2427,6 +2583,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       candidate,
       candidate.message,
       pressure_budget_verified=True,
+      pressure_profile_compatibility_verified=(
+        pressure_profile_compatibility_verified
+      ),
       transonic_transition_verified=True,
       transonic_frontier_compatibility_verified=True,
       control_section_compatibility_verified=True,
@@ -2501,6 +2660,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
         'gamma',
       )
     )
+  )
+  pressure_profile_compatibility_verified = (
+    _pressure_profile_compatibility_matches(candidate)
   )
   transonic_transition_verified = _audit_transonic_transition(candidate)
   transonic_frontier_compatibility_verified = bool(
@@ -2645,6 +2807,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not pressure_budget_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.PRESSURE_BUDGET_FAILURE
     message = 'candidate subsonic pressure-budget diagnostic does not match the request'
+  elif not pressure_profile_compatibility_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .PRESSURE_PROFILE_COMPATIBILITY_FAILURE
+    )
+    message = (
+      'candidate downstream pressure-profile compatibility diagnostic does '
+      'not match the request'
+    )
   elif not transonic_transition_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
     message = 'candidate scalar transonic transition evidence does not match the control section'
@@ -2769,6 +2940,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       free_boundary_geometry_profile_verified
     ),
     pressure_budget_verified=pressure_budget_verified,
+    pressure_profile_compatibility_verified=(
+      pressure_profile_compatibility_verified
+    ),
     transonic_transition_verified=transonic_transition_verified,
     transonic_frontier_compatibility_verified=(
       transonic_frontier_compatibility_verified
