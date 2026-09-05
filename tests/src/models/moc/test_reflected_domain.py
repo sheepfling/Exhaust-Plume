@@ -40,6 +40,8 @@ from exhaust_plume.models.moc import (
   MocTransonicShockInterfaceFieldPlacementStatus,
   MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceSample,
+  MocPhysicalFieldContinuationProfileRequest,
+  MocPhysicalFieldContinuationProfileStatus,
   MocTransonicTransitionStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
@@ -83,6 +85,7 @@ from exhaust_plume.models.moc import (
   assess_reflected_domain_coupled_euler_transonic_frontier_compatibility,
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
+  build_moc_physical_field_continuation_profile,
   build_moc_transonic_shock_interface_profile_from_field,
   build_moc_transonic_shock_interface_profile_from_field_placement,
   moc_reflected_domain_global_physical_closure_fingerprint,
@@ -139,6 +142,10 @@ from exhaust_plume.validation.moc_transonic_interface import (
   measure_moc_transonic_shock_interface_field_placement,
   measure_moc_transonic_shock_interface_profile_from_field,
   measure_moc_transonic_shock_interface_profile,
+)
+from exhaust_plume.validation.moc_field_continuation import (
+  MocPhysicalFieldContinuationProfileAuditStatus,
+  measure_moc_physical_field_continuation_profile,
 )
 from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import (
   MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus,
@@ -545,6 +552,93 @@ def test_global_physical_field_uses_solver_owned_cross_section_placement():
   assert coupled.transonic_shock_interface_field_placement_consumed
   assert coupled.transonic_shock_interface_profile_consumed
   assert coupled.production_claim_allowed is False
+####
+
+
+def test_global_physical_field_continuation_preserves_oblique_post_shock_regime():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  field = closure.global_euler.physical_field.field
+  placement = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=field,
+      boundary_margin_fraction=0.0,
+    )
+  )
+  assert placement.converged
+  continuation = build_moc_physical_field_continuation_profile(
+    MocPhysicalFieldContinuationProfileRequest(
+      field=field,
+      sample_points_m=placement.sample_points_m,
+    )
+  )
+
+  assert continuation.status is (
+    MocPhysicalFieldContinuationProfileStatus
+    .CONVERGED_FIELD_CONTINUATION_PROFILE
+  )
+  assert continuation.converged
+  assert continuation.profile is not None
+  assert continuation.field_lineage_verified
+  assert continuation.field_sampling_verified
+  assert all(sample.mach > 1.0 for sample in continuation.profile.samples)
+  assert continuation.profile.samples[-1].static_pressure_Pa == pytest.approx(
+    field.ambient_boundary.ambient_pressure_Pa,
+    rel=2.0e-3,
+  )
+  audit = measure_moc_physical_field_continuation_profile(continuation)
+  assert audit.status is MocPhysicalFieldContinuationProfileAuditStatus.VERIFIED
+  assert audit.converged
+  assert audit.rederived
+  assert audit.field_lineage_verified
+  assert audit.field_sampling_verified
+  assert audit.maximum_state_residual == pytest.approx(0.0)
+  assert audit.maximum_total_pressure_residual_Pa == pytest.approx(0.0)
+  assert continuation.physical_closure_verified is False
+  assert continuation.chain_promotion_blocked
+  assert continuation.production_claim_allowed is False
+
+  normal_shock = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=field,
+      boundary_margin_fraction=0.0,
+    )
+  )
+  assert normal_shock.profile is not None
+  assert normal_shock.profile.downstream_samples[0].mach < 1.0
+  assert continuation.profile.samples[0].mach > 1.0
+  outside = build_moc_physical_field_continuation_profile(
+    MocPhysicalFieldContinuationProfileRequest(
+      field=field,
+      sample_points_m=(
+        (placement.cross_section_x_m, placement.lower_ordinate_m - 0.01),
+        (placement.cross_section_x_m, placement.lower_ordinate_m + 0.01),
+      ),
+    )
+  )
+  assert outside.status is (
+    MocPhysicalFieldContinuationProfileStatus.FIELD_SAMPLE_FAILURE
+  )
+  assert outside.converged is False
+  tampered_profile = replace(
+    continuation.profile,
+    samples=(
+      replace(
+        continuation.profile.samples[0],
+        mach=continuation.profile.samples[0].mach + 0.01,
+      ),
+      *continuation.profile.samples[1:],
+    ),
+  )
+  tampered = replace(continuation, profile=tampered_profile)
+  tampered_audit = measure_moc_physical_field_continuation_profile(tampered)
+  assert tampered_audit.status is (
+    MocPhysicalFieldContinuationProfileAuditStatus.RESULT_FAILURE
+  )
+  assert not tampered_audit.converged
+  assert not tampered_audit.rederived
 ####
 
 

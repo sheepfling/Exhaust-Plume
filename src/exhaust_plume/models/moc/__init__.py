@@ -213,6 +213,13 @@ from exhaust_plume.models.moc.transonic_interface import (
   build_moc_transonic_shock_interface_profile_from_field_placement,
   solve_moc_transonic_shock_interface,
 )
+from exhaust_plume.models.moc.field_continuation import (
+  MocPhysicalFieldContinuationProfileStatus,
+  MocPhysicalFieldContinuationProfile,
+  MocPhysicalFieldContinuationProfileRequest,
+  MocPhysicalFieldContinuationProfileResult,
+  build_moc_physical_field_continuation_profile,
+)
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
@@ -924,6 +931,11 @@ __all__ = (
   'MocTransonicShockInterfaceFieldPlacementResult',
   'MocTransonicShockInterfaceRequest',
   'MocTransonicShockInterfaceResult',
+  'MocPhysicalFieldContinuationProfileStatus',
+  'MocPhysicalFieldContinuationProfile',
+  'MocPhysicalFieldContinuationProfileRequest',
+  'MocPhysicalFieldContinuationProfileResult',
+  'build_moc_physical_field_continuation_profile',
   'build_moc_transonic_shock_interface_profile',
   'build_moc_transonic_shock_interface_profile_from_field',
   'build_moc_transonic_shock_interface_profile_from_field_placement',

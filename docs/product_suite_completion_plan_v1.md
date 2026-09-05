@@ -1273,3 +1273,13 @@ changing the upstream closure fingerprint.  This enables longer-tail
 pressure/tangency studies to be compared honestly against the same entrance
 seam.  It is a numerical-study control only: a longer window cannot waive the
 entrance residual, physical closure, refinement, or promotion gates.
+
+The next handoff now also has a distinct exact-field continuation contract.
+The retained global physical field can remain supersonic downstream of an
+oblique shock, so its sampled cross-section must not be sent through the
+normal-shock profile builder a second time.  The new continuation profile
+preserves the field state, flow angle, static pressure, total pressure, and
+section geometry, then independently re-samples the source field.  It remains
+research-only until the coupled solver consumes it with an explicit
+shock/front and neighboring free-boundary conditions; it does not close or
+promote the downstream field by itself.
