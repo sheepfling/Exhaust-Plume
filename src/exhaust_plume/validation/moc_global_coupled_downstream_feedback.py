@@ -1106,7 +1106,13 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     retained_iterations
     and all(
       item.geometry_profile_lineage_verified
-      and item.geometry_profile_consumption_verified
+      for item in retained_iterations
+    )
+  )
+  geometry_profile_consumption_verified = bool(
+    retained_iterations
+    and all(
+      item.geometry_profile_consumption_verified
       for item in retained_iterations
     )
   )
@@ -1142,7 +1148,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     pressure_profile_alignment_verified=pressure_profile_alignment_verified,
     geometry_profile_lineage_verified=geometry_profile_lineage_verified,
     geometry_profile_alignment_verified=geometry_profile_alignment_verified,
-    geometry_profile_consumption_verified=geometry_profile_lineage_verified,
+    geometry_profile_consumption_verified=geometry_profile_consumption_verified,
     response_lineage_verified=response_lineage_verified,
     response_channels_finite=response_channels_finite,
     response_coverage_verified=response_coverage_verified,
