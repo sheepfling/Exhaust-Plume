@@ -1084,10 +1084,11 @@ production claim is authorized while any item below remains open.
 ### Candidate evidence checkpoint — 2026-09-05
 
 The earlier `57d23d501f75b96eca90ebb72beac1fa2daa83c6` checkpoint is
-historical.  The active candidate is commit `23261ce` at the exact `HEAD` of
-`work/washed-integral-visual`; the branch is kept clean and the pushed commit
-is the candidate used by CI.  Fresh local evidence for the active candidate
-is recorded after each coherent slice:
+historical.  The documented code checkpoint is commit `23261ce`; the
+subsequent pushed feedback-lineage slices are `d624784`, `bb1019d`, and
+`3e0bdf2`.  The branch remains clean, but the release evidence must be
+refreshed again after those later slices so the final candidate is described by
+one exact `HEAD`:
 
 - the full test matrix, build/install smoke, static checks, and lane-release
   validator must all be rerun against this exact `HEAD` before the final
@@ -1096,7 +1097,8 @@ is recorded after each coherent slice:
   **1,125 passed**, with the existing 18 warnings;
 - the exact-field continuation slice records a solver-owned conservative
   warm-start source and fails closed when a coupled mesh center is outside the
-  retained physical field;
+  retained physical field; the downstream feedback ladder now separately
+  verifies geometry-profile lineage and actual geometry-profile consumption;
 - offline wheel build/install smoke, `scripts.test_lanes --check`, Ruff, and
   the repository scope-marker check all pass; and
 - the release manifest remains `release_ready=false` until the external,
