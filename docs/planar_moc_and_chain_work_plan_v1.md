@@ -4084,3 +4084,21 @@ closure, chain-promotion, and production-claim gates unchanged.  It is an
 evidence surface for the Visualization product, not a globally closed shock
 surface, accepted physical shock-cell length, Signature/FPA input, or
 external-validation result.
+
+## Solver-owned global transonic-interface placement checkpoint
+
+The global-to-coupled downstream orchestrator now exposes the explicit
+``SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE`` mode.  When the caller does
+not supply a placement, the solver derives a full-span cross-section from the
+exact retained global physical field, independently re-audits its candidate
+ordering and field coverage, and passes that same placement into the coupled
+request.  A supplied placement must retain the exact field object and pass the
+full-field cross-section audit; a partial-span or cross-field placement is a
+typed physical-field handoff failure rather than a fallback to scalar shock
+data.
+
+The global result retains this placement lineage for reports and downstream
+visualization.  It remains a local research handoff: the coupled field does
+not feed back into the global solve, does not close the reflected mixed-regime
+perimeter, and cannot promote a physical shock-cell length, continued chain,
+Signature/FPA product, or external-validation claim.

@@ -86,6 +86,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_global_coupled_downstream,
+  build_reflected_domain_global_solver_owned_transonic_interface_placement,
   build_reflected_domain_global_solver_owned_physical_field_handoff,
   build_reflected_domain_global_coupled_downstream_boundary_pressure_profile,
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
@@ -580,6 +581,91 @@ def test_global_physical_field_uses_solver_owned_cross_section_placement():
   assert coupled.transonic_shock_interface_field_placement_consumed
   assert coupled.transonic_shock_interface_profile_consumed
   assert coupled.production_claim_allowed is False
+####
+
+
+def test_global_coupled_downstream_derives_solver_owned_transonic_placement():
+  closure = _global_physical_closure_for_mixed_regime()
+  placement = build_reflected_domain_global_solver_owned_transonic_interface_placement(
+    closure
+  )
+  assert placement.converged
+  assert placement.request.field is closure.global_euler.physical_field.field
+  assert placement.field is closure.global_euler.physical_field.field
+  placement_audit = measure_moc_transonic_shock_interface_field_placement(
+    placement
+  )
+  assert placement_audit.converged
+  assert placement_audit.full_field_cross_section_verified
+
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
+  )
+
+  assert result.status is not (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .PHYSICAL_FIELD_HANDOFF_FAILURE
+  )
+  assert result.transonic_shock_interface_field_placement is not None
+  assert result.transonic_shock_interface_field_placement.converged
+  assert result.coupled_request is not None
+  assert result.coupled_request.transonic_shock_interface_field_placement is (
+    result.transonic_shock_interface_field_placement
+  )
+  assert result.coupled_request.transonic_shock_interface_field_placement.request.field is (
+    closure.global_euler.physical_field.field
+  )
+  assert result.coupled_field is not None
+  assert result.coupled_field.transonic_shock_interface_field_placement_consumed
+  assert result.closure_lineage_verified
+  assert result.global_coupling_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_global_coupled_downstream_rejects_non_full_span_transonic_placement():
+  closure = _global_physical_closure_for_mixed_regime()
+  placement = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=closure.global_euler.physical_field.field,
+    )
+  )
+  assert placement.converged
+  assert not placement.independent_measurement.full_field_cross_section_verified
+
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
+    transonic_shock_interface_field_placement=placement,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .PHYSICAL_FIELD_HANDOFF_FAILURE
+  )
+  assert result.coupled_request is None
+  assert result.transonic_shock_interface_field_placement is placement
+  assert 'full-field cross-section audit' in result.message
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
 ####
 
 

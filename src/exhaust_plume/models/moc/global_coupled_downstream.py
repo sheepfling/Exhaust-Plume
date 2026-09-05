@@ -64,6 +64,7 @@ __all__ = (
   'build_reflected_domain_global_coupled_downstream_feedback_geometry_profile',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'MocReflectedDomainGlobalCoupledDownstreamResult',
+  'build_reflected_domain_global_solver_owned_transonic_interface_placement',
   'build_reflected_domain_global_solver_owned_physical_field_handoff',
   'solve_reflected_domain_global_coupled_downstream',
 )
@@ -1217,6 +1218,9 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None
   coupled_field_audit: Any | None
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
+  transonic_shock_interface_field_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None
   boundary_pressure_profile: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile | None
   ) = None
@@ -1280,6 +1284,18 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       raise TypeError(
         'physical_field_handoff must be a '
         'MocReflectedDomainGlobalPhysicalFieldHandoff or None'
+      )
+    ####
+    if (
+      self.transonic_shock_interface_field_placement is not None
+      and not isinstance(
+        self.transonic_shock_interface_field_placement,
+        MocTransonicShockInterfaceFieldPlacementResult,
+      )
+    ):
+      raise TypeError(
+        'transonic_shock_interface_field_placement must be a '
+        'MocTransonicShockInterfaceFieldPlacementResult or None'
       )
     ####
     if self.boundary_pressure_profile is not None and not isinstance(
@@ -1408,6 +1424,21 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         or getattr(self.coupled_field_audit, 'candidate', None)
         is self.coupled_field
       )
+      and (
+        self.transonic_shock_interface_field_placement is None
+        or (
+          self.closure is not None
+          and self.closure.global_euler is not None
+          and self.closure.global_euler.physical_field is not None
+          and self.closure.global_euler.physical_field.field is not None
+          and self.transonic_shock_interface_field_placement.request.field
+          is self.closure.global_euler.physical_field.field
+          and self.transonic_shock_interface_field_placement.field
+          is self.closure.global_euler.physical_field.field
+          and self.coupled_request.transonic_shock_interface_field_placement
+          is self.transonic_shock_interface_field_placement
+        )
+      )
     )
   ####
 
@@ -1525,6 +1556,11 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         if self.physical_field_handoff is None
         else self.physical_field_handoff.as_report()
       ),
+      'transonic_shock_interface_field_placement': (
+        None
+        if self.transonic_shock_interface_field_placement is None
+        else self.transonic_shock_interface_field_placement.as_report()
+      ),
       'boundary_pressure_profile': (
         None
         if self.boundary_pressure_profile is None
@@ -1559,6 +1595,9 @@ def _failure(
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None,
   coupled_field_audit: Any | None = None,
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None,
+  transonic_shock_interface_field_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None,
   boundary_pressure_profile: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile | None
   ) = None,
@@ -1577,10 +1616,66 @@ def _failure(
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
     physical_field_handoff=physical_field_handoff,
+    transonic_shock_interface_field_placement=(
+      transonic_shock_interface_field_placement
+    ),
     boundary_pressure_profile=boundary_pressure_profile,
     boundary_geometry_profile=boundary_geometry_profile,
     downstream_boundary_response=downstream_boundary_response,
     message=message,
+  )
+####
+
+
+def build_reflected_domain_global_solver_owned_transonic_interface_placement(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  *,
+  sample_count: int = 10,
+  post_shock_fraction: float = 0.25,
+  target_downstream_static_pressure_Pa: float | None = None,
+  target_pressure_tolerance_fraction: float = 0.02,
+) -> MocTransonicShockInterfaceFieldPlacementResult:
+  """Select a full-span transonic interface from one verified global field.
+
+  This is a solver-owned placement rule, not a caller geometry override.  It
+  deliberately retains the complete field span so the coupled solver can
+  independently verify that the selected interface covers the exact global
+  field.  The resulting placement remains a research-only handoff.
+  """
+
+  if not isinstance(
+    closure,
+    MocReflectedDomainGlobalPhysicalClosureResult,
+  ):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if (
+    not closure.converged
+    or not closure.physical_closure_verified
+    or closure.global_euler is None
+    or closure.global_euler.physical_field is None
+    or closure.global_euler.physical_field.field is None
+  ):
+    raise ValueError(
+      'solver-owned transonic interface placement requires a locally verified '
+      'global closure with a retained exact physical field'
+    )
+  ####
+  return build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=closure.global_euler.physical_field.field,
+      sample_count=sample_count,
+      post_shock_fraction=post_shock_fraction,
+      boundary_margin_fraction=0.0,
+      profile_id=(
+        'global-closure-solver-owned-physical-field-placement-v1'
+      ),
+      source='global-closure-solver-owned-physical-field-handoff-v1',
+      target_downstream_static_pressure_Pa=target_downstream_static_pressure_Pa,
+      target_pressure_tolerance_fraction=target_pressure_tolerance_fraction,
+    )
   )
 ####
 
@@ -1600,39 +1695,12 @@ def build_reflected_domain_global_solver_owned_physical_field_handoff(
   fallback is introduced.
   """
 
-  if not isinstance(
+  placement = build_reflected_domain_global_solver_owned_transonic_interface_placement(
     closure,
-    MocReflectedDomainGlobalPhysicalClosureResult,
-  ):
-    raise TypeError(
-      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
-    )
-  ####
-  if (
-    not closure.converged
-    or not closure.physical_closure_verified
-    or closure.global_euler is None
-    or closure.global_euler.physical_field is None
-    or closure.global_euler.physical_field.field is None
-  ):
-    raise ValueError(
-      'solver-owned physical-field handoff requires a locally verified global '
-      'closure with a retained exact physical field'
-    )
-  ####
-  field = closure.global_euler.physical_field.field
-  placement = build_moc_transonic_shock_interface_profile_from_field_placement(
-    MocTransonicShockInterfaceFieldPlacementRequest(
-      field=field,
-      sample_count=sample_count,
-      post_shock_fraction=post_shock_fraction,
-      boundary_margin_fraction=0.0,
-      profile_id=(
-        'global-closure-solver-owned-physical-field-placement-v1'
-      ),
-      source='global-closure-solver-owned-physical-field-handoff-v1',
-    )
+    sample_count=sample_count,
+    post_shock_fraction=post_shock_fraction,
   )
+  field = placement.request.field
   if not placement.converged or not placement.sample_points_m:
     raise ValueError(
       'solver-owned physical-field placement did not pass its independent '
@@ -1700,6 +1768,9 @@ def solve_reflected_domain_global_coupled_downstream(
   ) = None,
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
+  ) = None,
+  transonic_shock_interface_field_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
   ) = None,
   boundary_pressure_profile: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile | None
@@ -1850,8 +1921,105 @@ def solve_reflected_domain_global_coupled_downstream(
     ####
   ####
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
+  resolved_transonic_shock_interface_field_placement = (
+    transonic_shock_interface_field_placement
+  )
   resolved_continuation_profile = physical_field_continuation_profile
   resolved_shock_front_condition = physical_field_shock_front_condition
+  if (
+    inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ):
+    placement_for_failure = (
+      resolved_transonic_shock_interface_field_placement
+      if isinstance(
+        resolved_transonic_shock_interface_field_placement,
+        MocTransonicShockInterfaceFieldPlacementResult,
+      )
+      else None
+    )
+    try:
+      if (
+        closure.global_euler is None
+        or closure.global_euler.physical_field is None
+        or closure.global_euler.physical_field.field is None
+      ):
+        raise ValueError(
+          'solver-owned transonic interface placement requires the exact '
+          'retained global physical field'
+        )
+      ####
+      exact_field = closure.global_euler.physical_field.field
+      if resolved_transonic_shock_interface_field_placement is None:
+        resolved_transonic_shock_interface_field_placement = (
+          build_reflected_domain_global_solver_owned_transonic_interface_placement(
+            closure
+          )
+        )
+      else:
+        if not isinstance(
+          resolved_transonic_shock_interface_field_placement,
+          MocTransonicShockInterfaceFieldPlacementResult,
+        ):
+          raise TypeError(
+            'transonic_shock_interface_field_placement must be a '
+            'MocTransonicShockInterfaceFieldPlacementResult or None'
+          )
+        ####
+        if (
+          resolved_transonic_shock_interface_field_placement.request.field
+          is not exact_field
+          or resolved_transonic_shock_interface_field_placement.field
+          is not exact_field
+        ):
+          raise ValueError(
+            'transonic shock-interface placement must retain the exact '
+            'global closure physical field; no cross-field handoff is allowed'
+          )
+        ####
+        from exhaust_plume.validation.moc_transonic_interface import (
+          measure_moc_transonic_shock_interface_field_placement,
+        )
+
+        placement_audit = (
+          measure_moc_transonic_shock_interface_field_placement(
+            resolved_transonic_shock_interface_field_placement
+          )
+        )
+        if (
+          not resolved_transonic_shock_interface_field_placement.converged
+          or not placement_audit.converged
+          or not placement_audit.full_field_cross_section_verified
+        ):
+          raise ValueError(
+            'supplied transonic shock-interface placement did not pass the '
+            'independent full-field cross-section audit'
+          )
+        ####
+      ####
+      if (
+        not resolved_transonic_shock_interface_field_placement.converged
+        or not resolved_transonic_shock_interface_field_placement.sample_points_m
+      ):
+        raise ValueError(
+          'solver-owned transonic interface placement did not pass its '
+          f'independent audit: '
+          f'{resolved_transonic_shock_interface_field_placement.message}'
+        )
+      ####
+      placement_for_failure = resolved_transonic_shock_interface_field_placement
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _failure(
+        MocReflectedDomainGlobalCoupledDownstreamStatus
+        .PHYSICAL_FIELD_HANDOFF_FAILURE,
+        f'global solver-owned transonic interface placement failed: {error}',
+        closure=closure,
+        mixed_regime_request=mixed_regime_request,
+        transonic_shock_interface_field_placement=placement_for_failure,
+      )
+    ####
+  ####
   if (
     inlet_boundary_mode
     is MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -1893,6 +2061,9 @@ def solve_reflected_domain_global_coupled_downstream(
       outlet_static_pressure_Pa=outlet_static_pressure_Pa,
       physical_field_continuation_profile=resolved_continuation_profile,
       physical_field_shock_front_condition=resolved_shock_front_condition,
+      transonic_shock_interface_field_placement=(
+        resolved_transonic_shock_interface_field_placement
+      ),
       free_boundary_pressure_profile_Pa=(
         None
         if boundary_pressure_profile is None
@@ -1948,6 +2119,9 @@ def solve_reflected_domain_global_coupled_downstream(
       boundary_pressure_profile=boundary_pressure_profile,
       boundary_geometry_profile=boundary_geometry_profile,
       physical_field_handoff=physical_field_handoff,
+      transonic_shock_interface_field_placement=(
+        resolved_transonic_shock_interface_field_placement
+      ),
     )
   ####
   try:
@@ -1968,6 +2142,9 @@ def solve_reflected_domain_global_coupled_downstream(
       coupled_request=coupled_request,
       coupled_field=coupled_field,
       physical_field_handoff=physical_field_handoff,
+      transonic_shock_interface_field_placement=(
+        resolved_transonic_shock_interface_field_placement
+      ),
       boundary_pressure_profile=boundary_pressure_profile,
       boundary_geometry_profile=boundary_geometry_profile,
     )
@@ -2020,6 +2197,9 @@ def solve_reflected_domain_global_coupled_downstream(
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
     physical_field_handoff=physical_field_handoff,
+    transonic_shock_interface_field_placement=(
+      resolved_transonic_shock_interface_field_placement
+    ),
     boundary_pressure_profile=boundary_pressure_profile,
     boundary_geometry_profile=boundary_geometry_profile,
     downstream_boundary_response=downstream_boundary_response,

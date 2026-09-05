@@ -105,6 +105,17 @@ next product can make a stronger claim:
    fall back to a scalar or lower-fidelity inlet.  This removes a caller-
    assembly seam; it does not establish downstream-to-upstream feedback,
    canonical mixed-regime closure, refinement, or promotion.
+   The same orchestrator now exposes the solver-owned transonic-interface
+   placement as a separate handoff.  In
+   ``SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE`` mode it derives a
+   full-span placement from the exact retained global field, requires the
+   independently rederived full-field cross-section audit, and preserves that
+   placement on the global result and report.  Caller-supplied placements must
+   retain the exact field object and pass the same audit; partial-span or
+   cross-field inputs return a typed physical-field handoff failure.  The
+   coupled field may consume this placement as a local research candidate,
+   but global feedback, canonical mixed-regime closure, physical shock-cell
+   fitting, and product promotion remain closed.
    The exact physical-field mode now also consumes the retained ambient-
    neighbor path when downstream pressure or geometry profiles are omitted.
    Pressure targets are sampled at cell centers and ordinates at boundary
@@ -1607,3 +1618,22 @@ and the production-claim ceiling from the solver result.  This makes the
 local Rankine--Hugoniot evidence inspectable in the Visualization product
 without presenting it as a globally closed shock surface, a physical
 shock-cell length, Signature/FPA input, or external validation.
+
+### Solver-owned transonic-interface placement checkpoint
+
+The global-to-coupled orchestrator now has a distinct
+``SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE`` path.  With no caller
+placement it derives a full-span interface from the exact retained global
+physical field, runs the independent field-placement audit, and passes the
+same placement into the coupled request.  A caller-supplied placement must
+retain the exact field object and pass the full-field cross-section audit;
+partial-span and cross-field placements stop with a typed handoff failure.
+The placement is retained on the global result and report so downstream
+Visualization and Signature evidence can distinguish an exact field-bound
+handoff from a caller geometry choice.
+
+This closes solver-owned placement provenance only.  The coupled result is
+still a local constant-gamma research candidate: global feedback, canonical
+mixed-regime/free-boundary closure, refinement, physical shock-cell length,
+provider-bound validation, Signature/FPA promotion, and production claims
+remain open.
