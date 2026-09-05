@@ -761,3 +761,22 @@ state handoff cannot pass by matching pressure and Mach values while violating
 the one-dimensional conservative shock seam.  This remains a local
 thermodynamic audit; it is not evidence of a placed two-dimensional shock or a
 closed global field.
+
+### Transonic placement evidence checkpoint
+
+A bounded numerical probe of the actual coupled-Euler case varied the
+research free-boundary pressure relaxation from `0.05` through `0.5` and
+extended the shape iterations from the default envelope.  The case remains
+below the ambient-pressure gate: the best tested pressure residual was about
+`115 kPa` against an ambient pressure of `212.166 kPa`, while the associated
+normal-velocity residual fraction was about `0.168`, above the declared `0.05`
+tolerance.  More aggressive shape relaxation either increased the residual or
+triggered a residual/positivity failure.  The control-section static pressure
+is about `564.587 kPa`, and the scalar branch audit independently requires a
+supersonic-to-subsonic transition.
+
+This evidence distinguishes a missing internal shock-placement/mixed-regime
+boundary condition from a simple shape-iteration tuning problem.  The result
+is retained as a research failure with promotion blocked; the next canonical
+MOC packet must place and transport the transition in the two-dimensional
+field, then re-run the coupled residual and refinement ladders.

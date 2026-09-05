@@ -3687,3 +3687,24 @@ residuals are carried through the coupled-Euler audit and visualization
 diagnostics, and tampering with the downstream state invalidates the seam.
 This is a conservative scalar checkpoint only; it does not promote the state
 into a physical planar shock or continued-cell chain.
+
+## Transonic placement evidence checkpoint
+
+A bounded sensitivity probe of the actual coupled-Euler case varied the
+research free-boundary pressure relaxation from `0.05` to `0.5` and allowed
+thirty shape iterations.  The pressure residual remained approximately
+`133--174 kPa` against the `212.166 kPa` ambient target, and the larger
+relaxations exceeded the declared normal-velocity tolerance.  Extending the
+shape relaxation envelope reduced the best pressure residual only to about
+`115 kPa` while the normal-velocity residual fraction rose to about `0.168`.
+The case therefore cannot be closed by shape-iteration tuning alone.  Its
+control-section static pressure is approximately `564.587 kPa`, and the
+independent scalar transition identifies the required supersonic-to-subsonic
+branch.
+
+This is a numerical-boundary diagnosis, not a physical closure result.  It
+keeps the actual case as a typed free-boundary failure and identifies the next
+solver-owned seam: an internal shock-placement/mixed-regime boundary that
+couples the scalar branch state to the two-dimensional field, followed by
+independent residual and refinement evidence.  No shock-cell length or product
+provider may consume this sensitivity result.
