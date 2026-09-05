@@ -277,6 +277,12 @@ from exhaust_plume.validation.moc_field_continuation import (
   MocPhysicalFieldContinuationProfileAudit,
   measure_moc_physical_field_continuation_profile,
 )
+from exhaust_plume.validation.moc_physical_field_shock_front import (
+  MOC_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_OPERATOR_ID,
+  MocPhysicalFieldShockFrontConditionAuditStatus,
+  MocPhysicalFieldShockFrontConditionAudit,
+  measure_moc_physical_field_shock_front_condition,
+)
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -695,6 +701,10 @@ __all__ = (
   'MocPhysicalFieldContinuationProfileAuditStatus',
   'MocPhysicalFieldContinuationProfileAudit',
   'measure_moc_physical_field_continuation_profile',
+  'MOC_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_OPERATOR_ID',
+  'MocPhysicalFieldShockFrontConditionAuditStatus',
+  'MocPhysicalFieldShockFrontConditionAudit',
+  'measure_moc_physical_field_shock_front_condition',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainMixedRegimeBoundaryRefinementStatus',
   'MocReflectedDomainMixedRegimeBoundaryRefinementCase',

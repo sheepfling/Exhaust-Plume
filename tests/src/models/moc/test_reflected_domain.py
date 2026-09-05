@@ -42,6 +42,8 @@ from exhaust_plume.models.moc import (
   MocTransonicShockInterfaceSample,
   MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileStatus,
+  MocPhysicalFieldShockFrontConditionRequest,
+  MocPhysicalFieldShockFrontConditionStatus,
   MocTransonicTransitionStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
@@ -86,6 +88,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   build_moc_physical_field_continuation_profile,
+  build_moc_physical_field_shock_front_condition,
   build_moc_transonic_shock_interface_profile_from_field,
   build_moc_transonic_shock_interface_profile_from_field_placement,
   moc_reflected_domain_global_physical_closure_fingerprint,
@@ -146,6 +149,10 @@ from exhaust_plume.validation.moc_transonic_interface import (
 from exhaust_plume.validation.moc_field_continuation import (
   MocPhysicalFieldContinuationProfileAuditStatus,
   measure_moc_physical_field_continuation_profile,
+)
+from exhaust_plume.validation.moc_physical_field_shock_front import (
+  MocPhysicalFieldShockFrontConditionAuditStatus,
+  measure_moc_physical_field_shock_front_condition,
 )
 from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import (
   MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus,
@@ -640,6 +647,52 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
   assert not tampered_audit.converged
   assert not tampered_audit.rederived
 
+  front_condition = build_moc_physical_field_shock_front_condition(
+    MocPhysicalFieldShockFrontConditionRequest(
+      continuation_profile=continuation,
+      condition_id='test-global-physical-field-shock-front',
+    )
+  )
+  assert front_condition.status is (
+    MocPhysicalFieldShockFrontConditionStatus
+    .CONVERGED_SHOCK_FRONT_CONDITION
+  )
+  assert front_condition.converged
+  assert front_condition.shock_front_verified
+  assert front_condition.ambient_neighbor_verified
+  assert front_condition.centerline_neighbor_verified
+  assert front_condition.continuation_section_verified
+  front_audit = measure_moc_physical_field_shock_front_condition(
+    front_condition
+  )
+  assert front_audit.status is (
+    MocPhysicalFieldShockFrontConditionAuditStatus.VERIFIED
+  )
+  assert front_audit.converged
+  assert front_audit.rederived
+  assert front_audit.field_lineage_verified
+  assert front_audit.shock_front_verified
+  assert front_audit.ambient_neighbor_verified
+  assert front_audit.centerline_neighbor_verified
+  assert front_audit.continuation_section_verified
+  assert front_audit.maximum_point_residual_m == pytest.approx(0.0)
+  tampered_front = replace(
+    front_condition,
+    shock_front_points_m=(
+      (front_condition.shock_front_points_m[0][0] + 1.0e-3,
+       front_condition.shock_front_points_m[0][1]),
+      *front_condition.shock_front_points_m[1:],
+    ),
+  )
+  tampered_front_audit = measure_moc_physical_field_shock_front_condition(
+    tampered_front
+  )
+  assert tampered_front_audit.status is (
+    MocPhysicalFieldShockFrontConditionAuditStatus.RESULT_FAILURE
+  )
+  assert not tampered_front_audit.converged
+  assert not tampered_front_audit.shock_front_verified
+
   mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
   coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(
     mixed_request,
@@ -653,6 +706,7 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
       .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
     ),
     physical_field_continuation_profile=continuation,
+    physical_field_shock_front_condition=front_condition,
   )
   coupled = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
   assert coupled.status is not (

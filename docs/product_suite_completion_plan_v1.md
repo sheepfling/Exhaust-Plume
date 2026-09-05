@@ -1284,3 +1284,12 @@ research solver now consumes it through a distinct inlet mode and the coupled
 audit independently verifies that handoff.  It remains research-only until the
 solver also closes the explicit shock/front and neighboring free-boundary
 conditions; this handoff does not promote the downstream field by itself.
+
+The continuation lane now also requires an explicit shock-front condition.
+That condition binds the exact retained front, ambient/free-boundary path, and
+centerline reflection path to the same source field and continuation profile,
+then remeasures all four paths independently.  The coupled solver records and
+audits that condition before it starts the downstream finite-volume field.
+This closes the provenance and boundary-context seam; it does not claim that
+the finite-volume entrance residual, transverse closure, refinement ladder,
+physical shock-cell length, or external validation has passed.

@@ -48,12 +48,18 @@ from exhaust_plume.models.moc.field_continuation import (
   MocPhysicalFieldContinuationProfile,
   MocPhysicalFieldContinuationProfileResult,
 )
+from exhaust_plume.models.moc.physical_field_shock_front import (
+  MocPhysicalFieldShockFrontConditionResult,
+)
 from exhaust_plume.validation.moc_transonic_interface import (
   measure_moc_transonic_shock_interface,
   measure_moc_transonic_shock_interface_profile,
 )
 from exhaust_plume.validation.moc_field_continuation import (
   measure_moc_physical_field_continuation_profile,
+)
+from exhaust_plume.validation.moc_physical_field_shock_front import (
+  measure_moc_physical_field_shock_front_condition,
 )
 
 __all__ = (
@@ -155,6 +161,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   PHYSICAL_FIELD_CONTINUATION_FAILURE = (
     'coupled-euler-audit-physical-field-continuation-failure'
   )
+  PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE = (
+    'coupled-euler-audit-physical-field-shock-front-condition-failure'
+  )
   INLET_CHARACTERISTIC_FAILURE = (
     'coupled-euler-audit-inlet-characteristic-failure'
   )
@@ -196,6 +205,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   transonic_shock_interface_verified: bool = False
   transonic_shock_interface_profile_verified: bool = False
   physical_field_continuation_profile_verified: bool = False
+  physical_field_shock_front_condition_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -276,6 +286,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'transonic_shock_interface_verified',
       'transonic_shock_interface_profile_verified',
       'physical_field_continuation_profile_verified',
+      'physical_field_shock_front_condition_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -336,6 +347,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
           is not None
         )
         or self.physical_field_continuation_profile_verified
+      )
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.physical_field_shock_front_condition
+          is not None
+        )
+        or self.physical_field_shock_front_condition_verified
       )
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
@@ -401,6 +421,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       ),
       'physical_field_continuation_profile_verified': (
         self.physical_field_continuation_profile_verified
+      ),
+      'physical_field_shock_front_condition_verified': (
+        self.physical_field_shock_front_condition_verified
       ),
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
@@ -1555,6 +1578,42 @@ def _audit_physical_field_continuation(
 ####
 
 
+def _audit_physical_field_shock_front_condition(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> bool:
+  """Re-audit the exact front and neighboring paths consumed by continuation."""
+
+  request = candidate.request
+  if request is None:
+    return False
+  ####
+  expected = request.physical_field_shock_front_condition
+  if expected is None:
+    return (
+      candidate.physical_field_shock_front_condition is None
+      and not candidate.physical_field_shock_front_condition_consumed
+    )
+  ####
+  reported = candidate.physical_field_shock_front_condition
+  if not isinstance(reported, MocPhysicalFieldShockFrontConditionResult):
+    return False
+  ####
+  try:
+    audit = measure_moc_physical_field_shock_front_condition(reported)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return False
+  ####
+  return bool(
+    reported == expected
+    and reported.continuation_profile
+    == request.physical_field_continuation_profile
+    and reported.converged
+    and audit.converged
+    and candidate.physical_field_shock_front_condition_consumed
+  )
+####
+
+
 def _audit_control_section_compatibility(
   candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
 ) -> tuple[bool, float | None, float | None]:
@@ -1791,6 +1850,15 @@ def _audit_field(
     raise ValueError(
       'audited physical-field continuation profile does not match its '
       'independent field re-sampling'
+    )
+  ####
+  physical_field_shock_front_condition_verified = (
+    _audit_physical_field_shock_front_condition(candidate)
+  )
+  if not physical_field_shock_front_condition_verified:
+    raise ValueError(
+      'audited physical-field shock-front condition does not match its '
+      'independent front and neighboring-boundary remeasurement'
     )
   ####
   if sum(
@@ -2108,6 +2176,9 @@ def _audit_field(
     'physical_field_continuation_profile_verified': (
       physical_field_continuation_profile_verified
     ),
+    'physical_field_shock_front_condition_verified': (
+      physical_field_shock_front_condition_verified
+    ),
   }
 ####
 
@@ -2157,6 +2228,17 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     return _failure(
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
       .PHYSICAL_FIELD_CONTINUATION_FAILURE,
+      candidate,
+      candidate.message,
+    )
+  ####
+  if candidate.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE
+  ):
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE,
       candidate,
       candidate.message,
     )
@@ -2330,6 +2412,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   physical_field_continuation_profile_verified = bool(
     raw['physical_field_continuation_profile_verified']
   )
+  physical_field_shock_front_condition_verified = bool(
+    raw['physical_field_shock_front_condition_verified']
+  )
   (
     control_section_compatibility_verified,
     control_section_pressure_jump,
@@ -2458,6 +2543,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       'candidate exact physical-field continuation does not match its '
       'independent field re-sampling'
     )
+  elif not physical_field_shock_front_condition_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE
+    )
+    message = (
+      'candidate exact physical-field shock-front condition does not match '
+      'its independent front and neighboring-boundary remeasurement'
+    )
   elif not control_section_compatibility_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -2527,6 +2621,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     ),
     physical_field_continuation_profile_verified=(
       physical_field_continuation_profile_verified
+    ),
+    physical_field_shock_front_condition_verified=(
+      physical_field_shock_front_condition_verified
     ),
     control_section_compatibility_verified=(
       control_section_compatibility_verified
