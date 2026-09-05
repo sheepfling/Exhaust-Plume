@@ -19,6 +19,9 @@ from exhaust_plume.models.moc import (
   MocTransonicPlacementRequest,
   MocTransonicPlacementStatus,
   MocTransonicShockInterfaceRequest,
+  MocTransonicShockInterfaceSample,
+  MocTransonicShockInterfaceProfileBuildStatus,
+  MocTransonicShockInterfaceProfileRequest,
   MocTransonicShockInterfaceStatus,
   MocTransonicShockFieldAttachmentRequest,
   MocTransonicShockFieldAttachmentStatus,
@@ -31,12 +34,14 @@ from exhaust_plume.models.moc import (
   solve_attached_compression_to_turn,
   solve_moc_transonic_characteristic_transport,
   solve_moc_transonic_placement,
+  build_moc_transonic_shock_interface_profile,
   solve_moc_transonic_shock_interface,
   solve_moc_transonic_shock_field_attachment,
 )
 from exhaust_plume.validation import (
   measure_moc_transonic_characteristic_transport,
   measure_moc_transonic_shock_interface,
+  measure_moc_transonic_shock_interface_profile_build,
   measure_moc_transonic_placement,
   measure_moc_transonic_shock_field_attachment,
 )
@@ -485,6 +490,99 @@ def _placed_transonic_placement():
       frontier_source='test-resolved-neighboring-frontier',
     )
   )
+####
+
+
+def _normal_shock_profile_upstream():
+  gamma = 1.4
+  total_pressure = 1.2e6
+  points = ((1.0, -0.4), (1.0, 0.0), (1.0, 0.4))
+  machs = (2.0, 2.2, 1.8)
+
+  def static_pressure(mach):
+    factor = 1.0 + 0.5 * (gamma - 1.0) * mach * mach
+    return total_pressure / factor ** (gamma / (gamma - 1.0))
+  ####
+
+  return tuple(
+    MocTransonicShockInterfaceSample(
+      point_m=point,
+      mach=mach,
+      flow_angle_rad=0.0,
+      static_pressure_Pa=static_pressure(mach),
+      total_pressure_Pa=total_pressure,
+      gamma=gamma,
+    )
+    for point, mach in zip(points, machs)
+  )
+####
+
+
+def test_normal_shock_profile_builder_derives_and_audits_each_sample() -> None:
+  result = build_moc_transonic_shock_interface_profile(
+    MocTransonicShockInterfaceProfileRequest(
+      upstream_samples=_normal_shock_profile_upstream(),
+      interface_normal_angle_rad=0.0,
+    )
+  )
+  audit = measure_moc_transonic_shock_interface_profile_build(result)
+
+  assert result.status is (
+    MocTransonicShockInterfaceProfileBuildStatus
+    .CONVERGED_NORMAL_SHOCK_PROFILE
+  )
+  assert result.converged
+  assert result.profile is not None
+  assert audit.converged
+  assert audit.rederived
+  assert audit.upstream_profile_verified
+  assert audit.normal_alignment_verified
+  assert audit.downstream_state_verified
+  assert all(sample.mach < 1.0 for sample in result.profile.downstream_samples)
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_normal_shock_profile_builder_rejects_misaligned_upstream_flow() -> None:
+  upstream = _normal_shock_profile_upstream()
+  misaligned = replace(upstream[1], flow_angle_rad=0.05)
+  result = build_moc_transonic_shock_interface_profile(
+    MocTransonicShockInterfaceProfileRequest(
+      upstream_samples=(upstream[0], misaligned, upstream[2]),
+      interface_normal_angle_rad=0.0,
+    )
+  )
+
+  assert result.status is (
+    MocTransonicShockInterfaceProfileBuildStatus.NORMAL_ALIGNMENT_FAILURE
+  )
+  assert not result.converged
+  assert result.profile is None
+####
+
+
+def test_normal_shock_profile_builder_audit_rejects_tampered_downstream_state() -> None:
+  result = build_moc_transonic_shock_interface_profile(
+    MocTransonicShockInterfaceProfileRequest(
+      upstream_samples=_normal_shock_profile_upstream(),
+      interface_normal_angle_rad=0.0,
+    )
+  )
+  assert result.profile is not None
+  tampered_profile = replace(
+    result.profile,
+    downstream_samples=tuple(
+      replace(sample, mach=sample.mach * 0.98)
+      for sample in result.profile.downstream_samples
+    ),
+  )
+  tampered = replace(result, profile=tampered_profile)
+  audit = measure_moc_transonic_shock_interface_profile_build(tampered)
+
+  assert not audit.converged
+  assert not audit.downstream_state_verified
 ####
 
 

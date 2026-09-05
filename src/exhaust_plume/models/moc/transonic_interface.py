@@ -12,13 +12,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import isfinite, log
+from math import isfinite, log, pi
 from typing import Any
 
 from exhaust_plume.models.moc.chain import (
   MocChainTerminationDecision,
   MocChainTerminationReason,
 )
+from exhaust_plume.models.moc.compression import solve_normal_shock_terminal
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.transonic_placement import (
   MocTransonicPlacementResult,
@@ -32,8 +33,12 @@ __all__ = (
   'MocTransonicShockInterfaceStatus',
   'MocTransonicShockInterfaceSample',
   'MocTransonicShockInterfaceProfile',
+  'MocTransonicShockInterfaceProfileBuildStatus',
+  'MocTransonicShockInterfaceProfileRequest',
+  'MocTransonicShockInterfaceProfileBuildResult',
   'MocTransonicShockInterfaceRequest',
   'MocTransonicShockInterfaceResult',
+  'build_moc_transonic_shock_interface_profile',
   'solve_moc_transonic_shock_interface',
 )
 
@@ -308,6 +313,268 @@ class MocTransonicShockInterfaceProfile:
       ),
     }
   ####
+####
+
+
+class MocTransonicShockInterfaceProfileBuildStatus(str, Enum):
+  """Outcome of deriving a normal-shock profile from upstream samples."""
+
+  CONVERGED_NORMAL_SHOCK_PROFILE = (
+    'converged-normal-shock-interface-profile'
+  )
+  INVALID_INPUT = 'invalid_input'
+  UPSTREAM_PROFILE_FAILURE = 'transonic-interface-upstream-profile-failure'
+  NORMAL_ALIGNMENT_FAILURE = 'transonic-interface-normal-alignment-failure'
+  SHOCK_STATE_FAILURE = 'transonic-interface-normal-shock-state-failure'
+  INDEPENDENT_AUDIT_FAILURE = (
+    'transonic-interface-profile-independent-audit-failure'
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceProfileRequest:
+  """Inputs for a solver-owned normal-shock cross-section profile.
+
+  The caller must provide a spatially ordered, supersonic upstream profile.
+  Each sample is required to be aligned with the retained interface normal,
+  so this builder only derives a local normal-shock jump.  It does not infer
+  an interior shock surface or a global mixed-regime closure.
+  """
+
+  upstream_samples: tuple[MocTransonicShockInterfaceSample, ...]
+  interface_normal_angle_rad: float = 0.0
+  profile_id: str = 'solver-owned-normal-shock-interface-profile-v1'
+  normal_alignment_tolerance_rad: float = 1.0e-8
+  position_tolerance_m: float = 1.0e-9
+  state_tolerance: float = 1.0e-6
+  pressure_tolerance: float = 1.0e-8
+
+  def __post_init__(self) -> None:
+    samples = tuple(self.upstream_samples)
+    if any(
+      not isinstance(sample, MocTransonicShockInterfaceSample)
+      for sample in samples
+    ):
+      raise TypeError(
+        'upstream_samples must contain MocTransonicShockInterfaceSample values'
+      )
+    ####
+    object.__setattr__(self, 'upstream_samples', samples)
+    normal_angle = _finite(
+      'interface_normal_angle_rad',
+      self.interface_normal_angle_rad,
+    )
+    object.__setattr__(self, 'interface_normal_angle_rad', normal_angle)
+    profile_id = str(self.profile_id)
+    if not profile_id:
+      raise ValueError('profile_id must not be empty')
+    ####
+    object.__setattr__(self, 'profile_id', profile_id)
+    for name in (
+      'normal_alignment_tolerance_rad',
+      'position_tolerance_m',
+      'state_tolerance',
+      'pressure_tolerance',
+    ):
+      value = _finite(name, getattr(self, name))
+      if value <= 0.0:
+        raise ValueError(f'{name} must be positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': 'research-normal-shock-interface-profile-builder-v1',
+      'profile_id': self.profile_id,
+      'interface_normal_angle_rad': self.interface_normal_angle_rad,
+      'sample_count': len(self.upstream_samples),
+      'upstream_samples': [
+        sample.as_report() for sample in self.upstream_samples
+      ],
+      'normal_alignment_tolerance_rad': self.normal_alignment_tolerance_rad,
+      'position_tolerance_m': self.position_tolerance_m,
+      'state_tolerance': self.state_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceProfileBuildResult:
+  """Audited normal-shock profile derived from caller-owned upstream data."""
+
+  status: MocTransonicShockInterfaceProfileBuildStatus
+  request: MocTransonicShockInterfaceProfileRequest
+  profile: MocTransonicShockInterfaceProfile | None = None
+  independent_measurement: Any | None = None
+  upstream_profile_verified: bool = False
+  normal_alignment_verified: bool = False
+  downstream_state_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocTransonicShockInterfaceProfileBuildStatus,
+    ):
+      raise TypeError(
+        'status must be a MocTransonicShockInterfaceProfileBuildStatus'
+      )
+    ####
+    if not isinstance(
+      self.request,
+      MocTransonicShockInterfaceProfileRequest,
+    ):
+      raise TypeError(
+        'request must be a MocTransonicShockInterfaceProfileRequest'
+      )
+    ####
+    if self.profile is not None and not isinstance(
+      self.profile,
+      MocTransonicShockInterfaceProfile,
+    ):
+      raise TypeError(
+        'profile must be a MocTransonicShockInterfaceProfile or None'
+      )
+    ####
+    for name in (
+      'upstream_profile_verified',
+      'normal_alignment_verified',
+      'downstream_state_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    audit = self.independent_measurement
+    return bool(
+      self.status is (
+        MocTransonicShockInterfaceProfileBuildStatus
+        .CONVERGED_NORMAL_SHOCK_PROFILE
+      )
+      and self.profile is not None
+      and self.upstream_profile_verified
+      and self.normal_alignment_verified
+      and self.downstream_state_verified
+      and audit is not None
+      and bool(getattr(audit, 'converged', False))
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """A local profile does not close the surrounding mixed-regime field."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    audit = self.independent_measurement
+    return {
+      'status': self.status.value,
+      'model': 'research-normal-shock-interface-profile-builder-v1',
+      'converged': self.converged,
+      'upstream_profile_verified': self.upstream_profile_verified,
+      'normal_alignment_verified': self.normal_alignment_verified,
+      'downstream_state_verified': self.downstream_state_verified,
+      'profile': None if self.profile is None else self.profile.as_report(),
+      'independent_measurement': (
+        None
+        if audit is None or not hasattr(audit, 'as_report')
+        else audit.as_report()
+      ),
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'research-only-normal-shock-cross-section-profile; interior placement, '
+        'surrounding mixed-regime closure, physical shock-cell length, and '
+        'external validation remain open'
+      ),
+      'request': self.request.as_report(),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def _line_angle_residual(actual: float, expected: float) -> float:
+  """Return the smallest residual between two undirected normal lines."""
+
+  return abs((actual - expected + 0.5 * pi) % pi - 0.5 * pi)
+####
+
+
+def _sample_static_pressure(sample: MocTransonicShockInterfaceSample) -> float:
+  factor = 1.0 + 0.5 * (sample.gamma - 1.0) * sample.mach**2
+  return sample.total_pressure_Pa / factor ** (
+    sample.gamma / (sample.gamma - 1.0)
+  )
+####
+
+
+def _normal_shock_profile_sample(
+  upstream: MocTransonicShockInterfaceSample,
+  request: MocTransonicShockInterfaceProfileRequest,
+) -> MocTransonicShockInterfaceSample | None:
+  """Derive one downstream sample through the exact normal-shock primitive."""
+
+  upstream_state = CharacteristicState(
+    x_m=upstream.point_m[0],
+    y_m=upstream.point_m[1],
+    theta_rad=upstream.flow_angle_rad,
+    mach=upstream.mach,
+    gamma=upstream.gamma,
+  )
+  terminal = solve_normal_shock_terminal(
+    upstream_state,
+    upstream_pressure_Pa=upstream.static_pressure_Pa,
+    shock_point_m=upstream.point_m,
+  )
+  if (
+    not terminal.converged
+    or terminal.downstream_mach is None
+    or terminal.downstream_flow_angle_rad is None
+    or terminal.downstream_pressure_Pa is None
+    or terminal.downstream_total_pressure_Pa is None
+  ):
+    return None
+  ####
+  if _pressure_residual(
+    upstream.total_pressure_Pa,
+    terminal.upstream_total_pressure_Pa
+    if terminal.upstream_total_pressure_Pa is not None
+    else 0.0,
+  ) > request.pressure_tolerance:
+    return None
+  ####
+  return MocTransonicShockInterfaceSample(
+    point_m=upstream.point_m,
+    mach=terminal.downstream_mach,
+    flow_angle_rad=terminal.downstream_flow_angle_rad,
+    static_pressure_Pa=terminal.downstream_pressure_Pa,
+    total_pressure_Pa=terminal.downstream_total_pressure_Pa,
+    gamma=upstream.gamma,
+  )
 ####
 
 
@@ -852,6 +1119,229 @@ def solve_moc_transonic_shock_interface(
       'bounded shock interface, scalar conservation geometry, state lineage, '
       'and independent handoff audit passed; global mixed-regime closure '
       'remains pending'
+    ),
+  )
+####
+
+
+def _profile_build_failure(
+  status: MocTransonicShockInterfaceProfileBuildStatus,
+  request: MocTransonicShockInterfaceProfileRequest,
+  *,
+  profile: MocTransonicShockInterfaceProfile | None = None,
+  independent_measurement: Any | None = None,
+  upstream_profile_verified: bool = False,
+  normal_alignment_verified: bool = False,
+  downstream_state_verified: bool = False,
+  message: str,
+) -> MocTransonicShockInterfaceProfileBuildResult:
+  return MocTransonicShockInterfaceProfileBuildResult(
+    status=status,
+    request=request,
+    profile=profile,
+    independent_measurement=independent_measurement,
+    upstream_profile_verified=upstream_profile_verified,
+    normal_alignment_verified=normal_alignment_verified,
+    downstream_state_verified=downstream_state_verified,
+    message=message,
+  )
+####
+
+
+def build_moc_transonic_shock_interface_profile(
+  request: MocTransonicShockInterfaceProfileRequest,
+) -> MocTransonicShockInterfaceProfileBuildResult:
+  """Derive and audit a cross-section normal-shock profile.
+
+  This is deliberately a profile builder, not an interface-placement solver.
+  It accepts only caller-owned upstream samples that already lie on a common
+  ordered cross-section and derives each downstream state with the exact
+  calorically-perfect normal-shock primitive.  The returned profile remains a
+  research handoff for the coupled field.
+  """
+
+  if not isinstance(request, MocTransonicShockInterfaceProfileRequest):
+    raise TypeError(
+      'request must be a MocTransonicShockInterfaceProfileRequest'
+    )
+  ####
+  upstream = request.upstream_samples
+  if len(upstream) < 2:
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.UPSTREAM_PROFILE_FAILURE,
+      request,
+      message='normal-shock profile requires at least two upstream samples',
+    )
+  ####
+  x_reference = upstream[0].point_m[0]
+  if any(
+    abs(sample.point_m[0] - x_reference) > request.position_tolerance_m
+    for sample in upstream[1:]
+  ):
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.UPSTREAM_PROFILE_FAILURE,
+      request,
+      message='upstream samples must lie on one cross-section x',
+    )
+  ####
+  if any(
+    second.point_m[1] <= first.point_m[1] + request.position_tolerance_m
+    for first, second in zip(upstream, upstream[1:])
+  ):
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.UPSTREAM_PROFILE_FAILURE,
+      request,
+      message='upstream sample ordinates must be strictly increasing',
+    )
+  ####
+  if any(sample.mach <= 1.0 for sample in upstream):
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.UPSTREAM_PROFILE_FAILURE,
+      request,
+      message='normal-shock profile upstream samples must be supersonic',
+    )
+  ####
+  gamma = upstream[0].gamma
+  if any(
+    abs(sample.gamma - gamma) > request.state_tolerance
+    for sample in upstream[1:]
+  ):
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.UPSTREAM_PROFILE_FAILURE,
+      request,
+      message='normal-shock profile upstream samples must use one gamma',
+    )
+  ####
+  thermodynamics_verified = all(
+    _pressure_residual(
+      sample.static_pressure_Pa,
+      _sample_static_pressure(sample),
+    ) <= request.pressure_tolerance
+    for sample in upstream
+  )
+  if not thermodynamics_verified:
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.UPSTREAM_PROFILE_FAILURE,
+      request,
+      message=(
+        'upstream samples do not reproduce static pressure from their '
+        'reported total pressure and Mach number'
+      ),
+    )
+  ####
+  normal_alignment_verified = all(
+    _line_angle_residual(
+      sample.flow_angle_rad,
+      request.interface_normal_angle_rad,
+    ) <= request.normal_alignment_tolerance_rad
+    for sample in upstream
+  )
+  if not normal_alignment_verified:
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.NORMAL_ALIGNMENT_FAILURE,
+      request,
+      upstream_profile_verified=True,
+      message=(
+        'normal-shock profile requires every upstream flow direction to align '
+        'with the retained interface normal'
+      ),
+    )
+  ####
+  downstream = tuple(
+    _normal_shock_profile_sample(sample, request) for sample in upstream
+  )
+  if any(sample is None for sample in downstream):
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.SHOCK_STATE_FAILURE,
+      request,
+      upstream_profile_verified=True,
+      normal_alignment_verified=True,
+      message='normal-shock primitive did not produce a complete subsonic state',
+    )
+  ####
+  downstream_samples = tuple(
+    sample for sample in downstream if sample is not None
+  )
+  try:
+    profile = MocTransonicShockInterfaceProfile(
+      upstream_samples=upstream,
+      downstream_samples=downstream_samples,
+      interface_normal_angle_rad=request.interface_normal_angle_rad,
+      profile_id=request.profile_id,
+      position_tolerance_m=request.position_tolerance_m,
+      state_tolerance=request.state_tolerance,
+      pressure_tolerance=request.pressure_tolerance,
+    )
+  except (TypeError, ValueError) as error:
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.SHOCK_STATE_FAILURE,
+      request,
+      upstream_profile_verified=True,
+      normal_alignment_verified=True,
+      message=f'normal-shock profile construction failed: {error}',
+    )
+  ####
+  result = MocTransonicShockInterfaceProfileBuildResult(
+    status=(
+      MocTransonicShockInterfaceProfileBuildStatus
+      .CONVERGED_NORMAL_SHOCK_PROFILE
+    ),
+    request=request,
+    profile=profile,
+    upstream_profile_verified=True,
+    normal_alignment_verified=True,
+    downstream_state_verified=True,
+    message=(
+      'solver-owned normal-shock cross-section profile was derived from an '
+      'ordered upstream sample set; mixed-regime closure remains open'
+    ),
+  )
+  try:
+    from exhaust_plume.validation.moc_transonic_interface import (
+      measure_moc_transonic_shock_interface_profile_build,
+    )
+
+    audit = measure_moc_transonic_shock_interface_profile_build(result)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.INDEPENDENT_AUDIT_FAILURE,
+      request,
+      profile=profile,
+      upstream_profile_verified=True,
+      normal_alignment_verified=True,
+      downstream_state_verified=True,
+      message=f'independent normal-shock profile audit raised: {error}',
+    )
+  ####
+  if not audit.converged:
+    return _profile_build_failure(
+      MocTransonicShockInterfaceProfileBuildStatus.INDEPENDENT_AUDIT_FAILURE,
+      request,
+      profile=profile,
+      independent_measurement=audit,
+      upstream_profile_verified=True,
+      normal_alignment_verified=True,
+      downstream_state_verified=True,
+      message=(
+        'normal-shock profile was built, but its independent audit did not '
+        f'pass: {audit.message}'
+      ),
+    )
+  ####
+  return MocTransonicShockInterfaceProfileBuildResult(
+    status=(
+      MocTransonicShockInterfaceProfileBuildStatus
+      .CONVERGED_NORMAL_SHOCK_PROFILE
+    ),
+    request=request,
+    profile=profile,
+    independent_measurement=audit,
+    upstream_profile_verified=True,
+    normal_alignment_verified=True,
+    downstream_state_verified=True,
+    message=(
+      'normal-shock profile construction and independent rederivation passed; '
+      'global mixed-regime closure remains pending'
     ),
   )
 ####

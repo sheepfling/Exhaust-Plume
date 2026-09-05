@@ -261,6 +261,9 @@ from exhaust_plume.validation.moc_transonic_interface import (
   MocTransonicShockInterfaceProfileAuditStatus,
   MocTransonicShockInterfaceProfileAudit,
   measure_moc_transonic_shock_interface_profile,
+  MocTransonicShockInterfaceProfileBuildAuditStatus,
+  MocTransonicShockInterfaceProfileBuildAudit,
+  measure_moc_transonic_shock_interface_profile_build,
 )
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
@@ -667,6 +670,9 @@ __all__ = (
   'MocTransonicShockInterfaceProfileAuditStatus',
   'MocTransonicShockInterfaceProfileAudit',
   'measure_moc_transonic_shock_interface_profile',
+  'MocTransonicShockInterfaceProfileBuildAuditStatus',
+  'MocTransonicShockInterfaceProfileBuildAudit',
+  'measure_moc_transonic_shock_interface_profile_build',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainMixedRegimeBoundaryRefinementStatus',
   'MocReflectedDomainMixedRegimeBoundaryRefinementCase',

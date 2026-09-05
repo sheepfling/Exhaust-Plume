@@ -1140,3 +1140,23 @@ lanes.  This is a stricter closure boundary, not completion of P2.2: the
 solver still needs a two-dimensional placed interface, pressure/tangency
 closure, refinement evidence, physical shock-cell length, and external
 validation.
+
+### Solver-owned normal-shock profile-builder checkpoint
+
+The next handoff slice adds a typed profile builder for the case where a
+caller already has an ordered supersonic upstream cross-section.  The builder
+requires one retained interface normal and rejects missing samples, unordered
+ordinates, mixed gamma, non-supersonic input, thermodynamic inconsistency, or
+flow/normal misalignment.  It derives each downstream sample through the
+existing normal-shock primitive, preserves the exact cross-section identity,
+and runs an independent rederivation of the Rankine--Hugoniot mapping before
+reporting a converged profile.
+
+The profile is now a reusable coupled-field input with explicit build status,
+sample-level residuals, independent audit, and promotion flags.  Its
+acceptance still means only a local cross-section handoff: it does not place
+the profile in the global Euler field, solve the surrounding pressure/
+tangency or free-boundary closure, establish physical shock-cell length, or
+authorize production Visualization, Signature, or FPA claims.  The next
+solver-owned slice remains an actual placed interface and coupled-field seam
+on the target case, followed by refinement and provider-bound validation.

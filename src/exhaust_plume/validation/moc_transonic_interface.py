@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import hypot, isclose, log
+from math import hypot, isclose, log, pi, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceSample,
   MocTransonicShockInterfaceProfile,
+  MocTransonicShockInterfaceProfileBuildResult,
+  MocTransonicShockInterfaceProfileBuildStatus,
   MocTransonicShockInterfaceResult,
   MocTransonicShockInterfaceStatus,
 )
@@ -32,6 +34,9 @@ __all__ = (
   'MocTransonicShockInterfaceProfileAuditStatus',
   'MocTransonicShockInterfaceProfileAudit',
   'measure_moc_transonic_shock_interface_profile',
+  'MocTransonicShockInterfaceProfileBuildAuditStatus',
+  'MocTransonicShockInterfaceProfileBuildAudit',
+  'measure_moc_transonic_shock_interface_profile_build',
 )
 
 
@@ -48,6 +53,14 @@ class MocTransonicShockInterfaceProfileAuditStatus(str, Enum):
 
   VERIFIED = 'verified-transonic-shock-interface-profile-audit'
   RESULT_FAILURE = 'transonic-shock-interface-profile-result-failure'
+####
+
+
+class MocTransonicShockInterfaceProfileBuildAuditStatus(str, Enum):
+  """Independent audit outcome for a solver-owned profile derivation."""
+
+  VERIFIED = 'verified-normal-shock-interface-profile-build-audit'
+  RESULT_FAILURE = 'normal-shock-interface-profile-build-result-failure'
 ####
 
 
@@ -119,6 +132,105 @@ class MocTransonicShockInterfaceProfileAudit:
       'thermodynamics_verified': self.thermodynamics_verified,
       'shock_loss_verified': self.shock_loss_verified,
       'profile_id': None if self.profile is None else self.profile.profile_id,
+      'physical_closure_verified': False,
+      'production_claim_allowed': False,
+      'message': self.message,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceProfileBuildAudit:
+  """Re-derive the normal-shock mapping behind a built profile."""
+
+  status: MocTransonicShockInterfaceProfileBuildAuditStatus
+  result_status: MocTransonicShockInterfaceProfileBuildStatus
+  profile_audit: MocTransonicShockInterfaceProfileAudit | None
+  rederived: bool
+  upstream_profile_verified: bool
+  normal_alignment_verified: bool
+  downstream_state_verified: bool
+  maximum_state_residual: float | None
+  maximum_pressure_residual: float | None
+  maximum_total_pressure_residual: float | None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocTransonicShockInterfaceProfileBuildAuditStatus,
+    ):
+      raise TypeError(
+        'status must be a MocTransonicShockInterfaceProfileBuildAuditStatus'
+      )
+    ####
+    if not isinstance(
+      self.result_status,
+      MocTransonicShockInterfaceProfileBuildStatus,
+    ):
+      raise TypeError(
+        'result_status must be a MocTransonicShockInterfaceProfileBuildStatus'
+      )
+    ####
+    if self.profile_audit is not None and not isinstance(
+      self.profile_audit,
+      MocTransonicShockInterfaceProfileAudit,
+    ):
+      raise TypeError(
+        'profile_audit must be a MocTransonicShockInterfaceProfileAudit or None'
+      )
+    ####
+    for name in (
+      'rederived',
+      'upstream_profile_verified',
+      'normal_alignment_verified',
+      'downstream_state_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    for name in (
+      'maximum_state_residual',
+      'maximum_pressure_residual',
+      'maximum_total_pressure_residual',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      ####
+      numeric = float(value)
+      if numeric < 0.0:
+        raise ValueError(f'{name} must be nonnegative when supplied')
+      ####
+      object.__setattr__(self, name, numeric)
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocTransonicShockInterfaceProfileBuildAuditStatus.VERIFIED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'result_status': self.result_status.value,
+      'converged': self.converged,
+      'rederived': self.rederived,
+      'upstream_profile_verified': self.upstream_profile_verified,
+      'normal_alignment_verified': self.normal_alignment_verified,
+      'downstream_state_verified': self.downstream_state_verified,
+      'maximum_state_residual': self.maximum_state_residual,
+      'maximum_pressure_residual': self.maximum_pressure_residual,
+      'maximum_total_pressure_residual': self.maximum_total_pressure_residual,
+      'profile_audit': (
+        None
+        if self.profile_audit is None
+        else self.profile_audit.as_report()
+      ),
       'physical_closure_verified': False,
       'production_claim_allowed': False,
       'message': self.message,
@@ -540,6 +652,177 @@ def measure_moc_transonic_shock_interface_profile(
       'shock total-pressure loss were independently rederived'
       if verified
       else 'shock-interface profile does not match independent remeasurement'
+    ),
+  )
+####
+
+
+def _line_angle_residual(actual: float, expected: float) -> float:
+  return abs((actual - expected + 0.5 * pi) % pi - 0.5 * pi)
+####
+
+
+def _normal_shock_profile_expected(
+  upstream: MocTransonicShockInterfaceSample,
+) -> MocTransonicShockInterfaceSample:
+  """Re-derive one normal-shock sample without using the model builder."""
+
+  gamma = upstream.gamma
+  mach = upstream.mach
+  upstream_factor = 1.0 + 0.5 * (gamma - 1.0) * mach**2
+  upstream_static = upstream.total_pressure_Pa / upstream_factor ** (
+    gamma / (gamma - 1.0)
+  )
+  static_pressure_ratio = 1.0 + 2.0 * gamma / (gamma + 1.0) * (mach**2 - 1.0)
+  downstream_static = upstream_static * static_pressure_ratio
+  downstream_mach = sqrt(
+    (1.0 + 0.5 * (gamma - 1.0) * mach**2)
+    / (gamma * mach**2 - 0.5 * (gamma - 1.0))
+  )
+  downstream_factor = 1.0 + 0.5 * (gamma - 1.0) * downstream_mach**2
+  downstream_total = downstream_static * downstream_factor ** (
+    gamma / (gamma - 1.0)
+  )
+  return MocTransonicShockInterfaceSample(
+    point_m=upstream.point_m,
+    mach=downstream_mach,
+    flow_angle_rad=upstream.flow_angle_rad,
+    static_pressure_Pa=downstream_static,
+    total_pressure_Pa=downstream_total,
+    gamma=gamma,
+  )
+####
+
+
+def measure_moc_transonic_shock_interface_profile_build(
+  result: MocTransonicShockInterfaceProfileBuildResult,
+) -> MocTransonicShockInterfaceProfileBuildAudit:
+  """Independently rederive a normal-shock profile build result."""
+
+  if not isinstance(result, MocTransonicShockInterfaceProfileBuildResult):
+    raise TypeError(
+      'result must be a MocTransonicShockInterfaceProfileBuildResult'
+    )
+  ####
+  profile = result.profile
+  request = result.request
+  profile_audit = (
+    None
+    if profile is None
+    else measure_moc_transonic_shock_interface_profile(profile)
+  )
+  if profile is None:
+    return MocTransonicShockInterfaceProfileBuildAudit(
+      status=MocTransonicShockInterfaceProfileBuildAuditStatus.RESULT_FAILURE,
+      result_status=result.status,
+      profile_audit=None,
+      rederived=False,
+      upstream_profile_verified=False,
+      normal_alignment_verified=False,
+      downstream_state_verified=False,
+      maximum_state_residual=None,
+      maximum_pressure_residual=None,
+      maximum_total_pressure_residual=None,
+      message='profile build result retained no profile to audit',
+    )
+  ####
+  upstream = request.upstream_samples
+  downstream = profile.downstream_samples
+  upstream_profile_verified = bool(
+    len(upstream) >= 2
+    and len(downstream) == len(upstream)
+    and profile_audit is not None
+    and profile_audit.cross_section_verified
+    and profile_audit.ordinate_verified
+    and profile_audit.regime_verified
+    and profile_audit.thermodynamics_verified
+  )
+  normal_alignment_verified = bool(
+    all(
+      _line_angle_residual(
+        sample.flow_angle_rad,
+        request.interface_normal_angle_rad,
+      ) <= request.normal_alignment_tolerance_rad
+      for sample in upstream
+    )
+  )
+  state_residuals: list[float] = []
+  pressure_residuals: list[float] = []
+  total_pressure_residuals: list[float] = []
+  downstream_state_verified = True
+  for upstream_sample, actual in zip(upstream, downstream):
+    expected = _normal_shock_profile_expected(upstream_sample)
+    state_residual = max(
+      abs(actual.point_m[0] - expected.point_m[0]),
+      abs(actual.point_m[1] - expected.point_m[1]),
+      abs(actual.mach - expected.mach),
+      abs(actual.flow_angle_rad - expected.flow_angle_rad),
+      abs(actual.gamma - expected.gamma),
+    )
+    pressure_residual = _pressure_residual(
+      actual.static_pressure_Pa,
+      expected.static_pressure_Pa,
+    )
+    total_pressure_residual = _pressure_residual(
+      actual.total_pressure_Pa,
+      expected.total_pressure_Pa,
+    )
+    if pressure_residual is None or total_pressure_residual is None:
+      downstream_state_verified = False
+    else:
+      pressure_residuals.append(pressure_residual)
+      total_pressure_residuals.append(total_pressure_residual)
+    ####
+    state_residuals.append(state_residual)
+    if (
+      state_residual > request.state_tolerance
+      or pressure_residual is None
+      or pressure_residual > request.pressure_tolerance
+      or total_pressure_residual is None
+      or total_pressure_residual > request.pressure_tolerance
+    ):
+      downstream_state_verified = False
+    ####
+  ####
+  maximum_state_residual = max(state_residuals) if state_residuals else None
+  maximum_pressure_residual = (
+    max(pressure_residuals) if pressure_residuals else None
+  )
+  maximum_total_pressure_residual = (
+    max(total_pressure_residuals) if total_pressure_residuals else None
+  )
+  verified = bool(
+    result.status is (
+      MocTransonicShockInterfaceProfileBuildStatus
+      .CONVERGED_NORMAL_SHOCK_PROFILE
+    )
+    and upstream_profile_verified
+    and normal_alignment_verified
+    and downstream_state_verified
+    and profile_audit is not None
+    and profile_audit.converged
+  )
+  return MocTransonicShockInterfaceProfileBuildAudit(
+    status=(
+      MocTransonicShockInterfaceProfileBuildAuditStatus.VERIFIED
+      if verified
+      else MocTransonicShockInterfaceProfileBuildAuditStatus.RESULT_FAILURE
+    ),
+    result_status=result.status,
+    profile_audit=profile_audit,
+    rederived=True,
+    upstream_profile_verified=upstream_profile_verified,
+    normal_alignment_verified=normal_alignment_verified,
+    downstream_state_verified=downstream_state_verified,
+    maximum_state_residual=maximum_state_residual,
+    maximum_pressure_residual=maximum_pressure_residual,
+    maximum_total_pressure_residual=maximum_total_pressure_residual,
+    message=(
+      'upstream geometry, normal alignment, Rankine--Hugoniot profile states, '
+      'and scalar thermodynamic identities were independently rederived'
+      if verified
+      else 'normal-shock interface profile build does not match independent '
+      'rederivation'
     ),
   )
 ####
