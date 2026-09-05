@@ -1591,3 +1591,19 @@ This strengthens the local front contract without widening its claim ceiling.
 It does not close the global C-/C+ frontier, ambient/centerline feedback,
 mixed-regime finite-volume entrance, physical cell length, Signature/FPA
 promotion, or external validation.
+
+### Standardized physical shock-front visualization checkpoint
+
+The planar-MOC visualization adapter now carries the retained physical-field
+shock-front condition as a distinct named path.  It publishes the condition
+status, sample count, finite/ordered geometry availability, solver-side
+verification flags, independent conservative-jump audit status, and measured
+residuals through the standard diagnostic map.  Malformed geometry or audit
+scalars remain unavailable rather than being drawn or coerced into a claim.
+
+The path semantic explicitly labels the overlay as research-only, and the
+bundle preserves ``physical_closure_verified=false``, the promotion block,
+and the production-claim ceiling from the solver result.  This makes the
+local Rankine--Hugoniot evidence inspectable in the Visualization product
+without presenting it as a globally closed shock surface, a physical
+shock-cell length, Signature/FPA input, or external validation.

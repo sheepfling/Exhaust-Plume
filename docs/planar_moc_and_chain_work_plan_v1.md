@@ -4068,3 +4068,19 @@ This is a stronger P2.2 handoff contract, not canonical closure.  The
 surrounding reflected C-/C+ solve, free-boundary feedback, mixed-regime
 entrance, refinement, physical shock-cell length, product promotion, and
 external validation remain open.
+
+## Standardized physical shock-front visualization checkpoint
+
+The common planar-MOC visualization now exposes the retained physical-field
+shock-front condition as ``moc-physical-field-shock-front``.  Its standard
+diagnostics retain sample count, finite/strictly ordered path availability,
+condition verification flags, independent conservative-jump audit status,
+and measured residuals.  Invalid geometry is omitted and reported as
+unavailable; malformed audit scalars are omitted instead of becoming a
+numeric value by accident.
+
+The overlay is explicitly research-only and keeps the solver's physical
+closure, chain-promotion, and production-claim gates unchanged.  It is an
+evidence surface for the Visualization product, not a globally closed shock
+surface, accepted physical shock-cell length, Signature/FPA input, or
+external-validation result.
