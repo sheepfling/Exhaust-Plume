@@ -34,6 +34,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus,
   MocTransonicShockGeometryRequest,
   MocTransonicShockGeometryStatus,
+  MocTransonicShockInterfaceFieldProfileRequest,
+  MocTransonicShockInterfaceFieldProfileStatus,
   MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceSample,
   MocTransonicTransitionStatus,
@@ -79,6 +81,7 @@ from exhaust_plume.models.moc import (
   assess_reflected_domain_coupled_euler_transonic_frontier_compatibility,
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
+  build_moc_transonic_shock_interface_profile_from_field,
   moc_reflected_domain_global_physical_closure_fingerprint,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
@@ -127,7 +130,9 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
   measure_reflected_domain_coupled_euler_free_boundary,
 )
 from exhaust_plume.validation.moc_transonic_interface import (
+  MocTransonicShockInterfaceFieldProfileAuditStatus,
   MocTransonicShockInterfaceProfileAuditStatus,
+  measure_moc_transonic_shock_interface_profile_from_field,
   measure_moc_transonic_shock_interface_profile,
 )
 from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import (
@@ -317,6 +322,92 @@ def _global_physical_closure_for_mixed_regime():
     sample_count=9,
     shock_angle_tolerance_rad=0.02,
   )
+####
+
+
+def test_global_physical_field_binds_an_audited_profile_to_the_coupled_lane():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  field = closure.global_euler.physical_field.field
+  points = tuple(
+    (5.5, ordinate)
+    for ordinate in (
+      0.0564,
+      0.1027,
+      0.1491,
+      0.1955,
+      0.2418,
+      0.2882,
+      0.3345,
+      0.3809,
+      0.4273,
+      0.4736,
+    )
+  )
+  bound = build_moc_transonic_shock_interface_profile_from_field(
+    MocTransonicShockInterfaceFieldProfileRequest(
+      field=field,
+      sample_points_m=points,
+      normal_alignment_tolerance_rad=0.03,
+      profile_id='test-global-physical-field-x5.5',
+    )
+  )
+  assert bound.status is (
+    MocTransonicShockInterfaceFieldProfileStatus
+    .CONVERGED_FIELD_BOUND_PROFILE
+  )
+  assert bound.converged
+  assert bound.profile is not None
+  assert bound.profile_build is not None
+  assert bound.field_lineage_verified
+  assert bound.field_sampling_verified
+  assert bound.profile_build_verified
+  audit = measure_moc_transonic_shock_interface_profile_from_field(bound)
+  assert audit.status is MocTransonicShockInterfaceFieldProfileAuditStatus.VERIFIED
+  assert audit.converged
+  assert audit.field_lineage_verified
+  assert audit.field_sampling_verified
+  assert audit.profile_build_verified
+  assert audit.maximum_state_residual == pytest.approx(0.0)
+  assert audit.maximum_pressure_residual == pytest.approx(0.0)
+
+  tampered = replace(
+    bound,
+    upstream_samples=(
+      replace(bound.upstream_samples[0], mach=bound.upstream_samples[0].mach + 0.01),
+      *bound.upstream_samples[1:],
+    ),
+  )
+  tampered_audit = measure_moc_transonic_shock_interface_profile_from_field(
+    tampered
+  )
+  assert not tampered_audit.converged
+  assert not tampered_audit.field_sampling_verified
+
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
+    transonic_shock_interface_profile=bound.profile,
+  )
+  coupled = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
+  assert coupled.status is not (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_SHOCK_INTERFACE_PROFILE_FAILURE
+  )
+  assert coupled.conservative_states_by_cell
+  assert coupled.transonic_shock_interface_profile_consumed
+  assert coupled.production_claim_allowed is False
 ####
 
 

@@ -20,6 +20,7 @@ from exhaust_plume.models.moc.chain import (
   MocChainTerminationReason,
 )
 from exhaust_plume.models.moc.compression import solve_normal_shock_terminal
+from exhaust_plume.models.moc.physical_cell import MocPhysicalPostShockFieldResult
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.transonic_placement import (
   MocTransonicPlacementResult,
@@ -36,9 +37,13 @@ __all__ = (
   'MocTransonicShockInterfaceProfileBuildStatus',
   'MocTransonicShockInterfaceProfileRequest',
   'MocTransonicShockInterfaceProfileBuildResult',
+  'MocTransonicShockInterfaceFieldProfileStatus',
+  'MocTransonicShockInterfaceFieldProfileRequest',
+  'MocTransonicShockInterfaceFieldProfileResult',
   'MocTransonicShockInterfaceRequest',
   'MocTransonicShockInterfaceResult',
   'build_moc_transonic_shock_interface_profile',
+  'build_moc_transonic_shock_interface_profile_from_field',
   'solve_moc_transonic_shock_interface',
 )
 
@@ -532,6 +537,17 @@ def _sample_static_pressure(sample: MocTransonicShockInterfaceSample) -> float:
 ####
 
 
+def _static_pressure_from_state_total_pressure(
+  state: CharacteristicState,
+  total_pressure_Pa: float,
+) -> float:
+  factor = 1.0 + 0.5 * (state.gamma - 1.0) * state.mach**2
+  return float(total_pressure_Pa) / factor ** (
+    state.gamma / (state.gamma - 1.0)
+  )
+####
+
+
 def _normal_shock_profile_sample(
   upstream: MocTransonicShockInterfaceSample,
   request: MocTransonicShockInterfaceProfileRequest,
@@ -575,6 +591,258 @@ def _normal_shock_profile_sample(
     total_pressure_Pa=terminal.downstream_total_pressure_Pa,
     gamma=upstream.gamma,
   )
+####
+
+
+class MocTransonicShockInterfaceFieldProfileStatus(str, Enum):
+  """Outcome of sampling a retained physical field into a shock profile."""
+
+  CONVERGED_FIELD_BOUND_PROFILE = (
+    'converged-field-bound-transonic-shock-interface-profile'
+  )
+  INVALID_INPUT = 'invalid_input'
+  FIELD_SAMPLING_UNAVAILABLE = (
+    'transonic-interface-physical-field-sampling-unavailable'
+  )
+  CROSS_SECTION_FAILURE = 'transonic-interface-field-cross-section-failure'
+  FIELD_SAMPLE_FAILURE = 'transonic-interface-field-sample-failure'
+  PROFILE_BUILD_FAILURE = 'transonic-interface-field-profile-build-failure'
+  INDEPENDENT_AUDIT_FAILURE = (
+    'transonic-interface-field-profile-independent-audit-failure'
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceFieldProfileRequest:
+  """Request an exact-state sample from a retained physical post-shock field.
+
+  ``sample_points_m`` are caller-selected points, but every state and total
+  pressure is read from the retained field sampler.  The request therefore
+  cannot extrapolate a state or fabricate a profile outside the field domain.
+  """
+
+  field: MocPhysicalPostShockFieldResult
+  sample_points_m: tuple[tuple[float, float], ...]
+  interface_normal_angle_rad: float = 0.0
+  profile_id: str = 'global-physical-field-bound-normal-shock-profile-v1'
+  normal_alignment_tolerance_rad: float = 1.0e-2
+  position_tolerance_m: float = 1.0e-9
+  state_tolerance: float = 1.0e-6
+  pressure_tolerance: float = 1.0e-8
+  source: str = 'global-physical-field-cross-section-sampler-v1'
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.field, MocPhysicalPostShockFieldResult):
+      raise TypeError('field must be a MocPhysicalPostShockFieldResult')
+    ####
+    points = tuple(
+      (float(point[0]), float(point[1])) for point in self.sample_points_m
+    )
+    if any(not all(isfinite(value) for value in point) for point in points):
+      raise ValueError('sample_points_m must contain finite points')
+    ####
+    object.__setattr__(self, 'sample_points_m', points)
+    normal_angle = _finite(
+      'interface_normal_angle_rad',
+      self.interface_normal_angle_rad,
+    )
+    object.__setattr__(self, 'interface_normal_angle_rad', normal_angle)
+    profile_id = str(self.profile_id)
+    if not profile_id:
+      raise ValueError('profile_id must not be empty')
+    ####
+    object.__setattr__(self, 'profile_id', profile_id)
+    source = str(self.source)
+    if not source:
+      raise ValueError('source must not be empty')
+    ####
+    object.__setattr__(self, 'source', source)
+    for name in (
+      'normal_alignment_tolerance_rad',
+      'position_tolerance_m',
+      'state_tolerance',
+      'pressure_tolerance',
+    ):
+      value = _finite(name, getattr(self, name))
+      if value <= 0.0:
+        raise ValueError(f'{name} must be positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': 'research-physical-field-bound-interface-profile-v1',
+      'source': self.source,
+      'profile_id': self.profile_id,
+      'field_status': self.field.status.value,
+      'field_physical_closure_verified': self.field.physical_closure_verified,
+      'field_state_sampling_available': self.field.state_sampling_available,
+      'sample_points_m': [list(point) for point in self.sample_points_m],
+      'sample_count': len(self.sample_points_m),
+      'interface_normal_angle_rad': self.interface_normal_angle_rad,
+      'normal_alignment_tolerance_rad': self.normal_alignment_tolerance_rad,
+      'position_tolerance_m': self.position_tolerance_m,
+      'state_tolerance': self.state_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceFieldProfileResult:
+  """Audited normal-shock profile bound to a retained physical field."""
+
+  status: MocTransonicShockInterfaceFieldProfileStatus
+  request: MocTransonicShockInterfaceFieldProfileRequest
+  field: MocPhysicalPostShockFieldResult | None = None
+  upstream_samples: tuple[MocTransonicShockInterfaceSample, ...] = ()
+  profile: MocTransonicShockInterfaceProfile | None = None
+  profile_build: MocTransonicShockInterfaceProfileBuildResult | None = None
+  independent_measurement: Any | None = None
+  field_lineage_verified: bool = False
+  field_sampling_verified: bool = False
+  profile_build_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocTransonicShockInterfaceFieldProfileStatus,
+    ):
+      raise TypeError(
+        'status must be a MocTransonicShockInterfaceFieldProfileStatus'
+      )
+    ####
+    if not isinstance(
+      self.request,
+      MocTransonicShockInterfaceFieldProfileRequest,
+    ):
+      raise TypeError(
+        'request must be a MocTransonicShockInterfaceFieldProfileRequest'
+      )
+    ####
+    if self.field is not None and not isinstance(
+      self.field,
+      MocPhysicalPostShockFieldResult,
+    ):
+      raise TypeError(
+        'field must be a MocPhysicalPostShockFieldResult or None'
+      )
+    ####
+    samples = tuple(self.upstream_samples)
+    if any(
+      not isinstance(sample, MocTransonicShockInterfaceSample)
+      for sample in samples
+    ):
+      raise TypeError(
+        'upstream_samples must contain MocTransonicShockInterfaceSample values'
+      )
+    ####
+    object.__setattr__(self, 'upstream_samples', samples)
+    if self.profile is not None and not isinstance(
+      self.profile,
+      MocTransonicShockInterfaceProfile,
+    ):
+      raise TypeError(
+        'profile must be a MocTransonicShockInterfaceProfile or None'
+      )
+    ####
+    if self.profile_build is not None and not isinstance(
+      self.profile_build,
+      MocTransonicShockInterfaceProfileBuildResult,
+    ):
+      raise TypeError(
+        'profile_build must be a '
+        'MocTransonicShockInterfaceProfileBuildResult or None'
+      )
+    ####
+    for name in (
+      'field_lineage_verified',
+      'field_sampling_verified',
+      'profile_build_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    audit = self.independent_measurement
+    return bool(
+      self.status is (
+        MocTransonicShockInterfaceFieldProfileStatus
+        .CONVERGED_FIELD_BOUND_PROFILE
+      )
+      and self.field is not None
+      and self.profile is not None
+      and self.profile_build is not None
+      and self.field_lineage_verified
+      and self.field_sampling_verified
+      and self.profile_build_verified
+      and self.profile_build.converged
+      and audit is not None
+      and bool(getattr(audit, 'converged', False))
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """A field-bound interface does not close the downstream mixed regime."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    audit = self.independent_measurement
+    return {
+      'status': self.status.value,
+      'model': 'research-physical-field-bound-interface-profile-v1',
+      'converged': self.converged,
+      'field_lineage_verified': self.field_lineage_verified,
+      'field_sampling_verified': self.field_sampling_verified,
+      'profile_build_verified': self.profile_build_verified,
+      'field_status': None if self.field is None else self.field.status.value,
+      'upstream_samples': [
+        sample.as_report() for sample in self.upstream_samples
+      ],
+      'profile': None if self.profile is None else self.profile.as_report(),
+      'profile_build': (
+        None if self.profile_build is None else self.profile_build.as_report()
+      ),
+      'independent_measurement': (
+        None
+        if audit is None or not hasattr(audit, 'as_report')
+        else audit.as_report()
+      ),
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'research-only-physical-field-bound-transonic-interface; coupled '
+        'pressure/tangency closure, refinement, shock-cell length, and external '
+        'validation remain open'
+      ),
+      'request': self.request.as_report(),
+      'message': self.message,
+    }
+  ####
 ####
 
 
@@ -1342,6 +1610,261 @@ def build_moc_transonic_shock_interface_profile(
     message=(
       'normal-shock profile construction and independent rederivation passed; '
       'global mixed-regime closure remains pending'
+    ),
+  )
+####
+
+
+def _field_profile_failure(
+  status: MocTransonicShockInterfaceFieldProfileStatus,
+  request: MocTransonicShockInterfaceFieldProfileRequest,
+  *,
+  field: MocPhysicalPostShockFieldResult | None = None,
+  upstream_samples: tuple[MocTransonicShockInterfaceSample, ...] = (),
+  profile: MocTransonicShockInterfaceProfile | None = None,
+  profile_build: MocTransonicShockInterfaceProfileBuildResult | None = None,
+  independent_measurement: Any | None = None,
+  field_lineage_verified: bool = False,
+  field_sampling_verified: bool = False,
+  profile_build_verified: bool = False,
+  message: str,
+) -> MocTransonicShockInterfaceFieldProfileResult:
+  return MocTransonicShockInterfaceFieldProfileResult(
+    status=status,
+    request=request,
+    field=field,
+    upstream_samples=upstream_samples,
+    profile=profile,
+    profile_build=profile_build,
+    independent_measurement=independent_measurement,
+    field_lineage_verified=field_lineage_verified,
+    field_sampling_verified=field_sampling_verified,
+    profile_build_verified=profile_build_verified,
+    message=message,
+  )
+####
+
+
+def build_moc_transonic_shock_interface_profile_from_field(
+  request: MocTransonicShockInterfaceFieldProfileRequest,
+) -> MocTransonicShockInterfaceFieldProfileResult:
+  """Bind a normal-shock profile to exact samples of a physical field.
+
+  The field supplies the upstream state and total-pressure lineage at every
+  requested point.  No state is projected, extrapolated, or replaced by the
+  scalar frontier diagnostic.  The normal-shock profile builder then derives
+  the downstream samples and retains its own independent audit.
+  """
+
+  if not isinstance(request, MocTransonicShockInterfaceFieldProfileRequest):
+    raise TypeError(
+      'request must be a MocTransonicShockInterfaceFieldProfileRequest'
+    )
+  ####
+  field = request.field
+  field_lineage_verified = bool(
+    field.converged
+    and field.physical_closure_verified
+    and field.state_sampling_available
+  )
+  if not field_lineage_verified:
+    return _field_profile_failure(
+      MocTransonicShockInterfaceFieldProfileStatus.FIELD_SAMPLING_UNAVAILABLE,
+      request,
+      field=field,
+      field_lineage_verified=False,
+      message=(
+        'field-bound interface sampling requires a converged physical field '
+        'with physical closure and state sampling available'
+      ),
+    )
+  ####
+  points = request.sample_points_m
+  if len(points) < 2:
+    return _field_profile_failure(
+      MocTransonicShockInterfaceFieldProfileStatus.CROSS_SECTION_FAILURE,
+      request,
+      field=field,
+      field_lineage_verified=True,
+      message='field-bound interface profile requires at least two sample points',
+    )
+  ####
+  x_reference = points[0][0]
+  if any(
+    abs(point[0] - x_reference) > request.position_tolerance_m
+    for point in points[1:]
+  ):
+    return _field_profile_failure(
+      MocTransonicShockInterfaceFieldProfileStatus.CROSS_SECTION_FAILURE,
+      request,
+      field=field,
+      field_lineage_verified=True,
+      message='field-bound interface sample points must lie on one cross-section x',
+    )
+  ####
+  if any(
+    second[1] <= first[1] + request.position_tolerance_m
+    for first, second in zip(points, points[1:])
+  ):
+    return _field_profile_failure(
+      MocTransonicShockInterfaceFieldProfileStatus.CROSS_SECTION_FAILURE,
+      request,
+      field=field,
+      field_lineage_verified=True,
+      message='field-bound interface sample ordinates must be strictly increasing',
+    )
+  ####
+  upstream_samples: list[MocTransonicShockInterfaceSample] = []
+  try:
+    for point in points:
+      state = field.state_at(
+        point,
+        position_tolerance_m=request.position_tolerance_m,
+      )
+      total_pressure = field.total_pressure_at(
+        point,
+        position_tolerance_m=request.position_tolerance_m,
+      )
+      if state is None or total_pressure is None:
+        return _field_profile_failure(
+          MocTransonicShockInterfaceFieldProfileStatus.FIELD_SAMPLE_FAILURE,
+          request,
+          field=field,
+          upstream_samples=tuple(upstream_samples),
+          field_lineage_verified=True,
+          message=(
+            'physical field sampler returned no state and total-pressure pair '
+            f'at cross-section point {point}'
+          ),
+        )
+      ####
+      static_pressure = _static_pressure_from_state_total_pressure(
+        state,
+        total_pressure,
+      )
+      upstream_samples.append(
+        MocTransonicShockInterfaceSample(
+          point_m=point,
+          mach=state.mach,
+          flow_angle_rad=state.theta_rad,
+          static_pressure_Pa=static_pressure,
+          total_pressure_Pa=total_pressure,
+          gamma=state.gamma,
+        )
+      )
+    ####
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _field_profile_failure(
+      MocTransonicShockInterfaceFieldProfileStatus.FIELD_SAMPLE_FAILURE,
+      request,
+      field=field,
+      upstream_samples=tuple(upstream_samples),
+      field_lineage_verified=True,
+      message=f'physical field sampling raised: {error}',
+    )
+  ####
+  samples = tuple(upstream_samples)
+  profile_build = build_moc_transonic_shock_interface_profile(
+    MocTransonicShockInterfaceProfileRequest(
+      upstream_samples=samples,
+      interface_normal_angle_rad=request.interface_normal_angle_rad,
+      profile_id=request.profile_id,
+      normal_alignment_tolerance_rad=request.normal_alignment_tolerance_rad,
+      position_tolerance_m=request.position_tolerance_m,
+      state_tolerance=request.state_tolerance,
+      pressure_tolerance=request.pressure_tolerance,
+    )
+  )
+  if not profile_build.converged or profile_build.profile is None:
+    return _field_profile_failure(
+      MocTransonicShockInterfaceFieldProfileStatus.PROFILE_BUILD_FAILURE,
+      request,
+      field=field,
+      upstream_samples=samples,
+      profile=profile_build.profile,
+      profile_build=profile_build,
+      field_lineage_verified=True,
+      field_sampling_verified=True,
+      profile_build_verified=False,
+      message=(
+        'field samples were retained, but the normal-shock profile builder '
+        f'did not converge: {profile_build.message}'
+      ),
+    )
+  ####
+  result = MocTransonicShockInterfaceFieldProfileResult(
+    status=(
+      MocTransonicShockInterfaceFieldProfileStatus
+      .CONVERGED_FIELD_BOUND_PROFILE
+    ),
+    request=request,
+    field=field,
+    upstream_samples=samples,
+    profile=profile_build.profile,
+    profile_build=profile_build,
+    field_lineage_verified=True,
+    field_sampling_verified=True,
+    profile_build_verified=True,
+    message=(
+      'normal-shock profile was derived from retained physical-field samples; '
+      'coupled pressure/tangency closure remains open'
+    ),
+  )
+  try:
+    from exhaust_plume.validation.moc_transonic_interface import (
+      measure_moc_transonic_shock_interface_profile_from_field,
+    )
+
+    audit = measure_moc_transonic_shock_interface_profile_from_field(result)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _field_profile_failure(
+      MocTransonicShockInterfaceFieldProfileStatus.INDEPENDENT_AUDIT_FAILURE,
+      request,
+      field=field,
+      upstream_samples=samples,
+      profile=profile_build.profile,
+      profile_build=profile_build,
+      field_lineage_verified=True,
+      field_sampling_verified=True,
+      profile_build_verified=True,
+      message=f'independent field-bound profile audit raised: {error}',
+    )
+  ####
+  if not audit.converged:
+    return _field_profile_failure(
+      MocTransonicShockInterfaceFieldProfileStatus.INDEPENDENT_AUDIT_FAILURE,
+      request,
+      field=field,
+      upstream_samples=samples,
+      profile=profile_build.profile,
+      profile_build=profile_build,
+      independent_measurement=audit,
+      field_lineage_verified=True,
+      field_sampling_verified=True,
+      profile_build_verified=True,
+      message=(
+        'field-bound profile was built, but its independent audit did not '
+        f'pass: {audit.message}'
+      ),
+    )
+  ####
+  return MocTransonicShockInterfaceFieldProfileResult(
+    status=(
+      MocTransonicShockInterfaceFieldProfileStatus
+      .CONVERGED_FIELD_BOUND_PROFILE
+    ),
+    request=request,
+    field=field,
+    upstream_samples=samples,
+    profile=profile_build.profile,
+    profile_build=profile_build,
+    independent_measurement=audit,
+    field_lineage_verified=True,
+    field_sampling_verified=True,
+    profile_build_verified=True,
+    message=(
+      'physical-field sample lineage and normal-shock profile rederivation '
+      'passed; global mixed-regime closure remains pending'
     ),
   )
 ####

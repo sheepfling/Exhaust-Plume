@@ -13,6 +13,8 @@ from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceProfileBuildResult,
   MocTransonicShockInterfaceProfileBuildStatus,
+  MocTransonicShockInterfaceFieldProfileResult,
+  MocTransonicShockInterfaceFieldProfileStatus,
   MocTransonicShockInterfaceResult,
   MocTransonicShockInterfaceStatus,
 )
@@ -37,6 +39,9 @@ __all__ = (
   'MocTransonicShockInterfaceProfileBuildAuditStatus',
   'MocTransonicShockInterfaceProfileBuildAudit',
   'measure_moc_transonic_shock_interface_profile_build',
+  'MocTransonicShockInterfaceFieldProfileAuditStatus',
+  'MocTransonicShockInterfaceFieldProfileAudit',
+  'measure_moc_transonic_shock_interface_profile_from_field',
 )
 
 
@@ -341,6 +346,105 @@ class MocTransonicShockInterfaceAudit:
         'research-only-transonic-interface-audit; mixed-regime closure, '
         'physical shock-cell length, and external validation remain open'
       ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+class MocTransonicShockInterfaceFieldProfileAuditStatus(str, Enum):
+  """Independent audit outcome for a field-bound profile."""
+
+  VERIFIED = 'verified-physical-field-bound-interface-profile-audit'
+  RESULT_FAILURE = 'physical-field-bound-interface-profile-result-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceFieldProfileAudit:
+  """Re-sample the retained field and re-audit its normal-shock profile."""
+
+  status: MocTransonicShockInterfaceFieldProfileAuditStatus
+  result_status: MocTransonicShockInterfaceFieldProfileStatus
+  profile_build_audit: MocTransonicShockInterfaceProfileBuildAudit | None
+  field_lineage_verified: bool
+  field_sampling_verified: bool
+  profile_build_verified: bool
+  maximum_state_residual: float | None
+  maximum_pressure_residual: float | None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocTransonicShockInterfaceFieldProfileAuditStatus,
+    ):
+      raise TypeError(
+        'status must be a MocTransonicShockInterfaceFieldProfileAuditStatus'
+      )
+    ####
+    if not isinstance(
+      self.result_status,
+      MocTransonicShockInterfaceFieldProfileStatus,
+    ):
+      raise TypeError(
+        'result_status must be a MocTransonicShockInterfaceFieldProfileStatus'
+      )
+    ####
+    if self.profile_build_audit is not None and not isinstance(
+      self.profile_build_audit,
+      MocTransonicShockInterfaceProfileBuildAudit,
+    ):
+      raise TypeError(
+        'profile_build_audit must be a '
+        'MocTransonicShockInterfaceProfileBuildAudit or None'
+      )
+    ####
+    for name in (
+      'field_lineage_verified',
+      'field_sampling_verified',
+      'profile_build_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    for name in ('maximum_state_residual', 'maximum_pressure_residual'):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      ####
+      numeric = float(value)
+      if numeric < 0.0:
+        raise ValueError(f'{name} must be nonnegative when supplied')
+      ####
+      object.__setattr__(self, name, numeric)
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocTransonicShockInterfaceFieldProfileAuditStatus.VERIFIED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'result_status': self.result_status.value,
+      'converged': self.converged,
+      'field_lineage_verified': self.field_lineage_verified,
+      'field_sampling_verified': self.field_sampling_verified,
+      'profile_build_verified': self.profile_build_verified,
+      'maximum_state_residual': self.maximum_state_residual,
+      'maximum_pressure_residual': self.maximum_pressure_residual,
+      'profile_build_audit': (
+        None
+        if self.profile_build_audit is None
+        else self.profile_build_audit.as_report()
+      ),
+      'physical_closure_verified': False,
+      'production_claim_allowed': False,
       'message': self.message,
     }
   ####
@@ -823,6 +927,127 @@ def measure_moc_transonic_shock_interface_profile_build(
       if verified
       else 'normal-shock interface profile build does not match independent '
       'rederivation'
+    ),
+  )
+####
+
+
+def measure_moc_transonic_shock_interface_profile_from_field(
+  result: MocTransonicShockInterfaceFieldProfileResult,
+) -> MocTransonicShockInterfaceFieldProfileAudit:
+  """Re-sample the exact source field behind a field-bound profile."""
+
+  if not isinstance(result, MocTransonicShockInterfaceFieldProfileResult):
+    raise TypeError(
+      'result must be a MocTransonicShockInterfaceFieldProfileResult'
+    )
+  ####
+  field = result.field
+  profile_build = result.profile_build
+  if field is None or profile_build is None:
+    return MocTransonicShockInterfaceFieldProfileAudit(
+      status=MocTransonicShockInterfaceFieldProfileAuditStatus.RESULT_FAILURE,
+      result_status=result.status,
+      profile_build_audit=None,
+      field_lineage_verified=False,
+      field_sampling_verified=False,
+      profile_build_verified=False,
+      maximum_state_residual=None,
+      maximum_pressure_residual=None,
+      message='field-bound profile result retained no field or profile build',
+    )
+  ####
+  profile_build_audit = measure_moc_transonic_shock_interface_profile_build(
+    profile_build
+  )
+  field_lineage_verified = bool(
+    field.converged
+    and field.physical_closure_verified
+    and field.state_sampling_available
+  )
+  points = result.request.sample_points_m
+  samples = result.upstream_samples
+  field_sampling_verified = bool(len(points) == len(samples) and len(points) >= 2)
+  state_residuals: list[float] = []
+  pressure_residuals: list[float] = []
+  if field_sampling_verified:
+    for point, sample in zip(points, samples, strict=True):
+      try:
+        state = field.state_at(
+          point,
+          position_tolerance_m=result.request.position_tolerance_m,
+        )
+        total_pressure = field.total_pressure_at(
+          point,
+          position_tolerance_m=result.request.position_tolerance_m,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        field_sampling_verified = False
+        break
+      ####
+      if state is None or total_pressure is None:
+        field_sampling_verified = False
+        break
+      ####
+      state_residuals.append(
+        max(
+          abs(state.x_m - sample.point_m[0]),
+          abs(state.y_m - sample.point_m[1]),
+          abs(state.mach - sample.mach),
+          abs(state.theta_rad - sample.flow_angle_rad),
+          abs(state.gamma - sample.gamma),
+        )
+      )
+      pressure_residual = _pressure_residual(
+        float(total_pressure),
+        sample.total_pressure_Pa,
+      )
+      if pressure_residual is None:
+        field_sampling_verified = False
+        break
+      ####
+      pressure_residuals.append(pressure_residual)
+      if (
+        state_residuals[-1] > result.request.state_tolerance
+        or pressure_residual > result.request.pressure_tolerance
+      ):
+        field_sampling_verified = False
+      ####
+    ####
+  ####
+  maximum_state_residual = max(state_residuals) if state_residuals else None
+  maximum_pressure_residual = (
+    max(pressure_residuals) if pressure_residuals else None
+  )
+  profile_build_verified = profile_build_audit.converged
+  verified = bool(
+    result.status is (
+      MocTransonicShockInterfaceFieldProfileStatus
+      .CONVERGED_FIELD_BOUND_PROFILE
+    )
+    and field_lineage_verified
+    and field_sampling_verified
+    and profile_build_verified
+  )
+  return MocTransonicShockInterfaceFieldProfileAudit(
+    status=(
+      MocTransonicShockInterfaceFieldProfileAuditStatus.VERIFIED
+      if verified
+      else MocTransonicShockInterfaceFieldProfileAuditStatus.RESULT_FAILURE
+    ),
+    result_status=result.status,
+    profile_build_audit=profile_build_audit,
+    field_lineage_verified=field_lineage_verified,
+    field_sampling_verified=field_sampling_verified,
+    profile_build_verified=profile_build_verified,
+    maximum_state_residual=maximum_state_residual,
+    maximum_pressure_residual=maximum_pressure_residual,
+    message=(
+      'physical-field state/pressure lineage and normal-shock profile were '
+      'independently rederived'
+      if verified
+      else 'field-bound transonic profile does not match the retained field '
+      'or its independent profile audit'
     ),
   )
 ####

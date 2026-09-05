@@ -1160,3 +1160,23 @@ tangency or free-boundary closure, establish physical shock-cell length, or
 authorize production Visualization, Signature, or FPA claims.  The next
 solver-owned slice remains an actual placed interface and coupled-field seam
 on the target case, followed by refinement and provider-bound validation.
+
+### Global physical-field-bound interface checkpoint
+
+The target global physical field now has a typed bridge into the transonic
+interface contract.  Given caller-selected points on one retained field
+cross-section, the bridge reads the field's exact state and total-pressure
+sampler at every point, rejects points outside the closed sampled domain, and
+derives the downstream normal-shock profile without projecting or fabricating
+an upstream state.  A second audit re-samples the same physical field and
+rederives the profile before the result is accepted.
+
+The target-case test consumes this field-bound profile through the distinct
+``audited-interior-shock-interface-profile`` coupled-field mode.  The coupled
+solver now reaches its downstream free-boundary iteration with the profile
+marked consumed and conservative states retained; the actual pressure/
+tangency/free-boundary solve still fails closed at its later residual gate.
+This is evidence of a real field-to-solver handoff, not completion of P2.2.
+The next slice must choose and validate an interior interface from a
+solver-owned placement rule, then close the downstream pressure/tangency seam
+and its refinement ladder before any shock-cell or product promotion.
