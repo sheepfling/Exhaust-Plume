@@ -1832,6 +1832,14 @@ def _moc_visualization(
           'solver-generated production-fit shock path has fewer than two samples and remains unavailable'
         )
         production_fit_path = ()
+      elif any(
+        right[0] <= left[0]
+        for left, right in zip(production_fit_path, production_fit_path[1:])
+      ):
+        production_fit_overlay_warnings.append(
+          'solver-generated production-fit shock path is not strictly downstream ordered and remains unavailable'
+        )
+        production_fit_path = ()
       ####
     ####
   ####

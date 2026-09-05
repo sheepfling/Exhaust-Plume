@@ -693,6 +693,10 @@ interval, solver shock-path span, promotion blockers, and an explicit
 ``production_fit_physical_length_accepted=false`` diagnostic. This keeps the
 candidate geometry inspectable in the Visualization product without allowing
 the display envelope to imply a production Signature or physical-cell claim.
+The adapter also requires the candidate samples to be strictly downstream
+ordered before drawing the path or calculating its displayed axial span;
+unordered or duplicate-axial samples remain unavailable with an explicit
+warning.
 
 ### Signature boundary checkpoint
 

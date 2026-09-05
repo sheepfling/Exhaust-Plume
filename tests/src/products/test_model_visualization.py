@@ -595,6 +595,31 @@ def test_moc_production_fit_visualization_exposes_candidate_boundary_without_pro
 ####
 
 
+def test_moc_production_fit_visualization_rejects_unordered_candidate_boundary() -> None:
+  class UnorderedProductionFitResult(_MocResult):
+    candidate_field = _MocField()
+    fitted_shock_points_m = ((2.0, 0.0), (1.5, 0.2), (1.0, 0.3))
+    status = 'converged_local_production_shock_cell_fit'
+    local_fit_verified = True
+    chain_promotion_blocked = True
+    production_claim_allowed = False
+
+  bundle = standardize_model_visualization(
+    UnorderedProductionFitResult(),
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert 'moc-production-fit-shock-boundary' not in {
+    path.path_id for path in bundle.paths
+  }
+  assert bundle.diagnostics['production_fit_solver_shock_path_sample_count'] == 0
+  assert 'production_fit_solver_shock_axial_span_m' not in bundle.diagnostics
+  assert any('not strictly downstream ordered' in warning for warning in bundle.warnings)
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_moc_mixed_regime_visualization_retains_reference_overlays() -> None:
   global_euler = SimpleNamespace(
     physical_field=SimpleNamespace(
