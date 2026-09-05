@@ -1072,7 +1072,7 @@ production claim is authorized while any item below remains open.
 ### Candidate evidence checkpoint — 2026-09-05
 
 The earlier `57d23d501f75b96eca90ebb72beac1fa2daa83c6` checkpoint is
-historical.  The active candidate is the exact `HEAD` of
+historical.  The active candidate is commit `23261ce` at the exact `HEAD` of
 `work/washed-integral-visual`; the branch is kept clean and the pushed commit
 is the candidate used by CI.  Fresh local evidence for the active candidate
 is recorded after each coherent slice:
@@ -1081,7 +1081,10 @@ is recorded after each coherent slice:
   validator must all be rerun against this exact `HEAD` before the final
   freeze;
 - the latest completed full matrix for the active audit slice is
-  **1,114 passed**, with the existing 18 warnings;
+  **1,125 passed**, with the existing 18 warnings;
+- the exact-field continuation slice records a solver-owned conservative
+  warm-start source and fails closed when a coupled mesh center is outside the
+  retained physical field;
 - offline wheel build/install smoke, `scripts.test_lanes --check`, Ruff, and
   the repository scope-marker check all pass; and
 - the release manifest remains `release_ready=false` until the external,
