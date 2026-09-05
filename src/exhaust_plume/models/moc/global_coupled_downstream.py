@@ -59,9 +59,12 @@ __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse',
+  'MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal',
   'build_reflected_domain_global_coupled_downstream_boundary_pressure_profile',
   'build_reflected_domain_global_coupled_downstream_feedback_pressure_profile',
   'build_reflected_domain_global_coupled_downstream_feedback_geometry_profile',
+  'build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'MocReflectedDomainGlobalCoupledDownstreamResult',
   'build_reflected_domain_global_solver_owned_transonic_interface_placement',
@@ -78,6 +81,9 @@ GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_RESPONSE_MODEL = (
 )
 GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_PRESSURE_PROFILE_MODEL = (
   'research-global-coupled-downstream-boundary-pressure-profile-v1'
+)
+GLOBAL_COUPLED_DOWNSTREAM_UPSTREAM_FEEDBACK_PROPOSAL_MODEL = (
+  'research-global-coupled-downstream-upstream-feedback-proposal-v1'
 )
 
 
@@ -111,6 +117,18 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus(str, Enum)
   COUPLED_FIELD_FAILURE = 'downstream-boundary-coupled-field-failure'
   COVERAGE_FAILURE = 'downstream-boundary-overlap-coverage-failure'
   RESIDUAL_FAILURE = 'downstream-boundary-overlap-residual-failure'
+####
+
+
+class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus(
+  str, Enum
+):
+  """Outcome of packaging a covered response for a future global re-solve."""
+
+  READY_FOR_GLOBAL_RESOLVE = 'ready-for-global-resolve'
+  INVALID_INPUT = 'invalid_input'
+  COVERAGE_FAILURE = 'upstream-feedback-coverage-failure'
+  RESPONSE_FAILURE = 'upstream-feedback-response-failure'
 ####
 
 
@@ -730,6 +748,431 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       'message': self.message,
     }
   ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal:
+  """Bounded boundary targets awaiting consumption by a global solver.
+
+  The proposal is deliberately a handoff packet, not a global solve result.
+  It carries the measured downstream correction channels at the exact retained
+  stations and applies one explicit relaxation fraction to produce candidate
+  geometry, tangent, and static-pressure targets.  No current solver consumes
+  this packet; the flags and claim ceiling make that distinction machine
+  visible.
+  """
+
+  status: MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+  source_closure_fingerprint: str
+  source_response_status: str
+  matched_x_stations_m: tuple[float, ...]
+  reference_boundary_points_m: tuple[tuple[float, float], ...]
+  proposed_boundary_points_m: tuple[tuple[float, float], ...]
+  reference_tangent_rad: tuple[float, ...]
+  proposed_tangent_rad: tuple[float, ...]
+  reference_static_pressure_Pa: tuple[float, ...]
+  proposed_static_pressure_Pa: tuple[float, ...]
+  coordinate_corrections_m: tuple[float, ...]
+  tangent_corrections_rad: tuple[float, ...]
+  pressure_corrections_Pa: tuple[float, ...]
+  normal_velocity_values_m_s: tuple[float, ...]
+  correction_fraction: float = 0.25
+  overlap_coverage_verified: bool = False
+  response_channels_finite: bool = False
+  response_residuals_verified: bool = False
+  global_resolve_required: bool = True
+  consumed_by_global_solver: bool = False
+  global_coupling_verified: bool = False
+  downstream_boundary_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus'
+      )
+    ####
+    fingerprint = str(self.source_closure_fingerprint)
+    if not fingerprint:
+      raise ValueError('source_closure_fingerprint must be non-empty')
+    ####
+    response_status = str(self.source_response_status)
+    if not response_status:
+      raise ValueError('source_response_status must be non-empty')
+    ####
+    x_stations = tuple(float(value) for value in self.matched_x_stations_m)
+    if len(x_stations) < 2 or any(not isfinite(value) for value in x_stations):
+      raise ValueError(
+        'matched_x_stations_m must contain at least two finite stations'
+      )
+    ####
+    if any(
+      second <= first for first, second in zip(x_stations, x_stations[1:])
+    ):
+      raise ValueError('matched_x_stations_m must be strictly ordered')
+    ####
+    point_names = (
+      'reference_boundary_points_m',
+      'proposed_boundary_points_m',
+    )
+    point_values: dict[str, tuple[tuple[float, float], ...]] = {}
+    for name in point_names:
+      points = tuple(
+        (float(point[0]), float(point[1])) for point in getattr(self, name)
+      )
+      if len(points) != len(x_stations) or any(
+        not all(isfinite(value) for value in point) for point in points
+      ):
+        raise ValueError(
+          f'{name} must contain finite points aligned with matched stations'
+        )
+      ####
+      point_values[name] = points
+    ####
+    channel_names = (
+      'reference_tangent_rad',
+      'proposed_tangent_rad',
+      'reference_static_pressure_Pa',
+      'proposed_static_pressure_Pa',
+      'coordinate_corrections_m',
+      'tangent_corrections_rad',
+      'pressure_corrections_Pa',
+      'normal_velocity_values_m_s',
+    )
+    channel_values: dict[str, tuple[float, ...]] = {}
+    for name in channel_names:
+      values = tuple(float(value) for value in getattr(self, name))
+      if len(values) != len(x_stations) or any(
+        not isfinite(value) for value in values
+      ):
+        raise ValueError(
+          f'{name} must contain finite values aligned with matched stations'
+        )
+      ####
+      channel_values[name] = values
+    ####
+    if any(value <= 0.0 for value in channel_values['reference_static_pressure_Pa']):
+      raise ValueError('reference_static_pressure_Pa must be positive')
+    ####
+    if any(value <= 0.0 for value in channel_values['proposed_static_pressure_Pa']):
+      raise ValueError('proposed_static_pressure_Pa must be positive')
+    ####
+    fraction = float(self.correction_fraction)
+    if not isfinite(fraction) or fraction <= 0.0 or fraction > 1.0:
+      raise ValueError('correction_fraction must be in (0, 1]')
+    ####
+    for name in (
+      'overlap_coverage_verified',
+      'response_channels_finite',
+      'response_residuals_verified',
+      'global_resolve_required',
+      'consumed_by_global_solver',
+      'global_coupling_verified',
+      'downstream_boundary_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    if self.status is (
+      MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+      .READY_FOR_GLOBAL_RESOLVE
+    ) and not (
+      self.overlap_coverage_verified
+      and self.response_channels_finite
+      and self.response_residuals_verified
+      and self.global_resolve_required
+      and not self.consumed_by_global_solver
+    ):
+      raise ValueError(
+        'ready upstream feedback must have a covered, finite, locally '
+        'verified response awaiting a global re-solve'
+      )
+    ####
+    if self.consumed_by_global_solver:
+      raise ValueError(
+        'the current upstream feedback proposal is a handoff packet and '
+        'cannot claim global-solver consumption'
+      )
+    ####
+    if (
+      self.global_coupling_verified
+      or self.downstream_boundary_closure_verified
+      or not self.chain_promotion_blocked
+      or self.production_claim_allowed
+    ):
+      raise ValueError(
+        'upstream feedback proposals cannot claim global closure or '
+        'production promotion'
+      )
+    ####
+    object.__setattr__(self, 'source_closure_fingerprint', fingerprint)
+    object.__setattr__(self, 'source_response_status', response_status)
+    object.__setattr__(self, 'matched_x_stations_m', x_stations)
+    for name, values in point_values.items():
+      object.__setattr__(self, name, values)
+    ####
+    for name, values in channel_values.items():
+      object.__setattr__(self, name, values)
+    ####
+    object.__setattr__(self, 'correction_fraction', fraction)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def ready_for_global_resolve(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+      .READY_FOR_GLOBAL_RESOLVE
+      and self.overlap_coverage_verified
+      and self.response_channels_finite
+      and self.response_residuals_verified
+      and self.global_resolve_required
+      and not self.consumed_by_global_solver
+    )
+  ####
+
+  @property
+  def production_claim_allowed_by_packet(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': GLOBAL_COUPLED_DOWNSTREAM_UPSTREAM_FEEDBACK_PROPOSAL_MODEL,
+      'status': self.status.value,
+      'ready_for_global_resolve': self.ready_for_global_resolve,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
+      'source_response_status': self.source_response_status,
+      'matched_x_stations_m': self.matched_x_stations_m,
+      'reference_boundary_points_m': self.reference_boundary_points_m,
+      'proposed_boundary_points_m': self.proposed_boundary_points_m,
+      'reference_tangent_rad': self.reference_tangent_rad,
+      'proposed_tangent_rad': self.proposed_tangent_rad,
+      'reference_static_pressure_Pa': self.reference_static_pressure_Pa,
+      'proposed_static_pressure_Pa': self.proposed_static_pressure_Pa,
+      'coordinate_corrections_m': self.coordinate_corrections_m,
+      'tangent_corrections_rad': self.tangent_corrections_rad,
+      'pressure_corrections_Pa': self.pressure_corrections_Pa,
+      'normal_velocity_values_m_s': self.normal_velocity_values_m_s,
+      'correction_fraction': self.correction_fraction,
+      'overlap_coverage_verified': self.overlap_coverage_verified,
+      'response_channels_finite': self.response_channels_finite,
+      'response_residuals_verified': self.response_residuals_verified,
+      'global_resolve_required': self.global_resolve_required,
+      'consumed_by_global_solver': self.consumed_by_global_solver,
+      'global_coupling_verified': self.global_coupling_verified,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'production_claim_allowed_by_packet': (
+        self.production_claim_allowed_by_packet
+      ),
+      'claim_status': (
+        'research-only-global-upstream-feedback-proposal; no global solver '
+        'has consumed the packet and canonical closure, refinement, external '
+        'validation, and production claims remain open'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  *,
+  correction_fraction: float = 0.25,
+  position_tolerance_m: float = 1.0e-9,
+) -> MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal:
+  """Package a covered downstream response for a future global re-solve.
+
+  The global boundary is sampled again at the response stations, so the
+  proposal cannot silently inherit a shifted mesh or an extrapolated endpoint.
+  The returned targets are relaxed toward the measured coupled response; they
+  remain unconsumed until a future solver explicitly accepts this contract.
+  """
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if not isinstance(
+    response,
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  ):
+    raise TypeError(
+      'response must be a '
+      'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse'
+    )
+  ####
+  if not closure.converged or not closure.physical_closure_verified:
+    raise ValueError(
+      'upstream feedback proposal requires a locally verified global '
+      'physical closure'
+    )
+  ####
+  if not response.converged:
+    raise ValueError(
+      'upstream feedback proposal requires a covered response whose local '
+      'overlap residuals pass'
+    )
+  ####
+  if response.upstream_boundary != closure.downstream_boundary:
+    raise ValueError(
+      'upstream feedback proposal must retain the exact closure boundary'
+    )
+  ####
+  if response.coupled_field is None:
+    raise ValueError('upstream feedback proposal requires a coupled field')
+  ####
+  try:
+    fraction = float(correction_fraction)
+    position_tolerance = float(position_tolerance_m)
+  except (TypeError, ValueError) as error:
+    raise ValueError(
+      'upstream feedback proposal controls must be numeric'
+    ) from error
+  ####
+  if (
+    not isfinite(fraction)
+    or fraction <= 0.0
+    or fraction > 1.0
+    or not isfinite(position_tolerance)
+    or position_tolerance <= 0.0
+  ):
+    raise ValueError(
+      'upstream feedback proposal controls must be finite and positive; '
+      'correction_fraction must be at most one'
+    )
+  ####
+  boundary = closure.downstream_boundary
+  if boundary is None or not boundary.samples_available:
+    raise ValueError(
+      'upstream feedback proposal requires retained global boundary samples'
+    )
+  ####
+  x_stations = tuple(response.matched_x_stations_m)
+  reference_points = tuple(response.upstream_boundary_points_m)
+  coupled_points = tuple(response.coupled_boundary_points_m)
+  coordinate_offsets = tuple(response.coordinate_offsets_m)
+  tangent_offsets = tuple(response.tangent_offsets_rad)
+  pressure_offsets = tuple(response.pressure_offsets_Pa)
+  normal_velocity_values = tuple(response.normal_velocity_values_m_s)
+  expected_count = len(x_stations)
+  if expected_count < 2 or any(
+    len(values) != expected_count
+    for values in (
+      reference_points,
+      coupled_points,
+      coordinate_offsets,
+      tangent_offsets,
+      pressure_offsets,
+      normal_velocity_values,
+    )
+  ):
+    raise ValueError(
+      'upstream feedback response channels must be aligned at every station'
+    )
+  ####
+  reference_tangent: list[float] = []
+  reference_pressure: list[float] = []
+  proposed_points: list[tuple[float, float]] = []
+  proposed_tangent: list[float] = []
+  proposed_pressure: list[float] = []
+  applied_coordinate_corrections: list[float] = []
+  applied_tangent_corrections: list[float] = []
+  applied_pressure_corrections: list[float] = []
+  for index, x_value in enumerate(x_stations):
+    reference = _interpolate_downstream_boundary(
+      boundary,
+      x_value,
+      position_tolerance_m=position_tolerance,
+    )
+    if reference is None:
+      raise ValueError(
+        'upstream feedback station lies outside the retained global boundary; '
+        'no extrapolation was attempted'
+      )
+    ####
+    reference_y, reference_theta, reference_pressure_value = reference
+    response_reference = reference_points[index]
+    coupled_point = coupled_points[index]
+    if (
+      abs(response_reference[0] - x_value) > position_tolerance
+      or abs(response_reference[1] - reference_y)
+      > response.coordinate_tolerance_m
+      or abs(coupled_point[0] - x_value) > position_tolerance
+    ):
+      raise ValueError(
+        'upstream feedback response does not retain the exact global '
+        'station frame; no regridding or translation was attempted'
+      )
+    ####
+    applied_coordinate = fraction * coordinate_offsets[index]
+    applied_tangent = fraction * tangent_offsets[index]
+    applied_pressure = fraction * pressure_offsets[index]
+    target_point = (x_value, reference_y + applied_coordinate)
+    target_tangent = reference_theta + applied_tangent
+    target_pressure = reference_pressure_value + applied_pressure
+    if not isfinite(target_pressure) or target_pressure <= 0.0:
+      raise ValueError(
+        'upstream feedback proposal produced a non-positive pressure target'
+      )
+    ####
+    reference_tangent.append(reference_theta)
+    reference_pressure.append(reference_pressure_value)
+    proposed_points.append(target_point)
+    proposed_tangent.append(target_tangent)
+    proposed_pressure.append(target_pressure)
+    applied_coordinate_corrections.append(applied_coordinate)
+    applied_tangent_corrections.append(applied_tangent)
+    applied_pressure_corrections.append(applied_pressure)
+  ####
+  fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
+    closure
+  )
+  return MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal(
+    status=(
+      MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+      .READY_FOR_GLOBAL_RESOLVE
+    ),
+    source_closure_fingerprint=fingerprint,
+    source_response_status=response.status.value,
+    matched_x_stations_m=x_stations,
+    reference_boundary_points_m=reference_points,
+    proposed_boundary_points_m=tuple(proposed_points),
+    reference_tangent_rad=tuple(reference_tangent),
+    proposed_tangent_rad=tuple(proposed_tangent),
+    reference_static_pressure_Pa=tuple(reference_pressure),
+    proposed_static_pressure_Pa=tuple(proposed_pressure),
+    coordinate_corrections_m=tuple(applied_coordinate_corrections),
+    tangent_corrections_rad=tuple(applied_tangent_corrections),
+    pressure_corrections_Pa=tuple(applied_pressure_corrections),
+    normal_velocity_values_m_s=normal_velocity_values,
+    correction_fraction=fraction,
+    overlap_coverage_verified=response.overlap_coverage_verified,
+    response_channels_finite=True,
+    response_residuals_verified=response.residuals_verified,
+    message=(
+      'covered downstream response packaged for a future global re-solve; '
+      'the proposal is unconsumed and remains research-only'
+    ),
+  )
 ####
 
 

@@ -31,6 +31,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus,
+  MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
@@ -93,6 +94,7 @@ from exhaust_plume.models.moc import (
   build_reflected_domain_global_coupled_downstream_boundary_pressure_profile,
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
+  build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_coupled_euler_free_boundary,
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
@@ -2671,6 +2673,78 @@ def test_global_coupled_downstream_measures_boundary_overlap_without_promotion()
   )
   assert tampered_response.overlap_coverage_verified is False
   assert tampered_response.converged is False
+####
+
+
+def test_global_coupled_downstream_packages_unconsumed_upstream_feedback():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+  )
+
+  assert result.downstream_boundary_response is not None
+  response = result.downstream_boundary_response
+  proposal = build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
+    closure,
+    response,
+    correction_fraction=0.25,
+  )
+
+  assert proposal.status is (
+    MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+    .READY_FOR_GLOBAL_RESOLVE
+  )
+  assert proposal.ready_for_global_resolve
+  assert proposal.overlap_coverage_verified
+  assert proposal.response_channels_finite
+  assert proposal.response_residuals_verified
+  assert proposal.global_resolve_required
+  assert proposal.consumed_by_global_solver is False
+  assert proposal.global_coupling_verified is False
+  assert proposal.downstream_boundary_closure_verified is False
+  assert proposal.chain_promotion_blocked
+  assert proposal.production_claim_allowed is False
+  assert proposal.source_closure_fingerprint == (
+    moc_reflected_domain_global_physical_closure_fingerprint(closure)
+  )
+  assert len(proposal.proposed_boundary_points_m) == len(
+    response.matched_x_stations_m
+  )
+  assert proposal.proposed_boundary_points_m[0][1] == pytest.approx(
+    proposal.reference_boundary_points_m[0][1]
+    + 0.25 * response.coordinate_offsets_m[0]
+  )
+  assert proposal.proposed_static_pressure_Pa[0] == pytest.approx(
+    proposal.reference_static_pressure_Pa[0]
+    + 0.25 * response.pressure_offsets_Pa[0]
+  )
+  report = proposal.as_report()
+  assert report['global_resolve_required'] is True
+  assert report['consumed_by_global_solver'] is False
+  assert report['production_claim_allowed'] is False
+
+  tampered_response = replace(
+    response,
+    matched_x_stations_m=(
+      response.matched_x_stations_m[0] - 1.0,
+      *response.matched_x_stations_m[1:],
+    ),
+  )
+  with pytest.raises(ValueError, match='outside the retained global boundary'):
+    build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
+      closure,
+      tampered_response,
+    )
+  ####
 ####
 
 

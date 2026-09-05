@@ -1672,6 +1672,25 @@ pressure-update result.  Both configurations keep global feedback, canonical
 downstream closure, physical shock-cell fitting, provider-bound validation,
 and Signature/FPA promotion blocked.
 
+### Explicit upstream/global feedback-proposal checkpoint
+
+The downstream response now has a typed, bounded handoff for the next
+global-frontier solver seam.  It re-samples the exact retained global boundary
+at every measured station, applies one explicit relaxation fraction to the
+signed coordinate, tangent, and static-pressure offsets, and retains the
+resulting candidate targets together with the closure fingerprint and source
+response status.  Out-of-domain stations, shifted frames, non-positive
+pressure targets, and incomplete response channels fail closed; no
+regridding, endpoint hold, or extrapolation is implicit.
+
+The packet is explicitly ``global_resolve_required=true`` and
+``consumed_by_global_solver=false``.  It therefore makes the missing
+upstream/global feedback contract executable and auditable without pretending
+that the current research global remesh has consumed downstream information.
+The canonical C-/C+ frontier solve, global feedback iteration, downstream
+boundary closure, physical shock-cell fitting, external validation, and
+Visualization/Signature/FPA production gates remain open.
+
 ### Solver-owned pressure-profile audit checkpoint
 
 The independent coupled-Euler audit now reconstructs the exact per-column
