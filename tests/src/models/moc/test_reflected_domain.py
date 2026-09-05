@@ -461,11 +461,43 @@ def test_global_physical_field_uses_solver_owned_cross_section_placement():
   assert audit.selected_candidate_verified
   assert audit.cross_section_verified
   assert audit.profile_verified
+  assert not audit.full_field_cross_section_verified
   assert audit.maximum_sample_point_residual_m == pytest.approx(0.0)
 
+  full_span_placement = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=field,
+      boundary_margin_fraction=0.0,
+    )
+  )
+  assert full_span_placement.converged
+  assert full_span_placement.lower_ordinate_m == pytest.approx(0.0)
+  full_span_audit = measure_moc_transonic_shock_interface_field_placement(
+    full_span_placement
+  )
+  assert full_span_audit.converged
+  assert full_span_audit.full_field_cross_section_verified
+
+  interior_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    build_reflected_domain_mixed_regime_boundary_request(closure),
+    reference_total_temperature_K=1500.0,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
+    transonic_shock_interface_field_placement=placement,
+  )
+  interior_coupled = solve_reflected_domain_coupled_euler_free_boundary(
+    interior_request
+  )
+  assert interior_coupled.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_SHOCK_INTERFACE_PLACEMENT_FAILURE
+  )
+
   tampered = replace(
-    placement,
-    cross_section_x_m=placement.cross_section_x_m + 1.0e-3,
+    full_span_placement,
+    cross_section_x_m=full_span_placement.cross_section_x_m + 1.0e-3,
   )
   tampered_audit = measure_moc_transonic_shock_interface_field_placement(
     tampered
@@ -502,7 +534,7 @@ def test_global_physical_field_uses_solver_owned_cross_section_placement():
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
     ),
-    transonic_shock_interface_field_placement=placement,
+    transonic_shock_interface_field_placement=full_span_placement,
   )
   coupled = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
   assert coupled.status is not (

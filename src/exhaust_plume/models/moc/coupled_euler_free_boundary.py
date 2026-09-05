@@ -3716,13 +3716,15 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       not solver_owned_placement.converged
       or placement_audit is None
       or not placement_audit.converged
+      or not placement_audit.full_field_cross_section_verified
       or solver_owned_placement.profile is None
     ):
       return _failure(
         MocReflectedDomainCoupledEulerFreeBoundaryStatus
         .INLET_SHOCK_INTERFACE_PLACEMENT_FAILURE,
         'solver-owned interior shock-interface placement must pass its '
-        'independent field/profile audit before coupled-field consumption',
+        'independent field/profile audit and span the complete retained '
+        'field cross-section before coupled free-boundary consumption',
         request,
       )
     ####

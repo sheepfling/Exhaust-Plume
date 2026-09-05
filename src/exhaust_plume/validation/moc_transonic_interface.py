@@ -1077,6 +1077,7 @@ class MocTransonicShockInterfaceFieldPlacementAudit:
   cross_section_verified: bool
   selected_candidate_verified: bool
   profile_verified: bool
+  full_field_cross_section_verified: bool
   cross_section_x_residual_m: float | None
   lower_ordinate_residual_m: float | None
   upper_ordinate_residual_m: float | None
@@ -1109,6 +1110,7 @@ class MocTransonicShockInterfaceFieldPlacementAudit:
       'cross_section_verified',
       'selected_candidate_verified',
       'profile_verified',
+      'full_field_cross_section_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -1157,6 +1159,7 @@ class MocTransonicShockInterfaceFieldPlacementAudit:
       'cross_section_verified': self.cross_section_verified,
       'selected_candidate_verified': self.selected_candidate_verified,
       'profile_verified': self.profile_verified,
+      'full_field_cross_section_verified': self.full_field_cross_section_verified,
       'cross_section_x_residual_m': self.cross_section_x_residual_m,
       'lower_ordinate_residual_m': self.lower_ordinate_residual_m,
       'upper_ordinate_residual_m': self.upper_ordinate_residual_m,
@@ -1344,6 +1347,7 @@ def measure_moc_transonic_shock_interface_field_placement(
   rederived = False
   cross_section_verified = False
   selected_candidate_verified = False
+  full_field_cross_section_verified = False
   cross_section_x_residual = None
   lower_residual = None
   upper_residual = None
@@ -1387,6 +1391,18 @@ def measure_moc_transonic_shock_interface_field_placement(
       and upper_residual <= tolerance
       and maximum_point_residual <= tolerance
     )
+    full_field_interval = _independent_field_interval(
+      field,
+      expected_x,
+      tolerance,
+    )
+    full_field_cross_section_verified = bool(
+      full_field_interval is not None
+      and result.lower_ordinate_m is not None
+      and result.upper_ordinate_m is not None
+      and abs(result.lower_ordinate_m - full_field_interval[0]) <= tolerance
+      and abs(result.upper_ordinate_m - full_field_interval[1]) <= tolerance
+    )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     pass
   ####
@@ -1421,6 +1437,7 @@ def measure_moc_transonic_shock_interface_field_placement(
     cross_section_verified=cross_section_verified,
     selected_candidate_verified=selected_candidate_verified,
     profile_verified=profile_verified,
+    full_field_cross_section_verified=full_field_cross_section_verified,
     cross_section_x_residual_m=cross_section_x_residual,
     lower_ordinate_residual_m=lower_residual,
     upper_ordinate_residual_m=upper_residual,

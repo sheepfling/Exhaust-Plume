@@ -1252,3 +1252,16 @@ explicit placed shock/front and its neighboring mixed-regime/free-boundary
 conditions, then re-run independent residual and refinement audits.  Increasing
 shape iterations, changing relaxation, or accepting only the downstream tail
 would weaken the closure gate and is not an acceptable promotion path.
+
+### Solver-owned full-span boundary guard
+
+The solver-owned placement audit now distinguishes an auditable interior
+cross-section from a profile that spans the complete retained physical-field
+interval.  The coupled solver-owned inlet consumes only the latter, so the
+default margin-sampled placement is rejected with a typed placement failure
+instead of being treated as an ambient free-boundary span.  A zero-margin
+placement passes the new independent full-span check and reaches the existing
+pressure/tangency residual gate, where the target remains correctly blocked
+by the unresolved internal-shock entrance seam.  The ordinary explicit
+research-profile mode remains separate; this guard narrows the solver-owned
+handoff without promoting the research lane.
