@@ -809,6 +809,35 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
     .PHYSICAL_FIELD_INLET_SEAM_FAILURE
   )
   assert not tampered_inlet_audit.physical_field_inlet_seam_verified
+  exact_downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=40,
+    max_shape_iterations=2,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=interior_continuation,
+    physical_field_shock_front_condition=interior_front_condition,
+  )
+  assert exact_downstream.closure_lineage_verified
+  assert exact_downstream.global_coupling_verified is False
+  assert exact_downstream.coupled_field is not None
+  assert exact_downstream.coupled_field.request is not None
+  assert exact_downstream.coupled_field.request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  )
+  assert exact_downstream.coupled_field.request.physical_field_continuation_profile == (
+    interior_continuation
+  )
+  assert exact_downstream.coupled_field.status is not (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE
+  )
 ####
 
 

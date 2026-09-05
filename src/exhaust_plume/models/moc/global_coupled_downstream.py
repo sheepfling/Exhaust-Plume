@@ -30,6 +30,12 @@ from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
+from exhaust_plume.models.moc.field_continuation import (
+  MocPhysicalFieldContinuationProfileResult,
+)
+from exhaust_plume.models.moc.physical_field_shock_front import (
+  MocPhysicalFieldShockFrontConditionResult,
+)
 from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRequest,
   build_reflected_domain_mixed_regime_boundary_request,
@@ -320,6 +326,12 @@ def solve_reflected_domain_global_coupled_downstream(
     MocReflectedDomainCoupledEulerInletBoundaryMode.FULL_STATE_RUSANOV
   ),
   outlet_static_pressure_Pa: float | None = None,
+  physical_field_continuation_profile: (
+    MocPhysicalFieldContinuationProfileResult | None
+  ) = None,
+  physical_field_shock_front_condition: (
+    MocPhysicalFieldShockFrontConditionResult | None
+  ) = None,
 ) -> MocReflectedDomainGlobalCoupledDownstreamResult:
   """Run one explicitly bound downstream coupled-Euler research candidate."""
 
@@ -369,6 +381,8 @@ def solve_reflected_domain_global_coupled_downstream(
       max_shape_iterations=max_shape_iterations,
       inlet_boundary_mode=inlet_boundary_mode,
       outlet_static_pressure_Pa=outlet_static_pressure_Pa,
+      physical_field_continuation_profile=physical_field_continuation_profile,
+      physical_field_shock_front_condition=physical_field_shock_front_condition,
     )
     coupled_field = solve_reflected_domain_coupled_euler_free_boundary(
       coupled_request

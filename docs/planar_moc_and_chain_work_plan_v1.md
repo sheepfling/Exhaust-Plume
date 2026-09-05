@@ -3493,7 +3493,10 @@ audited downstream field, while the actual ambient case retains the typed
 transonic-frontier failure.  This is intentionally not called global closure:
 the downstream response has not yet been iterated back into the upstream shock
 solve, so ``global_coupling_verified`` and the downstream closure gate remain
-false.
+false.  The same orchestrator can carry an independently audited
+physical-field continuation and shock-front condition explicitly, so this
+research lane does not need to fall back to a scalar inlet when exact field
+lineage is available.
 
 ## Typed variable-entropy audit checkpoint
 

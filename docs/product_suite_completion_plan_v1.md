@@ -93,6 +93,9 @@ next product can make a stronger claim:
    transonic-frontier failure. The orchestrator deliberately reports
    ``global_coupling_verified=false`` because downstream response is not yet
    iterated back into the upstream shock solve; no promotion gate is relaxed.
+   It also accepts the independently audited physical continuation and
+   shock-front handoff explicitly, allowing the exact field lineage to reach
+   the downstream lane without a scalar fallback.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;
