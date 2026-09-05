@@ -545,10 +545,16 @@ def assess_model_signature_readiness(
             reasons=tuple(reasons) if reasons else ("straight section support and explicit optical profile are available",),
         )
     ####
-    planar_reasons = (
+    planar_reasons = [
         "planar-MOC field requires a planar field/ray transport provider",
         "the sectioned-tube envelope is illustrative and cannot stand in for the MOC field",
-    )
+    ]
+    if visualization.diagnostics.get('production_fit_physical_length_accepted') is False:
+        planar_reasons.append(
+            'solver-generated shock-cell fit geometry has no accepted physical '
+            'length and cannot enter Signature transport'
+        )
+    ####
     return ModelSignatureAssessment(
         schema=_profile_adapter_schema(optical_profile),
         lane_id=visualization.lane_id,
@@ -560,7 +566,7 @@ def assess_model_signature_readiness(
         transport_geometry_ready=False,
         production_claim_allowed=False,
         claim_ceiling=common_ceiling,
-        reasons=planar_reasons,
+        reasons=tuple(planar_reasons),
     )
 ####
 

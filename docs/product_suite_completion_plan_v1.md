@@ -692,6 +692,15 @@ interval, solver shock-path span, promotion blockers, and an explicit
 candidate geometry inspectable in the Visualization product without allowing
 the display envelope to imply a production Signature or physical-cell claim.
 
+### Signature boundary checkpoint
+
+When the standardized bundle represents a solver-generated shock-cell fit,
+the Signature assessment retains the existing planar-MOC transport block and
+adds the explicit missing-physical-length reason. An optical profile cannot
+turn that candidate into a radiance result; a planar field/ray provider and
+accepted physical-length evidence are still required before Signature or FPA
+consumption.
+
 ### Cell-wise regime-evidence visualization checkpoint
 
 The coupled-Euler visualization now exposes the solver-retained

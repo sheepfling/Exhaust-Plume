@@ -22,6 +22,7 @@ from exhaust_plume.products import (
 
 from src.models.moc.test_reflected_domain import _patch
 from src.products.test_model_visualization import (
+    _MocResult,
     _basic_result,
     _curved_result,
     _reduced_result,
@@ -105,6 +106,32 @@ def test_curved_lane_reaches_gray_transport_and_planar_moc_remains_blocked() -> 
     with pytest.raises(ModelSignatureBlockedError, match="planar-MOC field"):
         evaluate_model_signature(moc, _profile())
     ####
+####
+
+
+def test_production_fit_planar_visualization_keeps_signature_length_gate_explicit() -> None:
+    class ProductionFitResult(_MocResult):
+        candidate_field = _MocResult.field
+        fitted_shock_points_m = _MocResult.field.shock_boundary_points_m
+        status = "converged_local_production_shock_cell_fit"
+        local_fit_verified = True
+        chain_promotion_blocked = True
+        production_claim_allowed = False
+        start_x_m = 0.5
+        end_x_m = 2.0
+    ####
+
+    visualization = standardize_model_visualization(
+        ProductionFitResult(),
+        lane=ModelVisualizationLane.PLANAR_MOC,
+    )
+    assessment = assess_model_signature_readiness(
+        visualization,
+        optical_profile=_profile(),
+    )
+
+    assert assessment.readiness is ModelSignatureReadiness.BLOCKED_PLANAR_TRANSPORT
+    assert any("no accepted physical length" in reason for reason in assessment.reasons)
 ####
 
 
