@@ -3961,6 +3961,25 @@ source-to-boundary accounting seam only; the global feedback fixed point,
 canonical mixed-regime closure, refinement, continued-chain promotion,
 physical shock-cell fitting, and external validation remain open.
 
+## Exact-field feedback-consumption checkpoint
+
+The downstream feedback runner now distinguishes an exact physical-field
+continuation run from the ordinary response-profile path.  When the caller
+omits pressure and geometry feedback profiles, the first iteration is accepted
+only when the coupled solver materializes both profiles from the retained
+ambient-neighbor path, preserves the solver-owned source identifiers and
+request object, and passes the independent neighbor-profile audit.  The next
+iteration then consumes the explicitly generated profiles at their exact
+cell-center and boundary-node stations.
+
+On the compatible exact-field fixture, this closes the local research update
+and reports ``CONVERGED_RESEARCH_PRESSURE_UPDATE`` with finite, independently
+measured overlap residuals.  It does not set ``global_coupling_verified`` or
+the downstream-boundary closure gate, and it cannot authorize continued-chain,
+shock-cell, Signature, FPA, or external-validation claims.  The ordinary
+response-feedback path remains separately typed and may still fail its local
+pressure/tangency gate; it is not silently upgraded by this exact-field seam.
+
 ## Solver-owned geometry-frame anchor checkpoint
 
 The geometry profile now retains the lower ordinate of the source coupled
@@ -3976,7 +3995,10 @@ The compatible fixture now passes the geometry consumer and its coordinate
 response channel reaches tolerance with an independently audited local field.
 The combined pressure/geometry feedback runner also verifies exact lineage,
 station alignment, coverage, and consumption, while the second fresh field
-still fails the local pressure/tangency residual gate.  This remains a
+in the ordinary response-profile configuration still fails the local
+pressure/tangency residual gate.  The exact physical-field continuation
+configuration now recognizes its solver-owned first-iteration profiles and
+can reach the local research pressure-update result.  This remains a
 solver-owned P2.2 seam: global feedback, canonical reflected closure,
 continued-chain promotion, physical shock-cell fitting, Signature/FPA
 promotion, and external validation stay closed.
@@ -3993,10 +4015,11 @@ mistakenly treated a consumed pressure profile as an ambient-boundary field.
 With the corrected audit, a full research pressure update can produce a
 locally audited field alongside the anchored geometry profile, and the
 bounded runner can reach a local pressure fixed point when explicitly given
-that update policy.  The global/coupled overlap response still fails its
-pressure, tangent, and normal residual gate, so canonical closure, continued
-chain promotion, physical shock-cell fitting, Signature/FPA promotion, and
-external validation remain blocked.
+that update policy.  The exact physical-field continuation path also verifies
+its solver-owned first-iteration neighbor profiles before entering the same
+bounded runner.  These are local research outcomes only: canonical closure,
+continued-chain promotion, physical shock-cell fitting, Signature/FPA
+promotion, and external validation remain blocked.
 
 ## Downstream pressure-profile compatibility checkpoint
 

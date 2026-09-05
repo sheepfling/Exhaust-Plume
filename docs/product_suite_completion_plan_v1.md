@@ -1394,6 +1394,25 @@ frame mismatch, and extrapolation remain hard stops.  This is a provenance
 and contract checkpoint for the research lane, not acceptance of the free
 boundary or a promotion path into shock-cell, Signature, or FPA claims.
 
+### Exact-field feedback-consumption checkpoint
+
+The downstream feedback runner now distinguishes an exact physical-field
+continuation run from the ordinary response-profile path.  When the caller
+omits pressure and geometry feedback profiles, the first iteration is accepted
+only when the coupled solver materializes both profiles from the retained
+ambient-neighbor path, preserves the solver-owned source identifiers and
+request object, and passes the independent neighbor-profile audit.  The next
+iteration then consumes the explicitly generated profiles at their exact
+cell-center and boundary-node stations.
+
+On the compatible exact-field fixture, this closes the local research update
+and reports ``CONVERGED_RESEARCH_PRESSURE_UPDATE`` with finite, independently
+measured overlap residuals.  It does not set ``global_coupling_verified`` or
+the downstream-boundary closure gate, and it cannot authorize continued-chain,
+shock-cell, Signature, FPA, or external-validation claims.  The ordinary
+response-feedback path remains separately typed and may still fail its local
+pressure/tangency gate; it is not silently upgraded by this exact-field seam.
+
 ### Global/coupled downstream boundary-response checkpoint
 
 The coupled-field result now retains one static-pressure sample for each
@@ -1513,11 +1532,14 @@ pressure-only substitution is allowed.
 The compatible fixture now reaches a locally audited coupled field through
 the geometry consumer and its coordinate response channel closes to the
 declared tolerance.  The full pressure-plus-geometry feedback runner also
-proves exact profile lineage, station alignment, coverage, and consumption,
-but its second fresh field still fails the local pressure/tangency residual
-gate.  The runner therefore remains a typed solver failure with global
-feedback, canonical downstream closure, physical shock-cell fitting,
-provider-bound validation, and Signature/FPA promotion blocked.
+proves exact profile lineage, station alignment, coverage, and consumption.
+The ordinary response-profile configuration still reports a typed solver
+failure when its second fresh field misses the local pressure/tangency gate;
+the exact physical-field continuation configuration now recognizes its
+solver-owned first-iteration profiles and can reach the local research
+pressure-update result.  Both configurations keep global feedback, canonical
+downstream closure, physical shock-cell fitting, provider-bound validation,
+and Signature/FPA promotion blocked.
 
 ### Solver-owned pressure-profile audit checkpoint
 
@@ -1532,7 +1554,8 @@ pressure profiles as though they were ambient-boundary fields.
 The combined pressure-and-geometry consumer now reaches a locally audited
 field under a full research pressure update, and the bounded feedback runner
 can reach a local pressure fixed point when explicitly configured for that
-update.  The independently measured global/coupled overlap still fails its
-pressure/tangent/normal residual gate, so global feedback, canonical closure,
-physical shock-cell fitting, provider-bound validation, and Signature/FPA
-promotion remain blocked.
+update.  The exact physical-field continuation path also verifies its
+solver-owned first-iteration neighbor profiles before entering the same
+bounded runner.  These are local research outcomes only: the global/coupled
+closure and production claim gates remain blocked, as do physical shock-cell
+fitting, provider-bound validation, and Signature/FPA promotion.

@@ -48,6 +48,12 @@ __all__ = (
 MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_OPERATOR_ID = (
   'op.moc.reflected-domain.global-coupled-downstream-feedback'
 )
+_PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE = (
+  'solver-owned-physical-field-ambient-neighbor-pressure-profile-v1'
+)
+_PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE = (
+  'solver-owned-physical-field-ambient-neighbor-geometry-profile-v1'
+)
 
 
 class MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus(str, Enum):
@@ -513,6 +519,50 @@ def _failed_result(
 ####
 
 
+def _solver_owned_neighbor_profile_consumed(
+  result: MocReflectedDomainGlobalCoupledDownstreamResult,
+  *,
+  pressure: bool,
+) -> bool:
+  """Verify an exact-field profile materialized by the coupled solver."""
+
+  request = result.coupled_request
+  field = result.coupled_field
+  audit = result.coupled_field_audit
+  if request is None or field is None or audit is None:
+    return False
+  ####
+  if request.inlet_boundary_mode is not (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ):
+    return False
+  ####
+  if field.request is not request:
+    return False
+  ####
+  if not getattr(audit, 'physical_field_neighbor_profiles_verified', False):
+    return False
+  ####
+  if pressure:
+    return bool(
+      field.free_boundary_pressure_profile_consumed
+      and request.free_boundary_pressure_profile_Pa is not None
+      and request.free_boundary_pressure_profile_x_stations_m is not None
+      and request.free_boundary_pressure_profile_source
+      == _PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE
+    )
+  ####
+  return bool(
+    field.free_boundary_geometry_profile_consumed
+    and request.free_boundary_geometry_profile_y_m is not None
+    and request.free_boundary_geometry_profile_x_stations_m is not None
+    and request.free_boundary_geometry_profile_source
+    == _PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE
+  )
+####
+
+
 def _profiles_aligned(
   first: MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   second: MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
@@ -820,6 +870,11 @@ def run_reflected_domain_global_coupled_downstream_feedback(
             is None
           )
         )
+        or (
+          input_profile is None
+          and result.boundary_pressure_profile is None
+          and _solver_owned_neighbor_profile_consumed(result, pressure=True)
+        )
       )
       or (
         input_profile is not None
@@ -848,6 +903,11 @@ def run_reflected_domain_global_coupled_downstream_feedback(
             and result.coupled_request.free_boundary_geometry_profile_source
             is None
           )
+        )
+        or (
+          input_geometry_profile is None
+          and result.boundary_geometry_profile is None
+          and _solver_owned_neighbor_profile_consumed(result, pressure=False)
         )
       )
       or (

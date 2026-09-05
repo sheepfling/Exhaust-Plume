@@ -86,6 +86,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_global_coupled_downstream,
+  build_reflected_domain_global_solver_owned_physical_field_handoff,
   build_reflected_domain_global_coupled_downstream_boundary_pressure_profile,
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
@@ -2362,6 +2363,52 @@ def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
   assert result.as_report()['physical_field_handoff']['converged'] is True
+####
+
+
+def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor_profiles():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  run = run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus
+    .CONVERGED_RESEARCH_PRESSURE_UPDATE
+  )
+  assert run.converged
+  assert run.geometry_profile_consumption_verified
+  assert run.local_coupled_field_verified
+  assert run.response_residuals_verified
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  assert len(run.iterations) == 2
+  assert all(
+    item.pressure_profile_consumption_verified
+    and item.geometry_profile_consumption_verified
+    and item.result.coupled_field is not None
+    and item.result.coupled_field.free_boundary_pressure_profile_consumed
+    and item.result.coupled_field.free_boundary_geometry_profile_consumed
+    for item in run.iterations
+  )
 ####
 
 
