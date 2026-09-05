@@ -21,10 +21,12 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerInletBoundaryMode,
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
   MocReflectedDomainGlobalCoupledDownstreamResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
+  build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
@@ -49,7 +51,7 @@ MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_OPERATOR_ID = (
 
 
 class MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus(str, Enum):
-  """Outcome of a fresh downstream pressure-feedback iteration study."""
+  """Outcome of a fresh downstream pressure/geometry feedback study."""
 
   CONVERGED_RESEARCH_PRESSURE_UPDATE = (
     'converged-research-global-coupled-downstream-pressure-update'
@@ -74,13 +76,21 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
   result: MocReflectedDomainGlobalCoupledDownstreamResult
   solver_response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
   response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
+  input_geometry_profile: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile | None
+  ) = None
   next_pressure_profile: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile | None
   ) = None
+  next_geometry_profile: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile | None
+  ) = None
   maximum_pressure_update_Pa: float | None = None
   pressure_profile_lineage_verified: bool = False
+  geometry_profile_lineage_verified: bool = False
   response_lineage_verified: bool = False
   pressure_profile_consumption_verified: bool = False
+  geometry_profile_consumption_verified: bool = False
 
   def __post_init__(self) -> None:
     index = self.iteration_index
@@ -116,12 +126,30 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         )
       ####
     ####
+    if self.input_geometry_profile is not None and not isinstance(
+      self.input_geometry_profile,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
+    ):
+      raise TypeError(
+        'input_geometry_profile must be a typed downstream geometry profile '
+        'or None'
+      )
+    ####
     if self.next_pressure_profile is not None and not isinstance(
       self.next_pressure_profile,
       MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
     ):
       raise TypeError(
         'next_pressure_profile must be a typed downstream pressure profile '
+        'or None'
+      )
+    ####
+    if self.next_geometry_profile is not None and not isinstance(
+      self.next_geometry_profile,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
+    ):
+      raise TypeError(
+        'next_geometry_profile must be a typed downstream geometry profile '
         'or None'
       )
     ####
@@ -137,8 +165,10 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
     ####
     for name in (
       'pressure_profile_lineage_verified',
+      'geometry_profile_lineage_verified',
       'response_lineage_verified',
       'pressure_profile_consumption_verified',
+      'geometry_profile_consumption_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -202,6 +232,14 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         or not self.next_pressure_profile.production_claim_allowed
       )
       and (
+        self.input_geometry_profile is None
+        or not self.input_geometry_profile.production_claim_allowed
+      )
+      and (
+        self.next_geometry_profile is None
+        or not self.next_geometry_profile.production_claim_allowed
+      )
+      and (
         self.response is None or not self.response.production_claim_allowed
       )
     )
@@ -215,12 +253,23 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         if self.input_pressure_profile is None
         else self.input_pressure_profile.as_report()
       ),
+      'input_geometry_profile': (
+        None
+        if self.input_geometry_profile is None
+        else self.input_geometry_profile.as_report()
+      ),
       'solver_status': self.result.status.value,
       'local_coupled_field_verified': self.local_coupled_field_verified,
       'pressure_profile_lineage_verified': self.pressure_profile_lineage_verified,
+      'geometry_profile_lineage_verified': (
+        self.geometry_profile_lineage_verified
+      ),
       'response_lineage_verified': self.response_lineage_verified,
       'pressure_profile_consumption_verified': (
         self.pressure_profile_consumption_verified
+      ),
+      'geometry_profile_consumption_verified': (
+        self.geometry_profile_consumption_verified
       ),
       'response_coverage_verified': self.response_coverage_verified,
       'response_residuals_verified': self.response_residuals_verified,
@@ -230,6 +279,11 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         None
         if self.next_pressure_profile is None
         else self.next_pressure_profile.as_report()
+      ),
+      'next_geometry_profile': (
+        None
+        if self.next_geometry_profile is None
+        else self.next_geometry_profile.as_report()
       ),
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'result': self.result.as_report(),
@@ -244,7 +298,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
 
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
-  """Audited downstream pressure updates below the global-closure gate."""
+  """Audited downstream pressure/geometry updates below the global gate."""
 
   closure: MocReflectedDomainGlobalPhysicalClosureResult
   requested_iterations: int
@@ -258,6 +312,9 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
   closure_lineage_verified: bool = False
   pressure_profile_lineage_verified: bool = False
   pressure_profile_alignment_verified: bool = False
+  geometry_profile_lineage_verified: bool = False
+  geometry_profile_alignment_verified: bool = False
+  geometry_profile_consumption_verified: bool = False
   response_lineage_verified: bool = False
   response_channels_finite: bool = False
   response_coverage_verified: bool = False
@@ -330,6 +387,9 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'closure_lineage_verified',
       'pressure_profile_lineage_verified',
       'pressure_profile_alignment_verified',
+      'geometry_profile_lineage_verified',
+      'geometry_profile_alignment_verified',
+      'geometry_profile_consumption_verified',
       'response_lineage_verified',
       'response_channels_finite',
       'response_coverage_verified',
@@ -374,6 +434,9 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       and self.closure_lineage_verified
       and self.pressure_profile_lineage_verified
       and self.pressure_profile_alignment_verified
+      and self.geometry_profile_lineage_verified
+      and self.geometry_profile_alignment_verified
+      and self.geometry_profile_consumption_verified
       and self.response_lineage_verified
       and self.response_channels_finite
       and self.response_coverage_verified
@@ -401,6 +464,13 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'closure_lineage_verified': self.closure_lineage_verified,
       'pressure_profile_lineage_verified': self.pressure_profile_lineage_verified,
       'pressure_profile_alignment_verified': self.pressure_profile_alignment_verified,
+      'geometry_profile_lineage_verified': self.geometry_profile_lineage_verified,
+      'geometry_profile_alignment_verified': (
+        self.geometry_profile_alignment_verified
+      ),
+      'geometry_profile_consumption_verified': (
+        self.geometry_profile_consumption_verified
+      ),
       'response_lineage_verified': self.response_lineage_verified,
       'response_channels_finite': self.response_channels_finite,
       'response_coverage_verified': self.response_coverage_verified,
@@ -460,6 +530,25 @@ def _profiles_aligned(
 ####
 
 
+def _geometry_profiles_aligned(
+  first: MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
+  second: MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
+  *,
+  position_tolerance_m: float,
+) -> bool:
+  """Verify geometry profiles retain the same exact boundary-node stations."""
+
+  return bool(
+    first.source_closure_fingerprint == second.source_closure_fingerprint
+    and len(first.x_stations_m) == len(second.x_stations_m)
+    and all(
+      abs(left - right) <= position_tolerance_m
+      for left, right in zip(first.x_stations_m, second.x_stations_m)
+    )
+  )
+####
+
+
 def _maximum_profile_update(
   first: MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   second: MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
@@ -481,6 +570,9 @@ def _status_for_run(
   closure_lineage_verified: bool,
   pressure_profile_lineage_verified: bool,
   pressure_profile_alignment_verified: bool,
+  geometry_profile_lineage_verified: bool,
+  geometry_profile_alignment_verified: bool,
+  geometry_profile_consumption_verified: bool,
   response_lineage_verified: bool,
   response_channels_finite: bool,
   response_coverage_verified: bool,
@@ -506,11 +598,14 @@ def _status_for_run(
     closure_lineage_verified
     and pressure_profile_lineage_verified
     and pressure_profile_alignment_verified
+    and geometry_profile_lineage_verified
+    and geometry_profile_alignment_verified
+    and geometry_profile_consumption_verified
   ):
     return (
       MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.PROFILE_FAILURE,
-      'pressure-profile lineage or exact cell-center alignment was not '
-      'verified across the feedback steps',
+      'pressure/geometry profile lineage or exact solver-station alignment '
+      'was not verified across the feedback steps',
     )
   ####
   if not (
@@ -574,7 +669,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   physical_field_continuation_profile: Any | None = None,
   physical_field_shock_front_condition: Any | None = None,
 ) -> MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
-  """Run bounded downstream pressure feedback without an upstream re-solve."""
+  """Run bounded pressure/geometry feedback without an upstream re-solve."""
 
   if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
     raise TypeError(
@@ -645,8 +740,12 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   input_profile: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile | None
   ) = None
+  input_geometry_profile: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile | None
+  ) = None
   pressure_update_convergence_verified = False
   pressure_profile_alignment_verified = True
+  geometry_profile_alignment_verified = True
   stop_reason: str | None = None
   for iteration_index in range(maximum_iterations):
     try:
@@ -669,6 +768,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         physical_field_continuation_profile=physical_field_continuation_profile,
         physical_field_shock_front_condition=physical_field_shock_front_condition,
         boundary_pressure_profile=input_profile,
+        boundary_geometry_profile=input_geometry_profile,
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       result = _failed_result(
@@ -695,6 +795,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
       and solver_response.as_report() == response.as_report()
     )
     next_profile = None
+    next_geometry_profile = None
     pressure_profile_lineage_verified = bool(
       result.closure_lineage_verified
       and (
@@ -724,6 +825,35 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         and result.coupled_field.free_boundary_pressure_profile_consumed
       )
     )
+    geometry_profile_lineage_verified = bool(
+      result.closure_lineage_verified
+      and (
+        input_geometry_profile is None
+        or result.boundary_geometry_profile == input_geometry_profile
+      )
+    )
+    geometry_profile_consumption_verified = bool(
+      (
+        input_geometry_profile is None
+        and result.boundary_geometry_profile is None
+        and (
+          result.coupled_request is None
+          or (
+            result.coupled_request.free_boundary_geometry_profile_y_m is None
+            and result.coupled_request.free_boundary_geometry_profile_x_stations_m
+            is None
+            and result.coupled_request.free_boundary_geometry_profile_source
+            is None
+          )
+        )
+      )
+      or (
+        input_geometry_profile is not None
+        and result.boundary_geometry_profile == input_geometry_profile
+        and result.coupled_field is not None
+        and result.coupled_field.free_boundary_geometry_profile_consumed
+      )
+    )
     maximum_pressure_update = None
     if response is not None:
       try:
@@ -738,13 +868,33 @@ def run_reflected_domain_global_coupled_downstream_feedback(
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         stop_reason = f'pressure feedback profile construction failed: {error}'
       ####
-    ####
+      try:
+        next_geometry_profile = (
+          build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
+            closure,
+            response,
+            position_tolerance_m=position_tolerance,
+          )
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        stop_reason = (
+          stop_reason
+          or f'geometry feedback profile construction failed: {error}'
+        )
+      ####
     if next_profile is not None and not (
       next_profile.profile_verified
       and next_profile.source_closure_fingerprint
       == moc_reflected_domain_global_physical_closure_fingerprint(closure)
     ):
       pressure_profile_lineage_verified = False
+    ####
+    if next_geometry_profile is not None and not (
+      next_geometry_profile.profile_verified
+      and next_geometry_profile.source_closure_fingerprint
+      == moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    ):
+      geometry_profile_lineage_verified = False
     ####
     if input_profile is not None and next_profile is not None:
       if not _profiles_aligned(
@@ -770,6 +920,19 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         ####
       ####
     ####
+    if input_geometry_profile is not None and next_geometry_profile is not None:
+      if not _geometry_profiles_aligned(
+        input_geometry_profile,
+        next_geometry_profile,
+        position_tolerance_m=position_tolerance,
+      ):
+        geometry_profile_alignment_verified = False
+        stop_reason = (
+          stop_reason
+          or 'geometry feedback boundary-node stations changed between fresh '
+          'solves; no regridding or extrapolation was attempted'
+        )
+    ####
     iterations.append(
       MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration(
         iteration_index=iteration_index,
@@ -777,12 +940,18 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         result=result,
         solver_response=solver_response,
         response=response,
+        input_geometry_profile=input_geometry_profile,
         next_pressure_profile=next_profile,
+        next_geometry_profile=next_geometry_profile,
         maximum_pressure_update_Pa=maximum_pressure_update,
         pressure_profile_lineage_verified=pressure_profile_lineage_verified,
+        geometry_profile_lineage_verified=geometry_profile_lineage_verified,
         response_lineage_verified=response_lineage_verified,
         pressure_profile_consumption_verified=(
           pressure_profile_consumption_verified
+        ),
+        geometry_profile_consumption_verified=(
+          geometry_profile_consumption_verified
         ),
       )
     )
@@ -800,10 +969,18 @@ def run_reflected_domain_global_coupled_downstream_feedback(
       )
       break
     ####
+    if next_geometry_profile is None:
+      stop_reason = stop_reason or (
+        'independently measured response did not produce a covered geometry '
+        'profile for the next fresh solve'
+      )
+      break
+    ####
     if pressure_update_convergence_verified:
       break
     ####
     input_profile = next_profile
+    input_geometry_profile = next_geometry_profile
   ####
   retained_iterations = tuple(iterations)
   fresh_solver_invocation_verified = bool(
@@ -820,6 +997,14 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     and all(
       item.pressure_profile_lineage_verified
       and item.pressure_profile_consumption_verified
+      for item in retained_iterations
+    )
+  )
+  geometry_profile_lineage_verified = bool(
+    retained_iterations
+    and all(
+      item.geometry_profile_lineage_verified
+      and item.geometry_profile_consumption_verified
       for item in retained_iterations
     )
   )
@@ -853,6 +1038,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     closure_lineage_verified=closure_lineage_verified,
     pressure_profile_lineage_verified=pressure_profile_lineage_verified,
     pressure_profile_alignment_verified=pressure_profile_alignment_verified,
+    geometry_profile_lineage_verified=geometry_profile_lineage_verified,
+    geometry_profile_alignment_verified=geometry_profile_alignment_verified,
+    geometry_profile_consumption_verified=geometry_profile_lineage_verified,
     response_lineage_verified=response_lineage_verified,
     response_channels_finite=response_channels_finite,
     response_coverage_verified=response_coverage_verified,
@@ -877,6 +1065,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     closure_lineage_verified=closure_lineage_verified,
     pressure_profile_lineage_verified=pressure_profile_lineage_verified,
     pressure_profile_alignment_verified=pressure_profile_alignment_verified,
+    geometry_profile_lineage_verified=geometry_profile_lineage_verified,
+    geometry_profile_alignment_verified=geometry_profile_alignment_verified,
+    geometry_profile_consumption_verified=geometry_profile_lineage_verified,
     response_lineage_verified=response_lineage_verified,
     response_channels_finite=response_channels_finite,
     response_coverage_verified=response_coverage_verified,

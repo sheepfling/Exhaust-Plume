@@ -3925,3 +3925,22 @@ missing-split state.  This makes the next calibration packet executable when
 an owner supplies additional cases, without treating pressure-extrema
 spacing, scaled downstream geometry, or synthetic fixtures as physical
 shock-cell validation.
+
+## Explicit global/coupled boundary-geometry feedback checkpoint
+
+The downstream feedback runner now carries a pressure profile and a separate
+free-boundary geometry profile.  The geometry handoff is sampled from the
+retained global boundary at the exact coupled boundary nodes and preserves
+the closure fingerprint, station order, source identity, and research-only
+claim ceiling.  The coupled solver consumes it only at aligned nodes; it
+does not infer geometric displacement from pressure or silently regrid the
+profile.
+
+The independent Euler audit rederives the retained boundary ordinates and
+marks exact geometry consumption separately from the pressure consumer.  The
+current target fixture still fails closed when the response-derived profile
+does not match the coupled inlet seam, so the runner records a typed second
+solve failure.  This is the next P2.2 implementation seam: reconcile the
+solver-owned reflected/frontier geometry and neighboring boundary conditions
+before attempting upstream global feedback, physical shock-cell fitting, or
+product promotion.

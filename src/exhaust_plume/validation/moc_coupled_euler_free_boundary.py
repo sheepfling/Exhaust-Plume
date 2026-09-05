@@ -137,6 +137,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   )
   INVALID_INPUT = 'invalid_input'
   GEOMETRY_FAILURE = 'coupled-euler-audit-geometry-failure'
+  GEOMETRY_PROFILE_FAILURE = 'coupled-euler-audit-geometry-profile-failure'
   STATE_FAILURE = 'coupled-euler-audit-state-failure'
   THERMODYNAMIC_FAILURE = 'coupled-euler-audit-thermodynamic-failure'
   RESIDUAL_FAILURE = 'coupled-euler-audit-residual-failure'
@@ -202,6 +203,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   residual_channels_recomputed: bool = False
   residual_report_verified: bool = False
   free_boundary_report_verified: bool = False
+  free_boundary_geometry_profile_verified: bool = False
   pressure_budget_verified: bool = False
   transonic_transition_verified: bool = False
   transonic_frontier_compatibility_verified: bool = False
@@ -285,6 +287,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_channels_recomputed',
       'residual_report_verified',
       'free_boundary_report_verified',
+      'free_boundary_geometry_profile_verified',
       'transonic_transition_verified',
       'transonic_frontier_compatibility_verified',
       'transonic_shock_geometry_verified',
@@ -340,6 +343,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.residual_channels_recomputed
       and self.residual_report_verified
       and self.free_boundary_report_verified
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.free_boundary_geometry_profile_y_m
+          is not None
+        )
+        or self.free_boundary_geometry_profile_verified
+      )
       and self.pressure_budget_verified
       and self.transonic_transition_verified
       and self.transonic_shock_geometry_verified
@@ -424,6 +436,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_channels_recomputed': self.residual_channels_recomputed,
       'residual_report_verified': self.residual_report_verified,
       'free_boundary_report_verified': self.free_boundary_report_verified,
+      'free_boundary_geometry_profile_verified': (
+        self.free_boundary_geometry_profile_verified
+      ),
       'pressure_budget_verified': self.pressure_budget_verified,
       'transonic_transition_verified': self.transonic_transition_verified,
       'transonic_frontier_compatibility_verified': (
@@ -1790,6 +1805,39 @@ def _audit_field(
   if np.any(~np.isfinite(heights)) or np.any(heights <= 0.0):
     raise ValueError('audited free-boundary heights must be positive')
   ####
+  geometry_profile_verified = True
+  if request.free_boundary_geometry_profile_y_m is not None:
+    profile_x = np.asarray(
+      request.free_boundary_geometry_profile_x_stations_m,
+      dtype=float,
+    )
+    profile_y = np.asarray(
+      request.free_boundary_geometry_profile_y_m,
+      dtype=float,
+    )
+    candidate_x = np.asarray(candidate.x_stations_m, dtype=float)
+    candidate_y = np.asarray(
+      [point[1] for point in candidate.free_boundary_points_m],
+      dtype=float,
+    )
+    geometry_profile_verified = bool(
+      candidate.free_boundary_geometry_profile_consumed
+      and profile_x.shape == candidate_x.shape
+      and profile_y.shape == candidate_y.shape
+      and np.allclose(
+        candidate_x,
+        profile_x,
+        rtol=3.0e-6,
+        atol=1.0e-10,
+      )
+      and np.allclose(
+        candidate_y,
+        profile_y,
+        rtol=3.0e-6,
+        atol=1.0e-10,
+      )
+    )
+  ####
   states = np.asarray(candidate.conservative_states_by_cell, dtype=float)
   if states.shape != (expected_cell_count, 4):
     raise ValueError('audited conservative state count does not match the mesh')
@@ -2179,6 +2227,7 @@ def _audit_field(
   # independent flux reconstruction separate from report reconciliation.
   return {
     'geometry_verified': retained_vertices_verified,
+    'free_boundary_geometry_profile_verified': geometry_profile_verified,
     'state_samples_verified': True,
     'thermodynamics_verified': thermodynamic_inputs_verified,
     'recomputed_channels': recomputed_channels,
@@ -2466,6 +2515,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   physical_field_shock_front_condition_verified = bool(
     raw['physical_field_shock_front_condition_verified']
   )
+  free_boundary_geometry_profile_verified = bool(
+    raw['free_boundary_geometry_profile_verified']
+  )
   (
     control_section_compatibility_verified,
     control_section_pressure_jump,
@@ -2540,6 +2592,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   if not promotion_flags_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.FLAG_FAILURE
     message = 'candidate promotion flags do not retain the research-only stop'
+  elif not free_boundary_geometry_profile_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .GEOMETRY_PROFILE_FAILURE
+    )
+    message = (
+      'candidate retained free-boundary nodes do not reproduce the exact '
+      'solver-owned geometry profile handoff'
+    )
   elif not physical_field_inlet_seam_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -2669,6 +2730,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     residual_channels_recomputed=True,
     residual_report_verified=report_verified and residuals_verified,
     free_boundary_report_verified=boundary_report_verified,
+    free_boundary_geometry_profile_verified=(
+      free_boundary_geometry_profile_verified
+    ),
     pressure_budget_verified=pressure_budget_verified,
     transonic_transition_verified=transonic_transition_verified,
     transonic_frontier_compatibility_verified=(

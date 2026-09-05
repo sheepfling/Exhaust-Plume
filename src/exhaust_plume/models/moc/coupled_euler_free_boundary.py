@@ -824,6 +824,12 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None
   free_boundary_pressure_profile_source: str | None = None
+  # Optional solver-owned ordinate targets for the free-boundary nodes.  The
+  # geometry profile is intentionally separate from pressure: pressure
+  # feedback cannot silently repair a spatial boundary mismatch.
+  free_boundary_geometry_profile_y_m: tuple[float, ...] | None = None
+  free_boundary_geometry_profile_x_stations_m: tuple[float, ...] | None = None
+  free_boundary_geometry_profile_source: str | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -977,6 +983,64 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       object.__setattr__(self, 'free_boundary_pressure_profile_Pa', pressures)
       object.__setattr__(self, 'free_boundary_pressure_profile_x_stations_m', coordinates)
       object.__setattr__(self, 'free_boundary_pressure_profile_source', source)
+    ####
+    geometry_profile = self.free_boundary_geometry_profile_y_m
+    geometry_profile_x = self.free_boundary_geometry_profile_x_stations_m
+    geometry_profile_source = self.free_boundary_geometry_profile_source
+    if geometry_profile is None:
+      if geometry_profile_x is not None or geometry_profile_source is not None:
+        raise ValueError(
+          'free-boundary geometry-profile coordinates and source require a '
+          'geometry profile'
+        )
+      ####
+    else:
+      if geometry_profile_x is None or geometry_profile_source is None:
+        raise ValueError(
+          'free-boundary geometry profile requires aligned coordinates and a '
+          'non-empty source'
+        )
+      ####
+      ordinates = tuple(float(value) for value in geometry_profile)
+      coordinates = tuple(float(value) for value in geometry_profile_x)
+      if len(ordinates) != self.axial_cell_count + 1:
+        raise ValueError(
+          'free_boundary_geometry_profile_y_m must contain one value per '
+          'free-boundary node'
+        )
+      ####
+      if len(coordinates) != len(ordinates):
+        raise ValueError(
+          'free_boundary_geometry_profile_x_stations_m must align with the '
+          'geometry profile'
+        )
+      ####
+      if any(not isfinite(value) for value in (*ordinates, *coordinates)):
+        raise ValueError(
+          'free-boundary geometry profile values must be finite'
+        )
+      ####
+      if any(
+        second <= first for first, second in zip(coordinates, coordinates[1:])
+      ):
+        raise ValueError(
+          'free_boundary_geometry_profile_x_stations_m must be strictly '
+          'downstream ordered'
+        )
+      ####
+      source = str(geometry_profile_source)
+      if not source:
+        raise ValueError(
+          'free_boundary_geometry_profile_source must be non-empty'
+        )
+      ####
+      object.__setattr__(self, 'free_boundary_geometry_profile_y_m', ordinates)
+      object.__setattr__(
+        self,
+        'free_boundary_geometry_profile_x_stations_m',
+        coordinates,
+      )
+      object.__setattr__(self, 'free_boundary_geometry_profile_source', source)
     ####
     if self.transonic_shock_geometry is not None and not isinstance(
       self.transonic_shock_geometry,
@@ -1185,6 +1249,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'free_boundary_pressure_profile_source': (
         self.free_boundary_pressure_profile_source
       ),
+      'free_boundary_geometry_profile_y_m': (
+        self.free_boundary_geometry_profile_y_m
+      ),
+      'free_boundary_geometry_profile_x_stations_m': (
+        self.free_boundary_geometry_profile_x_stations_m
+      ),
+      'free_boundary_geometry_profile_source': (
+        self.free_boundary_geometry_profile_source
+      ),
       'inlet_boundary_mode': self.inlet_boundary_mode.value,
       'transonic_shock_geometry': (
         None
@@ -1281,6 +1354,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_source: str | None = None,
+  free_boundary_geometry_profile_y_m: tuple[float, ...] | None = None,
+  free_boundary_geometry_profile_x_stations_m: tuple[float, ...] | None = None,
+  free_boundary_geometry_profile_source: str | None = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   """Bind one mixed-regime reference to the coupled-Euler research lane.
 
@@ -1336,6 +1412,11 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
       free_boundary_pressure_profile_x_stations_m
     ),
     free_boundary_pressure_profile_source=free_boundary_pressure_profile_source,
+    free_boundary_geometry_profile_y_m=free_boundary_geometry_profile_y_m,
+    free_boundary_geometry_profile_x_stations_m=(
+      free_boundary_geometry_profile_x_stations_m
+    ),
+    free_boundary_geometry_profile_source=free_boundary_geometry_profile_source,
   )
 ####
 
@@ -1370,6 +1451,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   free_boundary_pressure_residuals_Pa: tuple[float, ...] = ()
   free_boundary_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   free_boundary_pressure_profile_consumed: bool = False
+  free_boundary_geometry_profile_consumed: bool = False
   pseudo_iteration_count: int = 0
   shape_iteration_count: int = 0
   maximum_conservative_mass_residual: float | None = None
@@ -1851,6 +1933,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     if not isinstance(self.free_boundary_pressure_profile_consumed, bool):
       raise TypeError('free_boundary_pressure_profile_consumed must be a bool')
     ####
+    if not isinstance(self.free_boundary_geometry_profile_consumed, bool):
+      raise TypeError(
+        'free_boundary_geometry_profile_consumed must be a bool'
+      )
+    ####
     coverage = dict(self.residual_channel_coverage)
     validity = dict(self.residual_channel_validity)
     if any(
@@ -1964,6 +2051,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'free_boundary_pressure_profile_consumed': (
           self.free_boundary_pressure_profile_consumed
         ),
+        'free_boundary_geometry_profile_consumed': (
+          self.free_boundary_geometry_profile_consumed
+        ),
         'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
         'inlet_boundary_conservative_states_by_face': (
           self.inlet_boundary_conservative_states_by_face
@@ -2034,6 +2124,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'free_boundary_pressure_profile_consumed': (
         self.free_boundary_pressure_profile_consumed
+      ),
+      'free_boundary_geometry_profile_consumed': (
+        self.free_boundary_geometry_profile_consumed
       ),
       'pseudo_iteration_count': self.pseudo_iteration_count,
       'shape_iteration_count': self.shape_iteration_count,
@@ -2495,6 +2588,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_source: str | None = None,
+  free_boundary_geometry_profile_y_m: tuple[float, ...] | None = None,
+  free_boundary_geometry_profile_x_stations_m: tuple[float, ...] | None = None,
+  free_boundary_geometry_profile_source: str | None = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   """Run the coupled research field from one bound mixed-regime reference.
 
@@ -2542,6 +2638,11 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
         free_boundary_pressure_profile_x_stations_m
       ),
       free_boundary_pressure_profile_source=free_boundary_pressure_profile_source,
+      free_boundary_geometry_profile_y_m=free_boundary_geometry_profile_y_m,
+      free_boundary_geometry_profile_x_stations_m=(
+        free_boundary_geometry_profile_x_stations_m
+      ),
+      free_boundary_geometry_profile_source=free_boundary_geometry_profile_source,
     )
   except (TypeError, ValueError) as error:
     return _failure(
@@ -3030,6 +3131,18 @@ def _free_boundary_pressure_targets(
     )
   ####
   return np.asarray(request.free_boundary_pressure_profile_Pa, dtype=float)
+####
+
+
+def _free_boundary_geometry_targets(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+) -> np.ndarray | None:
+  """Return absolute ordinate targets for the retained boundary nodes."""
+
+  if request.free_boundary_geometry_profile_y_m is None:
+    return None
+  ####
+  return np.asarray(request.free_boundary_geometry_profile_y_m, dtype=float)
 ####
 
 
@@ -4184,6 +4297,9 @@ def _result_from_field(
     free_boundary_pressure_profile_consumed=(
       request.free_boundary_pressure_profile_Pa is not None
     ),
+    free_boundary_geometry_profile_consumed=(
+      request.free_boundary_geometry_profile_y_m is not None
+    ),
     inlet_boundary_states_consumed=True,
     transonic_frontier_compatibility=transonic_frontier_compatibility,
     control_section_compatibility=control_section_compatibility,
@@ -4644,6 +4760,56 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       )
     ####
   ####
+  geometry_targets = _free_boundary_geometry_targets(request)
+  if request.free_boundary_geometry_profile_x_stations_m is not None:
+    supplied_geometry_x = np.asarray(
+      request.free_boundary_geometry_profile_x_stations_m,
+      dtype=float,
+    )
+    if not np.allclose(
+      supplied_geometry_x,
+      x_stations,
+      rtol=1.0e-9,
+      atol=1.0e-10,
+    ):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        'free-boundary geometry profile coordinates must match the coupled '
+        'boundary nodes; no spatial regridding or extrapolation was used',
+        request,
+      )
+    ####
+    if geometry_targets is None or len(geometry_targets) != len(x_stations):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        'free-boundary geometry profile must retain one ordinate per coupled '
+        'boundary node',
+        request,
+      )
+    ####
+    if np.any(geometry_targets <= lower_ordinate):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        'free-boundary geometry profile must remain strictly above the '
+        'centerline ordinate',
+        request,
+      )
+    ####
+    geometry_inlet_height = float(geometry_targets[0] - lower_ordinate)
+    if not np.isclose(
+      geometry_inlet_height,
+      inlet_height,
+      rtol=1.0e-9,
+      atol=max(1.0e-10, request.shape_convergence_tolerance),
+    ):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        'free-boundary geometry profile inlet ordinate must match the exact '
+        'coupled-field inlet section; no inlet seam correction was inferred',
+        request,
+      )
+    ####
+  ####
   pressure_targets = _free_boundary_pressure_targets(request)
   # An interior shock-interface profile starts a new downstream field at the
   # retained cross-section.  The upstream mixed-regime reference's outlet
@@ -4669,6 +4835,9 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     dtype=float,
   )
   free_boundary_heights[0] = inlet_height
+  if geometry_targets is not None:
+    free_boundary_heights = geometry_targets - lower_ordinate
+    free_boundary_heights[0] = inlet_height
   residual_history: list[float] = []
   shape_residual_history: list[float] = []
   states: np.ndarray | None = None
@@ -4791,6 +4960,13 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         (1.0 - request.shape_relaxation) * free_boundary_heights[i + 1]
         + request.shape_relaxation * target_height
       )
+    ####
+    if geometry_targets is not None:
+      # A retained geometry profile is an explicit boundary condition, not a
+      # diagnostic displacement.  Consume the exact aligned ordinates after
+      # the local pressure/tangency predictor has been evaluated so the
+      # residual report still exposes the cost of replacing that predictor.
+      new_heights[1:] = geometry_targets[1:] - lower_ordinate
     ####
     shape_residual = float(np.max(np.abs(new_heights - free_boundary_heights)))
     shape_residual_history.append(shape_residual)

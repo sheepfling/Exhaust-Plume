@@ -1435,3 +1435,22 @@ closure coefficients, identify physical shock-cell centers, accept the
 pressure-extrema diagnostic, or promote the reduced-order geometry into
 Visualization, Signature, ray-transfer, or FPA claims.  The recovered
 single-case archive therefore remains a typed missing-split blocker.
+
+### Explicit global/coupled boundary-geometry feedback checkpoint
+
+The downstream feedback lane now carries two separate solver-owned profiles:
+the relaxed static-pressure profile at cell centers and the exact retained
+free-boundary ordinate profile at boundary nodes.  Each profile keeps the
+global closure fingerprint, source identity, ordered stations, and its own
+research-only claim ceiling.  The coupled solver rejects station mismatch,
+out-of-domain geometry, and inlet-seam mismatch without regridding,
+extrapolation, or pressure-only substitution.
+
+The independent coupled-field audit rederives geometry-profile consumption
+from the retained boundary nodes.  An exactly aligned profile passes the local
+audit, while the current response fixture fails closed on the approximately
+half-metre global/coupled boundary mismatch at the downstream inlet.  The
+feedback runner records that typed second-solve failure rather than treating
+pressure convergence as geometric closure.  Global upstream feedback,
+canonical downstream closure, physical shock-cell fitting, provider-bound
+validation, and Signature/FPA promotion remain blocked.
