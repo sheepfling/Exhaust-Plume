@@ -1933,6 +1933,14 @@ def _moc_visualization(
   if transonic_geometry is None:
     transonic_geometry = getattr(source, 'shock_geometry', None)
   ####
+  coupled_interface = (
+    getattr(source, 'transonic_shock_interface', None)
+    if coupled_euler
+    else None
+  )
+  if transonic_geometry is None and coupled_interface is not None:
+    transonic_geometry = getattr(coupled_interface, 'shock_geometry', None)
+  ####
   if transonic_geometry is None and is_transonic_attachment:
     transonic_geometry = attachment_geometry
   ####
@@ -2004,6 +2012,28 @@ def _moc_visualization(
       normal_marker = _path3(
         'moc-transonic-shock-interface-normal',
         'solver-owned local shock-interface normal; not a global reflected closure',
+        (
+          (
+            point[0] - marker_half_length * cos(normal_angle),
+            point[1] - marker_half_length * sin(normal_angle),
+          ),
+          (
+            point[0] + marker_half_length * cos(normal_angle),
+            point[1] + marker_half_length * sin(normal_angle),
+          ),
+        ),
+      )
+      if normal_marker is not None:
+        paths.append(normal_marker)
+      ####
+    ####
+    if coupled_interface is not None:
+      normal_marker = _path3(
+        'moc-coupled-transonic-shock-interface-normal',
+        (
+          'audited shock-interface inlet handoff consumed by the coupled '
+          'field; interior placement remains unsupported'
+        ),
         (
           (
             point[0] - marker_half_length * cos(normal_angle),
@@ -2630,6 +2660,57 @@ def _moc_visualization(
         if value is not None and isfinite(float(value)):
           diagnostics[f'coupled_euler_transonic_shock_geometry_{name}'] = float(value)
         ####
+      ####
+    ####
+    interface = getattr(source, 'transonic_shock_interface', None)
+    if interface is not None:
+      interface_status = getattr(interface, 'status', '')
+      diagnostics['coupled_euler_transonic_shock_interface_status'] = str(
+        getattr(interface_status, 'value', interface_status)
+      )
+      diagnostics['coupled_euler_transonic_shock_interface_verified'] = bool(
+        getattr(interface, 'interface_verified', False)
+      )
+      diagnostics['coupled_euler_transonic_shock_interface_consumed'] = bool(
+        getattr(source, 'transonic_shock_interface_consumed', False)
+      )
+      diagnostics['coupled_euler_transonic_shock_interface_physical_closure_verified'] = bool(
+        getattr(interface, 'physical_closure_verified', False)
+      )
+      diagnostics['coupled_euler_transonic_shock_interface_chain_promotion_blocked'] = bool(
+        getattr(interface, 'chain_promotion_blocked', True)
+      )
+      diagnostics['coupled_euler_transonic_shock_interface_production_claim_allowed'] = bool(
+        getattr(interface, 'production_claim_allowed', False)
+      )
+      for prefix, sample_name in (
+        ('upstream', 'upstream_sample'),
+        ('downstream', 'downstream_sample'),
+      ):
+        sample = getattr(interface, sample_name, None)
+        if sample is None:
+          continue
+        ####
+        for name in (
+          'mach',
+          'flow_angle_rad',
+          'static_pressure_Pa',
+          'total_pressure_Pa',
+          'gamma',
+        ):
+          value = getattr(sample, name, None)
+          if value is not None and isfinite(float(value)):
+            diagnostics[
+              f'coupled_euler_transonic_shock_interface_{prefix}_{name}'
+            ] = float(value)
+          ####
+        ####
+      ####
+      interface_audit = getattr(interface, 'independent_measurement', None)
+      if interface_audit is not None:
+        diagnostics[
+          'coupled_euler_transonic_shock_interface_audit_verified'
+        ] = bool(getattr(interface_audit, 'converged', False))
       ####
     ####
   ####

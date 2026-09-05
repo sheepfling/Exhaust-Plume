@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import atan2, cos, log, pi, sin, sqrt
+from types import SimpleNamespace
 
 import pytest
 
+import exhaust_plume.models.moc.coupled_euler_free_boundary as coupled_euler
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
@@ -544,4 +546,57 @@ def test_transonic_interface_rejects_unverified_placement_and_tampering() -> Non
   audit = measure_moc_transonic_shock_interface(tampered)
   assert not audit.converged
   assert not audit.downstream_state_verified
+####
+
+
+def test_coupled_field_consumes_only_an_inlet_bound_interface_handoff() -> None:
+  placement = _placed_transonic_placement()
+  interface = solve_moc_transonic_shock_interface(
+    MocTransonicShockInterfaceRequest(placement=placement)
+  )
+  assert interface.downstream_sample is not None
+  sample = interface.downstream_sample
+  request = SimpleNamespace(
+    transonic_shock_interface=interface,
+    mixed_regime_request=SimpleNamespace(
+      control_section=SimpleNamespace(
+        samples=(SimpleNamespace(gamma=sample.gamma),),
+      ),
+    ),
+    gas_constant_J_kgK=287.05,
+    reference_total_temperature_K=1500.0,
+    transverse_cell_count=3,
+  )
+
+  states, consumed = coupled_euler._prepare_transonic_interface_inlet(
+    request,
+    x_start=sample.point_m[0],
+    lower_ordinate=sample.point_m[1] - 0.5,
+    inlet_height=1.0,
+  )
+
+  assert consumed is interface
+  assert len(states) == 3
+  for state in states:
+    _density, velocity_u, velocity_v, pressure, _temperature, sound_speed = (
+      coupled_euler._primitive_from_conservative(
+        state,
+        sample.gamma,
+        request.gas_constant_J_kgK,
+      )
+    )
+    assert pressure == pytest.approx(sample.static_pressure_Pa)
+    assert (
+      (velocity_u * velocity_u + velocity_v * velocity_v) ** 0.5 / sound_speed
+    ) == pytest.approx(sample.mach)
+  ####
+
+  with pytest.raises(RuntimeError, match='interior'):
+    coupled_euler._prepare_transonic_interface_inlet(
+      request,
+      x_start=sample.point_m[0] + 0.1,
+      lower_ordinate=sample.point_m[1] - 0.5,
+      inlet_height=1.0,
+    )
+  ####
 ####

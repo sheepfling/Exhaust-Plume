@@ -20,6 +20,7 @@ import numpy as np
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerControlSectionCompatibility,
+  MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerSubsonicPressureBudget,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
@@ -35,6 +36,13 @@ from exhaust_plume.models.moc.transonic_transition import (
   measure_moc_transonic_transition,
   measure_moc_transonic_shock_geometry,
   solve_moc_transonic_shock_geometry,
+)
+from exhaust_plume.models.moc.transonic_interface import (
+  MocTransonicShockInterfaceResult,
+  MocTransonicShockInterfaceStatus,
+)
+from exhaust_plume.validation.moc_transonic_interface import (
+  measure_moc_transonic_shock_interface,
 )
 
 __all__ = (
@@ -68,6 +76,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   TRANSONIC_TRANSITION_FAILURE = 'coupled-euler-audit-transonic-transition-failure'
   TRANSONIC_SHOCK_GEOMETRY_FAILURE = (
     'coupled-euler-audit-transonic-shock-geometry-failure'
+  )
+  TRANSONIC_SHOCK_INTERFACE_FAILURE = (
+    'coupled-euler-audit-transonic-shock-interface-failure'
   )
   CONTROL_SECTION_COMPATIBILITY_FAILURE = (
     'coupled-euler-audit-control-section-compatibility-failure'
@@ -109,6 +120,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   pressure_budget_verified: bool = False
   transonic_transition_verified: bool = False
   transonic_shock_geometry_verified: bool = False
+  transonic_shock_interface_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -185,6 +197,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'free_boundary_report_verified',
       'transonic_transition_verified',
       'transonic_shock_geometry_verified',
+      'transonic_shock_interface_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -230,6 +243,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.pressure_budget_verified
       and self.transonic_transition_verified
       and self.transonic_shock_geometry_verified
+      and self.transonic_shock_interface_verified
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
@@ -285,6 +299,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'pressure_budget_verified': self.pressure_budget_verified,
       'transonic_transition_verified': self.transonic_transition_verified,
       'transonic_shock_geometry_verified': self.transonic_shock_geometry_verified,
+      'transonic_shock_interface_verified': self.transonic_shock_interface_verified,
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
       ),
@@ -952,6 +967,108 @@ def _audit_transonic_shock_geometry(
 ####
 
 
+def _audit_transonic_shock_interface(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> tuple[bool, tuple[np.ndarray, ...] | None]:
+  """Re-derive the audited interface inlet handoff without trusting fields."""
+
+  request = candidate.request
+  if request is None:
+    return False, None
+  ####
+  expected = request.transonic_shock_interface
+  if expected is None:
+    return candidate.transonic_shock_interface is None and not (
+      candidate.transonic_shock_interface_consumed
+    ), None
+  ####
+  reported = candidate.transonic_shock_interface
+  if not isinstance(reported, MocTransonicShockInterfaceResult):
+    return False, None
+  ####
+  try:
+    interface_audit = measure_moc_transonic_shock_interface(reported)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return False, None
+  ####
+  if not interface_audit.converged:
+    return False, None
+  ####
+  if reported != expected:
+    return False, None
+  ####
+  if (
+    reported.status is not MocTransonicShockInterfaceStatus.CONVERGED_BOUNDED_INTERFACE
+    or not reported.interface_verified
+    or not candidate.transonic_shock_interface_consumed
+  ):
+    return False, None
+  ####
+  sample = reported.downstream_sample
+  geometry = reported.shock_geometry
+  if sample is None or geometry is None:
+    return False, None
+  ####
+  control = request.mixed_regime_request.control_section
+  lower_ordinate = control.points_m[0][1]
+  inlet_height = control.points_m[-1][1] - lower_ordinate
+  x_start = control.points_m[0][0]
+  x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+  y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
+  if abs(sample.point_m[0] - x_start) > x_tolerance:
+    return False, None
+  ####
+  if not (
+    lower_ordinate - y_tolerance
+    <= sample.point_m[1]
+    <= lower_ordinate + inlet_height + y_tolerance
+  ):
+    return False, None
+  ####
+  reference_sample = control.samples[-1]
+  shock_state = geometry.request.shock_state
+  if (
+    abs(sample.gamma - float(reference_sample.gamma)) > 1.0e-10
+    or abs(shock_state.gas_constant_J_kgK - request.gas_constant_J_kgK) > 1.0e-10
+    or abs(
+      shock_state.upstream_total_temperature_K
+      - request.reference_total_temperature_K
+    )
+    > 1.0e-8 * max(request.reference_total_temperature_K, 1.0)
+  ):
+    return False, None
+  ####
+  state = _from_sample(
+    sample.total_pressure_Pa,
+    sample.mach,
+    sample.flow_angle_rad,
+    sample.gamma,
+    request.reference_total_temperature_K,
+    request.gas_constant_J_kgK,
+  )
+  density, velocity_u, velocity_v, pressure, _temperature, sound_speed = _primitive(
+    state,
+    float(reference_sample.gamma),
+    request.gas_constant_J_kgK,
+  )
+  reconstructed_mach = float(
+    np.hypot(velocity_u, velocity_v) / max(sound_speed, 1.0e-12)
+  )
+  pressure_scale = max(sample.static_pressure_Pa, pressure, 1.0)
+  if (
+    abs(pressure - sample.static_pressure_Pa) / pressure_scale > 1.0e-8
+    or abs(reconstructed_mach - sample.mach) > 1.0e-8
+    or density <= 0.0
+  ):
+    return False, None
+  ####
+  return (
+    True,
+    tuple(state.copy() for _ in range(request.transverse_cell_count)),
+  )
+####
+
+
 def _audit_control_section_compatibility(
   candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
 ) -> tuple[bool, float | None, float | None]:
@@ -1139,7 +1256,7 @@ def _audit_field(
       'total pressure, Mach number, and gamma'
     )
   ####
-  transonic_shock_geometry_verified, inlet_override_states = (
+  transonic_shock_geometry_verified, geometry_override_states = (
     _audit_transonic_shock_geometry(candidate)
   )
   if not transonic_shock_geometry_verified:
@@ -1148,6 +1265,26 @@ def _audit_field(
       'branch re-derivation'
     )
   ####
+  transonic_shock_interface_verified, interface_override_states = (
+    _audit_transonic_shock_interface(candidate)
+  )
+  if not transonic_shock_interface_verified:
+    raise ValueError(
+      'audited transonic shock interface does not match its independent '
+      'handoff re-derivation'
+    )
+  ####
+  if geometry_override_states is not None and interface_override_states is not None:
+    raise ValueError(
+      'audited geometry and audited shock-interface inlet branches cannot '
+      'be active together'
+    )
+  ####
+  inlet_override_states = (
+    interface_override_states
+    if interface_override_states is not None
+    else geometry_override_states
+  )
   gas_constant = request.gas_constant_J_kgK
   points = np.empty((axial_count + 1, transverse_count + 1, 2), dtype=float)
   eta = np.linspace(0.0, 1.0, transverse_count + 1)
@@ -1430,6 +1567,7 @@ def _audit_field(
     'pressure_budget': pressure_budget,
     'expected_cell_count': expected_cell_count,
     'transonic_shock_geometry_verified': transonic_shock_geometry_verified,
+    'transonic_shock_interface_verified': transonic_shock_interface_verified,
   }
 ####
 
@@ -1448,6 +1586,17 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       None,
       'candidate must be a '
       'MocReflectedDomainCoupledEulerFreeBoundaryResult',
+    )
+  ####
+  if candidate.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_SHOCK_INTERFACE_FAILURE
+  ):
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_SHOCK_INTERFACE_FAILURE,
+      candidate,
+      candidate.message,
     )
   ####
   try:
@@ -1513,6 +1662,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   transonic_transition_verified = _audit_transonic_transition(candidate)
   transonic_shock_geometry_verified = bool(
     raw['transonic_shock_geometry_verified']
+  )
+  transonic_shock_interface_verified = bool(
+    raw['transonic_shock_interface_verified']
   )
   (
     control_section_compatibility_verified,
@@ -1606,6 +1758,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       'candidate scalar transonic shock geometry does not match its '
       'independent branch re-derivation'
     )
+  elif not transonic_shock_interface_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_SHOCK_INTERFACE_FAILURE
+    )
+    message = (
+      'candidate audited transonic shock interface does not match its '
+      'independent handoff re-derivation'
+    )
   elif not control_section_compatibility_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -1666,6 +1827,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     pressure_budget_verified=pressure_budget_verified,
     transonic_transition_verified=transonic_transition_verified,
     transonic_shock_geometry_verified=transonic_shock_geometry_verified,
+    transonic_shock_interface_verified=transonic_shock_interface_verified,
     control_section_compatibility_verified=(
       control_section_compatibility_verified
     ),

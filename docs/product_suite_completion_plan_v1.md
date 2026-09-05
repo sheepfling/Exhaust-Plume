@@ -991,3 +991,23 @@ The next P2.2b slice is to consume this handoff in the coupled reflected
 field solve and close the actual pressure/tangency seam.  A failed or
 unreachable interface must remain a typed stop; it must not fall back to the
 basic, reduced-order, or mapped variable-entropy lanes.
+
+### Coupled-field interface-inlet checkpoint
+
+The coupled constant-gamma research field now exposes an explicit
+``audited-shock-interface`` inlet mode.  It consumes the audited downstream
+sample, reconstructs the conservative inlet state from the retained total
+pressure, Mach number, flow angle, gamma, total temperature, and gas
+constant, and independently remeasures the interface before iteration.
+
+The mode accepts only an interface whose placement point is on the coupled
+field inlet section.  An interior placement is returned as the typed
+``INLET_SHOCK_INTERFACE_FAILURE`` stop; it is not projected to the inlet and
+does not fall back to ``scalar-normal-shock-branch`` or any lower-fidelity
+lane.  The standardized planar visualization now shows the consumed normal,
+interface samples, audit state, and explicit promotion flags.
+
+This closes a solver-to-field handoff contract, not the physical product
+claim.  The coupled field still needs an interior placed interface, actual
+pressure/tangency closure at that interface, independent refinement, physical
+shock-cell length comparison, and external validation before any promotion.

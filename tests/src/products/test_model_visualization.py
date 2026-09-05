@@ -395,6 +395,37 @@ def _coupled_euler_result() -> SimpleNamespace:
       upstream_normal_velocity_m_s=1350.0,
       downstream_normal_velocity_m_s=270.75,
     ),
+    transonic_shock_interface_consumed=True,
+    transonic_shock_interface=SimpleNamespace(
+      status='converged-bounded-transonic-shock-interface',
+      interface_verified=True,
+      physical_closure_verified=False,
+      chain_promotion_blocked=True,
+      production_claim_allowed=False,
+      placement_verified=True,
+      geometry_verified=True,
+      upstream_lineage_verified=True,
+      downstream_state_verified=True,
+      upstream_sample=SimpleNamespace(
+        mach=3.0,
+        flow_angle_rad=0.0,
+        static_pressure_Pa=60_000.0,
+        total_pressure_Pa=400_000.0,
+        gamma=1.4,
+      ),
+      downstream_sample=SimpleNamespace(
+        mach=0.475,
+        flow_angle_rad=0.0,
+        static_pressure_Pa=100_000.0,
+        total_pressure_Pa=210_000.0,
+        gamma=1.4,
+      ),
+      shock_geometry=SimpleNamespace(
+        shock_point_m=(0.0, 0.5),
+        shock_normal_angle_rad=0.0,
+      ),
+      independent_measurement=SimpleNamespace(converged=True),
+    ),
   )
 ####
 
@@ -525,6 +556,7 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
     'moc-ambient-boundary',
     'moc-centerline-boundary',
     'moc-transonic-shock-branch',
+    'moc-coupled-transonic-shock-interface-normal',
   }
   channels = {channel.channel_id: channel for channel in bundle.section_channels}
   assert channels['static_pressure'].unit == 'Pa'
@@ -556,6 +588,15 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert bundle.diagnostics['coupled_euler_transonic_shock_geometry_status'] == (
     'verified-normal-shock-geometry-binding'
   )
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_interface_status'
+  ] == 'converged-bounded-transonic-shock-interface'
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_interface_consumed'
+  ] is True
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_interface_downstream_mach'
+  ] == pytest.approx(0.475)
   assert bundle.diagnostics[
     'coupled_euler_transonic_shock_branch_marker_only'
   ] is True
