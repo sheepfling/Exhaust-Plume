@@ -2356,6 +2356,13 @@ def test_global_coupled_downstream_measures_boundary_overlap_without_promotion()
   assert len(response.matched_x_stations_m) == len(
     response.coupled_boundary_points_m
   )
+  assert len(response.coordinate_offsets_m) == len(response.matched_x_stations_m)
+  assert len(response.tangent_offsets_rad) == len(response.matched_x_stations_m)
+  assert len(response.pressure_offsets_Pa) == len(response.matched_x_stations_m)
+  assert len(response.normal_velocity_values_m_s) == len(
+    response.matched_x_stations_m
+  )
+  assert any(abs(value) > 0.0 for value in response.coordinate_offsets_m)
   assert response.maximum_pressure_residual_Pa >= 0.0
   assert result.global_coupling_verified is False
   assert result.downstream_boundary_closure_verified is False

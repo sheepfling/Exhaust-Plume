@@ -1360,9 +1360,10 @@ retained global boundary; it does not extrapolate or silently clip the
 response.
 
 The response report carries matched points, coordinate and tangent residuals,
-pressure residuals, normal-velocity residuals, coverage, and tolerances.  On
-the compatible research fixture the overlap is covered but its boundary path
-residual remains above the research tolerance, so the result is a typed
+pressure residuals, normal-velocity residuals, signed correction offsets,
+coverage, and tolerances.  On the compatible research fixture the overlap is
+covered but its boundary path residual remains above the research tolerance,
+so the result is a typed
 ``RESIDUAL_FAILURE`` diagnostic.  ``global_coupling_verified`` and the
 downstream-boundary closure gate remain false.  This is the measurement seam
 needed by the next fixed-point/global-frontier iteration; it is not a

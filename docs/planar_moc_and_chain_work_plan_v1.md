@@ -3854,8 +3854,9 @@ downstream point outside the retained global path; there is no extrapolation,
 clipping, or lower-fidelity replacement.
 
 The resulting research record contains matched points, geometric and tangent
-residuals, pressure residuals, normal-velocity residuals, coverage, and the
-declared tolerances.  The compatible fixture is covered but remains a typed
+residuals, pressure residuals, normal-velocity residuals, signed correction
+offsets, coverage, and the declared tolerances.  The compatible fixture is
+covered but remains a typed
 overlap residual failure, which makes the unresolved boundary mismatch
 visible without changing ``global_coupling_verified`` or the downstream
 closure gate.  This is the quantitative input to the next solver-owned

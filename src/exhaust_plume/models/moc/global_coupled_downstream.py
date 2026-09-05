@@ -256,6 +256,10 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
   tangent_residuals_rad: tuple[float, ...] = ()
   pressure_residuals_Pa: tuple[float, ...] = ()
   normal_velocity_residuals_m_s: tuple[float, ...] = ()
+  coordinate_offsets_m: tuple[float, ...] = ()
+  tangent_offsets_rad: tuple[float, ...] = ()
+  pressure_offsets_Pa: tuple[float, ...] = ()
+  normal_velocity_values_m_s: tuple[float, ...] = ()
   coordinate_tolerance_m: float = 1.0e-3
   tangent_tolerance_rad: float = 5.0e-2
   pressure_tolerance_Pa: float = 2.0e4
@@ -305,6 +309,18 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       ####
       object.__setattr__(self, name, values)
     ####
+    for name in (
+      'coordinate_offsets_m',
+      'tangent_offsets_rad',
+      'pressure_offsets_Pa',
+      'normal_velocity_values_m_s',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) for value in values):
+        raise ValueError(f'{name} must contain finite values')
+      ####
+      object.__setattr__(self, name, values)
+    ####
     for name in ('upstream_boundary_points_m', 'coupled_boundary_points_m'):
       points = tuple(
         (float(point[0]), float(point[1])) for point in getattr(self, name)
@@ -322,6 +338,10 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       len(self.tangent_residuals_rad),
       len(self.pressure_residuals_Pa),
       len(self.normal_velocity_residuals_m_s),
+      len(self.coordinate_offsets_m),
+      len(self.tangent_offsets_rad),
+      len(self.pressure_offsets_Pa),
+      len(self.normal_velocity_values_m_s),
     }
     if len(lengths) != 1:
       raise ValueError('downstream boundary response channels must be aligned')
@@ -394,6 +414,10 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       'tangent_residuals_rad': self.tangent_residuals_rad,
       'pressure_residuals_Pa': self.pressure_residuals_Pa,
       'normal_velocity_residuals_m_s': self.normal_velocity_residuals_m_s,
+      'coordinate_offsets_m': self.coordinate_offsets_m,
+      'tangent_offsets_rad': self.tangent_offsets_rad,
+      'pressure_offsets_Pa': self.pressure_offsets_Pa,
+      'normal_velocity_values_m_s': self.normal_velocity_values_m_s,
       'maximum_coordinate_residual_m': self.maximum_coordinate_residual_m,
       'maximum_tangent_residual_rad': self.maximum_tangent_residual_rad,
       'maximum_pressure_residual_Pa': self.maximum_pressure_residual_Pa,
@@ -533,6 +557,10 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
   tangent_residuals: list[float] = []
   pressure_residuals: list[float] = []
   normal_velocity_residuals: list[float] = []
+  coordinate_offsets: list[float] = []
+  tangent_offsets: list[float] = []
+  pressure_offsets: list[float] = []
+  normal_velocity_values: list[float] = []
   for index, point in enumerate(coupled_points):
     reference = _interpolate_downstream_boundary(
       upstream,
@@ -553,7 +581,9 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
     reference_y, reference_theta, reference_pressure = reference
     matched_x.append(float(point[0]))
     upstream_points.append((float(point[0]), reference_y))
-    coordinate_residuals.append(abs(float(point[1]) - reference_y))
+    coordinate_offset = float(point[1]) - reference_y
+    coordinate_offsets.append(coordinate_offset)
+    coordinate_residuals.append(abs(coordinate_offset))
     if index == 0:
       adjacent_pressure = coupled_pressures[0]
     elif index >= len(coupled_pressures):
@@ -563,7 +593,9 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
         coupled_pressures[index - 1] + coupled_pressures[index]
       )
     ####
-    pressure_residuals.append(abs(float(adjacent_pressure) - reference_pressure))
+    pressure_offset = float(adjacent_pressure) - reference_pressure
+    pressure_offsets.append(pressure_offset)
+    pressure_residuals.append(abs(pressure_offset))
     if index == 0:
       coupled_theta = atan2(
         coupled_points[1][1] - coupled_points[0][1],
@@ -575,16 +607,16 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
         point[0] - coupled_points[index - 1][0],
       )
     ####
-    tangent_residuals.append(abs(coupled_theta - reference_theta))
+    tangent_offset = coupled_theta - reference_theta
+    tangent_offsets.append(tangent_offset)
+    tangent_residuals.append(abs(tangent_offset))
     if index < len(coupled_normal_velocities):
-      normal_velocity_residuals.append(
-        abs(float(coupled_normal_velocities[index]))
-      )
+      normal_velocity_value = float(coupled_normal_velocities[index])
     else:
-      normal_velocity_residuals.append(
-        abs(float(coupled_normal_velocities[-1]))
-      )
+      normal_velocity_value = float(coupled_normal_velocities[-1])
     ####
+    normal_velocity_values.append(normal_velocity_value)
+    normal_velocity_residuals.append(abs(normal_velocity_value))
   ####
   coupled_boundary_points = tuple(
     (float(point[0]), float(point[1])) for point in coupled_points
@@ -620,6 +652,10 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
     tangent_residuals_rad=tuple(tangent_residuals),
     pressure_residuals_Pa=tuple(pressure_residuals),
     normal_velocity_residuals_m_s=tuple(normal_velocity_residuals),
+    coordinate_offsets_m=tuple(coordinate_offsets),
+    tangent_offsets_rad=tuple(tangent_offsets),
+    pressure_offsets_Pa=tuple(pressure_offsets),
+    normal_velocity_values_m_s=tuple(normal_velocity_values),
     coordinate_tolerance_m=tolerances[1],
     tangent_tolerance_rad=tolerances[2],
     pressure_tolerance_Pa=tolerances[3],
