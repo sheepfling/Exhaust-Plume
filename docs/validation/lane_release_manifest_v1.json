@@ -59,7 +59,7 @@
       "advertised_capabilities": [
         "plume.signature.spectral-radiant-intensity@1"
       ],
-      "claim_ceiling": "Versioned table/interpolation and explicit caller-bound LTE line-source spectral engineering only; no chemistry, atmosphere, detector, or external validation claim.",
+      "claim_ceiling": "Versioned table/interpolation and caller-bound LTE line-source/population spectral engineering only; no reactions, non-LTE inference, atmosphere, detector, or external validation claim.",
       "complexity_policy": "independent provider; no shock-cell backfill",
       "external_validation_status": "pending",
       "forbidden_capabilities": [
@@ -199,7 +199,7 @@
     "low_fidelity_promotion_forbidden": true
   },
   "release_provenance": {
-    "candidate_head_commit": "63d7cf77e4511abb116288f8d5149f8afe668621",
+    "candidate_head_commit": "ab17e671952378051c06ddc4b6972ed3e62fb5f8",
     "candidate_head_matches_recorded_freeze": false,
     "candidate_head_matches_validated_code_commit": false,
     "candidate_worktree_clean": true,
