@@ -1386,6 +1386,12 @@ def _entropy_characteristic_field_from_result(result: object) -> object | None:
   request = getattr(result, 'request', None)
   field = getattr(request, 'upstream_field', None)
   if field is None:
+    placement = getattr(request, 'placement', None)
+    if placement is not None:
+      return _entropy_characteristic_field_from_result(placement)
+    ####
+  ####
+  if field is None:
     transport = getattr(request, 'transport', None)
     if transport is not None:
       return _entropy_characteristic_field_from_result(transport)
@@ -1824,7 +1830,11 @@ def _moc_visualization(
     ####
   ####
 
-  placement_request = getattr(source, 'request', None)
+  placement_source = getattr(getattr(source, 'request', None), 'placement', None)
+  if placement_source is None and hasattr(source, 'placement_verified'):
+    placement_source = source
+  ####
+  placement_request = getattr(placement_source, 'request', None)
   placement_transport = getattr(placement_request, 'transport', None)
   transport_source = (
     placement_transport
@@ -1836,9 +1846,16 @@ def _moc_visualization(
     else None
   )
   is_transonic_placement = bool(
-    placement_transport is not None
-    and hasattr(source, 'intersection_point_m')
-    and hasattr(source, 'placement_verified')
+    placement_source is not None
+    and placement_transport is not None
+    and hasattr(placement_source, 'intersection_point_m')
+    and hasattr(placement_source, 'placement_verified')
+  )
+  is_transonic_interface = bool(
+    is_transonic_placement
+    and hasattr(source, 'interface_verified')
+    and hasattr(source, 'upstream_sample')
+    and hasattr(source, 'downstream_sample')
   )
   attachment_source = getattr(source, 'attachment', None)
   if attachment_source is None and transport_source is not None:
@@ -1981,6 +1998,25 @@ def _moc_visualization(
       )
       if placement_marker is not None:
         paths.append(placement_marker)
+      ####
+    ####
+    if is_transonic_interface:
+      normal_marker = _path3(
+        'moc-transonic-shock-interface-normal',
+        'solver-owned local shock-interface normal; not a global reflected closure',
+        (
+          (
+            point[0] - marker_half_length * cos(normal_angle),
+            point[1] - marker_half_length * sin(normal_angle),
+          ),
+          (
+            point[0] + marker_half_length * cos(normal_angle),
+            point[1] + marker_half_length * sin(normal_angle),
+          ),
+        ),
+      )
+      if normal_marker is not None:
+        paths.append(normal_marker)
       ####
     ####
     if is_transonic_attachment:
@@ -2285,12 +2321,12 @@ def _moc_visualization(
     ####
   ####
   if is_transonic_placement:
-    placement_status = getattr(source, 'status', '')
+    placement_status = getattr(placement_source, 'status', '')
     diagnostics['moc_transonic_placement_status'] = str(
       getattr(placement_status, 'value', placement_status)
     )
     diagnostics['moc_transonic_placement_verified'] = bool(
-      getattr(source, 'placement_verified', False)
+      getattr(placement_source, 'placement_verified', False)
     )
     diagnostics['moc_transonic_placement_frontier_kind'] = str(
       getattr(
@@ -2313,7 +2349,7 @@ def _moc_visualization(
       'transport_segment_index',
       'frontier_segment_index',
     ):
-      value = getattr(source, name, None)
+      value = getattr(placement_source, name, None)
       if value is not None:
         diagnostics[f'moc_transonic_placement_{name}'] = int(value)
       ####
@@ -2324,20 +2360,75 @@ def _moc_visualization(
       'state_seam_residual',
       'pressure_seam_residual',
     ):
-      value = getattr(source, name, None)
+      value = getattr(placement_source, name, None)
       if value is not None and isfinite(float(value)):
         diagnostics[f'moc_transonic_placement_{name}'] = float(value)
       ####
     ####
     diagnostics['moc_transonic_placement_physical_closure_verified'] = bool(
-      getattr(source, 'physical_closure_verified', False)
+      getattr(placement_source, 'physical_closure_verified', False)
     )
     diagnostics['moc_transonic_placement_chain_promotion_blocked'] = bool(
-      getattr(source, 'chain_promotion_blocked', True)
+      getattr(placement_source, 'chain_promotion_blocked', True)
     )
     diagnostics['moc_transonic_placement_production_claim_allowed'] = bool(
+      getattr(placement_source, 'production_claim_allowed', False)
+    )
+  ####
+  if is_transonic_interface:
+    interface_status = getattr(source, 'status', '')
+    diagnostics['moc_transonic_interface_status'] = str(
+      getattr(interface_status, 'value', interface_status)
+    )
+    diagnostics['moc_transonic_interface_verified'] = bool(
+      getattr(source, 'interface_verified', False)
+    )
+    diagnostics['moc_transonic_interface_physical_closure_verified'] = bool(
+      getattr(source, 'physical_closure_verified', False)
+    )
+    diagnostics['moc_transonic_interface_chain_promotion_blocked'] = bool(
+      getattr(source, 'chain_promotion_blocked', True)
+    )
+    diagnostics['moc_transonic_interface_production_claim_allowed'] = bool(
       getattr(source, 'production_claim_allowed', False)
     )
+    for prefix, sample_name in (
+      ('upstream', 'upstream_sample'),
+      ('downstream', 'downstream_sample'),
+    ):
+      sample = getattr(source, sample_name, None)
+      if sample is None:
+        continue
+      ####
+      for name in (
+        'mach',
+        'flow_angle_rad',
+        'static_pressure_Pa',
+        'total_pressure_Pa',
+        'gamma',
+      ):
+        value = getattr(sample, name, None)
+        if value is not None and isfinite(float(value)):
+          diagnostics[f'moc_transonic_interface_{prefix}_{name}'] = float(value)
+        ####
+      ####
+    ####
+    for name in (
+      'placement_verified',
+      'geometry_verified',
+      'upstream_lineage_verified',
+      'downstream_state_verified',
+    ):
+      diagnostics[f'moc_transonic_interface_{name}'] = bool(
+        getattr(source, name, False)
+      )
+    ####
+    audit = getattr(source, 'independent_measurement', None)
+    if audit is not None:
+      diagnostics['moc_transonic_interface_audit_verified'] = bool(
+        getattr(audit, 'converged', False)
+      )
+    ####
   ####
   if coupled_euler:
     request = getattr(source, 'request', None)
@@ -2597,7 +2688,11 @@ def _moc_visualization(
   if transonic_geometry is not None:
     warnings.append(
       (
-        'the transonic placement marker, frontier, and transport trace are '
+        'the transonic interface, placement marker, frontier, and transport trace are '
+        'bounded solver-owned diagnostics; they are not a globally placed '
+        'shock boundary'
+        if is_transonic_interface
+        else 'the transonic placement marker, frontier, and transport trace are '
         'bounded solver-owned diagnostics; they are not a globally placed '
         'shock boundary'
         if is_transonic_placement
@@ -2625,13 +2720,17 @@ def _moc_visualization(
       'planar-moc-coupled-euler-free-boundary'
       if coupled_euler
       else (
-        'planar-moc-transonic-frontier-placement'
-        if is_transonic_placement
+        'planar-moc-transonic-shock-interface'
+        if is_transonic_interface
         else (
-        'planar-moc-transonic-characteristic-transport'
-        if is_transonic_transport
-        else 'planar-moc-transonic-field-attachment'
-        if is_transonic_attachment else 'planar-moc-reflected-domain'
+          'planar-moc-transonic-frontier-placement'
+          if is_transonic_placement
+          else (
+            'planar-moc-transonic-characteristic-transport'
+            if is_transonic_transport
+            else 'planar-moc-transonic-field-attachment'
+            if is_transonic_attachment else 'planar-moc-reflected-domain'
+          )
         )
       )
     ),

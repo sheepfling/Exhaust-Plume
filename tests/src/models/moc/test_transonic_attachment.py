@@ -16,6 +16,8 @@ from exhaust_plume.models.moc import (
   MocTransonicCharacteristicTransportTermination,
   MocTransonicPlacementRequest,
   MocTransonicPlacementStatus,
+  MocTransonicShockInterfaceRequest,
+  MocTransonicShockInterfaceStatus,
   MocTransonicShockFieldAttachmentRequest,
   MocTransonicShockFieldAttachmentStatus,
   MocTransonicShockState,
@@ -27,10 +29,12 @@ from exhaust_plume.models.moc import (
   solve_attached_compression_to_turn,
   solve_moc_transonic_characteristic_transport,
   solve_moc_transonic_placement,
+  solve_moc_transonic_shock_interface,
   solve_moc_transonic_shock_field_attachment,
 )
 from exhaust_plume.validation import (
   measure_moc_transonic_characteristic_transport,
+  measure_moc_transonic_shock_interface,
   measure_moc_transonic_placement,
   measure_moc_transonic_shock_field_attachment,
 )
@@ -432,4 +436,112 @@ def test_transonic_placement_rejects_unresolved_frontier_and_missing_intersectio
   assert not missing.placement_verified
   assert unresolved.chain_promotion_blocked
   assert missing.chain_promotion_blocked
+####
+
+
+def _placed_transonic_placement():
+  field = _internal_field()
+  attachment = solve_moc_transonic_shock_field_attachment(
+    MocTransonicShockFieldAttachmentRequest(
+      upstream_field=field,
+      shock_state=_shock_state_for_node(field.nodes[0]),
+      state_tolerance=1.0e-8,
+      pressure_tolerance_fraction=1.0e-8,
+    )
+  )
+  transport = solve_moc_transonic_characteristic_transport(
+    MocTransonicCharacteristicTransportRequest(
+      attachment=attachment,
+      family=CharacteristicFamily.PLUS,
+      step_length_m=1.0e-2,
+      maximum_steps=64,
+    )
+  )
+  start = transport.samples[0]
+  normal = attachment.geometry.shock_normal_angle_rad
+  tangent = normal - 0.5 * pi
+  half_length = 0.01
+  frontier = tuple(
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=start.point_m[0] + offset * cos(tangent),
+        y_m=start.point_m[1] + offset * sin(tangent),
+        theta_rad=start.state.theta_rad,
+        mach=start.state.mach,
+        gamma=start.state.gamma,
+      ),
+      total_pressure_Pa=start.total_pressure_Pa,
+    )
+    for offset in (-half_length, half_length)
+  )
+  return solve_moc_transonic_placement(
+    MocTransonicPlacementRequest(
+      transport=transport,
+      target_frontier=frontier,
+      frontier_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+      frontier_fidelity=MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
+      frontier_source='test-resolved-neighboring-frontier',
+    )
+  )
+####
+
+
+def test_transonic_interface_carries_audited_downstream_sample() -> None:
+  placement = _placed_transonic_placement()
+  result = solve_moc_transonic_shock_interface(
+    MocTransonicShockInterfaceRequest(placement=placement)
+  )
+  audit = measure_moc_transonic_shock_interface(result)
+
+  assert result.status is (
+    MocTransonicShockInterfaceStatus.CONVERGED_BOUNDED_INTERFACE
+  )
+  assert result.converged
+  assert result.interface_verified
+  assert result.upstream_sample is not None
+  assert result.downstream_sample is not None
+  assert result.downstream_sample.mach < 1.0
+  assert result.downstream_sample.total_pressure_Pa < (
+    result.upstream_sample.total_pressure_Pa
+  )
+  assert audit.converged
+  assert audit.rederived
+  assert audit.placement_verified
+  assert audit.geometry_verified
+  assert audit.upstream_state_verified
+  assert audit.frontier_state_verified
+  assert audit.upstream_pressure_verified
+  assert audit.frontier_pressure_verified
+  assert audit.downstream_state_verified
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_transonic_interface_rejects_unverified_placement_and_tampering() -> None:
+  placement = _placed_transonic_placement()
+  unresolved = replace(
+    placement,
+    status=MocTransonicPlacementStatus.FRONTIER_NOT_REACHED,
+  )
+  rejected = solve_moc_transonic_shock_interface(
+    MocTransonicShockInterfaceRequest(placement=unresolved)
+  )
+  assert rejected.status is MocTransonicShockInterfaceStatus.PLACEMENT_REQUIRED
+  assert not rejected.converged
+  assert rejected.chain_promotion_blocked
+
+  result = solve_moc_transonic_shock_interface(
+    MocTransonicShockInterfaceRequest(placement=placement)
+  )
+  assert result.downstream_sample is not None
+  tampered_sample = replace(
+    result.downstream_sample,
+    mach=0.95,
+  )
+  tampered = replace(result, downstream_sample=tampered_sample)
+  audit = measure_moc_transonic_shock_interface(tampered)
+  assert not audit.converged
+  assert not audit.downstream_state_verified
 ####

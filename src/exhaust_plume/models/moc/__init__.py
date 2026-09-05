@@ -190,6 +190,13 @@ from exhaust_plume.models.moc.transonic_placement import (
   MocTransonicPlacementResult,
   solve_moc_transonic_placement,
 )
+from exhaust_plume.models.moc.transonic_interface import (
+  MocTransonicShockInterfaceStatus,
+  MocTransonicShockInterfaceSample,
+  MocTransonicShockInterfaceRequest,
+  MocTransonicShockInterfaceResult,
+  solve_moc_transonic_shock_interface,
+)
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
@@ -884,6 +891,11 @@ __all__ = (
   'MocTransonicPlacementRequest',
   'MocTransonicPlacementResult',
   'solve_moc_transonic_placement',
+  'MocTransonicShockInterfaceStatus',
+  'MocTransonicShockInterfaceSample',
+  'MocTransonicShockInterfaceRequest',
+  'MocTransonicShockInterfaceResult',
+  'solve_moc_transonic_shock_interface',
   'solve_mixed_regime_planar_free_boundary_reference',
   'build_mixed_regime_entropy_handoff',
   'solve_mixed_regime_entropy_transport_boundary',

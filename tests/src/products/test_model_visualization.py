@@ -741,6 +741,103 @@ def test_transonic_frontier_placement_visualization_retains_frontier_and_seams()
 ####
 
 
+def test_transonic_interface_visualization_retains_both_regime_samples() -> None:
+  class TransportResult:
+    request = _AttachmentResult.request
+    attachment = _AttachmentResult()
+    status = 'converged-bounded-transonic-characteristic-transport'
+    termination = 'bounded-field-boundary'
+    samples = (
+      SimpleNamespace(point_m=(1.0, 0.0)),
+      SimpleNamespace(point_m=(1.1, 0.1)),
+    )
+    segments = (SimpleNamespace(),)
+    bounded_transport_verified = True
+    physical_closure_verified = False
+    production_claim_allowed = False
+  ####
+
+  class PlacementResult:
+    request = SimpleNamespace(
+      transport=TransportResult(),
+      target_frontier=(
+        SimpleNamespace(point_m=(1.0, 0.2)),
+        SimpleNamespace(point_m=(1.1, 0.1)),
+      ),
+      frontier_kind='post-shock-field-perimeter',
+      frontier_fidelity='resolved-planar-moc',
+    )
+    status = 'converged-bounded-transonic-placement'
+    placement_verified = True
+    intersection_point_m = (1.1, 0.1)
+    physical_closure_verified = False
+    chain_promotion_blocked = True
+    production_claim_allowed = False
+    transport_segment_index = 0
+    frontier_segment_index = 0
+    transport_fraction = 1.0
+    frontier_fraction = 0.0
+    state_seam_residual = 0.0
+    pressure_seam_residual = 0.0
+  ####
+
+  class InterfaceResult:
+    request = SimpleNamespace(placement=PlacementResult())
+    status = 'converged-bounded-transonic-shock-interface'
+    interface_verified = True
+    placement_verified = True
+    geometry_verified = True
+    upstream_lineage_verified = True
+    downstream_state_verified = True
+    physical_closure_verified = False
+    chain_promotion_blocked = True
+    production_claim_allowed = False
+    shock_geometry = SimpleNamespace(
+      shock_point_m=(1.1, 0.1),
+      shock_normal_angle_rad=0.0,
+    )
+    upstream_sample = SimpleNamespace(
+      mach=2.0,
+      flow_angle_rad=0.0,
+      static_pressure_Pa=100_000.0,
+      total_pressure_Pa=1_000_000.0,
+      gamma=1.4,
+    )
+    downstream_sample = SimpleNamespace(
+      mach=0.6,
+      flow_angle_rad=0.0,
+      static_pressure_Pa=250_000.0,
+      total_pressure_Pa=800_000.0,
+      gamma=1.4,
+    )
+    independent_measurement = SimpleNamespace(converged=True)
+  ####
+
+  bundle = standardize_model_visualization(
+    InterfaceResult(),
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-transonic-shock-interface'
+  assert {path.path_id for path in bundle.paths} >= {
+    'moc-transonic-shock-interface-normal',
+    'moc-transonic-placement-frontier',
+    'moc-transonic-placement-intersection',
+  }
+  assert bundle.diagnostics['moc_transonic_interface_verified'] is True
+  assert bundle.diagnostics['moc_transonic_interface_upstream_mach'] == pytest.approx(2.0)
+  assert bundle.diagnostics['moc_transonic_interface_downstream_mach'] == pytest.approx(0.6)
+  assert bundle.diagnostics['moc_transonic_interface_audit_verified'] is True
+  assert bundle.claims.production_claim_allowed is False
+  assert any(
+    'transonic interface, placement marker' in warning
+    for warning in bundle.warnings
+  )
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_canonical_visual_result_retains_lane_metadata() -> None:
   bundle = standardize_model_visualization(_curved_result(), section_count=8)
   snapshot = SnapshotMetadata(

@@ -967,3 +967,27 @@ archives and disjoint splits are verified, and the exact frozen candidate
 reports `release_ready=true`.  Until then, the correct outcome is a clean,
 reproducible integration candidate with visible research and validation
 stops—not a production release.
+
+### Solver-owned shock-interface handoff checkpoint
+
+The next P2.2a seam now consumes the verified bounded placement and carries an
+explicit upstream/downstream interface record.  It reuses the exact placement
+point, scalar shock normal, upstream total-pressure lineage, and resolved
+frontier identity, then derives a subsonic downstream sample from the audited
+Rankine--Hugoniot state.  Its independent audit rederives the placement,
+geometry, both upstream lineages, pressure loss, and downstream state.
+
+The interface deliberately uses a scalar sample type for both sides.  The
+upstream MOC ``CharacteristicState`` remains supersonic-only; the downstream
+subsonic state is therefore not forced into the compatibility-network type.
+This prevents an invalid regime crossing from being hidden as a normal MOC
+node.  The standardized planar visualization exposes the interface normal,
+upstream/downstream Mach, static/total pressure, gamma, audit, and promotion
+flags.  The handoff remains research-only: it does not solve the surrounding
+mixed-regime field, ambient/free boundary, refinement ladder, physical cell
+length, or external product comparison.
+
+The next P2.2b slice is to consume this handoff in the coupled reflected
+field solve and close the actual pressure/tangency seam.  A failed or
+unreachable interface must remain a typed stop; it must not fall back to the
+basic, reduced-order, or mapped variable-entropy lanes.
