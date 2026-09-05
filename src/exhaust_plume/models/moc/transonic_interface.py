@@ -40,10 +40,14 @@ __all__ = (
   'MocTransonicShockInterfaceFieldProfileStatus',
   'MocTransonicShockInterfaceFieldProfileRequest',
   'MocTransonicShockInterfaceFieldProfileResult',
+  'MocTransonicShockInterfaceFieldPlacementStatus',
+  'MocTransonicShockInterfaceFieldPlacementRequest',
+  'MocTransonicShockInterfaceFieldPlacementResult',
   'MocTransonicShockInterfaceRequest',
   'MocTransonicShockInterfaceResult',
   'build_moc_transonic_shock_interface_profile',
   'build_moc_transonic_shock_interface_profile_from_field',
+  'build_moc_transonic_shock_interface_profile_from_field_placement',
   'solve_moc_transonic_shock_interface',
 )
 
@@ -838,6 +842,299 @@ class MocTransonicShockInterfaceFieldProfileResult:
         'research-only-physical-field-bound-transonic-interface; coupled '
         'pressure/tangency closure, refinement, shock-cell length, and external '
         'validation remain open'
+      ),
+      'request': self.request.as_report(),
+      'message': self.message,
+    }
+  ####
+####
+
+
+class MocTransonicShockInterfaceFieldPlacementStatus(str, Enum):
+  """Outcome of a solver-owned cross-section selection on a physical field."""
+
+  CONVERGED_SOLVER_PLACEMENT = (
+    'converged-solver-owned-physical-field-interface-placement'
+  )
+  INVALID_INPUT = 'invalid_input'
+  FIELD_SAMPLING_UNAVAILABLE = (
+    'transonic-interface-field-placement-sampling-unavailable'
+  )
+  FIELD_GEOMETRY_FAILURE = 'transonic-interface-field-placement-geometry-failure'
+  CROSS_SECTION_UNAVAILABLE = (
+    'transonic-interface-field-placement-cross-section-unavailable'
+  )
+  PROFILE_BUILD_FAILURE = (
+    'transonic-interface-field-placement-profile-build-failure'
+  )
+  INDEPENDENT_AUDIT_FAILURE = (
+    'transonic-interface-field-placement-independent-audit-failure'
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceFieldPlacementRequest:
+  """Select one bounded post-shock field cross-section without caller geometry.
+
+  The placement rule is deliberately mesh-bound.  It starts after the
+  retained shock endpoint, chooses the retained cell-strip midpoint nearest a
+  prescribed downstream fraction, and samples only inside the closed field.
+  It does not extrapolate a state, project a shock surface, or close the
+  downstream mixed-regime field.
+  """
+
+  field: MocPhysicalPostShockFieldResult
+  sample_count: int = 10
+  post_shock_fraction: float = 0.25
+  boundary_margin_fraction: float = 0.10
+  interface_normal_angle_rad: float = 0.0
+  profile_id: str = 'solver-owned-physical-field-transonic-profile-v1'
+  normal_alignment_tolerance_rad: float = 5.0e-2
+  position_tolerance_m: float = 1.0e-9
+  state_tolerance: float = 1.0e-6
+  pressure_tolerance: float = 1.0e-8
+  source: str = 'solver-owned-post-shock-field-cross-section-rule-v1'
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.field, MocPhysicalPostShockFieldResult):
+      raise TypeError('field must be a MocPhysicalPostShockFieldResult')
+    ####
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 3
+    ):
+      raise ValueError('sample_count must be an integer greater than or equal to three')
+    ####
+    for name in (
+      'post_shock_fraction',
+      'boundary_margin_fraction',
+      'interface_normal_angle_rad',
+      'normal_alignment_tolerance_rad',
+      'position_tolerance_m',
+      'state_tolerance',
+      'pressure_tolerance',
+    ):
+      value = _finite(name, getattr(self, name))
+      if value < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    if self.post_shock_fraction <= 0.0 or self.post_shock_fraction >= 1.0:
+      raise ValueError('post_shock_fraction must be strictly between zero and one')
+    ####
+    if self.boundary_margin_fraction >= 0.5:
+      raise ValueError('boundary_margin_fraction must be less than one half')
+    ####
+    for name in (
+      'normal_alignment_tolerance_rad',
+      'position_tolerance_m',
+      'state_tolerance',
+      'pressure_tolerance',
+    ):
+      if getattr(self, name) <= 0.0:
+        raise ValueError(f'{name} must be positive')
+      ####
+    ####
+    profile_id = str(self.profile_id)
+    source = str(self.source)
+    if not profile_id:
+      raise ValueError('profile_id must not be empty')
+    ####
+    if not source:
+      raise ValueError('source must not be empty')
+    ####
+    object.__setattr__(self, 'profile_id', profile_id)
+    object.__setattr__(self, 'source', source)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': 'research-solver-owned-physical-field-interface-placement-v1',
+      'source': self.source,
+      'field_status': self.field.status.value,
+      'field_physical_closure_verified': self.field.physical_closure_verified,
+      'field_state_sampling_available': self.field.state_sampling_available,
+      'sample_count': self.sample_count,
+      'post_shock_fraction': self.post_shock_fraction,
+      'boundary_margin_fraction': self.boundary_margin_fraction,
+      'interface_normal_angle_rad': self.interface_normal_angle_rad,
+      'profile_id': self.profile_id,
+      'normal_alignment_tolerance_rad': self.normal_alignment_tolerance_rad,
+      'position_tolerance_m': self.position_tolerance_m,
+      'state_tolerance': self.state_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceFieldPlacementResult:
+  """Audited mesh-bound interface placement and its derived profile."""
+
+  status: MocTransonicShockInterfaceFieldPlacementStatus
+  request: MocTransonicShockInterfaceFieldPlacementRequest
+  field: MocPhysicalPostShockFieldResult | None = None
+  selected_candidate_rank: int | None = None
+  cross_section_x_m: float | None = None
+  lower_ordinate_m: float | None = None
+  upper_ordinate_m: float | None = None
+  sample_points_m: tuple[tuple[float, float], ...] = ()
+  profile_result: MocTransonicShockInterfaceFieldProfileResult | None = None
+  independent_measurement: Any | None = None
+  field_lineage_verified: bool = False
+  cross_section_verified: bool = False
+  profile_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocTransonicShockInterfaceFieldPlacementStatus,
+    ):
+      raise TypeError(
+        'status must be a MocTransonicShockInterfaceFieldPlacementStatus'
+      )
+    ####
+    if not isinstance(
+      self.request,
+      MocTransonicShockInterfaceFieldPlacementRequest,
+    ):
+      raise TypeError(
+        'request must be a '
+        'MocTransonicShockInterfaceFieldPlacementRequest'
+      )
+    ####
+    if self.field is not None and not isinstance(
+      self.field,
+      MocPhysicalPostShockFieldResult,
+    ):
+      raise TypeError(
+        'field must be a MocPhysicalPostShockFieldResult or None'
+      )
+    ####
+    if self.selected_candidate_rank is not None and (
+      isinstance(self.selected_candidate_rank, bool)
+      or not isinstance(self.selected_candidate_rank, int)
+      or self.selected_candidate_rank < 0
+    ):
+      raise ValueError('selected_candidate_rank must be a nonnegative integer or None')
+    ####
+    for name in (
+      'cross_section_x_m',
+      'lower_ordinate_m',
+      'upper_ordinate_m',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        object.__setattr__(self, name, _finite(name, value))
+      ####
+    ####
+    points = tuple(
+      (float(point[0]), float(point[1])) for point in self.sample_points_m
+    )
+    if any(not all(isfinite(value) for value in point) for point in points):
+      raise ValueError('sample_points_m must contain finite points')
+    ####
+    object.__setattr__(self, 'sample_points_m', points)
+    if self.profile_result is not None and not isinstance(
+      self.profile_result,
+      MocTransonicShockInterfaceFieldProfileResult,
+    ):
+      raise TypeError(
+        'profile_result must be a '
+        'MocTransonicShockInterfaceFieldProfileResult or None'
+      )
+    ####
+    for name in (
+      'field_lineage_verified',
+      'cross_section_verified',
+      'profile_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def profile(self) -> MocTransonicShockInterfaceProfile | None:
+    return (
+      None
+      if self.profile_result is None
+      else self.profile_result.profile
+    )
+  ####
+
+  @property
+  def converged(self) -> bool:
+    audit = self.independent_measurement
+    return bool(
+      self.status is (
+        MocTransonicShockInterfaceFieldPlacementStatus
+        .CONVERGED_SOLVER_PLACEMENT
+      )
+      and self.field is not None
+      and self.field_lineage_verified
+      and self.cross_section_verified
+      and self.profile_verified
+      and self.profile_result is not None
+      and self.profile_result.converged
+      and self.profile is not None
+      and audit is not None
+      and bool(getattr(audit, 'converged', False))
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    audit = self.independent_measurement
+    return {
+      'status': self.status.value,
+      'model': 'research-solver-owned-physical-field-interface-placement-v1',
+      'converged': self.converged,
+      'field_lineage_verified': self.field_lineage_verified,
+      'cross_section_verified': self.cross_section_verified,
+      'profile_verified': self.profile_verified,
+      'selected_candidate_rank': self.selected_candidate_rank,
+      'cross_section_x_m': self.cross_section_x_m,
+      'lower_ordinate_m': self.lower_ordinate_m,
+      'upper_ordinate_m': self.upper_ordinate_m,
+      'sample_points_m': [list(point) for point in self.sample_points_m],
+      'field_status': None if self.field is None else self.field.status.value,
+      'profile_result': (
+        None if self.profile_result is None else self.profile_result.as_report()
+      ),
+      'independent_measurement': (
+        None
+        if audit is None or not hasattr(audit, 'as_report')
+        else audit.as_report()
+      ),
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'research-only-solver-owned-field-cross-section; surrounding mixed-'
+        'regime closure, physical shock-cell length, and external validation '
+        'remain open'
       ),
       'request': self.request.as_report(),
       'message': self.message,
@@ -1865,6 +2162,381 @@ def build_moc_transonic_shock_interface_profile_from_field(
     message=(
       'physical-field sample lineage and normal-shock profile rederivation '
       'passed; global mixed-regime closure remains pending'
+    ),
+  )
+####
+
+
+def _vertical_cell_interval(
+  polygon: tuple[tuple[float, float], ...],
+  x_m: float,
+  tolerance_m: float,
+) -> tuple[float, float] | None:
+  ordinates: list[float] = []
+  for first, second in zip(polygon, (*polygon[1:], polygon[0])):
+    first_x, first_y = first
+    second_x, second_y = second
+    delta_x = second_x - first_x
+    if abs(delta_x) <= tolerance_m:
+      continue
+    ####
+    fraction = (x_m - first_x) / delta_x
+    if -tolerance_m <= fraction <= 1.0 + tolerance_m:
+      ordinates.append(first_y + fraction * (second_y - first_y))
+    ####
+  ####
+  if len(ordinates) < 2:
+    return None
+  ####
+  return min(ordinates), max(ordinates)
+####
+
+
+def _field_vertical_interval(
+  field: MocPhysicalPostShockFieldResult,
+  x_m: float,
+  tolerance_m: float,
+) -> tuple[float, float] | None:
+  intervals: list[tuple[float, float]] = []
+  for cell_vertices, _states, _pressures in field.cell_state_samples(
+    position_tolerance_m=tolerance_m,
+  ):
+    interval = _vertical_cell_interval(cell_vertices, x_m, tolerance_m)
+    if interval is not None and interval[1] > interval[0] + tolerance_m:
+      intervals.append(interval)
+    ####
+  ####
+  if not intervals:
+    return None
+  ####
+  intervals.sort()
+  merged: list[list[float]] = []
+  for lower, upper in intervals:
+    if not merged or lower > merged[-1][1] + tolerance_m:
+      merged.append([lower, upper])
+    else:
+      merged[-1][1] = max(merged[-1][1], upper)
+    ####
+  ####
+  if len(merged) != 1:
+    return None
+  ####
+  lower, upper = merged[0]
+  return lower, upper
+####
+
+
+def _field_cross_section_candidates(
+  request: MocTransonicShockInterfaceFieldPlacementRequest,
+) -> tuple[float, ...]:
+  field = request.field
+  if len(field.shock_boundary_points_m) < 2:
+    raise ValueError('physical field retained no shock-boundary endpoint')
+  ####
+  cell_samples = field.cell_state_samples(
+    position_tolerance_m=request.position_tolerance_m,
+  )
+  if len(cell_samples) != len(field.cells):
+    raise ValueError(
+      'physical field cell sampler did not retain every closed-field cell'
+    )
+  ####
+  endpoint_x = field.shock_boundary_points_m[-1][0]
+  x_breaks = sorted(
+    {
+      float(point[0])
+      for cell_vertices, _states, _pressures in cell_samples
+      for point in cell_vertices
+    }
+  )
+  candidates = tuple(
+    0.5 * (first + second)
+    for first, second in zip(x_breaks, x_breaks[1:])
+    if second - first > request.position_tolerance_m
+    and 0.5 * (first + second) > endpoint_x + request.position_tolerance_m
+  )
+  if not candidates:
+    raise ValueError(
+      'physical field has no retained interior cross-section after the '
+      'shock endpoint'
+    )
+  ####
+  maximum_x = max(candidates)
+  target_x = endpoint_x + request.post_shock_fraction * (
+    maximum_x - endpoint_x
+  )
+  return tuple(
+    sorted(candidates, key=lambda candidate: (abs(candidate - target_x), candidate))
+  )
+####
+
+
+def _derive_field_placement(
+  request: MocTransonicShockInterfaceFieldPlacementRequest,
+) -> tuple[
+  int,
+  float,
+  float,
+  float,
+  tuple[tuple[float, float], ...],
+  MocTransonicShockInterfaceFieldProfileResult,
+]:
+  candidates = _field_cross_section_candidates(request)
+  last_profile: MocTransonicShockInterfaceFieldProfileResult | None = None
+  for rank, x_m in enumerate(candidates):
+    interval = _field_vertical_interval(
+      request.field,
+      x_m,
+      request.position_tolerance_m,
+    )
+    if interval is None:
+      continue
+    ####
+    lower, upper = interval
+    span = upper - lower
+    margin = request.boundary_margin_fraction * span
+    sampled_lower = lower + margin
+    sampled_upper = upper - margin
+    if sampled_upper <= sampled_lower + request.position_tolerance_m:
+      continue
+    ####
+    sample_points = tuple(
+      (
+        x_m,
+        sampled_lower
+        + index * (sampled_upper - sampled_lower) / (request.sample_count - 1),
+      )
+      for index in range(request.sample_count)
+    )
+    profile_request = MocTransonicShockInterfaceFieldProfileRequest(
+      field=request.field,
+      sample_points_m=sample_points,
+      interface_normal_angle_rad=request.interface_normal_angle_rad,
+      profile_id=request.profile_id,
+      normal_alignment_tolerance_rad=request.normal_alignment_tolerance_rad,
+      position_tolerance_m=request.position_tolerance_m,
+      state_tolerance=request.state_tolerance,
+      pressure_tolerance=request.pressure_tolerance,
+      source=request.source,
+    )
+    profile_result = build_moc_transonic_shock_interface_profile_from_field(
+      profile_request
+    )
+    last_profile = profile_result
+    if profile_result.converged:
+      return rank, x_m, sampled_lower, sampled_upper, sample_points, profile_result
+    ####
+  ####
+  if last_profile is not None:
+    raise RuntimeError(
+      'no solver-owned post-shock cross-section produced a converged profile: '
+      f'{last_profile.message}'
+    )
+  ####
+  raise RuntimeError(
+    'no solver-owned post-shock cross-section contained a complete sampled '
+    'vertical interval'
+  )
+####
+
+
+def _field_placement_failure(
+  status: MocTransonicShockInterfaceFieldPlacementStatus,
+  request: MocTransonicShockInterfaceFieldPlacementRequest,
+  *,
+  field: MocPhysicalPostShockFieldResult | None = None,
+  selected_candidate_rank: int | None = None,
+  cross_section_x_m: float | None = None,
+  lower_ordinate_m: float | None = None,
+  upper_ordinate_m: float | None = None,
+  sample_points_m: tuple[tuple[float, float], ...] = (),
+  profile_result: MocTransonicShockInterfaceFieldProfileResult | None = None,
+  independent_measurement: Any | None = None,
+  field_lineage_verified: bool = False,
+  cross_section_verified: bool = False,
+  profile_verified: bool = False,
+  message: str,
+) -> MocTransonicShockInterfaceFieldPlacementResult:
+  return MocTransonicShockInterfaceFieldPlacementResult(
+    status=status,
+    request=request,
+    field=field,
+    selected_candidate_rank=selected_candidate_rank,
+    cross_section_x_m=cross_section_x_m,
+    lower_ordinate_m=lower_ordinate_m,
+    upper_ordinate_m=upper_ordinate_m,
+    sample_points_m=sample_points_m,
+    profile_result=profile_result,
+    independent_measurement=independent_measurement,
+    field_lineage_verified=field_lineage_verified,
+    cross_section_verified=cross_section_verified,
+    profile_verified=profile_verified,
+    message=message,
+  )
+####
+
+
+def build_moc_transonic_shock_interface_profile_from_field_placement(
+  request: MocTransonicShockInterfaceFieldPlacementRequest,
+) -> MocTransonicShockInterfaceFieldPlacementResult:
+  """Select and audit a post-shock profile using a solver-owned field rule."""
+
+  if not isinstance(
+    request,
+    MocTransonicShockInterfaceFieldPlacementRequest,
+  ):
+    raise TypeError(
+      'request must be a '
+      'MocTransonicShockInterfaceFieldPlacementRequest'
+    )
+  ####
+  field = request.field
+  field_lineage_verified = bool(
+    field.converged
+    and field.physical_closure_verified
+    and field.state_sampling_available
+  )
+  if not field_lineage_verified:
+    return _field_placement_failure(
+      MocTransonicShockInterfaceFieldPlacementStatus.FIELD_SAMPLING_UNAVAILABLE,
+      request,
+      field=field,
+      message=(
+        'solver-owned field placement requires a converged physical field '
+        'with physical closure and complete state sampling'
+      ),
+    )
+  ####
+  try:
+    (
+      selected_rank,
+      cross_section_x,
+      lower,
+      upper,
+      sample_points,
+      profile_result,
+    ) = _derive_field_placement(request)
+  except ValueError as error:
+    return _field_placement_failure(
+      MocTransonicShockInterfaceFieldPlacementStatus.FIELD_GEOMETRY_FAILURE,
+      request,
+      field=field,
+      field_lineage_verified=True,
+      message=str(error),
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, RuntimeError) as error:
+    return _field_placement_failure(
+      MocTransonicShockInterfaceFieldPlacementStatus.CROSS_SECTION_UNAVAILABLE,
+      request,
+      field=field,
+      field_lineage_verified=True,
+      message=str(error),
+    )
+  ####
+  if not profile_result.converged or profile_result.profile is None:
+    return _field_placement_failure(
+      MocTransonicShockInterfaceFieldPlacementStatus.PROFILE_BUILD_FAILURE,
+      request,
+      field=field,
+      selected_candidate_rank=selected_rank,
+      cross_section_x_m=cross_section_x,
+      lower_ordinate_m=lower,
+      upper_ordinate_m=upper,
+      sample_points_m=sample_points,
+      profile_result=profile_result,
+      field_lineage_verified=True,
+      cross_section_verified=True,
+      message=(
+        'solver-owned field placement selected a cross-section, but its '
+        f'profile did not converge: {profile_result.message}'
+      ),
+    )
+  ####
+  result = MocTransonicShockInterfaceFieldPlacementResult(
+    status=(
+      MocTransonicShockInterfaceFieldPlacementStatus
+      .CONVERGED_SOLVER_PLACEMENT
+    ),
+    request=request,
+    field=field,
+    selected_candidate_rank=selected_rank,
+    cross_section_x_m=cross_section_x,
+    lower_ordinate_m=lower,
+    upper_ordinate_m=upper,
+    sample_points_m=sample_points,
+    profile_result=profile_result,
+    field_lineage_verified=True,
+    cross_section_verified=True,
+    profile_verified=True,
+    message=(
+      'solver-owned post-shock field cross-section and normal-shock profile '
+      'were independently bound; surrounding mixed-regime closure remains open'
+    ),
+  )
+  try:
+    from exhaust_plume.validation.moc_transonic_interface import (
+      measure_moc_transonic_shock_interface_field_placement,
+    )
+
+    audit = measure_moc_transonic_shock_interface_field_placement(result)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _field_placement_failure(
+      MocTransonicShockInterfaceFieldPlacementStatus.INDEPENDENT_AUDIT_FAILURE,
+      request,
+      field=field,
+      selected_candidate_rank=selected_rank,
+      cross_section_x_m=cross_section_x,
+      lower_ordinate_m=lower,
+      upper_ordinate_m=upper,
+      sample_points_m=sample_points,
+      profile_result=profile_result,
+      field_lineage_verified=True,
+      cross_section_verified=True,
+      profile_verified=True,
+      message=f'independent field-placement audit raised: {error}',
+    )
+  ####
+  if not audit.converged:
+    return _field_placement_failure(
+      MocTransonicShockInterfaceFieldPlacementStatus.INDEPENDENT_AUDIT_FAILURE,
+      request,
+      field=field,
+      selected_candidate_rank=selected_rank,
+      cross_section_x_m=cross_section_x,
+      lower_ordinate_m=lower,
+      upper_ordinate_m=upper,
+      sample_points_m=sample_points,
+      profile_result=profile_result,
+      independent_measurement=audit,
+      field_lineage_verified=True,
+      cross_section_verified=True,
+      profile_verified=True,
+      message=(
+        'solver-owned field placement was derived, but its independent audit '
+        f'did not pass: {audit.message}'
+      ),
+    )
+  ####
+  return MocTransonicShockInterfaceFieldPlacementResult(
+    status=(
+      MocTransonicShockInterfaceFieldPlacementStatus
+      .CONVERGED_SOLVER_PLACEMENT
+    ),
+    request=request,
+    field=field,
+    selected_candidate_rank=selected_rank,
+    cross_section_x_m=cross_section_x,
+    lower_ordinate_m=lower,
+    upper_ordinate_m=upper,
+    sample_points_m=sample_points,
+    profile_result=profile_result,
+    independent_measurement=audit,
+    field_lineage_verified=True,
+    cross_section_verified=True,
+    profile_verified=True,
+    message=(
+      'solver-owned field placement and independent cross-section/profile '
+      'audit passed; global mixed-regime closure remains pending'
     ),
   )
 ####

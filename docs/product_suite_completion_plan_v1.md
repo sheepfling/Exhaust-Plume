@@ -1194,3 +1194,21 @@ ordinate span, with a regression assertion on the target handoff.
 This is a numerical-boundary correction: the target case still fails its
 pressure/tangency residual gate, so local field closure, canonical reflected
 closure, physical shock-cell fitting, and production promotion remain open.
+
+### Solver-owned physical-field placement checkpoint
+
+The field-to-interface bridge now has a solver-owned placement rule.  It
+starts after the retained shock endpoint, enumerates the closed field's
+retained cell-strip midpoints, selects the midpoint nearest the declared
+post-shock fraction, and accepts only a contiguous vertical interval whose
+sampled states remain in the field, supersonic, and aligned with the declared
+interface normal.  The selected samples are then passed through the existing
+audited normal-shock profile builder.
+
+The actual global field selects a cross-section near ``x=5.4957 m`` with ten
+exact field samples; an independent operator reproduces the candidate order,
+cross-section, sample points, regime checks, and profile audit.  Tampering with
+the selected cross-section is rejected.  This removes caller-selected
+geometry from the next handoff, but it remains a research interface profile:
+the coupled pressure/tangency solve, refinement, physical shock-cell length,
+and provider-bound validation are still open.

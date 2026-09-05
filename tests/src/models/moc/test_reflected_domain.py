@@ -36,6 +36,8 @@ from exhaust_plume.models.moc import (
   MocTransonicShockGeometryStatus,
   MocTransonicShockInterfaceFieldProfileRequest,
   MocTransonicShockInterfaceFieldProfileStatus,
+  MocTransonicShockInterfaceFieldPlacementRequest,
+  MocTransonicShockInterfaceFieldPlacementStatus,
   MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceSample,
   MocTransonicTransitionStatus,
@@ -82,6 +84,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   build_moc_transonic_shock_interface_profile_from_field,
+  build_moc_transonic_shock_interface_profile_from_field_placement,
   moc_reflected_domain_global_physical_closure_fingerprint,
   solve_reflected_domain_outer_source_curve,
   solve_underexpanded_expansion_fan,
@@ -131,7 +134,9 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
 )
 from exhaust_plume.validation.moc_transonic_interface import (
   MocTransonicShockInterfaceFieldProfileAuditStatus,
+  MocTransonicShockInterfaceFieldPlacementAuditStatus,
   MocTransonicShockInterfaceProfileAuditStatus,
+  measure_moc_transonic_shock_interface_field_placement,
   measure_moc_transonic_shock_interface_profile_from_field,
   measure_moc_transonic_shock_interface_profile,
 )
@@ -418,6 +423,55 @@ def test_global_physical_field_binds_an_audited_profile_to_the_coupled_lane():
     bound.profile.upper_ordinate_m - 1.0e-12
   )
   assert coupled.production_claim_allowed is False
+####
+
+
+def test_global_physical_field_uses_solver_owned_cross_section_placement():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  field = closure.global_euler.physical_field.field
+  placement = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(field=field)
+  )
+  assert placement.status is (
+    MocTransonicShockInterfaceFieldPlacementStatus
+    .CONVERGED_SOLVER_PLACEMENT
+  )
+  assert placement.converged
+  assert placement.profile is not None
+  assert placement.cross_section_x_m is not None
+  assert placement.lower_ordinate_m is not None
+  assert placement.upper_ordinate_m is not None
+  assert len(placement.sample_points_m) == 10
+  assert placement.profile.cross_section_x_m == pytest.approx(
+    placement.cross_section_x_m
+  )
+  assert placement.profile.lower_ordinate_m == pytest.approx(
+    placement.lower_ordinate_m
+  )
+  assert placement.profile.upper_ordinate_m == pytest.approx(
+    placement.upper_ordinate_m
+  )
+  audit = measure_moc_transonic_shock_interface_field_placement(placement)
+  assert audit.status is MocTransonicShockInterfaceFieldPlacementAuditStatus.VERIFIED
+  assert audit.converged
+  assert audit.rederived
+  assert audit.selected_candidate_verified
+  assert audit.cross_section_verified
+  assert audit.profile_verified
+  assert audit.maximum_sample_point_residual_m == pytest.approx(0.0)
+
+  tampered = replace(
+    placement,
+    cross_section_x_m=placement.cross_section_x_m + 1.0e-3,
+  )
+  tampered_audit = measure_moc_transonic_shock_interface_field_placement(
+    tampered
+  )
+  assert not tampered_audit.converged
+  assert not tampered_audit.cross_section_verified
 ####
 
 

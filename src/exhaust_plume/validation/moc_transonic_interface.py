@@ -15,6 +15,8 @@ from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceProfileBuildStatus,
   MocTransonicShockInterfaceFieldProfileResult,
   MocTransonicShockInterfaceFieldProfileStatus,
+  MocTransonicShockInterfaceFieldPlacementResult,
+  MocTransonicShockInterfaceFieldPlacementStatus,
   MocTransonicShockInterfaceResult,
   MocTransonicShockInterfaceStatus,
 )
@@ -42,6 +44,9 @@ __all__ = (
   'MocTransonicShockInterfaceFieldProfileAuditStatus',
   'MocTransonicShockInterfaceFieldProfileAudit',
   'measure_moc_transonic_shock_interface_profile_from_field',
+  'MocTransonicShockInterfaceFieldPlacementAuditStatus',
+  'MocTransonicShockInterfaceFieldPlacementAudit',
+  'measure_moc_transonic_shock_interface_field_placement',
 )
 
 
@@ -1048,6 +1053,384 @@ def measure_moc_transonic_shock_interface_profile_from_field(
       if verified
       else 'field-bound transonic profile does not match the retained field '
       'or its independent profile audit'
+    ),
+  )
+####
+
+
+class MocTransonicShockInterfaceFieldPlacementAuditStatus(str, Enum):
+  """Independent audit outcome for solver-owned field placement."""
+
+  VERIFIED = 'verified-solver-owned-field-placement-audit'
+  RESULT_FAILURE = 'solver-owned-field-placement-result-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceFieldPlacementAudit:
+  """Re-derive the selected mesh strip and its field-bound profile."""
+
+  status: MocTransonicShockInterfaceFieldPlacementAuditStatus
+  result_status: MocTransonicShockInterfaceFieldPlacementStatus
+  rederived: bool
+  field_lineage_verified: bool
+  cross_section_verified: bool
+  selected_candidate_verified: bool
+  profile_verified: bool
+  cross_section_x_residual_m: float | None
+  lower_ordinate_residual_m: float | None
+  upper_ordinate_residual_m: float | None
+  maximum_sample_point_residual_m: float | None
+  profile_audit: MocTransonicShockInterfaceFieldProfileAudit | None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocTransonicShockInterfaceFieldPlacementAuditStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocTransonicShockInterfaceFieldPlacementAuditStatus'
+      )
+    ####
+    if not isinstance(
+      self.result_status,
+      MocTransonicShockInterfaceFieldPlacementStatus,
+    ):
+      raise TypeError(
+        'result_status must be a '
+        'MocTransonicShockInterfaceFieldPlacementStatus'
+      )
+    ####
+    for name in (
+      'rederived',
+      'field_lineage_verified',
+      'cross_section_verified',
+      'selected_candidate_verified',
+      'profile_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    for name in (
+      'cross_section_x_residual_m',
+      'lower_ordinate_residual_m',
+      'upper_ordinate_residual_m',
+      'maximum_sample_point_residual_m',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      ####
+      numeric = float(value)
+      if numeric < 0.0:
+        raise ValueError(f'{name} must be nonnegative when supplied')
+      ####
+      object.__setattr__(self, name, numeric)
+    ####
+    if self.profile_audit is not None and not isinstance(
+      self.profile_audit,
+      MocTransonicShockInterfaceFieldProfileAudit,
+    ):
+      raise TypeError(
+        'profile_audit must be a '
+        'MocTransonicShockInterfaceFieldProfileAudit or None'
+      )
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocTransonicShockInterfaceFieldPlacementAuditStatus.VERIFIED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'result_status': self.result_status.value,
+      'converged': self.converged,
+      'rederived': self.rederived,
+      'field_lineage_verified': self.field_lineage_verified,
+      'cross_section_verified': self.cross_section_verified,
+      'selected_candidate_verified': self.selected_candidate_verified,
+      'profile_verified': self.profile_verified,
+      'cross_section_x_residual_m': self.cross_section_x_residual_m,
+      'lower_ordinate_residual_m': self.lower_ordinate_residual_m,
+      'upper_ordinate_residual_m': self.upper_ordinate_residual_m,
+      'maximum_sample_point_residual_m': self.maximum_sample_point_residual_m,
+      'profile_audit': (
+        None if self.profile_audit is None else self.profile_audit.as_report()
+      ),
+      'physical_closure_verified': False,
+      'production_claim_allowed': False,
+      'message': self.message,
+    }
+  ####
+####
+
+
+def _independent_vertical_interval(
+  polygon: tuple[tuple[float, float], ...],
+  x_m: float,
+  tolerance_m: float,
+) -> tuple[float, float] | None:
+  ordinates: list[float] = []
+  for first, second in zip(polygon, (*polygon[1:], polygon[0])):
+    delta_x = second[0] - first[0]
+    if abs(delta_x) <= tolerance_m:
+      continue
+    ####
+    fraction = (x_m - first[0]) / delta_x
+    if -tolerance_m <= fraction <= 1.0 + tolerance_m:
+      ordinates.append(first[1] + fraction * (second[1] - first[1]))
+    ####
+  ####
+  if len(ordinates) < 2:
+    return None
+  ####
+  return min(ordinates), max(ordinates)
+####
+
+
+def _independent_field_interval(
+  field: Any,
+  x_m: float,
+  tolerance_m: float,
+) -> tuple[float, float] | None:
+  intervals = []
+  for vertices, _states, _pressures in field.cell_state_samples(
+    position_tolerance_m=tolerance_m,
+  ):
+    interval = _independent_vertical_interval(vertices, x_m, tolerance_m)
+    if interval is not None and interval[1] > interval[0] + tolerance_m:
+      intervals.append(interval)
+    ####
+  ####
+  intervals.sort()
+  merged: list[list[float]] = []
+  for lower, upper in intervals:
+    if not merged or lower > merged[-1][1] + tolerance_m:
+      merged.append([lower, upper])
+    else:
+      merged[-1][1] = max(merged[-1][1], upper)
+    ####
+  ####
+  if len(merged) != 1:
+    return None
+  ####
+  return merged[0][0], merged[0][1]
+####
+
+
+def _independent_placement_geometry(
+  result: MocTransonicShockInterfaceFieldPlacementResult,
+) -> tuple[
+  int,
+  float,
+  float,
+  float,
+  tuple[tuple[float, float], ...],
+]:
+  request = result.request
+  field = request.field
+  cells = field.cell_state_samples(
+    position_tolerance_m=request.position_tolerance_m,
+  )
+  if len(cells) != len(field.cells) or len(field.shock_boundary_points_m) < 2:
+    raise ValueError('field geometry is incomplete for independent placement')
+  ####
+  endpoint_x = field.shock_boundary_points_m[-1][0]
+  x_breaks = sorted(
+    {
+      float(point[0])
+      for vertices, _states, _pressures in cells
+      for point in vertices
+    }
+  )
+  candidates = tuple(
+    0.5 * (first + second)
+    for first, second in zip(x_breaks, x_breaks[1:])
+    if second - first > request.position_tolerance_m
+    and 0.5 * (first + second) > endpoint_x + request.position_tolerance_m
+  )
+  if not candidates:
+    raise ValueError('field retained no post-shock cross-section candidates')
+  ####
+  target_x = endpoint_x + request.post_shock_fraction * (
+    max(candidates) - endpoint_x
+  )
+  ordered = tuple(
+    sorted(candidates, key=lambda candidate: (abs(candidate - target_x), candidate))
+  )
+  for rank, x_m in enumerate(ordered):
+    interval = _independent_field_interval(
+      field,
+      x_m,
+      request.position_tolerance_m,
+    )
+    if interval is None:
+      continue
+    ####
+    lower, upper = interval
+    margin = request.boundary_margin_fraction * (upper - lower)
+    sampled_lower = lower + margin
+    sampled_upper = upper - margin
+    if sampled_upper <= sampled_lower + request.position_tolerance_m:
+      continue
+    ####
+    points = tuple(
+      (
+        x_m,
+        sampled_lower
+        + index * (sampled_upper - sampled_lower) / (request.sample_count - 1),
+      )
+      for index in range(request.sample_count)
+    )
+    valid = True
+    for point in points:
+      state = field.state_at(
+        point,
+        position_tolerance_m=request.position_tolerance_m,
+      )
+      if state is None or state.mach <= 1.0:
+        valid = False
+        break
+      ####
+      if _line_angle_residual(
+        state.theta_rad,
+        request.interface_normal_angle_rad,
+      ) > request.normal_alignment_tolerance_rad:
+        valid = False
+        break
+      ####
+    ####
+    if valid:
+      return rank, x_m, sampled_lower, sampled_upper, points
+    ####
+  ####
+  raise ValueError('no independently valid post-shock cross-section candidate')
+####
+
+
+def measure_moc_transonic_shock_interface_field_placement(
+  result: MocTransonicShockInterfaceFieldPlacementResult,
+) -> MocTransonicShockInterfaceFieldPlacementAudit:
+  """Independently rederive a solver-owned field cross-section placement."""
+
+  if not isinstance(
+    result,
+    MocTransonicShockInterfaceFieldPlacementResult,
+  ):
+    raise TypeError(
+      'result must be a MocTransonicShockInterfaceFieldPlacementResult'
+    )
+  ####
+  request = result.request
+  field = request.field
+  field_lineage_verified = bool(
+    field.converged
+    and field.physical_closure_verified
+    and field.state_sampling_available
+  )
+  profile_audit = None
+  if result.profile_result is not None:
+    profile_audit = measure_moc_transonic_shock_interface_profile_from_field(
+      result.profile_result
+    )
+  ####
+  rederived = False
+  cross_section_verified = False
+  selected_candidate_verified = False
+  cross_section_x_residual = None
+  lower_residual = None
+  upper_residual = None
+  maximum_point_residual = None
+  try:
+    expected_rank, expected_x, expected_lower, expected_upper, expected_points = (
+      _independent_placement_geometry(result)
+    )
+    rederived = True
+    selected_candidate_verified = bool(
+      result.selected_candidate_rank == expected_rank
+    )
+    if result.cross_section_x_m is not None:
+      cross_section_x_residual = abs(result.cross_section_x_m - expected_x)
+    ####
+    if result.lower_ordinate_m is not None:
+      lower_residual = abs(result.lower_ordinate_m - expected_lower)
+    ####
+    if result.upper_ordinate_m is not None:
+      upper_residual = abs(result.upper_ordinate_m - expected_upper)
+    ####
+    if len(result.sample_points_m) == len(expected_points):
+      residuals = [
+        hypot(actual[0] - expected[0], actual[1] - expected[1])
+        for actual, expected in zip(
+          result.sample_points_m,
+          expected_points,
+          strict=True,
+        )
+      ]
+      maximum_point_residual = max(residuals, default=0.0)
+    ####
+    tolerance = request.position_tolerance_m
+    cross_section_verified = bool(
+      cross_section_x_residual is not None
+      and lower_residual is not None
+      and upper_residual is not None
+      and maximum_point_residual is not None
+      and cross_section_x_residual <= tolerance
+      and lower_residual <= tolerance
+      and upper_residual <= tolerance
+      and maximum_point_residual <= tolerance
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    pass
+  ####
+  profile_verified = bool(
+    result.profile_result is not None
+    and result.profile_result.converged
+    and profile_audit is not None
+    and profile_audit.converged
+  )
+  verified = bool(
+    result.status is (
+      MocTransonicShockInterfaceFieldPlacementStatus
+      .CONVERGED_SOLVER_PLACEMENT
+    )
+    and field_lineage_verified
+    and result.field_lineage_verified
+    and result.cross_section_verified
+    and cross_section_verified
+    and selected_candidate_verified
+    and result.profile_verified
+    and profile_verified
+  )
+  return MocTransonicShockInterfaceFieldPlacementAudit(
+    status=(
+      MocTransonicShockInterfaceFieldPlacementAuditStatus.VERIFIED
+      if verified
+      else MocTransonicShockInterfaceFieldPlacementAuditStatus.RESULT_FAILURE
+    ),
+    result_status=result.status,
+    rederived=rederived,
+    field_lineage_verified=field_lineage_verified,
+    cross_section_verified=cross_section_verified,
+    selected_candidate_verified=selected_candidate_verified,
+    profile_verified=profile_verified,
+    cross_section_x_residual_m=cross_section_x_residual,
+    lower_ordinate_residual_m=lower_residual,
+    upper_ordinate_residual_m=upper_residual,
+    maximum_sample_point_residual_m=maximum_point_residual,
+    profile_audit=profile_audit,
+    message=(
+      'field geometry, candidate ordering, sampled state regime, and the '
+      'field-bound profile audit were independently rederived'
+      if verified
+      else 'solver-owned field placement does not match independent remeasurement'
     ),
   )
 ####
