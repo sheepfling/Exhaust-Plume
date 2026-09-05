@@ -138,6 +138,8 @@ The current local composition includes:
 - straight and separately labeled curved gray transfer;
 - atmospheric layers as caller-owned measurement operators;
 - mission-time visual/signature evaluators;
+- direct construction of exact, compatible Signature timelines from mission
+  samples for downstream angular heatmaps and masked traces;
 - exact angular heatmaps, direction traces, source trajectories, and typed
   point queries that preserve result IDs, status, masks, and uncertainty.
 - deterministic Signature timeline galleries that render those exact sampled

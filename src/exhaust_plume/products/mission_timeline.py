@@ -642,6 +642,46 @@ class MissionSignatureEvaluator:
         return self.sample_at(time_s).signature
     ####
 
+    def evaluate_timeline(self, times_s: Sequence[float]) -> SignatureTimeline:
+        """Resolve exact Signature samples into a compatible time series.
+
+        The requested times must be strictly increasing and lie within the
+        prescribed mission timeline.  Each sample is freshly resolved through
+        the caller-owned flow and optical callbacks; this method never
+        interpolates Signature values or reuses a neighboring provider result.
+        The returned timeline can be passed directly to the angular heatmap,
+        masked direction-series, and exact point-query utilities.
+        """
+
+        try:
+            requested_times = tuple(times_s)
+        except TypeError as error:
+            raise TypeError("times_s must be an iterable of mission times") from error
+        ####
+        if not requested_times:
+            raise ValueError("times_s must contain at least one mission time")
+        ####
+        samples: list[SignatureTimelineSample] = []
+        for time_s in requested_times:
+            sample = self.sample_at(time_s)
+            sampling = self.sampling or ModelSignatureSampling()
+            request = SpectralSignatureRequest(
+                direction_frame_id=sample.visualization.frame_id,
+                operating_point_id=sample.state.operating_point_id,
+                source_to_observer_directions=sampling.source_to_observer_directions,
+                wavelengths_m=sample.optical_profile.wavelengths_m,
+                allow_partial_results=self.allow_partial_results,
+            )
+            samples.append(
+                SignatureTimelineSample(
+                    request=request,
+                    result=sample.signature,
+                )
+            )
+        ####
+        return SignatureTimeline(tuple(samples))
+    ####
+
     def query_at(
         self,
         *,

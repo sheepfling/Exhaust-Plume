@@ -30,9 +30,11 @@ from exhaust_plume.products import (
     ModelSignatureReadiness,
     ModelVisualizationLane,
     LineRadiationProfile,
+    SignatureTimeline,
     SignatureTimelineQuery,
     SectionedGrayRadiationProfile,
     SpectralLine,
+    build_signature_angular_heatmap,
     evaluate_model_signature,
     standardize_model_visualization,
 )
@@ -265,6 +267,54 @@ def test_mission_signature_query_re_evaluates_an_arbitrary_time_without_output_i
     assert query.valid is True
     assert query.status.code is SampleStatusCode.OK
 ####
+
+
+def test_mission_signature_evaluator_builds_exact_timeline_for_angular_views() -> None:
+    timeline = _timeline()
+    visualization = _straight_bundles()[0]
+    evaluator = MissionSignatureEvaluator(
+        timeline=timeline,
+        visualization_at=lambda _state: visualization,
+        optical_profile_at=_profile_for_state,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+            transverse_sample_count=5,
+        ),
+    )
+
+    signature_timeline = evaluator.evaluate_timeline((0.0, 5.0, 10.0))
+    heatmap = build_signature_angular_heatmap(
+        signature_timeline,
+        time_s=5.0,
+        wavelength_index=1,
+    )
+
+    assert isinstance(signature_timeline, SignatureTimeline)
+    assert signature_timeline.times_s == (0.0, 5.0, 10.0)
+    assert signature_timeline.sample_at(5.0).result.metadata.snapshot.time_s == pytest.approx(5.0)
+    assert heatmap.time_s == pytest.approx(5.0)
+    assert heatmap.wavelength_m == pytest.approx(2.0e-6)
+    assert heatmap.valid_direction_count == 2
+    ####
+
+
+def test_mission_signature_evaluator_rejects_empty_or_nonmonotonic_timeline() -> None:
+    visualization = _straight_bundles()[0]
+    evaluator = MissionSignatureEvaluator(
+        timeline=_timeline(),
+        visualization_at=lambda _state: visualization,
+        optical_profile_at=_profile_for_state,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="at least one mission time"):
+        evaluator.evaluate_timeline(())
+    with pytest.raises(ValueError, match="strictly increasing"):
+        evaluator.evaluate_timeline((5.0, 0.0))
+    ####
 
 
 def test_mission_fpa_evaluator_composes_explicit_ray_detector_and_adc_at_time() -> None:
