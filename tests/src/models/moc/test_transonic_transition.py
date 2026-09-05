@@ -67,6 +67,34 @@ def test_transition_can_emit_a_scalar_supersonic_to_subsonic_state_handoff() -> 
   assert state.chain_promotion_blocked
   assert state.production_claim_allowed is False
   assert audit.shock_state_verified
+  assert audit.shock_state_conservation_verified
+  assert audit.shock_state_mass_flux_residual == pytest.approx(0.0, abs=1.0e-12)
+  assert audit.shock_state_momentum_flux_residual == pytest.approx(0.0, abs=1.0e-12)
+  assert audit.shock_state_energy_flux_residual == pytest.approx(0.0, abs=1.0e-12)
+####
+
+
+def test_transition_audit_rejects_a_tampered_branch_state() -> None:
+  result = solve_moc_transonic_transition(
+    MocTransonicTransitionRequest(
+      upstream_total_pressure_Pa=400_000.0,
+      target_downstream_static_pressure_Pa=180_000.0,
+      gamma=1.4,
+      upstream_total_temperature_K=1200.0,
+    )
+  )
+  assert result.shock_state is not None
+  tampered_state = replace(
+    result.shock_state,
+    downstream_speed_m_s=result.shock_state.downstream_speed_m_s * 1.01,
+  )
+  tampered = replace(result, shock_state=tampered_state)
+
+  audit = measure_moc_transonic_transition(tampered)
+
+  assert audit.status is MocTransonicTransitionAuditStatus.RESULT_FAILURE
+  assert audit.shock_state_verified is False
+  assert audit.shock_state_conservation_verified is False
 ####
 
 

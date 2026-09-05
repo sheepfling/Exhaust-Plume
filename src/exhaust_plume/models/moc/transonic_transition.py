@@ -407,6 +407,10 @@ class MocTransonicTransitionAudit:
   mach_residual: float | None
   total_pressure_residual: float | None
   shock_state_verified: bool = False
+  shock_state_mass_flux_residual: float | None = None
+  shock_state_momentum_flux_residual: float | None = None
+  shock_state_energy_flux_residual: float | None = None
+  shock_state_conservation_verified: bool = False
   message: str = ''
 
   @property
@@ -434,6 +438,10 @@ class MocTransonicTransitionAudit:
       'mach_residual': self.mach_residual,
       'total_pressure_residual': self.total_pressure_residual,
       'shock_state_verified': self.shock_state_verified,
+      'shock_state_mass_flux_residual': self.shock_state_mass_flux_residual,
+      'shock_state_momentum_flux_residual': self.shock_state_momentum_flux_residual,
+      'shock_state_energy_flux_residual': self.shock_state_energy_flux_residual,
+      'shock_state_conservation_verified': self.shock_state_conservation_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'production_claim_allowed': self.production_claim_allowed,
       'message': self.message,
@@ -719,6 +727,48 @@ def _shock_state_matches(
 ####
 
 
+def _shock_state_flux_residuals(
+  state: MocTransonicShockState,
+) -> tuple[float, float, float]:
+  """Return normalized 1-D mass, momentum, and energy jump residuals."""
+
+  upstream_mass_flux = (
+    state.upstream_density_kg_m3 * state.upstream_speed_m_s
+  )
+  downstream_mass_flux = (
+    state.downstream_density_kg_m3 * state.downstream_speed_m_s
+  )
+  upstream_momentum_flux = (
+    upstream_mass_flux * state.upstream_speed_m_s
+    + state.upstream_static_pressure_Pa
+  )
+  downstream_momentum_flux = (
+    downstream_mass_flux * state.downstream_speed_m_s
+    + state.downstream_static_pressure_Pa
+  )
+  upstream_energy_density = state.upstream_static_pressure_Pa / (
+    state.gamma - 1.0
+  ) + 0.5 * state.upstream_density_kg_m3 * state.upstream_speed_m_s**2
+  downstream_energy_density = state.downstream_static_pressure_Pa / (
+    state.gamma - 1.0
+  ) + 0.5 * state.downstream_density_kg_m3 * state.downstream_speed_m_s**2
+  upstream_energy_flux = (
+    upstream_energy_density + state.upstream_static_pressure_Pa
+  ) * state.upstream_speed_m_s
+  downstream_energy_flux = (
+    downstream_energy_density + state.downstream_static_pressure_Pa
+  ) * state.downstream_speed_m_s
+  return (
+    abs(upstream_mass_flux - downstream_mass_flux)
+    / max(1.0, abs(upstream_mass_flux), abs(downstream_mass_flux)),
+    abs(upstream_momentum_flux - downstream_momentum_flux)
+    / max(1.0, abs(upstream_momentum_flux), abs(downstream_momentum_flux)),
+    abs(upstream_energy_flux - downstream_energy_flux)
+    / max(1.0, abs(upstream_energy_flux), abs(downstream_energy_flux)),
+  )
+####
+
+
 def measure_moc_transonic_transition(
     result: MocTransonicTransitionResult,
 ) -> MocTransonicTransitionAudit:
@@ -752,6 +802,7 @@ def measure_moc_transonic_transition(
       mach_residual=None,
       total_pressure_residual=None,
       shock_state_verified=result.shock_state is None,
+      shock_state_conservation_verified=result.shock_state is None,
       message='isentropic subsonic reachability classification independently rederived',
     )
   ####
@@ -764,6 +815,7 @@ def measure_moc_transonic_transition(
       mach_residual=None,
       total_pressure_residual=None,
       shock_state_verified=result.shock_state is None,
+      shock_state_conservation_verified=result.shock_state is None,
       message='the scalar transition result did not report a verified reference to audit',
     )
   ####
@@ -776,6 +828,7 @@ def measure_moc_transonic_transition(
       mach_residual=None,
       total_pressure_residual=None,
       shock_state_verified=False,
+      shock_state_conservation_verified=False,
       message='resolved transition result omitted required_upstream_mach',
     )
   ####
@@ -801,6 +854,21 @@ def measure_moc_transonic_transition(
     result.shock_state,
     expected_shock_state,
   )
+  if expected_shock_state is None:
+    conservation_residuals = (None, None, None)
+    shock_state_conservation_verified = result.shock_state is None
+  else:
+    measured_conservation_residuals = _shock_state_flux_residuals(
+      expected_shock_state
+    )
+    conservation_residuals = tuple(
+      float(value) for value in measured_conservation_residuals
+    )
+    shock_state_conservation_verified = bool(
+      max(measured_conservation_residuals) <= 1.0e-8
+      and shock_state_verified
+    )
+  ####
   valid = (
     isclose(
       result.sonic_static_pressure_Pa,
@@ -819,6 +887,7 @@ def measure_moc_transonic_transition(
     and reported_total_pressure_residual is not None
     and reported_total_pressure_residual <= 1.0e-8
     and shock_state_verified
+    and shock_state_conservation_verified
   )
   return MocTransonicTransitionAudit(
     status=(
@@ -832,6 +901,10 @@ def measure_moc_transonic_transition(
     mach_residual=reported_mach_residual,
     total_pressure_residual=reported_total_pressure_residual,
     shock_state_verified=shock_state_verified,
+    shock_state_mass_flux_residual=conservation_residuals[0],
+    shock_state_momentum_flux_residual=conservation_residuals[1],
+    shock_state_energy_flux_residual=conservation_residuals[2],
+    shock_state_conservation_verified=shock_state_conservation_verified,
     message=(
       'normal-shock pressure, subsonic downstream Mach, and total-pressure '
       'loss were independently rederived'

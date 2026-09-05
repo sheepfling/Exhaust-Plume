@@ -753,3 +753,11 @@ transonic branch.  It deliberately has no position, orientation, neighboring
 characteristic field, mixing model, or free-boundary update; therefore it
 remains research-only, cannot seed a continued chain, and does not change the
 accepted physical-length or provider-validation gates.
+
+The scalar audit now also recomputes normalized mass-flux, momentum-flux, and
+energy-flux jump residuals from that reconstructed state.  The coupled-Euler
+validator and planar visualization publish and compare those residuals, so a
+state handoff cannot pass by matching pressure and Mach values while violating
+the one-dimensional conservative shock seam.  This remains a local
+thermodynamic audit; it is not evidence of a placed two-dimensional shock or a
+closed global field.

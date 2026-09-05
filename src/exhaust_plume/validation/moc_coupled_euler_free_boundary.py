@@ -755,6 +755,20 @@ def _audit_transonic_transition(
     )
     and transition_audit.shock_state_verified
     == expected_audit.shock_state_verified
+    and optional_close(
+      transition_audit.shock_state_mass_flux_residual,
+      expected_audit.shock_state_mass_flux_residual,
+    )
+    and optional_close(
+      transition_audit.shock_state_momentum_flux_residual,
+      expected_audit.shock_state_momentum_flux_residual,
+    )
+    and optional_close(
+      transition_audit.shock_state_energy_flux_residual,
+      expected_audit.shock_state_energy_flux_residual,
+    )
+    and transition_audit.shock_state_conservation_verified
+    == expected_audit.shock_state_conservation_verified
   )
 ####
 

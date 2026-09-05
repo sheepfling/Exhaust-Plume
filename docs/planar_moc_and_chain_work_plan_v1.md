@@ -3680,3 +3680,10 @@ it does not place the shock, select its orientation or location, continue the
 neighboring 2-D characteristic field, close the free boundary, or authorize a
 shock-cell length.  The next physics packet remains a solver-owned
 transonic/supersonic interface with geometry and cross-case validation.
+
+The independent handoff audit now additionally checks normalized mass,
+momentum, and total-energy flux jumps across the reconstructed state.  These
+residuals are carried through the coupled-Euler audit and visualization
+diagnostics, and tampering with the downstream state invalidates the seam.
+This is a conservative scalar checkpoint only; it does not promote the state
+into a physical planar shock or continued-cell chain.

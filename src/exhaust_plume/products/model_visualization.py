@@ -2136,6 +2136,21 @@ def _moc_visualization(
         diagnostics['coupled_euler_transonic_shock_state_verified'] = bool(
           getattr(transition_audit, 'shock_state_verified', False)
         )
+        diagnostics[
+          'coupled_euler_transonic_shock_state_conservation_verified'
+        ] = bool(
+          getattr(transition_audit, 'shock_state_conservation_verified', False)
+        )
+        for name in (
+          'shock_state_mass_flux_residual',
+          'shock_state_momentum_flux_residual',
+          'shock_state_energy_flux_residual',
+        ):
+          value = getattr(transition_audit, name, None)
+          if value is not None and isfinite(float(value)):
+            diagnostics[f'coupled_euler_transonic_{name}'] = float(value)
+          ####
+        ####
       ####
     ####
   ####

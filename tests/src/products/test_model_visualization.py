@@ -318,7 +318,13 @@ def _coupled_euler_result() -> SimpleNamespace:
         downstream_speed_m_s=270.75,
       ),
     ),
-    transonic_transition_audit=SimpleNamespace(shock_state_verified=True),
+    transonic_transition_audit=SimpleNamespace(
+      shock_state_verified=True,
+      shock_state_conservation_verified=True,
+      shock_state_mass_flux_residual=1.0e-12,
+      shock_state_momentum_flux_residual=2.0e-12,
+      shock_state_energy_flux_residual=3.0e-12,
+    ),
   )
 ####
 
@@ -477,6 +483,12 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   )
   assert bundle.diagnostics['coupled_euler_transonic_shock_state_available'] is True
   assert bundle.diagnostics['coupled_euler_transonic_shock_state_verified'] is True
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_state_conservation_verified'
+  ] is True
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_state_energy_flux_residual'
+  ] == pytest.approx(3.0e-12)
   assert bundle.diagnostics[
     'coupled_euler_transonic_shock_state_upstream_speed_m_s'
   ] == pytest.approx(1350.0)
