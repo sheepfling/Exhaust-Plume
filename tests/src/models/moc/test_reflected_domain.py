@@ -27,6 +27,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
@@ -82,6 +83,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_global_coupled_downstream,
+  measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_coupled_euler_free_boundary,
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
@@ -2318,6 +2320,74 @@ def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
   assert result.as_report()['physical_field_handoff']['converged'] is True
+####
+
+
+def test_global_coupled_downstream_measures_boundary_overlap_without_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+  )
+
+  response = result.downstream_boundary_response
+  assert response is not None
+  assert response.status is (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+    .RESIDUAL_FAILURE
+  )
+  assert response.overlap_coverage_verified
+  assert response.residuals_verified is False
+  assert response.maximum_coordinate_residual_m > (
+    response.coordinate_tolerance_m
+  )
+  assert len(response.matched_x_stations_m) == len(
+    response.coupled_boundary_points_m
+  )
+  assert response.maximum_pressure_residual_Pa >= 0.0
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.production_claim_allowed is False
+
+  independently_measured = (
+    measure_reflected_domain_global_coupled_downstream_boundary_response(
+      closure,
+      result.coupled_field,
+    )
+  )
+  assert independently_measured.as_report() == response.as_report()
+
+  assert result.coupled_field is not None
+  tampered = replace(
+    result.coupled_field,
+    free_boundary_points_m=(
+      (
+        result.coupled_field.free_boundary_points_m[0][0] - 1.0,
+        result.coupled_field.free_boundary_points_m[0][1],
+      ),
+      *result.coupled_field.free_boundary_points_m[1:],
+    ),
+  )
+  tampered_response = (
+    measure_reflected_domain_global_coupled_downstream_boundary_response(
+      closure,
+      tampered,
+    )
+  )
+  assert tampered_response.status is (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+    .COVERAGE_FAILURE
+  )
+  assert tampered_response.overlap_coverage_verified is False
+  assert tampered_response.converged is False
 ####
 
 

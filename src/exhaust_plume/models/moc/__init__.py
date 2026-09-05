@@ -417,8 +417,11 @@ from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
 from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamStatus,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
   MocReflectedDomainGlobalCoupledDownstreamResult,
   build_reflected_domain_global_solver_owned_physical_field_handoff,
+  measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
 )
 from exhaust_plume.models.moc.family_band_solver import (
@@ -1192,8 +1195,11 @@ __all__ = (
   'solve_reflected_domain_mixed_regime_boundary',
   'MocReflectedDomainGlobalCoupledDownstreamStatus',
   'MocReflectedDomainGlobalPhysicalFieldHandoff',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse',
   'MocReflectedDomainGlobalCoupledDownstreamResult',
   'build_reflected_domain_global_solver_owned_physical_field_handoff',
+  'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'solve_reflected_domain_global_coupled_downstream',
   'MocCausticFamilyBandShockResult',
   'MocCausticFamilyBandShockStatus',

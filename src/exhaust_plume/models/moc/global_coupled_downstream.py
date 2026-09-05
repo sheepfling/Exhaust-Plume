@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from math import atan2, isfinite
 from typing import Any
 
 from exhaust_plume.models.moc.chain import (
@@ -27,6 +28,7 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   solve_reflected_domain_coupled_euler_free_boundary,
 )
 from exhaust_plume.models.moc.global_physical_closure import (
+  MocReflectedDomainDownstreamBoundaryResult,
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
@@ -53,6 +55,9 @@ from exhaust_plume.models.moc.transonic_interface import (
 __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamStatus',
   'MocReflectedDomainGlobalPhysicalFieldHandoff',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse',
+  'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'MocReflectedDomainGlobalCoupledDownstreamResult',
   'build_reflected_domain_global_solver_owned_physical_field_handoff',
   'solve_reflected_domain_global_coupled_downstream',
@@ -61,6 +66,9 @@ __all__ = (
 
 GLOBAL_COUPLED_DOWNSTREAM_MODEL = (
   'research-global-coupled-euler-downstream-candidate'
+)
+GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_RESPONSE_MODEL = (
+  'research-global-coupled-downstream-boundary-response-v1'
 )
 
 
@@ -82,6 +90,18 @@ class MocReflectedDomainGlobalCoupledDownstreamStatus(str, Enum):
   INDEPENDENT_AUDIT_FAILURE = (
     'global-coupled-downstream-independent-audit-failure'
   )
+####
+
+
+class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus(str, Enum):
+  """Outcome of comparing the downstream field with its global neighbor."""
+
+  CONVERGED_LOCAL_OVERLAP = 'converged-local-downstream-boundary-overlap'
+  INVALID_INPUT = 'invalid_input'
+  UPSTREAM_BOUNDARY_FAILURE = 'downstream-boundary-upstream-reference-failure'
+  COUPLED_FIELD_FAILURE = 'downstream-boundary-coupled-field-failure'
+  COVERAGE_FAILURE = 'downstream-boundary-overlap-coverage-failure'
+  RESIDUAL_FAILURE = 'downstream-boundary-overlap-residual-failure'
 ####
 
 
@@ -155,6 +175,451 @@ class MocReflectedDomainGlobalPhysicalFieldHandoff:
 ####
 
 
+def _interpolate_downstream_boundary(
+  boundary: MocReflectedDomainDownstreamBoundaryResult,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> tuple[float, float, float] | None:
+  """Sample the retained global boundary without x extrapolation."""
+
+  points = boundary.boundary_points_m
+  states = boundary.boundary_states
+  pressures = boundary.boundary_static_pressure_Pa
+  if not (len(points) == len(states) == len(pressures) >= 2):
+    return None
+  ####
+  if any(
+    second[0] <= first[0] + position_tolerance_m
+    for first, second in zip(points, points[1:])
+  ):
+    return None
+  ####
+  if x_m < points[0][0] - position_tolerance_m or x_m > points[-1][0] + position_tolerance_m:
+    return None
+  ####
+  for index, (first_point, second_point) in enumerate(zip(points, points[1:])):
+    if abs(x_m - first_point[0]) <= position_tolerance_m:
+      return (
+        float(first_point[1]),
+        float(states[index].theta_rad),
+        float(pressures[index]),
+      )
+    ####
+    if x_m <= second_point[0] + position_tolerance_m:
+      span = second_point[0] - first_point[0]
+      if span <= position_tolerance_m:
+        return None
+      ####
+      fraction = min(max((x_m - first_point[0]) / span, 0.0), 1.0)
+      return (
+        float(first_point[1] + fraction * (second_point[1] - first_point[1])),
+        float(
+          states[index].theta_rad
+          + fraction * (states[index + 1].theta_rad - states[index].theta_rad)
+        ),
+        float(
+          pressures[index]
+          + fraction * (pressures[index + 1] - pressures[index])
+        ),
+      )
+    ####
+  ####
+  if abs(x_m - points[-1][0]) <= position_tolerance_m:
+    return (
+      float(points[-1][1]),
+      float(states[-1].theta_rad),
+      float(pressures[-1]),
+    )
+  ####
+  return None
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
+  """Independent overlap response between global and coupled boundaries.
+
+  This result measures the downstream response on the shared retained domain.
+  It is deliberately not a global closure: no extrapolation is allowed, and
+  the response does not change the upstream solver or promotion gates.
+  """
+
+  status: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+  upstream_boundary: MocReflectedDomainDownstreamBoundaryResult | None
+  coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None
+  matched_x_stations_m: tuple[float, ...] = ()
+  upstream_boundary_points_m: tuple[tuple[float, float], ...] = ()
+  coupled_boundary_points_m: tuple[tuple[float, float], ...] = ()
+  coordinate_residuals_m: tuple[float, ...] = ()
+  tangent_residuals_rad: tuple[float, ...] = ()
+  pressure_residuals_Pa: tuple[float, ...] = ()
+  normal_velocity_residuals_m_s: tuple[float, ...] = ()
+  coordinate_tolerance_m: float = 1.0e-3
+  tangent_tolerance_rad: float = 5.0e-2
+  pressure_tolerance_Pa: float = 2.0e4
+  normal_velocity_tolerance_m_s: float = 2.0e2
+  overlap_coverage_verified: bool = False
+  residuals_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus'
+      )
+    ####
+    if self.upstream_boundary is not None and not isinstance(
+      self.upstream_boundary,
+      MocReflectedDomainDownstreamBoundaryResult,
+    ):
+      raise TypeError(
+        'upstream_boundary must be a '
+        'MocReflectedDomainDownstreamBoundaryResult or None'
+      )
+    ####
+    if self.coupled_field is not None and not isinstance(
+      self.coupled_field,
+      MocReflectedDomainCoupledEulerFreeBoundaryResult,
+    ):
+      raise TypeError(
+        'coupled_field must be a '
+        'MocReflectedDomainCoupledEulerFreeBoundaryResult or None'
+      )
+    ####
+    for name in (
+      'matched_x_stations_m',
+      'coordinate_residuals_m',
+      'tangent_residuals_rad',
+      'pressure_residuals_Pa',
+      'normal_velocity_residuals_m_s',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
+      object.__setattr__(self, name, values)
+    ####
+    for name in ('upstream_boundary_points_m', 'coupled_boundary_points_m'):
+      points = tuple(
+        (float(point[0]), float(point[1])) for point in getattr(self, name)
+      )
+      if any(not all(isfinite(value) for value in point) for point in points):
+        raise ValueError(f'{name} must contain finite points')
+      ####
+      object.__setattr__(self, name, points)
+    ####
+    lengths = {
+      len(self.matched_x_stations_m),
+      len(self.upstream_boundary_points_m),
+      len(self.coupled_boundary_points_m),
+      len(self.coordinate_residuals_m),
+      len(self.tangent_residuals_rad),
+      len(self.pressure_residuals_Pa),
+      len(self.normal_velocity_residuals_m_s),
+    }
+    if len(lengths) != 1:
+      raise ValueError('downstream boundary response channels must be aligned')
+    ####
+    for name in (
+      'coordinate_tolerance_m',
+      'tangent_tolerance_rad',
+      'pressure_tolerance_Pa',
+      'normal_velocity_tolerance_m_s',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    for name in ('overlap_coverage_verified', 'residuals_verified'):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def maximum_coordinate_residual_m(self) -> float:
+    return max(self.coordinate_residuals_m, default=0.0)
+  ####
+
+  @property
+  def maximum_tangent_residual_rad(self) -> float:
+    return max(self.tangent_residuals_rad, default=0.0)
+  ####
+
+  @property
+  def maximum_pressure_residual_Pa(self) -> float:
+    return max(self.pressure_residuals_Pa, default=0.0)
+  ####
+
+  @property
+  def maximum_normal_velocity_residual_m_s(self) -> float:
+    return max(self.normal_velocity_residuals_m_s, default=0.0)
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+      .CONVERGED_LOCAL_OVERLAP
+      and self.overlap_coverage_verified
+      and self.residuals_verified
+    )
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_RESPONSE_MODEL,
+      'status': self.status.value,
+      'converged': self.converged,
+      'matched_x_stations_m': self.matched_x_stations_m,
+      'upstream_boundary_points_m': self.upstream_boundary_points_m,
+      'coupled_boundary_points_m': self.coupled_boundary_points_m,
+      'coordinate_residuals_m': self.coordinate_residuals_m,
+      'tangent_residuals_rad': self.tangent_residuals_rad,
+      'pressure_residuals_Pa': self.pressure_residuals_Pa,
+      'normal_velocity_residuals_m_s': self.normal_velocity_residuals_m_s,
+      'maximum_coordinate_residual_m': self.maximum_coordinate_residual_m,
+      'maximum_tangent_residual_rad': self.maximum_tangent_residual_rad,
+      'maximum_pressure_residual_Pa': self.maximum_pressure_residual_Pa,
+      'maximum_normal_velocity_residual_m_s': (
+        self.maximum_normal_velocity_residual_m_s
+      ),
+      'coordinate_tolerance_m': self.coordinate_tolerance_m,
+      'tangent_tolerance_rad': self.tangent_tolerance_rad,
+      'pressure_tolerance_Pa': self.pressure_tolerance_Pa,
+      'normal_velocity_tolerance_m_s': self.normal_velocity_tolerance_m_s,
+      'overlap_coverage_verified': self.overlap_coverage_verified,
+      'residuals_verified': self.residuals_verified,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'research-only-global-coupled-boundary-overlap-response; upstream '
+        'feedback, canonical closure, refinement, and external validation remain open'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def measure_reflected_domain_global_coupled_downstream_boundary_response(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  *,
+  position_tolerance_m: float = 1.0e-9,
+  coordinate_tolerance_m: float = 1.0e-3,
+  tangent_tolerance_rad: float = 5.0e-2,
+  pressure_tolerance_Pa: float = 2.0e4,
+  normal_velocity_tolerance_m_s: float = 2.0e2,
+) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
+  """Recompute the shared global/coupled boundary response without extrapolation."""
+
+  def failure(
+    status: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus,
+    message: str,
+    *,
+    upstream: MocReflectedDomainDownstreamBoundaryResult | None = None,
+    coupled: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None,
+    coverage: bool = False,
+  ) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
+    return MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse(
+      status=status,
+      upstream_boundary=upstream,
+      coupled_field=coupled,
+      coordinate_tolerance_m=coordinate_tolerance_m,
+      tangent_tolerance_rad=tangent_tolerance_rad,
+      pressure_tolerance_Pa=pressure_tolerance_Pa,
+      normal_velocity_tolerance_m_s=normal_velocity_tolerance_m_s,
+      overlap_coverage_verified=coverage,
+      message=message,
+    )
+  ####
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus.INVALID_INPUT,
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult',
+    )
+  ####
+  if not isinstance(
+    coupled_field,
+    MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  ):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus.INVALID_INPUT,
+      'coupled_field must be a MocReflectedDomainCoupledEulerFreeBoundaryResult',
+    )
+  ####
+  try:
+    tolerances = (
+      float(position_tolerance_m),
+      float(coordinate_tolerance_m),
+      float(tangent_tolerance_rad),
+      float(pressure_tolerance_Pa),
+      float(normal_velocity_tolerance_m_s),
+    )
+  except (TypeError, ValueError):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus.INVALID_INPUT,
+      'downstream boundary response tolerances must be numeric',
+    )
+  ####
+  if any(not isfinite(value) or value <= 0.0 for value in tolerances):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus.INVALID_INPUT,
+      'downstream boundary response tolerances must be finite and positive',
+    )
+  ####
+  upstream = closure.downstream_boundary
+  if upstream is None or not upstream.samples_available:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+      .UPSTREAM_BOUNDARY_FAILURE,
+      'global closure retained no downstream boundary samples for overlap',
+      upstream=upstream,
+      coupled=coupled_field,
+    )
+  ####
+  coupled_points = tuple(coupled_field.free_boundary_points_m)
+  coupled_pressures = tuple(coupled_field.free_boundary_static_pressure_Pa)
+  coupled_normal_velocities = tuple(
+    coupled_field.free_boundary_normal_velocity_residuals_m_s
+  )
+  if not (
+    len(coupled_points) >= 2
+    and len(coupled_pressures) == len(coupled_points)
+    and len(coupled_normal_velocities) == len(coupled_points) - 1
+  ):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+      .COUPLED_FIELD_FAILURE,
+      'coupled field retained no aligned free-boundary pressure response',
+      upstream=upstream,
+      coupled=coupled_field,
+    )
+  ####
+  if any(
+    second[0] <= first[0] + tolerances[0]
+    for first, second in zip(coupled_points, coupled_points[1:])
+  ):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+      .COUPLED_FIELD_FAILURE,
+      'coupled free-boundary stations must be strictly downstream ordered',
+      upstream=upstream,
+      coupled=coupled_field,
+    )
+  ####
+  matched_x: list[float] = []
+  upstream_points: list[tuple[float, float]] = []
+  coordinate_residuals: list[float] = []
+  tangent_residuals: list[float] = []
+  pressure_residuals: list[float] = []
+  normal_velocity_residuals: list[float] = []
+  for index, (point, pressure) in enumerate(
+    zip(coupled_points, coupled_pressures, strict=True)
+  ):
+    reference = _interpolate_downstream_boundary(
+      upstream,
+      point[0],
+      position_tolerance_m=tolerances[0],
+    )
+    if reference is None:
+      return failure(
+        MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+        .COVERAGE_FAILURE,
+        'coupled free-boundary station lies outside the retained global '
+        'boundary; no extrapolation was attempted',
+        upstream=upstream,
+        coupled=coupled_field,
+        coverage=False,
+      )
+    ####
+    reference_y, reference_theta, reference_pressure = reference
+    matched_x.append(float(point[0]))
+    upstream_points.append((float(point[0]), reference_y))
+    coordinate_residuals.append(abs(float(point[1]) - reference_y))
+    pressure_residuals.append(abs(float(pressure) - reference_pressure))
+    if index == 0:
+      coupled_theta = atan2(
+        coupled_points[1][1] - coupled_points[0][1],
+        coupled_points[1][0] - coupled_points[0][0],
+      )
+    else:
+      coupled_theta = atan2(
+        point[1] - coupled_points[index - 1][1],
+        point[0] - coupled_points[index - 1][0],
+      )
+    tangent_residuals.append(abs(coupled_theta - reference_theta))
+    if index < len(coupled_normal_velocities):
+      normal_velocity_residuals.append(
+        abs(float(coupled_normal_velocities[index]))
+      )
+    else:
+      normal_velocity_residuals.append(
+        abs(float(coupled_normal_velocities[-1]))
+      )
+    ####
+  ####
+  coupled_boundary_points = tuple(
+    (float(point[0]), float(point[1])) for point in coupled_points
+  )
+  residuals_verified = bool(
+    max(coordinate_residuals, default=0.0) <= tolerances[1]
+    and max(tangent_residuals, default=0.0) <= tolerances[2]
+    and max(pressure_residuals, default=0.0) <= tolerances[3]
+    and max(normal_velocity_residuals, default=0.0) <= tolerances[4]
+  )
+  status = (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+    .CONVERGED_LOCAL_OVERLAP
+    if residuals_verified
+    else MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+    .RESIDUAL_FAILURE
+  )
+  message = (
+    'coupled free-boundary response is covered by the retained global '
+    'boundary and all overlap residuals pass'
+    if residuals_verified
+    else 'coupled free-boundary response is covered, but the retained global '
+    'boundary overlap residual exceeds its research tolerance'
+  )
+  return MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse(
+    status=status,
+    upstream_boundary=upstream,
+    coupled_field=coupled_field,
+    matched_x_stations_m=tuple(matched_x),
+    upstream_boundary_points_m=tuple(upstream_points),
+    coupled_boundary_points_m=coupled_boundary_points,
+    coordinate_residuals_m=tuple(coordinate_residuals),
+    tangent_residuals_rad=tuple(tangent_residuals),
+    pressure_residuals_Pa=tuple(pressure_residuals),
+    normal_velocity_residuals_m_s=tuple(normal_velocity_residuals),
+    coordinate_tolerance_m=tolerances[1],
+    tangent_tolerance_rad=tolerances[2],
+    pressure_tolerance_Pa=tolerances[3],
+    normal_velocity_tolerance_m_s=tolerances[4],
+    overlap_coverage_verified=True,
+    residuals_verified=residuals_verified,
+    message=message,
+  )
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalCoupledDownstreamResult:
   """A research candidate with explicit upstream and downstream lineage."""
@@ -166,6 +631,9 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None
   coupled_field_audit: Any | None
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
+  downstream_boundary_response: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
+  ) = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -220,6 +688,15 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       raise TypeError(
         'physical_field_handoff must be a '
         'MocReflectedDomainGlobalPhysicalFieldHandoff or None'
+      )
+    ####
+    if self.downstream_boundary_response is not None and not isinstance(
+      self.downstream_boundary_response,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+    ):
+      raise TypeError(
+        'downstream_boundary_response must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse or None'
       )
     ####
     object.__setattr__(self, 'message', str(self.message))
@@ -375,6 +852,11 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         if self.physical_field_handoff is None
         else self.physical_field_handoff.as_report()
       ),
+      'downstream_boundary_response': (
+        None
+        if self.downstream_boundary_response is None
+        else self.downstream_boundary_response.as_report()
+      ),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
@@ -394,6 +876,9 @@ def _failure(
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None,
   coupled_field_audit: Any | None = None,
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None,
+  downstream_boundary_response: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
+  ) = None,
 ) -> MocReflectedDomainGlobalCoupledDownstreamResult:
   return MocReflectedDomainGlobalCoupledDownstreamResult(
     status=status,
@@ -403,6 +888,7 @@ def _failure(
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
     physical_field_handoff=physical_field_handoff,
+    downstream_boundary_response=downstream_boundary_response,
     message=message,
   )
 ####
@@ -639,6 +1125,22 @@ def solve_reflected_domain_global_coupled_downstream(
       physical_field_handoff=physical_field_handoff,
     )
   ####
+  downstream_boundary_response: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
+  ) = None
+  try:
+    downstream_boundary_response = (
+      measure_reflected_domain_global_coupled_downstream_boundary_response(
+        closure,
+        coupled_field,
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    # The response is an independent research diagnostic.  Preserve the
+    # coupled-field status and leave the response unavailable if its operator
+    # cannot reconstruct aligned channels; never promote by omission.
+    downstream_boundary_response = None
+  ####
   if coupled_field.status is (
     MocReflectedDomainCoupledEulerFreeBoundaryStatus
     .CONVERGED_LOCAL_PHYSICAL_CLOSURE
@@ -650,8 +1152,8 @@ def solve_reflected_domain_global_coupled_downstream(
     message = (
       'global closure and downstream coupled-Euler field passed their local '
       'audits; exact solver-owned field handoff was consumed when requested; '
-      'global feedback, canonical boundary closure, refinement, and external '
-      'validation remain open'
+      'global feedback, canonical boundary closure, refinement, external '
+      'validation, and downstream overlap residual gates remain open'
     )
   else:
     status = (
@@ -671,6 +1173,7 @@ def solve_reflected_domain_global_coupled_downstream(
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
     physical_field_handoff=physical_field_handoff,
+    downstream_boundary_response=downstream_boundary_response,
     message=message,
   )
 ####

@@ -1347,3 +1347,22 @@ audits that condition before it starts the downstream finite-volume field.
 This closes the provenance and boundary-context seam; it does not claim that
 the finite-volume entrance residual, transverse closure, refinement ladder,
 physical shock-cell length, or external validation has passed.
+
+### Global/coupled downstream boundary-response checkpoint
+
+The coupled-field result now retains the static pressure at every retained
+free-boundary station.  The global-to-coupled orchestrator uses those values
+with the exact global ambient-neighbor path to run an independent overlap
+measurement over the shared x-domain.  The operator rejects missing samples,
+non-monotone stations, and any coupled station outside the retained global
+boundary; it does not extrapolate or silently clip the response.
+
+The response report carries matched points, coordinate and tangent residuals,
+pressure residuals, normal-velocity residuals, coverage, and tolerances.  On
+the compatible research fixture the overlap is covered but its boundary path
+residual remains above the research tolerance, so the result is a typed
+``RESIDUAL_FAILURE`` diagnostic.  ``global_coupling_verified`` and the
+downstream-boundary closure gate remain false.  This is the measurement seam
+needed by the next fixed-point/global-frontier iteration; it is not a
+canonical closure, refinement result, physical shock-cell length, or product
+validation.
