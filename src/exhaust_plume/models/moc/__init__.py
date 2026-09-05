@@ -169,6 +169,12 @@ from exhaust_plume.models.moc.transonic_transition import (
   solve_moc_transonic_shock_geometry,
   solve_moc_transonic_transition,
 )
+from exhaust_plume.models.moc.transonic_attachment import (
+  MocTransonicShockFieldAttachmentStatus,
+  MocTransonicShockFieldAttachmentRequest,
+  MocTransonicShockFieldAttachmentResult,
+  solve_moc_transonic_shock_field_attachment,
+)
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
@@ -848,6 +854,10 @@ __all__ = (
   'measure_moc_transonic_transition',
   'solve_moc_transonic_shock_geometry',
   'solve_moc_transonic_transition',
+  'MocTransonicShockFieldAttachmentStatus',
+  'MocTransonicShockFieldAttachmentRequest',
+  'MocTransonicShockFieldAttachmentResult',
+  'solve_moc_transonic_shock_field_attachment',
   'solve_mixed_regime_planar_free_boundary_reference',
   'build_mixed_regime_entropy_handoff',
   'solve_mixed_regime_entropy_transport_boundary',

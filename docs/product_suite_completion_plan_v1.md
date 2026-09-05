@@ -812,3 +812,11 @@ upstream characteristic field and the shock's placement inside that field are
 still absent.  The branch is therefore retained as research-only, remains
 blocked from chain promotion and production claims, and is visualized only as
 a caller-bound marker rather than a fitted global shock boundary.
+
+The next research seam now has a bounded solver-owned field attachment.  It
+selects a retained upstream characteristic node whose Mach, flow direction,
+gamma, static pressure, and total-pressure lineage match the audited scalar
+branch, binds the normal-shock geometry at that node, and independently
+remeasures both the selection and geometry.  This is evidence that the scalar
+branch can be connected to a valid local field sample; it is not a placed
+global shock, a closed mixed-regime field, or a production shock-cell input.

@@ -1,0 +1,224 @@
+from __future__ import annotations
+
+from dataclasses import replace
+from math import atan2, log, sqrt
+
+from exhaust_plume.models.moc import (
+  CharacteristicState,
+  MocTransonicShockFieldAttachmentRequest,
+  MocTransonicShockFieldAttachmentStatus,
+  MocTransonicShockState,
+  assemble_euler_ambient_physical_field,
+  fit_euler_consistent_shock_boundary,
+  solve_euler_ambient_first_wedge_characteristic_remesh,
+  solve_euler_ambient_first_wedge_entropy_carry,
+  solve_euler_ambient_first_wedge_entropy_characteristic_field,
+  solve_attached_compression_to_turn,
+  solve_moc_transonic_shock_field_attachment,
+)
+from exhaust_plume.validation import measure_moc_transonic_shock_field_attachment
+
+
+def _internal_field():
+  sample_count = 9
+  points = tuple(
+    (
+      0.5 + 4.93 * distance - 3.36 * distance * distance,
+      0.5 - distance,
+    )
+    for distance in (
+      index * 0.5 / (sample_count - 1)
+      for index in range(sample_count)
+    )
+  )
+  turns = (0.005, 0.14, 0.20, 0.22, 0.22, 0.20, 0.18, 0.17, 0.081637491676426)
+  tangent_angles = tuple(
+    atan2(second[1] - first[1], second[0] - first[0])
+    for first, second in (
+      (points[0], points[1]),
+      *zip(points[:-2], points[2:]),
+      (points[-2], points[-1]),
+    )
+  )
+  upstream_states = []
+  for point, turn, tangent_angle in zip(
+    points,
+    turns,
+    tangent_angles,
+    strict=True,
+  ):
+    compression = solve_attached_compression_to_turn(
+      upstream_mach=2.0,
+      gamma=1.4,
+      upstream_pressure_Pa=100000.0,
+      target_turn_rad=turn,
+    )
+    assert compression.beta_rad is not None
+    upstream_states.append(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=tangent_angle + compression.beta_rad,
+        mach=2.0,
+        gamma=1.4,
+      )
+    )
+  ####
+  shock = fit_euler_consistent_shock_boundary(
+    tuple(upstream_states),
+    (100000.0,) * sample_count,
+    points,
+    tuple(
+      state.theta_rad - turn
+      for state, turn in zip(upstream_states, turns, strict=True)
+    ),
+  )
+  physical_field = assemble_euler_ambient_physical_field(
+    shock,
+    shock.downstream_static_pressure_Pa[0],
+  )
+  candidate = solve_euler_ambient_first_wedge_characteristic_remesh(physical_field)
+  entropy_trial = solve_euler_ambient_first_wedge_entropy_carry(candidate)
+  return solve_euler_ambient_first_wedge_entropy_characteristic_field(
+    entropy_trial
+  )
+####
+
+
+def _shock_state_for_node(node) -> MocTransonicShockState:
+  gamma = node.state.gamma
+  gas_constant = 287.05
+  total_temperature = 1500.0
+  upstream_mach = node.state.mach
+  upstream_total_pressure = node.total_pressure_Pa
+  upstream_static_pressure = upstream_total_pressure / (
+    1.0 + 0.5 * (gamma - 1.0) * upstream_mach**2
+  ) ** (gamma / (gamma - 1.0))
+  upstream_static_temperature = total_temperature / (
+    1.0 + 0.5 * (gamma - 1.0) * upstream_mach**2
+  )
+  upstream_density = upstream_static_pressure / (
+    gas_constant * upstream_static_temperature
+  )
+  pressure_ratio = 1.0 + 2.0 * gamma / (gamma + 1.0) * (
+    upstream_mach**2 - 1.0
+  )
+  density_ratio = (gamma + 1.0) * upstream_mach**2 / (
+    (gamma - 1.0) * upstream_mach**2 + 2.0
+  )
+  downstream_static_pressure = upstream_static_pressure * pressure_ratio
+  downstream_density = upstream_density * density_ratio
+  downstream_static_temperature = upstream_static_temperature * (
+    pressure_ratio / density_ratio
+  )
+  downstream_mach = sqrt(
+    (1.0 + 0.5 * (gamma - 1.0) * upstream_mach**2)
+    / (gamma * upstream_mach**2 - 0.5 * (gamma - 1.0))
+  )
+  downstream_total_pressure = downstream_static_pressure * (
+    1.0 + 0.5 * (gamma - 1.0) * downstream_mach**2
+  ) ** (gamma / (gamma - 1.0))
+  upstream_sound_speed = sqrt(
+    gamma * gas_constant * upstream_static_temperature
+  )
+  downstream_sound_speed = sqrt(
+    gamma * gas_constant * downstream_static_temperature
+  )
+  upstream_speed = upstream_mach * upstream_sound_speed
+  downstream_speed = downstream_mach * downstream_sound_speed
+  entropy_increase = (
+    gamma * gas_constant / (gamma - 1.0)
+  ) * log(downstream_static_temperature / upstream_static_temperature) - (
+    gas_constant * log(pressure_ratio)
+  )
+  return MocTransonicShockState(
+    upstream_total_pressure_Pa=upstream_total_pressure,
+    upstream_total_temperature_K=total_temperature,
+    downstream_total_pressure_Pa=downstream_total_pressure,
+    total_pressure_ratio=downstream_total_pressure / upstream_total_pressure,
+    gamma=gamma,
+    gas_constant_J_kgK=gas_constant,
+    upstream_mach=upstream_mach,
+    downstream_mach=downstream_mach,
+    upstream_static_pressure_Pa=upstream_static_pressure,
+    downstream_static_pressure_Pa=downstream_static_pressure,
+    upstream_static_temperature_K=upstream_static_temperature,
+    downstream_static_temperature_K=downstream_static_temperature,
+    upstream_density_kg_m3=upstream_density,
+    downstream_density_kg_m3=downstream_density,
+    upstream_sound_speed_m_s=upstream_sound_speed,
+    downstream_sound_speed_m_s=downstream_sound_speed,
+    upstream_speed_m_s=upstream_speed,
+    downstream_speed_m_s=downstream_speed,
+    entropy_increase_JpkgK=entropy_increase,
+    upstream_flow_angle_rad=node.state.theta_rad,
+  )
+####
+
+
+def test_solver_owned_attachment_matches_audited_field_node() -> None:
+  field = _internal_field()
+  request = MocTransonicShockFieldAttachmentRequest(
+    upstream_field=field,
+    shock_state=_shock_state_for_node(field.nodes[0]),
+    state_tolerance=1.0e-8,
+    pressure_tolerance_fraction=1.0e-8,
+  )
+
+  result = solve_moc_transonic_shock_field_attachment(request)
+  audit = measure_moc_transonic_shock_field_attachment(result)
+
+  assert result.status is MocTransonicShockFieldAttachmentStatus.CONVERGED_BOUNDED_ATTACHMENT
+  assert result.attachment_verified
+  assert result.selected_node_index == 0
+  assert audit.converged
+  assert audit.field_match_verified
+  assert audit.geometry_binding_verified
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_attachment_rejects_missing_field_sampling_and_branch_mismatch() -> None:
+  field = _internal_field()
+  state = _shock_state_for_node(field.nodes[0])
+  unavailable_field = replace(field, internal_characteristic_closure_verified=False)
+  unavailable = solve_moc_transonic_shock_field_attachment(
+    MocTransonicShockFieldAttachmentRequest(
+      upstream_field=unavailable_field,
+      shock_state=state,
+    )
+  )
+  assert unavailable.status is MocTransonicShockFieldAttachmentStatus.FIELD_REQUIRED
+
+  mismatch = replace(state, upstream_mach=state.upstream_mach + 0.5)
+  rejected = solve_moc_transonic_shock_field_attachment(
+    MocTransonicShockFieldAttachmentRequest(
+      upstream_field=field,
+      shock_state=mismatch,
+      state_tolerance=1.0e-8,
+      pressure_tolerance_fraction=1.0e-8,
+    )
+  )
+  assert rejected.status is MocTransonicShockFieldAttachmentStatus.NO_ADMISSIBLE_FIELD_MATCH
+  assert not rejected.attachment_verified
+####
+
+
+def test_attachment_measurement_rejects_tampered_selection() -> None:
+  field = _internal_field()
+  result = solve_moc_transonic_shock_field_attachment(
+    MocTransonicShockFieldAttachmentRequest(
+      upstream_field=field,
+      shock_state=_shock_state_for_node(field.nodes[0]),
+    )
+  )
+  tampered = replace(
+    result,
+    selected_node_index=(result.selected_node_index or 0) + 1,
+  )
+  audit = measure_moc_transonic_shock_field_attachment(tampered)
+  assert not audit.converged
+  assert not audit.field_match_verified
+####

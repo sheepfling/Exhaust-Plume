@@ -3741,3 +3741,21 @@ has reached the branch or that the shock is globally placed; the visual lane
 shows only a caller-bound marker and keeps ``MocChainCell`` and production
 promotion blocked.  The next MOC-1 work is a solver-owned attachment/transport
 of this branch into the upstream two-dimensional characteristic field.
+
+## Solver-owned transonic field-attachment checkpoint
+
+The MOC lane now has a bounded ``MocTransonicShockFieldAttachmentRequest``.
+It searches the retained, locally consistent upstream characteristic field for
+the deterministic best node match to the audited scalar branch using Mach,
+flow angle, gamma, static pressure, and total-pressure lineage.  A matching
+node is then bound to the scalar normal-shock geometry, and an independent
+measurement operator reselects the node and rederives the geometry audit.
+
+This closes a real field-to-branch evidence seam without pretending that the
+field solver has placed a shock: no extrapolation, free-boundary update,
+upstream transport, or downstream mixed-regime coupling is performed.  Missing
+field sampling and state mismatch are typed failures, and the attachment
+remains blocked from ``MocChainCell`` promotion and production claims.  The
+next MOC-1 packet is a solver-owned characteristic transport/placement solve
+that can connect this local attachment to the reflected frontier and then
+re-run conservative closure and refinement evidence.

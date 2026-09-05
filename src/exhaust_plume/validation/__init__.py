@@ -237,6 +237,11 @@ from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MocReflectedDomainCoupledEulerPressureContinuationRun,
   run_reflected_domain_coupled_euler_pressure_continuation,
 )
+from exhaust_plume.validation.moc_transonic_attachment import (
+  MocTransonicShockFieldAttachmentAuditStatus,
+  MocTransonicShockFieldAttachmentAudit,
+  measure_moc_transonic_shock_field_attachment,
+)
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -626,6 +631,9 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_COUPLED_EULER_PRESSURE_CONTINUATION_RUN_OPERATOR_ID',
   'MocReflectedDomainCoupledEulerPressureContinuationRun',
   'run_reflected_domain_coupled_euler_pressure_continuation',
+  'MocTransonicShockFieldAttachmentAuditStatus',
+  'MocTransonicShockFieldAttachmentAudit',
+  'measure_moc_transonic_shock_field_attachment',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainMixedRegimeBoundaryRefinementStatus',
   'MocReflectedDomainMixedRegimeBoundaryRefinementCase',
