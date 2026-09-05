@@ -820,3 +820,7 @@ branch, binds the normal-shock geometry at that node, and independently
 remeasures both the selection and geometry.  This is evidence that the scalar
 branch can be connected to a valid local field sample; it is not a placed
 global shock, a closed mixed-regime field, or a production shock-cell input.
+The standardized planar visualization can now consume the attachment result
+and exposes the retained upstream field, frontier, branch marker, selected
+node marker, and match residuals without promoting any of them to a global
+shock boundary.

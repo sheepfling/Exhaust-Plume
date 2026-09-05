@@ -224,6 +224,64 @@ class _MocResult:
 ####
 
 
+class _AttachmentField(_MocField):
+  nodes = tuple(
+    SimpleNamespace(
+      state=CharacteristicState(
+        x_m=x_value,
+        y_m=0.0,
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=1.4,
+      ),
+      total_pressure_Pa=200_000.0 - 10_000.0 * index,
+    )
+    for index, x_value in enumerate((0.5, 1.0, 1.5))
+  )
+  continuation_boundary = ()
+  physical_closure_verified = False
+  production_claim_allowed = False
+####
+
+
+_AttachmentField.continuation_boundary = tuple(
+  SimpleNamespace(state=node.state, total_pressure_Pa=node.total_pressure_Pa)
+  for node in _AttachmentField.nodes
+)
+
+
+class _AttachmentResult:
+  request = SimpleNamespace(upstream_field=_AttachmentField())
+  status = 'converged-bounded-transonic-shock-field-attachment'
+  selected_node_index = 1
+  selected_point_m = (1.0, 0.0)
+  attachment_verified = True
+  physical_closure_verified = False
+  production_claim_allowed = False
+  geometry = SimpleNamespace(
+    status='verified-normal-shock-geometry-binding',
+    geometry_verified=True,
+    shock_point_m=(1.0, 0.0),
+    shock_normal_angle_rad=0.0,
+    normal_alignment_residual_rad=0.0,
+    mass_flux_residual=1.0e-12,
+    momentum_flux_residual=2.0e-12,
+    energy_flux_residual=3.0e-12,
+    upstream_normal_velocity_m_s=500.0,
+    downstream_normal_velocity_m_s=100.0,
+  )
+  geometry_audit = SimpleNamespace(
+    field_match_verified=True,
+    geometry_binding_verified=True,
+  )
+  mach_residual = 0.0
+  flow_angle_residual_rad = 0.0
+  gamma_residual = 0.0
+  static_pressure_residual = 0.0
+  total_pressure_residual = 0.0
+####
+
+
 def _coupled_euler_result() -> SimpleNamespace:
   control_section = SimpleNamespace(
     points_m=((0.0, 0.0), (0.0, 1.0)),
@@ -534,6 +592,35 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   )
   assert any(
     'caller-bound scalar branch diagnostic' in warning
+    for warning in bundle.warnings
+  )
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
+def test_transonic_attachment_visualization_retains_field_and_attachment_evidence() -> None:
+  bundle = standardize_model_visualization(
+    _AttachmentResult(),
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-transonic-field-attachment'
+  assert len(bundle.fields) == 1
+  assert len(bundle.fields[0].polygons_xr_m) == 2
+  assert {path.path_id for path in bundle.paths} >= {
+    'moc-centerline-boundary',
+    'moc-incoming-frontier',
+    'moc-transonic-shock-branch',
+    'moc-transonic-attachment-node',
+  }
+  assert bundle.diagnostics['moc_transonic_attachment_verified'] is True
+  assert bundle.diagnostics['moc_transonic_attachment_selected_node_index'] == 1
+  assert bundle.diagnostics['moc_transonic_attachment_field_match_verified'] is True
+  assert bundle.diagnostics['moc_transonic_attachment_geometry_binding_verified'] is True
+  assert bundle.claims.production_claim_allowed is False
+  assert any(
+    'bounded solver-owned field attachment diagnostic' in warning
     for warning in bundle.warnings
   )
   json.dumps(bundle.model_dump(), allow_nan=False)

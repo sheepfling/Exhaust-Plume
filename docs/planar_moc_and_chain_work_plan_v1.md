@@ -3759,3 +3759,10 @@ remains blocked from ``MocChainCell`` promotion and production claims.  The
 next MOC-1 packet is a solver-owned characteristic transport/placement solve
 that can connect this local attachment to the reflected frontier and then
 re-run conservative closure and refinement evidence.
+
+The standardized planar visualization now accepts this attachment result
+directly.  It adapts the retained upstream cells and frontier into the common
+renderer-neutral field view, adds separate branch and selected-node markers,
+and publishes the node-match and geometry-audit residuals.  The adapter keeps
+the marker diagnostic-only and does not invent a shock boundary or turn the
+attachment into a production visualization claim.

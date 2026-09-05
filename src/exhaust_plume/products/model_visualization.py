@@ -1313,6 +1313,91 @@ class _CoupledEulerFieldView:
 ####
 
 
+class _EntropyCharacteristicFieldView:
+  """Adapt a bounded entropy-characteristic field to the MOC view protocol."""
+
+  def __init__(self, field: object) -> None:
+    raw_cells = tuple(getattr(field, 'cells', ()))
+    polygons = tuple(
+      tuple(_vector2('entropy-characteristic cell vertex', point) for point in getattr(cell, 'vertices_xr_m'))
+      for cell in raw_cells
+    )
+    if not polygons or any(len(polygon) < 3 for polygon in polygons):
+      raise ValueError(
+        'entropy-characteristic visualization requires retained cell polygons'
+      )
+    ####
+    self.cells = tuple(_CoupledEulerCellView(polygon) for polygon in polygons)
+    self.nodes = tuple(getattr(field, 'nodes', ()))
+    self.shock_boundary_points_m: tuple[Vector2, ...] = ()
+    self.ambient_boundary_points_m: tuple[Vector2, ...] = ()
+    boundary = tuple(getattr(field, 'continuation_boundary', ()))
+    self.incoming_handoff_states = tuple(
+      getattr(sample, 'state')
+      for sample in boundary
+      if hasattr(sample, 'state')
+    )
+    centerline_nodes = tuple(
+      node for node in self.nodes
+      if abs(float(getattr(getattr(node, 'state'), 'y_m'))) <= 1.0e-10
+    )
+    centerline_nodes = tuple(
+      sorted(centerline_nodes, key=lambda node: float(getattr(node.state, 'x_m')))
+    )
+    self.centerline_boundary_points_m = tuple(
+      (float(node.state.x_m), float(node.state.y_m))
+      for node in centerline_nodes
+    )
+    self.centerline_boundary_states = tuple(node.state for node in centerline_nodes)
+    self.centerline_boundary_total_pressure_Pa = tuple(
+      float(node.total_pressure_Pa) for node in centerline_nodes
+    )
+    self.physical_closure_verified = bool(
+      getattr(field, 'physical_closure_verified', False)
+    )
+    self.state_sampling_available = bool(
+      getattr(field, 'state_sampling_available', False)
+    )
+    self.production_claim_allowed = bool(
+      getattr(field, 'production_claim_allowed', False)
+    )
+    self._field = field
+  ####
+
+  def state_at(self, point: tuple[float, float]) -> object | None:
+    sampler = getattr(self._field, 'state_at', None)
+    return sampler(point) if callable(sampler) else None
+  ####
+
+  def total_pressure_at(self, point: tuple[float, float]) -> float | None:
+    sampler = getattr(self._field, 'total_pressure_at', None)
+    if not callable(sampler):
+      return None
+    ####
+    value = sampler(point)
+    return None if value is None else float(cast(float, value))
+  ####
+####
+
+
+def _entropy_characteristic_field_from_result(result: object) -> object | None:
+  """Return a view for an attachment's retained upstream characteristic field."""
+
+  request = getattr(result, 'request', None)
+  field = getattr(request, 'upstream_field', None)
+  if field is None:
+    return None
+  ####
+  if not all(
+    hasattr(field, name)
+    for name in ('cells', 'nodes', 'continuation_boundary', 'state_at')
+  ):
+    return None
+  ####
+  return _EntropyCharacteristicFieldView(field)
+####
+
+
 def _coupled_euler_field_from_result(result: object) -> object | None:
   if not hasattr(result, 'cell_vertices_by_cell_m'):
     return None
@@ -1327,6 +1412,10 @@ def _coupled_euler_field_from_result(result: object) -> object | None:
 def _moc_field_from_result(result: object) -> tuple[object | None, object]:
   """Find a retained planar field without requiring one concrete MOC wrapper."""
 
+  attached_field = _entropy_characteristic_field_from_result(result)
+  if attached_field is not None:
+    return attached_field, result
+  ####
   coupled_field = _coupled_euler_field_from_result(result)
   if coupled_field is not None:
     return coupled_field, result
@@ -1729,7 +1818,15 @@ def _moc_visualization(
     ####
   ####
 
+  attachment_geometry = getattr(source, 'geometry', None)
+  is_transonic_attachment = bool(
+    attachment_geometry is not None
+    and getattr(source, 'selected_node_index', None) is not None
+  )
   transonic_geometry = getattr(source, 'transonic_shock_geometry', None)
+  if transonic_geometry is None and is_transonic_attachment:
+    transonic_geometry = attachment_geometry
+  ####
   if transonic_geometry is not None:
     point = _vector2(
       'transonic shock geometry point',
@@ -1759,11 +1856,29 @@ def _moc_visualization(
     )
     path = _path3(
       'moc-transonic-shock-branch',
-      'caller-bound scalar transonic shock branch marker; not global placement',
+      (
+        'solver-owned bounded transonic field attachment marker; not global '
+        'placement'
+        if is_transonic_attachment
+        else 'caller-bound scalar transonic shock branch marker; not global placement'
+      ),
       marker,
     )
     if path is not None:
       paths.append(path)
+    ####
+    if is_transonic_attachment:
+      node_marker = _path3(
+        'moc-transonic-attachment-node',
+        'selected upstream characteristic attachment node',
+        (
+          (point[0] - marker_half_length * 0.35, point[1]),
+          (point[0] + marker_half_length * 0.35, point[1]),
+        ),
+      )
+      if node_marker is not None:
+        paths.append(node_marker)
+      ####
     ####
   ####
 
@@ -2215,6 +2330,36 @@ def _moc_visualization(
       ####
     ####
   ####
+  if is_transonic_attachment:
+    attachment_status = getattr(source, 'status', '')
+    diagnostics['moc_transonic_attachment_status'] = str(
+      getattr(attachment_status, 'value', attachment_status)
+    )
+    diagnostics['moc_transonic_attachment_verified'] = bool(
+      getattr(source, 'attachment_verified', False)
+    )
+    diagnostics['moc_transonic_attachment_selected_node_index'] = int(
+      getattr(source, 'selected_node_index')
+    )
+    diagnostics['moc_transonic_attachment_field_match_verified'] = bool(
+      getattr(getattr(source, 'geometry_audit', None), 'field_match_verified', False)
+    )
+    diagnostics['moc_transonic_attachment_geometry_binding_verified'] = bool(
+      getattr(getattr(source, 'geometry_audit', None), 'geometry_binding_verified', False)
+    )
+    for name in (
+      'mach_residual',
+      'flow_angle_residual_rad',
+      'gamma_residual',
+      'static_pressure_residual',
+      'total_pressure_residual',
+    ):
+      value = getattr(source, name, None)
+      if value is not None and isfinite(float(value)):
+        diagnostics[f'moc_transonic_attachment_{name}'] = float(value)
+      ####
+    ####
+  ####
   diagnostics.update(solver_diagnostics)
   if isinstance(gates, Mapping):
     for key, value in gates.items():
@@ -2235,8 +2380,13 @@ def _moc_visualization(
   ####
   if transonic_geometry is not None:
     warnings.append(
-      'the transonic shock marker is a caller-bound scalar branch diagnostic; '
-      'it is not a globally placed shock boundary'
+      (
+        'the transonic marker is a bounded solver-owned field attachment '
+        'diagnostic; it is not a globally placed shock boundary'
+        if is_transonic_attachment
+        else 'the transonic shock marker is a caller-bound scalar branch diagnostic; '
+        'it is not a globally placed shock boundary'
+      )
     )
   ####
   if not optional_channels or any(
@@ -2250,7 +2400,11 @@ def _moc_visualization(
     lane=ModelVisualizationLane.PLANAR_MOC,
     model_id=(
       'planar-moc-coupled-euler-free-boundary'
-      if coupled_euler else 'planar-moc-reflected-domain'
+      if coupled_euler
+      else (
+        'planar-moc-transonic-field-attachment'
+        if is_transonic_attachment else 'planar-moc-reflected-domain'
+      )
     ),
     model_version='1',
     result=result,
