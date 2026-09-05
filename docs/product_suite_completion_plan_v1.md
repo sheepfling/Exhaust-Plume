@@ -872,3 +872,98 @@ chain promotion, external validation, and production Signature/FPA claims are
 still blocked.  The standardized Visualization adapter exposes the retained
 transport, frontier, intersection marker, fidelity, seam residuals, and
 promotion gates without presenting the local seam as a global shock boundary.
+
+## Long-running execution board refresh — 2026-09-05
+
+This board is the working handoff for the continuing integration goal.  It is
+deliberately ordered so that missing validation assets or an open physical
+closure cannot be hidden by a passing local test suite.
+
+### Current position
+
+The dedicated integration branch remains the active work surface; `main` is
+unchanged.  The local candidate has clean, committed evidence for the five
+Visualization lanes, mission-time composition, Signature point/timeline
+views, gray/line source seams, deterministic ray/FPA operators, and the
+research-only planar-MOC progression through bounded frontier placement.
+The release manifest still reports `release_ready=false`.  No release tag or
+production claim is authorized while any item below remains open.
+
+The known release blockers are:
+
+- the raw Version 8 validation archive, the separately named alignment archive,
+  provider-bound outputs, and accepted product-specific measurement operators
+  are not present in the workspace;
+- the reduced-order shock train has no disjoint calibration/validation split,
+  and pressure-extrema spacing remains diagnostic rather than physical cell
+  evidence;
+- the canonical planar-MOC reflected/mixed-regime field is not closed or
+  independently validated;
+- no accepted physical solver-length comparison exists for the first or
+  continued shock cells; and
+- the final release freeze must be regenerated for the final committed
+  candidate before acceptance.
+
+### Ordered work packets
+
+| Packet | Next action | Required input | Exit condition |
+| --- | --- | --- | --- |
+| `P1` | Intake validation assets and bind measurement spaces | Owner-supplied archives, provider outputs, provenance, units, frames, operators | Digests and member checks pass; calibration and validation cases are disjoint; every comparison has an accepted operator and uncertainty record |
+| `P2.2` | Replace the mapped transonic/reference seam with solver-owned reflected/mixed-regime closure | Resolved planar-MOC field, bounded placement result, coupled boundary/entropy law | Shock placement, C-/C+ frontier, ambient/centerline boundaries, entropy transport, conservative residuals, independent audit, and stable refinement all pass on the actual target case |
+| `P3` | Fit first and continued physical shock cells | `P2.2` closure plus accepted physical observations | Typed cell fits report solver length, uncertainty, lineage, and an accepted disjoint physical-length comparison |
+| `P4` | Run provider-bound VIS, SIG, RAY, and FPA comparisons | `P1` operator records and source-bound scenarios | Each product passes in its own measurement space without inheriting another lane's fidelity or claim ceiling |
+| `P5` | Freeze, package, and release | Completed `P1`–`P4` evidence | Exact candidate `HEAD` is clean and frozen; full acceptance matrix, wheel/install smoke, and release manifest are green; only then may a tag be created |
+
+The next implementation slice is `P2.2`.  It may consume the bounded
+frontier-placement result only as a typed local handoff.  A placement that
+does not reach the actual neighboring field, violates a seam, or encounters
+an unreachable pressure target must return a typed stop.  It must never fall
+back to the basic shock-cell solver, the reduced-order train, or the mapped
+variable-entropy reference.  A successful local solve still remains
+research-only until the complete field, independent audit, refinement ladder,
+and external comparison gates pass together.
+
+### Slice protocol
+
+Every packet follows the same loop:
+
+1. State the contract, input lineage, fidelity, and claim ceiling before
+   editing solver or product code.
+2. Implement one vertical slice with typed failure states and independent
+   measurement where the result can influence promotion.
+3. Add focused tests for success, invalid input, altered lineage, and the
+   expected hard stop.  Update the relevant validation note and release
+   manifest inputs in the same change.
+4. Run the focused lane checks, then the full acceptance matrix at packet
+   boundaries.  A passing test is evidence of implementation correctness,
+   not evidence of physical or provider validation.
+5. Commit one coherent slice, push the dedicated branch, and record the
+   resulting status.  Do not tag until `P5` is green.
+
+### Branch and merge rules
+
+- Keep work on the dedicated integration branch until the packet exit
+  condition is met.  Start each packet from the current `main` ancestry, but
+  do not commit directly to `main`.
+- Reconcile `main` or another outstanding branch only from a clean worktree;
+  resolve conflicts by retaining the stricter fidelity boundary, explicit
+  unavailable/masked values, and the narrower claim ceiling when branches
+  disagree.
+- Treat validation manifests, public schemas, and product adapters as
+  contracts.  A merge conflict in one of those files is not resolved by
+  choosing the version with more capabilities; the merged result must keep
+  provenance, operator identity, and promotion guards intact.
+- After a conflict resolution, rerun the affected lane and contract tests,
+  `scripts.test_lanes --check`, static/documentation checks, and the release
+  manifest before publishing the branch.
+
+### Completion definition
+
+The goal is complete only when the five Visualization lanes are standardized,
+Signature and ray-transfer claims are source- and operator-bound, FPA is
+validated in camera/detector measurement space, the canonical planar-MOC
+field and physical cell fits have accepted independent evidence, all required
+archives and disjoint splits are verified, and the exact frozen candidate
+reports `release_ready=true`.  Until then, the correct outcome is a clean,
+reproducible integration candidate with visible research and validation
+stops—not a production release.
