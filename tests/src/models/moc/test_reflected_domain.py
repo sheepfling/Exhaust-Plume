@@ -662,6 +662,15 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
   assert front_condition.ambient_neighbor_verified
   assert front_condition.centerline_neighbor_verified
   assert front_condition.continuation_section_verified
+  assert front_condition.coupled_inlet_profile is not None
+  assert front_condition.coupled_inlet_profile_verified
+  assert front_condition.coupled_inlet_profile.lower_ordinate_m == pytest.approx(
+    0.0
+  )
+  assert front_condition.coupled_inlet_profile.upper_ordinate_m >= (
+    continuation.profile.upper_ordinate_m
+  )
+  assert front_condition.coupled_inlet_profile.upper_ordinate_m > 0.5
   front_audit = measure_moc_physical_field_shock_front_condition(
     front_condition
   )
@@ -675,7 +684,11 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
   assert front_audit.ambient_neighbor_verified
   assert front_audit.centerline_neighbor_verified
   assert front_audit.continuation_section_verified
+  assert front_audit.coupled_inlet_profile_verified
   assert front_audit.maximum_point_residual_m == pytest.approx(0.0)
+  assert front_audit.maximum_coupled_inlet_profile_residual_m == pytest.approx(
+    0.0
+  )
   tampered_front = replace(
     front_condition,
     shock_front_points_m=(
@@ -692,6 +705,52 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
   )
   assert not tampered_front_audit.converged
   assert not tampered_front_audit.shock_front_verified
+  tampered_inlet_profile = replace(
+    front_condition.coupled_inlet_profile,
+    samples=(
+      *front_condition.coupled_inlet_profile.samples[:-1],
+      replace(
+        front_condition.coupled_inlet_profile.samples[-1],
+        mach=front_condition.coupled_inlet_profile.samples[-1].mach + 0.01,
+      ),
+    ),
+  )
+  tampered_inlet = replace(
+    front_condition,
+    coupled_inlet_profile=tampered_inlet_profile,
+  )
+  tampered_inlet_audit = measure_moc_physical_field_shock_front_condition(
+    tampered_inlet
+  )
+  assert not tampered_inlet_audit.converged
+  assert not tampered_inlet_audit.coupled_inlet_profile_verified
+
+  interior_placement = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=field,
+      boundary_margin_fraction=0.1,
+    )
+  )
+  assert interior_placement.converged
+  interior_continuation = build_moc_physical_field_continuation_profile(
+    MocPhysicalFieldContinuationProfileRequest(
+      field=field,
+      sample_points_m=interior_placement.sample_points_m,
+    )
+  )
+  assert interior_continuation.converged
+  assert interior_continuation.profile is not None
+  interior_front_condition = build_moc_physical_field_shock_front_condition(
+    MocPhysicalFieldShockFrontConditionRequest(
+      continuation_profile=interior_continuation,
+      condition_id='test-global-physical-field-interior-shock-front',
+    )
+  )
+  assert interior_front_condition.converged
+  assert interior_front_condition.coupled_inlet_profile is not None
+  assert interior_front_condition.coupled_inlet_profile.upper_ordinate_m > (
+    interior_continuation.profile.upper_ordinate_m
+  )
 
   mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
   coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(
@@ -705,8 +764,8 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
     ),
-    physical_field_continuation_profile=continuation,
-    physical_field_shock_front_condition=front_condition,
+    physical_field_continuation_profile=interior_continuation,
+    physical_field_shock_front_condition=interior_front_condition,
   )
   coupled = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
   assert coupled.status is not (
@@ -714,10 +773,13 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
     .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE
   )
   assert coupled.x_stations_m[0] == pytest.approx(
-    continuation.profile.cross_section_x_m
+    interior_continuation.profile.cross_section_x_m
+  )
+  assert coupled.free_boundary_points_m[0][1] == pytest.approx(
+    interior_front_condition.coupled_inlet_profile.upper_ordinate_m
   )
   assert coupled.physical_field_continuation_profile_consumed
-  assert coupled.physical_field_continuation_profile == continuation
+  assert coupled.physical_field_continuation_profile == interior_continuation
   assert coupled.transonic_shock_interface_profile is None
   assert coupled.production_claim_allowed is False
   coupled_audit = measure_reflected_domain_coupled_euler_free_boundary(coupled)

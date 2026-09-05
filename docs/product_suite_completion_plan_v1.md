@@ -74,6 +74,12 @@ next product can make a stronger claim:
    The coupled research lane now treats entropy production as allowable shock
    evidence while retaining an independently checked entropy-loss gate; this
    improves physical interpretation but does not close the field.
+   The exact physical-field continuation handoff now binds a complete
+   centerline-to-ambient coupled inlet profile to the retained shock-front
+   condition, and the downstream research Euler lane consumes that profile
+   without relabelling the interior continuation as a free boundary. This
+   closes a boundary-context bookkeeping seam only; coupled residuals,
+   refinement, and external validation remain open.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;

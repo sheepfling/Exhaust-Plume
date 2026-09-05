@@ -1048,6 +1048,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       )
     ####
     if (
+      continuation_mode
+      and self.physical_field_shock_front_condition is not None
+      and self.physical_field_shock_front_condition.coupled_inlet_profile is None
+    ):
+      raise ValueError(
+        'solver-owned physical-field continuation mode requires the retained '
+        'shock-front condition to carry a complete coupled inlet profile'
+      )
+    ####
+    if (
       self.transonic_shock_interface is not None
       and self.transonic_shock_interface_profile is not None
     ):
@@ -2265,6 +2275,7 @@ def _failure(
     physical_field_continuation_profile = (
       request.physical_field_continuation_profile
     )
+  ####
   if request is not None and request.physical_field_shock_front_condition is not None:
     physical_field_shock_front_condition = (
       request.physical_field_shock_front_condition
@@ -3552,11 +3563,21 @@ def _prepare_physical_field_continuation_inlet(
     )
   ####
   profile = continuation.profile
-  if profile is None:
+  shock_front_condition = request.physical_field_shock_front_condition
+  if profile is None or shock_front_condition is None:
     raise RuntimeError(
-      'physical-field continuation result retained no profile'
+      'physical-field continuation result retained no profile or shock-front '
+      'condition'
     )
   ####
+  coupled_profile = shock_front_condition.coupled_inlet_profile
+  if coupled_profile is None:
+    raise RuntimeError(
+      'physical-field shock-front condition retained no complete coupled '
+      'inlet profile'
+    )
+  ####
+  profile = coupled_profile
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
   y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
   if abs(profile.cross_section_x_m - x_start) > x_tolerance:
@@ -4128,6 +4149,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       or not shock_front_audit.converged
       or physical_field_shock_front_condition.continuation_profile
       != physical_field_continuation
+      or physical_field_shock_front_condition.coupled_inlet_profile is None
+      or not physical_field_shock_front_condition.coupled_inlet_profile_verified
     ):
       return _failure(
         MocReflectedDomainCoupledEulerFreeBoundaryStatus
@@ -4138,6 +4161,16 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       )
     ####
     continuation_profile = physical_field_continuation.profile
+    coupled_inlet_profile = physical_field_shock_front_condition.coupled_inlet_profile
+    if continuation_profile is None or coupled_inlet_profile is None:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE,
+        'solver-owned physical-field shock-front condition retained no '
+        'complete coupled inlet profile',
+        request,
+      )
+    ####
     x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
     if continuation_profile.cross_section_x_m <= x_start + x_tolerance:
       return _failure(
@@ -4148,10 +4181,10 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         request,
       )
     ####
-    x_start = continuation_profile.cross_section_x_m
-    lower_ordinate = continuation_profile.lower_ordinate_m
+    x_start = coupled_inlet_profile.cross_section_x_m
+    lower_ordinate = coupled_inlet_profile.lower_ordinate_m
     inlet_height = (
-      continuation_profile.upper_ordinate_m - lower_ordinate
+      coupled_inlet_profile.upper_ordinate_m - lower_ordinate
     )
   ####
   if request.inlet_boundary_mode in (
@@ -4330,6 +4363,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         request,
       )
     ####
+  ####
   downstream_length = request.effective_downstream_length_m
   x_stations = np.linspace(
     x_start,

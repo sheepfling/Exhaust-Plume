@@ -108,8 +108,9 @@ def _effective_field_inlet_geometry(
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
   ):
-    continuation = request.physical_field_continuation_profile
-    profile = None if continuation is None else continuation.profile
+    condition = request.physical_field_shock_front_condition
+    profile = None if condition is None else condition.coupled_inlet_profile
+  ####
   if profile is None:
     raise ValueError('downstream profile mode requires a retained profile')
   ####
@@ -1513,33 +1514,44 @@ def _audit_physical_field_continuation(
   if not isinstance(profile, MocPhysicalFieldContinuationProfile):
     return False, None
   ####
+  coupled_profile = profile
+  if request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ):
+    condition = request.physical_field_shock_front_condition
+    coupled_profile = None if condition is None else condition.coupled_inlet_profile
+    if not isinstance(coupled_profile, MocPhysicalFieldContinuationProfile):
+      return False, None
+    ####
+  ####
   control = request.mixed_regime_request.control_section
   x_start, lower_ordinate, inlet_height = _effective_field_inlet_geometry(
     request
   )
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
   y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
-  if abs(profile.cross_section_x_m - x_start) > x_tolerance:
+  if abs(coupled_profile.cross_section_x_m - x_start) > x_tolerance:
     return False, None
   ####
   if (
-    abs(profile.lower_ordinate_m - lower_ordinate) > y_tolerance
-    or abs(profile.upper_ordinate_m - (lower_ordinate + inlet_height))
+    abs(coupled_profile.lower_ordinate_m - lower_ordinate) > y_tolerance
+    or abs(coupled_profile.upper_ordinate_m - (lower_ordinate + inlet_height))
     > y_tolerance
   ):
     return False, None
   ####
   reference_sample = control.samples[-1]
-  if abs(profile.gamma - float(reference_sample.gamma)) > 1.0e-10:
+  if abs(coupled_profile.gamma - float(reference_sample.gamma)) > 1.0e-10:
     return False, None
   ####
   ordinates = np.asarray(
-    [sample.point_m[1] for sample in profile.samples],
+    [sample.point_m[1] for sample in coupled_profile.samples],
     dtype=float,
   )
   fields = {
     name: np.asarray(
-      [getattr(sample, name) for sample in profile.samples],
+      [getattr(sample, name) for sample in coupled_profile.samples],
       dtype=float,
     )
     for name in ('total_pressure_Pa', 'mach', 'flow_angle_rad')
@@ -1568,7 +1580,7 @@ def _audit_physical_field_continuation(
           fields['flow_angle_rad'],
         )
       ),
-      profile.gamma,
+      coupled_profile.gamma,
       request.reference_total_temperature_K,
       request.gas_constant_J_kgK,
     )
