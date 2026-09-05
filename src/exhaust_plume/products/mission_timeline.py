@@ -71,6 +71,7 @@ from exhaust_plume.validation.fpa_visualization import (
     FpaVisualizationSpec,
     project_fpa_view,
 )
+from exhaust_plume.validation.sensor_operators import AtmosphericPathLayer
 
 __all__ = (
     "MISSION_TIMELINE_SCHEMA",
@@ -260,6 +261,36 @@ class MissionState:
             "declared_ambient_state": dict(self.ambient_state),
         }
     ####
+####
+
+
+def _resolve_atmospheric_path_layers(
+    resolver: Callable[[MissionState], Sequence[AtmosphericPathLayer] | None] | None,
+    state: MissionState,
+) -> tuple[AtmosphericPathLayer, ...] | None:
+    if resolver is None:
+        return None
+    ####
+    resolved = resolver(state)
+    if resolved is None:
+        return None
+    ####
+    try:
+        layers = tuple(resolved)
+    except TypeError as error:
+        raise TypeError(
+            "atmospheric_path_layers_at must return AtmosphericPathLayer values or None"
+        ) from error
+    ####
+    if not layers:
+        raise ValueError("atmospheric_path_layers_at must return at least one layer")
+    ####
+    if not all(isinstance(layer, AtmosphericPathLayer) for layer in layers):
+        raise TypeError(
+            "atmospheric_path_layers_at must return AtmosphericPathLayer values"
+        )
+    ####
+    return layers
 ####
 
 
@@ -556,6 +587,7 @@ class MissionSignatureSample:
     visualization: StandardizedModelVisualization
     optical_profile: GrayOpticalProfile
     signature: SpectralSignatureResult
+    atmospheric_path_layers: tuple[AtmosphericPathLayer, ...] | None = None
 ####
 
 
@@ -575,6 +607,9 @@ class MissionSignatureEvaluator:
     optical_profile_at: Callable[[MissionState], GrayOpticalProfile]
     sampling: ModelSignatureSampling | None = None
     allow_partial_results: bool = False
+    atmospheric_path_layers_at: Callable[
+        [MissionState], Sequence[AtmosphericPathLayer] | None
+    ] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.timeline, MissionTimeline):
@@ -591,6 +626,11 @@ class MissionSignatureEvaluator:
         ####
         if not isinstance(self.allow_partial_results, bool):
             raise TypeError("allow_partial_results must be bool")
+        ####
+        if self.atmospheric_path_layers_at is not None and not callable(
+            self.atmospheric_path_layers_at
+        ):
+            raise TypeError("atmospheric_path_layers_at must be callable or None")
         ####
     ####
 
@@ -611,6 +651,10 @@ class MissionSignatureEvaluator:
         ):
             raise TypeError("optical_profile_at must return a supported optical profile")
         ####
+        atmospheric_path_layers = _resolve_atmospheric_path_layers(
+            self.atmospheric_path_layers_at,
+            state,
+        )
         signature = evaluate_model_signature(
             visualization,
             optical_profile,
@@ -621,6 +665,7 @@ class MissionSignatureEvaluator:
             source_pose=state.source_pose,
             dynamic_state=state.snapshot_dynamic_state(),
             ambient_state=state.snapshot_ambient_state(),
+            atmospheric_path_layers=atmospheric_path_layers,
             time_model=TimeModel.PRESCRIBED_TRANSIENT,
         )
         return MissionSignatureSample(
@@ -628,6 +673,7 @@ class MissionSignatureEvaluator:
             visualization=visualization,
             optical_profile=optical_profile,
             signature=signature,
+            atmospheric_path_layers=atmospheric_path_layers,
         )
     ####
 
@@ -741,6 +787,7 @@ class MissionProductSample:
     signature_assessment: ModelSignatureAssessment
     optical_profile: GrayOpticalProfile | None
     signature: SpectralSignatureResult | None
+    atmospheric_path_layers: tuple[AtmosphericPathLayer, ...] | None = None
 
     @property
     def signature_available(self) -> bool:
@@ -764,6 +811,9 @@ class MissionProductEvaluator:
     optical_profile_at: Callable[[MissionState], GrayOpticalProfile] | None = None
     sampling: ModelSignatureSampling | None = None
     allow_partial_results: bool = False
+    atmospheric_path_layers_at: Callable[
+        [MissionState], Sequence[AtmosphericPathLayer] | None
+    ] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.visualization_evaluator, MissionVisualizationEvaluator):
@@ -778,6 +828,11 @@ class MissionProductEvaluator:
         if not isinstance(self.allow_partial_results, bool):
             raise TypeError("allow_partial_results must be bool")
         ####
+        if self.atmospheric_path_layers_at is not None and not callable(
+            self.atmospheric_path_layers_at
+        ):
+            raise TypeError("atmospheric_path_layers_at must be callable or None")
+        ####
     ####
 
     @property
@@ -788,6 +843,10 @@ class MissionProductEvaluator:
     def _evaluate_visual_sample(self, visual_sample: MissionVisualizationSample) -> MissionProductSample:
         state = visual_sample.state
         optical_profile = None if self.optical_profile_at is None else self.optical_profile_at(state)
+        atmospheric_path_layers = _resolve_atmospheric_path_layers(
+            self.atmospheric_path_layers_at,
+            state,
+        )
         if optical_profile is not None and not isinstance(
             optical_profile,
             (
@@ -815,6 +874,7 @@ class MissionProductEvaluator:
                 source_pose=state.source_pose,
                 dynamic_state=state.snapshot_dynamic_state(),
                 ambient_state=state.snapshot_ambient_state(),
+                atmospheric_path_layers=atmospheric_path_layers,
                 time_model=TimeModel.PRESCRIBED_TRANSIENT,
             )
         ####
@@ -825,6 +885,7 @@ class MissionProductEvaluator:
             signature_assessment=assessment,
             optical_profile=optical_profile,
             signature=signature,
+            atmospheric_path_layers=atmospheric_path_layers,
         )
     ####
 

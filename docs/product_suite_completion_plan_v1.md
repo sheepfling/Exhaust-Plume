@@ -188,6 +188,8 @@ The current local composition includes:
   declared transition data, and caller-supplied partition functions;
 - straight and separately labeled curved gray transfer;
 - atmospheric layers as caller-owned measurement operators;
+- explicit homogeneous atmospheric-path transfer through the Signature
+  bridge, with per-mission-state layer resolvers and retained layer lineage;
 - mission-time visual/signature evaluators;
 - direct construction of exact, compatible Signature timelines from mission
   samples for downstream angular heatmaps and masked traces;
@@ -316,6 +318,9 @@ claim is authorized.
       boundary views.
 - [x] Preserve mission time and source pose through visual, Signature, ray,
       and FPA composition seams.
+- [x] Bind an explicit caller-owned atmospheric path to Signature and
+      mission-time product samples without inferring altitude, chemistry,
+      scattering, or external atmosphere state.
 - [x] Provide an exact Signature time/direction/wavelength point query.
 - [x] Provide an exact-time Signature timeline gallery with angular heatmaps,
       masked direction traces, source trajectory, CSV lineage, and guardrails.
@@ -499,6 +504,23 @@ does not create a camera/detector observation, sample noise, or change the
 FPA's expected-electron/expected-ADC claim ceiling.  Focused mission-product
 tests cover stale dynamic and ambient contexts; external FPA measurement
 evidence remains required for release.
+
+### P4.4 explicit atmospheric-path Signature checkpoint
+
+The Signature bridge now accepts a sequence of explicit homogeneous
+``AtmosphericPathLayer`` values in near-observer-to-far-source order.  The
+operator is applied after intrinsic ray integration so provider ray results
+retain their canonical miss/validity semantics; the final Signature records
+the path operator, layer IDs, layer digest, updated result identity, and a
+restricted claim ceiling.  ``MissionSignatureEvaluator`` and
+``MissionProductEvaluator`` can resolve those layers independently at every
+mission state and retain them on the sampled product.
+
+This is an explicit measurement-space operator, not an atmosphere model.  It
+does not infer altitude, composition, scattering, line populations, or
+provider-bound path conditions, and it does not create detector or FPA
+evidence.  External atmospheric inputs and accepted provider comparisons
+remain required for release.
 
 ### P2.1 evidence checkpoint
 

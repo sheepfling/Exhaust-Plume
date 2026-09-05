@@ -12,7 +12,9 @@ The resulting signature is either a gray approximation or explicit spectral
 engineering evidence.  It carries the flow-lane lineage and claim ceiling.
 Caller-bound LTE population closures are allowed as source engineering
 inputs, but this bridge does not claim reactions, non-LTE population closure,
-atmosphere, detector response, or external validation.
+an inferred atmosphere model, detector response, or external validation.
+An explicit caller-supplied homogeneous atmospheric path may be composed as a
+measurement-space operator without widening that claim ceiling.
 """
 
 from __future__ import annotations
@@ -58,6 +60,11 @@ from exhaust_plume.radiation import (
     SpectralLine,
     far_field_from_rays,
     planck_spectral_radiance_W_m2_sr_m,
+)
+from exhaust_plume.validation.sensor_operators import (
+    ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
+    AtmosphericPathLayer,
+    compose_atmospheric_path_layers,
 )
 
 __all__ = (
@@ -143,6 +150,31 @@ def _nonnegative_spectrum(name: str, values: Sequence[float]) -> tuple[float, ..
         raise ValueError(f"{name} must be finite and nonnegative")
     ####
     return spectrum
+####
+
+
+def _normalize_atmospheric_path_layers(
+    layers: Sequence[AtmosphericPathLayer] | None,
+) -> tuple[AtmosphericPathLayer, ...] | None:
+    if layers is None:
+        return None
+    ####
+    try:
+        selected_layers = tuple(layers)
+    except TypeError as error:
+        raise TypeError(
+            "atmospheric_path_layers must be a sequence of AtmosphericPathLayer values or None"
+        ) from error
+    ####
+    if not selected_layers:
+        raise ValueError("atmospheric_path_layers must contain at least one layer")
+    ####
+    if not all(isinstance(layer, AtmosphericPathLayer) for layer in selected_layers):
+        raise TypeError(
+            "atmospheric_path_layers must contain AtmosphericPathLayer values"
+        )
+    ####
+    return selected_layers
 ####
 
 
@@ -398,20 +430,41 @@ def _profile_adapter_schema(profile: GrayOpticalProfile | None) -> str:
 ####
 
 
-def _profile_claim_ceiling(profile: GrayOpticalProfile | None) -> str:
+def _profile_claim_ceiling(
+    profile: GrayOpticalProfile | None,
+    *,
+    explicit_atmospheric_path: bool = False,
+) -> str:
     if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile)):
         population_note = (
             "caller-bound LTE population closure from explicit transition data; "
             if _profile_has_population_closure(profile)
             else "no chemical population closure; "
         )
+        if not explicit_atmospheric_path:
+            return (
+                "explicit LTE line-source/Voigt spectral engineering; "
+                f"{population_note}no reactions, non-LTE inference, atmosphere, "
+                "detector, or external validation"
+            )
+        ####
         return (
             "explicit LTE line-source/Voigt spectral engineering; "
-            f"{population_note}no reactions, non-LTE inference, atmosphere, "
-            "detector, or external validation"
+            f"{population_note}no reactions or non-LTE inference; "
+            "an explicit caller-supplied homogeneous atmospheric path transfer only; "
+            "no altitude, composition, scattering, or external atmosphere model; "
+            "no detector or external validation"
         )
     ####
-    return "gray-approximate; no chemistry, atmosphere, detector, or external validation"
+    if not explicit_atmospheric_path:
+        return "gray-approximate; no chemistry, atmosphere, detector, or external validation"
+    ####
+    return (
+        "gray-approximate; no chemistry; "
+        "an explicit caller-supplied homogeneous atmospheric path transfer only; "
+        "no altitude, composition, scattering, or external atmosphere model; "
+        "no detector or external validation"
+    )
 ####
 
 
@@ -675,19 +728,86 @@ def _build_ray_grid(
 ####
 
 
+def _apply_atmospheric_path_to_signature(
+    signature: SpectralSignatureResult,
+    wavelengths_m: tuple[float, ...],
+    integration: FarFieldRayIntegration,
+    layers: tuple[AtmosphericPathLayer, ...],
+) -> SpectralSignatureResult:
+    """Apply one explicit, spatially uniform atmospheric path per direction.
+
+    ``far_field_from_rays`` first integrates the intrinsic plume source over
+    projected ray-cell areas.  For one caller-supplied path shared by those
+    cells, the equivalent directional operator is
+    ``J_observer = J_source * tau + L_path * sum(projected_area)``.  Keeping
+    this reduction after the canonical ray result avoids mutating the provider
+    ray contract (where miss rays must retain zero source radiance).
+    """
+
+    transfer = compose_atmospheric_path_layers(wavelengths_m, layers)
+    if len(signature.spectral_radiant_intensity) != len(
+        integration.source_to_observer_directions
+    ):
+        raise ValueError("signature direction count must match ray integration")
+    ####
+    projected_areas = [0.0] * len(integration.source_to_observer_directions)
+    for direction_index, area in zip(
+        integration.ray_direction_indices,
+        integration.ray_projected_area_weights_m2,
+        strict=True,
+    ):
+        projected_areas[direction_index] += area
+    ####
+    values: list[tuple[float, ...]] = []
+    for row, validity, projected_area in zip(
+        signature.spectral_radiant_intensity,
+        signature.validity_mask,
+        projected_areas,
+        strict=True,
+    ):
+        if not all(validity):
+            values.append((0.0,) * len(transfer.wavelengths_m))
+            continue
+        ####
+        values.append(
+            tuple(
+                radiance * transmittance
+                + path_radiance * projected_area
+                for radiance, transmittance, path_radiance in zip(
+                    row,
+                    transfer.transmittance,
+                    transfer.path_radiance_w_sr_m,
+                    strict=True,
+                )
+            )
+        )
+    ####
+    return signature.model_copy(update={"spectral_radiant_intensity": tuple(values)})
+####
+
+
 def _attach_flow_lineage(
     signature: SpectralSignatureResult,
     visualization: StandardizedModelVisualization,
     profile: GrayOpticalProfile,
     sampling: ModelSignatureSampling,
     time_model: TimeModel,
+    atmospheric_path_layers: tuple[AtmosphericPathLayer, ...] | None,
 ) -> SpectralSignatureResult:
     parent = signature.metadata
     parent_provenance = parent.provenance
     optical_profile_digest = canonical_digest(profile)
     adapter_schema = _profile_adapter_schema(profile)
-    claim_ceiling = _profile_claim_ceiling(profile)
-    lineage_payload = {
+    atmospheric_path_digest = (
+        "none"
+        if atmospheric_path_layers is None
+        else canonical_digest(atmospheric_path_layers)
+    )
+    claim_ceiling = _profile_claim_ceiling(
+        profile,
+        explicit_atmospheric_path=atmospheric_path_layers is not None,
+    )
+    lineage_payload: dict[str, object] = {
         "adapter_schema": adapter_schema,
         "flow_lane": visualization.lane_id,
         "flow_model_id": visualization.model_id,
@@ -696,29 +816,73 @@ def _attach_flow_lineage(
         "optical_profile_digest": optical_profile_digest,
         "sampling": sampling,
     }
+    if atmospheric_path_layers is not None:
+        lineage_payload.update(
+            {
+                "atmospheric_path_operator_id": ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
+                "atmospheric_path_digest": atmospheric_path_digest,
+            }
+        )
+    ####
+    provenance_metadata = {
+        **dict(parent_provenance.metadata),
+        "flow_model_lane": visualization.lane_id,
+        "flow_model_id": visualization.model_id,
+        "flow_model_version": visualization.model_version,
+        "flow_model_fidelity": visualization.claims.model_fidelity,
+        "flow_model_validation": visualization.claims.validation_level,
+        "flow_geometry_claim": visualization.claims.geometry_claim.value,
+        "signature_adapter_schema": adapter_schema,
+        "signature_claim_ceiling": claim_ceiling,
+        "optical_profile_id": profile.profile_id,
+        "optical_profile_digest": optical_profile_digest,
+        "optical_profile_mode": _profile_mode(profile),
+        "optical_profile_section_count": str(_profile_section_count(profile)),
+        "ray_grid_policy": f"{sampling.transverse_sample_count}x{sampling.transverse_sample_count} per observer direction",
+        "signature_time_model": time_model.value,
+        "production_claim_allowed": "false",
+        "atmospheric_path_operator_id": (
+            "none"
+            if atmospheric_path_layers is None
+            else ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID
+        ),
+        "atmospheric_path_layer_count": (
+            "0"
+            if atmospheric_path_layers is None
+            else str(len(atmospheric_path_layers))
+        ),
+        "atmospheric_path_layer_digest": atmospheric_path_digest,
+        "atmospheric_path_layer_ids": (
+            ""
+            if atmospheric_path_layers is None
+            else ",".join(layer.layer_id for layer in atmospheric_path_layers)
+        ),
+        "source_term": (
+            "source_spectral_radiance only; background excluded"
+            if atmospheric_path_layers is None
+            else "intrinsic plume source radiance after explicit homogeneous atmospheric path transfer"
+        ),
+    }
+    if atmospheric_path_layers is not None:
+        provenance_metadata["atmospheric_path_semantics"] = (
+            "caller-supplied near-observer-to-far-source homogeneous layers; "
+            "path radiance and transmittance are explicit"
+        )
+    ####
     provenance = parent_provenance.model_copy(
         update={
             "model_lineage_id": canonical_digest(lineage_payload),
-            "metadata": {
-                **dict(parent_provenance.metadata),
-                "flow_model_lane": visualization.lane_id,
-                "flow_model_id": visualization.model_id,
-                "flow_model_version": visualization.model_version,
-                "flow_model_fidelity": visualization.claims.model_fidelity,
-                "flow_model_validation": visualization.claims.validation_level,
-                "flow_geometry_claim": visualization.claims.geometry_claim.value,
-                "signature_adapter_schema": adapter_schema,
-                "signature_claim_ceiling": claim_ceiling,
-                "optical_profile_id": profile.profile_id,
-                "optical_profile_digest": optical_profile_digest,
-                "optical_profile_mode": _profile_mode(profile),
-                "optical_profile_section_count": str(
-                    _profile_section_count(profile)
-                ),
-                "ray_grid_policy": f"{sampling.transverse_sample_count}x{sampling.transverse_sample_count} per observer direction",
-                "signature_time_model": time_model.value,
-                "production_claim_allowed": "false",
-            },
+            "configuration_digest_sha256": (
+                parent_provenance.configuration_digest_sha256
+                if atmospheric_path_layers is None
+                else canonical_digest(
+                    {
+                        "parent_configuration_digest": parent_provenance.configuration_digest_sha256,
+                        "atmospheric_path_digest": atmospheric_path_digest,
+                    }
+                )
+            ),
+            "metadata": provenance_metadata,
         }
     )
     applicability_status = parent.applicability.status
@@ -727,46 +891,60 @@ def _attach_flow_lineage(
         applicability_status = ApplicabilityStatus.MARGINAL
         reasons.append(f"flow lane applicability is {visualization.applicability_status.value}")
     ####
-    metadata = parent.model_copy(
-        update={
-            "claims": ProductClaims(
-                geometry=GeometryClaim.NOT_APPLICABLE,
-                radiation=(
-                    RadiationClaim.SPECTRAL_ENGINEERING
-                    if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile))
-                    else RadiationClaim.GRAY_APPROXIMATE
-                ),
-                time_model=time_model,
-                derivation=Derivation.ADAPTED,
-                consistency=parent.claims.consistency,
-            ),
-            "applicability": parent.applicability.model_copy(
-                update={
-                    "status": applicability_status,
-                    "reasons": tuple(reasons),
-                }
-            ),
-            "provenance": provenance,
-            "warnings": parent.warnings
-            + (
-                (
-                    (
-                        "signature uses a caller-bound LTE population closure "
-                        "from explicit transition data; no reactions or non-LTE "
-                        "population closure was inferred"
-                        if _profile_has_population_closure(profile)
-                        else "signature uses an explicit LTE line-source profile "
-                        "with caller-supplied Voigt optical depths; no chemical "
-                        "population closure was inferred"
-                    )
-                    if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile))
-                    else "signature uses an explicit gray optical profile; no chemistry or molecular spectral source was inferred"
-                ),
-                f"flow geometry came from {visualization.lane_id} and retains its declared fidelity ceiling",
-                "signature is not a detector, atmospheric-path, or focal-plane-array prediction",
-            ),
-        }
+    atmospheric_path_warnings = (
+        (
+            "signature includes an explicit caller-supplied homogeneous atmospheric path transfer; "
+            "no altitude, composition, scattering, or external atmosphere model was inferred",
+            "signature is not a detector or focal-plane-array prediction",
+        )
+        if atmospheric_path_layers is not None
+        else ("signature is not a detector, atmospheric-path, or focal-plane-array prediction",)
     )
+    metadata_update: dict[str, object] = {
+        "claims": ProductClaims(
+            geometry=GeometryClaim.NOT_APPLICABLE,
+            radiation=(
+                RadiationClaim.SPECTRAL_ENGINEERING
+                if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile))
+                else RadiationClaim.GRAY_APPROXIMATE
+            ),
+            time_model=time_model,
+            derivation=Derivation.ADAPTED,
+            consistency=parent.claims.consistency,
+        ),
+        "applicability": parent.applicability.model_copy(
+            update={
+                "status": applicability_status,
+                "reasons": tuple(reasons),
+            }
+        ),
+        "provenance": provenance,
+        "warnings": parent.warnings
+        + (
+            (
+                "signature uses a caller-bound LTE population closure "
+                "from explicit transition data; no reactions or non-LTE "
+                "population closure was inferred"
+                if _profile_has_population_closure(profile)
+                else "signature uses an explicit LTE line-source profile "
+                "with caller-supplied Voigt optical depths; no chemical "
+                "population closure was inferred"
+            )
+            if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile))
+            else "signature uses an explicit gray optical profile; no chemistry or molecular spectral source was inferred",
+            f"flow geometry came from {visualization.lane_id} and retains its declared fidelity ceiling",
+        )
+        + atmospheric_path_warnings,
+    }
+    if atmospheric_path_layers is not None:
+        metadata_update["result_id"] = canonical_digest(
+            {
+                "intrinsic_signature_result_id": parent.result_id,
+                "atmospheric_path_digest": atmospheric_path_digest,
+            }
+        )[:24]
+    ####
+    metadata = parent.model_copy(update=metadata_update)
     return signature.model_copy(update={"metadata": metadata})
 ####
 
@@ -782,6 +960,7 @@ def evaluate_model_signature(
     source_pose: Pose | None = None,
     dynamic_state: Mapping[str, object] | None = None,
     ambient_state: Mapping[str, object] | None = None,
+    atmospheric_path_layers: Sequence[AtmosphericPathLayer] | None = None,
     time_model: TimeModel = TimeModel.STEADY,
 ) -> SpectralSignatureResult:
     """Evaluate a supported standardized flow lane as a gray signature snapshot.
@@ -789,7 +968,11 @@ def evaluate_model_signature(
     ``time_s`` and the supplied state mappings are recorded in the immutable
     provider snapshot.  They do not on their own change the static flow or
     optical inputs; callers that need a prescribed transient should resolve a
-    visualization and optical profile for each time before calling this seam.
+    visualization, optical profile, and (when applicable) explicit atmospheric
+    path for each time before calling this seam.  ``atmospheric_path_layers``
+    applies one caller-supplied homogeneous path to every projected ray cell;
+    it does not infer altitude, composition, scattering, or an external
+    atmosphere model.
     """
 
     if not isinstance(visualization, StandardizedModelVisualization):
@@ -823,6 +1006,9 @@ def evaluate_model_signature(
     if ambient_state is not None and not isinstance(ambient_state, Mapping):
         raise TypeError("ambient_state must be a mapping or None")
     ####
+    selected_atmospheric_path_layers = _normalize_atmospheric_path_layers(
+        atmospheric_path_layers
+    )
     if not isinstance(time_model, TimeModel):
         raise TypeError("time_model must be TimeModel")
     ####
@@ -908,11 +1094,20 @@ def evaluate_model_signature(
         allow_partial_results=allow_partial_results,
         operating_point_id=operating_point_id,
     )
+    if selected_atmospheric_path_layers is not None:
+        signature = _apply_atmospheric_path_to_signature(
+            signature,
+            optical_profile.wavelengths_m,
+            integration,
+            selected_atmospheric_path_layers,
+        )
+    ####
     return _attach_flow_lineage(
         signature,
         visualization,
         optical_profile,
         selected_sampling,
         time_model,
+        selected_atmospheric_path_layers,
     )
 ####

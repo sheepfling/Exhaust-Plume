@@ -42,6 +42,7 @@ from exhaust_plume.products import (
 )
 from exhaust_plume.providers import GrayRayTransferDefinition, GrayRayTransferProvider
 from exhaust_plume.validation import (
+    AtmosphericPathLayer,
     DetectorResponse,
     FpaCameraOptics,
     FpaDigitizationPolicy,
@@ -239,6 +240,48 @@ def test_mission_evaluator_resolves_and_records_prescribed_time_state() -> None:
     assert final.signature.metadata.snapshot.ambient_state_digest_sha256 != (initial.signature.metadata.snapshot.ambient_state_digest_sha256)
     assert midpoint.signature.spectral_radiant_intensity != initial.signature.spectral_radiant_intensity
     assert final.signature.spectral_radiant_intensity != initial.signature.spectral_radiant_intensity
+####
+
+
+def test_mission_signature_resolves_explicit_atmospheric_path_per_state() -> None:
+    timeline = _timeline()
+    visualization = _straight_bundles()[0]
+
+    def atmospheric_path_for_state(state: MissionState) -> tuple[AtmosphericPathLayer, ...]:
+        return (
+            AtmosphericPathLayer(
+                source_function_w_sr_m=(0.5, 0.5, 0.5),
+                absorption_coefficient_per_m=(0.0, 0.0, 0.0),
+                length_m=1.0 + state.time_s / 10.0,
+                layer_id=f"mission-path-{state.time_s:g}",
+            ),
+        )
+    ####
+
+    evaluator = MissionSignatureEvaluator(
+        timeline=timeline,
+        visualization_at=lambda _state: visualization,
+        optical_profile_at=_profile_for_state,
+        atmospheric_path_layers_at=atmospheric_path_for_state,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    initial = evaluator.sample_at(0.0)
+    midpoint = evaluator.sample_at(5.0)
+
+    assert initial.atmospheric_path_layers is not None
+    assert midpoint.atmospheric_path_layers is not None
+    assert initial.atmospheric_path_layers[0].layer_id == "mission-path-0"
+    assert midpoint.atmospheric_path_layers[0].layer_id == "mission-path-5"
+    assert initial.signature.metadata.provenance.metadata["atmospheric_path_layer_count"] == "1"
+    assert midpoint.signature.metadata.provenance.metadata["atmospheric_path_layer_ids"] == "mission-path-5"
+    assert initial.signature.metadata.provenance.metadata["atmospheric_path_layer_digest"] != (
+        midpoint.signature.metadata.provenance.metadata["atmospheric_path_layer_digest"]
+    )
+    assert initial.signature.spectral_radiant_intensity != midpoint.signature.spectral_radiant_intensity
 ####
 
 
@@ -568,6 +611,34 @@ def test_combined_mission_product_evaluator_preserves_visual_when_signature_is_b
     assert curved_sample.signature.metadata.claims.radiation.value == "gray_approximate"
     assert curved_sample.signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
     assert curved_sample.signature_assessment.readiness is ModelSignatureReadiness.READY
+####
+
+
+def test_combined_mission_product_evaluator_carries_explicit_atmospheric_path() -> None:
+    visualization = _straight_bundles()[0]
+    evaluator = MissionProductEvaluator(
+        visualization_evaluator=_visual_evaluator(visualization),
+        optical_profile_at=_profile_for_state,
+        atmospheric_path_layers_at=lambda state: (
+            AtmosphericPathLayer(
+                source_function_w_sr_m=(0.5, 0.5, 0.5),
+                absorption_coefficient_per_m=(0.0, 0.0, 0.0),
+                length_m=1.0,
+                layer_id=f"combined-path-{state.time_s:g}",
+            ),
+        ),
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    sample = evaluator.sample_at(5.0)
+
+    assert sample.atmospheric_path_layers is not None
+    assert sample.atmospheric_path_layers[0].layer_id == "combined-path-5"
+    assert sample.signature is not None
+    assert sample.signature.metadata.provenance.metadata["atmospheric_path_layer_count"] == "1"
 ####
 
 

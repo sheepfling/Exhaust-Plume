@@ -19,6 +19,10 @@ from exhaust_plume.products import (
     evaluate_model_signature,
     standardize_model_visualization,
 )
+from exhaust_plume.validation import (
+    ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
+    AtmosphericPathLayer,
+)
 
 from src.models.moc.test_reflected_domain import _patch
 from src.products.test_model_visualization import (
@@ -81,6 +85,84 @@ def test_all_three_straight_lanes_reach_gray_signature() -> None:
         assert signature.metadata.provenance.metadata["flow_model_lane"] == bundle.lane_id
         assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
         assert any(value > 0.0 for row in signature.spectral_radiant_intensity for value in row)
+    ####
+####
+
+
+def test_signature_accepts_explicit_atmospheric_path_without_promoting_claims() -> None:
+    bundle = _straight_bundles()[0]
+    sampling = ModelSignatureSampling(
+        source_to_observer_directions=((1.0, 0.0, 0.0),),
+        transverse_sample_count=5,
+    )
+    intrinsic = evaluate_model_signature(bundle, _profile(), sampling=sampling)
+    atmosphere = AtmosphericPathLayer(
+        source_function_w_sr_m=(100.0, 100.0, 100.0),
+        absorption_coefficient_per_m=(0.5, 0.5, 0.5),
+        length_m=1.0,
+        layer_id="test-clear-path",
+    )
+
+    transferred = evaluate_model_signature(
+        bundle,
+        _profile(),
+        sampling=sampling,
+        atmospheric_path_layers=(atmosphere,),
+    )
+
+    assert any(
+        transferred_value != intrinsic_value
+        for transferred_row, intrinsic_row in zip(
+            transferred.spectral_radiant_intensity,
+            intrinsic.spectral_radiant_intensity,
+            strict=True,
+        )
+        for transferred_value, intrinsic_value in zip(
+            transferred_row,
+            intrinsic_row,
+            strict=True,
+        )
+    )
+    metadata = transferred.metadata.provenance.metadata
+    assert metadata["atmospheric_path_operator_id"] == ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID
+    assert metadata["atmospheric_path_layer_count"] == "1"
+    assert metadata["atmospheric_path_layer_ids"] == "test-clear-path"
+    assert "explicit caller-supplied homogeneous atmospheric path" in metadata["signature_claim_ceiling"]
+    assert transferred.metadata.result_id != intrinsic.metadata.result_id
+    assert any("atmospheric path transfer" in warning for warning in transferred.metadata.warnings)
+    assert any("not a detector" in warning for warning in transferred.metadata.warnings)
+    assert transferred.metadata.provenance.metadata["production_claim_allowed"] == "false"
+####
+
+
+def test_signature_rejects_empty_or_wavelength_mismatched_atmospheric_path() -> None:
+    bundle = _straight_bundles()[0]
+    sampling = ModelSignatureSampling(
+        source_to_observer_directions=((1.0, 0.0, 0.0),),
+        transverse_sample_count=5,
+    )
+
+    with pytest.raises(ValueError, match="at least one layer"):
+        evaluate_model_signature(
+            bundle,
+            _profile(),
+            sampling=sampling,
+            atmospheric_path_layers=(),
+        )
+    ####
+    with pytest.raises(ValueError, match="does not match wavelengths_m"):
+        evaluate_model_signature(
+            bundle,
+            _profile(),
+            sampling=sampling,
+            atmospheric_path_layers=(
+                AtmosphericPathLayer(
+                    source_function_w_sr_m=(1.0, 1.0),
+                    absorption_coefficient_per_m=(0.0, 0.0),
+                    length_m=1.0,
+                ),
+            ),
+        )
     ####
 ####
 
