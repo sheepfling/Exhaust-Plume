@@ -840,6 +840,13 @@ variable-entropy compatibility residuals, forward margins, and the first
 unavailable point.  The independent measurement operator re-solves the
 request and rechecks those values and the no-extrapolation boundary stop.
 
+The standardized planar visualization consumes the same result without
+reconstructing or extrapolating the path: it exposes a named transport trace,
+the attachment marker, termination and residual diagnostics, and the first
+unavailable point.  This makes the research seam inspectable through the
+Visualization product while preserving the distinction between a bounded
+transport trace and a globally placed shock.
+
 This is useful evidence for field coverage and for the future placement solve,
 but it is not a global shock placement or mixed-regime closure.  The result
 therefore remains blocked from continued shock-cell chains, production

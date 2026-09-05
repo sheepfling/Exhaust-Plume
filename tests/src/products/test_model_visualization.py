@@ -627,6 +627,50 @@ def test_transonic_attachment_visualization_retains_field_and_attachment_evidenc
 ####
 
 
+def test_transonic_transport_visualization_retains_bounded_trace_and_lineage() -> None:
+  class TransportResult:
+    request = _AttachmentResult.request
+    attachment = _AttachmentResult()
+    status = 'converged-bounded-transonic-characteristic-transport'
+    termination = 'bounded-field-boundary'
+    samples = (
+      SimpleNamespace(point_m=(1.0, 0.0)),
+      SimpleNamespace(point_m=(1.1, 0.1)),
+    )
+    segments = (SimpleNamespace(),)
+    bounded_transport_verified = True
+    physical_closure_verified = False
+    production_claim_allowed = False
+    maximum_geometry_residual = 0.002
+    maximum_compatibility_residual = 0.001
+    maximum_pressure_residual = 1.0e-12
+    first_unavailable_point_m = (1.2, 0.2)
+  ####
+
+  bundle = standardize_model_visualization(
+    TransportResult(),
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-transonic-characteristic-transport'
+  assert 'moc-transonic-characteristic-transport' in {
+    path.path_id for path in bundle.paths
+  }
+  assert bundle.diagnostics['moc_transonic_transport_verified'] is True
+  assert bundle.diagnostics['moc_transonic_transport_sample_count'] == 2
+  assert bundle.diagnostics['moc_transonic_transport_segment_count'] == 1
+  assert bundle.diagnostics['moc_transonic_transport_maximum_geometry_residual'] == pytest.approx(0.002)
+  assert bundle.diagnostics['moc_transonic_transport_first_unavailable_x_m'] == pytest.approx(1.2)
+  assert bundle.claims.production_claim_allowed is False
+  assert any(
+    'transport trace are bounded solver-owned diagnostics' in warning
+    for warning in bundle.warnings
+  )
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_canonical_visual_result_retains_lane_metadata() -> None:
   bundle = standardize_model_visualization(_curved_result(), section_count=8)
   snapshot = SnapshotMetadata(

@@ -3785,3 +3785,10 @@ close the mixed-regime free boundary, authorize a physical shock-cell length,
 or permit chain or production promotion.  The next gate remains solver-owned
 shock placement with neighboring-field coupling and conservative mixed-regime
 closure, followed by refinement and external validation.
+
+The common planar visualization now accepts this transport result directly.
+It renders the retained characteristic trace as a named path and carries the
+transport status, termination, sample/segment counts, residual maxima, and
+first-unavailable point as diagnostics.  The attachment marker and trace are
+kept distinct from a fitted global shock boundary, and the visualization
+retains the research-only claim ceiling.

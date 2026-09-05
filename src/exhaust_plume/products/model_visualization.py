@@ -1818,11 +1818,50 @@ def _moc_visualization(
     ####
   ####
 
+  attachment_source = getattr(source, 'attachment', None)
   attachment_geometry = getattr(source, 'geometry', None)
+  if attachment_geometry is None and attachment_source is not None:
+    attachment_geometry = getattr(attachment_source, 'geometry', None)
+  ####
   is_transonic_attachment = bool(
     attachment_geometry is not None
-    and getattr(source, 'selected_node_index', None) is not None
+    and getattr(
+      attachment_source if attachment_source is not None else source,
+      'selected_node_index',
+      None,
+    ) is not None
   )
+  is_transonic_transport = bool(
+    attachment_source is not None
+    and hasattr(source, 'segments')
+    and hasattr(source, 'bounded_transport_verified')
+  )
+  if is_transonic_transport:
+    transport_samples = getattr(source, 'samples', ())
+    try:
+      transport_points = tuple(
+        _vector2(
+          'transonic characteristic transport point',
+          getattr(sample, 'point_m'),
+        )
+        for sample in transport_samples
+      )
+    except (TypeError, ValueError, IndexError, AttributeError):
+      transport_points = ()
+    ####
+    transport_path = _path3(
+      'moc-transonic-characteristic-transport',
+      (
+        'solver-owned bounded characteristic transport from the attached '
+        'branch; no extrapolation and not global shock placement'
+      ),
+      transport_points,
+    )
+    if transport_path is not None:
+      paths.append(transport_path)
+      all_points.extend(transport_points)
+    ####
+  ####
   transonic_geometry = getattr(source, 'transonic_shock_geometry', None)
   if transonic_geometry is None and is_transonic_attachment:
     transonic_geometry = attachment_geometry
@@ -1857,8 +1896,13 @@ def _moc_visualization(
     path = _path3(
       'moc-transonic-shock-branch',
       (
-        'solver-owned bounded transonic field attachment marker; not global '
-        'placement'
+        (
+          'solver-owned bounded transonic attachment and transport marker; '
+          'not global placement'
+          if is_transonic_transport
+          else 'solver-owned bounded transonic field attachment marker; not global '
+          'placement'
+        )
         if is_transonic_attachment
         else 'caller-bound scalar transonic shock branch marker; not global placement'
       ),
@@ -2127,6 +2171,43 @@ def _moc_visualization(
     'state_sampling_available': bool(getattr(source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
+  if is_transonic_transport:
+    transport_status = getattr(source, 'status', '')
+    diagnostics['moc_transonic_transport_status'] = str(
+      getattr(transport_status, 'value', transport_status)
+    )
+    diagnostics['moc_transonic_transport_verified'] = bool(
+      getattr(source, 'bounded_transport_verified', False)
+    )
+    diagnostics['moc_transonic_transport_termination'] = str(
+      getattr(getattr(source, 'termination', ''), 'value', getattr(source, 'termination', ''))
+    )
+    diagnostics['moc_transonic_transport_sample_count'] = int(
+      len(getattr(source, 'samples', ()))
+    )
+    diagnostics['moc_transonic_transport_segment_count'] = int(
+      len(getattr(source, 'segments', ()))
+    )
+    for name in (
+      'maximum_geometry_residual',
+      'maximum_compatibility_residual',
+      'maximum_pressure_residual',
+    ):
+      value = getattr(source, name, None)
+      if value is not None and isfinite(float(value)):
+        diagnostics[f'moc_transonic_transport_{name}'] = float(value)
+      ####
+    ####
+    first_unavailable = getattr(source, 'first_unavailable_point_m', None)
+    if first_unavailable is not None:
+      diagnostics['moc_transonic_transport_first_unavailable_x_m'] = float(
+        first_unavailable[0]
+      )
+      diagnostics['moc_transonic_transport_first_unavailable_y_m'] = float(
+        first_unavailable[1]
+      )
+    ####
+  ####
   if coupled_euler:
     request = getattr(source, 'request', None)
     source_closure_fingerprint = getattr(
@@ -2331,21 +2412,25 @@ def _moc_visualization(
     ####
   ####
   if is_transonic_attachment:
+    attachment_record = attachment_source if attachment_source is not None else source
     attachment_status = getattr(source, 'status', '')
+    if attachment_source is not None:
+      attachment_status = getattr(attachment_record, 'status', '')
+    ####
     diagnostics['moc_transonic_attachment_status'] = str(
       getattr(attachment_status, 'value', attachment_status)
     )
     diagnostics['moc_transonic_attachment_verified'] = bool(
-      getattr(source, 'attachment_verified', False)
+      getattr(attachment_record, 'attachment_verified', False)
     )
     diagnostics['moc_transonic_attachment_selected_node_index'] = int(
-      getattr(source, 'selected_node_index')
+      getattr(attachment_record, 'selected_node_index')
     )
     diagnostics['moc_transonic_attachment_field_match_verified'] = bool(
-      getattr(getattr(source, 'geometry_audit', None), 'field_match_verified', False)
+      getattr(getattr(attachment_record, 'geometry_audit', None), 'field_match_verified', False)
     )
     diagnostics['moc_transonic_attachment_geometry_binding_verified'] = bool(
-      getattr(getattr(source, 'geometry_audit', None), 'geometry_binding_verified', False)
+      getattr(getattr(attachment_record, 'geometry_audit', None), 'geometry_binding_verified', False)
     )
     for name in (
       'mach_residual',
@@ -2354,7 +2439,7 @@ def _moc_visualization(
       'static_pressure_residual',
       'total_pressure_residual',
     ):
-      value = getattr(source, name, None)
+      value = getattr(attachment_record, name, None)
       if value is not None and isfinite(float(value)):
         diagnostics[f'moc_transonic_attachment_{name}'] = float(value)
       ####
@@ -2381,7 +2466,10 @@ def _moc_visualization(
   if transonic_geometry is not None:
     warnings.append(
       (
-        'the transonic marker is a bounded solver-owned field attachment '
+        'the transonic marker and transport trace are bounded solver-owned '
+        'diagnostics; they are not a globally placed shock boundary'
+        if is_transonic_transport
+        else 'the transonic marker is a bounded solver-owned field attachment '
         'diagnostic; it is not a globally placed shock boundary'
         if is_transonic_attachment
         else 'the transonic shock marker is a caller-bound scalar branch diagnostic; '
@@ -2402,7 +2490,9 @@ def _moc_visualization(
       'planar-moc-coupled-euler-free-boundary'
       if coupled_euler
       else (
-        'planar-moc-transonic-field-attachment'
+        'planar-moc-transonic-characteristic-transport'
+        if is_transonic_transport
+        else 'planar-moc-transonic-field-attachment'
         if is_transonic_attachment else 'planar-moc-reflected-domain'
       )
     ),
