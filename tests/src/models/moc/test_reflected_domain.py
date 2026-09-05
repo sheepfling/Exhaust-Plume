@@ -26,6 +26,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalPhysicalClosureStatus,
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
+  MocReflectedDomainGlobalPhysicalFieldHandoff,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
@@ -2273,6 +2274,50 @@ def test_global_coupled_downstream_candidate_keeps_feedback_gate_explicit():
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
+####
+
+
+def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .CONVERGED_LOCAL_COUPLED_FIELD
+  )
+  assert result.converged
+  assert result.physical_field_handoff is not None
+  assert isinstance(
+    result.physical_field_handoff,
+    MocReflectedDomainGlobalPhysicalFieldHandoff,
+  )
+  assert result.physical_field_handoff.converged
+  assert result.coupled_request is not None
+  assert result.coupled_request.physical_field_continuation_profile == (
+    result.physical_field_handoff.continuation_profile
+  )
+  assert result.coupled_request.physical_field_shock_front_condition == (
+    result.physical_field_handoff.shock_front_condition
+  )
+  assert result.coupled_field is not None
+  assert result.coupled_field.physical_field_continuation_profile_consumed
+  assert result.coupled_field.physical_field_shock_front_condition_consumed
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_report()['physical_field_handoff']['converged'] is True
 ####
 
 

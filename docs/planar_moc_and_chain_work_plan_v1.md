@@ -3498,6 +3498,18 @@ physical-field continuation and shock-front condition explicitly, so this
 research lane does not need to fall back to a scalar inlet when exact field
 lineage is available.
 
+The orchestrator now has a solver-owned exact-handoff path as well.  When the
+request selects ``SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE`` without
+profiles, it chooses a full-span cross-section from the retained global field,
+re-samples the exact continuation, binds the retained shock/ambient/centerline
+neighbors, and independently audits the complete handoff before the coupled
+solver starts.  Any placement, sampling, or neighboring-condition failure is
+typed; no scalar branch or lower-fidelity fallback is attempted.  This closes
+the caller-assembly seam only.  The downstream response is still not iterated
+back into the upstream shock solve, so ``global_coupling_verified`` remains
+false and canonical closure, refinement, physical cell length, and external
+validation remain open.
+
 ## Typed variable-entropy audit checkpoint
 
 The terminal-patch planner now retains the independent variable-entropy

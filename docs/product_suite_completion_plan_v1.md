@@ -96,6 +96,15 @@ next product can make a stronger claim:
    It also accepts the independently audited physical continuation and
    shock-front handoff explicitly, allowing the exact field lineage to reach
    the downstream lane without a scalar fallback.
+   The orchestrator now exposes a solver-owned exact-handoff path as well.
+   When the coupled request selects the exact physical-field continuation
+   mode without caller-supplied profiles, it derives a complete field
+   placement, continuation profile, and neighboring shock-front condition
+   from the retained global field and independently audits each component
+   before consumption.  A handoff failure is typed and the request does not
+   fall back to a scalar or lower-fidelity inlet.  This removes a caller-
+   assembly seam; it does not establish downstream-to-upstream feedback,
+   canonical mixed-regime closure, refinement, or promotion.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;

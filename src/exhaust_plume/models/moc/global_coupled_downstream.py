@@ -31,19 +31,30 @@ from exhaust_plume.models.moc.global_physical_closure import (
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
 from exhaust_plume.models.moc.field_continuation import (
+  MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileResult,
+  build_moc_physical_field_continuation_profile,
 )
 from exhaust_plume.models.moc.physical_field_shock_front import (
+  MocPhysicalFieldShockFrontConditionRequest,
   MocPhysicalFieldShockFrontConditionResult,
+  build_moc_physical_field_shock_front_condition,
 )
 from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRequest,
   build_reflected_domain_mixed_regime_boundary_request,
 )
+from exhaust_plume.models.moc.transonic_interface import (
+  MocTransonicShockInterfaceFieldPlacementRequest,
+  MocTransonicShockInterfaceFieldPlacementResult,
+  build_moc_transonic_shock_interface_profile_from_field_placement,
+)
 
 __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamStatus',
+  'MocReflectedDomainGlobalPhysicalFieldHandoff',
   'MocReflectedDomainGlobalCoupledDownstreamResult',
+  'build_reflected_domain_global_solver_owned_physical_field_handoff',
   'solve_reflected_domain_global_coupled_downstream',
 )
 
@@ -64,10 +75,83 @@ class MocReflectedDomainGlobalCoupledDownstreamStatus(str, Enum):
   MIXED_REGIME_REQUEST_FAILURE = (
     'global-coupled-downstream-mixed-regime-request-failure'
   )
+  PHYSICAL_FIELD_HANDOFF_FAILURE = (
+    'global-coupled-downstream-physical-field-handoff-failure'
+  )
   COUPLED_SOLVER_FAILURE = 'global-coupled-downstream-solver-failure'
   INDEPENDENT_AUDIT_FAILURE = (
     'global-coupled-downstream-independent-audit-failure'
   )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalPhysicalFieldHandoff:
+  """Solver-owned exact field handoff prepared for the coupled lane.
+
+  The placement, continuation profile, and neighboring shock-front condition
+  are all derived from one retained global physical field.  This object is a
+  contract seam only: consuming it does not establish global feedback,
+  canonical mixed-regime closure, or a production claim.
+  """
+
+  placement: MocTransonicShockInterfaceFieldPlacementResult
+  continuation_profile: MocPhysicalFieldContinuationProfileResult
+  shock_front_condition: MocPhysicalFieldShockFrontConditionResult
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.placement,
+      MocTransonicShockInterfaceFieldPlacementResult,
+    ):
+      raise TypeError(
+        'placement must be a '
+        'MocTransonicShockInterfaceFieldPlacementResult'
+      )
+    ####
+    if not isinstance(
+      self.continuation_profile,
+      MocPhysicalFieldContinuationProfileResult,
+    ):
+      raise TypeError(
+        'continuation_profile must be a '
+        'MocPhysicalFieldContinuationProfileResult'
+      )
+    ####
+    if not isinstance(
+      self.shock_front_condition,
+      MocPhysicalFieldShockFrontConditionResult,
+    ):
+      raise TypeError(
+        'shock_front_condition must be a '
+        'MocPhysicalFieldShockFrontConditionResult'
+      )
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether every derived handoff component passed its own audit."""
+
+    return bool(
+      self.placement.converged
+      and self.continuation_profile.converged
+      and self.shock_front_condition.converged
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'converged': self.converged,
+      'placement': self.placement.as_report(),
+      'continuation_profile': self.continuation_profile.as_report(),
+      'shock_front_condition': self.shock_front_condition.as_report(),
+      'claim_status': (
+        'research-only-solver-owned-global-physical-field-handoff; '
+        'global-feedback, canonical mixed-regime closure, refinement, and '
+        'external validation remain open'
+      ),
+    }
+  ####
 ####
 
 
@@ -81,6 +165,7 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
   coupled_request: MocReflectedDomainCoupledEulerFreeBoundaryRequest | None
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None
   coupled_field_audit: Any | None
+  physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -126,6 +211,15 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       raise TypeError(
         'coupled_field must be a '
         'MocReflectedDomainCoupledEulerFreeBoundaryResult or None'
+      )
+    ####
+    if self.physical_field_handoff is not None and not isinstance(
+      self.physical_field_handoff,
+      MocReflectedDomainGlobalPhysicalFieldHandoff,
+    ):
+      raise TypeError(
+        'physical_field_handoff must be a '
+        'MocReflectedDomainGlobalPhysicalFieldHandoff or None'
       )
     ####
     object.__setattr__(self, 'message', str(self.message))
@@ -276,6 +370,11 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         if self.coupled_field_audit is None
         else self.coupled_field_audit.as_report()
       ),
+      'physical_field_handoff': (
+        None
+        if self.physical_field_handoff is None
+        else self.physical_field_handoff.as_report()
+      ),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
@@ -294,6 +393,7 @@ def _failure(
   coupled_request: MocReflectedDomainCoupledEulerFreeBoundaryRequest | None = None,
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None,
   coupled_field_audit: Any | None = None,
+  physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None,
 ) -> MocReflectedDomainGlobalCoupledDownstreamResult:
   return MocReflectedDomainGlobalCoupledDownstreamResult(
     status=status,
@@ -302,7 +402,99 @@ def _failure(
     coupled_request=coupled_request,
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
+    physical_field_handoff=physical_field_handoff,
     message=message,
+  )
+####
+
+
+def build_reflected_domain_global_solver_owned_physical_field_handoff(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  *,
+  sample_count: int = 10,
+  post_shock_fraction: float = 0.25,
+) -> MocReflectedDomainGlobalPhysicalFieldHandoff:
+  """Derive an exact audited downstream handoff from one global field.
+
+  The placement rule is solver-owned and uses the complete retained field
+  span.  The continuation profile is sampled directly from that field, and
+  the shock-front condition binds the same field's shock, ambient, and
+  centerline paths.  No caller-selected geometry or scalar-normal-shock
+  fallback is introduced.
+  """
+
+  if not isinstance(
+    closure,
+    MocReflectedDomainGlobalPhysicalClosureResult,
+  ):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if (
+    not closure.converged
+    or not closure.physical_closure_verified
+    or closure.global_euler is None
+    or closure.global_euler.physical_field is None
+    or closure.global_euler.physical_field.field is None
+  ):
+    raise ValueError(
+      'solver-owned physical-field handoff requires a locally verified global '
+      'closure with a retained exact physical field'
+    )
+  ####
+  field = closure.global_euler.physical_field.field
+  placement = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=field,
+      sample_count=sample_count,
+      post_shock_fraction=post_shock_fraction,
+      boundary_margin_fraction=0.0,
+      profile_id=(
+        'global-closure-solver-owned-physical-field-placement-v1'
+      ),
+      source='global-closure-solver-owned-physical-field-handoff-v1',
+    )
+  )
+  if not placement.converged or not placement.sample_points_m:
+    raise ValueError(
+      'solver-owned physical-field placement did not pass its independent '
+      f'audit: {placement.message}'
+    )
+  ####
+  continuation = build_moc_physical_field_continuation_profile(
+    MocPhysicalFieldContinuationProfileRequest(
+      field=field,
+      sample_points_m=placement.sample_points_m,
+      profile_id=(
+        'global-closure-solver-owned-physical-field-continuation-v1'
+      ),
+    )
+  )
+  if not continuation.converged:
+    raise ValueError(
+      'solver-owned physical-field continuation did not pass its independent '
+      f'audit: {continuation.message}'
+    )
+  ####
+  shock_front_condition = build_moc_physical_field_shock_front_condition(
+    MocPhysicalFieldShockFrontConditionRequest(
+      continuation_profile=continuation,
+      condition_id=(
+        'global-closure-solver-owned-physical-field-shock-front-v1'
+      ),
+    )
+  )
+  if not shock_front_condition.converged:
+    raise ValueError(
+      'solver-owned physical-field shock-front condition did not pass its '
+      f'independent audit: {shock_front_condition.message}'
+    )
+  ####
+  return MocReflectedDomainGlobalPhysicalFieldHandoff(
+    placement=placement,
+    continuation_profile=continuation,
+    shock_front_condition=shock_front_condition,
   )
 ####
 
@@ -371,6 +563,37 @@ def solve_reflected_domain_global_coupled_downstream(
       closure=closure,
     )
   ####
+  physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
+  resolved_continuation_profile = physical_field_continuation_profile
+  resolved_shock_front_condition = physical_field_shock_front_condition
+  if (
+    inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    and resolved_continuation_profile is None
+    and resolved_shock_front_condition is None
+  ):
+    try:
+      physical_field_handoff = (
+        build_reflected_domain_global_solver_owned_physical_field_handoff(
+          closure
+        )
+      )
+      resolved_continuation_profile = (
+        physical_field_handoff.continuation_profile
+      )
+      resolved_shock_front_condition = (
+        physical_field_handoff.shock_front_condition
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _failure(
+        MocReflectedDomainGlobalCoupledDownstreamStatus
+        .PHYSICAL_FIELD_HANDOFF_FAILURE,
+        f'global solver-owned physical-field handoff failed: {error}',
+        closure=closure,
+        mixed_regime_request=mixed_regime_request,
+      )
+  ####
   try:
     coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(
       mixed_regime_request,
@@ -381,8 +604,8 @@ def solve_reflected_domain_global_coupled_downstream(
       max_shape_iterations=max_shape_iterations,
       inlet_boundary_mode=inlet_boundary_mode,
       outlet_static_pressure_Pa=outlet_static_pressure_Pa,
-      physical_field_continuation_profile=physical_field_continuation_profile,
-      physical_field_shock_front_condition=physical_field_shock_front_condition,
+      physical_field_continuation_profile=resolved_continuation_profile,
+      physical_field_shock_front_condition=resolved_shock_front_condition,
     )
     coupled_field = solve_reflected_domain_coupled_euler_free_boundary(
       coupled_request
@@ -393,6 +616,7 @@ def solve_reflected_domain_global_coupled_downstream(
       f'global coupled downstream solver raised: {error}',
       closure=closure,
       mixed_regime_request=mixed_regime_request,
+      physical_field_handoff=physical_field_handoff,
     )
   ####
   try:
@@ -412,6 +636,7 @@ def solve_reflected_domain_global_coupled_downstream(
       mixed_regime_request=mixed_regime_request,
       coupled_request=coupled_request,
       coupled_field=coupled_field,
+      physical_field_handoff=physical_field_handoff,
     )
   ####
   if coupled_field.status is (
@@ -424,8 +649,9 @@ def solve_reflected_domain_global_coupled_downstream(
     )
     message = (
       'global closure and downstream coupled-Euler field passed their local '
-      'audits; global feedback, canonical boundary closure, refinement, and '
-      'external validation remain open'
+      'audits; exact solver-owned field handoff was consumed when requested; '
+      'global feedback, canonical boundary closure, refinement, and external '
+      'validation remain open'
     )
   else:
     status = (
@@ -444,6 +670,7 @@ def solve_reflected_domain_global_coupled_downstream(
     coupled_request=coupled_request,
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
+    physical_field_handoff=physical_field_handoff,
     message=message,
   )
 ####
