@@ -10,7 +10,7 @@ the measurement to validation evidence.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from hashlib import sha256
 from math import atan2, cos, fsum, hypot, isfinite, log, pi, sin, sqrt, tan
@@ -18,9 +18,14 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 if TYPE_CHECKING:
   from exhaust_plume.models.moc.global_physical_closure import (
+    MocProductionShockCellFitResult,
     MocReflectedDomainDownstreamBoundaryResult,
   )
 ####
+
+from exhaust_plume.models.moc.global_physical_closure import (
+  MocProductionShockCellFitResult,
+)
 
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeBoundaryResult,
@@ -166,6 +171,7 @@ __all__ = (
   'MOC_SHOCK_CELL_CHAIN_OPERATOR_ID',
   'MOC_SHOCK_CELL_CHAIN_REFINEMENT_OPERATOR_ID',
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
+  'MOC_PRODUCTION_SHOCK_CELL_FIT_OPERATOR_ID',
   'MOC_AMBIENT_CLOSED_PHYSICAL_FIELD_CHAIN_OPERATOR_ID',
   'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
   'MOC_FIRST_CELL_CANDIDATE_OPERATOR_ID',
@@ -232,6 +238,7 @@ __all__ = (
   'MocShockCellMeasurement',
   'MocShockCellMeasurementStatus',
   'MocShockCellObservation',
+  'measure_moc_production_shock_cell_fit',
   'MocPhysicalFieldChainMeasurement',
   'MocPhysicalFieldChainMeasurementStatus',
   'MocFirstCellCandidateMeasurement',
@@ -280,6 +287,9 @@ __all__ = (
 
 
 MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID = 'op.moc.shock-cell-geometry'
+MOC_PRODUCTION_SHOCK_CELL_FIT_OPERATOR_ID = (
+  'op.moc.production-shock-cell-fit'
+)
 MOC_SHOCK_CELL_CHAIN_OPERATOR_ID = 'op.moc.shock-cell-chain'
 MOC_AMBIENT_CLOSED_PHYSICAL_FIELD_CHAIN_OPERATOR_ID = (
   'op.moc.ambient-closed-physical-field-chain'
@@ -11283,6 +11293,101 @@ def measure_moc_shock_cell(
     message=(
       'shock-cell geometry and explicit perimeter topology measured; '
       'external comparison and physical-closure acceptance remain separate gates'
+    ),
+  )
+####
+
+
+def measure_moc_production_shock_cell_fit(
+  fit: MocProductionShockCellFitResult,
+  *,
+  position_tolerance_m: float = 1.0e-10,
+  axis_tolerance_m: float = 1.0e-10,
+  area_tolerance_m2: float = 1.0e-9,
+  mesh_vertex_tolerance_m: float = 1.0e-12,
+) -> MocShockCellMeasurement:
+  """Independently measure a solver-generated shock-cell fit candidate.
+
+  The production-fit result carries both a solver-generated shock path and a
+  retained physical field.  This adapter checks that those two geometries are
+  the same before routing the raw field through ``measure_moc_shock_cell``.
+  The returned ``axial_length_m`` is solver-retained field geometry evidence;
+  it is deliberately not an accepted physical cell length or production
+  claim until canonical closure and external comparison gates are closed.
+  """
+
+  if not isinstance(fit, MocProductionShockCellFitResult):
+    raise TypeError('fit must be a MocProductionShockCellFitResult')
+  ####
+  field = fit.candidate_field
+  if field is None:
+    return _failure(
+      MocShockCellMeasurementStatus.CHAIN_FAILURE,
+      cell_index=fit.cell_index,
+      cell_count=0,
+      shock_boundary_point_count=len(fit.fitted_shock_points_m),
+      centerline_boundary_point_count=0,
+      message=(
+        'production shock-cell fit retained no candidate field for an '
+        'independent geometry measurement'
+      ),
+    )
+  ####
+  try:
+    fitted_shock = _points(fit.fitted_shock_points_m, 'fitted shock')
+    field_shock = _points(field.shock_boundary_points_m, 'candidate field shock')
+  except ValueError as error:
+    return _failure(
+      MocShockCellMeasurementStatus.GEOMETRY_FAILURE,
+      cell_index=fit.cell_index,
+      cell_count=len(field.cells),
+      shock_boundary_point_count=len(fit.fitted_shock_points_m),
+      centerline_boundary_point_count=len(field.centerline_boundary_points_m),
+      message=str(error),
+    )
+  ####
+  if len(fitted_shock) != len(field_shock) or any(
+    hypot(actual[0] - expected[0], actual[1] - expected[1])
+    > float(position_tolerance_m)
+    for actual, expected in zip(fitted_shock, field_shock, strict=False)
+  ):
+    return _failure(
+      MocShockCellMeasurementStatus.GEOMETRY_FAILURE,
+      cell_index=fit.cell_index,
+      cell_count=len(field.cells),
+      shock_boundary_point_count=len(fitted_shock),
+      centerline_boundary_point_count=len(field.centerline_boundary_points_m),
+      message=(
+        'solver-generated fit shock geometry does not match the retained '
+        'candidate-field shock boundary'
+      ),
+    )
+  ####
+  observation = MocShockCellObservation(
+    cell_index=fit.cell_index,
+    shock_boundary_points_m=fitted_shock,
+    centerline_boundary_points_m=field.centerline_boundary_points_m,
+    cells=field.cells,
+    upstream_total_pressure_Pa=field.upstream_shock_boundary_total_pressure_Pa,
+    downstream_total_pressure_Pa=field.post_shock_boundary_total_pressure_Pa,
+    zero_strength_shock_start_allowed=field.zero_strength_shock_start_allowed,
+    zero_strength_shock_endpoints_allowed=field.zero_strength_shock_endpoints_allowed,
+  )
+  measurement = measure_moc_shock_cell(
+    observation,
+    position_tolerance_m=position_tolerance_m,
+    axis_tolerance_m=axis_tolerance_m,
+    area_tolerance_m2=area_tolerance_m2,
+    mesh_vertex_tolerance_m=mesh_vertex_tolerance_m,
+  )
+  return replace(
+    measurement,
+    operator_id=MOC_PRODUCTION_SHOCK_CELL_FIT_OPERATOR_ID,
+    claim_status='not_accepted',
+    message=(
+      f'{measurement.message}; solver-owned fit geometry was independently '
+      'measured, but canonical reflected closure and external physical-length '
+      'comparison remain separate gates'
     ),
   )
 ####

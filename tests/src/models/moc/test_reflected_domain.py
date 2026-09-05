@@ -89,6 +89,7 @@ from exhaust_plume.models.nozzle.exit_state import (
   derive_uniform_nozzle_exit,
 )
 from exhaust_plume.validation.moc_measurements import (
+  MOC_PRODUCTION_SHOCK_CELL_FIT_OPERATOR_ID,
   MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase,
   MocReflectedDomainAlternatingPhysicalFieldChainRefinementMeasurementStatus,
   MocReflectedDomainAlternatingPhysicalFieldChainMeasurementStatus,
@@ -99,6 +100,8 @@ from exhaust_plume.validation.moc_measurements import (
   MocReflectedDomainDownstreamBoundaryMeasurementStatus,
   MocReflectedDomainOuterSourceMeasurementStatus,
   MocReflectedDomainRemeshMeasurementStatus,
+  MocShockCellMeasurementStatus,
+  measure_moc_production_shock_cell_fit,
   measure_moc_reflected_domain_alternating_source,
   measure_moc_reflected_domain_alternating_physical_field_chain_refinement,
   measure_moc_reflected_domain_alternating_physical_field_chain,
@@ -1413,6 +1416,25 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   assert fit.as_chain_termination_decision().reason is (
     MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
+  fit_measurement = measure_moc_production_shock_cell_fit(fit)
+  assert fit_measurement.status is MocShockCellMeasurementStatus.CONVERGED
+  assert fit_measurement.operator_id == MOC_PRODUCTION_SHOCK_CELL_FIT_OPERATOR_ID
+  assert fit_measurement.axial_length_m is not None
+  assert fit_measurement.axial_length_m > 0.0
+  assert fit_measurement.claim_status == 'not_accepted'
+  assert 'external physical-length comparison' in fit_measurement.message
+  tampered_fit = replace(
+    fit,
+    fitted_shock_points_m=tuple(
+      (point[0] + 1.0e-3, point[1])
+      for point in fit.fitted_shock_points_m
+    ),
+  )
+  tampered_fit_measurement = measure_moc_production_shock_cell_fit(tampered_fit)
+  assert tampered_fit_measurement.status is (
+    MocShockCellMeasurementStatus.GEOMETRY_FAILURE
+  )
+  assert tampered_fit_measurement.converged is False
   with pytest.raises(ValueError, match='promotion'):
     fit.as_production_chain_cell()
   ####

@@ -668,6 +668,20 @@ camera/detector observation; or the release freeze does not identify the
 candidate commit. In each case the result remains usable as scoped local or
 research evidence, but it is not promoted.
 
+### Solver-owned shock-cell fit measurement checkpoint
+
+The production-fit validation lane now exposes
+``measure_moc_production_shock_cell_fit``. It binds the solver-retained shock
+path to the candidate field, independently re-runs the raw MOC shock-cell
+geometry/topology/pressure measurement, and reports the resulting axial extent
+and ``axial_length_m`` through the standardized measurement record. A tampered
+fit path is rejected rather than measured against a different field boundary.
+
+This closes the measurement/provenance seam for a research shock-cell fit; it
+does not make the length an accepted physical first-cell length. Canonical
+reflected/mixed-regime closure, refinement-stable length evidence, disjoint
+external comparison, and the final production gates remain open.
+
 ### Cell-wise regime-evidence visualization checkpoint
 
 The coupled-Euler visualization now exposes the solver-retained
