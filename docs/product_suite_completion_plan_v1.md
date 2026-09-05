@@ -1230,3 +1230,25 @@ the direct contract handoff, not the P2 physical-closure gate; refinement,
 physical shock-cell lengths, and external product validation remain open.
 The consumer also re-runs the placement audit at the coupled boundary, so a
 tampered cached result is rejected before any field iteration.
+
+### Coupled-lane physical entrance-seam diagnostic
+
+The first target-case pressure/tangency probe after the solver-owned handoff
+shows that the remaining failure is a boundary-design seam, not a missing
+iteration budget.  A full-span field profile with 60 shape iterations drives
+the conservative residual below the declared local tolerance and reduces the
+downstream top-boundary pressure residuals to roughly ``11 kPa``, but the
+profile entrance still carries an approximately ``232 kPa`` pressure jump and
+the maximum normal-velocity fraction remains about ``0.079`` against the
+declared ``0.05`` gate.  Extending the downstream window improves the relaxed
+tail but does not remove the entrance discontinuity.
+
+The reason is physical and contractual: the retained cross-section profile is
+an internal shock/interface handoff, while the current finite-volume lane
+treats its upper edge as an ambient-pressure material streamline from the
+first station.  An interior profile must therefore not be reinterpreted as a
+closed free boundary.  The next P2.2 implementation slice must carry an
+explicit placed shock/front and its neighboring mixed-regime/free-boundary
+conditions, then re-run independent residual and refinement audits.  Increasing
+shape iterations, changing relaxation, or accepting only the downstream tail
+would weaken the closure gate and is not an acceptable promotion path.
