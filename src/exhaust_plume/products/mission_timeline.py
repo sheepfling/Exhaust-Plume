@@ -77,6 +77,7 @@ __all__ = (
     "MissionCursor",
     "MissionFpaEvaluator",
     "MissionFpaSample",
+    "MissionFpaTimeline",
     "MissionProductEvaluator",
     "MissionProductSample",
     "MissionSignatureEvaluator",
@@ -884,6 +885,111 @@ class MissionFpaSample:
 
 
 @dataclass(frozen=True, slots=True)
+class MissionFpaTimeline:
+    """Exact, compatible downstream FPA samples with no time interpolation.
+
+    A timeline is intentionally stricter than a collection used only for
+    logging: every sample must use the same wavelength axis, pixel geometry,
+    and detector response.  This preserves a comparable camera/detector
+    measurement space while allowing the source ray-transfer snapshot,
+    exposure, and expected pixel values to evolve with mission time.
+    """
+
+    samples: tuple[MissionFpaSample, ...]
+
+    def __post_init__(self) -> None:
+        samples = tuple(self.samples)
+        if not samples:
+            raise ValueError("FPA timeline requires at least one sample")
+        ####
+        if any(not isinstance(sample, MissionFpaSample) for sample in samples):
+            raise TypeError("FPA timeline samples must be MissionFpaSample")
+        ####
+        if any(
+            second.state.time_s <= first.state.time_s
+            for first, second in zip(samples, samples[1:])
+        ):
+            raise ValueError("FPA timeline sample times must be strictly increasing")
+        ####
+        reference = samples[0]
+        for sample in samples[1:]:
+            if sample.wavelengths_m != reference.wavelengths_m:
+                raise ValueError("FPA timeline samples must use one wavelength axis")
+            ####
+            if sample.geometry != reference.geometry:
+                raise ValueError(
+                    "FPA timeline samples must use identical pixel geometry"
+                )
+            ####
+            if sample.detector != reference.detector:
+                raise ValueError(
+                    "FPA timeline samples must use one detector response"
+                )
+            ####
+        ####
+        object.__setattr__(self, "samples", samples)
+    ####
+
+    @property
+    def times_s(self) -> tuple[float, ...]:
+        """Return the exact mission times represented by the samples."""
+
+        return tuple(sample.state.time_s for sample in self.samples)
+    ####
+
+    @property
+    def wavelengths_m(self) -> tuple[float, ...]:
+        """Return the shared detector wavelength axis."""
+
+        return self.samples[0].wavelengths_m
+    ####
+
+    @property
+    def geometry(self) -> FpaPixelGeometry:
+        """Return the shared pixel geometry."""
+
+        return self.samples[0].geometry
+    ####
+
+    @property
+    def detector(self) -> DetectorResponse:
+        """Return the shared detector response."""
+
+        return self.samples[0].detector
+    ####
+
+    def sample_at(self, time_s: float) -> MissionFpaSample:
+        """Return one exact FPA sample; no temporal interpolation is implied."""
+
+        selected_time_s = _finite("time_s", time_s)
+        for sample in self.samples:
+            if sample.state.time_s == selected_time_s:
+                return sample
+            ####
+        ####
+        raise MissionTimelineRangeError(
+            f"time_s={selected_time_s} is not an exact FPA timeline sample"
+        )
+    ####
+
+    def project_at(
+        self,
+        time_s: float,
+        spec: FpaVisualizationSpec | None = None,
+    ) -> FpaViewProjection:
+        """Project one exact downstream sample into the renderer-neutral FPA view."""
+
+        sample = self.sample_at(time_s)
+        resolved_spec = spec or FpaVisualizationSpec.for_source(
+            sample.source,
+            view_kind="fpa.overview",
+        )
+        return project_fpa_view(sample.inputs, resolved_spec)
+    ####
+####
+
+
+@dataclass(frozen=True, slots=True)
 class MissionFpaEvaluator:
     """Evaluate an explicit ray-to-FPA chain over a prescribed mission timeline.
 
@@ -1044,6 +1150,34 @@ class MissionFpaEvaluator:
         """Return source-bound FPA inputs at a prescribed mission time."""
 
         return self.sample_at(time_s).inputs
+    ####
+
+    def evaluate_timeline(self, times_s: Sequence[float]) -> MissionFpaTimeline:
+        """Evaluate exact FPA snapshots at strictly increasing mission times.
+
+        Each sample is freshly resolved through the caller-owned ray,
+        geometry, detector, exposure, and digitization callbacks.  No
+        temporal interpolation, cached pixel image, or detector response is
+        introduced by this composition seam.
+        """
+
+        try:
+            requested_times = tuple(_finite("times_s item", value) for value in times_s)
+        except TypeError:
+            raise TypeError("times_s must be an iterable of mission times") from None
+        ####
+        if not requested_times:
+            raise ValueError("FPA timeline requires at least one mission time")
+        ####
+        if any(
+            second <= first
+            for first, second in zip(requested_times, requested_times[1:])
+        ):
+            raise ValueError("FPA timeline mission times must be strictly increasing")
+        ####
+        return MissionFpaTimeline(
+            tuple(self.sample_at(time_s) for time_s in requested_times)
+        )
     ####
 
     def evaluate_cursor(self, cursor: MissionCursor) -> MissionFpaSample:

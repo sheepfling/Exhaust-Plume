@@ -603,6 +603,7 @@ def test_moc_production_fit_visualization_rejects_unordered_candidate_boundary()
     local_fit_verified = True
     chain_promotion_blocked = True
     production_claim_allowed = False
+  ####
 
   bundle = standardize_model_visualization(
     UnorderedProductionFitResult(),

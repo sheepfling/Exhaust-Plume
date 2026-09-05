@@ -140,6 +140,9 @@ The current local composition includes:
 - mission-time visual/signature evaluators;
 - direct construction of exact, compatible Signature timelines from mission
   samples for downstream angular heatmaps and masked traces;
+- direct construction of exact, compatible FPA timelines from mission samples
+  with one pixel geometry and detector response, preserving per-sample ray,
+  exposure, digitization, and snapshot lineage;
 - exact angular heatmaps, direction traces, source trajectories, and typed
   point queries that preserve result IDs, status, masks, and uncertainty.
 - deterministic Signature timeline galleries that render those exact sampled

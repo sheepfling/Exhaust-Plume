@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from math import sqrt
 
 import pytest
@@ -20,6 +21,7 @@ from exhaust_plume.geometry import SectionedTubeSupport
 from exhaust_plume.products import (
     GrayRadiationProfile,
     MissionFpaEvaluator,
+    MissionFpaTimeline,
     MissionProductEvaluator,
     MissionSignatureEvaluator,
     MissionState,
@@ -295,7 +297,7 @@ def test_mission_signature_evaluator_builds_exact_timeline_for_angular_views() -
     assert heatmap.time_s == pytest.approx(5.0)
     assert heatmap.wavelength_m == pytest.approx(2.0e-6)
     assert heatmap.valid_direction_count == 2
-    ####
+####
 
 
 def test_mission_signature_evaluator_rejects_empty_or_nonmonotonic_timeline() -> None:
@@ -312,9 +314,11 @@ def test_mission_signature_evaluator_rejects_empty_or_nonmonotonic_timeline() ->
 
     with pytest.raises(ValueError, match="at least one mission time"):
         evaluator.evaluate_timeline(())
+    ####
     with pytest.raises(ValueError, match="strictly increasing"):
         evaluator.evaluate_timeline((5.0, 0.0))
     ####
+####
 
 
 def test_mission_fpa_evaluator_composes_explicit_ray_detector_and_adc_at_time() -> None:
@@ -351,6 +355,75 @@ def test_mission_fpa_evaluator_composes_explicit_ray_detector_and_adc_at_time() 
     assert projection.source == midpoint.source
     assert projection.display_layer.value == "expected_electrons"
     assert projection.selected_pixel.valid
+####
+
+
+def test_mission_fpa_evaluator_builds_exact_compatible_timeline() -> None:
+    evaluator = MissionFpaEvaluator(
+        timeline=_timeline(),
+        ray_transfer_at=_ray_transfer_for_state,
+        geometry_at=lambda _state: _fpa_geometry(),
+        detector_at=lambda _state: _detector_for_mission(),
+        exposure_s_at=lambda state: 1.0 + state.time_s / 10.0,
+    )
+
+    fpa_timeline = evaluator.evaluate_timeline((0.0, 5.0, 10.0))
+
+    assert isinstance(fpa_timeline, MissionFpaTimeline)
+    assert fpa_timeline.times_s == (0.0, 5.0, 10.0)
+    assert fpa_timeline.sample_at(5.0).image.exposure_s == pytest.approx(1.5)
+    assert fpa_timeline.sample_at(10.0).source.snapshot_id == (
+        fpa_timeline.samples[-1].ray_transfer.metadata.snapshot.snapshot_id
+    )
+    assert fpa_timeline.project_at(5.0).selected_pixel.valid
+    with pytest.raises(ValueError, match="exact FPA timeline sample"):
+        fpa_timeline.sample_at(2.5)
+    ####
+####
+
+
+def test_mission_fpa_evaluator_rejects_empty_or_nonmonotonic_timeline() -> None:
+    evaluator = MissionFpaEvaluator(
+        timeline=_timeline(),
+        ray_transfer_at=_ray_transfer_for_state,
+        geometry_at=lambda _state: _fpa_geometry(),
+        detector_at=lambda _state: _detector_for_mission(),
+        exposure_s_at=lambda _state: 1.0,
+    )
+
+    with pytest.raises(ValueError, match="at least one mission time"):
+        evaluator.evaluate_timeline(())
+    ####
+    with pytest.raises(ValueError, match="strictly increasing"):
+        evaluator.evaluate_timeline((5.0, 0.0))
+    ####
+####
+
+
+def test_mission_fpa_timeline_rejects_changed_detector_measurement_space() -> None:
+    evaluator = MissionFpaEvaluator(
+        timeline=_timeline(),
+        ray_transfer_at=_ray_transfer_for_state,
+        geometry_at=lambda _state: _fpa_geometry(),
+        detector_at=lambda _state: _detector_for_mission(),
+        exposure_s_at=lambda _state: 1.0,
+    )
+    fpa_timeline = evaluator.evaluate_timeline((0.0, 5.0))
+    changed_detector = DetectorResponse(
+        wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+        quantum_efficiency=(0.4, 0.6, 0.7),
+        optical_throughput=(0.8, 0.9, 1.0),
+        response_id="changed-mission-detector",
+    )
+
+    with pytest.raises(ValueError, match="one detector response"):
+        MissionFpaTimeline(
+            (
+                fpa_timeline.samples[0],
+                replace(fpa_timeline.samples[1], detector=changed_detector),
+            )
+        )
+    ####
 ####
 
 
