@@ -115,6 +115,9 @@ class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
   SCALAR_NORMAL_SHOCK_BRANCH = 'scalar-normal-shock-branch'
   AUDITED_SHOCK_INTERFACE = 'audited-shock-interface'
   AUDITED_SHOCK_INTERFACE_PROFILE = 'audited-shock-interface-profile'
+  AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE = (
+    'audited-interior-shock-interface-profile'
+  )
 ####
 
 
@@ -553,12 +556,13 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'and other inlet modes must not supply it'
       )
     ####
-    if (
-      self.inlet_boundary_mode
-      is MocReflectedDomainCoupledEulerInletBoundaryMode.AUDITED_SHOCK_INTERFACE_PROFILE
-    ) != (self.transonic_shock_interface_profile is not None):
+    profile_mode = self.inlet_boundary_mode in (
+      MocReflectedDomainCoupledEulerInletBoundaryMode.AUDITED_SHOCK_INTERFACE_PROFILE,
+      MocReflectedDomainCoupledEulerInletBoundaryMode.AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE,
+    )
+    if profile_mode != (self.transonic_shock_interface_profile is not None):
       raise ValueError(
-        'audited-shock-interface-profile mode requires '
+        'an audited shock-interface-profile mode requires '
         'transonic_shock_interface_profile, and other inlet modes must not '
         'supply it'
       )
@@ -2637,9 +2641,10 @@ def _prepare_transonic_interface_profile_inlet(
 ]:
   """Consume a verified spatially varying shock-interface inlet profile.
 
-  This is the first multi-face handoff into the coupled field.  It remains an
-  inlet contract: a profile whose shock is interior to the field is rejected
-  rather than projected, clipped, or replaced by the scalar interface mode.
+  This is a multi-face handoff into the coupled field.  The ordinary profile
+  mode accepts only the original control-section inlet.  The distinct
+  interior mode starts a new downstream field at the exact profile
+  cross-section; it still never projects, clips, or replaces the profile.
   """
 
   profile = request.transonic_shock_interface_profile
@@ -2661,9 +2666,18 @@ def _prepare_transonic_interface_profile_inlet(
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
   y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
   if abs(profile.cross_section_x_m - x_start) > x_tolerance:
+    if request.inlet_boundary_mode is not (
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ):
+      raise RuntimeError(
+        'audited shock-interface profile is interior to the field; only an '
+        'inlet-bound profile is accepted by this coupled-field tranche'
+      )
+    ####
     raise RuntimeError(
-      'audited shock-interface profile is interior to the field; only an '
-      'inlet-bound profile is accepted by this coupled-field tranche'
+      'audited shock-interface profile cross-section does not match the '
+      'interior downstream-field inlet'
     )
   ####
   if abs(profile.lower_ordinate_m - lower_ordinate) > y_tolerance:
@@ -2838,6 +2852,7 @@ def _result_from_field(
   request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   message: str,
   x_stations: np.ndarray,
+  lower_ordinate: float,
   free_boundary_heights: np.ndarray,
   states: np.ndarray,
   centers: np.ndarray,
@@ -2927,7 +2942,7 @@ def _result_from_field(
       (float(x), float(y))
       for x, y in zip(
         x_stations,
-        free_boundary_heights + request.mixed_regime_request.control_section.points_m[0][1],
+        free_boundary_heights + lower_ordinate,
         strict=True,
       )
     ),
@@ -3129,6 +3144,34 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       request,
     )
   ####
+  if (
+    request.inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ):
+    profile = request.transonic_shock_interface_profile
+    if profile is None:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_SHOCK_INTERFACE_PROFILE_FAILURE,
+        'interior shock-interface-profile mode requires a retained profile',
+        request,
+      )
+    ####
+    x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+    if profile.cross_section_x_m <= x_start + x_tolerance:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_SHOCK_INTERFACE_PROFILE_FAILURE,
+        'interior shock-interface profile must start strictly downstream of '
+        'the upstream control section',
+        request,
+      )
+    ####
+    x_start = profile.cross_section_x_m
+    lower_ordinate = profile.lower_ordinate_m
+    inlet_height = profile.upper_ordinate_m - lower_ordinate
+  ####
   if request.reference_total_temperature_K <= 0.0:
     return _failure(
       MocReflectedDomainCoupledEulerFreeBoundaryStatus.THERMODYNAMIC_FAILURE,
@@ -3183,9 +3226,9 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         request,
       )
     ####
-  elif (
-    request.inlet_boundary_mode
-    is MocReflectedDomainCoupledEulerInletBoundaryMode.AUDITED_SHOCK_INTERFACE_PROFILE
+  elif request.inlet_boundary_mode in (
+    MocReflectedDomainCoupledEulerInletBoundaryMode.AUDITED_SHOCK_INTERFACE_PROFILE,
+    MocReflectedDomainCoupledEulerInletBoundaryMode.AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE,
   ):
     try:
       inlet_override_states, transonic_shock_interface_profile = (
@@ -3428,6 +3471,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     request,
     message,
     x_stations,
+    lower_ordinate,
     free_boundary_heights,
     states,
     centers,

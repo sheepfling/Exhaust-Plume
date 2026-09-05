@@ -1027,15 +1027,20 @@ paired upstream/downstream samples when the profile is a spatial cross-section
 on the field inlet.  The solver interpolates the downstream profile onto its
 inlet faces and retains the exact profile contract in the result.  An interior
 profile, endpoint mismatch, normal mismatch, or failed profile audit returns a
-typed stop; the profile is never projected or silently replaced by the scalar
-handoff.
+typed stop in that ordinary inlet mode; the profile is never projected or
+silently replaced by the scalar handoff.  A distinct
+``audited-interior-shock-interface-profile`` research mode now starts a new
+downstream conservative field at the exact retained profile cross-section.
+The upstream control-section field remains a separate domain, and the new
+mode preserves the full profile identity and independent audit rather than
+pretending that the profile is a global shock surface.
 
 The standardized planar visualization exposes the consumed profile as a named
 inlet path and reports its sample count, cross-section, ordinate bounds,
-normal, profile identity, and consumed state.  This improves the visualization
-and boundary contract only.  It does not establish an interior shock location,
-canonical mixed-regime closure, physical shock-cell length, or a production
-claim.
+normal, profile identity, and consumed state.  This advances the interior
+handoff and downstream-field contract only.  It does not establish a full
+surrounding shock surface, canonical mixed-regime closure, physical
+shock-cell length, or a production claim.
 
 ### Mixed-regime reference overlay checkpoint
 

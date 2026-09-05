@@ -158,9 +158,11 @@ class MocTransonicShockInterfaceProfile:
   contract carries that profile without extrapolation: samples must lie on one
   vertical cross-section, cover a strictly ordered ordinate interval, and
   retain both supersonic upstream and subsonic downstream regime evidence.
-  The coupled-field tranche currently accepts this profile only when its
-  cross-section is exactly the field inlet; an interior curve remains a
-  separate solver-owned closure task.
+  The coupled field accepts this profile at the original field inlet, or
+  through its distinct interior-profile research mode, which starts a new
+  downstream field exactly at the retained cross-section.  The latter still
+  does not close the surrounding upstream/downstream mixed-regime field or
+  authorize production promotion.
   """
 
   upstream_samples: tuple[MocTransonicShockInterfaceSample, ...]

@@ -2281,6 +2281,46 @@ def test_coupled_euler_profile_rejects_interior_handoff_without_projection():
 ####
 
 
+def test_coupled_euler_interior_profile_starts_a_bound_downstream_field():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  profile = _shock_interface_profile_for_control_section(
+    mixed_request,
+    x_offset=0.02,
+  )
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
+    transonic_shock_interface_profile=profile,
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+
+  assert result.status is not (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_SHOCK_INTERFACE_PROFILE_FAILURE
+  )
+  assert result.x_stations_m[0] == pytest.approx(profile.cross_section_x_m)
+  assert result.free_boundary_points_m[0][1] == pytest.approx(
+    profile.upper_ordinate_m
+  )
+  assert result.transonic_shock_interface_profile == profile
+  assert result.transonic_shock_interface_profile_consumed
+  assert audit.transonic_shock_interface_profile_verified
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
 def test_coupled_euler_entropy_gate_allows_production_but_rejects_loss():
   inlet = coupled_euler._conservative_from_primitive(
     1.0,

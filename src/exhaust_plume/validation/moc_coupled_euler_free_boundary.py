@@ -61,6 +61,40 @@ MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_AUDIT_OPERATOR_ID = (
 _CHANNEL_COUNT = 5
 
 
+def _effective_field_inlet_geometry(
+  request: Any,
+) -> tuple[float, float, float]:
+  """Return the exact downstream-field inlet geometry for an audited request."""
+
+  control = request.mixed_regime_request.control_section
+  control_x = float(control.points_m[0][0])
+  control_lower = float(control.points_m[0][1])
+  control_height = float(control.points_m[-1][1] - control_lower)
+  if request.inlet_boundary_mode is not (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ):
+    return control_x, control_lower, control_height
+  ####
+  profile = request.transonic_shock_interface_profile
+  if profile is None:
+    raise ValueError('interior profile mode requires a retained profile')
+  ####
+  x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(control_x), 1.0))
+  if profile.cross_section_x_m <= control_x + x_tolerance:
+    raise ValueError(
+      'interior shock-interface profile must start strictly downstream of '
+      'the upstream control section'
+    )
+  ####
+  return (
+    profile.cross_section_x_m,
+    profile.lower_ordinate_m,
+    profile.upper_ordinate_m - profile.lower_ordinate_m,
+  )
+####
+
+
 class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   """Outcome for the independent conservative-field audit."""
 
@@ -1026,9 +1060,9 @@ def _audit_transonic_shock_interface(
     return False, None
   ####
   control = request.mixed_regime_request.control_section
-  lower_ordinate = control.points_m[0][1]
-  inlet_height = control.points_m[-1][1] - lower_ordinate
-  x_start = control.points_m[0][0]
+  x_start, lower_ordinate, inlet_height = _effective_field_inlet_geometry(
+    request
+  )
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
   y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
   if abs(sample.point_m[0] - x_start) > x_tolerance:
@@ -1116,9 +1150,9 @@ def _audit_transonic_shock_interface_profile(
     return False, None
   ####
   control = request.mixed_regime_request.control_section
-  lower_ordinate = control.points_m[0][1]
-  inlet_height = control.points_m[-1][1] - lower_ordinate
-  x_start = control.points_m[0][0]
+  x_start, lower_ordinate, inlet_height = _effective_field_inlet_geometry(
+    request
+  )
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
   y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
   if abs(reported.cross_section_x_m - x_start) > x_tolerance:
@@ -1301,7 +1335,13 @@ def _audit_field(
   ):
     raise ValueError('free-boundary x coordinates do not match x stations')
   ####
-  lower_ordinate = control.points_m[0][1]
+  x_start, lower_ordinate, _inlet_height = _effective_field_inlet_geometry(
+    request
+  )
+  x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+  if abs(float(candidate.x_stations_m[0]) - x_start) > x_tolerance:
+    raise ValueError('audited x stations do not start at the effective inlet')
+  ####
   heights = np.asarray(
     [point[1] - lower_ordinate for point in candidate.free_boundary_points_m],
     dtype=float,
