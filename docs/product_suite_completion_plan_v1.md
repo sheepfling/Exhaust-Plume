@@ -1350,12 +1350,14 @@ physical shock-cell length, or external validation has passed.
 
 ### Global/coupled downstream boundary-response checkpoint
 
-The coupled-field result now retains the static pressure at every retained
-free-boundary station.  The global-to-coupled orchestrator uses those values
-with the exact global ambient-neighbor path to run an independent overlap
-measurement over the shared x-domain.  The operator rejects missing samples,
-non-monotone stations, and any coupled station outside the retained global
-boundary; it does not extrapolate or silently clip the response.
+The coupled-field result now retains one static-pressure sample for each
+axial cell column adjacent to the retained free boundary.  The
+global-to-coupled orchestrator uses those solver-owned adjacent-cell values
+to reconstruct the boundary-station pressure comparison against the exact
+global ambient-neighbor path over the shared x-domain.  The operator rejects
+missing samples, non-monotone stations, and any coupled station outside the
+retained global boundary; it does not extrapolate or silently clip the
+response.
 
 The response report carries matched points, coordinate and tangent residuals,
 pressure residuals, normal-velocity residuals, coverage, and tolerances.  On

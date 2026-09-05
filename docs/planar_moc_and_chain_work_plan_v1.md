@@ -3844,12 +3844,14 @@ frontier as a global shock boundary or alter any lower-fidelity provider.
 
 ## Global/coupled downstream boundary-response checkpoint
 
-The coupled finite-volume result now retains its free-boundary static
-pressure at every retained station.  The global-to-coupled orchestrator
-re-extracts the exact global ambient-neighbor path and compares both paths
-only over their shared x-domain.  The response operator requires ordered
-stations and rejects a downstream point outside the retained global path;
-there is no extrapolation, clipping, or lower-fidelity replacement.
+The coupled finite-volume result now retains one static-pressure sample for
+each axial cell column adjacent to its retained free boundary.  The
+global-to-coupled orchestrator uses those solver-owned adjacent-cell values
+to reconstruct the boundary-station pressure comparison against the exact
+global ambient-neighbor path, and compares both paths only over their shared
+x-domain.  The response operator requires ordered stations and rejects a
+downstream point outside the retained global path; there is no extrapolation,
+clipping, or lower-fidelity replacement.
 
 The resulting research record contains matched points, geometric and tangent
 residuals, pressure residuals, normal-velocity residuals, coverage, and the

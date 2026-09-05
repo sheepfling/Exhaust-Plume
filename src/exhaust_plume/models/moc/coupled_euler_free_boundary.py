@@ -1272,7 +1272,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   message: str = ''
   x_stations_m: tuple[float, ...] = ()
   free_boundary_points_m: tuple[tuple[float, float], ...] = ()
-  free_boundary_static_pressure_Pa: tuple[float, ...] = ()
+  free_boundary_adjacent_static_pressure_Pa: tuple[float, ...] = ()
   cell_centers_m: tuple[tuple[float, float], ...] = ()
   conservative_states_by_cell: tuple[tuple[float, float, float, float], ...] = ()
   inlet_boundary_conservative_states_by_face: tuple[
@@ -1395,23 +1395,26 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       object.__setattr__(self, name, values)
     ####
     boundary_pressures = tuple(
-      float(value) for value in self.free_boundary_static_pressure_Pa
+      float(value)
+      for value in self.free_boundary_adjacent_static_pressure_Pa
     )
     if any(not isfinite(value) or value <= 0.0 for value in boundary_pressures):
       raise ValueError(
-        'free_boundary_static_pressure_Pa must contain finite positive values'
+        'free_boundary_adjacent_static_pressure_Pa must contain finite positive values'
       )
     ####
-    if boundary_pressures and len(boundary_pressures) != len(
-      self.free_boundary_points_m
+    if boundary_pressures and len(boundary_pressures) != max(
+      len(self.free_boundary_points_m) - 1,
+      0,
     ):
       raise ValueError(
-        'free_boundary_static_pressure_Pa must match free_boundary_points_m'
+        'free_boundary_adjacent_static_pressure_Pa must match the free-boundary '
+        'cell columns'
       )
     ####
     object.__setattr__(
       self,
-      'free_boundary_static_pressure_Pa',
+      'free_boundary_adjacent_static_pressure_Pa',
       boundary_pressures,
     )
     ####
@@ -1918,7 +1921,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'x_stations_m': self.x_stations_m,
       'free_boundary_points_m': self.free_boundary_points_m,
-      'free_boundary_static_pressure_Pa': self.free_boundary_static_pressure_Pa,
+      'free_boundary_adjacent_static_pressure_Pa': (
+        self.free_boundary_adjacent_static_pressure_Pa
+      ),
       'cell_centers_m': self.cell_centers_m,
       'conservative_states_by_cell': self.conservative_states_by_cell,
       'inlet_boundary_conservative_states_by_face': (
@@ -3982,11 +3987,8 @@ def _result_from_field(
         strict=True,
       )
     ),
-    free_boundary_static_pressure_Pa=(
-      ()
-      if not len(top_pressures)
-      else (float(top_pressures[0]),)
-      + tuple(float(value) for value in top_pressures)
+    free_boundary_adjacent_static_pressure_Pa=tuple(
+      float(value) for value in top_pressures
     ),
     residual_history=tuple(residual_history),
     shape_residual_history_m=tuple(shape_residual_history),

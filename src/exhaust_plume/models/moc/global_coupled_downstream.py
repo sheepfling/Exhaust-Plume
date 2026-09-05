@@ -495,13 +495,15 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
     )
   ####
   coupled_points = tuple(coupled_field.free_boundary_points_m)
-  coupled_pressures = tuple(coupled_field.free_boundary_static_pressure_Pa)
+  coupled_pressures = tuple(
+    coupled_field.free_boundary_adjacent_static_pressure_Pa
+  )
   coupled_normal_velocities = tuple(
     coupled_field.free_boundary_normal_velocity_residuals_m_s
   )
   if not (
     len(coupled_points) >= 2
-    and len(coupled_pressures) == len(coupled_points)
+    and len(coupled_pressures) == len(coupled_points) - 1
     and len(coupled_normal_velocities) == len(coupled_points) - 1
   ):
     return failure(
@@ -530,9 +532,7 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
   tangent_residuals: list[float] = []
   pressure_residuals: list[float] = []
   normal_velocity_residuals: list[float] = []
-  for index, (point, pressure) in enumerate(
-    zip(coupled_points, coupled_pressures, strict=True)
-  ):
+  for index, point in enumerate(coupled_points):
     reference = _interpolate_downstream_boundary(
       upstream,
       point[0],
@@ -553,7 +553,15 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
     matched_x.append(float(point[0]))
     upstream_points.append((float(point[0]), reference_y))
     coordinate_residuals.append(abs(float(point[1]) - reference_y))
-    pressure_residuals.append(abs(float(pressure) - reference_pressure))
+    if index == 0:
+      adjacent_pressure = coupled_pressures[0]
+    elif index >= len(coupled_pressures):
+      adjacent_pressure = coupled_pressures[-1]
+    else:
+      adjacent_pressure = 0.5 * (
+        coupled_pressures[index - 1] + coupled_pressures[index]
+      )
+    pressure_residuals.append(abs(float(adjacent_pressure) - reference_pressure))
     if index == 0:
       coupled_theta = atan2(
         coupled_points[1][1] - coupled_points[0][1],
