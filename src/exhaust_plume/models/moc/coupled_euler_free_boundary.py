@@ -44,6 +44,7 @@ from exhaust_plume.models.moc.transonic_transition import (
   solve_moc_transonic_transition,
 )
 from exhaust_plume.models.moc.transonic_interface import (
+  MocTransonicShockInterfaceFieldPlacementResult,
   MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceResult,
   MocTransonicShockInterfaceStatus,
@@ -108,6 +109,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   INLET_SHOCK_INTERFACE_PROFILE_FAILURE = (
     'coupled-euler-inlet-shock-interface-profile-failure'
   )
+  INLET_SHOCK_INTERFACE_PLACEMENT_FAILURE = (
+    'coupled-euler-inlet-shock-interface-placement-failure'
+  )
 ####
 
 
@@ -121,6 +125,9 @@ class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
   AUDITED_SHOCK_INTERFACE_PROFILE = 'audited-shock-interface-profile'
   AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE = (
     'audited-interior-shock-interface-profile'
+  )
+  SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE = (
+    'solver-owned-interior-shock-interface-profile'
   )
 ####
 
@@ -783,6 +790,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   transonic_shock_geometry: MocTransonicShockGeometryRequest | None = None
   transonic_shock_interface: MocTransonicShockInterfaceResult | None = None
   transonic_shock_interface_profile: MocTransonicShockInterfaceProfile | None = None
+  transonic_shock_interface_field_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -898,6 +908,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'MocTransonicShockInterfaceProfile or None'
       )
     ####
+    if self.transonic_shock_interface_field_placement is not None and not isinstance(
+      self.transonic_shock_interface_field_placement,
+      MocTransonicShockInterfaceFieldPlacementResult,
+    ):
+      raise TypeError(
+        'transonic_shock_interface_field_placement must be a '
+        'MocTransonicShockInterfaceFieldPlacementResult or None'
+      )
+    ####
     if (
       self.inlet_boundary_mode
       is MocReflectedDomainCoupledEulerInletBoundaryMode.SCALAR_NORMAL_SHOCK_BRANCH
@@ -924,7 +943,21 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       raise ValueError(
         'an audited shock-interface-profile mode requires '
         'transonic_shock_interface_profile, and other inlet modes must not '
-        'supply it'
+      'supply it'
+      )
+    ####
+    placement_mode = (
+      self.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    )
+    if placement_mode != (
+      self.transonic_shock_interface_field_placement is not None
+    ):
+      raise ValueError(
+        'solver-owned interior shock-interface mode requires '
+        'transonic_shock_interface_field_placement, and other inlet modes '
+        'must not supply it'
       )
     ####
     if (
@@ -934,6 +967,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       raise ValueError(
         'scalar shock-interface and shock-interface profile handoffs are '
         'mutually exclusive'
+      )
+    ####
+    if (
+      self.transonic_shock_interface_profile is not None
+      and self.transonic_shock_interface_field_placement is not None
+    ):
+      raise ValueError(
+        'explicit shock-interface profile and solver-owned placement handoff '
+        'are mutually exclusive'
       )
     ####
   ####
@@ -978,6 +1020,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         if self.transonic_shock_interface_profile is None
         else self.transonic_shock_interface_profile.as_report()
       ),
+      'transonic_shock_interface_field_placement': (
+        None
+        if self.transonic_shock_interface_field_placement is None
+        else self.transonic_shock_interface_field_placement.as_report()
+      ),
       'free_boundary_flux_model': COUPLED_EULER_FREE_BOUNDARY_FLUX_MODEL,
       'claim_status': (
         'constant-gamma-coupled-euler-free-boundary-research-lane; '
@@ -1019,6 +1066,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   transonic_shock_geometry: MocTransonicShockGeometryRequest | None = None,
   transonic_shock_interface: MocTransonicShockInterfaceResult | None = None,
   transonic_shock_interface_profile: MocTransonicShockInterfaceProfile | None = None,
+  transonic_shock_interface_field_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   """Bind one mixed-regime reference to the coupled-Euler research lane.
 
@@ -1063,6 +1113,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     transonic_shock_geometry=transonic_shock_geometry,
     transonic_shock_interface=transonic_shock_interface,
     transonic_shock_interface_profile=transonic_shock_interface_profile,
+    transonic_shock_interface_field_placement=(
+      transonic_shock_interface_field_placement
+    ),
   )
 ####
 
@@ -1133,6 +1186,10 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   transonic_shock_interface_consumed: bool = False
   transonic_shock_interface_profile: MocTransonicShockInterfaceProfile | None = None
   transonic_shock_interface_profile_consumed: bool = False
+  transonic_shock_interface_field_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None
+  transonic_shock_interface_field_placement_consumed: bool = False
   transonic_frontier_compatibility: (
     MocReflectedDomainCoupledEulerTransonicFrontierCompatibility | None
   ) = None
@@ -1308,6 +1365,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'MocTransonicShockInterfaceProfile or None'
       )
     ####
+    if self.transonic_shock_interface_field_placement is not None and not isinstance(
+      self.transonic_shock_interface_field_placement,
+      MocTransonicShockInterfaceFieldPlacementResult,
+    ):
+      raise TypeError(
+        'transonic_shock_interface_field_placement must be a '
+        'MocTransonicShockInterfaceFieldPlacementResult or None'
+      )
+    ####
     if self.transonic_frontier_compatibility is not None and not isinstance(
       self.transonic_frontier_compatibility,
       MocReflectedDomainCoupledEulerTransonicFrontierCompatibility,
@@ -1363,13 +1429,31 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'retained transonic shock interface must match the request mode'
       )
     ####
-    if self.request is not None and (
-      self.request.transonic_shock_interface_profile is None
-    ) != (
-      self.transonic_shock_interface_profile is None
+    expected_profile_present = bool(
+      self.request is not None
+      and (
+        self.request.transonic_shock_interface_profile is not None
+        or (
+          self.request.transonic_shock_interface_field_placement is not None
+          and self.request.transonic_shock_interface_field_placement.profile
+          is not None
+        )
+      )
+    )
+    if expected_profile_present != (
+      self.transonic_shock_interface_profile is not None
     ):
       raise ValueError(
         'retained transonic shock-interface profile must match the request mode'
+      )
+    ####
+    if self.request is not None and (
+      self.request.transonic_shock_interface_field_placement is None
+    ) != (
+      self.transonic_shock_interface_field_placement is None
+    ):
+      raise ValueError(
+        'retained solver-owned field placement must match the request mode'
       )
     ####
     for name in (
@@ -1416,6 +1500,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     if not isinstance(self.transonic_shock_interface_profile_consumed, bool):
       raise TypeError(
         'transonic_shock_interface_profile_consumed must be a bool'
+      )
+    ####
+    if not isinstance(
+      self.transonic_shock_interface_field_placement_consumed,
+      bool,
+    ):
+      raise TypeError(
+        'transonic_shock_interface_field_placement_consumed must be a bool'
       )
     ####
     coverage = dict(self.residual_channel_coverage)
@@ -1518,6 +1610,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         ),
         'transonic_shock_interface_profile_consumed': (
           self.transonic_shock_interface_profile_consumed
+        ),
+        'transonic_shock_interface_field_placement_consumed': (
+          self.transonic_shock_interface_field_placement_consumed
+        ),
+        'transonic_shock_interface_field_placement': (
+          None
+          if self.transonic_shock_interface_field_placement is None
+          else self.transonic_shock_interface_field_placement.as_report()
         ),
         'transonic_frontier_compatibility': (
           None
@@ -1652,6 +1752,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'transonic_shock_interface_profile_consumed': (
         self.transonic_shock_interface_profile_consumed
+      ),
+      'transonic_shock_interface_field_placement': (
+        None
+        if self.transonic_shock_interface_field_placement is None
+        else self.transonic_shock_interface_field_placement.as_report()
+      ),
+      'transonic_shock_interface_field_placement_consumed': (
+        self.transonic_shock_interface_field_placement_consumed
       ),
       'transonic_frontier_compatibility': (
         None
@@ -1903,6 +2011,7 @@ def _failure(
   transonic_shock_geometry_audit = None
   transonic_shock_interface = None
   transonic_shock_interface_profile = None
+  transonic_shock_interface_field_placement = None
   if request is not None and request.transonic_shock_geometry is not None:
     transonic_shock_geometry = solve_moc_transonic_shock_geometry(
       request.transonic_shock_geometry
@@ -1917,6 +2026,14 @@ def _failure(
   if request is not None and request.transonic_shock_interface_profile is not None:
     transonic_shock_interface_profile = request.transonic_shock_interface_profile
   ####
+  if request is not None and request.transonic_shock_interface_field_placement is not None:
+    transonic_shock_interface_field_placement = (
+      request.transonic_shock_interface_field_placement
+    )
+    transonic_shock_interface_profile = (
+      transonic_shock_interface_field_placement.profile
+    )
+  ####
   return MocReflectedDomainCoupledEulerFreeBoundaryResult(
     status=status,
     request=request,
@@ -1930,6 +2047,9 @@ def _failure(
     transonic_shock_geometry_audit=transonic_shock_geometry_audit,
     transonic_shock_interface=transonic_shock_interface,
     transonic_shock_interface_profile=transonic_shock_interface_profile,
+    transonic_shock_interface_field_placement=(
+      transonic_shock_interface_field_placement
+    ),
   )
 ####
 
@@ -1958,6 +2078,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   transonic_shock_geometry: MocTransonicShockGeometryRequest | None = None,
   transonic_shock_interface: MocTransonicShockInterfaceResult | None = None,
   transonic_shock_interface_profile: MocTransonicShockInterfaceProfile | None = None,
+  transonic_shock_interface_field_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   """Run the coupled research field from one bound mixed-regime reference.
 
@@ -1994,6 +2117,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       transonic_shock_geometry=transonic_shock_geometry,
       transonic_shock_interface=transonic_shock_interface,
       transonic_shock_interface_profile=transonic_shock_interface_profile,
+      transonic_shock_interface_field_placement=(
+        transonic_shock_interface_field_placement
+      ),
     )
   except (TypeError, ValueError) as error:
     return _failure(
@@ -3034,6 +3160,7 @@ def _prepare_transonic_interface_profile_inlet(
   x_start: float,
   lower_ordinate: float,
   inlet_height: float,
+  profile_override: MocTransonicShockInterfaceProfile | None = None,
 ) -> tuple[
   tuple[np.ndarray, ...],
   MocTransonicShockInterfaceProfile,
@@ -3046,7 +3173,11 @@ def _prepare_transonic_interface_profile_inlet(
   cross-section; it still never projects, clips, or replaces the profile.
   """
 
-  profile = request.transonic_shock_interface_profile
+  profile = (
+    request.transonic_shock_interface_profile
+    if profile_override is None
+    else profile_override
+  )
   if profile is None:
     raise RuntimeError(
       'audited-shock-interface-profile mode requires a retained profile'
@@ -3065,9 +3196,11 @@ def _prepare_transonic_interface_profile_inlet(
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
   y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
   if abs(profile.cross_section_x_m - x_start) > x_tolerance:
-    if request.inlet_boundary_mode is not (
+    if request.inlet_boundary_mode not in (
       MocReflectedDomainCoupledEulerInletBoundaryMode
-      .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+      .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE,
     ):
       raise RuntimeError(
         'audited shock-interface profile is interior to the field; only an '
@@ -3275,6 +3408,9 @@ def _result_from_field(
   transonic_shock_geometry_audit: MocTransonicShockGeometryAudit | None = None,
   transonic_shock_interface: MocTransonicShockInterfaceResult | None = None,
   transonic_shock_interface_profile: MocTransonicShockInterfaceProfile | None = None,
+  transonic_shock_interface_field_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   flattened = _flatten_field(
     states,
@@ -3409,6 +3545,12 @@ def _result_from_field(
     transonic_shock_interface_profile=transonic_shock_interface_profile,
     transonic_shock_interface_profile_consumed=(
       transonic_shock_interface_profile is not None
+    ),
+    transonic_shock_interface_field_placement=(
+      transonic_shock_interface_field_placement
+    ),
+    transonic_shock_interface_field_placement_consumed=(
+      transonic_shock_interface_field_placement is not None
     ),
     transonic_frontier_compatibility=transonic_frontier_compatibility,
     control_section_compatibility=control_section_compatibility,
@@ -3550,12 +3692,33 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       request,
     )
   ####
-  if (
-    request.inlet_boundary_mode
+  solver_owned_placement = (
+    request.transonic_shock_interface_field_placement
+    if request.inlet_boundary_mode
     is MocReflectedDomainCoupledEulerInletBoundaryMode
-    .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    else None
+  )
+  effective_profile = request.transonic_shock_interface_profile
+  if solver_owned_placement is not None:
+    if not solver_owned_placement.converged or solver_owned_placement.profile is None:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_SHOCK_INTERFACE_PLACEMENT_FAILURE,
+        'solver-owned interior shock-interface placement must pass its '
+        'independent field/profile audit before coupled-field consumption',
+        request,
+      )
+    ####
+    effective_profile = solver_owned_placement.profile
+  ####
+  if request.inlet_boundary_mode in (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE,
   ):
-    profile = request.transonic_shock_interface_profile
+    profile = effective_profile
     if profile is None:
       return _failure(
         MocReflectedDomainCoupledEulerFreeBoundaryStatus
@@ -3681,6 +3844,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   elif request.inlet_boundary_mode in (
     MocReflectedDomainCoupledEulerInletBoundaryMode.AUDITED_SHOCK_INTERFACE_PROFILE,
     MocReflectedDomainCoupledEulerInletBoundaryMode.AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE,
+    MocReflectedDomainCoupledEulerInletBoundaryMode.SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE,
   ):
     try:
       inlet_override_states, transonic_shock_interface_profile = (
@@ -3689,6 +3853,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
           x_start=x_start,
           lower_ordinate=lower_ordinate,
           inlet_height=inlet_height,
+          profile_override=effective_profile,
         )
       )
     except RuntimeError as error:
@@ -3713,9 +3878,12 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   # for the first downstream boundary instead.
   initial_boundary_height = (
     inlet_height
-    if request.inlet_boundary_mode
-    is MocReflectedDomainCoupledEulerInletBoundaryMode
-    .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    if request.inlet_boundary_mode in (
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE,
+    )
     else request.mixed_regime_request.initial_outlet_height_m
   )
   free_boundary_heights = np.full(
@@ -3960,5 +4128,6 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     transonic_shock_geometry_audit,
     transonic_shock_interface,
     transonic_shock_interface_profile,
+    solver_owned_placement,
   )
 ####

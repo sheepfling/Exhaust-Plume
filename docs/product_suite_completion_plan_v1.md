@@ -1212,3 +1212,19 @@ the selected cross-section is rejected.  This removes caller-selected
 geometry from the next handoff, but it remains a research interface profile:
 the coupled pressure/tangency solve, refinement, physical shock-cell length,
 and provider-bound validation are still open.
+
+### Coupled-lane solver-owned handoff checkpoint
+
+The coupled-Euler request now has a distinct
+``solver-owned-interior-shock-interface-profile`` mode that consumes the
+audited field-placement result itself.  The request retains the placement
+identity and derived profile; the solver rechecks the placement/profile audit,
+starts the downstream mesh at the retained cross-section, and reports both
+placement and profile consumption.  Invalid or tampered placement results
+return a typed inlet-placement failure, with no caller-selected profile or
+lower-fidelity fallback.
+
+The actual target reaches the coupled conservative field and remains blocked
+only at its later pressure/tangency/free-boundary residual gate.  This closes
+the direct contract handoff, not the P2 physical-closure gate; refinement,
+physical shock-cell lengths, and external product validation remain open.
