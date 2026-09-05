@@ -140,6 +140,10 @@ The current local composition includes:
 - mission-time visual/signature evaluators;
 - exact angular heatmaps, direction traces, source trajectories, and typed
   point queries that preserve result IDs, status, masks, and uncertainty.
+- deterministic Signature timeline galleries that render those exact sampled
+  views as multi-time angular heatmaps, masked direction traces, source
+  trajectories, lineage-preserving CSV tables, and a source-bound manifest;
+  the gallery is presentation-only and performs no temporal interpolation.
 
 The next promotion boundary requires a source-bound resolved radiation model
 and provider-bound measurement evidence. The LTE population closure is now a
@@ -257,6 +261,8 @@ claim is authorized.
 - [x] Preserve mission time and source pose through visual, Signature, ray,
       and FPA composition seams.
 - [x] Provide an exact Signature time/direction/wavelength point query.
+- [x] Provide an exact-time Signature timeline gallery with angular heatmaps,
+      masked direction traces, source trajectory, CSV lineage, and guardrails.
 - [x] Add exact-fingerprint binding for future high-fidelity promotion evidence
       without changing the current research-only claim ceiling.
 - [x] Expose retained higher-fidelity MOC shock geometry, jump, pressure-loss,

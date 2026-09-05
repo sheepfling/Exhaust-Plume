@@ -19,6 +19,7 @@ from exhaust_plume.products import (
     build_signature_direction_series,
     direction_to_azimuth_elevation,
     evaluate_signature_table_asset,
+    render_signature_timeline_gallery,
 )
 from exhaust_plume.providers.signature_table import (
     SignatureTableConfiguration,
@@ -245,4 +246,29 @@ def test_timeline_rejects_changed_direction_or_wavelength_axes() -> None:
     with pytest.raises(ValueError, match="one wavelength axis"):
         SignatureTimeline((timeline.samples[0], changed_sample))
     ####
+####
+
+
+def test_signature_timeline_gallery_preserves_exact_time_and_lineage(tmp_path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    timeline = _timeline()
+    manifest = render_signature_timeline_gallery(
+        timeline,
+        tmp_path,
+        wavelength_index=1,
+        direction_indices=(2, 4),
+        binning=SignatureAngularBinning(azimuth_bin_count=4, elevation_bin_count=2),
+    )
+
+    payload = manifest.model_dump()
+    assert payload["schema"] == "plume.signature.angular-timeline-gallery@1"
+    assert payload["times_s"] == [0.0, 2.0]
+    assert payload["selected_direction_indices"] == [2, 4]
+    assert payload["source_result_ids"] == [sample.result.metadata.result_id for sample in timeline.samples]
+    assert "invalid_signature_samples_are_masked_or_gapped_not_zero_filled" in payload["guardrails"]
+    assert manifest.manifest_path.is_file()
+    assert all((tmp_path / artifact.path).is_file() for artifact in manifest.artifacts)
+    assert (tmp_path / "signature_timeline_direction_series.csv").read_text(encoding="utf-8").count("\n") == 5
 ####
