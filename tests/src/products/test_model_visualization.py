@@ -296,6 +296,29 @@ def _coupled_euler_result() -> SimpleNamespace:
       absolute_pressure_jump_fraction=2.0 / 3.0,
       transition_requires_supersonic_upstream=True,
     ),
+    transonic_transition=SimpleNamespace(
+      status='converged-normal-shock-pressure-reference',
+      sonic_static_pressure_Pa=212_000.0,
+      required_upstream_mach=3.0,
+      upstream_static_pressure_Pa=60_000.0,
+      downstream_static_pressure_Pa=100_000.0,
+      downstream_mach=0.475,
+      downstream_total_pressure_Pa=210_000.0,
+      total_pressure_ratio=0.525,
+      entropy_increase_JpkgK=180.0,
+      pressure_residual_Pa=1.0e-8,
+      shock_state=SimpleNamespace(
+        upstream_static_temperature_K=500.0,
+        downstream_static_temperature_K=800.0,
+        upstream_density_kg_m3=0.4,
+        downstream_density_kg_m3=0.8,
+        upstream_sound_speed_m_s=450.0,
+        downstream_sound_speed_m_s=570.0,
+        upstream_speed_m_s=1350.0,
+        downstream_speed_m_s=270.75,
+      ),
+    ),
+    transonic_transition_audit=SimpleNamespace(shock_state_verified=True),
   )
 ####
 
@@ -449,6 +472,14 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert bundle.diagnostics[
     'coupled_euler_transition_requires_supersonic_upstream'
   ] is True
+  assert bundle.diagnostics['coupled_euler_transonic_transition_status'] == (
+    'converged-normal-shock-pressure-reference'
+  )
+  assert bundle.diagnostics['coupled_euler_transonic_shock_state_available'] is True
+  assert bundle.diagnostics['coupled_euler_transonic_shock_state_verified'] is True
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_state_upstream_speed_m_s'
+  ] == pytest.approx(1350.0)
   assert bundle.diagnostics[
     'coupled_euler_pressure_budget_minimum_additional_total_pressure_loss_fraction'
   ] == pytest.approx(0.5)

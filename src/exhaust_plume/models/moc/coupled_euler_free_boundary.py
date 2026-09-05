@@ -1173,6 +1173,7 @@ def assess_reflected_domain_coupled_euler_transonic_transition(
       ),
       gamma=float(sample.gamma),
       gas_constant_J_kgK=request.gas_constant_J_kgK,
+      upstream_total_temperature_K=request.reference_total_temperature_K,
     )
   )
 ####

@@ -43,6 +43,33 @@ def test_pressure_below_sonic_bound_gets_an_explicit_normal_shock_reference() ->
 ####
 
 
+def test_transition_can_emit_a_scalar_supersonic_to_subsonic_state_handoff() -> None:
+  result = solve_moc_transonic_transition(
+    MocTransonicTransitionRequest(
+      upstream_total_pressure_Pa=400_000.0,
+      target_downstream_static_pressure_Pa=180_000.0,
+      gamma=1.4,
+      upstream_total_temperature_K=1200.0,
+    )
+  )
+  audit = measure_moc_transonic_transition(result)
+
+  assert result.shock_state is not None
+  state = result.shock_state
+  assert state.upstream_supersonic
+  assert state.downstream_subsonic
+  assert state.upstream_static_temperature_K < state.upstream_total_temperature_K
+  assert state.downstream_static_temperature_K < state.upstream_total_temperature_K
+  assert state.upstream_density_kg_m3 > 0.0
+  assert state.downstream_density_kg_m3 > state.upstream_density_kg_m3
+  assert state.upstream_speed_m_s > state.downstream_speed_m_s
+  assert state.physical_closure_verified is False
+  assert state.chain_promotion_blocked
+  assert state.production_claim_allowed is False
+  assert audit.shock_state_verified
+####
+
+
 def test_pressure_inside_subsonic_bound_does_not_require_a_transition() -> None:
   request = MocTransonicTransitionRequest(
     upstream_total_pressure_Pa=400_000.0,
@@ -59,6 +86,7 @@ def test_pressure_inside_subsonic_bound_does_not_require_a_transition() -> None:
   assert result.required_upstream_mach is None
   assert audit.status is MocTransonicTransitionAuditStatus.VERIFIED
   assert audit.converged
+  assert audit.shock_state_verified
 ####
 
 

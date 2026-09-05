@@ -719,6 +719,7 @@ def _audit_transonic_transition(
       ),
       gamma=float(sample.gamma),
       gas_constant_J_kgK=request.gas_constant_J_kgK,
+      upstream_total_temperature_K=request.reference_total_temperature_K,
     )
   except (TypeError, ValueError):
     return False
@@ -752,6 +753,8 @@ def _audit_transonic_transition(
       transition_audit.total_pressure_residual,
       expected_audit.total_pressure_residual,
     )
+    and transition_audit.shock_state_verified
+    == expected_audit.shock_state_verified
   )
 ####
 

@@ -1758,6 +1758,10 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   )
   assert result.transonic_transition_audit is not None
   assert result.transonic_transition_audit.converged
+  assert result.transonic_transition.shock_state is not None
+  assert result.transonic_transition.shock_state.upstream_supersonic
+  assert result.transonic_transition.shock_state.downstream_subsonic
+  assert result.transonic_transition_audit.shock_state_verified
   assert result.as_report()['transonic_transition']['status'] == (
     'converged-normal-shock-pressure-reference'
   )
@@ -2118,6 +2122,8 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   )
   assert result.transonic_transition_audit is not None
   assert result.transonic_transition_audit.converged
+  assert result.transonic_transition.shock_state is None
+  assert result.transonic_transition_audit.shock_state_verified
   assert result.control_section_compatibility is not None
   assert result.control_section_compatibility.status is (
     MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus

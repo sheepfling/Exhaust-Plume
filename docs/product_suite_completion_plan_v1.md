@@ -293,6 +293,9 @@ claim is authorized.
       mixed-regime closure, and chain promotion blocked.
 - [x] Retain the scalar transition and its audit in every coupled-field result
       so the actual global pressure seam is part of the verified lineage.
+- [x] Carry an explicit scalar supersonic-to-subsonic normal-shock state
+      handoff, audit every thermodynamic field, and expose it to planar
+      research visualization without treating it as placed shock geometry.
 - [x] Add a caller-bound LTE population closure that derives explicit line
       optical depth from a frozen-mixture state and declared transition data;
       keep reactions, non-LTE inference, database lookup, and production
@@ -732,3 +735,21 @@ falling back to a lower-fidelity or overconstrained inlet.  This identifies
 the next required physics step—a solver-owned transonic/supersonic branch or
 shock-placement closure—and does not close the canonical field or authorize
 shock-cell, Signature, FPA, or production claims.
+
+### Scalar transonic branch-state checkpoint
+
+The transonic pressure reference now optionally carries an explicit
+``MocTransonicShockState`` when the caller supplies total temperature.  The
+handoff reconstructs upstream supersonic and downstream subsonic static
+temperature, density, sound speed, and velocity, while retaining total-pressure
+loss and entropy increase.  The independent scalar audit rederives every
+state field and rejects an altered handoff.  The coupled-Euler result binds
+the handoff to its actual total-temperature input, and the planar
+visualization exposes the branch status, Mach/pressure loss, and state values
+as diagnostic metadata.
+
+This is the correct state seam for a future solver-owned shock placement or
+transonic branch.  It deliberately has no position, orientation, neighboring
+characteristic field, mixing model, or free-boundary update; therefore it
+remains research-only, cannot seed a continued chain, and does not change the
+accepted physical-length or provider-validation gates.

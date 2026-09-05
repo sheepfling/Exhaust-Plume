@@ -19,6 +19,7 @@ __all__ = (
   'MocTransonicTransitionAuditStatus',
   'MocTransonicTransitionStatus',
   'MocTransonicTransitionRequest',
+  'MocTransonicShockState',
   'MocTransonicTransitionResult',
   'MocTransonicTransitionAudit',
   'measure_moc_transonic_transition',
@@ -52,6 +53,7 @@ class MocTransonicTransitionRequest:
   target_downstream_static_pressure_Pa: float
   gamma: float
   gas_constant_J_kgK: float = 287.05
+  upstream_total_temperature_K: float | None = None
   pressure_tolerance_fraction: float = 1.0e-10
   mach_tolerance: float = 1.0e-10
   max_iterations: int = 128
@@ -74,6 +76,15 @@ class MocTransonicTransitionRequest:
     if self.gamma <= 1.0:
       raise ValueError('gamma must be greater than one')
     ####
+    if self.upstream_total_temperature_K is not None:
+      total_temperature = float(self.upstream_total_temperature_K)
+      if not isfinite(total_temperature) or total_temperature <= 0.0:
+        raise ValueError(
+          'upstream_total_temperature_K must be finite and positive when supplied'
+        )
+      ####
+      object.__setattr__(self, 'upstream_total_temperature_K', total_temperature)
+    ####
     if self.pressure_tolerance_fraction >= 1.0:
       raise ValueError('pressure_tolerance_fraction must be less than one')
     ####
@@ -88,10 +99,152 @@ class MocTransonicTransitionRequest:
       'target_downstream_static_pressure_Pa': self.target_downstream_static_pressure_Pa,
       'gamma': self.gamma,
       'gas_constant_J_kgK': self.gas_constant_J_kgK,
+      'upstream_total_temperature_K': self.upstream_total_temperature_K,
       'pressure_tolerance_fraction': self.pressure_tolerance_fraction,
       'mach_tolerance': self.mach_tolerance,
       'max_iterations': self.max_iterations,
       'model': 'research-normal-shock-after-transonic-pressure-reference-v1',
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockState:
+  """Scalar normal-shock state handoff for a future placed transition.
+
+  The state is useful for initializing or checking a future solver-owned
+  transonic interface.  It is intentionally not a geometric shock segment:
+  no location, orientation, neighboring characteristic field, or free
+  boundary is inferred here.
+  """
+
+  upstream_total_pressure_Pa: float
+  upstream_total_temperature_K: float
+  downstream_total_pressure_Pa: float
+  total_pressure_ratio: float
+  gamma: float
+  gas_constant_J_kgK: float
+  upstream_mach: float
+  downstream_mach: float
+  upstream_static_pressure_Pa: float
+  downstream_static_pressure_Pa: float
+  upstream_static_temperature_K: float
+  downstream_static_temperature_K: float
+  upstream_density_kg_m3: float
+  downstream_density_kg_m3: float
+  upstream_sound_speed_m_s: float
+  downstream_sound_speed_m_s: float
+  upstream_speed_m_s: float
+  downstream_speed_m_s: float
+  entropy_increase_JpkgK: float
+  source: str = 'research-scalar-normal-shock-branch-state-v1'
+
+  def __post_init__(self) -> None:
+    for name in (
+      'upstream_total_pressure_Pa',
+      'upstream_total_temperature_K',
+      'downstream_total_pressure_Pa',
+      'total_pressure_ratio',
+      'gamma',
+      'gas_constant_J_kgK',
+      'upstream_mach',
+      'downstream_mach',
+      'upstream_static_pressure_Pa',
+      'downstream_static_pressure_Pa',
+      'upstream_static_temperature_K',
+      'downstream_static_temperature_K',
+      'upstream_density_kg_m3',
+      'downstream_density_kg_m3',
+      'upstream_sound_speed_m_s',
+      'downstream_sound_speed_m_s',
+      'upstream_speed_m_s',
+      'downstream_speed_m_s',
+      'entropy_increase_JpkgK',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    if self.gamma <= 1.0:
+      raise ValueError('gamma must be greater than one')
+    ####
+    if not self.upstream_mach > 1.0:
+      raise ValueError('upstream_mach must be supersonic')
+    ####
+    if not self.downstream_mach < 1.0:
+      raise ValueError('downstream_mach must be subsonic')
+    ####
+    if not 0.0 < self.total_pressure_ratio < 1.0:
+      raise ValueError('total_pressure_ratio must be strictly between zero and one')
+    ####
+    source = str(self.source)
+    if not source:
+      raise ValueError('source must be a non-empty string')
+    ####
+    object.__setattr__(self, 'source', source)
+  ####
+
+  @property
+  def upstream_supersonic(self) -> bool:
+    return self.upstream_mach > 1.0
+  ####
+
+  @property
+  def downstream_subsonic(self) -> bool:
+    return self.downstream_mach < 1.0
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """A state seam is not a placed two-dimensional shock."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'source': self.source,
+      'upstream_total_pressure_Pa': self.upstream_total_pressure_Pa,
+      'upstream_total_temperature_K': self.upstream_total_temperature_K,
+      'downstream_total_pressure_Pa': self.downstream_total_pressure_Pa,
+      'total_pressure_ratio': self.total_pressure_ratio,
+      'gamma': self.gamma,
+      'gas_constant_J_kgK': self.gas_constant_J_kgK,
+      'upstream_mach': self.upstream_mach,
+      'downstream_mach': self.downstream_mach,
+      'upstream_static_pressure_Pa': self.upstream_static_pressure_Pa,
+      'downstream_static_pressure_Pa': self.downstream_static_pressure_Pa,
+      'upstream_static_temperature_K': self.upstream_static_temperature_K,
+      'downstream_static_temperature_K': self.downstream_static_temperature_K,
+      'upstream_density_kg_m3': self.upstream_density_kg_m3,
+      'downstream_density_kg_m3': self.downstream_density_kg_m3,
+      'upstream_sound_speed_m_s': self.upstream_sound_speed_m_s,
+      'downstream_sound_speed_m_s': self.downstream_sound_speed_m_s,
+      'upstream_speed_m_s': self.upstream_speed_m_s,
+      'downstream_speed_m_s': self.downstream_speed_m_s,
+      'entropy_increase_JpkgK': self.entropy_increase_JpkgK,
+      'upstream_supersonic': self.upstream_supersonic,
+      'downstream_subsonic': self.downstream_subsonic,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'research-only-scalar-normal-shock-state-handoff; geometric-placement, '
+        'neighboring-field, and external-validation gates remain open'
+      ),
     }
   ####
 ####
@@ -112,6 +265,7 @@ class MocTransonicTransitionResult:
   total_pressure_ratio: float | None = None
   entropy_increase_JpkgK: float | None = None
   pressure_residual_Pa: float | None = None
+  shock_state: MocTransonicShockState | None = None
   iterations: int = 0
   message: str = ''
 
@@ -147,6 +301,12 @@ class MocTransonicTransitionResult:
     ####
     if self.total_pressure_ratio is not None and self.total_pressure_ratio >= 1.0:
       raise ValueError('total_pressure_ratio must be less than one for a resolved shock')
+    ####
+    if self.shock_state is not None and not isinstance(
+      self.shock_state,
+      MocTransonicShockState,
+    ):
+      raise TypeError('shock_state must be a MocTransonicShockState or None')
     ####
     if isinstance(self.iterations, bool) or not isinstance(self.iterations, int) or self.iterations < 0:
       raise ValueError('iterations must be a nonnegative integer')
@@ -216,6 +376,10 @@ class MocTransonicTransitionResult:
       'total_pressure_ratio': self.total_pressure_ratio,
       'entropy_increase_JpkgK': self.entropy_increase_JpkgK,
       'pressure_residual_Pa': self.pressure_residual_Pa,
+      'shock_state': (
+        None if self.shock_state is None else self.shock_state.as_report()
+      ),
+      'shock_state_available': self.shock_state is not None,
       'iterations': self.iterations,
       'request': self.request.as_report(),
       'physical_closure_verified': self.physical_closure_verified,
@@ -242,6 +406,7 @@ class MocTransonicTransitionAudit:
   pressure_residual_Pa: float | None
   mach_residual: float | None
   total_pressure_residual: float | None
+  shock_state_verified: bool = False
   message: str = ''
 
   @property
@@ -268,6 +433,7 @@ class MocTransonicTransitionAudit:
       'pressure_residual_Pa': self.pressure_residual_Pa,
       'mach_residual': self.mach_residual,
       'total_pressure_residual': self.total_pressure_residual,
+      'shock_state_verified': self.shock_state_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'production_claim_allowed': self.production_claim_allowed,
       'message': self.message,
@@ -307,6 +473,73 @@ def _normal_shock_values(
     downstream_mach,
     downstream_total_pressure,
     downstream_total_pressure / upstream_total_pressure_Pa,
+  )
+####
+
+
+def _normal_shock_state(
+  request: MocTransonicTransitionRequest,
+  upstream_mach: float,
+) -> MocTransonicShockState | None:
+  """Reconstruct the scalar thermodynamic state when total temperature exists."""
+
+  if request.upstream_total_temperature_K is None:
+    return None
+  ####
+  (
+    upstream_static_pressure,
+    downstream_static_pressure,
+    downstream_mach,
+    downstream_total_pressure,
+    total_pressure_ratio,
+  ) = _normal_shock_values(
+    request.upstream_total_pressure_Pa,
+    upstream_mach,
+    request.gamma,
+  )
+  beta = 0.5 * (request.gamma - 1.0)
+  upstream_factor = 1.0 + beta * upstream_mach * upstream_mach
+  downstream_factor = 1.0 + beta * downstream_mach * downstream_mach
+  upstream_static_temperature = request.upstream_total_temperature_K / upstream_factor
+  downstream_static_temperature = request.upstream_total_temperature_K / downstream_factor
+  upstream_density = upstream_static_pressure / (
+    request.gas_constant_J_kgK * upstream_static_temperature
+  )
+  downstream_density = downstream_static_pressure / (
+    request.gas_constant_J_kgK * downstream_static_temperature
+  )
+  upstream_sound_speed = sqrt(
+    request.gamma
+    * request.gas_constant_J_kgK
+    * upstream_static_temperature
+  )
+  downstream_sound_speed = sqrt(
+    request.gamma
+    * request.gas_constant_J_kgK
+    * downstream_static_temperature
+  )
+  return MocTransonicShockState(
+    upstream_total_pressure_Pa=request.upstream_total_pressure_Pa,
+    upstream_total_temperature_K=request.upstream_total_temperature_K,
+    downstream_total_pressure_Pa=downstream_total_pressure,
+    total_pressure_ratio=total_pressure_ratio,
+    gamma=request.gamma,
+    gas_constant_J_kgK=request.gas_constant_J_kgK,
+    upstream_mach=upstream_mach,
+    downstream_mach=downstream_mach,
+    upstream_static_pressure_Pa=upstream_static_pressure,
+    downstream_static_pressure_Pa=downstream_static_pressure,
+    upstream_static_temperature_K=upstream_static_temperature,
+    downstream_static_temperature_K=downstream_static_temperature,
+    upstream_density_kg_m3=upstream_density,
+    downstream_density_kg_m3=downstream_density,
+    upstream_sound_speed_m_s=upstream_sound_speed,
+    downstream_sound_speed_m_s=downstream_sound_speed,
+    upstream_speed_m_s=upstream_mach * upstream_sound_speed,
+    downstream_speed_m_s=downstream_mach * downstream_sound_speed,
+    entropy_increase_JpkgK=request.gas_constant_J_kgK * log(
+      1.0 / total_pressure_ratio
+    ),
   )
 ####
 
@@ -395,6 +628,7 @@ def solve_moc_transonic_transition(
     and residual <= pressure_tolerance
   )
   if not valid:
+    shock_state = _normal_shock_state(request, required_mach)
     return MocTransonicTransitionResult(
       status=MocTransonicTransitionStatus.BRACKET_FAILURE,
       request=request,
@@ -407,6 +641,7 @@ def solve_moc_transonic_transition(
       total_pressure_ratio=ratio,
       entropy_increase_JpkgK=request.gas_constant_J_kgK * log(1.0 / ratio),
       pressure_residual_Pa=residual,
+      shock_state=shock_state,
       iterations=iterations,
       message='normal-shock pressure target did not satisfy scalar invariants',
     )
@@ -423,6 +658,7 @@ def solve_moc_transonic_transition(
     total_pressure_ratio=ratio,
     entropy_increase_JpkgK=request.gas_constant_J_kgK * log(1.0 / ratio),
     pressure_residual_Pa=residual,
+    shock_state=_normal_shock_state(request, required_mach),
     iterations=iterations,
     message=(
       'scalar normal-shock pressure target is closed; 2-D transition placement '
@@ -437,6 +673,49 @@ def _relative_residual(reported: float | None, measured: float | None) -> float 
     return None
   ####
   return abs(reported - measured) / max(abs(measured), 1.0)
+####
+
+
+def _shock_state_matches(
+  reported: MocTransonicShockState | None,
+  expected: MocTransonicShockState | None,
+) -> bool:
+  """Compare every scalar in a reconstructed branch-state handoff."""
+
+  if reported is None or expected is None:
+    return reported is None and expected is None
+  ####
+  for name in (
+    'upstream_total_pressure_Pa',
+    'upstream_total_temperature_K',
+    'downstream_total_pressure_Pa',
+    'total_pressure_ratio',
+    'gamma',
+    'gas_constant_J_kgK',
+    'upstream_mach',
+    'downstream_mach',
+    'upstream_static_pressure_Pa',
+    'downstream_static_pressure_Pa',
+    'upstream_static_temperature_K',
+    'downstream_static_temperature_K',
+    'upstream_density_kg_m3',
+    'downstream_density_kg_m3',
+    'upstream_sound_speed_m_s',
+    'downstream_sound_speed_m_s',
+    'upstream_speed_m_s',
+    'downstream_speed_m_s',
+    'entropy_increase_JpkgK',
+  ):
+    if not isclose(
+      float(getattr(reported, name)),
+      float(getattr(expected, name)),
+      rel_tol=1.0e-8,
+      abs_tol=1.0e-10,
+    ):
+      return False
+    ####
+  ####
+  return reported.source == expected.source
 ####
 
 
@@ -472,6 +751,7 @@ def measure_moc_transonic_transition(
       pressure_residual_Pa=abs(result.sonic_static_pressure_Pa - sonic_pressure),
       mach_residual=None,
       total_pressure_residual=None,
+      shock_state_verified=result.shock_state is None,
       message='isentropic subsonic reachability classification independently rederived',
     )
   ####
@@ -483,6 +763,7 @@ def measure_moc_transonic_transition(
       pressure_residual_Pa=None,
       mach_residual=None,
       total_pressure_residual=None,
+      shock_state_verified=result.shock_state is None,
       message='the scalar transition result did not report a verified reference to audit',
     )
   ####
@@ -494,6 +775,7 @@ def measure_moc_transonic_transition(
       pressure_residual_Pa=None,
       mach_residual=None,
       total_pressure_residual=None,
+      shock_state_verified=False,
       message='resolved transition result omitted required_upstream_mach',
     )
   ####
@@ -514,6 +796,11 @@ def measure_moc_transonic_transition(
     result.downstream_total_pressure_Pa,
     downstream_total,
   )
+  expected_shock_state = _normal_shock_state(request, result.required_upstream_mach)
+  shock_state_verified = _shock_state_matches(
+    result.shock_state,
+    expected_shock_state,
+  )
   valid = (
     isclose(
       result.sonic_static_pressure_Pa,
@@ -531,6 +818,7 @@ def measure_moc_transonic_transition(
     and reported_mach_residual <= 1.0e-8
     and reported_total_pressure_residual is not None
     and reported_total_pressure_residual <= 1.0e-8
+    and shock_state_verified
   )
   return MocTransonicTransitionAudit(
     status=(
@@ -543,6 +831,7 @@ def measure_moc_transonic_transition(
     pressure_residual_Pa=pressure_residual,
     mach_residual=reported_mach_residual,
     total_pressure_residual=reported_total_pressure_residual,
+    shock_state_verified=shock_state_verified,
     message=(
       'normal-shock pressure, subsonic downstream Mach, and total-pressure '
       'loss were independently rederived'

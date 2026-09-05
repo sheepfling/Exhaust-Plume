@@ -3663,3 +3663,20 @@ characteristic failure.  The result makes the missing transonic/supersonic
 branch or shock-placement solve explicit without turning a boundary failure
 into a physical first cell.  Canonical reflected closure, refinement,
 accepted physical shock lengths, and external validation remain open.
+
+## Scalar transonic branch-state handoff checkpoint
+
+The scalar transonic reference now accepts caller-owned total temperature and
+can emit a typed ``MocTransonicShockState``.  It reconstructs the upstream
+supersonic and downstream subsonic state on the normal-shock branch, including
+static pressure/temperature, density, sound speed, velocity, total-pressure
+ratio, and entropy increase.  Its independent audit rederives all of those
+quantities.  The coupled-Euler request binds the state handoff to the exact
+reference total temperature, and the planar visualization publishes the
+branch-state quantities as traceable research diagnostics.
+
+This closes the thermodynamic handoff needed by a future placed transition;
+it does not place the shock, select its orientation or location, continue the
+neighboring 2-D characteristic field, close the free boundary, or authorize a
+shock-cell length.  The next physics packet remains a solver-owned
+transonic/supersonic interface with geometry and cross-case validation.

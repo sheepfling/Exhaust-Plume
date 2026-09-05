@@ -2088,6 +2088,56 @@ def _moc_visualization(
         )
       )
     ####
+    transition = getattr(source, 'transonic_transition', None)
+    if transition is not None:
+      transition_status = getattr(transition, 'status', '')
+      diagnostics['coupled_euler_transonic_transition_status'] = str(
+        getattr(transition_status, 'value', transition_status)
+      )
+      for name in (
+        'sonic_static_pressure_Pa',
+        'required_upstream_mach',
+        'upstream_static_pressure_Pa',
+        'downstream_static_pressure_Pa',
+        'downstream_mach',
+        'downstream_total_pressure_Pa',
+        'total_pressure_ratio',
+        'entropy_increase_JpkgK',
+        'pressure_residual_Pa',
+      ):
+        value = getattr(transition, name, None)
+        if value is not None and isfinite(float(value)):
+          diagnostics[f'coupled_euler_transonic_{name}'] = float(value)
+        ####
+      ####
+      shock_state = getattr(transition, 'shock_state', None)
+      diagnostics['coupled_euler_transonic_shock_state_available'] = bool(
+        shock_state is not None
+      )
+      if shock_state is not None:
+        for name in (
+          'upstream_static_temperature_K',
+          'downstream_static_temperature_K',
+          'upstream_density_kg_m3',
+          'downstream_density_kg_m3',
+          'upstream_sound_speed_m_s',
+          'downstream_sound_speed_m_s',
+          'upstream_speed_m_s',
+          'downstream_speed_m_s',
+        ):
+          value = getattr(shock_state, name, None)
+          if value is not None and isfinite(float(value)):
+            diagnostics[f'coupled_euler_transonic_shock_state_{name}'] = float(value)
+          ####
+        ####
+      ####
+      transition_audit = getattr(source, 'transonic_transition_audit', None)
+      if transition_audit is not None:
+        diagnostics['coupled_euler_transonic_shock_state_verified'] = bool(
+          getattr(transition_audit, 'shock_state_verified', False)
+        )
+      ####
+    ####
   ####
   diagnostics.update(solver_diagnostics)
   if isinstance(gates, Mapping):
