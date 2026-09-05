@@ -922,6 +922,18 @@ class MissionFpaEvaluator:
                 "ray-transfer snapshot source_pose must exactly match the mission state"
             )
         ####
+        expected_dynamic_digest = canonical_digest(state.snapshot_dynamic_state())
+        if snapshot.dynamic_state_digest_sha256 != expected_dynamic_digest:
+            raise ValueError(
+                "ray-transfer snapshot dynamic state must exactly match the mission state"
+            )
+        ####
+        expected_ambient_digest = canonical_digest(state.snapshot_ambient_state())
+        if snapshot.ambient_state_digest_sha256 != expected_ambient_digest:
+            raise ValueError(
+                "ray-transfer snapshot ambient state must exactly match the mission state"
+            )
+        ####
 
         geometry = self.geometry_at(state)
         detector = self.detector_at(state)

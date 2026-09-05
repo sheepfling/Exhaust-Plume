@@ -407,6 +407,23 @@ those derived populations, densities, stimulated-emission factor, and optical
 depth from the retained state and rejects inconsistent caller-provided values;
 this protects provenance without widening the claim ceiling.
 
+### P4.3 mission/FPA source-state lineage checkpoint
+
+The mission-time FPA adapter now binds an upstream ray-transfer result to all
+of the sampled mission state that contributes to its source context.  In
+addition to exact mission time and source pose, the adapter independently
+recomputes and checks the dynamic-state and ambient-state digests before
+applying pixel geometry, detector response, exposure, or digitization.  A ray
+field evaluated at the right time and pose but with stale throttle, propellant,
+engine-mode, or atmospheric context is therefore rejected rather than being
+presented as a valid downstream image.
+
+This closes a lineage gap in the deterministic FPA composition seam only.  It
+does not create a camera/detector observation, sample noise, or change the
+FPA's expected-electron/expected-ADC claim ceiling.  Focused mission-product
+tests cover stale dynamic and ambient contexts; external FPA measurement
+evidence remains required for release.
+
 ### P2.1 evidence checkpoint
 
 The first P2.1 evidence-plumbing slice is complete on the candidate branch at

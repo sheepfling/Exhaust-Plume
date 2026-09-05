@@ -319,6 +319,76 @@ def test_mission_fpa_evaluator_rejects_a_ray_snapshot_from_another_mission_time(
 ####
 
 
+def test_mission_fpa_evaluator_rejects_a_ray_snapshot_from_another_dynamic_state() -> None:
+    timeline = _timeline()
+
+    def stale_dynamic_ray_transfer(
+        state: MissionState,
+    ) -> tuple[tuple[float, ...], ProviderSpectralRayTransferResult]:
+        _wavelengths, result = _ray_transfer_for_state(
+            MissionState(
+                time_s=state.time_s,
+                source_pose=state.source_pose,
+                geopotential_altitude_m=state.geopotential_altitude_m,
+                throttle_fraction=timeline.states[0].throttle_fraction,
+                remaining_propellant_mass_kg=state.remaining_propellant_mass_kg,
+                operating_point_id=state.operating_point_id,
+                dynamic_state=timeline.states[0].dynamic_state,
+                ambient_state=state.ambient_state,
+            )
+        )
+        return _wavelengths, result
+    ####
+
+    evaluator = MissionFpaEvaluator(
+        timeline=timeline,
+        ray_transfer_at=stale_dynamic_ray_transfer,
+        geometry_at=lambda _state: _fpa_geometry(),
+        detector_at=lambda _state: _detector_for_mission(),
+        exposure_s_at=lambda _state: 1.0,
+    )
+
+    with pytest.raises(ValueError, match="dynamic state"):
+        evaluator.sample_at(5.0)
+    ####
+####
+
+
+def test_mission_fpa_evaluator_rejects_a_ray_snapshot_from_another_ambient_state() -> None:
+    timeline = _timeline()
+
+    def stale_ambient_ray_transfer(
+        state: MissionState,
+    ) -> tuple[tuple[float, ...], ProviderSpectralRayTransferResult]:
+        _wavelengths, result = _ray_transfer_for_state(
+            MissionState(
+                time_s=state.time_s,
+                source_pose=state.source_pose,
+                geopotential_altitude_m=state.geopotential_altitude_m,
+                throttle_fraction=state.throttle_fraction,
+                remaining_propellant_mass_kg=state.remaining_propellant_mass_kg,
+                operating_point_id=state.operating_point_id,
+                dynamic_state=state.dynamic_state,
+                ambient_state=timeline.states[1].ambient_state,
+            )
+        )
+        return _wavelengths, result
+    ####
+
+    evaluator = MissionFpaEvaluator(
+        timeline=timeline,
+        ray_transfer_at=stale_ambient_ray_transfer,
+        geometry_at=lambda _state: _fpa_geometry(),
+        detector_at=lambda _state: _detector_for_mission(),
+        exposure_s_at=lambda _state: 1.0,
+    )
+
+    with pytest.raises(ValueError, match="ambient state"):
+        evaluator.sample_at(5.0)
+    ####
+####
+
+
 def test_all_five_lanes_emit_canonical_visual_products_at_mission_time() -> None:
     visualizations = tuple(
         standardize_model_visualization(result, lane=lane)
