@@ -146,6 +146,7 @@ class MocReflectedDomainGlobalPhysicalFieldHandoff:
         'shock_front_condition must be a '
         'MocPhysicalFieldShockFrontConditionResult'
       )
+    ####
   ####
 
   @property
@@ -561,6 +562,7 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
       adjacent_pressure = 0.5 * (
         coupled_pressures[index - 1] + coupled_pressures[index]
       )
+    ####
     pressure_residuals.append(abs(float(adjacent_pressure) - reference_pressure))
     if index == 0:
       coupled_theta = atan2(
@@ -572,6 +574,7 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
         point[1] - coupled_points[index - 1][1],
         point[0] - coupled_points[index - 1][0],
       )
+    ####
     tangent_residuals.append(abs(coupled_theta - reference_theta))
     if index < len(coupled_normal_velocities):
       normal_velocity_residuals.append(
@@ -1087,6 +1090,7 @@ def solve_reflected_domain_global_coupled_downstream(
         closure=closure,
         mixed_regime_request=mixed_regime_request,
       )
+    ####
   ####
   try:
     coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(

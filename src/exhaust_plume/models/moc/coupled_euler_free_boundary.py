@@ -1417,7 +1417,6 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'free_boundary_adjacent_static_pressure_Pa',
       boundary_pressures,
     )
-    ####
     for name in ('free_boundary_points_m', 'cell_centers_m'):
       values = tuple(
         (float(point[0]), float(point[1]))
