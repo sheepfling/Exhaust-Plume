@@ -397,6 +397,24 @@ def _coupled_euler_result() -> SimpleNamespace:
       nearest_static_pressure_residual_fraction=0.89,
       nearest_total_pressure_residual_fraction=1.0e-8,
     ),
+    transonic_shock_state_compatibility=SimpleNamespace(
+      status='transonic-downstream-shock-state-not-retained-on-frontier',
+      frontier_state_compatible=False,
+      transition_required=True,
+      required_upstream_mach=3.0,
+      expected_downstream_mach=0.475,
+      expected_downstream_static_pressure_Pa=100_000.0,
+      expected_downstream_total_pressure_Pa=210_000.0,
+      frontier_sample_count=9,
+      frontier_downstream_mach_min=1.48,
+      frontier_downstream_mach_max=1.58,
+      matching_sample_count=0,
+      nearest_sample_index=0,
+      nearest_sample_point_m=(5.24, 0.5),
+      nearest_mach_residual=1.005,
+      nearest_static_pressure_residual_fraction=0.02,
+      nearest_total_pressure_residual_fraction=0.04,
+    ),
     transonic_shock_geometry=SimpleNamespace(
       status='verified-normal-shock-geometry-binding',
       geometry_verified=True,
@@ -816,6 +834,18 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert bundle.diagnostics[
     'coupled_euler_transonic_frontier_nearest_mach_residual'
   ] == pytest.approx(1.43)
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_state_compatibility_status'
+  ] == 'transonic-downstream-shock-state-not-retained-on-frontier'
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_state_frontier_compatible'
+  ] is False
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_state_expected_downstream_mach'
+  ] == pytest.approx(0.475)
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_state_nearest_sample_x_m'
+  ] == pytest.approx(5.24)
   assert bundle.diagnostics['coupled_euler_transonic_shock_state_available'] is True
   assert bundle.diagnostics['coupled_euler_transonic_shock_geometry_status'] == (
     'verified-normal-shock-geometry-binding'

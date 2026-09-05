@@ -1298,6 +1298,12 @@ records remain diagnostic-only: the missing solver-owned two-dimensional
 interface, surrounding mixed-regime field, refinement, physical cell length,
 and external validation gates are unchanged.
 
+The standardized planar-MOC Visualization adapter now publishes this
+downstream compatibility record alongside the existing scalar transition and
+pre-shock frontier diagnostics.  It exposes the status, expected scalar
+post-shock state, nearest retained frontier point, and residual channels as
+named diagnostics without drawing the unmatched state as a physical interface.
+
 ### Solver-owned normal-shock profile-builder checkpoint
 
 The next handoff slice adds a typed profile builder for the case where a

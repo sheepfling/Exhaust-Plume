@@ -3179,6 +3179,65 @@ def _moc_visualization(
         ] = float(nearest_point[1])
       ####
     ####
+    shock_state_compatibility = getattr(
+      source,
+      'transonic_shock_state_compatibility',
+      None,
+    )
+    if shock_state_compatibility is not None:
+      shock_state_status = getattr(shock_state_compatibility, 'status', '')
+      diagnostics[
+        'coupled_euler_transonic_shock_state_compatibility_status'
+      ] = str(getattr(shock_state_status, 'value', shock_state_status))
+      diagnostics[
+        'coupled_euler_transonic_shock_state_frontier_compatible'
+      ] = bool(
+        getattr(shock_state_compatibility, 'frontier_state_compatible', False)
+      )
+      for name in (
+        'transition_required',
+        'frontier_sample_count',
+        'frontier_downstream_mach_min',
+        'frontier_downstream_mach_max',
+        'matching_sample_count',
+        'nearest_sample_index',
+        'required_upstream_mach',
+        'expected_downstream_mach',
+        'expected_downstream_static_pressure_Pa',
+        'expected_downstream_total_pressure_Pa',
+        'nearest_mach_residual',
+        'nearest_static_pressure_residual_fraction',
+        'nearest_total_pressure_residual_fraction',
+      ):
+        value = getattr(shock_state_compatibility, name, None)
+        if isinstance(value, bool):
+          diagnostics[
+            f'coupled_euler_transonic_shock_state_{name}'
+          ] = value
+        elif isinstance(value, int):
+          diagnostics[
+            f'coupled_euler_transonic_shock_state_{name}'
+          ] = value
+        elif value is not None and isfinite(float(value)):
+          diagnostics[
+            f'coupled_euler_transonic_shock_state_{name}'
+          ] = float(value)
+        ####
+      ####
+      nearest_point = getattr(
+        shock_state_compatibility,
+        'nearest_sample_point_m',
+        None,
+      )
+      if nearest_point is not None:
+        diagnostics[
+          'coupled_euler_transonic_shock_state_nearest_sample_x_m'
+        ] = float(nearest_point[0])
+        diagnostics[
+          'coupled_euler_transonic_shock_state_nearest_sample_y_m'
+        ] = float(nearest_point[1])
+      ####
+    ####
     if transonic_geometry is not None:
       geometry_status = getattr(transonic_geometry, 'status', '')
       diagnostics['coupled_euler_transonic_shock_geometry_status'] = str(
