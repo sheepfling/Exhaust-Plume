@@ -978,6 +978,29 @@ research-only planar-MOC progression through bounded frontier placement.
 The release manifest still reports `release_ready=false`.  No release tag or
 production claim is authorized while any item below remains open.
 
+### Candidate evidence checkpoint — 2026-09-05
+
+The current candidate is commit
+`57d23d501f75b96eca90ebb72beac1fa2daa83c6` on
+`work/washed-integral-visual`, with a clean worktree.  Fresh local evidence
+for this exact candidate is:
+
+- `python3 -m pytest -q`: **1,105 passed**, 18 warnings, 10:29;
+- `python3 scripts/check_build.py --offline`: wheel build, isolated install,
+  and installed-package smoke all passed;
+- the lane-release validator: active lanes have local evidence, the FPA
+  provider guard passes, and no low-fidelity promotion is detected; and
+- the candidate wheel digest is
+  `c6a9109dccb92fa7755d07d03fd7bb07dc82642de0eb8abb59c66a09c0228bf1`.
+
+The release validator also confirms that the recorded freeze is stale: its
+freeze and validated-code commits predate the current candidate.  The pushed
+CI runs for the latest three slices are still in progress
+(`33960094736`, `33960528436`, and `33960702126`); the earlier physical-field
+handoff run `33959443663` passed.  These local and CI results are release
+evidence, not external physical validation, and they do not change the open
+release blockers below.
+
 The known release blockers are:
 
 - the raw Version 8 validation archive, the separately named alignment archive,
