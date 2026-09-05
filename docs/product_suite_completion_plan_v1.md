@@ -1277,6 +1277,27 @@ solver still needs a two-dimensional placed interface, pressure/tangency
 closure, refinement evidence, physical shock-cell length, and external
 validation.
 
+### Like-for-like downstream shock-state checkpoint
+
+The coupled lane now retains a second, separate compatibility record that
+compares the scalar normal-shock branch's downstream Mach/static-pressure/
+total-pressure state with the exact downstream states on the retained global
+Euler frontier.  This corrects an evidence-accounting ambiguity in the older
+pre-shock diagnostic, which intentionally asks whether the scalar required
+upstream state is present on the post-shock frontier to expose the missing
+incoming branch.  The new record is a like-for-like post-shock comparison and
+does not replace or relax that lineage check.
+
+On the actual target, the scalar branch predicts downstream Mach about 0.474
+while the retained frontier remains supersonic at about 1.49--1.58.  The new
+record therefore reports ``transonic-downstream-shock-state-not-retained-on-
+frontier`` with the nearest point and pressure/Mach residuals, and the
+independent coupled-field audit rederives the same result.  A compatible
+research case reports ``transonic-shock-state-check-not-required``.  Both
+records remain diagnostic-only: the missing solver-owned two-dimensional
+interface, surrounding mixed-regime field, refinement, physical cell length,
+and external validation gates are unchanged.
+
 ### Solver-owned normal-shock profile-builder checkpoint
 
 The next handoff slice adds a typed profile builder for the case where a

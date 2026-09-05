@@ -68,6 +68,8 @@ __all__ = (
   'MocReflectedDomainCoupledEulerControlSectionCompatibility',
   'MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus',
   'MocReflectedDomainCoupledEulerTransonicFrontierCompatibility',
+  'MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus',
+  'MocReflectedDomainCoupledEulerTransonicShockStateCompatibility',
   'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
   'MocReflectedDomainCoupledEulerFreeBoundaryResult',
   'MocPhysicalFieldContinuationProfile',
@@ -79,6 +81,7 @@ __all__ = (
   'assess_reflected_domain_coupled_euler_transonic_transition',
   'assess_reflected_domain_coupled_euler_control_section_compatibility',
   'assess_reflected_domain_coupled_euler_transonic_frontier_compatibility',
+  'assess_reflected_domain_coupled_euler_transonic_shock_state_compatibility',
   'solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request',
   'solve_reflected_domain_coupled_euler_free_boundary',
 )
@@ -959,6 +962,363 @@ def assess_reflected_domain_coupled_euler_transonic_frontier_compatibility(
 ####
 
 
+class MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus(
+  str,
+  Enum,
+):
+  """Classify the scalar shock's downstream state against the frontier."""
+
+  NOT_REQUIRED = 'transonic-shock-state-check-not-required'
+  MATCHED_FRONTIER_STATE = 'transonic-downstream-shock-state-matched-frontier'
+  DOWNSTREAM_SHOCK_STATE_NOT_RETAINED = (
+    'transonic-downstream-shock-state-not-retained-on-frontier'
+  )
+  FRONTIER_DATA_FAILURE = 'transonic-shock-state-frontier-data-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainCoupledEulerTransonicShockStateCompatibility:
+  """Compare a scalar shock's post-shock state with the exact frontier.
+
+  The older frontier diagnostic intentionally checks whether the scalar
+  *pre-shock* state is present in the retained post-shock frontier.  That
+  record remains useful for locating the missing incoming branch, but it is
+  not a like-for-like post-shock comparison.  This companion record compares
+  the scalar normal-shock downstream Mach/static/total-pressure state with the
+  exact downstream states on the global Euler frontier.  It never places a
+  shock or promotes a mixed-regime field.
+  """
+
+  status: MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus
+  transition_required: bool
+  required_upstream_mach: float | None = None
+  expected_downstream_mach: float | None = None
+  expected_downstream_static_pressure_Pa: float | None = None
+  expected_downstream_total_pressure_Pa: float | None = None
+  frontier_sample_count: int = 0
+  frontier_downstream_mach_min: float | None = None
+  frontier_downstream_mach_max: float | None = None
+  matching_sample_count: int = 0
+  nearest_sample_index: int | None = None
+  nearest_sample_point_m: tuple[float, float] | None = None
+  nearest_mach_residual: float | None = None
+  nearest_static_pressure_residual_fraction: float | None = None
+  nearest_total_pressure_residual_fraction: float | None = None
+  mach_tolerance: float = 1.0e-6
+  pressure_tolerance_fraction: float = 1.0e-6
+  source: str = (
+    'global-euler-shock-frontier-downstream-shock-state-compatibility-v1'
+  )
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus'
+      )
+    ####
+    if not isinstance(self.transition_required, bool):
+      raise TypeError('transition_required must be a bool')
+    ####
+    for name in (
+      'required_upstream_mach',
+      'expected_downstream_mach',
+      'expected_downstream_static_pressure_Pa',
+      'expected_downstream_total_pressure_Pa',
+      'frontier_downstream_mach_min',
+      'frontier_downstream_mach_max',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      ####
+      numeric = float(value)
+      if not isfinite(numeric) or numeric <= 0.0:
+        raise ValueError(f'{name} must be finite and positive when supplied')
+      ####
+      object.__setattr__(self, name, numeric)
+    ####
+    for name in (
+      'nearest_mach_residual',
+      'nearest_static_pressure_residual_fraction',
+      'nearest_total_pressure_residual_fraction',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      ####
+      numeric = float(value)
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
+      object.__setattr__(self, name, numeric)
+    ####
+    for name in ('mach_tolerance', 'pressure_tolerance_fraction'):
+      numeric = float(getattr(self, name))
+      if not isfinite(numeric) or numeric <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, numeric)
+    ####
+    for name in ('frontier_sample_count', 'matching_sample_count'):
+      value = getattr(self, name)
+      if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{name} must be a nonnegative integer')
+      ####
+    ####
+    if self.matching_sample_count > self.frontier_sample_count:
+      raise ValueError('matching_sample_count cannot exceed frontier_sample_count')
+    ####
+    if self.nearest_sample_index is not None:
+      if (
+        isinstance(self.nearest_sample_index, bool)
+        or not isinstance(self.nearest_sample_index, int)
+        or not 0 <= self.nearest_sample_index < self.frontier_sample_count
+      ):
+        raise ValueError('nearest_sample_index must identify a frontier sample')
+      ####
+    ####
+    if self.nearest_sample_point_m is not None:
+      point = tuple(float(value) for value in self.nearest_sample_point_m)
+      if len(point) != 2 or any(not isfinite(value) for value in point):
+        raise ValueError('nearest_sample_point_m must contain two finite values')
+      ####
+      object.__setattr__(self, 'nearest_sample_point_m', point)
+    ####
+    source = str(self.source)
+    if not source:
+      raise ValueError('source must be a non-empty string')
+    ####
+    object.__setattr__(self, 'source', source)
+    if self.status is (
+      MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus
+      .MATCHED_FRONTIER_STATE
+    ) and self.matching_sample_count <= 0:
+      raise ValueError('a matched shock-state status requires a matching sample')
+    ####
+    if self.status is (
+      MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus
+      .NOT_REQUIRED
+    ) and self.transition_required:
+      raise ValueError('a not-required shock-state status cannot require a transition')
+    ####
+  ####
+
+  @property
+  def frontier_state_compatible(self) -> bool:
+    """Whether the scalar post-shock state is retained on the frontier."""
+
+    return self.status is (
+      MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus
+      .MATCHED_FRONTIER_STATE
+    )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """A downstream state match is not a placed two-dimensional shock."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'transition_required': self.transition_required,
+      'frontier_state_compatible': self.frontier_state_compatible,
+      'required_upstream_mach': self.required_upstream_mach,
+      'expected_downstream_mach': self.expected_downstream_mach,
+      'expected_downstream_static_pressure_Pa': (
+        self.expected_downstream_static_pressure_Pa
+      ),
+      'expected_downstream_total_pressure_Pa': (
+        self.expected_downstream_total_pressure_Pa
+      ),
+      'frontier_sample_count': self.frontier_sample_count,
+      'frontier_downstream_mach_min': self.frontier_downstream_mach_min,
+      'frontier_downstream_mach_max': self.frontier_downstream_mach_max,
+      'matching_sample_count': self.matching_sample_count,
+      'nearest_sample_index': self.nearest_sample_index,
+      'nearest_sample_point_m': self.nearest_sample_point_m,
+      'nearest_mach_residual': self.nearest_mach_residual,
+      'nearest_static_pressure_residual_fraction': (
+        self.nearest_static_pressure_residual_fraction
+      ),
+      'nearest_total_pressure_residual_fraction': (
+        self.nearest_total_pressure_residual_fraction
+      ),
+      'mach_tolerance': self.mach_tolerance,
+      'pressure_tolerance_fraction': self.pressure_tolerance_fraction,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'source': self.source,
+      'claim_status': (
+        'research-only-downstream-shock-state-to-global-frontier-compatibility; '
+        'placed-2d-transonic-transition, mixed-regime closure, and external '
+        'validation remain open'
+      ),
+    }
+  ####
+####
+
+
+def assess_reflected_domain_coupled_euler_transonic_shock_state_compatibility(
+  request: 'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
+  transition: MocTransonicTransitionResult | None = None,
+) -> MocReflectedDomainCoupledEulerTransonicShockStateCompatibility:
+  """Compare the scalar normal-shock downstream state to the exact frontier.
+
+  This is deliberately separate from the legacy pre-shock comparison.  It
+  uses the scalar branch's already-audited downstream state and compares it to
+  the retained global Euler frontier downstream states without interpolating,
+  moving, or placing a new shock.
+  """
+
+  if not isinstance(
+    request,
+    MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  ):
+    raise TypeError(
+      'request must be a MocReflectedDomainCoupledEulerFreeBoundaryRequest'
+    )
+  ####
+  if transition is None:
+    transition = assess_reflected_domain_coupled_euler_transonic_transition(
+      request
+    )
+  ####
+  if not isinstance(transition, MocTransonicTransitionResult):
+    raise TypeError('transition must be a MocTransonicTransitionResult or None')
+  ####
+  status_type = MocReflectedDomainCoupledEulerTransonicShockStateCompatibilityStatus
+  closure = request.mixed_regime_request.closure
+  global_euler = closure.global_euler
+  curve = None if global_euler is None else global_euler.shock_boundary
+  if curve is None:
+    return MocReflectedDomainCoupledEulerTransonicShockStateCompatibility(
+      status=status_type.FRONTIER_DATA_FAILURE,
+      transition_required=transition.transition_required,
+      required_upstream_mach=transition.required_upstream_mach,
+      source='global-euler-shock-frontier-downstream-shock-state-compatibility-v1',
+    )
+  ####
+  points = tuple(curve.shock_points_m)
+  states = tuple(curve.downstream_states)
+  static_pressures = tuple(curve.downstream_static_pressure_Pa)
+  total_pressures = tuple(curve.downstream_total_pressure_Pa)
+  lengths = (len(points), len(states), len(static_pressures), len(total_pressures))
+  if not lengths[0] or len(set(lengths)) != 1:
+    return MocReflectedDomainCoupledEulerTransonicShockStateCompatibility(
+      status=status_type.FRONTIER_DATA_FAILURE,
+      transition_required=transition.transition_required,
+      required_upstream_mach=transition.required_upstream_mach,
+      frontier_sample_count=lengths[0],
+      source='global-euler-shock-frontier-downstream-shock-state-compatibility-v1',
+    )
+  ####
+  frontier_machs = tuple(float(state.mach) for state in states)
+  if not transition.transition_required:
+    return MocReflectedDomainCoupledEulerTransonicShockStateCompatibility(
+      status=status_type.NOT_REQUIRED,
+      transition_required=False,
+      frontier_sample_count=len(states),
+      frontier_downstream_mach_min=min(frontier_machs),
+      frontier_downstream_mach_max=max(frontier_machs),
+      source='global-euler-shock-frontier-downstream-shock-state-compatibility-v1',
+    )
+  ####
+  shock_state = transition.shock_state
+  if shock_state is None:
+    return MocReflectedDomainCoupledEulerTransonicShockStateCompatibility(
+      status=status_type.FRONTIER_DATA_FAILURE,
+      transition_required=True,
+      required_upstream_mach=transition.required_upstream_mach,
+      frontier_sample_count=len(states),
+      frontier_downstream_mach_min=min(frontier_machs),
+      frontier_downstream_mach_max=max(frontier_machs),
+      source='global-euler-shock-frontier-downstream-shock-state-compatibility-v1',
+    )
+  ####
+  expected_mach = float(shock_state.downstream_mach)
+  expected_static = float(shock_state.downstream_static_pressure_Pa)
+  expected_total = float(shock_state.downstream_total_pressure_Pa)
+  candidates: list[tuple[float, int, float, float, float]] = []
+  for index, (state, static_pressure, total_pressure) in enumerate(zip(
+    states,
+    static_pressures,
+    total_pressures,
+    strict=True,
+  )):
+    mach_residual = abs(float(state.mach) - expected_mach)
+    static_residual = abs(float(static_pressure) - expected_static) / max(
+      abs(expected_static),
+      abs(float(static_pressure)),
+      1.0,
+    )
+    total_residual = abs(float(total_pressure) - expected_total) / max(
+      abs(expected_total),
+      abs(float(total_pressure)),
+      1.0,
+    )
+    score = max(
+      mach_residual / 1.0e-6,
+      static_residual / 1.0e-6,
+      total_residual / 1.0e-6,
+    )
+    candidates.append((score, index, mach_residual, static_residual, total_residual))
+  ####
+  _score, nearest_index, mach_residual, static_residual, total_residual = min(
+    candidates,
+    key=lambda candidate: candidate[0],
+  )
+  matching = tuple(
+    candidate
+    for candidate in candidates
+    if candidate[2] <= 1.0e-6
+    and candidate[3] <= 1.0e-6
+    and candidate[4] <= 1.0e-6
+  )
+  status = (
+    status_type.MATCHED_FRONTIER_STATE
+    if matching
+    else status_type.DOWNSTREAM_SHOCK_STATE_NOT_RETAINED
+  )
+  return MocReflectedDomainCoupledEulerTransonicShockStateCompatibility(
+    status=status,
+    transition_required=True,
+    required_upstream_mach=transition.required_upstream_mach,
+    expected_downstream_mach=expected_mach,
+    expected_downstream_static_pressure_Pa=expected_static,
+    expected_downstream_total_pressure_Pa=expected_total,
+    frontier_sample_count=len(states),
+    frontier_downstream_mach_min=min(frontier_machs),
+    frontier_downstream_mach_max=max(frontier_machs),
+    matching_sample_count=len(matching),
+    nearest_sample_index=nearest_index,
+    nearest_sample_point_m=tuple(float(value) for value in points[nearest_index]),
+    nearest_mach_residual=mach_residual,
+    nearest_static_pressure_residual_fraction=static_residual,
+    nearest_total_pressure_residual_fraction=total_residual,
+    source='global-euler-shock-frontier-downstream-shock-state-compatibility-v1',
+  )
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   """Typed inputs for one constant-gamma downstream field solve.
@@ -1729,6 +2089,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   transonic_frontier_compatibility: (
     MocReflectedDomainCoupledEulerTransonicFrontierCompatibility | None
   ) = None
+  transonic_shock_state_compatibility: (
+    MocReflectedDomainCoupledEulerTransonicShockStateCompatibility | None
+  ) = None
   control_section_compatibility: (
     MocReflectedDomainCoupledEulerControlSectionCompatibility | None
   ) = None
@@ -1996,6 +2359,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       raise TypeError(
         'transonic_frontier_compatibility must be a '
         'MocReflectedDomainCoupledEulerTransonicFrontierCompatibility or None'
+      )
+    ####
+    if self.transonic_shock_state_compatibility is not None and not isinstance(
+      self.transonic_shock_state_compatibility,
+      MocReflectedDomainCoupledEulerTransonicShockStateCompatibility,
+    ):
+      raise TypeError(
+        'transonic_shock_state_compatibility must be a '
+        'MocReflectedDomainCoupledEulerTransonicShockStateCompatibility or None'
       )
     ####
     if self.control_section_compatibility is not None and not isinstance(
@@ -2315,6 +2687,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
           if self.transonic_frontier_compatibility is None
           else self.transonic_frontier_compatibility.as_report()
         ),
+        'transonic_shock_state_compatibility': (
+          None
+          if self.transonic_shock_state_compatibility is None
+          else self.transonic_shock_state_compatibility.as_report()
+        ),
       },
     )
   ####
@@ -2490,6 +2867,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         None
         if self.transonic_frontier_compatibility is None
         else self.transonic_frontier_compatibility.as_report()
+      ),
+      'transonic_shock_state_compatibility': (
+        None
+        if self.transonic_shock_state_compatibility is None
+        else self.transonic_shock_state_compatibility.as_report()
       ),
       'control_section_compatibility': (
         None
@@ -2826,6 +3208,9 @@ def _failure(
   transonic_frontier_compatibility: (
     MocReflectedDomainCoupledEulerTransonicFrontierCompatibility | None
   ) = None,
+  transonic_shock_state_compatibility: (
+    MocReflectedDomainCoupledEulerTransonicShockStateCompatibility | None
+  ) = None,
   control_section_compatibility: (
     MocReflectedDomainCoupledEulerControlSectionCompatibility | None
   ) = None,
@@ -2884,6 +3269,7 @@ def _failure(
     transonic_transition=transonic_transition,
     transonic_transition_audit=transonic_transition_audit,
     transonic_frontier_compatibility=transonic_frontier_compatibility,
+    transonic_shock_state_compatibility=transonic_shock_state_compatibility,
     control_section_compatibility=control_section_compatibility,
     transonic_shock_geometry=transonic_shock_geometry,
     transonic_shock_geometry_audit=transonic_shock_geometry_audit,
@@ -4648,6 +5034,12 @@ def _result_from_field(
       transonic_transition,
     )
   )
+  transonic_shock_state_compatibility = (
+    assess_reflected_domain_coupled_euler_transonic_shock_state_compatibility(
+      request,
+      transonic_transition,
+    )
+  )
   channel_coverage = {name: True for name in _CHANNEL_NAMES}
   return MocReflectedDomainCoupledEulerFreeBoundaryResult(
     status=status,
@@ -4750,6 +5142,7 @@ def _result_from_field(
     ),
     inlet_boundary_states_consumed=True,
     transonic_frontier_compatibility=transonic_frontier_compatibility,
+    transonic_shock_state_compatibility=transonic_shock_state_compatibility,
     control_section_compatibility=control_section_compatibility,
     **flattened,
   )
@@ -5055,6 +5448,12 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         transition,
       )
     )
+    shock_state_compatibility = (
+      assess_reflected_domain_coupled_euler_transonic_shock_state_compatibility(
+        request,
+        transition,
+      )
+    )
     control_section_compatibility = (
       assess_reflected_domain_coupled_euler_control_section_compatibility(
         request,
@@ -5083,6 +5482,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         transonic_transition=transition,
         transonic_transition_audit=transition_audit,
         transonic_frontier_compatibility=frontier_compatibility,
+        transonic_shock_state_compatibility=shock_state_compatibility,
         control_section_compatibility=control_section_compatibility,
       )
     ####
