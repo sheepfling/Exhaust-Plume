@@ -998,8 +998,10 @@ is recorded after each coherent slice:
 - the full test matrix, build/install smoke, static checks, and lane-release
   validator must all be rerun against this exact `HEAD` before the final
   freeze;
-- the latest completed full matrix before the active audit slice was
-  **1,113 passed**, with the existing 18 warnings; and
+- the latest completed full matrix for the active audit slice is
+  **1,114 passed**, with the existing 18 warnings;
+- offline wheel build/install smoke, `scripts.test_lanes --check`, Ruff, and
+  the repository scope-marker check all pass; and
 - the release manifest remains `release_ready=false` until the external,
   physical, provider, and freeze gates below are satisfied.
 
