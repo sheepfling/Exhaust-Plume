@@ -560,6 +560,41 @@ def test_moc_global_euler_visualization_exposes_solver_owned_shock_parameters() 
 ####
 
 
+def test_moc_production_fit_visualization_exposes_candidate_boundary_without_promotion() -> None:
+  class ProductionFitResult(_MocResult):
+    candidate_field = _MocField()
+    fitted_shock_points_m = _MocField.shock_boundary_points_m
+    status = 'converged_local_production_shock_cell_fit'
+    local_fit_verified = True
+    chain_promotion_blocked = True
+    production_claim_allowed = False
+    start_x_m = 0.5
+    end_x_m = 2.0
+  ####
+
+  bundle = standardize_model_visualization(
+    ProductionFitResult(),
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-production-shock-cell-fit'
+  assert 'moc-production-fit-shock-boundary' in {
+    path.path_id for path in bundle.paths
+  }
+  assert bundle.diagnostics['production_fit_status'] == (
+    'converged_local_production_shock_cell_fit'
+  )
+  assert bundle.diagnostics['production_fit_local_fit_verified'] is True
+  assert bundle.diagnostics['production_fit_solver_shock_axial_span_m'] == pytest.approx(1.0)
+  assert bundle.diagnostics['production_fit_requested_axial_length_m'] == pytest.approx(1.5)
+  assert bundle.diagnostics['production_fit_physical_length_accepted'] is False
+  assert bundle.claims.production_claim_allowed is False
+  assert any('not an accepted physical shock-cell length' in warning for warning in bundle.warnings)
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_moc_mixed_regime_visualization_retains_reference_overlays() -> None:
   global_euler = SimpleNamespace(
     physical_field=SimpleNamespace(

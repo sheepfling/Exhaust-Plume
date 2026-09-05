@@ -1811,6 +1811,31 @@ def _moc_visualization(
     raise ValueError('planar-MOC field contains no finite cell polygons')
   ####
 
+  production_fit_result = bool(
+    hasattr(result, 'fitted_shock_points_m')
+    and hasattr(result, 'candidate_field')
+  )
+  production_fit_path: tuple[Vector2, ...] = ()
+  production_fit_overlay_warnings: list[str] = []
+  if production_fit_result:
+    try:
+      production_fit_path = _finite_path(
+        getattr(result, 'fitted_shock_points_m', ())
+      )
+    except ValueError:
+      production_fit_overlay_warnings.append(
+        'solver-generated production-fit shock path has invalid geometry and remains unavailable'
+      )
+    else:
+      if len(production_fit_path) < 2:
+        production_fit_overlay_warnings.append(
+          'solver-generated production-fit shock path has fewer than two samples and remains unavailable'
+        )
+        production_fit_path = ()
+      ####
+    ####
+  ####
+
   mixed_regime_reference = getattr(result, 'reference', None)
   if mixed_regime_reference is None and all(
     hasattr(result, name)
@@ -1835,6 +1860,17 @@ def _moc_visualization(
       if path is not None:
         paths.append(path)
       ####
+    ####
+  ####
+  if production_fit_path:
+    path = _path3(
+      'moc-production-fit-shock-boundary',
+      'solver-generated shock-cell fit candidate boundary; research only',
+      production_fit_path,
+    )
+    if path is not None:
+      paths.append(path)
+      all_points.extend(production_fit_path)
     ####
   ####
   if mixed_regime_reference is not None:
@@ -2473,6 +2509,41 @@ def _moc_visualization(
     'state_sampling_available': bool(getattr(source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
+  if production_fit_result:
+    fit_status = getattr(source, 'status', '')
+    diagnostics['production_fit_status'] = str(
+      getattr(fit_status, 'value', fit_status)
+    )
+    diagnostics['production_fit_local_fit_verified'] = bool(
+      getattr(source, 'local_fit_verified', False)
+    )
+    diagnostics['production_fit_chain_promotion_blocked'] = bool(
+      getattr(source, 'chain_promotion_blocked', True)
+    )
+    diagnostics['production_fit_production_claim_allowed'] = bool(
+      getattr(source, 'production_claim_allowed', False)
+    )
+    diagnostics['production_fit_physical_length_accepted'] = False
+    diagnostics['production_fit_solver_shock_path_sample_count'] = len(
+      production_fit_path
+    )
+    if len(production_fit_path) >= 2:
+      diagnostics['production_fit_solver_shock_axial_span_m'] = (
+        production_fit_path[-1][0] - production_fit_path[0][0]
+      )
+    ####
+    start_x = getattr(source, 'start_x_m', None)
+    end_x = getattr(source, 'end_x_m', None)
+    if start_x is not None and end_x is not None:
+      if isfinite(float(start_x)) and isfinite(float(end_x)):
+        diagnostics['production_fit_requested_start_x_m'] = float(start_x)
+        diagnostics['production_fit_requested_end_x_m'] = float(end_x)
+        diagnostics['production_fit_requested_axial_length_m'] = (
+          float(end_x) - float(start_x)
+        )
+      ####
+    ####
+  ####
   if mixed_regime_reference is not None:
     reference_status = getattr(mixed_regime_reference, 'status', '')
     diagnostics['mixed_regime_reference_status'] = str(
@@ -3033,7 +3104,14 @@ def _moc_visualization(
     'MOC production promotion remains blocked until canonical closure, refinement, and external validation gates pass',
     *solver_warnings,
     *mixed_regime_overlay_warnings,
+    *production_fit_overlay_warnings,
   ]
+  if production_fit_result:
+    warnings.append(
+      'the solver-generated production-fit boundary is a research candidate; '
+      'its displayed axial span is not an accepted physical shock-cell length'
+    )
+  ####
   if mixed_regime_reference is not None:
     warnings.append(
       'mixed-regime overlays are solver-owned scalar variable-entropy/free-boundary '
@@ -3089,6 +3167,9 @@ def _moc_visualization(
       'planar-moc-coupled-euler-free-boundary'
       if coupled_euler
       else (
+        'planar-moc-production-shock-cell-fit'
+        if production_fit_result
+        else (
         'planar-moc-mixed-regime-reference'
         if mixed_regime_reference is not None
         else (
@@ -3105,6 +3186,7 @@ def _moc_visualization(
           )
         )
         )
+      )
       )
     ),
     model_version='1',

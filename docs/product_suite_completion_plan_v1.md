@@ -682,6 +682,16 @@ does not make the length an accepted physical first-cell length. Canonical
 reflected/mixed-regime closure, refinement-stable length evidence, disjoint
 external comparison, and the final production gates remain open.
 
+### Production-fit visualization checkpoint
+
+The standardized planar-MOC visualization now recognizes a solver-generated
+shock-cell fit candidate and adds its retained fitted boundary as a distinct
+research-only path. The bundle reports the fit status, requested axial
+interval, solver shock-path span, promotion blockers, and an explicit
+``production_fit_physical_length_accepted=false`` diagnostic. This keeps the
+candidate geometry inspectable in the Visualization product without allowing
+the display envelope to imply a production Signature or physical-cell claim.
+
 ### Cell-wise regime-evidence visualization checkpoint
 
 The coupled-Euler visualization now exposes the solver-retained
