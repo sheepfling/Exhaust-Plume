@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import pi
 
 import pytest
 
 from exhaust_plume.models.moc import (
+  MocTransonicShockGeometryAuditStatus,
+  MocTransonicShockGeometryRequest,
+  MocTransonicShockGeometryStatus,
   MocTransonicTransitionAuditStatus,
   MocTransonicTransitionRequest,
   MocTransonicTransitionStatus,
+  measure_moc_transonic_shock_geometry,
   measure_moc_transonic_transition,
+  solve_moc_transonic_shock_geometry,
   solve_moc_transonic_transition,
 )
 
@@ -95,6 +101,76 @@ def test_transition_audit_rejects_a_tampered_branch_state() -> None:
   assert audit.status is MocTransonicTransitionAuditStatus.RESULT_FAILURE
   assert audit.shock_state_verified is False
   assert audit.shock_state_conservation_verified is False
+####
+
+
+def test_scalar_shock_state_binds_to_caller_owned_normal_geometry() -> None:
+  result = solve_moc_transonic_transition(
+    MocTransonicTransitionRequest(
+      upstream_total_pressure_Pa=400_000.0,
+      target_downstream_static_pressure_Pa=180_000.0,
+      gamma=1.4,
+      upstream_total_temperature_K=1200.0,
+      upstream_flow_angle_rad=0.2,
+    )
+  )
+  assert result.shock_state is not None
+  geometry = solve_moc_transonic_shock_geometry(
+    MocTransonicShockGeometryRequest(
+      shock_state=result.shock_state,
+      shock_point_m=(1.25, 0.15),
+      shock_normal_angle_rad=0.2,
+    )
+  )
+  audit = measure_moc_transonic_shock_geometry(geometry)
+
+  assert geometry.status is MocTransonicShockGeometryStatus.VERIFIED
+  assert geometry.geometry_verified
+  assert geometry.shock_tangent_angle_rad == pytest.approx(0.2 + 0.5 * pi)
+  assert geometry.upstream_tangential_velocity_m_s == pytest.approx(0.0, abs=1.0e-10)
+  assert geometry.downstream_tangential_velocity_m_s == pytest.approx(0.0, abs=1.0e-10)
+  assert audit.status is MocTransonicShockGeometryAuditStatus.VERIFIED
+  assert audit.geometry_binding_verified
+  assert geometry.physical_closure_verified is False
+  assert geometry.chain_promotion_blocked
+  assert geometry.production_claim_allowed is False
+####
+
+
+def test_scalar_shock_geometry_rejects_misaligned_or_tampered_binding() -> None:
+  result = solve_moc_transonic_transition(
+    MocTransonicTransitionRequest(
+      upstream_total_pressure_Pa=400_000.0,
+      target_downstream_static_pressure_Pa=180_000.0,
+      gamma=1.4,
+      upstream_total_temperature_K=1200.0,
+    )
+  )
+  assert result.shock_state is not None
+  misaligned = solve_moc_transonic_shock_geometry(
+    MocTransonicShockGeometryRequest(
+      shock_state=result.shock_state,
+      shock_point_m=(1.25, 0.15),
+      shock_normal_angle_rad=0.01,
+    )
+  )
+  assert misaligned.status is MocTransonicShockGeometryStatus.FLOW_ALIGNMENT_FAILURE
+  assert not measure_moc_transonic_shock_geometry(misaligned).converged
+
+  verified = solve_moc_transonic_shock_geometry(
+    MocTransonicShockGeometryRequest(
+      shock_state=result.shock_state,
+      shock_point_m=(1.25, 0.15),
+      shock_normal_angle_rad=0.0,
+    )
+  )
+  tampered = replace(
+    verified,
+    mass_flux_residual=verified.mass_flux_residual + 1.0e-3,
+  )
+  tampered_audit = measure_moc_transonic_shock_geometry(tampered)
+  assert tampered_audit.status is MocTransonicShockGeometryAuditStatus.RESULT_FAILURE
+  assert not tampered_audit.geometry_binding_verified
 ####
 
 

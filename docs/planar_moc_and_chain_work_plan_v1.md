@@ -3708,3 +3708,18 @@ solver-owned seam: an internal shock-placement/mixed-regime boundary that
 couples the scalar branch state to the two-dimensional field, followed by
 independent residual and refinement evidence.  No shock-cell length or product
 provider may consume this sensitivity result.
+
+## Caller-owned transonic geometry-binding checkpoint
+
+The scalar branch state now exposes a typed research binding to a caller-owned
+shock point and normal.  The binding resolves the normal/tangential velocity
+components and carries normalized mass-, momentum-, and energy-flux residuals;
+``measure_moc_transonic_shock_geometry`` independently rederives those values
+and rejects misaligned or tampered results.
+
+This is an interface seam for the future placement solver, not a placed
+two-dimensional shock.  The point and normal are supplied by the caller, no
+neighboring characteristic field or entropy transport is solved, and the
+result remains barred from ``MocChainCell`` promotion and production claims.
+MOC-1 still requires solver-owned placement and mixed-regime closure before
+physical shock length, refinement, or external validation can be accepted.

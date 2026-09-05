@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import isclose, isfinite, log, sqrt
+from math import atan2, cos, isclose, isfinite, log, pi, sin, sqrt
 from typing import Any
 
 __all__ = (
@@ -20,8 +20,15 @@ __all__ = (
   'MocTransonicTransitionStatus',
   'MocTransonicTransitionRequest',
   'MocTransonicShockState',
+  'MocTransonicShockGeometryStatus',
+  'MocTransonicShockGeometryAuditStatus',
+  'MocTransonicShockGeometryRequest',
+  'MocTransonicShockGeometryResult',
+  'MocTransonicShockGeometryAudit',
   'MocTransonicTransitionResult',
   'MocTransonicTransitionAudit',
+  'measure_moc_transonic_shock_geometry',
+  'solve_moc_transonic_shock_geometry',
   'measure_moc_transonic_transition',
   'solve_moc_transonic_transition',
 )
@@ -54,6 +61,7 @@ class MocTransonicTransitionRequest:
   gamma: float
   gas_constant_J_kgK: float = 287.05
   upstream_total_temperature_K: float | None = None
+  upstream_flow_angle_rad: float = 0.0
   pressure_tolerance_fraction: float = 1.0e-10
   mach_tolerance: float = 1.0e-10
   max_iterations: int = 128
@@ -73,6 +81,11 @@ class MocTransonicTransitionRequest:
       ####
       object.__setattr__(self, name, numeric)
     ####
+    flow_angle = float(self.upstream_flow_angle_rad)
+    if not isfinite(flow_angle):
+      raise ValueError('upstream_flow_angle_rad must be finite')
+    ####
+    object.__setattr__(self, 'upstream_flow_angle_rad', flow_angle)
     if self.gamma <= 1.0:
       raise ValueError('gamma must be greater than one')
     ####
@@ -100,6 +113,7 @@ class MocTransonicTransitionRequest:
       'gamma': self.gamma,
       'gas_constant_J_kgK': self.gas_constant_J_kgK,
       'upstream_total_temperature_K': self.upstream_total_temperature_K,
+      'upstream_flow_angle_rad': self.upstream_flow_angle_rad,
       'pressure_tolerance_fraction': self.pressure_tolerance_fraction,
       'mach_tolerance': self.mach_tolerance,
       'max_iterations': self.max_iterations,
@@ -138,6 +152,7 @@ class MocTransonicShockState:
   upstream_speed_m_s: float
   downstream_speed_m_s: float
   entropy_increase_JpkgK: float
+  upstream_flow_angle_rad: float = 0.0
   source: str = 'research-scalar-normal-shock-branch-state-v1'
 
   def __post_init__(self) -> None:
@@ -168,6 +183,11 @@ class MocTransonicShockState:
       ####
       object.__setattr__(self, name, value)
     ####
+    flow_angle = float(self.upstream_flow_angle_rad)
+    if not isfinite(flow_angle):
+      raise ValueError('upstream_flow_angle_rad must be finite')
+    ####
+    object.__setattr__(self, 'upstream_flow_angle_rad', flow_angle)
     if self.gamma <= 1.0:
       raise ValueError('gamma must be greater than one')
     ####
@@ -236,6 +256,7 @@ class MocTransonicShockState:
       'upstream_speed_m_s': self.upstream_speed_m_s,
       'downstream_speed_m_s': self.downstream_speed_m_s,
       'entropy_increase_JpkgK': self.entropy_increase_JpkgK,
+      'upstream_flow_angle_rad': self.upstream_flow_angle_rad,
       'upstream_supersonic': self.upstream_supersonic,
       'downstream_subsonic': self.downstream_subsonic,
       'physical_closure_verified': self.physical_closure_verified,
@@ -245,6 +266,242 @@ class MocTransonicShockState:
         'research-only-scalar-normal-shock-state-handoff; geometric-placement, '
         'neighboring-field, and external-validation gates remain open'
       ),
+    }
+  ####
+####
+
+
+class MocTransonicShockGeometryStatus(str, Enum):
+  """Outcome of binding a scalar shock state to caller-owned geometry."""
+
+  VERIFIED = 'verified-normal-shock-geometry-binding'
+  INVALID_INPUT = 'invalid_input'
+  FLOW_ALIGNMENT_FAILURE = 'normal-shock-flow-alignment-failure'
+  CONSERVATION_FAILURE = 'normal-shock-conservation-failure'
+####
+
+
+class MocTransonicShockGeometryAuditStatus(str, Enum):
+  """Independent audit outcome for a geometry-bound scalar shock."""
+
+  VERIFIED = 'verified-normal-shock-geometry-audit'
+  RESULT_FAILURE = 'normal-shock-geometry-result-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockGeometryRequest:
+  """Caller-owned point and normal used to bind a scalar shock state.
+
+  The request deliberately supplies, rather than solves, the shock point and
+  normal.  It is therefore a typed interface for a future 2-D placement
+  solver, not a placement result or a physical shock-cell claim.
+  """
+
+  shock_state: MocTransonicShockState
+  shock_point_m: tuple[float, float]
+  shock_normal_angle_rad: float
+  normal_alignment_tolerance_rad: float = 1.0e-8
+  flux_tolerance: float = 1.0e-8
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.shock_state, MocTransonicShockState):
+      raise TypeError('shock_state must be a MocTransonicShockState')
+    ####
+    try:
+      point = tuple(float(value) for value in self.shock_point_m)
+    except (TypeError, ValueError):
+      raise ValueError('shock_point_m must contain two numeric coordinates') from None
+    ####
+    if len(point) != 2 or any(not isfinite(value) for value in point):
+      raise ValueError('shock_point_m must contain two finite coordinates')
+    ####
+    object.__setattr__(self, 'shock_point_m', point)
+    normal_angle = float(self.shock_normal_angle_rad)
+    if not isfinite(normal_angle):
+      raise ValueError('shock_normal_angle_rad must be finite')
+    ####
+    object.__setattr__(self, 'shock_normal_angle_rad', normal_angle)
+    for name in ('normal_alignment_tolerance_rad', 'flux_tolerance'):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'shock_state': self.shock_state.as_report(),
+      'shock_point_m': list(self.shock_point_m),
+      'shock_normal_angle_rad': self.shock_normal_angle_rad,
+      'normal_alignment_tolerance_rad': self.normal_alignment_tolerance_rad,
+      'flux_tolerance': self.flux_tolerance,
+      'model': 'research-scalar-shock-geometry-binding-v1',
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockGeometryResult:
+  """A conservative scalar shock state bound to caller-owned geometry."""
+
+  status: MocTransonicShockGeometryStatus
+  request: MocTransonicShockGeometryRequest
+  shock_point_m: tuple[float, float]
+  shock_normal_angle_rad: float
+  shock_tangent_angle_rad: float
+  normal_alignment_residual_rad: float
+  upstream_normal_velocity_m_s: float
+  downstream_normal_velocity_m_s: float
+  upstream_tangential_velocity_m_s: float
+  downstream_tangential_velocity_m_s: float
+  mass_flux_residual: float
+  momentum_flux_residual: float
+  energy_flux_residual: float
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.status, MocTransonicShockGeometryStatus):
+      raise TypeError('status must be a MocTransonicShockGeometryStatus')
+    ####
+    if not isinstance(self.request, MocTransonicShockGeometryRequest):
+      raise TypeError('request must be a MocTransonicShockGeometryRequest')
+    ####
+    point = tuple(float(value) for value in self.shock_point_m)
+    if len(point) != 2 or any(not isfinite(value) for value in point):
+      raise ValueError('shock_point_m must contain two finite coordinates')
+    ####
+    object.__setattr__(self, 'shock_point_m', point)
+    for name in (
+      'shock_normal_angle_rad',
+      'shock_tangent_angle_rad',
+      'normal_alignment_residual_rad',
+      'upstream_normal_velocity_m_s',
+      'downstream_normal_velocity_m_s',
+      'upstream_tangential_velocity_m_s',
+      'downstream_tangential_velocity_m_s',
+      'mass_flux_residual',
+      'momentum_flux_residual',
+      'energy_flux_residual',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value):
+        raise ValueError(f'{name} must be finite')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    for name in (
+      'normal_alignment_residual_rad',
+      'mass_flux_residual',
+      'momentum_flux_residual',
+      'energy_flux_residual',
+    ):
+      if getattr(self, name) < 0.0:
+        raise ValueError(f'{name} must be nonnegative')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def geometry_verified(self) -> bool:
+    return self.status is MocTransonicShockGeometryStatus.VERIFIED
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'geometry_verified': self.geometry_verified,
+      'shock_point_m': list(self.shock_point_m),
+      'shock_normal_angle_rad': self.shock_normal_angle_rad,
+      'shock_tangent_angle_rad': self.shock_tangent_angle_rad,
+      'normal_alignment_residual_rad': self.normal_alignment_residual_rad,
+      'upstream_normal_velocity_m_s': self.upstream_normal_velocity_m_s,
+      'downstream_normal_velocity_m_s': self.downstream_normal_velocity_m_s,
+      'upstream_tangential_velocity_m_s': self.upstream_tangential_velocity_m_s,
+      'downstream_tangential_velocity_m_s': self.downstream_tangential_velocity_m_s,
+      'mass_flux_residual': self.mass_flux_residual,
+      'momentum_flux_residual': self.momentum_flux_residual,
+      'energy_flux_residual': self.energy_flux_residual,
+      'physical_closure_verified': self.physical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'research-only-scalar-shock-geometry-binding; placement, neighboring '
+        'field closure, chain promotion, and external validation remain open'
+      ),
+      'request': self.request.as_report(),
+      'message': self.message,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockGeometryAudit:
+  """Independent re-derivation of a scalar geometry binding."""
+
+  status: MocTransonicShockGeometryAuditStatus
+  result_status: MocTransonicShockGeometryStatus
+  rederived: bool
+  point_residual_m: float
+  normal_angle_residual_rad: float
+  tangent_angle_residual_rad: float
+  mass_flux_residual: float
+  momentum_flux_residual: float
+  energy_flux_residual: float
+  geometry_binding_verified: bool
+  message: str = ''
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocTransonicShockGeometryAuditStatus.VERIFIED
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'result_status': self.result_status.value,
+      'converged': self.converged,
+      'rederived': self.rederived,
+      'point_residual_m': self.point_residual_m,
+      'normal_angle_residual_rad': self.normal_angle_residual_rad,
+      'tangent_angle_residual_rad': self.tangent_angle_residual_rad,
+      'mass_flux_residual': self.mass_flux_residual,
+      'momentum_flux_residual': self.momentum_flux_residual,
+      'energy_flux_residual': self.energy_flux_residual,
+      'geometry_binding_verified': self.geometry_binding_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'production_claim_allowed': self.production_claim_allowed,
+      'message': self.message,
     }
   ####
 ####
@@ -548,6 +805,7 @@ def _normal_shock_state(
     entropy_increase_JpkgK=request.gas_constant_J_kgK * log(
       1.0 / total_pressure_ratio
     ),
+    upstream_flow_angle_rad=request.upstream_flow_angle_rad,
   )
 ####
 
@@ -713,6 +971,7 @@ def _shock_state_matches(
     'upstream_speed_m_s',
     'downstream_speed_m_s',
     'entropy_increase_JpkgK',
+    'upstream_flow_angle_rad',
   ):
     if not isclose(
       float(getattr(reported, name)),
@@ -765,6 +1024,149 @@ def _shock_state_flux_residuals(
     / max(1.0, abs(upstream_momentum_flux), abs(downstream_momentum_flux)),
     abs(upstream_energy_flux - downstream_energy_flux)
     / max(1.0, abs(upstream_energy_flux), abs(downstream_energy_flux)),
+  )
+####
+
+
+def _wrapped_angle_residual(first_angle_rad: float, second_angle_rad: float) -> float:
+  """Return the smallest absolute angular difference in radians."""
+
+  return abs(atan2(
+    sin(first_angle_rad - second_angle_rad),
+    cos(first_angle_rad - second_angle_rad),
+  ))
+####
+
+
+def solve_moc_transonic_shock_geometry(
+  request: MocTransonicShockGeometryRequest,
+) -> MocTransonicShockGeometryResult:
+  """Bind a scalar state to caller-owned point/normal geometry.
+
+  This operation verifies a normal-shock orientation and conservative jump
+  evidence.  It does not select the point or normal, solve neighboring
+  characteristics, or close a two-dimensional field.
+  """
+
+  if not isinstance(request, MocTransonicShockGeometryRequest):
+    raise TypeError('request must be a MocTransonicShockGeometryRequest')
+  ####
+  state = request.shock_state
+  normal_alignment = _wrapped_angle_residual(
+    state.upstream_flow_angle_rad,
+    request.shock_normal_angle_rad,
+  )
+  tangent_angle = request.shock_normal_angle_rad + 0.5 * pi
+  flow_delta = state.upstream_flow_angle_rad - request.shock_normal_angle_rad
+  upstream_normal = state.upstream_speed_m_s * cos(flow_delta)
+  downstream_normal = state.downstream_speed_m_s * cos(flow_delta)
+  upstream_tangential = state.upstream_speed_m_s * sin(flow_delta)
+  downstream_tangential = state.downstream_speed_m_s * sin(flow_delta)
+  mass_residual, momentum_residual, energy_residual = (
+    _shock_state_flux_residuals(state)
+  )
+  if normal_alignment > request.normal_alignment_tolerance_rad:
+    status = MocTransonicShockGeometryStatus.FLOW_ALIGNMENT_FAILURE
+    message = (
+      'caller-owned shock normal is not aligned with the scalar normal-shock '
+      'flow direction'
+    )
+  elif max(mass_residual, momentum_residual, energy_residual) > request.flux_tolerance:
+    status = MocTransonicShockGeometryStatus.CONSERVATION_FAILURE
+    message = 'scalar shock state did not satisfy the declared flux tolerance'
+  else:
+    status = MocTransonicShockGeometryStatus.VERIFIED
+    message = (
+      'scalar normal-shock state is bound to caller-owned point and normal; '
+      'two-dimensional placement and field closure remain open'
+    )
+  ####
+  return MocTransonicShockGeometryResult(
+    status=status,
+    request=request,
+    shock_point_m=request.shock_point_m,
+    shock_normal_angle_rad=request.shock_normal_angle_rad,
+    shock_tangent_angle_rad=tangent_angle,
+    normal_alignment_residual_rad=normal_alignment,
+    upstream_normal_velocity_m_s=upstream_normal,
+    downstream_normal_velocity_m_s=downstream_normal,
+    upstream_tangential_velocity_m_s=upstream_tangential,
+    downstream_tangential_velocity_m_s=downstream_tangential,
+    mass_flux_residual=mass_residual,
+    momentum_flux_residual=momentum_residual,
+    energy_flux_residual=energy_residual,
+    message=message,
+  )
+####
+
+
+def measure_moc_transonic_shock_geometry(
+  result: MocTransonicShockGeometryResult,
+) -> MocTransonicShockGeometryAudit:
+  """Independently rederive a scalar geometry binding."""
+
+  if not isinstance(result, MocTransonicShockGeometryResult):
+    raise TypeError('result must be a MocTransonicShockGeometryResult')
+  ####
+  expected = solve_moc_transonic_shock_geometry(result.request)
+  point_residual = sqrt(
+    sum(
+      (reported - expected_value) ** 2
+      for reported, expected_value in zip(
+        result.shock_point_m,
+        expected.shock_point_m,
+        strict=True,
+      )
+    )
+  )
+  normal_angle_residual = _wrapped_angle_residual(
+    result.shock_normal_angle_rad,
+    expected.shock_normal_angle_rad,
+  )
+  tangent_angle_residual = _wrapped_angle_residual(
+    result.shock_tangent_angle_rad,
+    expected.shock_tangent_angle_rad,
+  )
+
+  def close(reported: float, expected_value: float) -> bool:
+    return bool(isclose(reported, expected_value, rel_tol=3.0e-6, abs_tol=1.0e-10))
+  ####
+
+  geometry_binding_verified = bool(
+    expected.status is MocTransonicShockGeometryStatus.VERIFIED
+    and result.status is expected.status
+    and point_residual <= 1.0e-10
+    and normal_angle_residual <= result.request.normal_alignment_tolerance_rad
+    and tangent_angle_residual <= result.request.normal_alignment_tolerance_rad
+    and close(result.normal_alignment_residual_rad, expected.normal_alignment_residual_rad)
+    and close(result.upstream_normal_velocity_m_s, expected.upstream_normal_velocity_m_s)
+    and close(result.downstream_normal_velocity_m_s, expected.downstream_normal_velocity_m_s)
+    and close(result.upstream_tangential_velocity_m_s, expected.upstream_tangential_velocity_m_s)
+    and close(result.downstream_tangential_velocity_m_s, expected.downstream_tangential_velocity_m_s)
+    and close(result.mass_flux_residual, expected.mass_flux_residual)
+    and close(result.momentum_flux_residual, expected.momentum_flux_residual)
+    and close(result.energy_flux_residual, expected.energy_flux_residual)
+  )
+  return MocTransonicShockGeometryAudit(
+    status=(
+      MocTransonicShockGeometryAuditStatus.VERIFIED
+      if geometry_binding_verified
+      else MocTransonicShockGeometryAuditStatus.RESULT_FAILURE
+    ),
+    result_status=result.status,
+    rederived=True,
+    point_residual_m=point_residual,
+    normal_angle_residual_rad=normal_angle_residual,
+    tangent_angle_residual_rad=tangent_angle_residual,
+    mass_flux_residual=expected.mass_flux_residual,
+    momentum_flux_residual=expected.momentum_flux_residual,
+    energy_flux_residual=expected.energy_flux_residual,
+    geometry_binding_verified=geometry_binding_verified,
+    message=(
+      'caller-owned normal-shock geometry binding independently rederived'
+      if geometry_binding_verified
+      else 'reported scalar shock geometry binding does not match independent re-derivation'
+    ),
   )
 ####
 

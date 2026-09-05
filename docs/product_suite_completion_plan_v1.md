@@ -780,3 +780,19 @@ boundary condition from a simple shape-iteration tuning problem.  The result
 is retained as a research failure with promotion blocked; the next canonical
 MOC packet must place and transport the transition in the two-dimensional
 field, then re-run the coupled residual and refinement ladders.
+
+### Caller-owned transonic geometry-binding checkpoint
+
+The scalar transonic state now has a typed research seam for binding it to a
+caller-owned shock point and normal.  The binding reports normal/tangential
+velocity components and independently rechecks normalized mass, momentum, and
+energy-flux residuals.  Misaligned geometry and tampered residuals are typed
+failures rather than silently accepted state.
+
+This seam is intentionally not a placement solver: it does not choose the
+point or normal, connect neighboring characteristics, transport entropy
+through the mixed-regime field, or create a continued shock-cell chain.  Its
+geometry and audit flags keep physical closure, production claims, and
+provider promotion disabled.  The next required implementation remains the
+solver-owned two-dimensional shock placement/mixed-regime closure, followed
+by disjoint validation and accepted provider comparisons.
