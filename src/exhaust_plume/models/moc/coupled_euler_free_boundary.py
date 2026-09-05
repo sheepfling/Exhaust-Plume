@@ -15,7 +15,7 @@ external validation data remain separate promotion gates.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from math import isfinite, sqrt
 from types import MappingProxyType
@@ -89,6 +89,12 @@ COUPLED_EULER_FREE_BOUNDARY_MODEL = (
 )
 COUPLED_EULER_FREE_BOUNDARY_FLUX_MODEL = (
   'specified-pressure-material-streamline-v1'
+)
+PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE = (
+  'solver-owned-physical-field-ambient-neighbor-pressure-profile-v1'
+)
+PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE = (
+  'solver-owned-physical-field-ambient-neighbor-geometry-profile-v1'
 )
 _CHANNEL_NAMES = (
   'mass',
@@ -4330,6 +4336,97 @@ def _prepare_physical_field_continuation_inlet(
 ####
 
 
+def _interpolate_physical_field_ambient_neighbor(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> tuple[float, float] | None:
+  """Sample the exact ambient-neighbor path retained by the shock condition."""
+
+  condition = request.physical_field_shock_front_condition
+  if condition is None or condition.field is None:
+    return None
+  ####
+  boundary = condition.field.ambient_boundary
+  points = tuple(boundary.points_m)
+  pressures = tuple(boundary.static_pressure_Pa)
+  if len(points) != len(pressures) or len(points) < 2:
+    return None
+  ####
+  if any(
+    second[0] <= first[0] + position_tolerance_m
+    for first, second in zip(points, points[1:])
+  ):
+    return None
+  ####
+  if (
+    x_m < points[0][0] - position_tolerance_m
+    or x_m > points[-1][0] + position_tolerance_m
+  ):
+    return None
+  ####
+  for index, (first_point, second_point) in enumerate(zip(points, points[1:])):
+    if abs(x_m - first_point[0]) <= position_tolerance_m:
+      return float(first_point[1]), float(pressures[index])
+    ####
+    if x_m <= second_point[0] + position_tolerance_m:
+      span = second_point[0] - first_point[0]
+      if span <= position_tolerance_m:
+        return None
+      ####
+      fraction = min(max((x_m - first_point[0]) / span, 0.0), 1.0)
+      return (
+        float(first_point[1] + fraction * (second_point[1] - first_point[1])),
+        float(
+          pressures[index]
+          + fraction * (pressures[index + 1] - pressures[index])
+        ),
+      )
+    ####
+  ####
+  if abs(x_m - points[-1][0]) <= position_tolerance_m:
+    return float(points[-1][1]), float(pressures[-1])
+  ####
+  return None
+####
+
+
+def _derive_physical_field_neighbor_profiles(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  x_stations: np.ndarray,
+  *,
+  lower_ordinate: float,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+  """Derive aligned pressure and geometry targets from the exact field path."""
+
+  tolerance = max(1.0e-10, 1.0e-8 * max(abs(float(x_stations[0])), 1.0))
+  samples = tuple(
+    _interpolate_physical_field_ambient_neighbor(
+      request,
+      float(x_value),
+      position_tolerance_m=tolerance,
+    )
+    for x_value in x_stations
+  )
+  if any(sample is None for sample in samples):
+    raise RuntimeError(
+      'solver-owned physical-field ambient-neighbor path does not cover the '
+      'complete coupled downstream window; no extrapolation was attempted'
+    )
+  ####
+  geometry = tuple(float(sample[0]) for sample in samples if sample is not None)
+  pressures = tuple(float(sample[1]) for sample in samples if sample is not None)
+  if any(ordinate <= lower_ordinate for ordinate in geometry):
+    raise RuntimeError(
+      'solver-owned physical-field ambient-neighbor path must remain above '
+      'the coupled lower ordinate'
+    )
+  ####
+  return pressures, geometry
+####
+
+
 def _entropy_production_fractions(
   states: np.ndarray,
   inlet_states: tuple[np.ndarray, ...],
@@ -5091,6 +5188,67 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     x_start + downstream_length,
     request.axial_cell_count + 1,
   )
+  if request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ) and (
+    request.free_boundary_pressure_profile_Pa is None
+    or request.free_boundary_geometry_profile_y_m is None
+  ):
+    pressure_x_stations = 0.5 * (x_stations[:-1] + x_stations[1:])
+    neighbor_pressures: tuple[float, ...] | None = None
+    neighbor_geometry: tuple[float, ...] | None = None
+    try:
+      if request.free_boundary_pressure_profile_Pa is None:
+        neighbor_pressures, _ = _derive_physical_field_neighbor_profiles(
+          request,
+          pressure_x_stations,
+          lower_ordinate=lower_ordinate,
+        )
+      ####
+      if request.free_boundary_geometry_profile_y_m is None:
+        _, neighbor_geometry = _derive_physical_field_neighbor_profiles(
+          request,
+          x_stations,
+          lower_ordinate=lower_ordinate,
+        )
+      ####
+    except RuntimeError as error:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE,
+        str(error),
+        request,
+      )
+    ####
+    request_updates: dict[str, Any] = {}
+    if request.free_boundary_pressure_profile_Pa is None:
+      assert neighbor_pressures is not None
+      request_updates.update(
+        free_boundary_pressure_profile_Pa=neighbor_pressures,
+        free_boundary_pressure_profile_x_stations_m=tuple(
+          float(value) for value in pressure_x_stations
+        ),
+        free_boundary_pressure_profile_source=(
+          PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE
+        ),
+      )
+    ####
+    if request.free_boundary_geometry_profile_y_m is None:
+      assert neighbor_geometry is not None
+      request_updates.update(
+        free_boundary_geometry_profile_y_m=neighbor_geometry,
+        free_boundary_geometry_profile_x_stations_m=tuple(
+          float(value) for value in x_stations
+        ),
+        free_boundary_geometry_profile_source=(
+          PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE
+        ),
+        free_boundary_geometry_profile_lower_ordinate_m=lower_ordinate,
+      )
+    ####
+    request = replace(request, **request_updates)
+  ####
   if request.free_boundary_pressure_profile_x_stations_m is not None:
     expected_profile_x = 0.5 * (x_stations[:-1] + x_stations[1:])
     supplied_profile_x = np.asarray(

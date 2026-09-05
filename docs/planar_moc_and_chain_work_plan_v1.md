@@ -3942,6 +3942,25 @@ initial response fixture correctly failed closed when the response-derived
 profile did not match the coupled inlet seam.  The follow-on frame-anchor
 slice below makes that seam explicit without translating coordinates.
 
+## Solver-owned ambient-neighbor boundary-profile checkpoint
+
+When exact physical-field continuation is selected without caller-supplied
+downstream profiles, the coupled solver now samples the retained
+shock-front-condition ambient neighbor directly.  Static pressure is sampled
+at coupled cell centers, while the ordinate profile is sampled at coupled
+boundary nodes; both require complete source coverage and neither path is
+extrapolated.  The resolved profiles and source identifiers remain on the
+coupled request, including the lower-ordinate frame, and the global
+orchestrator retains that post-resolution request for lineage auditing.
+
+The independent audit re-implements the interpolation and rejects a tampered
+source-owned pressure or geometry path with
+``PHYSICAL_FIELD_NEIGHBOR_PROFILE_FAILURE``.  Explicit caller-supplied
+profiles remain a separate contract.  This closes the exact-field
+source-to-boundary accounting seam only; the global feedback fixed point,
+canonical mixed-regime closure, refinement, continued-chain promotion,
+physical shock-cell fitting, and external validation remain open.
+
 ## Solver-owned geometry-frame anchor checkpoint
 
 The geometry profile now retains the lower ordinate of the source coupled

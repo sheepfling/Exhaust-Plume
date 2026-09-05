@@ -1932,6 +1932,13 @@ def solve_reflected_domain_global_coupled_downstream(
     coupled_field = solve_reflected_domain_coupled_euler_free_boundary(
       coupled_request
     )
+    # The local solver may materialize solver-owned downstream profiles from
+    # the retained exact physical-field handoff.  Retain that post-resolution
+    # request as the global candidate's contract; otherwise the global result
+    # would report the pre-resolution request and fail its own lineage audit.
+    if coupled_field.request is not None:
+      coupled_request = coupled_field.request
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocReflectedDomainGlobalCoupledDownstreamStatus.COUPLED_SOLVER_FAILURE,

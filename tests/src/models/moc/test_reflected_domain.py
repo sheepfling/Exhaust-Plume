@@ -2327,9 +2327,36 @@ def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
   assert result.coupled_request.physical_field_shock_front_condition == (
     result.physical_field_handoff.shock_front_condition
   )
+  assert result.coupled_request.free_boundary_pressure_profile_source == (
+    'solver-owned-physical-field-ambient-neighbor-pressure-profile-v1'
+  )
+  assert result.coupled_request.free_boundary_geometry_profile_source == (
+    'solver-owned-physical-field-ambient-neighbor-geometry-profile-v1'
+  )
   assert result.coupled_field is not None
   assert result.coupled_field.physical_field_continuation_profile_consumed
   assert result.coupled_field.physical_field_shock_front_condition_consumed
+  assert result.coupled_field.free_boundary_pressure_profile_consumed
+  assert result.coupled_field.free_boundary_geometry_profile_consumed
+  assert result.coupled_field_audit is not None
+  assert result.coupled_field_audit.physical_field_neighbor_profiles_verified
+  assert result.coupled_field.request is not None
+  tampered_request = replace(
+    result.coupled_field.request,
+    free_boundary_pressure_profile_Pa=(
+      result.coupled_field.request.free_boundary_pressure_profile_Pa[0] + 1.0,
+      *result.coupled_field.request.free_boundary_pressure_profile_Pa[1:],
+    ),
+  )
+  tampered_field = replace(result.coupled_field, request=tampered_request)
+  tampered_neighbor_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    tampered_field
+  )
+  assert tampered_neighbor_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .PHYSICAL_FIELD_NEIGHBOR_PROFILE_FAILURE
+  )
+  assert not tampered_neighbor_audit.physical_field_neighbor_profiles_verified
   assert result.global_coupling_verified is False
   assert result.downstream_boundary_closure_verified is False
   assert result.chain_promotion_blocked
@@ -2357,13 +2384,11 @@ def test_global_coupled_downstream_measures_boundary_overlap_without_promotion()
   assert response is not None
   assert response.status is (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
-    .RESIDUAL_FAILURE
+    .CONVERGED_LOCAL_OVERLAP
   )
   assert response.overlap_coverage_verified
-  assert response.residuals_verified is False
-  assert response.maximum_coordinate_residual_m > (
-    response.coordinate_tolerance_m
-  )
+  assert response.residuals_verified
+  assert response.maximum_coordinate_residual_m <= response.coordinate_tolerance_m
   assert len(response.matched_x_stations_m) == len(
     response.coupled_boundary_points_m
   )
@@ -2373,7 +2398,7 @@ def test_global_coupled_downstream_measures_boundary_overlap_without_promotion()
   assert len(response.normal_velocity_values_m_s) == len(
     response.matched_x_stations_m
   )
-  assert any(abs(value) > 0.0 for value in response.coordinate_offsets_m)
+  assert all(abs(value) <= response.coordinate_tolerance_m for value in response.coordinate_offsets_m)
   assert response.maximum_pressure_residual_Pa >= 0.0
   assert result.global_coupling_verified is False
   assert result.downstream_boundary_closure_verified is False
@@ -2677,7 +2702,7 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
   assert len(run.cases) == 2
   assert run.measurement.status is (
     MocReflectedDomainGlobalCoupledDownstreamRefinementStatus
-    .RESPONSE_FAILURE
+    .CONVERGED_RESEARCH_LADDER
   )
   assert run.measurement.resolution_order_verified
   assert run.measurement.mesh_growth_verified
@@ -2685,7 +2710,7 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
   assert run.measurement.response_lineage_verified
   assert run.measurement.response_channels_finite
   assert run.measurement.overlap_coverage_verified
-  assert run.measurement.overlap_residuals_verified is False
+  assert run.measurement.overlap_residuals_verified
   assert run.measurement.global_coupling_verified is False
   assert run.measurement.downstream_boundary_closure_verified is False
   assert run.measurement.chain_promotion_blocked
@@ -2693,8 +2718,13 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
   assert run.production_claim_allowed is False
   assert all(
     case.response is not None
+    and case.response.status is (
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+      .CONVERGED_LOCAL_OVERLAP
+    )
+    and case.response.residuals_verified
     and case.response.maximum_coordinate_residual_m
-    > case.response.coordinate_tolerance_m
+    <= case.response.coordinate_tolerance_m
     for case in run.cases
   )
 ####

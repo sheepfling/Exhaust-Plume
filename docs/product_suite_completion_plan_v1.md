@@ -105,6 +105,15 @@ next product can make a stronger claim:
    fall back to a scalar or lower-fidelity inlet.  This removes a caller-
    assembly seam; it does not establish downstream-to-upstream feedback,
    canonical mixed-regime closure, refinement, or promotion.
+   The exact physical-field mode now also consumes the retained ambient-
+   neighbor path when downstream pressure or geometry profiles are omitted.
+   Pressure targets are sampled at cell centers and ordinates at boundary
+   nodes, with strict coverage and no extrapolation; the resolved request is
+   retained on the coupled result and re-derived independently by the audit.
+   A tampered source-owned profile produces a typed neighbor-profile failure.
+   This closes solver-owned boundary-profile provenance only; it does not
+   close the physical free boundary, global feedback, refinement, validation,
+   or product-promotion gates.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;
@@ -1367,6 +1376,23 @@ audits that condition before it starts the downstream finite-volume field.
 This closes the provenance and boundary-context seam; it does not claim that
 the finite-volume entrance residual, transverse closure, refinement ladder,
 physical shock-cell length, or external validation has passed.
+
+### Solver-owned ambient-neighbor boundary-profile checkpoint
+
+In exact physical-field continuation mode, the coupled solver now derives
+missing downstream pressure and geometry profiles directly from the retained
+shock-front condition's ambient-neighbor path.  Pressure is sampled only at
+cell centers; geometry is sampled only at boundary nodes.  The request keeps
+the source identifiers, aligned stations, and lower-ordinate frame, and the
+global orchestrator retains this resolved request rather than reporting its
+pre-resolution input.
+
+The independent audit repeats the path interpolation without calling the
+solver helper and detects a tampered pressure or geometry profile with a
+typed ``PHYSICAL_FIELD_NEIGHBOR_PROFILE_FAILURE``.  Incomplete coverage,
+frame mismatch, and extrapolation remain hard stops.  This is a provenance
+and contract checkpoint for the research lane, not acceptance of the free
+boundary or a promotion path into shock-cell, Signature, or FPA claims.
 
 ### Global/coupled downstream boundary-response checkpoint
 

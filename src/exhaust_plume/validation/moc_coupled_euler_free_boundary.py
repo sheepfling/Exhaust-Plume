@@ -75,6 +75,12 @@ MOC_REFLECTED_DOMAIN_COUPLED_EULER_FREE_BOUNDARY_AUDIT_OPERATOR_ID = (
   'op.moc.reflected-domain.coupled-euler-free-boundary-audit'
 )
 _CHANNEL_COUNT = 5
+_PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE = (
+  'solver-owned-physical-field-ambient-neighbor-pressure-profile-v1'
+)
+_PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE = (
+  'solver-owned-physical-field-ambient-neighbor-geometry-profile-v1'
+)
 
 
 def _effective_field_inlet_geometry(
@@ -194,6 +200,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE = (
     'coupled-euler-audit-physical-field-shock-front-condition-failure'
   )
+  PHYSICAL_FIELD_NEIGHBOR_PROFILE_FAILURE = (
+    'coupled-euler-audit-physical-field-neighbor-profile-failure'
+  )
   INLET_CHARACTERISTIC_FAILURE = (
     'coupled-euler-audit-inlet-characteristic-failure'
   )
@@ -239,6 +248,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   physical_field_continuation_profile_verified: bool = False
   physical_field_inlet_seam_verified: bool = False
   physical_field_shock_front_condition_verified: bool = False
+  physical_field_neighbor_profiles_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -323,6 +333,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'physical_field_continuation_profile_verified',
       'physical_field_inlet_seam_verified',
       'physical_field_shock_front_condition_verified',
+      'physical_field_neighbor_profiles_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -420,6 +431,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
         )
         or self.physical_field_shock_front_condition_verified
       )
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.inlet_boundary_mode
+          is MocReflectedDomainCoupledEulerInletBoundaryMode
+          .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+        )
+        or self.physical_field_neighbor_profiles_verified
+      )
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
@@ -494,6 +515,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'physical_field_inlet_seam_verified': self.physical_field_inlet_seam_verified,
       'physical_field_shock_front_condition_verified': (
         self.physical_field_shock_front_condition_verified
+      ),
+      'physical_field_neighbor_profiles_verified': (
+        self.physical_field_neighbor_profiles_verified
       ),
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
@@ -1829,6 +1853,123 @@ def _audit_physical_field_shock_front_condition(
 ####
 
 
+def _audit_physical_field_neighbor_profiles(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> bool:
+  """Re-derive solver-owned ambient-neighbor pressure and geometry paths."""
+
+  request = candidate.request
+  if request is None or request.inlet_boundary_mode is not (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ):
+    return True
+  ####
+  pressure_source = request.free_boundary_pressure_profile_source
+  geometry_source = request.free_boundary_geometry_profile_source
+  pressure_owned = (
+    pressure_source
+    == _PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE
+  )
+  geometry_owned = (
+    geometry_source
+    == _PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE
+  )
+  if not pressure_owned and not geometry_owned:
+    return True
+  ####
+  condition = request.physical_field_shock_front_condition
+  if condition is None or condition.field is None:
+    return False
+  ####
+  boundary = condition.field.ambient_boundary
+  points = tuple(boundary.points_m)
+  pressures = tuple(boundary.static_pressure_Pa)
+  if len(points) != len(pressures) or len(points) < 2:
+    return False
+  ####
+  position_tolerance = max(1.0e-10, 1.0e-8 * max(abs(points[0][0]), 1.0))
+
+  def sample(x_m: float) -> tuple[float, float] | None:
+    if (
+      x_m < points[0][0] - position_tolerance
+      or x_m > points[-1][0] + position_tolerance
+    ):
+      return None
+    ####
+    for index, (first_point, second_point) in enumerate(zip(points, points[1:])):
+      if abs(x_m - first_point[0]) <= position_tolerance:
+        return float(first_point[1]), float(pressures[index])
+      ####
+      if x_m <= second_point[0] + position_tolerance:
+        span = second_point[0] - first_point[0]
+        if span <= position_tolerance:
+          return None
+        ####
+        fraction = min(max((x_m - first_point[0]) / span, 0.0), 1.0)
+        return (
+          float(first_point[1] + fraction * (second_point[1] - first_point[1])),
+          float(
+            pressures[index]
+            + fraction * (pressures[index + 1] - pressures[index])
+          ),
+        )
+      ####
+    ####
+    if abs(x_m - points[-1][0]) <= position_tolerance:
+      return float(points[-1][1]), float(pressures[-1])
+    ####
+    return None
+  ####
+
+  if pressure_owned:
+    pressure_x = request.free_boundary_pressure_profile_x_stations_m
+    pressure_values = request.free_boundary_pressure_profile_Pa
+    if pressure_x is None or pressure_values is None:
+      return False
+    ####
+    expected_pressure = tuple(sample(float(x_value)) for x_value in pressure_x)
+    if any(value is None for value in expected_pressure):
+      return False
+    ####
+    if not np.allclose(
+      np.asarray(pressure_values, dtype=float),
+      np.asarray(
+        [value[1] for value in expected_pressure if value is not None],
+        dtype=float,
+      ),
+      rtol=3.0e-6,
+      atol=1.0e-8,
+    ):
+      return False
+    ####
+  ####
+  if geometry_owned:
+    geometry_x = request.free_boundary_geometry_profile_x_stations_m
+    geometry_values = request.free_boundary_geometry_profile_y_m
+    if geometry_x is None or geometry_values is None:
+      return False
+    ####
+    expected_geometry = tuple(sample(float(x_value)) for x_value in geometry_x)
+    if any(value is None for value in expected_geometry):
+      return False
+    ####
+    if not np.allclose(
+      np.asarray(geometry_values, dtype=float),
+      np.asarray(
+        [value[0] for value in expected_geometry if value is not None],
+        dtype=float,
+      ),
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    ):
+      return False
+    ####
+  ####
+  return True
+####
+
+
 def _audit_control_section_compatibility(
   candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
 ) -> tuple[bool, float | None, float | None]:
@@ -2706,6 +2847,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   physical_field_shock_front_condition_verified = bool(
     raw['physical_field_shock_front_condition_verified']
   )
+  physical_field_neighbor_profiles_verified = (
+    _audit_physical_field_neighbor_profiles(candidate)
+  )
   free_boundary_geometry_profile_verified = bool(
     raw['free_boundary_geometry_profile_verified']
   )
@@ -2800,6 +2944,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     message = (
       'candidate consumed inlet conservative faces do not reproduce the '
       'independently rederived physical-field continuation handoff'
+    )
+  elif not physical_field_neighbor_profiles_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .PHYSICAL_FIELD_NEIGHBOR_PROFILE_FAILURE
+    )
+    message = (
+      'candidate solver-owned physical-field ambient-neighbor pressure or '
+      'geometry profile does not match the retained source path'
     )
   elif not report_verified or not residuals_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.RESIDUAL_FAILURE
@@ -2958,6 +3111,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     physical_field_inlet_seam_verified=physical_field_inlet_seam_verified,
     physical_field_shock_front_condition_verified=(
       physical_field_shock_front_condition_verified
+    ),
+    physical_field_neighbor_profiles_verified=(
+      physical_field_neighbor_profiles_verified
     ),
     control_section_compatibility_verified=(
       control_section_compatibility_verified
