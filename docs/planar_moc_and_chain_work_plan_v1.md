@@ -3486,6 +3486,15 @@ residual channels and rejects altered sample data.  Its successful result is
 still explicitly research-only; the coupled mixed-regime field and all
 downstream promotion gates remain open work.
 
+The next orchestration seam now binds that verified global closure to the
+constant-gamma coupled-Euler request and retains the coupled-field audit under
+the same closure fingerprint.  A compatible research case reaches a locally
+audited downstream field, while the actual ambient case retains the typed
+transonic-frontier failure.  This is intentionally not called global closure:
+the downstream response has not yet been iterated back into the upstream shock
+solve, so ``global_coupling_verified`` and the downstream closure gate remain
+false.
+
 ## Typed variable-entropy audit checkpoint
 
 The terminal-patch planner now retains the independent variable-entropy

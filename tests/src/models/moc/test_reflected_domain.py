@@ -25,6 +25,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalEulerShockBoundaryStatus,
   MocReflectedDomainGlobalPhysicalClosureStatus,
   MocReflectedDomainGlobalPhysicalClosureResult,
+  MocReflectedDomainGlobalCoupledDownstreamStatus,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
@@ -79,6 +80,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_shock_remesh,
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
+  solve_reflected_domain_global_coupled_downstream,
   solve_reflected_domain_coupled_euler_free_boundary,
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
@@ -2206,6 +2208,72 @@ def test_coupled_euler_builder_preserves_global_closure_lineage():
   )
   assert result.production_claim_allowed is False
   assert result.downstream_boundary_closure_verified is False
+####
+
+
+def test_global_coupled_downstream_candidate_keeps_feedback_gate_explicit():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .CONVERGED_LOCAL_COUPLED_FIELD
+  )
+  assert result.converged
+  assert result.closure_lineage_verified
+  assert result.local_coupled_field_verified
+  assert result.coupled_field is not None
+  assert result.coupled_field_audit is not None
+  assert result.coupled_field_audit.converged
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_report()['source_closure_fingerprint'] == (
+    moc_reflected_domain_global_physical_closure_fingerprint(closure)
+  )
+  assert result.as_chain_termination_decision().reason is (
+    MocChainTerminationReason.FIDELITY_NOT_ALLOWED
+  )
+####
+
+
+def test_global_coupled_downstream_candidate_retains_actual_frontier_failure():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=40,
+    max_shape_iterations=2,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus.COUPLED_SOLVER_FAILURE
+  )
+  assert result.converged is False
+  assert result.closure_lineage_verified
+  assert result.coupled_field is not None
+  assert result.coupled_field.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .TRANSONIC_FRONTIER_FAILURE
+  )
+  assert result.coupled_field_audit is not None
+  assert result.coupled_field_audit.converged is False
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
 ####
 
 

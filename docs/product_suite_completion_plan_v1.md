@@ -86,6 +86,13 @@ next product can make a stronger claim:
    reports a typed inlet-seam failure when the retained faces are tampered
    with. This closes source-to-consumer evidence accounting only; it does not
    change the research-only claim ceiling or close the global field.
+   A new global-to-coupled downstream orchestrator now binds a verified
+   closure fingerprint to the constant-gamma coupled-Euler request and its
+   independent audit. Compatible research cases can therefore be measured as
+   locally coupled fields, while the actual ambient case retains its typed
+   transonic-frontier failure. The orchestrator deliberately reports
+   ``global_coupling_verified=false`` because downstream response is not yet
+   iterated back into the upstream shock solve; no promotion gate is relaxed.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;
