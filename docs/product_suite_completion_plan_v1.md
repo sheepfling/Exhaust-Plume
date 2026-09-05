@@ -536,6 +536,12 @@ This closes an adapter omission only.  Expected electrons and deterministic
 ADC counts remain downstream expectations; no noise realization, detection,
 camera provider, measured image, or external validation claim is introduced.
 
+The mission-time FPA evaluator now also accepts state-resolved background
+spectral radiance and atmospheric-path callbacks.  Each sample retains the
+resolved matrices/layers and applies the same explicit operator chain, so
+altitude- or time-dependent downstream conditions cannot be silently held
+static across a mission timeline.
+
 ### P2.1 evidence checkpoint
 
 The first P2.1 evidence-plumbing slice is complete on the candidate branch at

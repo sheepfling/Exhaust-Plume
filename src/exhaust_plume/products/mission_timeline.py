@@ -294,6 +294,39 @@ def _resolve_atmospheric_path_layers(
 ####
 
 
+def _resolve_background_spectral_radiance(
+    resolver: Callable[[MissionState], Sequence[Sequence[float]] | None] | None,
+    state: MissionState,
+) -> tuple[tuple[float, ...], ...] | None:
+    if resolver is None:
+        return None
+    ####
+    resolved = resolver(state)
+    if resolved is None:
+        return None
+    ####
+    try:
+        rows = tuple(
+            tuple(
+                _finite(f"background_spectral_radiance[{row_index}][{column_index}]", value)
+                for column_index, value in enumerate(row)
+            )
+            for row_index, row in enumerate(resolved)
+        )
+    except TypeError as error:
+        raise TypeError(
+            "background_spectral_radiance_at must return a numeric matrix or None"
+        ) from error
+    ####
+    if not rows or not rows[0]:
+        raise ValueError(
+            "background_spectral_radiance_at must return a non-empty matrix"
+        )
+    ####
+    return rows
+####
+
+
 class MissionTimelineRangeError(ValueError):
     """Raised when a sample or cursor advance leaves a prescribed timeline."""
 ####
@@ -935,6 +968,8 @@ class MissionFpaSample:
     digitization_policy: FpaDigitizationPolicy | None
     digitized: FpaDigitizedExpectation | None
     inputs: FpaVisualizationInput
+    background_spectral_radiance: tuple[tuple[float, ...], ...] | None = None
+    atmospheric_path_layers: tuple[AtmosphericPathLayer, ...] | None = None
 
     @property
     def digitized_available(self) -> bool:
@@ -1054,12 +1089,13 @@ class MissionFpaTimeline:
 class MissionFpaEvaluator:
     """Evaluate an explicit ray-to-FPA chain over a prescribed mission timeline.
 
-    The ray-transfer resolver owns the flow, atmosphere, chemistry, and
-    optical source closures.  The remaining resolvers own the instrument
-    geometry, detector response, exposure, and optional deterministic ADC
-    policy.  This adapter only composes those declared inputs at one mission
-    state; it does not infer a camera model, sample noise, or advertise an FPA
-    provider.
+    The ray-transfer resolver owns the flow, chemistry, and optical source
+    closures.  Optional background spectra and homogeneous atmospheric paths
+    may be resolved separately for each mission state.  The remaining
+    resolvers own the instrument geometry, detector response, exposure, and
+    optional deterministic ADC policy.  This adapter only composes those
+    declared inputs at one mission state; it does not infer a camera model,
+    sample noise, or advertise an FPA provider.
     """
 
     timeline: MissionTimeline
@@ -1069,6 +1105,12 @@ class MissionFpaEvaluator:
     exposure_s_at: Callable[[MissionState], float]
     digitization_policy_at: Callable[
         [MissionState], FpaDigitizationPolicy | None
+    ] | None = None
+    background_spectral_radiance_at: Callable[
+        [MissionState], Sequence[Sequence[float]] | None
+    ] | None = None
+    atmospheric_path_layers_at: Callable[
+        [MissionState], Sequence[AtmosphericPathLayer] | None
     ] | None = None
 
     def __post_init__(self) -> None:
@@ -1089,6 +1131,18 @@ class MissionFpaEvaluator:
             self.digitization_policy_at
         ):
             raise TypeError("digitization_policy_at must be callable or None")
+        ####
+        if self.background_spectral_radiance_at is not None and not callable(
+            self.background_spectral_radiance_at
+        ):
+            raise TypeError(
+                "background_spectral_radiance_at must be callable or None"
+            )
+        ####
+        if self.atmospheric_path_layers_at is not None and not callable(
+            self.atmospheric_path_layers_at
+        ):
+            raise TypeError("atmospheric_path_layers_at must be callable or None")
         ####
     ####
 
@@ -1165,6 +1219,14 @@ class MissionFpaEvaluator:
             )
         ####
 
+        background_spectral_radiance = _resolve_background_spectral_radiance(
+            self.background_spectral_radiance_at,
+            state,
+        )
+        atmospheric_path_layers = _resolve_atmospheric_path_layers(
+            self.atmospheric_path_layers_at,
+            state,
+        )
         source = FpaSourceReference.from_ray_result(ray_transfer)
         image = integrate_spectral_ray_result_to_fpa(
             ray_transfer,
@@ -1172,6 +1234,8 @@ class MissionFpaEvaluator:
             geometry=geometry,
             detector=detector,
             exposure_s=exposure_s,
+            background_spectral_radiance=background_spectral_radiance,
+            atmospheric_path_layers=atmospheric_path_layers,
         )
         digitized = (
             None
@@ -1198,6 +1262,8 @@ class MissionFpaEvaluator:
             digitization_policy=policy,
             digitized=digitized,
             inputs=inputs,
+            background_spectral_radiance=background_spectral_radiance,
+            atmospheric_path_layers=atmospheric_path_layers,
         )
     ####
 

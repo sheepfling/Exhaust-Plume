@@ -401,6 +401,45 @@ def test_mission_fpa_evaluator_composes_explicit_ray_detector_and_adc_at_time() 
 ####
 
 
+def test_mission_fpa_evaluator_resolves_background_and_atmospheric_path_per_state() -> None:
+    evaluator = MissionFpaEvaluator(
+        timeline=_timeline(),
+        ray_transfer_at=_ray_transfer_for_state,
+        geometry_at=lambda _state: _fpa_geometry(),
+        detector_at=lambda _state: _detector_for_mission(),
+        exposure_s_at=lambda _state: 1.0,
+        background_spectral_radiance_at=lambda state: (
+            (1.0 + state.time_s, 2.0 + state.time_s, 3.0 + state.time_s),
+            (1.0 + state.time_s, 2.0 + state.time_s, 3.0 + state.time_s),
+        ),
+        atmospheric_path_layers_at=lambda state: (
+            AtmosphericPathLayer(
+                source_function_w_sr_m=(50.0, 50.0, 50.0),
+                absorption_coefficient_per_m=(0.5, 0.5, 0.5),
+                length_m=1.0 + state.time_s / 10.0,
+                layer_id=f"mission-fpa-path-{state.time_s:g}",
+            ),
+        ),
+    )
+
+    initial = evaluator.sample_at(0.0)
+    midpoint = evaluator.sample_at(5.0)
+
+    assert initial.background_spectral_radiance is not None
+    assert midpoint.atmospheric_path_layers is not None
+    assert midpoint.atmospheric_path_layers[0].layer_id == "mission-fpa-path-5"
+    assert midpoint.image.source_semantics == (
+        "source-after-explicit-atmospheric-path-plus-transmitted-background"
+    )
+    assert midpoint.image.atmospheric_path_layer_ids == ("mission-fpa-path-5",)
+    assert midpoint.inputs.operator_ids == (
+        "op.atmosphere.path-transfer",
+        "op.sensor.fpa-pixel-detector",
+    )
+    assert midpoint.image.expected_electrons != initial.image.expected_electrons
+####
+
+
 def test_mission_fpa_evaluator_builds_exact_compatible_timeline() -> None:
     evaluator = MissionFpaEvaluator(
         timeline=_timeline(),
