@@ -55,8 +55,11 @@ from exhaust_plume.models.moc.transonic_interface import (
 __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamStatus',
   'MocReflectedDomainGlobalPhysicalFieldHandoff',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse',
+  'build_reflected_domain_global_coupled_downstream_boundary_pressure_profile',
+  'build_reflected_domain_global_coupled_downstream_feedback_pressure_profile',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'MocReflectedDomainGlobalCoupledDownstreamResult',
   'build_reflected_domain_global_solver_owned_physical_field_handoff',
@@ -69,6 +72,9 @@ GLOBAL_COUPLED_DOWNSTREAM_MODEL = (
 )
 GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_RESPONSE_MODEL = (
   'research-global-coupled-downstream-boundary-response-v1'
+)
+GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_PRESSURE_PROFILE_MODEL = (
+  'research-global-coupled-downstream-boundary-pressure-profile-v1'
 )
 
 
@@ -176,6 +182,108 @@ class MocReflectedDomainGlobalPhysicalFieldHandoff:
 ####
 
 
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile:
+  """A solver-owned pressure handoff aligned to coupled cell columns.
+
+  The profile is sampled only inside the retained global boundary domain.  A
+  response-derived profile may apply a bounded correction to the global
+  pressure, but it remains a research handoff: it does not establish an
+  upstream global re-solve, canonical closure, or production validity.
+  """
+
+  source_closure_fingerprint: str
+  x_stations_m: tuple[float, ...]
+  pressure_Pa: tuple[float, ...]
+  source: str = GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_PRESSURE_PROFILE_MODEL
+  source_response_status: str | None = None
+  pressure_correction_fraction: float = 0.0
+  coverage_verified: bool = True
+
+  def __post_init__(self) -> None:
+    fingerprint = str(self.source_closure_fingerprint)
+    if not fingerprint:
+      raise ValueError('source_closure_fingerprint must be non-empty')
+    ####
+    x_stations = tuple(float(value) for value in self.x_stations_m)
+    pressures = tuple(float(value) for value in self.pressure_Pa)
+    if not x_stations or len(x_stations) != len(pressures):
+      raise ValueError(
+        'x_stations_m and pressure_Pa must contain the same non-empty profile'
+      )
+    ####
+    if any(not isfinite(value) for value in x_stations):
+      raise ValueError('x_stations_m must contain finite values')
+    ####
+    if any(
+      second <= first for first, second in zip(x_stations, x_stations[1:])
+    ):
+      raise ValueError('x_stations_m must be strictly downstream ordered')
+    ####
+    if any(not isfinite(value) or value <= 0.0 for value in pressures):
+      raise ValueError('pressure_Pa must contain finite positive values')
+    ####
+    source = str(self.source)
+    if not source:
+      raise ValueError('source must be non-empty')
+    ####
+    if self.source_response_status is not None:
+      response_status = str(self.source_response_status)
+      if not response_status:
+        raise ValueError('source_response_status must be non-empty when supplied')
+      ####
+      object.__setattr__(self, 'source_response_status', response_status)
+    ####
+    correction_fraction = float(self.pressure_correction_fraction)
+    if (
+      not isfinite(correction_fraction)
+      or correction_fraction < 0.0
+      or correction_fraction > 1.0
+    ):
+      raise ValueError('pressure_correction_fraction must be in [0, 1]')
+    ####
+    if not isinstance(self.coverage_verified, bool):
+      raise TypeError('coverage_verified must be a bool')
+    ####
+    object.__setattr__(self, 'source_closure_fingerprint', fingerprint)
+    object.__setattr__(self, 'x_stations_m', x_stations)
+    object.__setattr__(self, 'pressure_Pa', pressures)
+    object.__setattr__(self, 'source', source)
+    object.__setattr__(self, 'pressure_correction_fraction', correction_fraction)
+  ####
+
+  @property
+  def profile_verified(self) -> bool:
+    return bool(self.coverage_verified)
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_PRESSURE_PROFILE_MODEL,
+      'source': self.source,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
+      'x_stations_m': self.x_stations_m,
+      'pressure_Pa': self.pressure_Pa,
+      'source_response_status': self.source_response_status,
+      'pressure_correction_fraction': self.pressure_correction_fraction,
+      'coverage_verified': self.coverage_verified,
+      'profile_verified': self.profile_verified,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'research-only-solver-owned-global-boundary-pressure-handoff; '
+        'upstream feedback, canonical closure, refinement, and external '
+        'validation remain open'
+      ),
+    }
+  ####
+####
+
+
 def _interpolate_downstream_boundary(
   boundary: MocReflectedDomainDownstreamBoundaryResult,
   x_m: float,
@@ -234,6 +342,77 @@ def _interpolate_downstream_boundary(
     )
   ####
   return None
+####
+
+
+def build_reflected_domain_global_coupled_downstream_boundary_pressure_profile(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  x_stations_m: tuple[float, ...],
+  *,
+  position_tolerance_m: float = 1.0e-9,
+) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile:
+  """Sample global boundary pressure at explicit coupled cell centers.
+
+  The caller supplies the target cell-center abscissae so the request can
+  retain exact mesh alignment.  Sampling outside the retained global field is
+  rejected; no endpoint hold or extrapolation is introduced.
+  """
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if not closure.converged or not closure.physical_closure_verified:
+    raise ValueError(
+      'global boundary pressure profile requires a locally verified global '
+      'physical closure'
+    )
+  ####
+  boundary = closure.downstream_boundary
+  if boundary is None or not boundary.samples_available:
+    raise ValueError(
+      'global closure retained no downstream boundary samples for pressure '
+      'profile construction'
+    )
+  ####
+  tolerance = float(position_tolerance_m)
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  ####
+  x_values = tuple(float(value) for value in x_stations_m)
+  if not x_values:
+    raise ValueError('x_stations_m must contain at least one cell center')
+  ####
+  if any(not isfinite(value) for value in x_values):
+    raise ValueError('x_stations_m must contain finite values')
+  ####
+  if any(second <= first for first, second in zip(x_values, x_values[1:])):
+    raise ValueError('x_stations_m must be strictly downstream ordered')
+  ####
+  pressures: list[float] = []
+  for x_value in x_values:
+    sample = _interpolate_downstream_boundary(
+      boundary,
+      x_value,
+      position_tolerance_m=tolerance,
+    )
+    if sample is None:
+      raise ValueError(
+        'requested pressure-profile station lies outside the retained global '
+        'boundary; no extrapolation was attempted'
+      )
+    ####
+    pressures.append(float(sample[2]))
+  ####
+  return MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile(
+    source_closure_fingerprint=moc_reflected_domain_global_physical_closure_fingerprint(
+      closure
+    ),
+    x_stations_m=x_values,
+    pressure_Pa=tuple(pressures),
+    coverage_verified=True,
+  )
 ####
 
 
@@ -446,6 +625,114 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       'message': self.message,
     }
   ####
+####
+
+
+def build_reflected_domain_global_coupled_downstream_feedback_pressure_profile(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  *,
+  pressure_correction_fraction: float = 0.25,
+  position_tolerance_m: float = 1.0e-9,
+) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile:
+  """Convert a measured overlap pressure response into a bounded handoff.
+
+  The correction is applied at cell centers by averaging the two adjacent
+  signed node pressure offsets.  This consumes the measured downstream
+  response on a subsequent coupled solve, while deliberately leaving the
+  upstream global field unchanged and the promotion gates closed.
+  """
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if not isinstance(
+    response,
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  ):
+    raise TypeError(
+      'response must be a '
+      'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse'
+    )
+  ####
+  fraction = float(pressure_correction_fraction)
+  if not isfinite(fraction) or fraction <= 0.0 or fraction > 1.0:
+    raise ValueError('pressure_correction_fraction must be in (0, 1]')
+  ####
+  if not response.overlap_coverage_verified:
+    raise ValueError(
+      'response pressure feedback requires verified overlap coverage'
+    )
+  ####
+  if response.upstream_boundary != closure.downstream_boundary:
+    raise ValueError(
+      'response pressure feedback must retain the exact closure boundary'
+    )
+  ####
+  if response.coupled_field is None:
+    raise ValueError('response pressure feedback requires a coupled field')
+  ####
+  coupled_points = tuple(response.coupled_boundary_points_m)
+  pressure_offsets = tuple(response.pressure_offsets_Pa)
+  if len(coupled_points) < 2 or len(pressure_offsets) != len(coupled_points):
+    raise ValueError(
+      'response pressure feedback requires one signed pressure offset per '
+      'coupled boundary station'
+    )
+  ####
+  boundary = closure.downstream_boundary
+  if boundary is None or not boundary.samples_available:
+    raise ValueError(
+      'closure retained no downstream boundary samples for pressure feedback'
+    )
+  ####
+  tolerance = float(position_tolerance_m)
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  ####
+  x_centers = tuple(
+    0.5 * (first[0] + second[0])
+    for first, second in zip(coupled_points, coupled_points[1:])
+  )
+  pressures: list[float] = []
+  for index, x_center in enumerate(x_centers):
+    reference = _interpolate_downstream_boundary(
+      boundary,
+      x_center,
+      position_tolerance_m=tolerance,
+    )
+    if reference is None:
+      raise ValueError(
+        'response pressure feedback station lies outside the retained global '
+        'boundary; no extrapolation was attempted'
+      )
+    ####
+    correction = fraction * 0.5 * (
+      pressure_offsets[index] + pressure_offsets[index + 1]
+    )
+    pressure = float(reference[2] + correction)
+    if not isfinite(pressure) or pressure <= 0.0:
+      raise ValueError(
+        'response pressure feedback produced a non-positive pressure target'
+      )
+    ####
+    pressures.append(pressure)
+  ####
+  return MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile(
+    source_closure_fingerprint=moc_reflected_domain_global_physical_closure_fingerprint(
+      closure
+    ),
+    x_stations_m=x_centers,
+    pressure_Pa=tuple(pressures),
+    source=(
+      'research-global-coupled-downstream-response-pressure-feedback-v1'
+    ),
+    source_response_status=response.status.value,
+    pressure_correction_fraction=fraction,
+    coverage_verified=True,
+  )
 ####
 
 
@@ -686,6 +973,9 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None
   coupled_field_audit: Any | None
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
+  boundary_pressure_profile: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile | None
+  ) = None
   downstream_boundary_response: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
   ) = None
@@ -745,6 +1035,32 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         'MocReflectedDomainGlobalPhysicalFieldHandoff or None'
       )
     ####
+    if self.boundary_pressure_profile is not None and not isinstance(
+      self.boundary_pressure_profile,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
+    ):
+      raise TypeError(
+        'boundary_pressure_profile must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile '
+        'or None'
+      )
+    ####
+    if self.boundary_pressure_profile is not None and self.coupled_request is not None:
+      profile = self.boundary_pressure_profile
+      if (
+        self.coupled_request.free_boundary_pressure_profile_Pa
+        != profile.pressure_Pa
+        or self.coupled_request.free_boundary_pressure_profile_x_stations_m
+        != profile.x_stations_m
+        or self.coupled_request.free_boundary_pressure_profile_source
+        != profile.source
+      ):
+        raise ValueError(
+          'boundary_pressure_profile must match the coupled request pressure '
+          'handoff exactly'
+        )
+      ####
+    ####
     if self.downstream_boundary_response is not None and not isinstance(
       self.downstream_boundary_response,
       MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
@@ -778,6 +1094,18 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       and self.mixed_regime_request.closure_fingerprint == fingerprint
       and self.coupled_request is not None
       and self.coupled_request.source_closure_fingerprint == fingerprint
+      and (
+        self.boundary_pressure_profile is None
+        or (
+          self.boundary_pressure_profile.source_closure_fingerprint == fingerprint
+          and self.coupled_request.free_boundary_pressure_profile_Pa
+          == self.boundary_pressure_profile.pressure_Pa
+          and self.coupled_request.free_boundary_pressure_profile_x_stations_m
+          == self.boundary_pressure_profile.x_stations_m
+          and self.coupled_request.free_boundary_pressure_profile_source
+          == self.boundary_pressure_profile.source
+        )
+      )
       and (
         self.coupled_field is None
         or (
@@ -907,6 +1235,11 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         if self.physical_field_handoff is None
         else self.physical_field_handoff.as_report()
       ),
+      'boundary_pressure_profile': (
+        None
+        if self.boundary_pressure_profile is None
+        else self.boundary_pressure_profile.as_report()
+      ),
       'downstream_boundary_response': (
         None
         if self.downstream_boundary_response is None
@@ -931,6 +1264,9 @@ def _failure(
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None,
   coupled_field_audit: Any | None = None,
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None,
+  boundary_pressure_profile: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile | None
+  ) = None,
   downstream_boundary_response: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
   ) = None,
@@ -943,6 +1279,7 @@ def _failure(
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
     physical_field_handoff=physical_field_handoff,
+    boundary_pressure_profile=boundary_pressure_profile,
     downstream_boundary_response=downstream_boundary_response,
     message=message,
   )
@@ -1065,6 +1402,9 @@ def solve_reflected_domain_global_coupled_downstream(
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  boundary_pressure_profile: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile | None
+  ) = None,
 ) -> MocReflectedDomainGlobalCoupledDownstreamResult:
   """Run one explicitly bound downstream coupled-Euler research candidate."""
 
@@ -1084,6 +1424,31 @@ def solve_reflected_domain_global_coupled_downstream(
       'physical closure',
       closure=closure,
     )
+  ####
+  if boundary_pressure_profile is not None:
+    if not isinstance(
+      boundary_pressure_profile,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
+    ):
+      return _failure(
+        MocReflectedDomainGlobalCoupledDownstreamStatus.INVALID_INPUT,
+        'boundary_pressure_profile must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile',
+        closure=closure,
+      )
+    ####
+    if (
+      not boundary_pressure_profile.profile_verified
+      or boundary_pressure_profile.source_closure_fingerprint
+      != moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    ):
+      return _failure(
+        MocReflectedDomainGlobalCoupledDownstreamStatus.INVALID_INPUT,
+        'boundary_pressure_profile must retain the exact verified closure '
+        'fingerprint and covered global domain',
+        closure=closure,
+      )
+    ####
   ####
   try:
     mixed_regime_request = build_reflected_domain_mixed_regime_boundary_request(
@@ -1148,6 +1513,21 @@ def solve_reflected_domain_global_coupled_downstream(
       outlet_static_pressure_Pa=outlet_static_pressure_Pa,
       physical_field_continuation_profile=resolved_continuation_profile,
       physical_field_shock_front_condition=resolved_shock_front_condition,
+      free_boundary_pressure_profile_Pa=(
+        None
+        if boundary_pressure_profile is None
+        else boundary_pressure_profile.pressure_Pa
+      ),
+      free_boundary_pressure_profile_x_stations_m=(
+        None
+        if boundary_pressure_profile is None
+        else boundary_pressure_profile.x_stations_m
+      ),
+      free_boundary_pressure_profile_source=(
+        None
+        if boundary_pressure_profile is None
+        else boundary_pressure_profile.source
+      ),
     )
     coupled_field = solve_reflected_domain_coupled_euler_free_boundary(
       coupled_request
@@ -1158,6 +1538,7 @@ def solve_reflected_domain_global_coupled_downstream(
       f'global coupled downstream solver raised: {error}',
       closure=closure,
       mixed_regime_request=mixed_regime_request,
+      boundary_pressure_profile=boundary_pressure_profile,
       physical_field_handoff=physical_field_handoff,
     )
   ####
@@ -1179,6 +1560,7 @@ def solve_reflected_domain_global_coupled_downstream(
       coupled_request=coupled_request,
       coupled_field=coupled_field,
       physical_field_handoff=physical_field_handoff,
+      boundary_pressure_profile=boundary_pressure_profile,
     )
   ####
   downstream_boundary_response: (
@@ -1229,6 +1611,7 @@ def solve_reflected_domain_global_coupled_downstream(
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
     physical_field_handoff=physical_field_handoff,
+    boundary_pressure_profile=boundary_pressure_profile,
     downstream_boundary_response=downstream_boundary_response,
     message=message,
   )

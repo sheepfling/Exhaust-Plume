@@ -819,6 +819,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None
+  # Optional solver-owned pressure targets for the free-boundary cell columns.
+  # These are a downstream handoff seam, not a promotion or validation claim.
+  free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None
+  free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None
+  free_boundary_pressure_profile_source: str | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -915,6 +920,63 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         )
       ####
       object.__setattr__(self, 'downstream_length_m', downstream_length)
+    ####
+    pressure_profile = self.free_boundary_pressure_profile_Pa
+    pressure_profile_x = self.free_boundary_pressure_profile_x_stations_m
+    pressure_profile_source = self.free_boundary_pressure_profile_source
+    if pressure_profile is None:
+      if pressure_profile_x is not None or pressure_profile_source is not None:
+        raise ValueError(
+          'free-boundary pressure-profile coordinates and source require a '
+          'pressure profile'
+        )
+      ####
+    else:
+      if pressure_profile_x is None or pressure_profile_source is None:
+        raise ValueError(
+          'free-boundary pressure profile requires aligned coordinates and a '
+          'non-empty source'
+        )
+      ####
+      pressures = tuple(float(value) for value in pressure_profile)
+      coordinates = tuple(float(value) for value in pressure_profile_x)
+      if len(pressures) != self.axial_cell_count:
+        raise ValueError(
+          'free_boundary_pressure_profile_Pa must contain one value per '
+          'axial cell column'
+        )
+      ####
+      if len(coordinates) != len(pressures):
+        raise ValueError(
+          'free_boundary_pressure_profile_x_stations_m must align with the '
+          'pressure profile'
+        )
+      ####
+      if any(not isfinite(value) or value <= 0.0 for value in pressures):
+        raise ValueError(
+          'free_boundary_pressure_profile_Pa must contain finite positive values'
+        )
+      ####
+      if any(not isfinite(value) for value in coordinates):
+        raise ValueError(
+          'free_boundary_pressure_profile_x_stations_m must contain finite values'
+        )
+      ####
+      if any(
+        second <= first for first, second in zip(coordinates, coordinates[1:])
+      ):
+        raise ValueError(
+          'free_boundary_pressure_profile_x_stations_m must be strictly '
+          'downstream ordered'
+        )
+      ####
+      source = str(pressure_profile_source)
+      if not source:
+        raise ValueError('free_boundary_pressure_profile_source must be non-empty')
+      ####
+      object.__setattr__(self, 'free_boundary_pressure_profile_Pa', pressures)
+      object.__setattr__(self, 'free_boundary_pressure_profile_x_stations_m', coordinates)
+      object.__setattr__(self, 'free_boundary_pressure_profile_source', source)
     ####
     if self.transonic_shock_geometry is not None and not isinstance(
       self.transonic_shock_geometry,
@@ -1116,6 +1178,13 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'downstream_length_m': self.downstream_length_m,
       'effective_downstream_length_m': self.effective_downstream_length_m,
       'outlet_static_pressure_Pa': self.outlet_static_pressure_Pa,
+      'free_boundary_pressure_profile_Pa': self.free_boundary_pressure_profile_Pa,
+      'free_boundary_pressure_profile_x_stations_m': (
+        self.free_boundary_pressure_profile_x_stations_m
+      ),
+      'free_boundary_pressure_profile_source': (
+        self.free_boundary_pressure_profile_source
+      ),
       'inlet_boundary_mode': self.inlet_boundary_mode.value,
       'transonic_shock_geometry': (
         None
@@ -1209,6 +1278,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
+  free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
+  free_boundary_pressure_profile_source: str | None = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   """Bind one mixed-regime reference to the coupled-Euler research lane.
 
@@ -1259,6 +1331,11 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     ),
     physical_field_continuation_profile=physical_field_continuation_profile,
     physical_field_shock_front_condition=physical_field_shock_front_condition,
+    free_boundary_pressure_profile_Pa=free_boundary_pressure_profile_Pa,
+    free_boundary_pressure_profile_x_stations_m=(
+      free_boundary_pressure_profile_x_stations_m
+    ),
+    free_boundary_pressure_profile_source=free_boundary_pressure_profile_source,
   )
 ####
 
@@ -1292,6 +1369,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   shape_residual_history_m: tuple[float, ...] = ()
   free_boundary_pressure_residuals_Pa: tuple[float, ...] = ()
   free_boundary_normal_velocity_residuals_m_s: tuple[float, ...] = ()
+  free_boundary_pressure_profile_consumed: bool = False
   pseudo_iteration_count: int = 0
   shape_iteration_count: int = 0
   maximum_conservative_mass_residual: float | None = None
@@ -1770,6 +1848,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     if not isinstance(self.inlet_boundary_states_consumed, bool):
       raise TypeError('inlet_boundary_states_consumed must be a bool')
     ####
+    if not isinstance(self.free_boundary_pressure_profile_consumed, bool):
+      raise TypeError('free_boundary_pressure_profile_consumed must be a bool')
+    ####
     coverage = dict(self.residual_channel_coverage)
     validity = dict(self.residual_channel_validity)
     if any(
@@ -1880,6 +1961,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'physical_field_shock_front_condition_consumed': (
           self.physical_field_shock_front_condition_consumed
         ),
+        'free_boundary_pressure_profile_consumed': (
+          self.free_boundary_pressure_profile_consumed
+        ),
         'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
         'inlet_boundary_conservative_states_by_face': (
           self.inlet_boundary_conservative_states_by_face
@@ -1947,6 +2031,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'free_boundary_normal_velocity_residuals_m_s': (
         self.free_boundary_normal_velocity_residuals_m_s
+      ),
+      'free_boundary_pressure_profile_consumed': (
+        self.free_boundary_pressure_profile_consumed
       ),
       'pseudo_iteration_count': self.pseudo_iteration_count,
       'shape_iteration_count': self.shape_iteration_count,
@@ -2405,6 +2492,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
+  free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
+  free_boundary_pressure_profile_source: str | None = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   """Run the coupled research field from one bound mixed-regime reference.
 
@@ -2447,6 +2537,11 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       ),
       physical_field_continuation_profile=physical_field_continuation_profile,
       physical_field_shock_front_condition=physical_field_shock_front_condition,
+      free_boundary_pressure_profile_Pa=free_boundary_pressure_profile_Pa,
+      free_boundary_pressure_profile_x_stations_m=(
+        free_boundary_pressure_profile_x_stations_m
+      ),
+      free_boundary_pressure_profile_source=free_boundary_pressure_profile_source,
     )
   except (TypeError, ValueError) as error:
     return _failure(
@@ -2922,6 +3017,22 @@ def _ambient_ghost_state(
 ####
 
 
+def _free_boundary_pressure_targets(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+) -> np.ndarray:
+  """Return one positive pressure target for each free-boundary column."""
+
+  if request.free_boundary_pressure_profile_Pa is None:
+    return np.full(
+      request.axial_cell_count,
+      request.mixed_regime_request.ambient_pressure_Pa,
+      dtype=float,
+    )
+  ####
+  return np.asarray(request.free_boundary_pressure_profile_Pa, dtype=float)
+####
+
+
 def _cell_residuals(
   states: np.ndarray,
   points: np.ndarray,
@@ -2930,6 +3041,7 @@ def _cell_residuals(
   control_points: tuple[tuple[float, float], ...],
   control_samples: tuple[Any, ...],
   ambient_pressure: float,
+  free_boundary_pressure_profile: tuple[float, ...] | None,
   outlet_static_pressure: float | None,
   gamma: float,
   total_temperature: float,
@@ -3009,9 +3121,14 @@ def _cell_residuals(
             gas_constant,
           )
         elif edge_index == 2 and j == transverse_count - 1:
+          boundary_pressure = (
+            ambient_pressure
+            if free_boundary_pressure_profile is None
+            else free_boundary_pressure_profile[i]
+          )
           flux, wave = _specified_pressure_wall_flux(
             state,
-            ambient_pressure,
+            boundary_pressure,
             normal_x,
             normal_y,
             face_length,
@@ -3947,6 +4064,7 @@ def _result_from_field(
   )
   maximum_speed = max(float(np.max(speeds)), 1.0e-12)
   normal_fraction = float(np.max(np.abs(top_normal_velocities))) / maximum_speed
+  pressure_targets = _free_boundary_pressure_targets(request)
   channel_validity = {
     name: bool(maxima[index] <= request.euler_residual_tolerance)
     for index, name in enumerate(_CHANNEL_NAMES)
@@ -3993,8 +4111,8 @@ def _result_from_field(
     shape_residual_history_m=tuple(shape_residual_history),
     inlet_boundary_conservative_states_by_face=inlet_boundary_states,
     free_boundary_pressure_residuals_Pa=tuple(
-      float(abs(value - request.mixed_regime_request.ambient_pressure_Pa))
-      for value in top_pressures
+      float(abs(value - target))
+      for value, target in zip(top_pressures, pressure_targets, strict=True)
     ),
     free_boundary_normal_velocity_residuals_m_s=tuple(
       float(abs(value)) for value in top_normal_velocities
@@ -4007,7 +4125,7 @@ def _result_from_field(
     maximum_conservative_energy_residual=maxima[3],
     maximum_conservative_euler_residual=maxima[4],
     maximum_free_boundary_pressure_residual_Pa=float(
-      np.max(np.abs(top_pressures - request.mixed_regime_request.ambient_pressure_Pa))
+      np.max(np.abs(top_pressures - pressure_targets))
     ),
     maximum_free_boundary_normal_velocity_residual_m_s=float(
       np.max(np.abs(top_normal_velocities))
@@ -4063,6 +4181,9 @@ def _result_from_field(
     physical_field_shock_front_condition_consumed=(
       physical_field_shock_front_condition is not None
     ),
+    free_boundary_pressure_profile_consumed=(
+      request.free_boundary_pressure_profile_Pa is not None
+    ),
     inlet_boundary_states_consumed=True,
     transonic_frontier_compatibility=transonic_frontier_compatibility,
     control_section_compatibility=control_section_compatibility,
@@ -4097,6 +4218,7 @@ def _solve_pseudo_time(
       request.mixed_regime_request.control_section.points_m,
       request.mixed_regime_request.control_section.samples,
       request.mixed_regime_request.ambient_pressure_Pa,
+      request.free_boundary_pressure_profile_Pa,
       request.outlet_static_pressure_Pa,
       gamma,
       request.reference_total_temperature_K,
@@ -4502,6 +4624,27 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     x_start + downstream_length,
     request.axial_cell_count + 1,
   )
+  if request.free_boundary_pressure_profile_x_stations_m is not None:
+    expected_profile_x = 0.5 * (x_stations[:-1] + x_stations[1:])
+    supplied_profile_x = np.asarray(
+      request.free_boundary_pressure_profile_x_stations_m,
+      dtype=float,
+    )
+    if not np.allclose(
+      supplied_profile_x,
+      expected_profile_x,
+      rtol=1.0e-9,
+      atol=1.0e-10,
+    ):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        'free-boundary pressure profile coordinates must match the coupled '
+        'cell-column centers; no spatial regridding or extrapolation was used',
+        request,
+      )
+    ####
+  ####
+  pressure_targets = _free_boundary_pressure_targets(request)
   # An interior shock-interface profile starts a new downstream field at the
   # retained cross-section.  The upstream mixed-regime reference's outlet
   # height belongs to its own control-section origin and may be unrelated to
@@ -4629,8 +4772,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         _primitive_from_conservative(top_cell, gamma, request.gas_constant_J_kgK)
       )
       pressure_error = (
-        pressure - request.mixed_regime_request.ambient_pressure_Pa
-      ) / max(pressure, request.mixed_regime_request.ambient_pressure_Pa)
+        pressure - pressure_targets[i]
+      ) / max(pressure, pressure_targets[i])
       flow_slope = 0.0 if abs(u) <= 1.0e-12 else v / u
       target_slope = float(
         np.clip(
@@ -4657,18 +4800,11 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     )
     maximum_speed = max(float(np.max(speeds)), 1.0e-12)
     normal_fraction = float(np.max(np.abs(final_top_normal_velocities))) / maximum_speed
-    pressure_residual = float(
-      np.max(
-        np.abs(
-          final_top_pressures
-          - request.mixed_regime_request.ambient_pressure_Pa
-        )
-      )
-    )
     boundary_verified = bool(
-      pressure_residual
-      <= request.free_boundary_pressure_tolerance_fraction
-      * request.mixed_regime_request.ambient_pressure_Pa
+      np.all(
+        np.abs(final_top_pressures - pressure_targets)
+        <= request.free_boundary_pressure_tolerance_fraction * pressure_targets
+      )
       and normal_fraction
       <= request.free_boundary_normal_velocity_tolerance_fraction
     )

@@ -27,6 +27,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
@@ -83,6 +84,8 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_global_coupled_downstream,
+  build_reflected_domain_global_coupled_downstream_boundary_pressure_profile,
+  build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_coupled_euler_free_boundary,
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
@@ -2399,6 +2402,100 @@ def test_global_coupled_downstream_measures_boundary_overlap_without_promotion()
   )
   assert tampered_response.overlap_coverage_verified is False
   assert tampered_response.converged is False
+####
+
+
+def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  ambient_pressure = mixed_request.control_section.samples[-1].static_pressure_Pa
+  baseline = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  assert baseline.coupled_field is not None
+  boundary_points = baseline.coupled_field.free_boundary_points_m
+  cell_centers = tuple(
+    0.5 * (first[0] + second[0])
+    for first, second in zip(boundary_points, boundary_points[1:])
+  )
+  global_profile = (
+    build_reflected_domain_global_coupled_downstream_boundary_pressure_profile(
+      closure,
+      cell_centers,
+    )
+  )
+  assert isinstance(
+    global_profile,
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
+  )
+  assert global_profile.profile_verified
+  assert global_profile.pressure_correction_fraction == pytest.approx(0.0)
+  assert global_profile.as_report()['production_claim_allowed'] is False
+
+  consumed = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    boundary_pressure_profile=global_profile,
+  )
+  assert consumed.boundary_pressure_profile == global_profile
+  assert consumed.closure_lineage_verified
+  assert consumed.coupled_request is not None
+  assert consumed.coupled_request.free_boundary_pressure_profile_Pa == (
+    global_profile.pressure_Pa
+  )
+  assert consumed.coupled_request.free_boundary_pressure_profile_x_stations_m == (
+    global_profile.x_stations_m
+  )
+  assert consumed.coupled_field is not None
+  assert consumed.coupled_field.free_boundary_pressure_profile_consumed
+  assert consumed.coupled_field.as_report()[
+    'free_boundary_pressure_profile_consumed'
+  ] is True
+  assert consumed.global_coupling_verified is False
+  assert consumed.downstream_boundary_closure_verified is False
+  assert consumed.production_claim_allowed is False
+
+  assert baseline.downstream_boundary_response is not None
+  feedback_profile = (
+    build_reflected_domain_global_coupled_downstream_feedback_pressure_profile(
+      closure,
+      baseline.downstream_boundary_response,
+      pressure_correction_fraction=0.25,
+    )
+  )
+  assert feedback_profile.source_response_status == (
+    baseline.downstream_boundary_response.status.value
+  )
+  assert feedback_profile.pressure_correction_fraction == pytest.approx(0.25)
+  response_consumed = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    boundary_pressure_profile=feedback_profile,
+  )
+  assert response_consumed.coupled_field is not None
+  assert response_consumed.closure_lineage_verified
+  assert response_consumed.coupled_field.free_boundary_pressure_profile_consumed
+  assert response_consumed.boundary_pressure_profile == feedback_profile
+  assert response_consumed.global_coupling_verified is False
+  assert response_consumed.downstream_boundary_closure_verified is False
+  assert response_consumed.production_claim_allowed is False
 ####
 
 

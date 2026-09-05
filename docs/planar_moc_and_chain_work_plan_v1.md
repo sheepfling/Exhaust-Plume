@@ -3878,3 +3878,21 @@ coverage at both tested resolutions, but both cases remain a typed overlap
 residual failure.  This is refinement evidence for the next solver-owned
 feedback iteration; it does not create a global feedback gate, canonical
 downstream boundary, physical chain cell, or product claim.
+
+## Solver-owned boundary-pressure consumer checkpoint
+
+The coupled-Euler request now retains an explicitly sourced pressure profile
+at the downstream cell-column centers.  One builder samples the exact global
+boundary without extrapolation; a second builder converts the signed pressure
+offsets from an independently measured global/coupled response into a bounded
+relaxed correction for a subsequent coupled solve.  The solver consumes that
+profile in both the material-streamline pressure flux and the free-boundary
+shape residual, then records consumption and preserves the exact closure
+fingerprint.
+
+The new contract rejects cross-closure profiles, missing coverage, invalid
+pressure targets, and coordinate mismatch.  The compatible tests show the
+handoff is consumed, but the path remains a research seam: it does not
+iterate a correction into the upstream global field, close canonical reflected
+boundary conditions, fit a physical shock-cell length, or authorize Signature
+or FPA production claims.

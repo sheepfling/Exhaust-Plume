@@ -1385,3 +1385,21 @@ response coverage, but both resolutions remain a typed overlap residual
 failure.  This is useful refinement evidence for the next solver-owned
 feedback iteration; it does not claim global feedback, canonical downstream
 closure, a physical shock-cell length, or a production product comparison.
+
+### Solver-owned boundary-pressure consumer checkpoint
+
+The coupled request now accepts a spatially aligned static-pressure profile
+with explicit cell-center coordinates and provenance.  A global-boundary
+profile builder samples only the retained global boundary, while a separate
+response-feedback builder applies a bounded, signed pressure correction from
+the measured overlap response at the next cell-column centers.  The coupled
+solver consumes the profile in its material-streamline pressure flux and
+shape residual, verifies exact mesh alignment, and reports that consumption
+in the field result.
+
+The profile handoff preserves the closure fingerprint and rejects missing
+coverage, non-positive pressure, mismatched coordinates, or cross-closure
+reuse.  The response-derived path is now a real downstream consumer seam,
+but it is not an upstream global re-solve: ``global_coupling_verified``, the
+canonical downstream-boundary gate, physical shock-cell fitting, external
+provider comparisons, and production claims remain closed.
