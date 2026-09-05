@@ -885,6 +885,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
           or f'geometry feedback profile construction failed: {error}'
         )
       ####
+    ####
     if next_profile is not None and not (
       next_profile.profile_verified
       and next_profile.source_closure_fingerprint
@@ -935,6 +936,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
           or 'geometry feedback boundary-node stations changed between fresh '
           'solves; no regridding or extrapolation was attempted'
         )
+      ####
     ####
     iterations.append(
       MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration(

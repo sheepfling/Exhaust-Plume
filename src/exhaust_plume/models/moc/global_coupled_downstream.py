@@ -938,6 +938,7 @@ def build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
         'response geometry feedback requires the retained interior profile '
         'lower ordinate'
       )
+    ####
     lower_ordinate = float(profile.lower_ordinate_m)
   elif source_request.inlet_boundary_mode is (
     MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -950,6 +951,7 @@ def build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
         'response geometry feedback requires the retained placement profile '
         'lower ordinate'
       )
+    ####
     lower_ordinate = float(profile.lower_ordinate_m)
   elif source_request.inlet_boundary_mode is (
     MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -962,6 +964,7 @@ def build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
         'response geometry feedback requires the retained continuation profile '
         'lower ordinate'
       )
+    ####
     lower_ordinate = float(profile.lower_ordinate_m)
   ####
   return MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile(

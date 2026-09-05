@@ -4889,6 +4889,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   if geometry_targets is not None:
     free_boundary_heights = geometry_targets - lower_ordinate
     free_boundary_heights[0] = inlet_height
+  ####
   residual_history: list[float] = []
   shape_residual_history: list[float] = []
   states: np.ndarray | None = None
