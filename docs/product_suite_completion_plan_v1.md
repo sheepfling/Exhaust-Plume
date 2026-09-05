@@ -1180,3 +1180,17 @@ This is evidence of a real field-to-solver handoff, not completion of P2.2.
 The next slice must choose and validate an interior interface from a
 solver-owned placement rule, then close the downstream pressure/tangency seam
 and its refinement ladder before any shock-cell or product promotion.
+
+### Interior-profile mesh initialization checkpoint
+
+The coupled research solver now preserves the exact retained profile height
+when an ``audited-interior-shock-interface-profile`` starts a downstream
+field.  Previously, the first downstream free-boundary column reused the
+upstream mixed-regime reference's outlet height, which could be unrelated to
+the profile cross-section and collapse the initial mesh before iteration.  The
+first downstream mesh column is now initialized from the profile's retained
+ordinate span, with a regression assertion on the target handoff.
+
+This is a numerical-boundary correction: the target case still fails its
+pressure/tangency residual gate, so local field closure, canonical reflected
+closure, physical shock-cell fitting, and production promotion remain open.

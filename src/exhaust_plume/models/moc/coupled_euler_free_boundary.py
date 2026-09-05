@@ -3705,9 +3705,22 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     x_start + request.mixed_regime_request.downstream_length_m,
     request.axial_cell_count + 1,
   )
+  # An interior shock-interface profile starts a new downstream field at the
+  # retained cross-section.  The upstream mixed-regime reference's outlet
+  # height belongs to its own control-section origin and may be unrelated to
+  # the profile height.  Reusing it here can collapse the first mesh column
+  # before any Euler iteration has run.  Preserve the exact handoff geometry
+  # for the first downstream boundary instead.
+  initial_boundary_height = (
+    inlet_height
+    if request.inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    else request.mixed_regime_request.initial_outlet_height_m
+  )
   free_boundary_heights = np.full(
     request.axial_cell_count + 1,
-    request.mixed_regime_request.initial_outlet_height_m,
+    initial_boundary_height,
     dtype=float,
   )
   free_boundary_heights[0] = inlet_height

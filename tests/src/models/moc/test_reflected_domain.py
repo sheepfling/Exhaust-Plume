@@ -407,6 +407,16 @@ def test_global_physical_field_binds_an_audited_profile_to_the_coupled_lane():
   )
   assert coupled.conservative_states_by_cell
   assert coupled.transonic_shock_interface_profile_consumed
+  # The interior profile starts a new field at its retained cross-section;
+  # the first downstream boundary must preserve that exact handoff height
+  # instead of reusing the upstream reference's unrelated outlet height.
+  assert coupled.free_boundary_points_m
+  assert coupled.free_boundary_points_m[0][1] == pytest.approx(
+    bound.profile.upper_ordinate_m
+  )
+  assert coupled.free_boundary_points_m[1][1] >= (
+    bound.profile.upper_ordinate_m - 1.0e-12
+  )
   assert coupled.production_claim_allowed is False
 ####
 
