@@ -782,6 +782,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   shape_convergence_tolerance: float = 1.0e-3
   shape_relaxation: float = 0.35
   pressure_shape_relaxation: float = 0.20
+  downstream_length_m: float | None = None
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL
   outlet_static_pressure_Pa: float | None = None
   inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
@@ -880,6 +881,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         )
       ####
       object.__setattr__(self, 'outlet_static_pressure_Pa', outlet_pressure)
+    ####
+    if self.downstream_length_m is not None:
+      downstream_length = float(self.downstream_length_m)
+      if not isfinite(downstream_length) or downstream_length <= 0.0:
+        raise ValueError(
+          'downstream_length_m must be finite and positive when supplied'
+        )
+      ####
+      object.__setattr__(self, 'downstream_length_m', downstream_length)
     ####
     if self.transonic_shock_geometry is not None and not isinstance(
       self.transonic_shock_geometry,
@@ -1003,6 +1013,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'shape_convergence_tolerance': self.shape_convergence_tolerance,
       'shape_relaxation': self.shape_relaxation,
       'pressure_shape_relaxation': self.pressure_shape_relaxation,
+      'downstream_length_m': self.downstream_length_m,
+      'effective_downstream_length_m': self.effective_downstream_length_m,
       'outlet_static_pressure_Pa': self.outlet_static_pressure_Pa,
       'inlet_boundary_mode': self.inlet_boundary_mode.value,
       'transonic_shock_geometry': (
@@ -1039,6 +1051,17 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
 
     return self.mixed_regime_request.closure_fingerprint
   ####
+
+  @property
+  def effective_downstream_length_m(self) -> float:
+    """Return the explicit study window or the bound reference window."""
+
+    return float(
+      self.mixed_regime_request.downstream_length_m
+      if self.downstream_length_m is None
+      else self.downstream_length_m
+    )
+  ####
 ####
 
 
@@ -1058,6 +1081,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   shape_convergence_tolerance: float = 1.0e-3,
   shape_relaxation: float = 0.35,
   pressure_shape_relaxation: float = 0.20,
+  downstream_length_m: float | None = None,
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
   outlet_static_pressure_Pa: float | None = None,
   inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
@@ -1107,6 +1131,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     shape_convergence_tolerance=shape_convergence_tolerance,
     shape_relaxation=shape_relaxation,
     pressure_shape_relaxation=pressure_shape_relaxation,
+    downstream_length_m=downstream_length_m,
     source=source,
     outlet_static_pressure_Pa=outlet_static_pressure_Pa,
     inlet_boundary_mode=inlet_boundary_mode,
@@ -2070,6 +2095,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   shape_convergence_tolerance: float = 1.0e-3,
   shape_relaxation: float = 0.35,
   pressure_shape_relaxation: float = 0.20,
+  downstream_length_m: float | None = None,
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
   outlet_static_pressure_Pa: float | None = None,
   inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
@@ -2111,6 +2137,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       shape_convergence_tolerance=shape_convergence_tolerance,
       shape_relaxation=shape_relaxation,
       pressure_shape_relaxation=pressure_shape_relaxation,
+      downstream_length_m=downstream_length_m,
       source=source,
       outlet_static_pressure_Pa=outlet_static_pressure_Pa,
       inlet_boundary_mode=inlet_boundary_mode,
@@ -3883,9 +3910,10 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       )
     ####
   ####
+  downstream_length = request.effective_downstream_length_m
   x_stations = np.linspace(
     x_start,
-    x_start + request.mixed_regime_request.downstream_length_m,
+    x_start + downstream_length,
     request.axial_cell_count + 1,
   )
   # An interior shock-interface profile starts a new downstream field at the
@@ -4006,7 +4034,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     )
     new_heights = free_boundary_heights.copy()
     new_heights[0] = inlet_height
-    dx = request.mixed_regime_request.downstream_length_m / request.axial_cell_count
+    dx = downstream_length / request.axial_cell_count
     for i in range(request.axial_cell_count):
       top_cell = states[i, request.transverse_cell_count - 1]
       _rho, u, v, pressure, _temperature, _sound_speed = (

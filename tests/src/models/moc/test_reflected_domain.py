@@ -2397,6 +2397,28 @@ def test_coupled_euler_request_retains_the_explicit_inlet_boundary_mode():
   assert request.as_report()['inlet_boundary_mode'] == (
     'subsonic-characteristic'
   )
+  assert request.downstream_length_m is None
+  assert request.effective_downstream_length_m == pytest.approx(
+    mixed_request.downstream_length_m
+  )
+
+  extended = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    downstream_length_m=0.6,
+  )
+  assert extended.downstream_length_m == pytest.approx(0.6)
+  assert extended.effective_downstream_length_m == pytest.approx(0.6)
+  assert extended.as_report()['effective_downstream_length_m'] == pytest.approx(
+    0.6
+  )
+  with pytest.raises(ValueError, match='downstream_length_m'):
+    build_reflected_domain_coupled_euler_free_boundary_request(
+      mixed_request,
+      reference_total_temperature_K=1500.0,
+      downstream_length_m=0.0,
+    )
+  ####
 ####
 
 

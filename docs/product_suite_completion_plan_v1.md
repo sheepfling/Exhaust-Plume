@@ -1265,3 +1265,11 @@ pressure/tangency residual gate, where the target remains correctly blocked
 by the unresolved internal-shock entrance seam.  The ordinary explicit
 research-profile mode remains separate; this guard narrows the solver-owned
 handoff without promoting the research lane.
+
+The coupled request now also exposes an optional explicit downstream study
+window.  Omitting it preserves the mixed-regime reference length; supplying
+one records the override and effective length in the request lineage without
+changing the upstream closure fingerprint.  This enables longer-tail
+pressure/tangency studies to be compared honestly against the same entrance
+seam.  It is a numerical-study control only: a longer window cannot waive the
+entrance residual, physical closure, refinement, or promotion gates.
