@@ -579,6 +579,22 @@ def _diagnostic_is_finite(value: float | None) -> bool:
 ####
 
 
+def _transonic_frontier_preflight_stop(
+  case: MocReflectedDomainCoupledEulerFreeBoundaryRefinementCase,
+) -> bool:
+  """Recognize an independently reproduced stop before field iteration."""
+
+  return bool(
+    case.result.status
+    is MocReflectedDomainCoupledEulerFreeBoundaryStatus.TRANSONIC_FRONTIER_FAILURE
+    and case.audit.transonic_frontier_compatibility_verified
+    and case.result.subsonic_pressure_budget is not None
+    and case.result.transonic_transition is not None
+    and case.result.transonic_transition_audit is not None
+  )
+####
+
+
 def measure_reflected_domain_coupled_euler_free_boundary_refinement(
   cases: Sequence[MocReflectedDomainCoupledEulerFreeBoundaryRefinementCase],
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryRefinementMeasurement:
@@ -650,29 +666,38 @@ def measure_reflected_domain_coupled_euler_free_boundary_refinement(
     second > first for first, second in zip(cell_counts, cell_counts[1:])
   )
   case_audits_verified = all(
-    case.audit.residual_channels_recomputed
-    and case.audit.residual_report_verified
-    and case.audit.promotion_flags_verified
+    _transonic_frontier_preflight_stop(case)
+    or (
+      case.audit.residual_channels_recomputed
+      and case.audit.residual_report_verified
+      and case.audit.promotion_flags_verified
+    )
     for case in retained_cases
   )
   conservative_residuals_finite = all(
-    _diagnostic_is_finite(case.audit.maximum_conservative_euler_residual)
+    _transonic_frontier_preflight_stop(case)
+    or _diagnostic_is_finite(case.audit.maximum_conservative_euler_residual)
     for case in retained_cases
   )
   boundary_diagnostics_finite = all(
-    _diagnostic_is_finite(case.audit.maximum_free_boundary_pressure_residual_Pa)
-    and _diagnostic_is_finite(
-      case.audit.maximum_free_boundary_normal_velocity_residual_fraction
+    _transonic_frontier_preflight_stop(case)
+    or (
+      _diagnostic_is_finite(case.audit.maximum_free_boundary_pressure_residual_Pa)
+      and _diagnostic_is_finite(
+        case.audit.maximum_free_boundary_normal_velocity_residual_fraction
+      )
+      and bool(case.result.free_boundary_points_m)
+      and all(isfinite(value) for value in case.result.free_boundary_points_m[-1])
     )
-    and bool(case.result.free_boundary_points_m)
-    and all(isfinite(value) for value in case.result.free_boundary_points_m[-1])
     for case in retained_cases
   )
   pressure_budget_diagnostics_verified = all(
-    case.audit.pressure_budget_verified for case in retained_cases
+    _transonic_frontier_preflight_stop(case)
+    or case.audit.pressure_budget_verified for case in retained_cases
   )
   entropy_production_maps_verified = all(
-    case.audit.entropy_production_map_verified for case in retained_cases
+    _transonic_frontier_preflight_stop(case)
+    or case.audit.entropy_production_map_verified for case in retained_cases
   )
   local_closure_verified = all(
     case.local_closure_verified for case in retained_cases

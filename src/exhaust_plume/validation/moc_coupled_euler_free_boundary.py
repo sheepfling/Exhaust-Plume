@@ -391,11 +391,26 @@ def _failure(
   status: MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus,
   candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult | None,
   message: str,
+  *,
+  pressure_budget_verified: bool = False,
+  transonic_transition_verified: bool = False,
+  transonic_frontier_compatibility_verified: bool = False,
+  control_section_compatibility_verified: bool = False,
+  promotion_flags_verified: bool = False,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   return MocReflectedDomainCoupledEulerFreeBoundaryAudit(
     status=status,
     candidate=candidate,
     solver_status=None if candidate is None else candidate.status.value,
+    pressure_budget_verified=pressure_budget_verified,
+    transonic_transition_verified=transonic_transition_verified,
+    transonic_frontier_compatibility_verified=(
+      transonic_frontier_compatibility_verified
+    ),
+    control_section_compatibility_verified=(
+      control_section_compatibility_verified
+    ),
+    promotion_flags_verified=promotion_flags_verified,
     message=message,
   )
 ####
@@ -1947,6 +1962,90 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       .TRANSONIC_SHOCK_INTERFACE_PROFILE_FAILURE,
       candidate,
       candidate.message,
+    )
+  ####
+  if candidate.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus.TRANSONIC_FRONTIER_FAILURE
+  ):
+    if not _audit_transonic_frontier_compatibility(candidate):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+        .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE,
+        candidate,
+        'typed transonic-frontier stop did not retain independently '
+        'reproducible frontier compatibility evidence',
+      )
+    ####
+    transition_verified = _audit_transonic_transition(candidate)
+    control_verified, _pressure_jump, _pressure_jump_fraction = (
+      _audit_control_section_compatibility(candidate)
+    )
+    try:
+      expected_budget = _rederive_subsonic_pressure_budget(candidate)
+      reported_budget = candidate.subsonic_pressure_budget
+      pressure_budget_verified = bool(
+        isinstance(
+          reported_budget,
+          MocReflectedDomainCoupledEulerSubsonicPressureBudget,
+        )
+        and reported_budget.status.value == expected_budget['status']
+        and reported_budget.source == expected_budget['source']
+        and reported_budget.reachable_without_additional_entropy
+        == expected_budget['reachable_without_additional_entropy']
+        and all(
+          np.isclose(
+            getattr(reported_budget, name),
+            expected_budget[name],
+            rtol=3.0e-6,
+            atol=1.0e-10,
+          )
+          for name in (
+            'target_static_pressure_Pa',
+            'reference_total_pressure_Pa',
+            'subsonic_static_pressure_lower_bound_Pa',
+            'subsonic_static_pressure_upper_bound_Pa',
+            'maximum_total_pressure_compatible_with_target_Pa',
+            'total_pressure_compatibility_ratio',
+            'minimum_additional_total_pressure_loss_fraction',
+            'gamma',
+          )
+        )
+      )
+    except (ArithmeticError, TypeError, ValueError):
+      pressure_budget_verified = False
+    ####
+    promotion_flags_verified = bool(
+      candidate.chain_promotion_blocked
+      and not candidate.production_claim_allowed
+      and not candidate.canonical_euler_verified
+      and not candidate.canonical_free_boundary_verified
+      and not candidate.external_validation_verified
+    )
+    if not (
+      transition_verified
+      and control_verified
+      and pressure_budget_verified
+      and promotion_flags_verified
+    ):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+        .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE,
+        candidate,
+        'typed transonic-frontier stop did not retain independently '
+        'reproducible transition, pressure-budget, control-seam, or '
+        'promotion evidence',
+      )
+    ####
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE,
+      candidate,
+      candidate.message,
+      pressure_budget_verified=True,
+      transonic_transition_verified=True,
+      transonic_frontier_compatibility_verified=True,
+      control_section_compatibility_verified=True,
+      promotion_flags_verified=True,
     )
   ####
   if not _audit_transonic_frontier_compatibility(candidate):

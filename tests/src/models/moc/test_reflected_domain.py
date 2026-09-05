@@ -1734,6 +1734,92 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
 
   result = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
 
+  if result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus.TRANSONIC_FRONTIER_FAILURE
+  ):
+    assert result.converged is False
+    assert not result.conservative_states_by_cell
+    assert not result.conservative_euler_residuals_measured
+    assert result.chain_promotion_blocked
+    assert result.production_claim_allowed is False
+    assert result.message.startswith('coupled Euler field requires a placed')
+    assert result.subsonic_pressure_budget is not None
+    assert result.subsonic_pressure_budget.status is (
+      MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus
+      .BELOW_ISENTROPIC_SUBSONIC_BOUNDS
+    )
+    assert result.transonic_transition is not None
+    assert result.transonic_transition_audit is not None
+    assert result.transonic_transition_audit.converged
+    assert result.control_section_compatibility is not None
+    assert result.transonic_frontier_compatibility is not None
+    assert result.transonic_frontier_compatibility.status is (
+      MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+      .REQUIRED_UPSTREAM_NOT_RETAINED
+    )
+    assert result.transonic_frontier_compatibility.frontier_state_compatible is False
+    assert result.transonic_frontier_compatibility.matching_sample_count == 0
+    assert result.as_chain_termination_decision().reason is (
+      MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
+    )
+    audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+    assert audit.status is (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
+    )
+    assert audit.transonic_frontier_compatibility_verified
+    assert audit.converged is False
+    tampered = replace(
+      result,
+      transonic_frontier_compatibility=replace(
+        result.transonic_frontier_compatibility,
+        nearest_mach_residual=(
+          result.transonic_frontier_compatibility.nearest_mach_residual + 0.01
+        ),
+      ),
+    )
+    tampered_audit = measure_reflected_domain_coupled_euler_free_boundary(
+      tampered
+    )
+    assert tampered_audit.status is (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
+    )
+    assert not tampered_audit.transonic_frontier_compatibility_verified
+    assert result.transonic_transition_audit is not None
+    tampered_transition_audit = measure_reflected_domain_coupled_euler_free_boundary(
+      replace(
+        result,
+        transonic_transition_audit=replace(
+          result.transonic_transition_audit,
+          shock_state_conservation_verified=False,
+        ),
+      )
+    )
+    assert tampered_transition_audit.status is (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
+    )
+    assert not tampered_transition_audit.transonic_transition_verified
+    tampered_budget_audit = measure_reflected_domain_coupled_euler_free_boundary(
+      replace(
+        result,
+        subsonic_pressure_budget=replace(
+          result.subsonic_pressure_budget,
+          reference_total_pressure_Pa=(
+            result.subsonic_pressure_budget.reference_total_pressure_Pa * 1.01
+          ),
+        ),
+      )
+    )
+    assert tampered_budget_audit.status is (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
+    )
+    assert not tampered_budget_audit.pressure_budget_verified
+    return
+  ####
+
   assert result.status is (
     MocReflectedDomainCoupledEulerFreeBoundaryStatus.FREE_BOUNDARY_FAILURE
   )
@@ -2566,7 +2652,8 @@ def test_global_coupled_euler_free_boundary_refinement_keeps_actual_seam_open():
   assert len(run.configuration_fingerprint) == 64
   assert all(
     case.audit.status is (
-      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
     )
     for case in run.cases
   )
@@ -2678,7 +2765,8 @@ def test_coupled_euler_pressure_continuation_reconciles_boundary_seam_without_pr
   assert run.cases[0].local_closure_verified
   assert run.cases[1].local_closure_verified is False
   assert run.cases[1].audit.status is (
-    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
   )
   assert run.as_report()['measurement']['independent_evidence_verified']
   assert run.as_report()['cases'][1]['target_ambient_pressure_Pa'] == pytest.approx(

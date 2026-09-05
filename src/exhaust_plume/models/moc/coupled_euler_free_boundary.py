@@ -101,6 +101,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   SOLVER_FAILURE = 'coupled-euler-pseudo-time-failure'
   FREE_BOUNDARY_FAILURE = 'coupled-euler-free-boundary-failure'
   RESIDUAL_FAILURE = 'coupled-euler-residual-failure'
+  TRANSONIC_FRONTIER_FAILURE = 'coupled-euler-transonic-frontier-failure'
   INLET_CHARACTERISTIC_FAILURE = 'coupled-euler-inlet-characteristic-failure'
   INLET_SHOCK_BRANCH_FAILURE = 'coupled-euler-inlet-shock-branch-failure'
   INLET_SHOCK_INTERFACE_FAILURE = 'coupled-euler-inlet-shock-interface-failure'
@@ -1885,6 +1886,18 @@ def _failure(
   status: MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   message: str,
   request: MocReflectedDomainCoupledEulerFreeBoundaryRequest | None,
+  *,
+  subsonic_pressure_budget: (
+    MocReflectedDomainCoupledEulerSubsonicPressureBudget | None
+  ) = None,
+  transonic_transition: MocTransonicTransitionResult | None = None,
+  transonic_transition_audit: MocTransonicTransitionAudit | None = None,
+  transonic_frontier_compatibility: (
+    MocReflectedDomainCoupledEulerTransonicFrontierCompatibility | None
+  ) = None,
+  control_section_compatibility: (
+    MocReflectedDomainCoupledEulerControlSectionCompatibility | None
+  ) = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   transonic_shock_geometry = None
   transonic_shock_geometry_audit = None
@@ -1908,6 +1921,11 @@ def _failure(
     status=status,
     request=request,
     message=message,
+    subsonic_pressure_budget=subsonic_pressure_budget,
+    transonic_transition=transonic_transition,
+    transonic_transition_audit=transonic_transition_audit,
+    transonic_frontier_compatibility=transonic_frontier_compatibility,
+    control_section_compatibility=control_section_compatibility,
     transonic_shock_geometry=transonic_shock_geometry,
     transonic_shock_geometry_audit=transonic_shock_geometry_audit,
     transonic_shock_interface=transonic_shock_interface,
@@ -3566,6 +3584,52 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       'reference total temperature must be positive',
       request,
     )
+  ####
+  if request.inlet_boundary_mode in (
+    MocReflectedDomainCoupledEulerInletBoundaryMode.FULL_STATE_RUSANOV,
+    MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC,
+  ):
+    transition = assess_reflected_domain_coupled_euler_transonic_transition(
+      request
+    )
+    transition_audit = measure_moc_transonic_transition(transition)
+    frontier_compatibility = (
+      assess_reflected_domain_coupled_euler_transonic_frontier_compatibility(
+        request,
+        transition,
+      )
+    )
+    control_section_compatibility = (
+      assess_reflected_domain_coupled_euler_control_section_compatibility(
+        request,
+        transition,
+      )
+    )
+    if (
+      transition.transition_required
+      and frontier_compatibility.status
+      is not MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+      .MATCHED_FRONTIER_STATE
+    ):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .TRANSONIC_FRONTIER_FAILURE,
+        'coupled Euler field requires a placed transonic interface, but the '
+        'retained global Euler frontier does not contain the scalar required '
+        f'upstream state ({frontier_compatibility.status.value}); no field '
+        'iteration or lower-fidelity fallback was attempted',
+        request,
+        subsonic_pressure_budget=(
+          assess_reflected_domain_coupled_euler_subsonic_pressure_budget(
+            request
+          )
+        ),
+        transonic_transition=transition,
+        transonic_transition_audit=transition_audit,
+        transonic_frontier_compatibility=frontier_compatibility,
+        control_section_compatibility=control_section_compatibility,
+      )
+    ####
   ####
   inlet_override_states: tuple[np.ndarray, ...] | None = None
   transonic_shock_geometry: MocTransonicShockGeometryResult | None = None

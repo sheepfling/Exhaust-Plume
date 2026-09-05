@@ -142,6 +142,17 @@ class MocReflectedDomainCoupledEulerPressureContinuationCase:
   def independent_diagnostics_verified(self) -> bool:
     """Whether the case is auditable even when its physical boundary is open."""
 
+    if self.result.status is (
+      MocReflectedDomainCoupledEulerFreeBoundaryStatus.TRANSONIC_FRONTIER_FAILURE
+    ):
+      return bool(
+        self.audit.transonic_frontier_compatibility_verified
+        and self.result.subsonic_pressure_budget is not None
+        and self.result.transonic_transition is not None
+        and self.result.transonic_transition_audit is not None
+        and self.audit.promotion_flags_verified
+      )
+    ####
     return bool(
       self.audit.geometry_verified
       and self.audit.state_samples_verified
@@ -713,19 +724,26 @@ def measure_reflected_domain_coupled_euler_pressure_continuation(
     for case in retained_cases
   )
   diagnostics_finite = all(
-    case.independent_diagnostics_verified
-    and case.audit.maximum_free_boundary_pressure_residual_Pa is not None
-    and case.audit.maximum_free_boundary_normal_velocity_residual_fraction is not None
-    and bool(case.result.free_boundary_points_m)
-    and bool(case.result.free_boundary_pressure_residuals_Pa)
-    and bool(case.result.free_boundary_normal_velocity_residuals_m_s)
-    and all(
-      isfinite(value)
-      for value in (
-        case.audit.maximum_free_boundary_pressure_residual_Pa,
-        case.audit.maximum_free_boundary_normal_velocity_residual_fraction,
-        case.result.free_boundary_points_m[-1][0],
-        case.result.free_boundary_points_m[-1][1],
+    (
+      case.result.status
+      is MocReflectedDomainCoupledEulerFreeBoundaryStatus.TRANSONIC_FRONTIER_FAILURE
+      and case.independent_diagnostics_verified
+    )
+    or (
+      case.independent_diagnostics_verified
+      and case.audit.maximum_free_boundary_pressure_residual_Pa is not None
+      and case.audit.maximum_free_boundary_normal_velocity_residual_fraction is not None
+      and bool(case.result.free_boundary_points_m)
+      and bool(case.result.free_boundary_pressure_residuals_Pa)
+      and bool(case.result.free_boundary_normal_velocity_residuals_m_s)
+      and all(
+        isfinite(value)
+        for value in (
+          case.audit.maximum_free_boundary_pressure_residual_Pa,
+          case.audit.maximum_free_boundary_normal_velocity_residual_fraction,
+          case.result.free_boundary_points_m[-1][0],
+          case.result.free_boundary_points_m[-1][1],
+        )
       )
     )
     for case in retained_cases

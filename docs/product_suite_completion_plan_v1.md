@@ -1116,3 +1116,27 @@ the upstream field without treating its mapped continuity/entropy model as a
 canonical two-dimensional Euler closure.  They remain research diagnostics;
 the P2 physical-closure gate, P3 physical-length gate, and all provider-bound
 release gates are unchanged.
+
+### Global transonic-frontier preflight checkpoint
+
+The coupled constant-gamma field now performs a solver-owned preflight for
+the ordinary full-state and subsonic-characteristic inlet modes.  When the
+control-section/ambient seam requires a scalar transonic transition, the
+preflight compares the required upstream Mach, static pressure, and total
+pressure against the exact retained global-Euler shock frontier.  If that
+state is absent, the request returns the typed
+``TRANSONIC_FRONTIER_FAILURE`` stop before any downstream field iteration.
+The result retains the transition, independent transition audit, control
+section compatibility, pressure budget, and frontier comparison for
+diagnosis; it does not synthesize a state, project a shock, or select a
+lower-fidelity branch.
+
+The independent coupled-field audit recognizes this stop and rechecks the
+frontier comparison without attempting to audit a field that was never
+solved.  The actual global target now fails at the missing transonic state
+seam with promotion blocked, while compatible research fixtures and explicit
+caller-bound scalar/profile handoffs remain available as separate research
+lanes.  This is a stricter closure boundary, not completion of P2.2: the
+solver still needs a two-dimensional placed interface, pressure/tangency
+closure, refinement evidence, physical shock-cell length, and external
+validation.
