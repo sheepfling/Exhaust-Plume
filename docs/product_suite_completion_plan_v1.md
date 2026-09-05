@@ -402,7 +402,10 @@ optical depth. The derived line enters the existing straight ray-transfer and
 Signature adapter without changing the provider identity. The claim ceiling
 remains spectral engineering only: reactions, non-LTE populations, inferred
 spectroscopy, atmosphere, detector, external validation, and production
-claims remain blocked.
+claims remain blocked. The public frozen closure constructor now recomputes
+those derived populations, densities, stimulated-emission factor, and optical
+depth from the retained state and rejects inconsistent caller-provided values;
+this protects provenance without widening the claim ceiling.
 
 ### P2.1 evidence checkpoint
 
