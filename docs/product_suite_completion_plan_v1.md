@@ -306,6 +306,10 @@ claim is authorized.
       handoff for coupled-field inlet faces; consume it without projecting
       interior profiles and expose its geometry/metadata in the standardized
       planar visualization.
+- [x] Expose the audited mixed-regime reference overlays in the standardized
+      planar visualization: entropy-bearing supersonic patch, entropy handoff,
+      control section, scalar perimeter, free boundary, and terminal seam;
+      retain residuals and promotion stops as diagnostics.
 - [x] Add a caller-bound LTE population closure that derives explicit line
       optical depth from a frozen-mixture state and declared transition data;
       keep reactions, non-LTE inference, database lookup, and production
@@ -1032,3 +1036,19 @@ normal, profile identity, and consumed state.  This improves the visualization
 and boundary contract only.  It does not establish an interior shock location,
 canonical mixed-regime closure, physical shock-cell length, or a production
 claim.
+
+### Mixed-regime reference overlay checkpoint
+
+The standardized planar-MOC adapter now follows a global-to-mixed-regime
+research result through its exact retained closure and draws the downstream
+reference as named overlays: the entropy-bearing supersonic patch, the
+shock-interface entropy handoff, the control section, the scalar perimeter,
+the variable-entropy/free-boundary path, and a terminal seam marker.  The
+bundle also records the reference model identity, station counts, iteration
+count, residual channels, sample counts, and promotion flags.
+
+These overlays make the current higher-fidelity reference inspectable beside
+the upstream field without treating its mapped continuity/entropy model as a
+canonical two-dimensional Euler closure.  They remain research diagnostics;
+the P2 physical-closure gate, P3 physical-length gate, and all provider-bound
+release gates are unchanged.

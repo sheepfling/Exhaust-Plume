@@ -1433,31 +1433,30 @@ def _moc_field_from_result(result: object) -> tuple[object | None, object]:
     return coupled_field, result
   ####
 
-  candidates: list[object] = [result]
-  candidate_field = getattr(result, 'candidate_field', None)
-  if candidate_field is not None:
-    candidates.append(candidate_field)
-  ####
-  physical_field = getattr(result, 'physical_field', None)
-  if physical_field is not None:
-    candidates.append(physical_field)
-  ####
-  global_euler = getattr(result, 'global_euler', None)
-  if global_euler is not None:
-    candidates.append(global_euler)
-    global_physical = getattr(global_euler, 'physical_field', None)
-    if global_physical is not None:
-      candidates.append(global_physical)
+  candidates: list[object] = []
+  pending: list[object] = [result]
+  seen_ids: set[int] = set()
+  while pending:
+    candidate = pending.pop(0)
+    candidate_id = id(candidate)
+    if candidate_id in seen_ids:
+      continue
+    ####
+    seen_ids.add(candidate_id)
+    candidates.append(candidate)
+    for attribute in (
+      'candidate_field',
+      'physical_field',
+      'global_euler',
+      'closure',
+      'field',
+    ):
+      nested_value = getattr(candidate, attribute, None)
+      if nested_value is not None:
+        pending.append(nested_value)
+      ####
     ####
   ####
-  nested_candidates: list[object] = []
-  for candidate in candidates:
-    field_value = getattr(candidate, 'field', None)
-    if field_value is not None:
-      nested_candidates.append(field_value)
-    ####
-  ####
-  candidates.extend(nested_candidates)
   for candidate in candidates:
     if all(hasattr(candidate, name) for name in ('cells', 'shock_boundary_points_m', 'ambient_boundary_points_m', 'centerline_boundary_points_m')):
       return candidate, result
@@ -1566,9 +1565,19 @@ def _moc_solver_evidence(result: object) -> tuple[object | None, object | None]:
   """Find an exact shock curve and its owning global-Euler wrapper."""
 
   candidates: list[object] = [result]
+  closure = getattr(result, 'closure', None)
+  if closure is not None:
+    candidates.append(closure)
+  ####
   global_euler = getattr(result, 'global_euler', None)
   if global_euler is not None:
     candidates.append(global_euler)
+  ####
+  for candidate in tuple(candidates):
+    nested_global_euler = getattr(candidate, 'global_euler', None)
+    if nested_global_euler is not None:
+      candidates.append(nested_global_euler)
+    ####
   ####
   for candidate in tuple(candidates):
     physical_field = getattr(candidate, 'physical_field', None)
@@ -1802,6 +1811,14 @@ def _moc_visualization(
     raise ValueError('planar-MOC field contains no finite cell polygons')
   ####
 
+  mixed_regime_reference = getattr(result, 'reference', None)
+  if mixed_regime_reference is None and all(
+    hasattr(result, name)
+    for name in ('free_boundary_points_m', 'control_section')
+  ):
+    mixed_regime_reference = result
+  ####
+  mixed_regime_overlay_warnings: list[str] = []
   boundary_specs = (
     ('moc-shock-boundary', 'fitted shock boundary', getattr(field, 'shock_boundary_points_m', ())),
     ('moc-ambient-boundary', 'ambient-pressure boundary', getattr(field, 'ambient_boundary_points_m', ())),
@@ -1817,6 +1834,120 @@ def _moc_visualization(
       path = _path3(path_id, semantic, points)
       if path is not None:
         paths.append(path)
+      ####
+    ####
+  ####
+  if mixed_regime_reference is not None:
+    overlay_specs = (
+      (
+        'moc-mixed-regime-supersonic-patch',
+        'entropy-bearing supersonic patch entering the mixed-regime reference',
+        tuple(
+          getattr(sample, 'point_m')
+          for sample in getattr(
+            getattr(mixed_regime_reference, 'request', None),
+            'supersonic_patch',
+            (),
+          )
+        ),
+      ),
+      (
+        'moc-mixed-regime-entropy-handoff',
+        'retained shock-interface entropy handoff into the mixed-regime reference',
+        tuple(
+          getattr(sample, 'point_m')
+          for sample in getattr(
+            getattr(mixed_regime_reference, 'handoff', None),
+            'samples',
+            (),
+          )
+        ),
+      ),
+      (
+        'moc-mixed-regime-control-section',
+        'solver-owned mixed-regime control section',
+        getattr(
+          getattr(mixed_regime_reference, 'control_section', None),
+          'points_m',
+          (),
+        ),
+      ),
+      (
+        'moc-mixed-regime-free-boundary',
+        'solver-owned variable-entropy/free-boundary reference',
+        getattr(mixed_regime_reference, 'free_boundary_points_m', ()),
+      ),
+      (
+        'moc-mixed-regime-perimeter',
+        'closed scalar mixed-regime perimeter reference',
+        getattr(
+          getattr(mixed_regime_reference, 'boundary', None),
+          'perimeter_points_m',
+          (),
+        ),
+      ),
+    )
+    for path_id, semantic, raw_points in overlay_specs:
+      try:
+        points = _finite_path(raw_points)
+      except ValueError:
+        mixed_regime_overlay_warnings.append(
+          f'{path_id} has invalid geometry and remains unavailable'
+        )
+        continue
+      ####
+      if len(points) < 2:
+        mixed_regime_overlay_warnings.append(
+          f'{path_id} has fewer than two samples and remains unavailable'
+        )
+        continue
+      ####
+      path = _path3(path_id, semantic, points)
+      if path is not None:
+        paths.append(path)
+        all_points.extend(points)
+      ####
+    ####
+    terminal_point = getattr(
+      getattr(mixed_regime_reference, 'request', None),
+      'terminal_point_m',
+      None,
+    )
+    if terminal_point is None:
+      terminal_point = getattr(
+        getattr(mixed_regime_reference, 'perimeter_request', None),
+        'terminal_point_m',
+        None,
+      )
+    ####
+    if terminal_point is not None:
+      try:
+        terminal = _vector2('mixed-regime terminal point', terminal_point)
+      except (TypeError, ValueError, IndexError):
+        mixed_regime_overlay_warnings.append(
+          'mixed-regime terminal seam has invalid geometry and remains unavailable'
+        )
+      else:
+        marker_half_length = max(
+          1.0e-9,
+          0.12 * max(
+            (abs(point[1]) for point in all_points),
+            default=1.0e-9,
+          ),
+        )
+        marker = (
+          (terminal[0] - marker_half_length, terminal[1]),
+          (terminal[0] + marker_half_length, terminal[1]),
+        )
+        path = _path3(
+          'moc-mixed-regime-terminal-seam',
+          'terminal supersonic-to-subsonic seam; scalar reference only',
+          marker,
+        )
+        if path is not None:
+          paths.append(path)
+          all_points.append(terminal)
+        ####
       ####
     ####
   ####
@@ -2342,6 +2473,77 @@ def _moc_visualization(
     'state_sampling_available': bool(getattr(source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
+  if mixed_regime_reference is not None:
+    reference_status = getattr(mixed_regime_reference, 'status', '')
+    diagnostics['mixed_regime_reference_status'] = str(
+      getattr(reference_status, 'value', reference_status)
+    )
+    diagnostics['mixed_regime_reference_model'] = str(
+      getattr(mixed_regime_reference, 'model', 'unavailable')
+    )
+    for name in (
+      'converged',
+      'reference_verified',
+      'solver_owned_reference_verified',
+      'source_streamline_mapping_verified',
+      'entropy_transport_verified',
+      'continuity_verified',
+      'free_boundary_condition_verified',
+      'field_topology_verified',
+      'canonical_free_boundary_verified',
+      'canonical_euler_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      value = getattr(mixed_regime_reference, name, None)
+      if isinstance(value, bool):
+        diagnostics[f'mixed_regime_reference_{name}'] = value
+      ####
+    ####
+    for name in (
+      'axial_station_count',
+      'transverse_station_count',
+      'iteration_count',
+    ):
+      value = getattr(mixed_regime_reference, name, None)
+      if isinstance(value, int) and not isinstance(value, bool):
+        diagnostics[f'mixed_regime_reference_{name}'] = value
+      ####
+    ####
+    for name in (
+      'maximum_free_boundary_pressure_residual_Pa',
+      'maximum_free_boundary_tangent_residual_rad',
+      'maximum_continuity_residual',
+      'maximum_entropy_advection_residual',
+      'maximum_conservative_euler_residual',
+      'maximum_mass_flow_residual',
+      'outlet_height_m',
+    ):
+      value = getattr(mixed_regime_reference, name, None)
+      if value is not None and isfinite(float(value)):
+        diagnostics[f'mixed_regime_reference_{name}'] = float(value)
+      ####
+    ####
+    diagnostics['mixed_regime_reference_free_boundary_sample_count'] = int(
+      len(getattr(mixed_regime_reference, 'free_boundary_points_m', ()))
+    )
+    diagnostics['mixed_regime_reference_control_section_sample_count'] = int(
+      len(
+        getattr(
+          getattr(mixed_regime_reference, 'control_section', None),
+          'points_m',
+          (),
+        )
+      )
+    )
+    diagnostics['mixed_regime_reference_overlay_path_count'] = int(
+      sum(
+        1
+        for path in paths
+        if path.path_id.startswith('moc-mixed-regime-')
+      )
+    )
+  ####
   if is_transonic_transport:
     transport_status = getattr(transport_source, 'status', '')
     diagnostics['moc_transonic_transport_status'] = str(
@@ -2830,7 +3032,15 @@ def _moc_visualization(
     'the sectioned-tube view is a display envelope projected from the planar field, not an axisymmetric claim',
     'MOC production promotion remains blocked until canonical closure, refinement, and external validation gates pass',
     *solver_warnings,
+    *mixed_regime_overlay_warnings,
   ]
+  if mixed_regime_reference is not None:
+    warnings.append(
+      'mixed-regime overlays are solver-owned scalar variable-entropy/free-boundary '
+      'reference diagnostics; they are not canonical 2-D closure, a supersonic '
+      'chain cell, or production evidence'
+    )
+  ####
   if coupled_euler:
     warnings.append(
       'coupled-Euler/free-boundary channels are research diagnostics; '
@@ -2879,7 +3089,10 @@ def _moc_visualization(
       'planar-moc-coupled-euler-free-boundary'
       if coupled_euler
       else (
-        'planar-moc-transonic-shock-interface'
+        'planar-moc-mixed-regime-reference'
+        if mixed_regime_reference is not None
+        else (
+          'planar-moc-transonic-shock-interface'
         if is_transonic_interface
         else (
           'planar-moc-transonic-frontier-placement'
@@ -2890,6 +3103,7 @@ def _moc_visualization(
             else 'planar-moc-transonic-field-attachment'
             if is_transonic_attachment else 'planar-moc-reflected-domain'
           )
+        )
         )
       )
     ),

@@ -560,6 +560,92 @@ def test_moc_global_euler_visualization_exposes_solver_owned_shock_parameters() 
 ####
 
 
+def test_moc_mixed_regime_visualization_retains_reference_overlays() -> None:
+  global_euler = SimpleNamespace(
+    physical_field=SimpleNamespace(
+      field=_MocField(),
+      physical_closure_verified=True,
+    ),
+  )
+  closure = SimpleNamespace(global_euler=global_euler)
+  reference = SimpleNamespace(
+    status='converged-solver-owned-variable-entropy-free-boundary-reference',
+    model='solver-owned-streamline-variable-entropy-free-boundary-reference',
+    converged=True,
+    reference_verified=True,
+    solver_owned_reference_verified=True,
+    source_streamline_mapping_verified=True,
+    entropy_transport_verified=True,
+    continuity_verified=True,
+    free_boundary_condition_verified=True,
+    field_topology_verified=True,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    request=SimpleNamespace(
+      terminal_point_m=(0.5, 0.4),
+      supersonic_patch=(
+        SimpleNamespace(point_m=(0.6, 0.35)),
+        SimpleNamespace(point_m=(0.8, 0.25)),
+      ),
+    ),
+    handoff=SimpleNamespace(
+      samples=(
+        SimpleNamespace(point_m=(0.6, 0.35)),
+        SimpleNamespace(point_m=(0.8, 0.25)),
+      ),
+    ),
+    control_section=SimpleNamespace(
+      points_m=((0.52, 0.4), (0.52, 0.55), (0.52, 0.7)),
+    ),
+    free_boundary_points_m=((1.5, 0.2), (1.0, 0.3), (0.5, 0.4)),
+    boundary=SimpleNamespace(
+      perimeter_points_m=((0.5, 0.4), (1.5, 0.0), (1.5, 0.2), (0.5, 0.4)),
+    ),
+    axial_station_count=7,
+    transverse_station_count=4,
+    iteration_count=5,
+    maximum_free_boundary_pressure_residual_Pa=2.0e-4,
+    maximum_free_boundary_tangent_residual_rad=3.0e-5,
+    maximum_continuity_residual=4.0e-3,
+    maximum_entropy_advection_residual=5.0e-3,
+    maximum_conservative_euler_residual=6.0e-3,
+    maximum_mass_flow_residual=7.0e-4,
+    outlet_height_m=0.2,
+  )
+  result = SimpleNamespace(
+    closure=closure,
+    reference=reference,
+    physical_closure_verified=False,
+    production_claim_allowed=False,
+  )
+
+  bundle = standardize_model_visualization(
+    result,
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-mixed-regime-reference'
+  assert {path.path_id for path in bundle.paths} >= {
+    'moc-mixed-regime-supersonic-patch',
+    'moc-mixed-regime-entropy-handoff',
+    'moc-mixed-regime-control-section',
+    'moc-mixed-regime-free-boundary',
+    'moc-mixed-regime-perimeter',
+    'moc-mixed-regime-terminal-seam',
+  }
+  assert bundle.diagnostics['mixed_regime_reference_converged'] is True
+  assert bundle.diagnostics['mixed_regime_reference_chain_promotion_blocked'] is True
+  assert bundle.diagnostics['mixed_regime_reference_maximum_conservative_euler_residual'] == pytest.approx(6.0e-3)
+  assert bundle.diagnostics['mixed_regime_reference_overlay_path_count'] == 6
+  assert bundle.claims.production_claim_allowed is False
+  assert any('mixed-regime overlays are solver-owned scalar' in warning for warning in bundle.warnings)
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> None:
   bundle = standardize_model_visualization(
     _coupled_euler_result(),
