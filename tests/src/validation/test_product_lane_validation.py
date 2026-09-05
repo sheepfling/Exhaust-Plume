@@ -60,6 +60,8 @@ def test_signature_lane_local_interpolation_and_lte_source_acceptance_are_separa
   assert report['explicit_lte_line_source']['status'] == 'passed'
   assert report['explicit_lte_line_source']['radiation_claim'] == 'spectral_engineering'
   assert report['explicit_lte_line_source']['optical_profile_mode'] == 'lte-line-by-line-voigt'
+  assert report['explicit_lte_line_source']['source_model'] == 'LTE-Planck-source-with-caller-bound-population'
+  assert 'explicit-lte-population-closure' in report['explicit_lte_line_source']['claim_status']
   assert report['explicit_lte_line_source']['production_claim_allowed'] == 'false'
   assert report['asset_sha256']
   assert report['measurement_space_operators']['sensor_space_probe']['status'] == 'passed'

@@ -2,16 +2,17 @@
 
 This module supplies a narrow physical radiation seam for the Signature
 product.  A caller provides line-integrated optical depths and broadening
-parameters; the source function is the LTE Planck function and the line
-shape is a normalized wavelength-domain Voigt profile.  The result is
-therefore spectral-engineering evidence, not an inferred chemistry or a
-validated molecular-radiation model.
+parameters, or explicitly binds a declared transition and LTE population
+closure to a frozen mixture state.  The source function is the LTE Planck
+function and the line shape is a normalized wavelength-domain Voigt profile.
+The result is therefore spectral-engineering evidence, not an inferred
+reaction chemistry or a validated molecular-radiation model.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite, pi, sqrt
+from math import exp, isfinite, pi, sqrt
 from typing import Any, Sequence, cast
 
 import numpy as np
@@ -22,6 +23,8 @@ from exhaust_plume.radiation.planck import planck_spectral_radiance_W_m2_sr_m
 
 __all__ = (
   'BOLTZMANN_J_K',
+  'LtePopulationClosure',
+  'LteTransition',
   'SPEED_OF_LIGHT_M_S',
   'SpectralLine',
   'LineRadiationProfile',
@@ -43,6 +46,15 @@ def _finite_positive(name: str, value: object) -> float:
 ####
 
 
+def _finite_nonnegative(name: str, value: object) -> float:
+  numeric = float(cast(Any, value))
+  if not isfinite(numeric) or numeric < 0.0:
+    raise ValueError(f'{name} must be finite and nonnegative')
+  ####
+  return numeric
+####
+
+
 def _strict_wavelength_axis(values: Sequence[float]) -> tuple[float, ...]:
   axis = tuple(_finite_positive(f'wavelengths_m[{index}]', value) for index, value in enumerate(values))
   if len(axis) < 2:
@@ -52,6 +64,266 @@ def _strict_wavelength_axis(values: Sequence[float]) -> tuple[float, ...]:
     raise ValueError('wavelengths_m must be strictly increasing')
   ####
   return axis
+####
+
+
+@dataclass(frozen=True, slots=True)
+class LteTransition:
+  """Caller-supplied transition data for a bounded LTE population closure.
+
+  ``integrated_absorption_cross_section_m3`` is the wavelength-integrated
+  absorption cross-section for one molecule in the lower state, expressed as
+  ``m^3``.  It is deliberately an input: this contract does not look up
+  spectroscopy data or infer line strengths from a species name.
+  """
+
+  species: str
+  center_wavelength_m: float
+  lower_state_energy_J: float
+  upper_state_energy_J: float
+  lower_degeneracy: float
+  upper_degeneracy: float
+  integrated_absorption_cross_section_m3: float
+  molecular_mass_kg: float
+  label: str = 'lte-transition'
+
+  def __post_init__(self) -> None:
+    species = str(self.species)
+    if not species:
+      raise ValueError('species must not be empty')
+    ####
+    center = _finite_positive('center_wavelength_m', self.center_wavelength_m)
+    lower_energy = _finite_nonnegative('lower_state_energy_J', self.lower_state_energy_J)
+    upper_energy = _finite_positive('upper_state_energy_J', self.upper_state_energy_J)
+    if upper_energy <= lower_energy:
+      raise ValueError('upper_state_energy_J must exceed lower_state_energy_J')
+    ####
+    lower_degeneracy = _finite_positive('lower_degeneracy', self.lower_degeneracy)
+    upper_degeneracy = _finite_positive('upper_degeneracy', self.upper_degeneracy)
+    cross_section = _finite_positive(
+      'integrated_absorption_cross_section_m3',
+      self.integrated_absorption_cross_section_m3,
+    )
+    molecular_mass = _finite_positive('molecular_mass_kg', self.molecular_mass_kg)
+    label = str(self.label)
+    if not label:
+      raise ValueError('label must not be empty')
+    ####
+    object.__setattr__(self, 'species', species)
+    object.__setattr__(self, 'center_wavelength_m', center)
+    object.__setattr__(self, 'lower_state_energy_J', lower_energy)
+    object.__setattr__(self, 'upper_state_energy_J', upper_energy)
+    object.__setattr__(self, 'lower_degeneracy', lower_degeneracy)
+    object.__setattr__(self, 'upper_degeneracy', upper_degeneracy)
+    object.__setattr__(self, 'integrated_absorption_cross_section_m3', cross_section)
+    object.__setattr__(self, 'molecular_mass_kg', molecular_mass)
+    object.__setattr__(self, 'label', label)
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'species': self.species,
+      'label': self.label,
+      'center_wavelength_m': self.center_wavelength_m,
+      'lower_state_energy_J': self.lower_state_energy_J,
+      'upper_state_energy_J': self.upper_state_energy_J,
+      'lower_degeneracy': self.lower_degeneracy,
+      'upper_degeneracy': self.upper_degeneracy,
+      'integrated_absorption_cross_section_m3': self.integrated_absorption_cross_section_m3,
+      'molecular_mass_kg': self.molecular_mass_kg,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class LtePopulationClosure:
+  """One explicit LTE population calculation bound to a CHEM-0 state.
+
+  The partition function and transition cross-section are caller-supplied at
+  the state temperature.  The closure uses only the declared frozen-mixture
+  mole fraction, ideal-gas number density, Boltzmann weights, and the
+  stimulated-emission factor.  It does not model reactions, dissociation,
+  non-LTE populations, or any unprovided spectroscopic data.
+  """
+
+  transition: LteTransition
+  mixture_state: FrozenMixtureState
+  partition_function: float
+  path_length_m: float
+  lower_population_fraction: float
+  upper_population_fraction: float
+  lower_number_density_per_m3: float
+  upper_number_density_per_m3: float
+  stimulated_emission_factor: float
+  integrated_optical_depth_m: float
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.transition, LteTransition):
+      raise TypeError('transition must be an LteTransition')
+    ####
+    if not isinstance(self.mixture_state, FrozenMixtureState):
+      raise TypeError('mixture_state must be a FrozenMixtureState')
+    ####
+    partition = _finite_positive('partition_function', self.partition_function)
+    path_length = _finite_positive('path_length_m', self.path_length_m)
+    lower_fraction = _finite_nonnegative(
+      'lower_population_fraction',
+      self.lower_population_fraction,
+    )
+    upper_fraction = _finite_nonnegative(
+      'upper_population_fraction',
+      self.upper_population_fraction,
+    )
+    lower_density = _finite_nonnegative(
+      'lower_number_density_per_m3',
+      self.lower_number_density_per_m3,
+    )
+    upper_density = _finite_nonnegative(
+      'upper_number_density_per_m3',
+      self.upper_number_density_per_m3,
+    )
+    stimulated = float(self.stimulated_emission_factor)
+    if not isfinite(stimulated) or not 0.0 < stimulated <= 1.0:
+      raise ValueError('stimulated_emission_factor must be finite and in (0, 1]')
+    ####
+    integrated = _finite_nonnegative(
+      'integrated_optical_depth_m',
+      self.integrated_optical_depth_m,
+    )
+    if lower_fraction > 1.0 or upper_fraction > 1.0:
+      raise ValueError('population fractions must not exceed one')
+    ####
+    object.__setattr__(self, 'partition_function', partition)
+    object.__setattr__(self, 'path_length_m', path_length)
+    object.__setattr__(self, 'lower_population_fraction', lower_fraction)
+    object.__setattr__(self, 'upper_population_fraction', upper_fraction)
+    object.__setattr__(self, 'lower_number_density_per_m3', lower_density)
+    object.__setattr__(self, 'upper_number_density_per_m3', upper_density)
+    object.__setattr__(self, 'stimulated_emission_factor', stimulated)
+    object.__setattr__(self, 'integrated_optical_depth_m', integrated)
+  ####
+
+  @classmethod
+  def from_state(
+    cls,
+    transition: LteTransition,
+    mixture_state: FrozenMixtureState,
+    *,
+    partition_function: float,
+    path_length_m: float,
+  ) -> 'LtePopulationClosure':
+    """Derive lower/upper LTE populations from one explicit mixture state."""
+
+    if not isinstance(transition, LteTransition):
+      raise TypeError('transition must be an LteTransition')
+    ####
+    if not isinstance(mixture_state, FrozenMixtureState):
+      raise TypeError('mixture_state must be a FrozenMixtureState')
+    ####
+    partition = _finite_positive('partition_function', partition_function)
+    path_length = _finite_positive('path_length_m', path_length_m)
+    matching_species = tuple(
+      item.mole_fraction
+      for item in mixture_state.species_mole_fractions
+      if item.species == transition.species
+    )
+    if len(matching_species) != 1:
+      raise ValueError(
+        f"transition species {transition.species!r} is not present exactly once in the mixture state"
+      )
+    ####
+    temperature = mixture_state.temperature_K
+    lower_weight = transition.lower_degeneracy * exp(
+      -transition.lower_state_energy_J / (BOLTZMANN_J_K * temperature)
+    )
+    upper_weight = transition.upper_degeneracy * exp(
+      -transition.upper_state_energy_J / (BOLTZMANN_J_K * temperature)
+    )
+    weight_sum = lower_weight + upper_weight
+    if partition + 1.0e-14 * max(partition, weight_sum, 1.0) < weight_sum:
+      raise ValueError(
+        'partition_function must include at least the declared lower and upper state weights'
+      )
+    ####
+    lower_fraction = lower_weight / partition
+    upper_fraction = upper_weight / partition
+    total_number_density = mixture_state.pressure_Pa / (BOLTZMANN_J_K * temperature)
+    species_number_density = total_number_density * matching_species[0]
+    lower_density = species_number_density * lower_fraction
+    upper_density = species_number_density * upper_fraction
+    stimulated = 1.0 - exp(
+      -(transition.upper_state_energy_J - transition.lower_state_energy_J)
+      / (BOLTZMANN_J_K * temperature)
+    )
+    integrated_optical_depth = (
+      lower_density
+      * transition.integrated_absorption_cross_section_m3
+      * stimulated
+      * path_length
+    )
+    return cls(
+      transition=transition,
+      mixture_state=mixture_state,
+      partition_function=partition,
+      path_length_m=path_length,
+      lower_population_fraction=lower_fraction,
+      upper_population_fraction=upper_fraction,
+      lower_number_density_per_m3=lower_density,
+      upper_number_density_per_m3=upper_density,
+      stimulated_emission_factor=stimulated,
+      integrated_optical_depth_m=integrated_optical_depth,
+    )
+  ####
+
+  def to_spectral_line(
+    self,
+    *,
+    lorentz_half_width_m: float = 0.0,
+    label: str | None = None,
+  ) -> 'SpectralLine':
+    """Convert the closure into the existing Voigt-transfer line primitive."""
+
+    return SpectralLine(
+      center_wavelength_m=self.transition.center_wavelength_m,
+      integrated_optical_depth_m=self.integrated_optical_depth_m,
+      doppler_sigma_m=(
+        self.transition.center_wavelength_m
+        * sqrt(BOLTZMANN_J_K * self.mixture_state.temperature_K / self.transition.molecular_mass_kg)
+        / SPEED_OF_LIGHT_M_S
+      ),
+      lorentz_half_width_m=lorentz_half_width_m,
+      label=label or self.transition.label,
+      population_closure=self,
+    )
+  ####
+
+  def as_report(self) -> dict[str, object]:
+    return {
+      'model': 'lte-boltzmann-population-closure-v1',
+      'transition': self.transition.as_report(),
+      'mixture_id': self.mixture_state.mixture_id,
+      'temperature_K': self.mixture_state.temperature_K,
+      'pressure_Pa': self.mixture_state.pressure_Pa,
+      'species_mole_fraction': next(
+        item.mole_fraction
+        for item in self.mixture_state.species_mole_fractions
+        if item.species == self.transition.species
+      ),
+      'partition_function': self.partition_function,
+      'path_length_m': self.path_length_m,
+      'lower_population_fraction': self.lower_population_fraction,
+      'upper_population_fraction': self.upper_population_fraction,
+      'lower_number_density_per_m3': self.lower_number_density_per_m3,
+      'upper_number_density_per_m3': self.upper_number_density_per_m3,
+      'stimulated_emission_factor': self.stimulated_emission_factor,
+      'integrated_optical_depth_m': self.integrated_optical_depth_m,
+      'claim_status': (
+        'caller-bound-LTE-population-engineering; no reactions, non-LTE '
+        'closure, inferred spectroscopy, or external validation'
+      ),
+    }
+  ####
 ####
 
 
@@ -71,6 +343,7 @@ class SpectralLine:
   doppler_sigma_m: float
   lorentz_half_width_m: float = 0.0
   label: str = 'unlabelled-line'
+  population_closure: LtePopulationClosure | None = None
 
   def __post_init__(self) -> None:
     center = _finite_positive('center_wavelength_m', self.center_wavelength_m)
@@ -87,11 +360,26 @@ class SpectralLine:
     if not label:
       raise ValueError('label must not be empty')
     ####
+    population_closure = self.population_closure
+    if population_closure is not None:
+      if not isinstance(population_closure, LtePopulationClosure):
+        raise TypeError('population_closure must be an LtePopulationClosure or None')
+      ####
+      if abs(center - population_closure.transition.center_wavelength_m) > 1.0e-14 * center:
+        raise ValueError('line center must match population_closure.transition.center_wavelength_m')
+      ####
+      if abs(integrated - population_closure.integrated_optical_depth_m) > (
+          1.0e-12 * max(abs(integrated), abs(population_closure.integrated_optical_depth_m), 1.0)
+      ):
+        raise ValueError('integrated optical depth must match population_closure')
+      ####
+    ####
     object.__setattr__(self, 'center_wavelength_m', center)
     object.__setattr__(self, 'integrated_optical_depth_m', integrated)
     object.__setattr__(self, 'doppler_sigma_m', sigma)
     object.__setattr__(self, 'lorentz_half_width_m', lorentz)
     object.__setattr__(self, 'label', label)
+    object.__setattr__(self, 'population_closure', population_closure)
   ####
 
   @classmethod
@@ -133,6 +421,11 @@ class SpectralLine:
       'integrated_optical_depth_m': self.integrated_optical_depth_m,
       'doppler_sigma_m': self.doppler_sigma_m,
       'lorentz_half_width_m': self.lorentz_half_width_m,
+      'population_closure': (
+        None
+        if self.population_closure is None
+        else self.population_closure.as_report()
+      ),
     }
   ####
 ####
@@ -158,6 +451,11 @@ def voigt_line_shape_per_m(
     raise FloatingPointError('Voigt line-shape evaluation was not finite')
   ####
   return max(0.0, value)
+####
+
+
+def _population_closure_count(lines: Sequence[SpectralLine]) -> int:
+  return sum(line.population_closure is not None for line in lines)
 ####
 
 
@@ -193,6 +491,22 @@ class LineRadiationProfile:
       raise ValueError('profile_id must not be empty')
     ####
     mixture_state = self.source_mixture_state
+    for line in lines:
+      closure = line.population_closure
+      if closure is None:
+        continue
+      ####
+      closure_scale = max(path_length, closure.path_length_m, 1.0)
+      if abs(path_length - closure.path_length_m) > 1.0e-12 * closure_scale:
+        raise ValueError('population-closure path length must match profile path_length_m')
+      ####
+      if abs(temperature - closure.mixture_state.temperature_K) > 1.0e-12 * max(temperature, 1.0):
+        raise ValueError('population-closure state temperature must match source_temperature_K')
+      ####
+      if mixture_state is not None and mixture_state != closure.mixture_state:
+        raise ValueError('population-closure mixture state must match source_mixture_state')
+      ####
+    ####
     if mixture_state is not None:
       if not isinstance(mixture_state, FrozenMixtureState):
         raise TypeError('source_mixture_state must be a FrozenMixtureState or None')
@@ -265,10 +579,12 @@ class LineRadiationProfile:
   ####
 
   def as_report(self) -> dict[str, object]:
+    population_closure_count = _population_closure_count(self.lines)
     return {
       'profile_id': self.profile_id,
       'wavelengths_m': self.wavelengths_m,
       'line_count': len(self.lines),
+      'population_closure_count': population_closure_count,
       'lines': tuple(line.as_report() for line in self.lines),
       'source_temperature_K': self.source_temperature_K,
       'path_length_m': self.path_length_m,
@@ -292,8 +608,15 @@ class LineRadiationProfile:
       'source_model': 'LTE-Planck-source',
       'line_shape_model': 'normalized-wavelength-domain-Voigt',
       'claim_status': (
-        'spectral-engineering-with-explicit-line-optical-depths; '
-        'CHEM-0-source-state-bound-but-no-population-closure-or-external-validation'
+        (
+          'spectral-engineering-with-explicit-lte-population-closure; '
+          'caller-bound-transition-data-and-no-reactions-or-external-validation'
+        )
+        if population_closure_count
+        else (
+          'spectral-engineering-with-explicit-line-optical-depths; '
+          'CHEM-0-source-state-bound-but-no-population-closure-or-external-validation'
+        )
       ),
     }
   ####
@@ -408,10 +731,15 @@ class SectionedLineRadiationProfile:
   ####
 
   def as_report(self) -> dict[str, object]:
+    population_closure_count = sum(
+      _population_closure_count(profile.lines)
+      for profile in self.profiles_by_section
+    )
     return {
       'profile_id': self.profile_id,
       'wavelengths_m': self.wavelengths_m,
       'section_count': len(self.profiles_by_section),
+      'population_closure_count': population_closure_count,
       'source_temperature_K_by_section': self.source_temperature_K_by_section,
       'profiles_by_section': tuple(
         profile.as_report() for profile in self.profiles_by_section
@@ -419,8 +747,15 @@ class SectionedLineRadiationProfile:
       'source_model': 'LTE-Planck-source-by-section',
       'line_shape_model': 'normalized-wavelength-domain-Voigt',
       'claim_status': (
-        'spectral-engineering-with-explicit-section-line-optical-depths; '
-        'no-population-closure-or-external-validation'
+        (
+          'spectral-engineering-with-explicit-section-lte-population-closure; '
+          'caller-bound-transition-data-and-no-reactions-or-external-validation'
+        )
+        if population_closure_count
+        else (
+          'spectral-engineering-with-explicit-section-line-optical-depths; '
+          'no-population-closure-or-external-validation'
+        )
       ),
     }
   ####

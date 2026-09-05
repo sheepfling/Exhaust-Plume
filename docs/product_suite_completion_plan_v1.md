@@ -133,6 +133,8 @@ The current local composition includes:
 - explicit homogeneous and sectioned gray source/absorption profiles;
 - explicit LTE Planck line sources with caller-owned Voigt optical-depth
   primitives;
+- explicit caller-bound LTE population closures from frozen-mixture states,
+  declared transition data, and caller-supplied partition functions;
 - straight and separately labeled curved gray transfer;
 - atmospheric layers as caller-owned measurement operators;
 - mission-time visual/signature evaluators;
@@ -140,11 +142,13 @@ The current local composition includes:
   point queries that preserve result IDs, status, masks, and uncertainty.
 
 The next promotion boundary requires a source-bound resolved radiation model
-and provider-bound measurement evidence. The LTE line profile is a
-spectral-engineering source primitive, not a chemistry or non-LTE population
-solver; no table, gray profile, or explicit line profile may be relabelled as
-validated molecular spectroscopy, atmosphere-corrected radiance, or
-production Signature evidence.
+and provider-bound measurement evidence. The LTE population closure is now a
+source-bound spectral-engineering path, but it still requires caller-supplied
+transition cross-sections and partition functions and does not model
+reactions, non-LTE populations, atmosphere, or external validation. No table,
+gray profile, or explicit line profile may be relabelled as validated
+molecular spectroscopy, atmosphere-corrected radiance, or production
+Signature evidence.
 
 ### Focal-plane array
 
@@ -289,6 +293,10 @@ claim is authorized.
       mixed-regime closure, and chain promotion blocked.
 - [x] Retain the scalar transition and its audit in every coupled-field result
       so the actual global pressure seam is part of the verified lineage.
+- [x] Add a caller-bound LTE population closure that derives explicit line
+      optical depth from a frozen-mixture state and declared transition data;
+      keep reactions, non-LTE inference, database lookup, and production
+      claims blocked.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -382,6 +390,19 @@ diagnostic checks. The piecewise-capsule path refinement remains explicitly
 requires a convergent curved-path/operator treatment and a provider-bound
 observer/path/scenario comparison. This checkpoint does not change the
 straight optical lane or add a curved-flow, chemistry, detector, or FPA claim.
+
+### P4.2 source-bound LTE population checkpoint
+
+The Signature radiation seam now accepts an explicit
+``LtePopulationClosure``. It binds a validated CHEM-0 frozen-mixture state to
+a caller-supplied transition, partition function, integrated lower-state
+absorption cross-section, and path length; it records lower/upper populations,
+number densities, stimulated-emission factor, and the resulting Voigt line
+optical depth. The derived line enters the existing straight ray-transfer and
+Signature adapter without changing the provider identity. The claim ceiling
+remains spectral engineering only: reactions, non-LTE populations, inferred
+spectroscopy, atmosphere, detector, external validation, and production
+claims remain blocked.
 
 ### P2.1 evidence checkpoint
 

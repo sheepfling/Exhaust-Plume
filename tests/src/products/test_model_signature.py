@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from exhaust_plume.models.gas import FrozenMixtureGas, SpeciesDefinition, SpeciesMassFraction
 from exhaust_plume.products import (
     GrayRadiationProfile,
     LineRadiationProfile,
+    LtePopulationClosure,
+    LteTransition,
     ModelSignatureBlockedError,
     ModelSignatureReadiness,
     ModelSignatureSampling,
@@ -232,6 +235,61 @@ def test_explicit_lte_line_profile_enters_signature_as_spectral_engineering() ->
     assert signature.metadata.provenance.metadata["signature_adapter_schema"].endswith("@1")
     assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
     assert any(value > 0.0 for row in signature.spectral_radiant_intensity for value in row)
+####
+
+
+def test_source_bound_lte_population_closure_preserves_the_restricted_signature_claim() -> None:
+    bundle = _straight_bundles()[0]
+    mixture = FrozenMixtureGas(
+        mixture_id="test-signature-lte-population",
+        species=(
+            SpeciesDefinition(
+                species="test-gas",
+                molecular_weight_kg_per_mol=0.020,
+                cp_JpkgK=1_000.0,
+            ),
+        ),
+        species_mass_fractions=(SpeciesMassFraction(species="test-gas", mass_fraction=1.0),),
+        valid_temperature_range_K=(300.0, 2_000.0),
+    )
+    state = mixture.state_at(120_000.0, 1_200.0)
+    closure = LtePopulationClosure.from_state(
+        LteTransition(
+            species="test-gas",
+            center_wavelength_m=2.0e-6,
+            lower_state_energy_J=0.0,
+            upper_state_energy_J=1.0e-20,
+            lower_degeneracy=1.0,
+            upper_degeneracy=1.0,
+            integrated_absorption_cross_section_m3=4.0e-28,
+            molecular_mass_kg=3.32e-26,
+        ),
+        state,
+        partition_function=4.0,
+        path_length_m=1.0,
+    )
+    profile = LineRadiationProfile(
+        wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+        lines=(closure.to_spectral_line(),),
+        source_temperature_K=state.temperature_K,
+        path_length_m=1.0,
+        source_mixture_state=state,
+    )
+
+    assessment = assess_model_signature_readiness(bundle, optical_profile=profile)
+    signature = evaluate_model_signature(
+        bundle,
+        profile,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0),),
+            transverse_sample_count=5,
+        ),
+    )
+
+    assert assessment.ready
+    assert "caller-bound LTE population closure" in assessment.claim_ceiling
+    assert any("no reactions" in warning for warning in signature.metadata.warnings)
+    assert signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
 ####
 
 

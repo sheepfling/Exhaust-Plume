@@ -6,6 +6,8 @@ import pytest
 from exhaust_plume.models.gas import FrozenMixtureGas, SpeciesDefinition, SpeciesMassFraction
 from exhaust_plume.radiation import (
   BOLTZMANN_J_K,
+  LtePopulationClosure,
+  LteTransition,
   SPEED_OF_LIGHT_M_S,
   LineRadiationProfile,
   SectionedLineRadiationProfile,
@@ -113,6 +115,112 @@ def test_lte_line_profile_can_bind_a_chem0_source_state_without_inferencing_line
       source_temperature_K=1_100.0,
       path_length_m=1.0,
       source_mixture_state=state,
+    )
+  ####
+####
+
+
+def test_lte_population_closure_derives_a_source_bound_line_without_inventing_spectroscopy() -> None:
+  mixture = FrozenMixtureGas(
+    mixture_id='test-lte-population-source',
+    species=(
+      SpeciesDefinition(
+        species='test-gas',
+        molecular_weight_kg_per_mol=0.020,
+        cp_JpkgK=1_000.0,
+      ),
+    ),
+    species_mass_fractions=(SpeciesMassFraction(species='test-gas', mass_fraction=1.0),),
+    valid_temperature_range_K=(300.0, 2_000.0),
+  )
+  state = mixture.state_at(120_000.0, 1_200.0)
+  transition = LteTransition(
+    species='test-gas',
+    center_wavelength_m=2.0e-6,
+    lower_state_energy_J=0.0,
+    upper_state_energy_J=1.0e-20,
+    lower_degeneracy=1.0,
+    upper_degeneracy=1.0,
+    integrated_absorption_cross_section_m3=4.0e-28,
+    molecular_mass_kg=3.32e-26,
+    label='caller-supplied-transition',
+  )
+  partition_function = 4.0
+  closure = LtePopulationClosure.from_state(
+    transition,
+    state,
+    partition_function=partition_function,
+    path_length_m=2.0,
+  )
+  line = closure.to_spectral_line(lorentz_half_width_m=2.0e-9)
+  profile = LineRadiationProfile(
+    wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+    lines=(line,),
+    source_temperature_K=state.temperature_K,
+    path_length_m=2.0,
+    source_mixture_state=state,
+  )
+
+  assert line.population_closure == closure
+  assert closure.lower_population_fraction > closure.upper_population_fraction
+  assert closure.stimulated_emission_factor < 1.0
+  assert closure.integrated_optical_depth_m > 0.0
+  assert profile.as_report()['population_closure_count'] == 1
+  assert profile.as_report()['claim_status'].startswith(
+    'spectral-engineering-with-explicit-lte-population-closure'
+  )
+  assert line.as_report()['population_closure']['model'] == 'lte-boltzmann-population-closure-v1'  # type: ignore[index]
+####
+
+
+def test_lte_population_closure_rejects_missing_species_and_incomplete_partition_function() -> None:
+  mixture = FrozenMixtureGas(
+    mixture_id='test-lte-population-validation',
+    species=(
+      SpeciesDefinition(
+        species='test-gas',
+        molecular_weight_kg_per_mol=0.020,
+        cp_JpkgK=1_000.0,
+      ),
+    ),
+    species_mass_fractions=(SpeciesMassFraction(species='test-gas', mass_fraction=1.0),),
+    valid_temperature_range_K=(300.0, 2_000.0),
+  )
+  state = mixture.state_at(120_000.0, 1_200.0)
+  transition = LteTransition(
+    species='missing-gas',
+    center_wavelength_m=2.0e-6,
+    lower_state_energy_J=0.0,
+    upper_state_energy_J=1.0e-20,
+    lower_degeneracy=1.0,
+    upper_degeneracy=1.0,
+    integrated_absorption_cross_section_m3=4.0e-28,
+    molecular_mass_kg=3.32e-26,
+  )
+  with pytest.raises(ValueError, match='not present exactly once'):
+    LtePopulationClosure.from_state(
+      transition,
+      state,
+      partition_function=2.0,
+      path_length_m=1.0,
+    )
+  ####
+  present = LteTransition(
+    species='test-gas',
+    center_wavelength_m=2.0e-6,
+    lower_state_energy_J=0.0,
+    upper_state_energy_J=1.0e-20,
+    lower_degeneracy=1.0,
+    upper_degeneracy=2.0,
+    integrated_absorption_cross_section_m3=4.0e-28,
+    molecular_mass_kg=3.32e-26,
+  )
+  with pytest.raises(ValueError, match='must include at least'):
+    LtePopulationClosure.from_state(
+      present,
+      state,
+      partition_function=1.0,
+      path_length_m=1.0,
     )
   ####
 ####

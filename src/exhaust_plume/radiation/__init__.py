@@ -17,6 +17,8 @@ from exhaust_plume.radiation.planck import (
 )
 from exhaust_plume.radiation.lines import (
   BOLTZMANN_J_K,
+  LtePopulationClosure,
+  LteTransition,
   SPEED_OF_LIGHT_M_S,
   LineRadiationProfile,
   SectionedLineRadiationProfile,
@@ -35,6 +37,8 @@ __all__ = (
   'PLANCK_C2_M_K',
   'planck_spectral_radiance_W_m2_sr_m',
   'BOLTZMANN_J_K',
+  'LtePopulationClosure',
+  'LteTransition',
   'SPEED_OF_LIGHT_M_S',
   'LineRadiationProfile',
   'SectionedLineRadiationProfile',

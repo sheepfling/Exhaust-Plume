@@ -9,9 +9,10 @@ planar-MOC lanes remain typed transport blocks until their own optical
 geometry providers exist.
 
 The resulting signature is either a gray approximation or explicit spectral
-engineering evidence.  It carries the flow-lane lineage and claim ceiling,
-but it does not claim chemical population closure, atmosphere, detector
-response, or external validation.
+engineering evidence.  It carries the flow-lane lineage and claim ceiling.
+Caller-bound LTE population closures are allowed as source engineering
+inputs, but this bridge does not claim reactions, non-LTE population closure,
+atmosphere, detector response, or external validation.
 """
 
 from __future__ import annotations
@@ -51,6 +52,8 @@ from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransf
 from exhaust_plume.radiation import (
     FarFieldRayIntegration,
     LineRadiationProfile,
+    LtePopulationClosure,
+    LteTransition,
     SectionedLineRadiationProfile,
     SpectralLine,
     far_field_from_rays,
@@ -64,6 +67,8 @@ __all__ = (
     "GrayRadiationProfile",
     "GrayOpticalProfile",
     "LineRadiationProfile",
+    "LtePopulationClosure",
+    "LteTransition",
     "SectionedLineRadiationProfile",
     "SpectralLine",
     "SectionedGrayRadiationProfile",
@@ -395,9 +400,15 @@ def _profile_adapter_schema(profile: GrayOpticalProfile | None) -> str:
 
 def _profile_claim_ceiling(profile: GrayOpticalProfile | None) -> str:
     if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile)):
+        population_note = (
+            "caller-bound LTE population closure from explicit transition data; "
+            if _profile_has_population_closure(profile)
+            else "no chemical population closure; "
+        )
         return (
-            "explicit LTE line-source/Voigt spectral engineering; no chemical "
-            "population closure, atmosphere, detector, or external validation"
+            "explicit LTE line-source/Voigt spectral engineering; "
+            f"{population_note}no reactions, non-LTE inference, atmosphere, "
+            "detector, or external validation"
         )
     ####
     return "gray-approximate; no chemistry, atmosphere, detector, or external validation"
@@ -415,6 +426,20 @@ def _profile_mode(profile: GrayOpticalProfile) -> str:
         return "piecewise-axial-section"
     ####
     return "homogeneous"
+####
+
+
+def _profile_has_population_closure(profile: GrayOpticalProfile) -> bool:
+    profiles = (
+        profile.profiles_by_section
+        if isinstance(profile, SectionedLineRadiationProfile)
+        else (profile,)
+    )
+    return any(
+        isinstance(item, LineRadiationProfile)
+        and any(line.population_closure is not None for line in item.lines)
+        for item in profiles
+    )
 ####
 
 
@@ -719,9 +744,15 @@ def _attach_flow_lineage(
             "warnings": parent.warnings
             + (
                 (
-                    "signature uses an explicit LTE line-source profile with "
-                    "caller-supplied Voigt optical depths; no chemical population "
-                    "closure was inferred"
+                    (
+                        "signature uses a caller-bound LTE population closure "
+                        "from explicit transition data; no reactions or non-LTE "
+                        "population closure was inferred"
+                        if _profile_has_population_closure(profile)
+                        else "signature uses an explicit LTE line-source profile "
+                        "with caller-supplied Voigt optical depths; no chemical "
+                        "population closure was inferred"
+                    )
                     if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile))
                     else "signature uses an explicit gray optical profile; no chemistry or molecular spectral source was inferred"
                 ),
