@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from exhaust_plume.contracts.schema_v1 import PUBLIC_CONTRACT_MODELS
-from exhaust_plume.contracts.visual_v1 import VisualSectionedTubeResult
-
-from generate_public_contract_assets import generate_assets
-
-
+# Make this release-facing check executable both through ``scripts/ci.py`` and
+# directly from a checkout.  The CI wrapper supplies these paths in
+# ``PYTHONPATH``; a direct invocation should not depend on that wrapper.
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'src'))
+sys.path.insert(0, str(ROOT / 'scripts'))
+
+from exhaust_plume.contracts.schema_v1 import PUBLIC_CONTRACT_MODELS  # noqa: E402
+from exhaust_plume.contracts.visual_v1 import VisualSectionedTubeResult  # noqa: E402
+
+from generate_public_contract_assets import generate_assets  # noqa: E402
 
 
 def _assert_same_bytes(expected_root: Path, generated_root: Path, relative_paths: tuple[str, ...]) -> None:
