@@ -2498,6 +2498,8 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
   assert response_consumed.coupled_field is not None
   assert response_consumed.closure_lineage_verified
   assert response_consumed.coupled_field.free_boundary_pressure_profile_consumed
+  assert response_consumed.coupled_field_audit is not None
+  assert response_consumed.coupled_field_audit.free_boundary_report_verified
   assert response_consumed.boundary_pressure_profile == feedback_profile
   assert response_consumed.global_coupling_verified is False
   assert response_consumed.downstream_boundary_closure_verified is False
@@ -2550,6 +2552,38 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
   assert anchored_consumed.downstream_boundary_response is not None
   assert anchored_consumed.downstream_boundary_response.maximum_coordinate_residual_m <= (
     anchored_consumed.downstream_boundary_response.coordinate_tolerance_m
+  )
+
+  full_pressure_feedback_profile = (
+    build_reflected_domain_global_coupled_downstream_feedback_pressure_profile(
+      closure,
+      baseline.downstream_boundary_response,
+      pressure_correction_fraction=1.0,
+    )
+  )
+  fully_consumed = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    boundary_pressure_profile=full_pressure_feedback_profile,
+    boundary_geometry_profile=geometry_feedback_profile,
+  )
+  assert fully_consumed.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .CONVERGED_LOCAL_COUPLED_FIELD
+  )
+  assert fully_consumed.coupled_field is not None
+  assert fully_consumed.coupled_field_audit is not None
+  assert fully_consumed.coupled_field_audit.converged
+  assert fully_consumed.coupled_field.free_boundary_pressure_profile_consumed
+  assert fully_consumed.coupled_field.free_boundary_geometry_profile_consumed
+  assert fully_consumed.downstream_boundary_response is not None
+  assert fully_consumed.downstream_boundary_response.maximum_coordinate_residual_m <= (
+    fully_consumed.downstream_boundary_response.coordinate_tolerance_m
   )
 
   baseline_geometry = baseline.coupled_field.free_boundary_points_m
@@ -2685,6 +2719,61 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
   assert second.geometry_profile_consumption_verified
   assert second.result.boundary_geometry_profile == second.input_geometry_profile
   assert second.result.coupled_field.free_boundary_geometry_profile_consumed
+  assert all(
+    item.result.global_coupling_verified is False
+    and item.result.downstream_boundary_closure_verified is False
+    and item.result.chain_promotion_blocked
+    and item.result.production_claim_allowed is False
+    for item in run.iterations
+  )
+####
+
+
+def test_global_coupled_downstream_feedback_reaches_local_pressure_fixed_point_only():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  ambient_pressure = mixed_request.control_section.samples[-1].static_pressure_Pa
+  run = run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=5,
+    pressure_correction_fraction=1.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    pressure_update_tolerance_Pa=1.0e3,
+  )
+
+  assert run.requested_iterations == 5
+  assert len(run.iterations) == 5
+  assert run.fresh_solver_invocation_verified
+  assert run.closure_lineage_verified
+  assert run.pressure_profile_lineage_verified
+  assert run.geometry_profile_lineage_verified
+  assert run.geometry_profile_consumption_verified
+  assert run.response_lineage_verified
+  assert run.response_channels_finite
+  assert run.response_coverage_verified
+  assert run.response_residuals_verified is False
+  assert run.local_coupled_field_verified
+  assert run.pressure_update_convergence_verified
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.RESPONSE_FAILURE
+  )
+  assert run.converged is False
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+
+  assert run.iterations[-1].maximum_pressure_update_Pa is not None
+  assert run.iterations[-1].maximum_pressure_update_Pa <= (
+    run.pressure_update_tolerance_Pa
+  )
+  assert all(item.local_coupled_field_verified for item in run.iterations)
   assert all(
     item.result.global_coupling_verified is False
     and item.result.downstream_boundary_closure_verified is False

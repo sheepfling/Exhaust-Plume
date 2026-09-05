@@ -989,26 +989,24 @@ production claim is authorized while any item below remains open.
 
 ### Candidate evidence checkpoint — 2026-09-05
 
-The current candidate is commit
-`57d23d501f75b96eca90ebb72beac1fa2daa83c6` on
-`work/washed-integral-visual`, with a clean worktree.  Fresh local evidence
-for this exact candidate is:
+The earlier `57d23d501f75b96eca90ebb72beac1fa2daa83c6` checkpoint is
+historical.  The active candidate is the exact `HEAD` of
+`work/washed-integral-visual`; the branch is kept clean and the pushed commit
+is the candidate used by CI.  Fresh local evidence for the active candidate
+is recorded after each coherent slice:
 
-- `python3 -m pytest -q`: **1,105 passed**, 18 warnings, 10:29;
-- `python3 scripts/check_build.py --offline`: wheel build, isolated install,
-  and installed-package smoke all passed;
-- the lane-release validator: active lanes have local evidence, the FPA
-  provider guard passes, and no low-fidelity promotion is detected; and
-- the candidate wheel digest is
-  `c6a9109dccb92fa7755d07d03fd7bb07dc82642de0eb8abb59c66a09c0228bf1`.
+- the full test matrix, build/install smoke, static checks, and lane-release
+  validator must all be rerun against this exact `HEAD` before the final
+  freeze;
+- the latest completed full matrix before the active audit slice was
+  **1,113 passed**, with the existing 18 warnings; and
+- the release manifest remains `release_ready=false` until the external,
+  physical, provider, and freeze gates below are satisfied.
 
-The release validator also confirms that the recorded freeze is stale: its
-freeze and validated-code commits predate the current candidate.  The pushed
-CI runs for the latest three slices are still in progress
-(`33960094736`, `33960528436`, and `33960702126`); the earlier physical-field
-handoff run `33959443663` passed.  These local and CI results are release
-evidence, not external physical validation, and they do not change the open
-release blockers below.
+The prior freeze and validated-code commits are stale relative to the active
+candidate.  CI status is tracked from the pushed run for `HEAD`.  These local
+and CI results are release evidence, not external physical validation, and
+they do not change the open release blockers below.
 
 The known release blockers are:
 
@@ -1472,3 +1470,21 @@ but its second fresh field still fails the local pressure/tangency residual
 gate.  The runner therefore remains a typed solver failure with global
 feedback, canonical downstream closure, physical shock-cell fitting,
 provider-bound validation, and Signature/FPA promotion blocked.
+
+### Solver-owned pressure-profile audit checkpoint
+
+The independent coupled-Euler audit now reconstructs the exact per-column
+free-boundary pressure target vector from the request.  When a solver-owned
+pressure profile is present, both the independent wall-flux reconstruction
+and the pressure/tangency residual gate use that profile; the scalar ambient
+pressure remains the target only when no profile was supplied.  This fixes a
+measurement-contract mismatch that previously rejected correctly consumed
+pressure profiles as though they were ambient-boundary fields.
+
+The combined pressure-and-geometry consumer now reaches a locally audited
+field under a full research pressure update, and the bounded feedback runner
+can reach a local pressure fixed point when explicitly configured for that
+update.  The independently measured global/coupled overlap still fails its
+pressure/tangent/normal residual gate, so global feedback, canonical closure,
+physical shock-cell fitting, provider-bound validation, and Signature/FPA
+promotion remain blocked.

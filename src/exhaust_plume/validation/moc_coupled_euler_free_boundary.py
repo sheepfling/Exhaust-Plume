@@ -129,6 +129,27 @@ def _effective_field_inlet_geometry(
 ####
 
 
+def _free_boundary_pressure_targets(request: Any) -> np.ndarray:
+  """Reconstruct the exact pressure target vector used by the field audit."""
+
+  profile = request.free_boundary_pressure_profile_Pa
+  if profile is None:
+    return np.full(
+      request.axial_cell_count,
+      request.mixed_regime_request.ambient_pressure_Pa,
+      dtype=float,
+    )
+  ####
+  targets = np.asarray(profile, dtype=float)
+  if targets.shape != (request.axial_cell_count,):
+    raise ValueError(
+      'free-boundary pressure target count does not match the audited mesh'
+    )
+  ####
+  return targets
+####
+
+
 class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   """Outcome for the independent conservative-field audit."""
 
@@ -1773,6 +1794,7 @@ def _audit_field(
   control = mixed.control_section
   axial_count = request.axial_cell_count
   transverse_count = request.transverse_cell_count
+  pressure_targets = _free_boundary_pressure_targets(request)
   expected_cell_count = axial_count * transverse_count
   if len(candidate.x_stations_m) != axial_count + 1:
     raise ValueError('audited x-station count does not match the request')
@@ -2119,7 +2141,7 @@ def _audit_field(
         elif edge_index == 2 and j == transverse_count - 1:
           flux, wave = _specified_pressure_wall_flux(
             state,
-            mixed.ambient_pressure_Pa,
+            float(pressure_targets[i]),
             normal_x,
             normal_y,
             length,
@@ -2568,14 +2590,14 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   residuals_verified = maxima[4] <= candidate.request.euler_residual_tolerance
   pressure = np.asarray(raw['top_pressure'], dtype=float)
   normal_velocity = np.asarray(raw['top_normal_velocity'], dtype=float)
-  ambient_pressure = candidate.request.mixed_regime_request.ambient_pressure_Pa
-  pressure_residual = float(np.max(np.abs(pressure - ambient_pressure)))
+  pressure_targets = _free_boundary_pressure_targets(candidate.request)
+  pressure_residual = float(np.max(np.abs(pressure - pressure_targets)))
   maximum_speed = max(float(np.max(raw['speeds'])), 1.0e-12)
   normal_fraction = float(np.max(np.abs(normal_velocity))) / maximum_speed
   boundary_report_verified = bool(
     np.allclose(
       np.asarray(candidate.free_boundary_pressure_residuals_Pa),
-      np.abs(pressure - ambient_pressure),
+      np.abs(pressure - pressure_targets),
       rtol=3.0e-6,
       atol=1.0e-8,
     )
@@ -2699,13 +2721,19 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
     message = 'candidate free-boundary diagnostic arrays do not match the field'
   elif (
-    pressure_residual
-    > candidate.request.free_boundary_pressure_tolerance_fraction * ambient_pressure
+    np.any(
+      np.abs(pressure - pressure_targets)
+      > candidate.request.free_boundary_pressure_tolerance_fraction
+      * pressure_targets
+    )
     or normal_fraction
     > candidate.request.free_boundary_normal_velocity_tolerance_fraction
   ):
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
-    message = 'independent ambient pressure or tangency residual exceeds tolerance'
+    message = (
+      'independent free-boundary pressure target or tangency residual exceeds '
+      'tolerance'
+    )
   elif not bool(raw['entropy_verified']):
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
     message = 'independent entropy-proxy transport bounds were not satisfied'

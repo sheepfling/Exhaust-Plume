@@ -3961,3 +3961,20 @@ still fails the local pressure/tangency residual gate.  This remains a
 solver-owned P2.2 seam: global feedback, canonical reflected closure,
 continued-chain promotion, physical shock-cell fitting, Signature/FPA
 promotion, and external validation stay closed.
+
+## Solver-owned pressure-profile audit checkpoint
+
+The independent coupled-Euler audit now reconstructs the exact pressure target
+vector carried by the request.  A supplied solver-owned pressure profile is
+used for the independent wall-flux reconstruction and for the
+pressure/tangency gate; the scalar ambient pressure is used only when no
+profile is present.  This closes a measurement-contract mismatch that had
+mistakenly treated a consumed pressure profile as an ambient-boundary field.
+
+With the corrected audit, a full research pressure update can produce a
+locally audited field alongside the anchored geometry profile, and the
+bounded runner can reach a local pressure fixed point when explicitly given
+that update policy.  The global/coupled overlap response still fails its
+pressure, tangent, and normal residual gate, so canonical closure, continued
+chain promotion, physical shock-cell fitting, Signature/FPA promotion, and
+external validation remain blocked.
