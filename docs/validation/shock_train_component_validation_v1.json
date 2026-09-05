@@ -26,6 +26,29 @@
     "validation_case_ids": [],
     "validation_cases": 0
   },
+  "calibration_validation_split_audit": {
+    "accepted": false,
+    "available_case_count": 1,
+    "available_case_ids": [
+      "CJ-UEJ-001"
+    ],
+    "calibration_case_count": 0,
+    "calibration_case_ids": [],
+    "claim_status": "not_accepted",
+    "duplicate_case_ids": [],
+    "message": "at least one calibration and one validation case are required; unassigned cases remain visible and cannot serve both roles",
+    "operator_id": "op.reduce.shock-train-calibration-validation-split",
+    "status": "missing-calibration-or-validation-cases",
+    "unknown_case_ids": [],
+    "unassigned_available_case_ids": [],
+    "unassigned_case_count": 1,
+    "unassigned_case_ids": [
+      "CJ-UEJ-001"
+    ],
+    "validation_case_count": 0,
+    "validation_case_ids": [],
+    "verified": false
+  },
   "case": {
     "adapter_exit_mach": 1.000001,
     "adapter_gamma": 1.4,

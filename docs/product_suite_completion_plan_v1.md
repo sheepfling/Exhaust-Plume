@@ -1421,3 +1421,17 @@ boundary: ``global_coupling_verified``, canonical downstream closure,
 physical shock-cell fitting, provider-bound validation, and Signature/FPA
 production claims remain closed until the coupled entrance/frontier physics
 and external measurements are accepted.
+
+### Reduced-order shock-train split-audit checkpoint
+
+The reduced-order shock-train lane now has an independent split-audit
+operator.  It checks that the available case inventory is unique, every case
+has an explicit calibration/validation/unassigned role, and the assigned
+calibration and validation identities are disjoint.  The component validation
+report records this audit separately from the older role-count contract.
+
+The audit is governance evidence only.  A verified role manifest does not fit
+closure coefficients, identify physical shock-cell centers, accept the
+pressure-extrema diagnostic, or promote the reduced-order geometry into
+Visualization, Signature, ray-transfer, or FPA claims.  The recovered
+single-case archive therefore remains a typed missing-split blocker.

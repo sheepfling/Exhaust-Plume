@@ -3911,3 +3911,17 @@ profile consumption are observable and lineaged, but the consumed second
 field does not pass its local solver/audit gate.  The runner therefore retains
 a typed solver failure and keeps global feedback, canonical closure, continued
 shock-cell claims, Signature/FPA promotion, and external validation blocked.
+
+## Reduced-order shock-train split-audit checkpoint
+
+The reduced-order lane now audits its explicit case-role manifest against the
+available case inventory.  Duplicate identities, unknown cases, silently
+unassigned inventory members, and missing calibration or validation roles are
+reported as typed states.  A verified disjoint manifest is retained as
+governance evidence and still carries a ``not_accepted`` claim status.
+
+The current one-case archive remains unassigned and therefore fails the
+missing-split state.  This makes the next calibration packet executable when
+an owner supplies additional cases, without treating pressure-extrema
+spacing, scaled downstream geometry, or synthetic fixtures as physical
+shock-cell validation.

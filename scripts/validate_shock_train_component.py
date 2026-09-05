@@ -31,6 +31,7 @@ from exhaust_plume.models.shock_train import (  # noqa: E402
 from exhaust_plume.validation import (  # noqa: E402
   SHOCK_TRAIN_PRESSURE_EXTREMA_SPACING_OPERATOR_ID,
   PressureExtremum,
+  audit_shock_train_calibration_validation_split,
   compare_shock_train_pressure_extrema_spacing,
 )
 
@@ -147,6 +148,12 @@ def build_shock_train_component_report(corpus_path: Path) -> dict[str, Any]:
       'the recovered archive provides one gasdynamic precursor case, not a '
       'disjoint closure calibration/validation split'
     ),
+  )
+  report['calibration_validation_split_audit'] = (
+    audit_shock_train_calibration_validation_split(
+      split,
+      (BENCHMARK_ID,),
+    ).as_report()
   )
   diameter_m = float(case['exit_diameter_m'])
   first_cell, model_case = _case_from_metadata(

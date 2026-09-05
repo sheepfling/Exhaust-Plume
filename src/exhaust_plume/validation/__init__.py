@@ -542,6 +542,12 @@ from exhaust_plume.validation.shock_train_comparisons import (
   ShockTrainSpacingComparison,
   compare_shock_train_pressure_extrema_spacing,
 )
+from exhaust_plume.validation.shock_train_validation import (
+  SHOCK_TRAIN_CALIBRATION_VALIDATION_SPLIT_AUDIT_OPERATOR_ID,
+  ShockTrainCalibrationValidationSplitAuditStatus,
+  ShockTrainCalibrationValidationSplitAudit,
+  audit_shock_train_calibration_validation_split,
+)
 from exhaust_plume.validation.visual_comparisons import (
   MACH_DISK_FEATURE_OPERATOR_ID,
   MachDiskPressureComparison,
@@ -905,6 +911,9 @@ __all__ = (
   'SHOCK_TRAIN_PRESSURE_EXTREMA_SPACING_OPERATOR_ID',
   'PressureExtremum',
   'ShockTrainSpacingComparison',
+  'SHOCK_TRAIN_CALIBRATION_VALIDATION_SPLIT_AUDIT_OPERATOR_ID',
+  'ShockTrainCalibrationValidationSplitAuditStatus',
+  'ShockTrainCalibrationValidationSplitAudit',
   'SENSOR_SPACE_SPECTRAL_RADIANCE_UNITS',
   'INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS',
   'RELATIVE_SPECTRAL_SHAPE_UNITS',
@@ -937,6 +946,7 @@ __all__ = (
   'compare_declared_peak_normalized_spectral_shape',
   'compare_mach_disk_pressure_relation',
   'compare_shock_train_pressure_extrema_spacing',
+  'audit_shock_train_calibration_validation_split',
   'validate_signature_table_result',
   'validate_straight_visual_result',
   'peak_normalize_spectral_rows',
