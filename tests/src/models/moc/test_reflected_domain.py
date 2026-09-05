@@ -27,6 +27,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
   MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus,
@@ -1918,6 +1919,119 @@ def test_coupled_euler_free_boundary_flux_has_no_mass_or_energy_transport():
   assert flux[1] == pytest.approx(101325.0 * 0.6 * 2.5)
   assert flux[2] == pytest.approx(101325.0 * 0.8 * 2.5)
   assert wave > 0.0
+####
+
+
+def test_subsonic_characteristic_inlet_releases_the_outgoing_acoustic_mode():
+  reference = coupled_euler._conservative_from_primitive(
+    density=1.1,
+    velocity_u=150.0,
+    velocity_v=12.0,
+    pressure=140000.0,
+    gamma=1.4,
+  )
+  interior = coupled_euler._conservative_from_primitive(
+    density=1.0,
+    velocity_u=165.0,
+    velocity_v=10.0,
+    pressure=150000.0,
+    gamma=1.4,
+  )
+
+  resolved = coupled_euler._subsonic_characteristic_inlet_state(
+    interior,
+    reference,
+    gamma=1.4,
+    gas_constant=287.05,
+  )
+  reference_rho, reference_u, reference_v, reference_pressure, reference_temperature, reference_sound = (
+    coupled_euler._primitive_from_conservative(reference, 1.4, 287.05)
+  )
+  resolved_rho, resolved_u, resolved_v, resolved_pressure, resolved_temperature, resolved_sound = (
+    coupled_euler._primitive_from_conservative(resolved, 1.4, 287.05)
+  )
+  _interior_rho, interior_u, _interior_v, _interior_pressure, _interior_temperature, interior_sound = (
+    coupled_euler._primitive_from_conservative(interior, 1.4, 287.05)
+  )
+  reference_speed = (reference_u * reference_u + reference_v * reference_v) ** 0.5
+  resolved_speed = (resolved_u * resolved_u + resolved_v * resolved_v) ** 0.5
+  reference_mach = reference_speed / reference_sound
+  resolved_mach = resolved_speed / resolved_sound
+  reference_total_pressure = reference_pressure * (
+    1.0 + 0.5 * (1.4 - 1.0) * reference_mach * reference_mach
+  ) ** (1.4 / (1.4 - 1.0))
+  resolved_total_pressure = resolved_pressure * (
+    1.0 + 0.5 * (1.4 - 1.0) * resolved_mach * resolved_mach
+  ) ** (1.4 / (1.4 - 1.0))
+  reference_total_temperature = reference_temperature * (
+    1.0 + 0.5 * (1.4 - 1.0) * reference_mach * reference_mach
+  )
+  resolved_total_temperature = resolved_temperature * (
+    1.0 + 0.5 * (1.4 - 1.0) * resolved_mach * resolved_mach
+  )
+
+  assert resolved_rho > 0.0
+  assert resolved_total_pressure == pytest.approx(reference_total_pressure)
+  assert resolved_total_temperature == pytest.approx(reference_total_temperature)
+  assert resolved_v / resolved_u == pytest.approx(reference_v / reference_u)
+  assert resolved_u - 2.0 * resolved_sound / (1.4 - 1.0) == pytest.approx(
+    interior_u - 2.0 * interior_sound / (1.4 - 1.0),
+  )
+####
+
+
+def test_coupled_euler_request_retains_the_explicit_inlet_boundary_mode():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+    ),
+  )
+
+  assert request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+  )
+  assert request.as_report()['inlet_boundary_mode'] == (
+    'subsonic-characteristic'
+  )
+####
+
+
+def test_subsonic_characteristic_coupled_field_is_independently_auditable():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  compatible_request = replace(
+    mixed_request,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+  )
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    compatible_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+    ),
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+
+  assert result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .CONVERGED_LOCAL_PHYSICAL_CLOSURE
+  )
+  assert audit.status is MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.converged
+  assert audit.residual_report_verified
+  assert result.canonical_euler_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
 ####
 
 

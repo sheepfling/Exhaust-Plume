@@ -20,6 +20,7 @@ import numpy as np
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerControlSectionCompatibility,
+  MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerSubsonicPressureBudget,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
 )
@@ -62,6 +63,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   TRANSONIC_TRANSITION_FAILURE = 'coupled-euler-audit-transonic-transition-failure'
   CONTROL_SECTION_COMPATIBILITY_FAILURE = (
     'coupled-euler-audit-control-section-compatibility-failure'
+  )
+  INLET_CHARACTERISTIC_FAILURE = (
+    'coupled-euler-audit-inlet-characteristic-failure'
   )
   FLAG_FAILURE = 'coupled-euler-audit-promotion-flag-failure'
 ####
@@ -401,6 +405,96 @@ def _interpolate_inlet(
     total_temperature,
     gas_constant,
   )
+####
+
+
+def _subsonic_characteristic_inlet(
+  interior_state: np.ndarray,
+  reference_state: np.ndarray,
+  gamma: float,
+  gas_constant: float,
+) -> np.ndarray:
+  """Independently reconstruct the solver's subsonic inlet boundary state."""
+
+  _density, interior_u, _velocity_v, _pressure, _temperature, interior_sound = (
+    _primitive(interior_state, gamma, gas_constant)
+  )
+  _reference_density, reference_u, reference_v, reference_pressure, reference_temperature, reference_sound = (
+    _primitive(reference_state, gamma, gas_constant)
+  )
+  reference_speed = sqrt(reference_u * reference_u + reference_v * reference_v)
+  if reference_speed <= 1.0e-12:
+    raise RuntimeError(
+      'audited subsonic characteristic inlet requires a positive reference speed'
+    )
+  ####
+  reference_mach = reference_speed / reference_sound
+  if reference_mach >= 1.0:
+    raise RuntimeError(
+      'audited subsonic characteristic inlet requires a subsonic reference state'
+    )
+  ####
+  beta = 0.5 * (gamma - 1.0)
+  pressure_factor = 1.0 + beta * reference_mach * reference_mach
+  total_temperature = reference_temperature * pressure_factor
+  total_pressure = reference_pressure * pressure_factor ** (
+    gamma / (gamma - 1.0)
+  )
+  direction_u = reference_u / reference_speed
+  direction_v = reference_v / reference_speed
+  outgoing_invariant = interior_u - 2.0 * interior_sound / (gamma - 1.0)
+
+  def state_and_residual(mach: float) -> tuple[np.ndarray, float]:
+    factor = 1.0 + beta * mach * mach
+    temperature = total_temperature / factor
+    sound_speed = sqrt(gamma * gas_constant * temperature)
+    speed = mach * sound_speed
+    velocity_u = speed * direction_u
+    velocity_v = speed * direction_v
+    pressure = total_pressure / factor ** (gamma / (gamma - 1.0))
+    density = pressure / (gas_constant * temperature)
+    state = np.array(
+      (
+        density,
+        density * velocity_u,
+        density * velocity_v,
+        pressure / (gamma - 1.0) + 0.5 * density * speed * speed,
+      ),
+      dtype=float,
+    )
+    return state, velocity_u - 2.0 * sound_speed / (gamma - 1.0) - outgoing_invariant
+  ####
+
+  lower_mach = 1.0e-8
+  upper_mach = 1.0 - 1.0e-8
+  lower_state, lower_residual = state_and_residual(lower_mach)
+  upper_state, upper_residual = state_and_residual(upper_mach)
+  if abs(lower_residual) <= 1.0e-10:
+    return lower_state
+  ####
+  if abs(upper_residual) <= 1.0e-10:
+    return upper_state
+  ####
+  if lower_residual * upper_residual > 0.0:
+    raise RuntimeError(
+      'audited subsonic characteristic inlet has no admissible Mach root'
+    )
+  ####
+  for _iteration in range(80):
+    middle_mach = 0.5 * (lower_mach + upper_mach)
+    middle_state, middle_residual = state_and_residual(middle_mach)
+    if abs(middle_residual) <= 1.0e-10:
+      return middle_state
+    ####
+    if lower_residual * middle_residual <= 0.0:
+      upper_mach = middle_mach
+      upper_residual = middle_residual
+    else:
+      lower_mach = middle_mach
+      lower_residual = middle_residual
+    ####
+  ####
+  return state_and_residual(0.5 * (lower_mach + upper_mach))[0]
 ####
 
 
@@ -1023,6 +1117,17 @@ def _audit_field(
             request.reference_total_temperature_K,
             gas_constant,
           )
+          if (
+            request.inlet_boundary_mode
+            is MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+          ):
+            inlet = _subsonic_characteristic_inlet(
+              state,
+              inlet,
+              gamma,
+              gas_constant,
+            )
+          ####
           flux, wave = _rusanov(
             state,
             inlet,
@@ -1139,6 +1244,12 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   except FloatingPointError as error:
     return _failure(
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.STATE_FAILURE,
+      candidate,
+      str(error),
+    )
+  except RuntimeError as error:
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.INLET_CHARACTERISTIC_FAILURE,
       candidate,
       str(error),
     )

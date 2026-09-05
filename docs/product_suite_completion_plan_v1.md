@@ -713,3 +713,22 @@ free-boundary case failure.  The ladder's research evidence is useful for
 locating the pressure/entropy closure seam; it does not satisfy canonical
 mixed-regime closure, accepted physical cell length, external validation,
 chain promotion, or production claims.
+
+### Coupled-Euler characteristic-inlet checkpoint
+
+The coupled field now has an explicit ``subsonic-characteristic`` inlet mode
+beside the retained ``full-state-rusanov`` research mode.  In the
+characteristic mode, the control section supplies total pressure, total
+temperature, and flow direction while the interior state supplies the
+outgoing acoustic invariant; the boundary state is solved from the resulting
+subsonic Mach root.  The independent field audit re-derives that boundary
+state rather than assuming the full-state inlet flux.
+
+The compatible research fixture converges under this mode and passes the
+independent conservative-field audit while remaining research-only.  The
+actual low-ambient case has no admissible subsonic root and now returns a
+typed ``coupled-euler-inlet-characteristic-failure`` instead of silently
+falling back to a lower-fidelity or overconstrained inlet.  This identifies
+the next required physics step—a solver-owned transonic/supersonic branch or
+shock-placement closure—and does not close the canonical field or authorize
+shock-cell, Signature, FPA, or production claims.

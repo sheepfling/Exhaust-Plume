@@ -3646,3 +3646,20 @@ fraction at every resolution and requires the independent per-cell map audit
 before reporting a locally consistent ladder.  This closes the resolution-
 evidence provenance seam for the new visualization channel; it does not
 reduce the conservative residuals or promote the research field.
+
+## Characteristic-inlet closure checkpoint
+
+The coupled constant-gamma field now exposes two explicit inlet treatments:
+the legacy full-state Rusanov boundary and a subsonic-characteristic boundary
+that preserves the outgoing acoustic invariant while retaining caller-owned
+total pressure, total temperature, and flow direction.  The latter is
+independently re-derived by the coupled-field audit, so its residual evidence
+cannot be accepted by accidentally auditing the old full-state flux.
+
+The compatible pressure-seam fixture converges locally with this boundary and
+passes the independent audit.  The actual global target has no admissible
+subsonic characteristic root; it is therefore retained as a typed inlet
+characteristic failure.  The result makes the missing transonic/supersonic
+branch or shock-placement solve explicit without turning a boundary failure
+into a physical first cell.  Canonical reflected closure, refinement,
+accepted physical shock lengths, and external validation remain open.

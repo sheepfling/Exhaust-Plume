@@ -41,6 +41,7 @@ from exhaust_plume.models.moc.transonic_transition import (
 
 __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
+  'MocReflectedDomainCoupledEulerInletBoundaryMode',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudget',
   'MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus',
@@ -87,6 +88,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   SOLVER_FAILURE = 'coupled-euler-pseudo-time-failure'
   FREE_BOUNDARY_FAILURE = 'coupled-euler-free-boundary-failure'
   RESIDUAL_FAILURE = 'coupled-euler-residual-failure'
+  INLET_CHARACTERISTIC_FAILURE = 'coupled-euler-inlet-characteristic-failure'
+####
+
+
+class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
+  """Research inlet treatment for the coupled constant-gamma field."""
+
+  FULL_STATE_RUSANOV = 'full-state-rusanov'
+  SUBSONIC_CHARACTERISTIC = 'subsonic-characteristic'
 ####
 
 
@@ -386,6 +396,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   pressure_shape_relaxation: float = 0.20
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL
   outlet_static_pressure_Pa: float | None = None
+  inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
+    MocReflectedDomainCoupledEulerInletBoundaryMode.FULL_STATE_RUSANOV
+  )
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -395,6 +408,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       raise TypeError(
         'mixed_regime_request must be a '
         'MocReflectedDomainMixedRegimeBoundaryRequest'
+      )
+    ####
+    if not isinstance(
+      self.inlet_boundary_mode,
+      MocReflectedDomainCoupledEulerInletBoundaryMode,
+    ):
+      raise TypeError(
+        'inlet_boundary_mode must be a '
+        'MocReflectedDomainCoupledEulerInletBoundaryMode'
       )
     ####
     for name, value in (
@@ -491,6 +513,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'shape_relaxation': self.shape_relaxation,
       'pressure_shape_relaxation': self.pressure_shape_relaxation,
       'outlet_static_pressure_Pa': self.outlet_static_pressure_Pa,
+      'inlet_boundary_mode': self.inlet_boundary_mode.value,
       'free_boundary_flux_model': COUPLED_EULER_FREE_BOUNDARY_FLUX_MODEL,
       'claim_status': (
         'constant-gamma-coupled-euler-free-boundary-research-lane; '
@@ -526,6 +549,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   pressure_shape_relaxation: float = 0.20,
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
   outlet_static_pressure_Pa: float | None = None,
+  inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
+    MocReflectedDomainCoupledEulerInletBoundaryMode.FULL_STATE_RUSANOV
+  ),
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   """Bind one mixed-regime reference to the coupled-Euler research lane.
 
@@ -566,6 +592,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     pressure_shape_relaxation=pressure_shape_relaxation,
     source=source,
     outlet_static_pressure_Pa=outlet_static_pressure_Pa,
+    inlet_boundary_mode=inlet_boundary_mode,
   )
 ####
 
@@ -1274,6 +1301,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   pressure_shape_relaxation: float = 0.20,
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
   outlet_static_pressure_Pa: float | None = None,
+  inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
+    MocReflectedDomainCoupledEulerInletBoundaryMode.FULL_STATE_RUSANOV
+  ),
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   """Run the coupled research field from one bound mixed-regime reference.
 
@@ -1306,6 +1336,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       pressure_shape_relaxation=pressure_shape_relaxation,
       source=source,
       outlet_static_pressure_Pa=outlet_static_pressure_Pa,
+      inlet_boundary_mode=inlet_boundary_mode,
     )
   except (TypeError, ValueError) as error:
     return _failure(
@@ -1355,6 +1386,16 @@ def _validate_control_request(
   gamma = gammas[0]
   if gamma <= 1.0 or not isfinite(gamma):
     raise ValueError('control section gamma must be finite and greater than one')
+  ####
+  if (
+    request.inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+    and any(float(sample.mach) >= 1.0 for sample in control.samples)
+  ):
+    raise ValueError(
+      'subsonic characteristic inlet requires every control-section sample '
+      'to have Mach number below one'
+    )
   ####
   return x_values[0], y_values[0], inlet_height, gamma
 ####
@@ -1469,6 +1510,102 @@ def _interpolate_inlet_state(
     total_temperature,
     gas_constant,
   )
+####
+
+
+def _subsonic_characteristic_inlet_state(
+  interior_state: np.ndarray,
+  reference_state: np.ndarray,
+  gamma: float,
+  gas_constant: float,
+) -> np.ndarray:
+  """Release the outgoing acoustic characteristic at a subsonic inlet.
+
+  The control-section state supplies total pressure, total temperature, and
+  flow direction.  The interior state supplies the outgoing ``u-a`` Riemann
+  invariant.  Solving the resulting one-dimensional Mach equation avoids
+  prescribing all primitive variables at a subsonic inlet while the outer
+  boundary is pressure-coupled.
+  """
+
+  _rho, interior_u, _interior_v, _pressure, _temperature, interior_sound = (
+    _primitive_from_conservative(interior_state, gamma, gas_constant)
+  )
+  _reference_rho, reference_u, reference_v, reference_pressure, reference_temperature, reference_sound = (
+    _primitive_from_conservative(reference_state, gamma, gas_constant)
+  )
+  reference_speed = sqrt(reference_u * reference_u + reference_v * reference_v)
+  if reference_speed <= 1.0e-12:
+    raise RuntimeError(
+      'subsonic characteristic inlet requires a positive reference speed'
+    )
+  ####
+  reference_mach = reference_speed / reference_sound
+  if reference_mach >= 1.0:
+    raise RuntimeError(
+      'subsonic characteristic inlet requires a subsonic reference state'
+    )
+  ####
+  pressure_factor = 1.0 + 0.5 * (gamma - 1.0) * reference_mach * reference_mach
+  total_temperature = reference_temperature * pressure_factor
+  total_pressure = reference_pressure * pressure_factor ** (
+    gamma / (gamma - 1.0)
+  )
+  direction_u = reference_u / reference_speed
+  direction_v = reference_v / reference_speed
+  outgoing_invariant = interior_u - 2.0 * interior_sound / (gamma - 1.0)
+  beta = 0.5 * (gamma - 1.0)
+
+  def state_and_residual(mach: float) -> tuple[np.ndarray, float]:
+    factor = 1.0 + beta * mach * mach
+    temperature = total_temperature / factor
+    sound_speed = sqrt(gamma * gas_constant * temperature)
+    speed = mach * sound_speed
+    velocity_u = speed * direction_u
+    velocity_v = speed * direction_v
+    pressure = total_pressure / factor ** (gamma / (gamma - 1.0))
+    density = pressure / (gas_constant * temperature)
+    state = _conservative_from_primitive(
+      density,
+      velocity_u,
+      velocity_v,
+      pressure,
+      gamma,
+    )
+    return state, velocity_u - 2.0 * sound_speed / (gamma - 1.0) - outgoing_invariant
+  ####
+
+  lower_mach = 1.0e-8
+  upper_mach = 1.0 - 1.0e-8
+  lower_state, lower_residual = state_and_residual(lower_mach)
+  upper_state, upper_residual = state_and_residual(upper_mach)
+  if abs(lower_residual) <= 1.0e-10:
+    return lower_state
+  ####
+  if abs(upper_residual) <= 1.0e-10:
+    return upper_state
+  ####
+  if lower_residual * upper_residual > 0.0:
+    raise RuntimeError(
+      'subsonic characteristic inlet has no admissible Mach root for the '
+      'outgoing acoustic invariant'
+    )
+  ####
+  for _iteration in range(80):
+    middle_mach = 0.5 * (lower_mach + upper_mach)
+    middle_state, middle_residual = state_and_residual(middle_mach)
+    if abs(middle_residual) <= 1.0e-10:
+      return middle_state
+    ####
+    if lower_residual * middle_residual <= 0.0:
+      upper_mach = middle_mach
+      upper_residual = middle_residual
+    else:
+      lower_mach = middle_mach
+      lower_residual = middle_residual
+    ####
+  ####
+  return state_and_residual(0.5 * (lower_mach + upper_mach))[0]
 ####
 
 
@@ -1687,6 +1824,7 @@ def _cell_residuals(
   gamma: float,
   total_temperature: float,
   gas_constant: float,
+  inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   axial_count, transverse_count = areas.shape
   residual = np.zeros_like(states)
@@ -1794,6 +1932,17 @@ def _cell_residuals(
             total_temperature,
             gas_constant,
           )
+          if (
+            inlet_boundary_mode
+            is MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+          ):
+            inlet = _subsonic_characteristic_inlet_state(
+              state,
+              inlet,
+              gamma,
+              gas_constant,
+            )
+          ####
           flux, wave = _rusanov_flux(
             state,
             inlet,
@@ -2258,6 +2407,7 @@ def _solve_pseudo_time(
       gamma,
       request.reference_total_temperature_K,
       request.gas_constant_J_kgK,
+      request.inlet_boundary_mode,
     )
     normalised = _normalise_residuals(
       states,
@@ -2442,6 +2592,10 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       pseudo_iteration_count += len(inner_history)
     except FloatingPointError as error:
       status = MocReflectedDomainCoupledEulerFreeBoundaryStatus.POSITIVITY_FAILURE
+      message = str(error)
+      break
+    except RuntimeError as error:
+      status = MocReflectedDomainCoupledEulerFreeBoundaryStatus.INLET_CHARACTERISTIC_FAILURE
       message = str(error)
       break
     except (ArithmeticError, TypeError, ValueError) as error:
