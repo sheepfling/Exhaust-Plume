@@ -532,10 +532,31 @@ def test_moc_global_euler_visualization_exposes_solver_owned_shock_parameters() 
     physical_closure_verified=True,
     field=_MocField(),
   )
+  shock_front_condition = SimpleNamespace(
+    status='converged-physical-field-shock-front-condition',
+    shock_front_points_m=curve.shock_points_m,
+    converged=True,
+    shock_front_verified=True,
+    ambient_neighbor_verified=True,
+    centerline_neighbor_verified=True,
+    continuation_section_verified=True,
+    coupled_inlet_profile_verified=True,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    independent_measurement=SimpleNamespace(
+      converged=True,
+      shock_front_jump_verified=True,
+      maximum_shock_front_jump_residual=7.0e-10,
+      maximum_point_residual_m=0.0,
+      maximum_coupled_inlet_profile_residual_m=0.0,
+    ),
+  )
   global_euler = SimpleNamespace(
     status='converged_global_euler_shock_field',
     shock_boundary=curve,
     physical_field=physical,
+    shock_front_condition=shock_front_condition,
     converged=True,
     physical_closure_verified=True,
     source_frontier_verified=True,
@@ -569,6 +590,28 @@ def test_moc_global_euler_visualization_exposes_solver_owned_shock_parameters() 
   assert bundle.diagnostics['global_euler_physical_closure_verified'] is True
   assert bundle.diagnostics['shock_boundary_orientation'] == 'mixed-characteristic-boundary'
   assert bundle.diagnostics['shock_jump_residual_maximum'] == pytest.approx(6.0e-9)
+  assert 'moc-physical-field-shock-front' in {
+    path.path_id for path in bundle.paths
+  }
+  shock_front_path = next(
+    path for path in bundle.paths
+    if path.path_id == 'moc-physical-field-shock-front'
+  )
+  assert shock_front_path.semantic.endswith('research-only')
+  assert tuple((point[0], point[1]) for point in shock_front_path.points_m) == (
+    (0.5, 0.4),
+    (1.0, 0.3),
+    (1.5, 0.15),
+    (2.0, 0.0),
+  )
+  assert bundle.diagnostics['shock_front_condition_geometry_available'] is True
+  assert bundle.diagnostics['shock_front_condition_audit_verified'] is True
+  assert bundle.diagnostics['shock_front_condition_shock_front_jump_verified'] is True
+  assert bundle.diagnostics[
+    'shock_front_condition_maximum_shock_front_jump_residual'
+  ] == pytest.approx(7.0e-10)
+  assert bundle.diagnostics['shock_front_condition_physical_closure_verified'] is False
+  assert bundle.diagnostics['shock_front_condition_chain_promotion_blocked'] is True
   assert bundle.claims.production_claim_allowed is False
   json.dumps(bundle.model_dump(), allow_nan=False)
 ####

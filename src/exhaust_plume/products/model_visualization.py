@@ -1599,6 +1599,43 @@ def _moc_solver_evidence(result: object) -> tuple[object | None, object | None]:
 ####
 
 
+def _moc_shock_front_condition(result: object) -> object | None:
+  """Find a retained physical-field shock-front condition without guessing."""
+
+  pending: list[object] = [result]
+  seen_ids: set[int] = set()
+  while pending:
+    candidate = pending.pop(0)
+    candidate_id = id(candidate)
+    if candidate_id in seen_ids:
+      continue
+    ####
+    seen_ids.add(candidate_id)
+    if hasattr(candidate, 'shock_front_points_m') and hasattr(
+      candidate,
+      'independent_measurement',
+    ):
+      return candidate
+    ####
+    for attribute in (
+      'physical_field_shock_front_condition',
+      'shock_front_condition',
+      'request',
+      'closure',
+      'global_euler',
+      'physical_field',
+      'field',
+    ):
+      nested = getattr(candidate, attribute, None)
+      if nested is not None:
+        pending.append(nested)
+      ####
+    ####
+  ####
+  return None
+####
+
+
 def _moc_solver_evidence_channels(
   result: object,
   centerline_x_values: Sequence[float],
@@ -1615,26 +1652,145 @@ def _moc_solver_evidence_channels(
   as unavailable rather than extrapolated or replaced with zero.
   """
 
+  condition = _moc_shock_front_condition(result)
+  condition_diagnostics: dict[str, DiagnosticValue] = {}
+  condition_warnings: list[str] = []
+  if condition is not None:
+    status = getattr(condition, 'status', None)
+    if status is not None:
+      condition_diagnostics['shock_front_condition_status'] = str(
+        getattr(status, 'value', status)
+      )
+    ####
+    condition_points = getattr(condition, 'shock_front_points_m', ())
+    condition_geometry_available = False
+    try:
+      condition_sample_count = len(condition_points)
+    except TypeError:
+      condition_sample_count = 0
+    ####
+    condition_diagnostics['shock_front_condition_sample_count'] = (
+      condition_sample_count
+    )
+    for name in (
+      'converged',
+      'shock_front_verified',
+      'ambient_neighbor_verified',
+      'centerline_neighbor_verified',
+      'continuation_section_verified',
+      'coupled_inlet_profile_verified',
+      'physical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      value = getattr(condition, name, None)
+      if isinstance(value, bool):
+        condition_diagnostics[f'shock_front_condition_{name}'] = value
+      ####
+    ####
+    audit = getattr(condition, 'independent_measurement', None)
+    if audit is not None:
+      condition_diagnostics['shock_front_condition_audit_verified'] = bool(
+        getattr(audit, 'converged', False)
+      )
+      for name in (
+        'shock_front_jump_verified',
+        'maximum_shock_front_jump_residual',
+        'maximum_point_residual_m',
+        'maximum_coupled_inlet_profile_residual_m',
+      ):
+        value = getattr(audit, name, None)
+        if isinstance(value, bool):
+          condition_diagnostics[f'shock_front_condition_{name}'] = value
+        elif value is not None:
+          try:
+            numeric = float(value)
+          except (TypeError, ValueError):
+            continue
+          ####
+          if isfinite(numeric):
+            condition_diagnostics[f'shock_front_condition_{name}'] = numeric
+          ####
+        ####
+      ####
+    ####
+    try:
+      condition_path = tuple(
+        _vector2('physical-field shock-front condition point', point)
+        for point in condition_points
+      )
+    except (TypeError, ValueError, IndexError):
+      condition_warnings.append(
+        'physical-field shock-front condition has invalid geometry and remains unavailable'
+      )
+    else:
+      if len(condition_path) < 2:
+        condition_warnings.append(
+          'physical-field shock-front condition has fewer than two samples and remains unavailable'
+        )
+      elif any(
+        right[0] <= left[0]
+        for left, right in zip(condition_path, condition_path[1:])
+      ):
+        condition_warnings.append(
+          'physical-field shock-front condition is not strictly ordered in x and remains unavailable'
+        )
+      else:
+        condition_geometry_available = True
+      ####
+    ####
+    condition_diagnostics['shock_front_condition_geometry_available'] = (
+      condition_geometry_available
+    )
+  ####
   owner, curve = _moc_solver_evidence(result)
   if curve is None:
-    return (), {}, ()
+    return (), condition_diagnostics, tuple(condition_warnings)
   ####
   raw_points = getattr(curve, 'shock_points_m', ())
   try:
     points = tuple(_vector2('MOC shock evidence point', point) for point in raw_points)
   except (TypeError, ValueError, IndexError):
-    return (), {}, ('solver-owned shock evidence has invalid geometry and remains unavailable',)
+    return (
+      (),
+      condition_diagnostics,
+      tuple(
+        [
+          *condition_warnings,
+          'solver-owned shock evidence has invalid geometry and remains unavailable',
+        ]
+      ),
+    )
   ####
   if len(points) < 2:
-    return (), {}, ('solver-owned shock evidence has fewer than two samples and remains unavailable',)
+    return (
+      (),
+      condition_diagnostics,
+      tuple(
+        [
+          *condition_warnings,
+          'solver-owned shock evidence has fewer than two samples and remains unavailable',
+        ]
+      ),
+    )
   ####
   x_values = tuple(point[0] for point in points)
   if any(right <= left for left, right in zip(x_values, x_values[1:])):
-    return (), {}, ('solver-owned shock evidence is not strictly ordered in x and remains unavailable',)
+    return (
+      (),
+      condition_diagnostics,
+      tuple(
+        [
+          *condition_warnings,
+          'solver-owned shock evidence is not strictly ordered in x and remains unavailable',
+        ]
+      ),
+    )
   ####
   diagnostics: dict[str, DiagnosticValue] = {
     'shock_boundary_sample_count': len(points),
   }
+  diagnostics.update(condition_diagnostics)
   status = getattr(owner, 'status', None)
   if status is not None:
     diagnostics['global_euler_status'] = str(getattr(status, 'value', status))
@@ -1770,7 +1926,7 @@ def _moc_solver_evidence_channels(
     diagnostics[f'{channel_id}_minimum'] = min(values)
     diagnostics[f'{channel_id}_maximum'] = max(values)
   ####
-  warnings: list[str] = []
+  warnings: list[str] = list(condition_warnings)
   if missing:
     warnings.append(
       'some solver-owned shock parameters were unavailable at every displayed '
@@ -1867,6 +2023,33 @@ def _moc_visualization(
       path = _path3(path_id, semantic, points)
       if path is not None:
         paths.append(path)
+      ####
+    ####
+  ####
+  shock_front_condition = _moc_shock_front_condition(result)
+  if shock_front_condition is not None:
+    try:
+      condition_points = _finite_path(
+        getattr(shock_front_condition, 'shock_front_points_m', ())
+      )
+    except ValueError:
+      condition_points = ()
+    ####
+    if len(condition_points) >= 2 and all(
+      right[0] > left[0]
+      for left, right in zip(condition_points, condition_points[1:])
+    ):
+      condition_path = _path3(
+        'moc-physical-field-shock-front',
+        (
+          'retained physical-field shock front condition; conservative jump '
+          'audit status is reported in diagnostics; research-only'
+        ),
+        condition_points,
+      )
+      if condition_path is not None:
+        paths.append(condition_path)
+        all_points.extend(condition_points)
       ####
     ####
   ####
