@@ -99,6 +99,9 @@ PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE = (
 PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE = (
   'solver-owned-physical-field-ambient-neighbor-geometry-profile-v1'
 )
+PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE = (
+  'solver-owned-exact-physical-field-samples-v1'
+)
 _CHANNEL_NAMES = (
   'mass',
   'streamwise_momentum',
@@ -160,6 +163,11 @@ class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
   SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE = (
     'solver-owned-physical-field-continuation-profile'
   )
+####
+
+
+class _PhysicalFieldInitialStateFailure(RuntimeError):
+  """Signal that an exact physical-field warm start cannot be consumed."""
 ####
 
 
@@ -2086,6 +2094,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   ) = None
   physical_field_shock_front_condition_consumed: bool = False
   inlet_boundary_states_consumed: bool = False
+  initial_state_source: str | None = None
+  initial_state_field_bound: bool = False
   transonic_frontier_compatibility: (
     MocReflectedDomainCoupledEulerTransonicFrontierCompatibility | None
   ) = None
@@ -2534,6 +2544,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     if not isinstance(self.inlet_boundary_states_consumed, bool):
       raise TypeError('inlet_boundary_states_consumed must be a bool')
     ####
+    if self.initial_state_source is not None and not isinstance(
+      self.initial_state_source,
+      str,
+    ):
+      raise TypeError('initial_state_source must be a string or None')
+    ####
+    if not isinstance(self.initial_state_field_bound, bool):
+      raise TypeError('initial_state_field_bound must be a bool')
+    ####
     if not isinstance(self.free_boundary_pressure_profile_consumed, bool):
       raise TypeError('free_boundary_pressure_profile_consumed must be a bool')
     ####
@@ -2664,6 +2683,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
           self.free_boundary_geometry_profile_consumed
         ),
         'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
+        'initial_state_source': self.initial_state_source,
+        'initial_state_field_bound': self.initial_state_field_bound,
         'inlet_boundary_conservative_states_by_face': (
           self.inlet_boundary_conservative_states_by_face
         ),
@@ -2858,6 +2879,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         self.physical_field_shock_front_condition_consumed
       ),
       'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
+      'initial_state_source': self.initial_state_source,
+      'initial_state_field_bound': self.initial_state_field_bound,
       'physical_field_shock_front_condition': (
         None
         if self.physical_field_shock_front_condition is None
@@ -4103,6 +4126,93 @@ def _normalise_residuals(
 ####
 
 
+def _initial_states_from_physical_field(
+  centers: np.ndarray,
+  physical_field: Any,
+  gamma: float,
+  total_temperature: float,
+  gas_constant: float,
+) -> np.ndarray:
+  """Seed every coupled cell from the retained bounded physical field.
+
+  The field sampler is intentionally used only for the initial numerical
+  state.  The subsequent conservative Euler solve still owns the field and
+  its residuals.  A missing sample is a typed continuation failure: the
+  solver must not silently fall back to repeated inlet states.
+  """
+
+  try:
+    sampling_available = bool(physical_field.state_sampling_available)
+  except (AttributeError, ArithmeticError, TypeError, ValueError) as error:
+    raise _PhysicalFieldInitialStateFailure(
+      'solver-owned exact physical field does not expose a complete bounded '
+      'state sampler'
+    ) from error
+  ####
+  if not sampling_available:
+    raise _PhysicalFieldInitialStateFailure(
+      'solver-owned exact physical field state sampling is unavailable; no '
+      'inlet-only warm-start fallback was attempted'
+    )
+  ####
+  states = np.empty((centers.shape[0], centers.shape[1], 4), dtype=float)
+  for i in range(centers.shape[0]):
+    for j in range(centers.shape[1]):
+      point = (float(centers[i, j, 0]), float(centers[i, j, 1]))
+      try:
+        sample = physical_field.state_at(point)
+        total_pressure = physical_field.total_pressure_at(point)
+      except (ArithmeticError, AttributeError, TypeError, ValueError) as error:
+        raise _PhysicalFieldInitialStateFailure(
+          'solver-owned exact physical field could not sample coupled cell '
+          f'center {point!r}'
+        ) from error
+      ####
+      if sample is None or total_pressure is None:
+        raise _PhysicalFieldInitialStateFailure(
+          'solver-owned exact physical field does not cover coupled cell '
+          f'center {point!r}; no inlet-only warm-start fallback was attempted'
+        )
+      ####
+      sample_gamma = float(sample.gamma)
+      sample_mach = float(sample.mach)
+      sample_angle = float(sample.theta_rad)
+      pressure = float(total_pressure)
+      if (
+        not isfinite(sample_gamma)
+        or abs(sample_gamma - gamma) > 1.0e-10
+        or not isfinite(sample_mach)
+        or sample_mach <= 0.0
+        or not isfinite(sample_angle)
+        or not isfinite(pressure)
+        or pressure <= 0.0
+      ):
+        raise _PhysicalFieldInitialStateFailure(
+          'solver-owned exact physical field returned a nonphysical sample '
+          f'at coupled cell center {point!r}'
+        )
+      ####
+      try:
+        states[i, j] = _state_from_sample(
+          pressure,
+          sample_mach,
+          sample_angle,
+          gamma,
+          total_temperature,
+          gas_constant,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        raise _PhysicalFieldInitialStateFailure(
+          'solver-owned exact physical field could not convert the sample at '
+          f'coupled cell center {point!r} into a conservative state'
+        ) from error
+      ####
+    ####
+  ####
+  return states
+####
+
+
 def _initial_states(
   centers: np.ndarray,
   free_boundary_heights: np.ndarray,
@@ -4113,7 +4223,17 @@ def _initial_states(
   total_temperature: float,
   gas_constant: float,
   inlet_override_states: tuple[np.ndarray, ...] | None = None,
+  physical_field: Any | None = None,
 ) -> np.ndarray:
+  if physical_field is not None:
+    return _initial_states_from_physical_field(
+      centers,
+      physical_field,
+      gamma,
+      total_temperature,
+      gas_constant,
+    )
+  ####
   axial_count, transverse_count = centers.shape[:2]
   states = np.empty((axial_count, transverse_count, 4), dtype=float)
   for i in range(axial_count):
@@ -4955,6 +5075,8 @@ def _result_from_field(
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  initial_state_source: str | None = None,
+  initial_state_field_bound: bool = False,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   flattened = _flatten_field(
     states,
@@ -5134,6 +5256,8 @@ def _result_from_field(
     physical_field_shock_front_condition_consumed=(
       physical_field_shock_front_condition is not None
     ),
+    initial_state_source=initial_state_source,
+    initial_state_field_bound=initial_state_field_bound,
     free_boundary_pressure_profile_consumed=(
       request.free_boundary_pressure_profile_Pa is not None
     ),
@@ -5295,6 +5419,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   physical_field_shock_front_condition = (
     request.physical_field_shock_front_condition
   )
+  physical_field_for_initialization: Any | None = None
   if solver_owned_placement is not None:
     try:
       from exhaust_plume.validation.moc_transonic_interface import (
@@ -5379,6 +5504,19 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         .INLET_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE,
         'solver-owned physical-field shock-front condition retained no '
         'complete coupled inlet profile',
+        request,
+      )
+    ####
+    physical_field_for_initialization = physical_field_shock_front_condition.field
+    if (
+      physical_field_for_initialization is None
+      or not physical_field_for_initialization.state_sampling_available
+    ):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE,
+        'solver-owned physical-field continuation requires the retained exact '
+        'field to expose a complete bounded state sampler',
         request,
       )
     ####
@@ -5495,6 +5633,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   physical_field_continuation_result: (
     MocPhysicalFieldContinuationProfileResult | None
   ) = None
+  initial_state_source: str | None = None
+  initial_state_field_bound = False
   if (
     request.inlet_boundary_mode
     is MocReflectedDomainCoupledEulerInletBoundaryMode.SCALAR_NORMAL_SHOCK_BRANCH
@@ -5806,7 +5946,12 @@ def solve_reflected_domain_coupled_euler_free_boundary(
           request.reference_total_temperature_K,
           request.gas_constant_J_kgK,
           inlet_override_states,
+          physical_field=physical_field_for_initialization,
         )
+        if physical_field_for_initialization is not None:
+          initial_state_source = PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE
+          initial_state_field_bound = True
+        ####
       ####
       (
         states,
@@ -5830,6 +5975,13 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       pseudo_iteration_count += len(inner_history)
     except FloatingPointError as error:
       status = MocReflectedDomainCoupledEulerFreeBoundaryStatus.POSITIVITY_FAILURE
+      message = str(error)
+      break
+    except _PhysicalFieldInitialStateFailure as error:
+      status = (
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE
+      )
       message = str(error)
       break
     except RuntimeError as error:
@@ -5947,7 +6099,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   ####
   if states is None:
     return _failure(
-      MocReflectedDomainCoupledEulerFreeBoundaryStatus.SOLVER_FAILURE,
+      status,
       message,
       request,
     )
@@ -6002,5 +6154,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     solver_owned_placement,
     physical_field_continuation_result,
     request.physical_field_shock_front_condition,
+    initial_state_source=initial_state_source,
+    initial_state_field_bound=initial_state_field_bound,
   )
 ####

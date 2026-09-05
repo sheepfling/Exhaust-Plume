@@ -1474,6 +1474,15 @@ frame mismatch, and extrapolation remain hard stops.  This is a provenance
 and contract checkpoint for the research lane, not acceptance of the free
 boundary or a promotion path into shock-cell, Signature, or FPA claims.
 
+The exact-field continuation solve now also initializes coupled cell
+states from the retained physical field at every mesh-cell center.  The
+result records ``solver-owned-exact-physical-field-samples-v1`` as the
+initial-state source, and an uncovered or nonphysical sample returns a
+typed continuation failure instead of repeating inlet states.  This removes
+an artificial inlet transient from the numerical warm start; it does not
+close downstream-to-upstream feedback, canonical closure, refinement,
+physical shock-cell length, or any product-promotion gate.
+
 ### Exact-field feedback-consumption checkpoint
 
 The downstream feedback runner now distinguishes an exact physical-field
@@ -1492,6 +1501,24 @@ the downstream-boundary closure gate, and it cannot authorize continued-chain,
 shock-cell, Signature, FPA, or external-validation claims.  The ordinary
 response-feedback path remains separately typed and may still fail its local
 pressure/tangency gate; it is not silently upgraded by this exact-field seam.
+
+### Exact-field conservative warm-start checkpoint
+
+The solver-owned physical-field continuation mode now samples the retained
+closed field at every coupled cell center before the conservative Euler
+iterations begin.  It converts the sampled Mach, flow angle, gamma, and total
+pressure into conservative states and retains the source identifier in the
+coupled result and report.  The inlet-face boundary states remain separately
+consumed from the front-conditioned continuation profile; the warm start does
+not replace that boundary contract.
+
+Sampling is bounded and strict: a missing, out-of-domain, nonphysical, or
+gamma-incompatible sample returns a typed continuation failure, with no
+inlet-only fallback.  This reduces an initialization artifact while keeping
+the field solver responsible for the final conservative residuals.  It is
+not evidence of upstream/global feedback, canonical reflected closure,
+refinement, accepted physical shock-cell length, provider validation, or
+production Visualization, Signature, or FPA status.
 
 ### Global/coupled downstream boundary-response checkpoint
 

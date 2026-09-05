@@ -893,6 +893,14 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
   assert coupled.physical_field_continuation_profile_consumed
   assert coupled.physical_field_continuation_profile == interior_continuation
   assert coupled.inlet_boundary_states_consumed
+  assert coupled.initial_state_field_bound
+  assert coupled.initial_state_source == (
+    'solver-owned-exact-physical-field-samples-v1'
+  )
+  assert coupled.as_report()['initial_state_field_bound'] is True
+  assert coupled.as_report()['initial_state_source'] == (
+    'solver-owned-exact-physical-field-samples-v1'
+  )
   assert len(coupled.inlet_boundary_conservative_states_by_face) == 8
   assert coupled.transonic_shock_interface_profile is None
   assert coupled.production_claim_allowed is False
@@ -2454,6 +2462,34 @@ def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
   assert result.as_report()['physical_field_handoff']['converged'] is True
+  assert result.coupled_field.initial_state_field_bound
+  assert result.coupled_field.initial_state_source == (
+    'solver-owned-exact-physical-field-samples-v1'
+  )
+  assert result.coupled_field.as_chain_termination_decision().diagnostics[
+    'initial_state_field_bound'
+  ] is True
+  coupled_request = result.coupled_field.request
+  assert coupled_request is not None
+  assert coupled_request.free_boundary_geometry_profile_y_m is not None
+  geometry_profile = coupled_request.free_boundary_geometry_profile_y_m
+  out_of_field_geometry = tuple(
+    value + (0.25 if index == len(geometry_profile) - 1 else 0.0)
+    for index, value in enumerate(geometry_profile)
+  )
+  out_of_field_request = replace(
+    coupled_request,
+    free_boundary_geometry_profile_y_m=out_of_field_geometry,
+  )
+  out_of_field = solve_reflected_domain_coupled_euler_free_boundary(
+    out_of_field_request
+  )
+  assert out_of_field.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE
+  )
+  assert 'does not cover coupled cell center' in out_of_field.message
+  assert not out_of_field.initial_state_field_bound
 ####
 
 
