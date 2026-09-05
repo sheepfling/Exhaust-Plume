@@ -239,6 +239,13 @@ from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MocReflectedDomainGlobalCoupledDownstreamRefinementRun,
   run_reflected_domain_global_coupled_downstream_refinement,
 )
+from exhaust_plume.validation.moc_global_coupled_downstream_feedback import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_OPERATOR_ID,
+  MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus,
+  MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration,
+  MocReflectedDomainGlobalCoupledDownstreamFeedbackRun,
+  run_reflected_domain_global_coupled_downstream_feedback,
+)
 from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MOC_REFLECTED_DOMAIN_COUPLED_EULER_PRESSURE_CONTINUATION_OPERATOR_ID,
   MocReflectedDomainCoupledEulerPressureContinuationStatus,
@@ -683,6 +690,11 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_RUN_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledDownstreamRefinementRun',
   'run_reflected_domain_global_coupled_downstream_refinement',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_OPERATOR_ID',
+  'MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration',
+  'MocReflectedDomainGlobalCoupledDownstreamFeedbackRun',
+  'run_reflected_domain_global_coupled_downstream_feedback',
   'MOC_REFLECTED_DOMAIN_COUPLED_EULER_PRESSURE_CONTINUATION_OPERATOR_ID',
   'MocReflectedDomainCoupledEulerPressureContinuationStatus',
   'MocReflectedDomainCoupledEulerPressureContinuationCase',

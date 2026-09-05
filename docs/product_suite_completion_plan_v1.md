@@ -1403,3 +1403,21 @@ reuse.  The response-derived path is now a real downstream consumer seam,
 but it is not an upstream global re-solve: ``global_coupling_verified``, the
 canonical downstream-boundary gate, physical shock-cell fitting, external
 provider comparisons, and production claims remain closed.
+
+### Global/coupled pressure-feedback iteration checkpoint
+
+The downstream pressure handoff now has a typed research-only iteration
+operator.  It performs fresh coupled solves, independently remeasures each
+retained global/coupled response, derives the next bounded pressure profile,
+and checks exact closure/profile lineage before consuming that profile on the
+next call.  Profile-station changes are a typed stop; the operator does not
+regrid, extrapolate, or silently switch to a lower-fidelity solver.
+
+The compatible fixture demonstrates the complete baseline-to-consumer path and
+retains the consumed profile and response evidence.  Its next coupled field
+still fails the local field/audit gate, so the iteration is reported as a
+solver failure rather than a pressure fixed point.  This is the intended
+boundary: ``global_coupling_verified``, canonical downstream closure,
+physical shock-cell fitting, provider-bound validation, and Signature/FPA
+production claims remain closed until the coupled entrance/frontier physics
+and external measurements are accepted.

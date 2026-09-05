@@ -171,6 +171,10 @@ from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MocReflectedDomainGlobalCoupledDownstreamRefinementStatus,
   run_reflected_domain_global_coupled_downstream_refinement,
 )
+from exhaust_plume.validation.moc_global_coupled_downstream_feedback import (
+  MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus,
+  run_reflected_domain_global_coupled_downstream_feedback,
+)
 from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MocReflectedDomainCoupledEulerPressureContinuationStatus,
   measure_reflected_domain_coupled_euler_pressure_continuation,
@@ -2538,6 +2542,61 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
     and case.response.maximum_coordinate_residual_m
     > case.response.coordinate_tolerance_m
     for case in run.cases
+  )
+####
+
+
+def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  ambient_pressure = mixed_request.control_section.samples[-1].static_pressure_Pa
+  run = run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    pressure_update_tolerance_Pa=1.0e3,
+  )
+
+  assert run.requested_iterations == 2
+  assert len(run.iterations) == 2
+  assert run.fresh_solver_invocation_verified
+  assert run.closure_lineage_verified
+  assert run.pressure_profile_lineage_verified
+  assert run.pressure_profile_alignment_verified
+  assert run.response_lineage_verified
+  assert run.response_channels_finite
+  assert run.response_coverage_verified
+  assert run.local_coupled_field_verified is False
+  assert run.pressure_update_convergence_verified is False
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.SOLVER_FAILURE
+  )
+  assert run.converged is False
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+
+  first, second = run.iterations
+  assert first.input_pressure_profile is None
+  assert first.next_pressure_profile is not None
+  assert second.input_pressure_profile == first.next_pressure_profile
+  assert second.pressure_profile_consumption_verified
+  assert second.result.boundary_pressure_profile == second.input_pressure_profile
+  assert second.result.coupled_field is not None
+  assert second.result.coupled_field.free_boundary_pressure_profile_consumed
+  assert all(
+    item.result.global_coupling_verified is False
+    and item.result.downstream_boundary_closure_verified is False
+    and item.result.chain_promotion_blocked
+    and item.result.production_claim_allowed is False
+    for item in run.iterations
   )
 ####
 

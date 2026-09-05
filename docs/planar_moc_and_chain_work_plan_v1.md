@@ -3896,3 +3896,18 @@ handoff is consumed, but the path remains a research seam: it does not
 iterate a correction into the upstream global field, close canonical reflected
 boundary conditions, fit a physical shock-cell length, or authorize Signature
 or FPA production claims.
+
+## Global/coupled pressure-feedback iteration checkpoint
+
+The solver-owned pressure consumer now has a bounded validation runner that
+executes fresh downstream coupled solves and independently reconstructs the
+global/coupled response after each solve.  It records the input and next
+profiles, response lineage, exact cell-center alignment, pressure-update
+tolerance, local coupled-field status, and the explicit promotion ceiling.
+Station drift is rejected instead of being interpolated or extrapolated.
+
+On the compatible local fixture, the baseline response and second-solve
+profile consumption are observable and lineaged, but the consumed second
+field does not pass its local solver/audit gate.  The runner therefore retains
+a typed solver failure and keeps global feedback, canonical closure, continued
+shock-cell claims, Signature/FPA promotion, and external validation blocked.
