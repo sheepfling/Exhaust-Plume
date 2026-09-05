@@ -3766,3 +3766,22 @@ renderer-neutral field view, adds separate branch and selected-node markers,
 and publishes the node-match and geometry-audit residuals.  The adapter keeps
 the marker diagnostic-only and does not invent a shock boundary or turn the
 attachment into a production visualization claim.
+
+## Solver-owned bounded characteristic-transport checkpoint
+
+The attached branch can now be advanced through the retained upstream field
+along a declared characteristic family.  The transport result retains exact
+field samples, total-pressure lineage, characteristic geometry residuals,
+variable-entropy compatibility residuals, forward-advance margins, and the
+first unavailable point.  It stops at the bounded field boundary without
+extrapolation, downstream state invention, or hidden fallback to another
+fidelity.
+
+An independent transport measurement re-solves the request, re-samples every
+state and pressure value, recomputes all residuals, and verifies the boundary
+stop.  This closes a bounded coverage/lineage seam for MOC-1 only.  It does
+not choose a global shock position, connect a neighboring reflected field,
+close the mixed-regime free boundary, authorize a physical shock-cell length,
+or permit chain or production promotion.  The next gate remains solver-owned
+shock placement with neighboring-field coupling and conservative mixed-regime
+closure, followed by refinement and external validation.

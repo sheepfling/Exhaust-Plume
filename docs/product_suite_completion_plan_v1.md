@@ -830,3 +830,19 @@ The standardized planar visualization can now consume the attachment result
 and exposes the retained upstream field, frontier, branch marker, selected
 node marker, and match residuals without promoting any of them to a global
 shock boundary.
+
+### Bounded characteristic-transport evidence
+
+The MOC research lane now carries a solver-owned bounded transport result from
+the attached scalar branch through the retained characteristic field.  It
+records exact samples, pressure lineage, characteristic geometry and
+variable-entropy compatibility residuals, forward margins, and the first
+unavailable point.  The independent measurement operator re-solves the
+request and rechecks those values and the no-extrapolation boundary stop.
+
+This is useful evidence for field coverage and for the future placement solve,
+but it is not a global shock placement or mixed-regime closure.  The result
+therefore remains blocked from continued shock-cell chains, production
+Signature/FPA claims, accepted physical length, and provider validation until
+neighboring-field coupling, conservative closure, refinement, and disjoint
+external validation are complete.

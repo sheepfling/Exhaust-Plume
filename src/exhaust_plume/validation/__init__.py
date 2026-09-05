@@ -242,6 +242,11 @@ from exhaust_plume.validation.moc_transonic_attachment import (
   MocTransonicShockFieldAttachmentAudit,
   measure_moc_transonic_shock_field_attachment,
 )
+from exhaust_plume.validation.moc_transonic_characteristic_transport import (
+  MocTransonicCharacteristicTransportAuditStatus,
+  MocTransonicCharacteristicTransportAudit,
+  measure_moc_transonic_characteristic_transport,
+)
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -634,6 +639,9 @@ __all__ = (
   'MocTransonicShockFieldAttachmentAuditStatus',
   'MocTransonicShockFieldAttachmentAudit',
   'measure_moc_transonic_shock_field_attachment',
+  'MocTransonicCharacteristicTransportAuditStatus',
+  'MocTransonicCharacteristicTransportAudit',
+  'measure_moc_transonic_characteristic_transport',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainMixedRegimeBoundaryRefinementStatus',
   'MocReflectedDomainMixedRegimeBoundaryRefinementCase',

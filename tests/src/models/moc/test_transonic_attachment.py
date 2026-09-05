@@ -4,7 +4,11 @@ from dataclasses import replace
 from math import atan2, log, sqrt
 
 from exhaust_plume.models.moc import (
+  CharacteristicFamily,
   CharacteristicState,
+  MocTransonicCharacteristicTransportRequest,
+  MocTransonicCharacteristicTransportStatus,
+  MocTransonicCharacteristicTransportTermination,
   MocTransonicShockFieldAttachmentRequest,
   MocTransonicShockFieldAttachmentStatus,
   MocTransonicShockState,
@@ -14,9 +18,13 @@ from exhaust_plume.models.moc import (
   solve_euler_ambient_first_wedge_entropy_carry,
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
   solve_attached_compression_to_turn,
+  solve_moc_transonic_characteristic_transport,
   solve_moc_transonic_shock_field_attachment,
 )
-from exhaust_plume.validation import measure_moc_transonic_shock_field_attachment
+from exhaust_plume.validation import (
+  measure_moc_transonic_characteristic_transport,
+  measure_moc_transonic_shock_field_attachment,
+)
 
 
 def _internal_field():
@@ -221,4 +229,67 @@ def test_attachment_measurement_rejects_tampered_selection() -> None:
   audit = measure_moc_transonic_shock_field_attachment(tampered)
   assert not audit.converged
   assert not audit.field_match_verified
+####
+
+
+def test_bounded_transport_reaches_retained_field_boundary_with_audit() -> None:
+  field = _internal_field()
+  attachment = solve_moc_transonic_shock_field_attachment(
+    MocTransonicShockFieldAttachmentRequest(
+      upstream_field=field,
+      shock_state=_shock_state_for_node(field.nodes[0]),
+      state_tolerance=1.0e-8,
+      pressure_tolerance_fraction=1.0e-8,
+    )
+  )
+  result = solve_moc_transonic_characteristic_transport(
+    MocTransonicCharacteristicTransportRequest(
+      attachment=attachment,
+      family=CharacteristicFamily.PLUS,
+      step_length_m=1.0e-2,
+      maximum_steps=64,
+    )
+  )
+  audit = measure_moc_transonic_characteristic_transport(result)
+
+  assert result.status is MocTransonicCharacteristicTransportStatus.CONVERGED_BOUNDED_TRANSPORT
+  assert result.bounded_transport_verified
+  assert result.termination is MocTransonicCharacteristicTransportTermination.FIELD_BOUNDARY
+  assert len(result.samples) >= 2
+  assert len(result.segments) == len(result.samples) - 1
+  assert result.first_unavailable_point_m is not None
+  assert audit.converged
+  assert audit.rederived
+  assert audit.sample_lineage_verified
+  assert audit.geometry_verified
+  assert audit.compatibility_verified
+  assert audit.pressure_lineage_verified
+  assert audit.boundary_stop_verified
+  assert result.placement_verified is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_bounded_transport_preserves_typed_failure_and_rejects_strict_geometry() -> None:
+  field = _internal_field()
+  attachment = solve_moc_transonic_shock_field_attachment(
+    MocTransonicShockFieldAttachmentRequest(
+      upstream_field=field,
+      shock_state=_shock_state_for_node(field.nodes[0]),
+    )
+  )
+  result = solve_moc_transonic_characteristic_transport(
+    MocTransonicCharacteristicTransportRequest(
+      attachment=attachment,
+      family=CharacteristicFamily.PLUS,
+      geometry_tolerance=1.0e-6,
+    )
+  )
+
+  assert result.status is MocTransonicCharacteristicTransportStatus.GEOMETRY_FAILURE
+  assert not result.bounded_transport_verified
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
 ####
