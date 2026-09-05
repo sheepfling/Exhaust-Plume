@@ -302,6 +302,10 @@ claim is authorized.
 - [x] Carry an explicit scalar supersonic-to-subsonic normal-shock state
       handoff, audit every thermodynamic field, and expose it to planar
       research visualization without treating it as placed shock geometry.
+- [x] Add an independently audited, spatially sampled shock-interface profile
+      handoff for coupled-field inlet faces; consume it without projecting
+      interior profiles and expose its geometry/metadata in the standardized
+      planar visualization.
 - [x] Add a caller-bound LTE population closure that derives explicit line
       optical depth from a frozen-mixture state and declared transition data;
       keep reactions, non-LTE inference, database lookup, and production
@@ -1011,3 +1015,20 @@ This closes a solver-to-field handoff contract, not the physical product
 claim.  The coupled field still needs an interior placed interface, actual
 pressure/tangency closure at that interface, independent refinement, physical
 shock-cell length comparison, and external validation before any promotion.
+
+### Spatial shock-interface profile checkpoint
+
+The coupled field now also accepts a typed, independently audited profile of
+paired upstream/downstream samples when the profile is a spatial cross-section
+on the field inlet.  The solver interpolates the downstream profile onto its
+inlet faces and retains the exact profile contract in the result.  An interior
+profile, endpoint mismatch, normal mismatch, or failed profile audit returns a
+typed stop; the profile is never projected or silently replaced by the scalar
+handoff.
+
+The standardized planar visualization exposes the consumed profile as a named
+inlet path and reports its sample count, cross-section, ordinate bounds,
+normal, profile identity, and consumed state.  This improves the visualization
+and boundary contract only.  It does not establish an interior shock location,
+canonical mixed-regime closure, physical shock-cell length, or a production
+claim.

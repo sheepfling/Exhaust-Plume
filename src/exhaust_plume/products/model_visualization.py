@@ -1938,6 +1938,39 @@ def _moc_visualization(
     if coupled_euler
     else None
   )
+  coupled_interface_profile = (
+    getattr(source, 'transonic_shock_interface_profile', None)
+    if coupled_euler
+    else None
+  )
+  if coupled_interface_profile is not None:
+    try:
+      profile_points = tuple(
+        _vector2(
+          'coupled transonic shock-interface profile point',
+          getattr(sample, 'point_m'),
+        )
+        for sample in getattr(coupled_interface_profile, 'downstream_samples', ())
+      )
+    except (TypeError, ValueError, IndexError, AttributeError) as error:
+      raise ValueError(
+        'coupled transonic shock-interface profile must contain finite '
+        'downstream sample points'
+      ) from error
+    ####
+    profile_path = _path3(
+      'moc-coupled-transonic-shock-interface-profile',
+      (
+        'audited spatially varying shock-interface inlet profile consumed by '
+        'the coupled field; interior placement remains unsupported'
+      ),
+      profile_points,
+    )
+    if profile_path is not None:
+      paths.append(profile_path)
+      all_points.extend(profile_points)
+    ####
+  ####
   if transonic_geometry is None and coupled_interface is not None:
     transonic_geometry = getattr(coupled_interface, 'shock_geometry', None)
   ####
@@ -2713,6 +2746,44 @@ def _moc_visualization(
         ] = bool(getattr(interface_audit, 'converged', False))
       ####
     ####
+    interface_profile = getattr(source, 'transonic_shock_interface_profile', None)
+    if interface_profile is not None:
+      profile_id = getattr(interface_profile, 'profile_id', None)
+      if profile_id is not None:
+        diagnostics['coupled_euler_transonic_shock_interface_profile_id'] = str(
+          profile_id
+        )
+      ####
+      diagnostics[
+        'coupled_euler_transonic_shock_interface_profile_consumed'
+      ] = bool(getattr(source, 'transonic_shock_interface_profile_consumed', False))
+      diagnostics['coupled_euler_transonic_shock_interface_profile_sample_count'] = int(
+        len(getattr(interface_profile, 'downstream_samples', ()))
+      )
+      for name in (
+        'cross_section_x_m',
+        'lower_ordinate_m',
+        'upper_ordinate_m',
+        'interface_normal_angle_rad',
+      ):
+        value = getattr(interface_profile, name, None)
+        if value is not None and isfinite(float(value)):
+          diagnostics[
+            f'coupled_euler_transonic_shock_interface_profile_{name}'
+          ] = float(value)
+        ####
+      ####
+      profile_audit = getattr(
+        source,
+        'transonic_shock_interface_profile_audit',
+        None,
+      )
+      if profile_audit is not None:
+        diagnostics[
+          'coupled_euler_transonic_shock_interface_profile_audit_verified'
+        ] = bool(getattr(profile_audit, 'converged', False))
+      ####
+    ####
   ####
   if is_transonic_attachment:
     attachment_record = attachment_source if attachment_source is not None else source
@@ -2765,6 +2836,13 @@ def _moc_visualization(
       'coupled-Euler/free-boundary channels are research diagnostics; '
       'local closure does not authorize canonical or production use'
     )
+    if coupled_interface_profile is not None:
+      warnings.append(
+        'the spatial shock-interface profile is an audited field-inlet '
+        'handoff diagnostic; interior placement, canonical closure, and '
+        'production use remain unsupported'
+      )
+    ####
   ####
   if transonic_geometry is not None:
     warnings.append(

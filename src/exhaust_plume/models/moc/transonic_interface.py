@@ -31,6 +31,7 @@ from exhaust_plume.models.moc.transonic_transition import (
 __all__ = (
   'MocTransonicShockInterfaceStatus',
   'MocTransonicShockInterfaceSample',
+  'MocTransonicShockInterfaceProfile',
   'MocTransonicShockInterfaceRequest',
   'MocTransonicShockInterfaceResult',
   'solve_moc_transonic_shock_interface',
@@ -143,6 +144,166 @@ class MocTransonicShockInterfaceSample:
       'static_pressure_Pa': self.static_pressure_Pa,
       'total_pressure_Pa': self.total_pressure_Pa,
       'gamma': self.gamma,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceProfile:
+  """A sampled downstream profile on a cross-section shock handoff.
+
+  The scalar interface result identifies one local placement point.  A
+  coupled finite-volume field needs a state on every inlet face instead.  This
+  contract carries that profile without extrapolation: samples must lie on one
+  vertical cross-section, cover a strictly ordered ordinate interval, and
+  retain both supersonic upstream and subsonic downstream regime evidence.
+  The coupled-field tranche currently accepts this profile only when its
+  cross-section is exactly the field inlet; an interior curve remains a
+  separate solver-owned closure task.
+  """
+
+  upstream_samples: tuple[MocTransonicShockInterfaceSample, ...]
+  downstream_samples: tuple[MocTransonicShockInterfaceSample, ...]
+  interface_normal_angle_rad: float = 0.0
+  profile_id: str = 'solver-owned-transonic-shock-interface-profile-v1'
+  position_tolerance_m: float = 1.0e-9
+  state_tolerance: float = 1.0e-6
+  pressure_tolerance: float = 1.0e-8
+
+  def __post_init__(self) -> None:
+    upstream_samples = tuple(self.upstream_samples)
+    downstream_samples = tuple(self.downstream_samples)
+    if len(upstream_samples) < 2:
+      raise ValueError('shock-interface profile requires at least two samples')
+    ####
+    if any(
+      not isinstance(sample, MocTransonicShockInterfaceSample)
+      for sample in (*upstream_samples, *downstream_samples)
+    ):
+      raise TypeError(
+        'shock-interface profile samples must contain '
+        'MocTransonicShockInterfaceSample values'
+      )
+    ####
+    for name in (
+      'position_tolerance_m',
+      'state_tolerance',
+      'pressure_tolerance',
+    ):
+      value = _finite(name, getattr(self, name))
+      if value <= 0.0:
+        raise ValueError(f'{name} must be positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    normal_angle = _finite(
+      'interface_normal_angle_rad',
+      self.interface_normal_angle_rad,
+    )
+    object.__setattr__(self, 'interface_normal_angle_rad', normal_angle)
+    profile_id = str(self.profile_id)
+    if not profile_id:
+      raise ValueError('profile_id must not be empty')
+    ####
+    object.__setattr__(self, 'profile_id', profile_id)
+    if len(downstream_samples) != len(upstream_samples):
+      raise ValueError(
+        'upstream and downstream shock-interface profiles must have equal lengths'
+      )
+    ####
+    x_reference = upstream_samples[0].point_m[0]
+    x_tolerance = self.position_tolerance_m
+    if any(
+      abs(sample.point_m[0] - x_reference) > x_tolerance
+      for sample in (*upstream_samples[1:], *downstream_samples)
+    ):
+      raise ValueError(
+        'shock-interface profile samples must lie on one cross-section x'
+      )
+    ####
+    upstream_ordinates = tuple(sample.point_m[1] for sample in upstream_samples)
+    downstream_ordinates = tuple(sample.point_m[1] for sample in downstream_samples)
+    if any(
+      abs(first - second) > self.position_tolerance_m
+      for first, second in zip(upstream_ordinates, downstream_ordinates)
+    ):
+      raise ValueError(
+        'upstream and downstream shock-interface profile ordinates must match'
+      )
+    ####
+    ordinates = upstream_ordinates
+    if any(
+      second <= first + self.position_tolerance_m
+      for first, second in zip(ordinates, ordinates[1:])
+    ):
+      raise ValueError(
+        'shock-interface profile ordinates must be strictly increasing'
+      )
+    ####
+    gammas = tuple(
+      sample.gamma for sample in (*upstream_samples, *downstream_samples)
+    )
+    if max(gammas) - min(gammas) > self.state_tolerance:
+      raise ValueError('shock-interface profile samples must use one gamma')
+    ####
+    if any(sample.mach <= 1.0 for sample in upstream_samples):
+      raise ValueError(
+        'shock-interface profile upstream samples must be supersonic'
+      )
+    ####
+    if any(sample.mach >= 1.0 for sample in downstream_samples):
+      raise ValueError(
+        'shock-interface profile downstream samples must be subsonic'
+      )
+    ####
+    object.__setattr__(self, 'upstream_samples', upstream_samples)
+    object.__setattr__(self, 'downstream_samples', downstream_samples)
+  ####
+
+  @property
+  def cross_section_x_m(self) -> float:
+    """Return the retained cross-section ordinate."""
+
+    return self.upstream_samples[0].point_m[0]
+  ####
+
+  @property
+  def lower_ordinate_m(self) -> float:
+    return self.upstream_samples[0].point_m[1]
+  ####
+
+  @property
+  def upper_ordinate_m(self) -> float:
+    return self.upstream_samples[-1].point_m[1]
+  ####
+
+  @property
+  def gamma(self) -> float:
+    return self.upstream_samples[0].gamma
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'profile_id': self.profile_id,
+      'interface_normal_angle_rad': self.interface_normal_angle_rad,
+      'cross_section_x_m': self.cross_section_x_m,
+      'lower_ordinate_m': self.lower_ordinate_m,
+      'upper_ordinate_m': self.upper_ordinate_m,
+      'sample_count': len(self.upstream_samples),
+      'upstream_samples': [
+        sample.as_report() for sample in self.upstream_samples
+      ],
+      'downstream_samples': [
+        sample.as_report() for sample in self.downstream_samples
+      ],
+      'position_tolerance_m': self.position_tolerance_m,
+      'state_tolerance': self.state_tolerance,
+      'pressure_tolerance': self.pressure_tolerance,
+      'claim_status': (
+        'research-only-cross-section-shock-interface-profile; interior '
+        'placement and surrounding mixed-regime closure remain open'
+      ),
     }
   ####
 ####

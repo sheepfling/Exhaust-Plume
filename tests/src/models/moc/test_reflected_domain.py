@@ -33,6 +33,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus,
   MocTransonicShockGeometryRequest,
   MocTransonicShockGeometryStatus,
+  MocTransonicShockInterfaceProfile,
+  MocTransonicShockInterfaceSample,
   MocTransonicTransitionStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
@@ -118,6 +120,10 @@ from exhaust_plume.validation.moc_reflected_domain_mixed_regime import (
 from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus,
   measure_reflected_domain_coupled_euler_free_boundary,
+)
+from exhaust_plume.validation.moc_transonic_interface import (
+  MocTransonicShockInterfaceProfileAuditStatus,
+  measure_moc_transonic_shock_interface_profile,
 )
 from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import (
   MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus,
@@ -2152,6 +2158,124 @@ def test_scalar_normal_shock_branch_requires_inlet_geometry_and_rejects_bad_bind
     MocReflectedDomainCoupledEulerFreeBoundaryStatus.INLET_SHOCK_BRANCH_FAILURE
   )
   assert result.converged is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def _shock_interface_profile_for_control_section(mixed_request, *, x_offset=0.0):
+  gamma = float(mixed_request.control_section.samples[0].gamma)
+  points = tuple(
+    (point[0] + x_offset, point[1])
+    for point in mixed_request.control_section.points_m
+  )
+  upstream_mach = 2.0
+  downstream_mach = 0.6
+  upstream_total_pressure = 1.2e6
+  downstream_total_pressure = 0.95e6
+
+  def static_pressure(total_pressure, mach):
+    factor = 1.0 + 0.5 * (gamma - 1.0) * mach * mach
+    return total_pressure / factor ** (gamma / (gamma - 1.0))
+  ####
+
+  upstream_sample = tuple(
+    MocTransonicShockInterfaceSample(
+      point_m=point,
+      mach=upstream_mach,
+      flow_angle_rad=0.0,
+      static_pressure_Pa=static_pressure(upstream_total_pressure, upstream_mach),
+      total_pressure_Pa=upstream_total_pressure,
+      gamma=gamma,
+    )
+    for point in points
+  )
+  downstream_sample = tuple(
+    MocTransonicShockInterfaceSample(
+      point_m=point,
+      mach=downstream_mach,
+      flow_angle_rad=0.0,
+      static_pressure_Pa=static_pressure(downstream_total_pressure, downstream_mach),
+      total_pressure_Pa=downstream_total_pressure,
+      gamma=gamma,
+    )
+    for point in points
+  )
+  return MocTransonicShockInterfaceProfile(
+    upstream_samples=upstream_sample,
+    downstream_samples=downstream_sample,
+    interface_normal_angle_rad=0.0,
+  )
+####
+
+
+def test_coupled_euler_consumes_audited_spatial_shock_interface_profile():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  profile = _shock_interface_profile_for_control_section(mixed_request)
+  profile_audit = measure_moc_transonic_shock_interface_profile(profile)
+  assert profile_audit.status is (
+    MocTransonicShockInterfaceProfileAuditStatus.VERIFIED
+  )
+  assert profile_audit.converged
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .AUDITED_SHOCK_INTERFACE_PROFILE
+    ),
+    transonic_shock_interface_profile=profile,
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+
+  assert result.status is not (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_SHOCK_INTERFACE_PROFILE_FAILURE
+  )
+  assert result.transonic_shock_interface_profile == profile
+  assert result.transonic_shock_interface_profile_consumed
+  assert result.as_report()['transonic_shock_interface_profile_consumed'] is True
+  assert audit.transonic_shock_interface_profile_verified
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_coupled_euler_profile_rejects_interior_handoff_without_projection():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  profile = _shock_interface_profile_for_control_section(mixed_request, x_offset=0.02)
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .AUDITED_SHOCK_INTERFACE_PROFILE
+    ),
+    transonic_shock_interface_profile=profile,
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+
+  assert result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_SHOCK_INTERFACE_PROFILE_FAILURE
+  )
+  assert result.transonic_shock_interface_profile == profile
+  assert result.transonic_shock_interface_profile_consumed is False
+  assert audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .TRANSONIC_SHOCK_INTERFACE_PROFILE_FAILURE
+  )
+  assert 'interior to the field' in result.message
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
 ####

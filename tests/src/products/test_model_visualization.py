@@ -426,6 +426,24 @@ def _coupled_euler_result() -> SimpleNamespace:
       ),
       independent_measurement=SimpleNamespace(converged=True),
     ),
+    transonic_shock_interface_profile_consumed=True,
+    transonic_shock_interface_profile=SimpleNamespace(
+      profile_id='test-spatial-shock-interface-profile-v1',
+      cross_section_x_m=0.0,
+      lower_ordinate_m=0.0,
+      upper_ordinate_m=1.0,
+      interface_normal_angle_rad=0.0,
+      upstream_samples=(
+        SimpleNamespace(point_m=(0.0, 0.0)),
+        SimpleNamespace(point_m=(0.0, 0.5)),
+        SimpleNamespace(point_m=(0.0, 1.0)),
+      ),
+      downstream_samples=(
+        SimpleNamespace(point_m=(0.0, 0.0)),
+        SimpleNamespace(point_m=(0.0, 0.5)),
+        SimpleNamespace(point_m=(0.0, 1.0)),
+      ),
+    ),
   )
 ####
 
@@ -557,6 +575,7 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
     'moc-centerline-boundary',
     'moc-transonic-shock-branch',
     'moc-coupled-transonic-shock-interface-normal',
+    'moc-coupled-transonic-shock-interface-profile',
   }
   channels = {channel.channel_id: channel for channel in bundle.section_channels}
   assert channels['static_pressure'].unit == 'Pa'
@@ -594,6 +613,16 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert bundle.diagnostics[
     'coupled_euler_transonic_shock_interface_consumed'
   ] is True
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_interface_profile_consumed'
+  ] is True
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_interface_profile_sample_count'
+  ] == 3
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_interface_profile_cross_section_x_m'
+  ] == pytest.approx(0.0)
+  assert any('spatial shock-interface profile' in warning for warning in bundle.warnings)
   assert bundle.diagnostics[
     'coupled_euler_transonic_shock_interface_downstream_mach'
   ] == pytest.approx(0.475)

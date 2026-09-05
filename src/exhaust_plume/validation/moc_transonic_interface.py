@@ -10,6 +10,7 @@ from typing import Any
 from exhaust_plume.models.moc.primitives import CharacteristicState
 from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceSample,
+  MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceResult,
   MocTransonicShockInterfaceStatus,
 )
@@ -28,6 +29,9 @@ __all__ = (
   'MocTransonicShockInterfaceAuditStatus',
   'MocTransonicShockInterfaceAudit',
   'measure_moc_transonic_shock_interface',
+  'MocTransonicShockInterfaceProfileAuditStatus',
+  'MocTransonicShockInterfaceProfileAudit',
+  'measure_moc_transonic_shock_interface_profile',
 )
 
 
@@ -36,6 +40,90 @@ class MocTransonicShockInterfaceAuditStatus(str, Enum):
 
   VERIFIED = 'verified-transonic-shock-interface-audit'
   RESULT_FAILURE = 'transonic-shock-interface-result-failure'
+####
+
+
+class MocTransonicShockInterfaceProfileAuditStatus(str, Enum):
+  """Independent audit outcome for a cross-section interface profile."""
+
+  VERIFIED = 'verified-transonic-shock-interface-profile-audit'
+  RESULT_FAILURE = 'transonic-shock-interface-profile-result-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocTransonicShockInterfaceProfileAudit:
+  """Re-derived profile geometry, regimes, and scalar thermodynamics."""
+
+  status: MocTransonicShockInterfaceProfileAuditStatus
+  profile: MocTransonicShockInterfaceProfile | None
+  sample_count: int = 0
+  cross_section_verified: bool = False
+  ordinate_verified: bool = False
+  regime_verified: bool = False
+  thermodynamics_verified: bool = False
+  shock_loss_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocTransonicShockInterfaceProfileAuditStatus,
+    ):
+      raise TypeError(
+        'status must be a MocTransonicShockInterfaceProfileAuditStatus'
+      )
+    ####
+    if self.profile is not None and not isinstance(
+      self.profile,
+      MocTransonicShockInterfaceProfile,
+    ):
+      raise TypeError(
+        'profile must be a MocTransonicShockInterfaceProfile or None'
+      )
+    ####
+    if (
+      isinstance(self.sample_count, bool)
+      or not isinstance(self.sample_count, int)
+      or self.sample_count < 0
+    ):
+      raise ValueError('sample_count must be a nonnegative integer')
+    ####
+    for name in (
+      'cross_section_verified',
+      'ordinate_verified',
+      'regime_verified',
+      'thermodynamics_verified',
+      'shock_loss_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is MocTransonicShockInterfaceProfileAuditStatus.VERIFIED
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'converged': self.converged,
+      'sample_count': self.sample_count,
+      'cross_section_verified': self.cross_section_verified,
+      'ordinate_verified': self.ordinate_verified,
+      'regime_verified': self.regime_verified,
+      'thermodynamics_verified': self.thermodynamics_verified,
+      'shock_loss_verified': self.shock_loss_verified,
+      'profile_id': None if self.profile is None else self.profile.profile_id,
+      'physical_closure_verified': False,
+      'production_claim_allowed': False,
+      'message': self.message,
+    }
+  ####
 ####
 
 
@@ -364,6 +452,94 @@ def measure_moc_transonic_shock_interface(
       'state were independently rederived'
       if verified
       else 'reported shock-interface handoff does not match independent remeasurement'
+    ),
+  )
+####
+
+
+def measure_moc_transonic_shock_interface_profile(
+  profile: MocTransonicShockInterfaceProfile,
+) -> MocTransonicShockInterfaceProfileAudit:
+  """Re-derive a cross-section profile without trusting reported fields."""
+
+  if not isinstance(profile, MocTransonicShockInterfaceProfile):
+    raise TypeError(
+      'profile must be a MocTransonicShockInterfaceProfile'
+    )
+  ####
+  upstream = profile.upstream_samples
+  downstream = profile.downstream_samples
+  count = len(upstream)
+  tolerance = profile.position_tolerance_m
+  cross_section_verified = bool(
+    all(
+      abs(sample.point_m[0] - profile.cross_section_x_m) <= tolerance
+      for sample in (*upstream, *downstream)
+    )
+  )
+  ordinate_verified = bool(
+    len(downstream) == count
+    and all(
+      abs(left.point_m[1] - right.point_m[1]) <= tolerance
+      for left, right in zip(upstream, downstream)
+    )
+    and all(
+      right.point_m[1] > left.point_m[1] + tolerance
+      for left, right in zip(upstream, upstream[1:])
+    )
+  )
+  regime_verified = bool(
+    all(sample.mach > 1.0 for sample in upstream)
+    and all(sample.mach < 1.0 for sample in downstream)
+    and all(
+      abs(left.gamma - right.gamma) <= profile.state_tolerance
+      for left, right in zip(upstream, downstream)
+    )
+  )
+  thermodynamics_verified = True
+  for sample in (*upstream, *downstream):
+    pressure_factor = 1.0 + 0.5 * (sample.gamma - 1.0) * sample.mach**2
+    expected_static_pressure = sample.total_pressure_Pa / pressure_factor ** (
+      sample.gamma / (sample.gamma - 1.0)
+    )
+    scale = max(expected_static_pressure, sample.static_pressure_Pa, 1.0)
+    if abs(expected_static_pressure - sample.static_pressure_Pa) / scale > 1.0e-8:
+      thermodynamics_verified = False
+      break
+    ####
+  ####
+  shock_loss_verified = bool(
+    all(
+      downstream_sample.total_pressure_Pa < upstream_sample.total_pressure_Pa
+      and downstream_sample.static_pressure_Pa > upstream_sample.static_pressure_Pa
+      for upstream_sample, downstream_sample in zip(upstream, downstream)
+    )
+  )
+  verified = bool(
+    cross_section_verified
+    and ordinate_verified
+    and regime_verified
+    and thermodynamics_verified
+    and shock_loss_verified
+  )
+  return MocTransonicShockInterfaceProfileAudit(
+    status=(
+      MocTransonicShockInterfaceProfileAuditStatus.VERIFIED
+      if verified
+      else MocTransonicShockInterfaceProfileAuditStatus.RESULT_FAILURE
+    ),
+    profile=profile,
+    sample_count=count,
+    cross_section_verified=cross_section_verified,
+    ordinate_verified=ordinate_verified,
+    regime_verified=regime_verified,
+    thermodynamics_verified=thermodynamics_verified,
+    shock_loss_verified=shock_loss_verified,
+    message=(
+      'cross-section geometry, regime ordering, thermodynamic identities, and '
+      'shock total-pressure loss were independently rederived'
+      if verified
+      else 'shock-interface profile does not match independent remeasurement'
     ),
   )
 ####

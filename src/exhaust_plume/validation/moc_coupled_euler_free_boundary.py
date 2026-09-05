@@ -38,11 +38,13 @@ from exhaust_plume.models.moc.transonic_transition import (
   solve_moc_transonic_shock_geometry,
 )
 from exhaust_plume.models.moc.transonic_interface import (
+  MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceResult,
   MocTransonicShockInterfaceStatus,
 )
 from exhaust_plume.validation.moc_transonic_interface import (
   measure_moc_transonic_shock_interface,
+  measure_moc_transonic_shock_interface_profile,
 )
 
 __all__ = (
@@ -79,6 +81,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   )
   TRANSONIC_SHOCK_INTERFACE_FAILURE = (
     'coupled-euler-audit-transonic-shock-interface-failure'
+  )
+  TRANSONIC_SHOCK_INTERFACE_PROFILE_FAILURE = (
+    'coupled-euler-audit-transonic-shock-interface-profile-failure'
   )
   CONTROL_SECTION_COMPATIBILITY_FAILURE = (
     'coupled-euler-audit-control-section-compatibility-failure'
@@ -121,6 +126,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   transonic_transition_verified: bool = False
   transonic_shock_geometry_verified: bool = False
   transonic_shock_interface_verified: bool = False
+  transonic_shock_interface_profile_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -198,6 +204,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'transonic_transition_verified',
       'transonic_shock_geometry_verified',
       'transonic_shock_interface_verified',
+      'transonic_shock_interface_profile_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -232,6 +239,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
 
   @property
   def local_consistency_verified(self) -> bool:
+    profile_active = bool(
+      self.candidate is not None
+      and self.candidate.request is not None
+      and self.candidate.request.transonic_shock_interface_profile is not None
+    )
     return bool(
       self.converged
       and self.geometry_verified
@@ -244,6 +256,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.transonic_transition_verified
       and self.transonic_shock_geometry_verified
       and self.transonic_shock_interface_verified
+      and (not profile_active or self.transonic_shock_interface_profile_verified)
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
@@ -300,6 +313,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'transonic_transition_verified': self.transonic_transition_verified,
       'transonic_shock_geometry_verified': self.transonic_shock_geometry_verified,
       'transonic_shock_interface_verified': self.transonic_shock_interface_verified,
+      'transonic_shock_interface_profile_verified': (
+        self.transonic_shock_interface_profile_verified
+      ),
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
       ),
@@ -1069,6 +1085,87 @@ def _audit_transonic_shock_interface(
 ####
 
 
+def _audit_transonic_shock_interface_profile(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> tuple[bool, tuple[np.ndarray, ...] | None]:
+  """Re-derive a spatially varying profile inlet without trusting fields."""
+
+  request = candidate.request
+  if request is None:
+    return False, None
+  ####
+  expected = request.transonic_shock_interface_profile
+  if expected is None:
+    return candidate.transonic_shock_interface_profile is None and not (
+      candidate.transonic_shock_interface_profile_consumed
+    ), None
+  ####
+  reported = candidate.transonic_shock_interface_profile
+  if not isinstance(reported, MocTransonicShockInterfaceProfile):
+    return False, None
+  ####
+  try:
+    profile_audit = measure_moc_transonic_shock_interface_profile(reported)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return False, None
+  ####
+  if not profile_audit.converged or reported != expected:
+    return False, None
+  ####
+  if not candidate.transonic_shock_interface_profile_consumed:
+    return False, None
+  ####
+  control = request.mixed_regime_request.control_section
+  lower_ordinate = control.points_m[0][1]
+  inlet_height = control.points_m[-1][1] - lower_ordinate
+  x_start = control.points_m[0][0]
+  x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+  y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
+  if abs(reported.cross_section_x_m - x_start) > x_tolerance:
+    return False, None
+  ####
+  if (
+    abs(reported.lower_ordinate_m - lower_ordinate) > y_tolerance
+    or abs(reported.upper_ordinate_m - (lower_ordinate + inlet_height))
+    > y_tolerance
+    or abs(np.sin(reported.interface_normal_angle_rad)) > 1.0e-8
+  ):
+    return False, None
+  ####
+  reference_sample = control.samples[-1]
+  if abs(reported.gamma - float(reference_sample.gamma)) > 1.0e-10:
+    return False, None
+  ####
+  ordinates = np.asarray(
+    [sample.point_m[1] for sample in reported.downstream_samples],
+    dtype=float,
+  )
+  values = {
+    name: np.asarray(
+      [getattr(sample, name) for sample in reported.downstream_samples],
+      dtype=float,
+    )
+    for name in ('total_pressure_Pa', 'mach', 'flow_angle_rad')
+  }
+  face_width = inlet_height / request.transverse_cell_count
+  override_states: list[np.ndarray] = []
+  for index in range(request.transverse_cell_count):
+    ordinate = lower_ordinate + (index + 0.5) * face_width
+    override_states.append(
+      _from_sample(
+        float(np.interp(ordinate, ordinates, values['total_pressure_Pa'])),
+        float(np.interp(ordinate, ordinates, values['mach'])),
+        float(np.interp(ordinate, ordinates, values['flow_angle_rad'])),
+        reported.gamma,
+        request.reference_total_temperature_K,
+        request.gas_constant_J_kgK,
+      )
+    )
+  ####
+  return True, tuple(state.copy() for state in override_states)
+####
+
+
 def _audit_control_section_compatibility(
   candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
 ) -> tuple[bool, float | None, float | None]:
@@ -1274,14 +1371,32 @@ def _audit_field(
       'handoff re-derivation'
     )
   ####
-  if geometry_override_states is not None and interface_override_states is not None:
+  transonic_shock_interface_profile_verified, interface_profile_override_states = (
+    _audit_transonic_shock_interface_profile(candidate)
+  )
+  if not transonic_shock_interface_profile_verified:
     raise ValueError(
-      'audited geometry and audited shock-interface inlet branches cannot '
-      'be active together'
+      'audited transonic shock-interface profile does not match its '
+      'independent handoff re-derivation'
+    )
+  ####
+  if sum(
+    override is not None
+    for override in (
+      geometry_override_states,
+      interface_override_states,
+      interface_profile_override_states,
+    )
+  ) > 1:
+    raise ValueError(
+      'audited geometry, scalar shock-interface, and shock-interface-profile '
+      'inlet branches cannot be active together'
     )
   ####
   inlet_override_states = (
-    interface_override_states
+    interface_profile_override_states
+    if interface_profile_override_states is not None
+    else interface_override_states
     if interface_override_states is not None
     else geometry_override_states
   )
@@ -1568,6 +1683,9 @@ def _audit_field(
     'expected_cell_count': expected_cell_count,
     'transonic_shock_geometry_verified': transonic_shock_geometry_verified,
     'transonic_shock_interface_verified': transonic_shock_interface_verified,
+    'transonic_shock_interface_profile_verified': (
+      transonic_shock_interface_profile_verified
+    ),
   }
 ####
 
@@ -1595,6 +1713,17 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     return _failure(
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
       .TRANSONIC_SHOCK_INTERFACE_FAILURE,
+      candidate,
+      candidate.message,
+    )
+  ####
+  if candidate.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_SHOCK_INTERFACE_PROFILE_FAILURE
+  ):
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_SHOCK_INTERFACE_PROFILE_FAILURE,
       candidate,
       candidate.message,
     )
@@ -1665,6 +1794,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   )
   transonic_shock_interface_verified = bool(
     raw['transonic_shock_interface_verified']
+  )
+  transonic_shock_interface_profile_verified = bool(
+    raw['transonic_shock_interface_profile_verified']
   )
   (
     control_section_compatibility_verified,
@@ -1767,6 +1899,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       'candidate audited transonic shock interface does not match its '
       'independent handoff re-derivation'
     )
+  elif not transonic_shock_interface_profile_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_SHOCK_INTERFACE_PROFILE_FAILURE
+    )
+    message = (
+      'candidate audited transonic shock-interface profile does not match its '
+      'independent handoff re-derivation'
+    )
   elif not control_section_compatibility_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -1828,6 +1969,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     transonic_transition_verified=transonic_transition_verified,
     transonic_shock_geometry_verified=transonic_shock_geometry_verified,
     transonic_shock_interface_verified=transonic_shock_interface_verified,
+    transonic_shock_interface_profile_verified=(
+      transonic_shock_interface_profile_verified
+    ),
     control_section_compatibility_verified=(
       control_section_compatibility_verified
     ),

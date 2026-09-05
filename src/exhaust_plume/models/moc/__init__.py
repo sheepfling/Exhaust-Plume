@@ -193,6 +193,7 @@ from exhaust_plume.models.moc.transonic_placement import (
 from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceStatus,
   MocTransonicShockInterfaceSample,
+  MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceRequest,
   MocTransonicShockInterfaceResult,
   solve_moc_transonic_shock_interface,
@@ -893,6 +894,7 @@ __all__ = (
   'solve_moc_transonic_placement',
   'MocTransonicShockInterfaceStatus',
   'MocTransonicShockInterfaceSample',
+  'MocTransonicShockInterfaceProfile',
   'MocTransonicShockInterfaceRequest',
   'MocTransonicShockInterfaceResult',
   'solve_moc_transonic_shock_interface',
