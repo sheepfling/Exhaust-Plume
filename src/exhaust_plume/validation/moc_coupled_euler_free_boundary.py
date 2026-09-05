@@ -29,7 +29,12 @@ from exhaust_plume.models.moc.transonic_transition import (
   MocTransonicTransitionAuditStatus,
   MocTransonicTransitionRequest,
   MocTransonicTransitionResult,
+  MocTransonicShockGeometryAudit,
+  MocTransonicShockGeometryRequest,
+  MocTransonicShockGeometryResult,
   measure_moc_transonic_transition,
+  measure_moc_transonic_shock_geometry,
+  solve_moc_transonic_shock_geometry,
 )
 
 __all__ = (
@@ -61,6 +66,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   BOUNDARY_FAILURE = 'coupled-euler-audit-boundary-failure'
   PRESSURE_BUDGET_FAILURE = 'coupled-euler-audit-pressure-budget-failure'
   TRANSONIC_TRANSITION_FAILURE = 'coupled-euler-audit-transonic-transition-failure'
+  TRANSONIC_SHOCK_GEOMETRY_FAILURE = (
+    'coupled-euler-audit-transonic-shock-geometry-failure'
+  )
   CONTROL_SECTION_COMPATIBILITY_FAILURE = (
     'coupled-euler-audit-control-section-compatibility-failure'
   )
@@ -100,6 +108,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   free_boundary_report_verified: bool = False
   pressure_budget_verified: bool = False
   transonic_transition_verified: bool = False
+  transonic_shock_geometry_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -175,6 +184,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_report_verified',
       'free_boundary_report_verified',
       'transonic_transition_verified',
+      'transonic_shock_geometry_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -219,6 +229,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.free_boundary_report_verified
       and self.pressure_budget_verified
       and self.transonic_transition_verified
+      and self.transonic_shock_geometry_verified
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
@@ -273,6 +284,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'free_boundary_report_verified': self.free_boundary_report_verified,
       'pressure_budget_verified': self.pressure_budget_verified,
       'transonic_transition_verified': self.transonic_transition_verified,
+      'transonic_shock_geometry_verified': self.transonic_shock_geometry_verified,
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
       ),
@@ -773,6 +785,173 @@ def _audit_transonic_transition(
 ####
 
 
+def _audit_transonic_shock_geometry(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> tuple[bool, tuple[np.ndarray, ...] | None]:
+  """Re-derive the optional post-shock inlet branch and its geometry binding."""
+
+  request = candidate.request
+  if request is None:
+    return False, None
+  ####
+  geometry_request = request.transonic_shock_geometry
+  if geometry_request is None:
+    return (
+      candidate.transonic_shock_geometry is None
+      and candidate.transonic_shock_geometry_audit is None,
+      None,
+    )
+  ####
+  reported = candidate.transonic_shock_geometry
+  reported_audit = candidate.transonic_shock_geometry_audit
+  if not isinstance(reported, MocTransonicShockGeometryResult):
+    return False, None
+  ####
+  if not isinstance(reported_audit, MocTransonicShockGeometryAudit):
+    return False, None
+  ####
+  if not isinstance(geometry_request, MocTransonicShockGeometryRequest):
+    return False, None
+  ####
+  expected = solve_moc_transonic_shock_geometry(geometry_request)
+  expected_audit = measure_moc_transonic_shock_geometry(expected)
+  geometry_fields_match = bool(
+    reported.status is expected.status
+    and reported.request == expected.request
+    and reported.shock_point_m == expected.shock_point_m
+    and np.isclose(
+      reported.shock_normal_angle_rad,
+      expected.shock_normal_angle_rad,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.isclose(
+      reported.shock_tangent_angle_rad,
+      expected.shock_tangent_angle_rad,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.isclose(
+      reported.normal_alignment_residual_rad,
+      expected.normal_alignment_residual_rad,
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+    and np.allclose(
+      (
+        reported.upstream_normal_velocity_m_s,
+        reported.downstream_normal_velocity_m_s,
+        reported.upstream_tangential_velocity_m_s,
+        reported.downstream_tangential_velocity_m_s,
+        reported.mass_flux_residual,
+        reported.momentum_flux_residual,
+        reported.energy_flux_residual,
+      ),
+      (
+        expected.upstream_normal_velocity_m_s,
+        expected.downstream_normal_velocity_m_s,
+        expected.upstream_tangential_velocity_m_s,
+        expected.downstream_tangential_velocity_m_s,
+        expected.mass_flux_residual,
+        expected.momentum_flux_residual,
+        expected.energy_flux_residual,
+      ),
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+  )
+  audit_fields_match = bool(
+    reported_audit.status is expected_audit.status
+    and reported_audit.result_status is expected_audit.result_status
+    and reported_audit.rederived == expected_audit.rederived
+    and reported_audit.geometry_binding_verified
+    == expected_audit.geometry_binding_verified
+    and np.allclose(
+      (
+        reported_audit.point_residual_m,
+        reported_audit.normal_angle_residual_rad,
+        reported_audit.tangent_angle_residual_rad,
+        reported_audit.mass_flux_residual,
+        reported_audit.momentum_flux_residual,
+        reported_audit.energy_flux_residual,
+      ),
+      (
+        expected_audit.point_residual_m,
+        expected_audit.normal_angle_residual_rad,
+        expected_audit.tangent_angle_residual_rad,
+        expected_audit.mass_flux_residual,
+        expected_audit.momentum_flux_residual,
+        expected_audit.energy_flux_residual,
+      ),
+      rtol=3.0e-6,
+      atol=1.0e-10,
+    )
+  )
+  if not geometry_fields_match or not audit_fields_match:
+    return False, None
+  ####
+  state = geometry_request.shock_state
+  sample = request.mixed_regime_request.control_section.samples[-1]
+  pressure_scale = max(
+    request.mixed_regime_request.ambient_pressure_Pa,
+    state.downstream_static_pressure_Pa,
+    1.0,
+  )
+  x_start = request.mixed_regime_request.control_section.points_m[0][0]
+  lower_ordinate = request.mixed_regime_request.control_section.points_m[0][1]
+  inlet_height = request.mixed_regime_request.control_section.points_m[-1][1] - lower_ordinate
+  x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+  y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
+  if abs(reported.shock_point_m[0] - x_start) > x_tolerance:
+    return False, None
+  ####
+  if not (
+    lower_ordinate - y_tolerance
+    <= reported.shock_point_m[1]
+    <= lower_ordinate + inlet_height + y_tolerance
+  ):
+    return False, None
+  ####
+  if abs(
+    state.downstream_static_pressure_Pa
+    - request.mixed_regime_request.ambient_pressure_Pa
+  ) > 1.0e-8 * pressure_scale:
+    return False, None
+  ####
+  if abs(state.gamma - float(sample.gamma)) > 1.0e-10:
+    return False, None
+  ####
+  if abs(state.gas_constant_J_kgK - request.gas_constant_J_kgK) > 1.0e-10:
+    return False, None
+  ####
+  if abs(
+    state.upstream_total_temperature_K - request.reference_total_temperature_K
+  ) > 1.0e-8 * max(request.reference_total_temperature_K, 1.0):
+    return False, None
+  ####
+  downstream_state = np.array(
+    (
+      state.downstream_density_kg_m3,
+      state.downstream_density_kg_m3
+      * state.downstream_speed_m_s
+      * np.cos(state.upstream_flow_angle_rad),
+      state.downstream_density_kg_m3
+      * state.downstream_speed_m_s
+      * np.sin(state.upstream_flow_angle_rad),
+      state.downstream_static_pressure_Pa / (state.gamma - 1.0)
+      + 0.5
+      * state.downstream_density_kg_m3
+      * state.downstream_speed_m_s**2,
+    ),
+    dtype=float,
+  )
+  return (
+    True,
+    tuple(downstream_state.copy() for _ in range(request.transverse_cell_count)),
+  )
+####
+
+
 def _audit_control_section_compatibility(
   candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
 ) -> tuple[bool, float | None, float | None]:
@@ -960,6 +1139,15 @@ def _audit_field(
       'total pressure, Mach number, and gamma'
     )
   ####
+  transonic_shock_geometry_verified, inlet_override_states = (
+    _audit_transonic_shock_geometry(candidate)
+  )
+  if not transonic_shock_geometry_verified:
+    raise ValueError(
+      'audited transonic shock geometry does not match its independent '
+      'branch re-derivation'
+    )
+  ####
   gas_constant = request.gas_constant_J_kgK
   points = np.empty((axial_count + 1, transverse_count + 1, 2), dtype=float)
   eta = np.linspace(0.0, 1.0, transverse_count + 1)
@@ -1016,15 +1204,22 @@ def _audit_field(
   speeds = []
   entropy_values = []
   inlet_entropy = []
-  for first, second in zip(control.points_m, control.points_m[1:]):
-    state = _interpolate_inlet(
-      0.5 * (first[1] + second[1]),
-      control.points_m,
-      control.samples,
-      gamma,
-      request.reference_total_temperature_K,
-      gas_constant,
+  if inlet_override_states is not None:
+    inlet_entropy_states = inlet_override_states
+  else:
+    inlet_entropy_states = tuple(
+      _interpolate_inlet(
+        0.5 * (first[1] + second[1]),
+        control.points_m,
+        control.samples,
+        gamma,
+        request.reference_total_temperature_K,
+        gas_constant,
+      )
+      for first, second in zip(control.points_m, control.points_m[1:])
     )
+  ####
+  for state in inlet_entropy_states:
     density, _u, _v, pressure, _temperature, _sound_speed = _primitive(
       state,
       gamma,
@@ -1126,24 +1321,28 @@ def _audit_field(
             gas_constant,
           )
         elif i == 0:
-          inlet = _interpolate_inlet(
-            0.5 * (first[1] + second[1]),
-            control.points_m,
-            control.samples,
-            gamma,
-            request.reference_total_temperature_K,
-            gas_constant,
-          )
-          if (
-            request.inlet_boundary_mode
-            is MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
-          ):
-            inlet = _subsonic_characteristic_inlet(
-              state,
-              inlet,
+          if inlet_override_states is not None:
+            inlet = inlet_override_states[j]
+          else:
+            inlet = _interpolate_inlet(
+              0.5 * (first[1] + second[1]),
+              control.points_m,
+              control.samples,
               gamma,
+              request.reference_total_temperature_K,
               gas_constant,
             )
+            if (
+              request.inlet_boundary_mode
+              is MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+            ):
+              inlet = _subsonic_characteristic_inlet(
+                state,
+                inlet,
+                gamma,
+                gas_constant,
+              )
+            ####
           ####
           flux, wave = _rusanov(
             state,
@@ -1230,6 +1429,7 @@ def _audit_field(
     'entropy_verified': entropy_loss_residual <= 0.05,
     'pressure_budget': pressure_budget,
     'expected_cell_count': expected_cell_count,
+    'transonic_shock_geometry_verified': transonic_shock_geometry_verified,
   }
 ####
 
@@ -1311,6 +1511,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     )
   )
   transonic_transition_verified = _audit_transonic_transition(candidate)
+  transonic_shock_geometry_verified = bool(
+    raw['transonic_shock_geometry_verified']
+  )
   (
     control_section_compatibility_verified,
     control_section_pressure_jump,
@@ -1394,6 +1597,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not transonic_transition_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
     message = 'candidate scalar transonic transition evidence does not match the control section'
+  elif not transonic_shock_geometry_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_SHOCK_GEOMETRY_FAILURE
+    )
+    message = (
+      'candidate scalar transonic shock geometry does not match its '
+      'independent branch re-derivation'
+    )
   elif not control_section_compatibility_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -1453,6 +1665,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     free_boundary_report_verified=boundary_report_verified,
     pressure_budget_verified=pressure_budget_verified,
     transonic_transition_verified=transonic_transition_verified,
+    transonic_shock_geometry_verified=transonic_shock_geometry_verified,
     control_section_compatibility_verified=(
       control_section_compatibility_verified
     ),

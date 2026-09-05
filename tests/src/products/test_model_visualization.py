@@ -325,6 +325,18 @@ def _coupled_euler_result() -> SimpleNamespace:
       shock_state_momentum_flux_residual=2.0e-12,
       shock_state_energy_flux_residual=3.0e-12,
     ),
+    transonic_shock_geometry=SimpleNamespace(
+      status='verified-normal-shock-geometry-binding',
+      geometry_verified=True,
+      shock_point_m=(0.0, 0.5),
+      shock_normal_angle_rad=0.0,
+      normal_alignment_residual_rad=0.0,
+      mass_flux_residual=1.0e-12,
+      momentum_flux_residual=2.0e-12,
+      energy_flux_residual=3.0e-12,
+      upstream_normal_velocity_m_s=1350.0,
+      downstream_normal_velocity_m_s=270.75,
+    ),
   )
 ####
 
@@ -454,6 +466,7 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert {path.path_id for path in bundle.paths} >= {
     'moc-ambient-boundary',
     'moc-centerline-boundary',
+    'moc-transonic-shock-branch',
   }
   channels = {channel.channel_id: channel for channel in bundle.section_channels}
   assert channels['static_pressure'].unit == 'Pa'
@@ -482,6 +495,15 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
     'converged-normal-shock-pressure-reference'
   )
   assert bundle.diagnostics['coupled_euler_transonic_shock_state_available'] is True
+  assert bundle.diagnostics['coupled_euler_transonic_shock_geometry_status'] == (
+    'verified-normal-shock-geometry-binding'
+  )
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_branch_marker_only'
+  ] is True
+  assert bundle.diagnostics[
+    'coupled_euler_transonic_shock_geometry_downstream_normal_velocity_m_s'
+  ] == pytest.approx(270.75)
   assert bundle.diagnostics['coupled_euler_transonic_shock_state_verified'] is True
   assert bundle.diagnostics[
     'coupled_euler_transonic_shock_state_conservation_verified'
@@ -508,6 +530,10 @@ def test_coupled_euler_visualization_retains_mesh_and_physical_channels() -> Non
   assert bundle.claims.production_claim_allowed is False
   assert any(
     'coupled-Euler/free-boundary channels are research diagnostics' in warning
+    for warning in bundle.warnings
+  )
+  assert any(
+    'caller-bound scalar branch diagnostic' in warning
     for warning in bundle.warnings
   )
   json.dumps(bundle.model_dump(), allow_nan=False)

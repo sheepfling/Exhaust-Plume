@@ -3723,3 +3723,21 @@ neighboring characteristic field or entropy transport is solved, and the
 result remains barred from ``MocChainCell`` promotion and production claims.
 MOC-1 still requires solver-owned placement and mixed-regime closure before
 physical shock length, refinement, or external validation can be accepted.
+
+## Scalar post-shock downstream-field checkpoint
+
+The coupled Euler research solver now has an explicit
+``scalar-normal-shock-branch`` inlet mode.  It requires the independently
+audited scalar shock point/normal, binds the branch downstream state to the
+request's gamma, gas constant, total temperature, and ambient target, and
+solves the resulting downstream material-streamline field.  The independent
+coupled-Euler measurement rederives the branch state, conservative field
+residuals, entropy map, pressure boundary, and tangency evidence.
+
+The actual low-ambient fixture now closes this bounded downstream field
+locally, while the original control-section-driven solve remains a typed
+free-boundary failure.  The new mode does not claim that the upstream field
+has reached the branch or that the shock is globally placed; the visual lane
+shows only a caller-bound marker and keeps ``MocChainCell`` and production
+promotion blocked.  The next MOC-1 work is a solver-owned attachment/transport
+of this branch into the upstream two-dimensional characteristic field.

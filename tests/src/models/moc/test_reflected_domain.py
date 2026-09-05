@@ -31,6 +31,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
   MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus,
+  MocTransonicShockGeometryRequest,
+  MocTransonicShockGeometryStatus,
   MocTransonicTransitionStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
@@ -2047,6 +2049,109 @@ def test_subsonic_characteristic_coupled_field_is_independently_auditable():
   assert audit.converged
   assert audit.residual_report_verified
   assert result.canonical_euler_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_scalar_normal_shock_branch_field_is_locally_auditable_without_global_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  baseline_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+  )
+  transition = assess_reflected_domain_coupled_euler_transonic_transition(
+    baseline_request
+  )
+  assert transition.shock_state is not None
+  geometry_request = MocTransonicShockGeometryRequest(
+    shock_state=transition.shock_state,
+    shock_point_m=(mixed_request.control_section.points_m[0][0], 0.025),
+    shock_normal_angle_rad=0.0,
+  )
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    outlet_static_pressure_Pa=mixed_request.ambient_pressure_Pa,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode.SCALAR_NORMAL_SHOCK_BRANCH
+    ),
+    transonic_shock_geometry=geometry_request,
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+
+  assert request.as_report()['inlet_boundary_mode'] == (
+    'scalar-normal-shock-branch'
+  )
+  assert result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .CONVERGED_LOCAL_PHYSICAL_CLOSURE
+  )
+  assert result.transonic_shock_geometry is not None
+  assert result.transonic_shock_geometry.status is (
+    MocTransonicShockGeometryStatus.VERIFIED
+  )
+  assert result.transonic_shock_geometry_audit is not None
+  assert result.transonic_shock_geometry_audit.converged
+  assert result.local_physical_closure_verified
+  assert audit.status is MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.transonic_shock_geometry_verified
+  assert audit.local_consistency_verified
+  assert result.canonical_free_boundary_verified is False
+  assert result.canonical_euler_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_scalar_normal_shock_branch_requires_inlet_geometry_and_rejects_bad_binding():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  with pytest.raises(ValueError, match='requires transonic_shock_geometry'):
+    build_reflected_domain_coupled_euler_free_boundary_request(
+      mixed_request,
+      reference_total_temperature_K=1500.0,
+      inlet_boundary_mode=(
+        MocReflectedDomainCoupledEulerInletBoundaryMode.SCALAR_NORMAL_SHOCK_BRANCH
+      ),
+    )
+  ####
+
+  baseline_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+  )
+  transition = assess_reflected_domain_coupled_euler_transonic_transition(
+    baseline_request
+  )
+  assert transition.shock_state is not None
+  bad_geometry = MocTransonicShockGeometryRequest(
+    shock_state=transition.shock_state,
+    shock_point_m=(mixed_request.control_section.points_m[0][0] + 0.01, 0.025),
+    shock_normal_angle_rad=0.0,
+  )
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode.SCALAR_NORMAL_SHOCK_BRANCH
+    ),
+    transonic_shock_geometry=bad_geometry,
+  )
+
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+
+  assert result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus.INLET_SHOCK_BRANCH_FAILURE
+  )
+  assert result.converged is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
 ####

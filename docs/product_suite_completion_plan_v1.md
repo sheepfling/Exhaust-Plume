@@ -796,3 +796,19 @@ geometry and audit flags keep physical closure, production claims, and
 provider promotion disabled.  The next required implementation remains the
 solver-owned two-dimensional shock placement/mixed-regime closure, followed
 by disjoint validation and accepted provider comparisons.
+
+### Scalar post-shock downstream-field checkpoint
+
+The coupled constant-gamma research lane now accepts an explicitly audited
+caller-bound scalar normal-shock geometry as a ``scalar-normal-shock-branch``
+inlet.  It converts the audited downstream state into conservative inlet
+states, solves the bounded downstream Euler/free-boundary field, and has an
+independent audit that rederives both the branch geometry and the field fluxes.
+The actual low-ambient fixture reaches local downstream residual, tangency,
+entropy, and audit gates through this mode.
+
+This is a downstream branch experiment, not global plume closure: the
+upstream characteristic field and the shock's placement inside that field are
+still absent.  The branch is therefore retained as research-only, remains
+blocked from chain promotion and production claims, and is visualized only as
+a caller-bound marker rather than a fitted global shock boundary.

@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from math import atan2, isfinite, sqrt
+from math import atan2, cos, isfinite, pi, sin, sqrt
 import re
 from typing import Any, Literal, TypeAlias, cast
 
@@ -1729,6 +1729,44 @@ def _moc_visualization(
     ####
   ####
 
+  transonic_geometry = getattr(source, 'transonic_shock_geometry', None)
+  if transonic_geometry is not None:
+    point = _vector2(
+      'transonic shock geometry point',
+      getattr(transonic_geometry, 'shock_point_m'),
+    )
+    normal_angle = _finite(
+      'transonic shock geometry normal angle',
+      getattr(transonic_geometry, 'shock_normal_angle_rad'),
+    )
+    marker_half_length = max(
+      1.0e-9,
+      0.25 * max(
+        (abs(boundary[1]) for boundary in all_points),
+        default=1.0e-9,
+      ),
+    )
+    tangent_angle = normal_angle + 0.5 * pi
+    marker = (
+      (
+        point[0] - marker_half_length * cos(tangent_angle),
+        point[1] - marker_half_length * sin(tangent_angle),
+      ),
+      (
+        point[0] + marker_half_length * cos(tangent_angle),
+        point[1] + marker_half_length * sin(tangent_angle),
+      ),
+    )
+    path = _path3(
+      'moc-transonic-shock-branch',
+      'caller-bound scalar transonic shock branch marker; not global placement',
+      marker,
+    )
+    if path is not None:
+      paths.append(path)
+    ####
+  ####
+
   centerline = boundary_points.get('moc-centerline-boundary', ())
   if len(centerline) < 2:
     x_values = sorted({point[0] for point in all_points})
@@ -2153,6 +2191,29 @@ def _moc_visualization(
         ####
       ####
     ####
+    if transonic_geometry is not None:
+      geometry_status = getattr(transonic_geometry, 'status', '')
+      diagnostics['coupled_euler_transonic_shock_geometry_status'] = str(
+        getattr(geometry_status, 'value', geometry_status)
+      )
+      diagnostics['coupled_euler_transonic_shock_geometry_verified'] = bool(
+        getattr(transonic_geometry, 'geometry_verified', False)
+      )
+      diagnostics['coupled_euler_transonic_shock_branch_marker_only'] = True
+      for name in (
+        'normal_alignment_residual_rad',
+        'mass_flux_residual',
+        'momentum_flux_residual',
+        'energy_flux_residual',
+        'upstream_normal_velocity_m_s',
+        'downstream_normal_velocity_m_s',
+      ):
+        value = getattr(transonic_geometry, name, None)
+        if value is not None and isfinite(float(value)):
+          diagnostics[f'coupled_euler_transonic_shock_geometry_{name}'] = float(value)
+        ####
+      ####
+    ####
   ####
   diagnostics.update(solver_diagnostics)
   if isinstance(gates, Mapping):
@@ -2170,6 +2231,12 @@ def _moc_visualization(
     warnings.append(
       'coupled-Euler/free-boundary channels are research diagnostics; '
       'local closure does not authorize canonical or production use'
+    )
+  ####
+  if transonic_geometry is not None:
+    warnings.append(
+      'the transonic shock marker is a caller-bound scalar branch diagnostic; '
+      'it is not a globally placed shock boundary'
     )
   ####
   if not optional_channels or any(
