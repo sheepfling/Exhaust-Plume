@@ -3701,7 +3701,23 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   )
   effective_profile = request.transonic_shock_interface_profile
   if solver_owned_placement is not None:
-    if not solver_owned_placement.converged or solver_owned_placement.profile is None:
+    try:
+      from exhaust_plume.validation.moc_transonic_interface import (
+        measure_moc_transonic_shock_interface_field_placement,
+      )
+
+      placement_audit = measure_moc_transonic_shock_interface_field_placement(
+        solver_owned_placement
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      placement_audit = None
+    ####
+    if (
+      not solver_owned_placement.converged
+      or placement_audit is None
+      or not placement_audit.converged
+      or solver_owned_placement.profile is None
+    ):
       return _failure(
         MocReflectedDomainCoupledEulerFreeBoundaryStatus
         .INLET_SHOCK_INTERFACE_PLACEMENT_FAILURE,

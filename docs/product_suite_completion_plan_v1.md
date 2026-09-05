@@ -1228,3 +1228,5 @@ The actual target reaches the coupled conservative field and remains blocked
 only at its later pressure/tangency/free-boundary residual gate.  This closes
 the direct contract handoff, not the P2 physical-closure gate; refinement,
 physical shock-cell lengths, and external product validation remain open.
+The consumer also re-runs the placement audit at the coupled boundary, so a
+tampered cached result is rejected before any field iteration.

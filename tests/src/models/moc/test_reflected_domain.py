@@ -474,6 +474,23 @@ def test_global_physical_field_uses_solver_owned_cross_section_placement():
   assert not tampered_audit.cross_section_verified
 
   mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  tampered_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
+    transonic_shock_interface_field_placement=tampered,
+  )
+  tampered_coupled = solve_reflected_domain_coupled_euler_free_boundary(
+    tampered_request
+  )
+  assert tampered_coupled.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_SHOCK_INTERFACE_PLACEMENT_FAILURE
+  )
+
   coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(
     mixed_request,
     reference_total_temperature_K=1500.0,
