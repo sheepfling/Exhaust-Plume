@@ -522,6 +522,20 @@ provider-bound path conditions, and it does not create detector or FPA
 evidence.  External atmospheric inputs and accepted provider comparisons
 remain required for release.
 
+### P4.5 lifecycle ray-to-FPA atmosphere/background checkpoint
+
+The direct lifecycle ray-result-to-FPA adapter now preserves the result's
+explicit background-transmittance matrix when a caller supplies background
+spectral radiance.  It can also apply the same explicit homogeneous
+atmospheric path operator used by Signature, including atmospheric
+transmittance of the optional background term.  FPA images retain the path
+operator identity, layer IDs, layer digest, source semantics, and downstream
+visualization/operator-chain metadata.
+
+This closes an adapter omission only.  Expected electrons and deterministic
+ADC counts remain downstream expectations; no noise realization, detection,
+camera provider, measured image, or external validation claim is introduced.
+
 ### P2.1 evidence checkpoint
 
 The first P2.1 evidence-plumbing slice is complete on the candidate branch at

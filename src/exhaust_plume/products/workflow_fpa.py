@@ -109,6 +109,9 @@ def _source_metadata(inputs: FpaVisualizationInput) -> dict[str, Any]:
       'camera_optics_id': inputs.image.camera_optics_id,
       'camera_mapping_model_id': inputs.image.camera_mapping_model_id,
       'operator_id': inputs.image.operator_id,
+      'atmospheric_path_operator_id': inputs.image.atmospheric_path_operator_id,
+      'atmospheric_path_layer_digest': inputs.image.atmospheric_path_layer_digest,
+      'atmospheric_path_layer_ids': list(inputs.image.atmospheric_path_layer_ids),
       'valid_pixel_count': sum(
         1 for row in inputs.image.validity_mask for valid in row if valid
       ),

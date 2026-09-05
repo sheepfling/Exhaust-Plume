@@ -347,8 +347,14 @@ class FpaVisualizationInput:
   def operator_ids(self) -> tuple[str, ...]:
     """Return the downstream operator chain represented by this input."""
 
+    atmospheric_path = ()
+    if self.image.atmospheric_path_operator_id is not None and (
+        self.image.atmospheric_path_operator_id not in self.source.operator_chain
+    ):
+      atmospheric_path = (self.image.atmospheric_path_operator_id,)
+    ####
     digitization = (FPA_DIGITIZATION_OPERATOR_ID,) if self.digitized is not None else ()
-    return (*self.source.operator_chain, *digitization)
+    return (*atmospheric_path, *self.source.operator_chain, *digitization)
   ####
 ####
 
@@ -397,6 +403,9 @@ class FpaViewProjection:
   selected_wavelength_m: float | None
   claim_ceiling: str
   validation_status: str
+  atmospheric_path_operator_id: str | None = None
+  atmospheric_path_layer_digest: str | None = None
+  atmospheric_path_layer_ids: tuple[str, ...] = ()
 
   def model_dump(self) -> dict[str, Any]:
     """Return JSON-compatible projection data for renderer adapters."""
@@ -436,6 +445,9 @@ class FpaViewProjection:
       'selected_wavelength_m': self.selected_wavelength_m,
       'claim_ceiling': self.claim_ceiling,
       'validation_status': self.validation_status,
+      'atmospheric_path_operator_id': self.atmospheric_path_operator_id,
+      'atmospheric_path_layer_digest': self.atmospheric_path_layer_digest,
+      'atmospheric_path_layer_ids': list(self.atmospheric_path_layer_ids),
     }
   ####
 ####
@@ -588,6 +600,9 @@ def project_fpa_view(
     selected_wavelength_m=selected_wavelength,
     claim_ceiling=inputs.claim_ceiling,
     validation_status=inputs.validation_status,
+    atmospheric_path_operator_id=inputs.image.atmospheric_path_operator_id,
+    atmospheric_path_layer_digest=inputs.image.atmospheric_path_layer_digest,
+    atmospheric_path_layer_ids=inputs.image.atmospheric_path_layer_ids,
   )
 ####
 

@@ -9,11 +9,19 @@ random noise, or advertise a focal-plane provider.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from math import fsum, isfinite
 
 from exhaust_plume.validation.measurement_operators import sample_spectral_rows
 from exhaust_plume.contracts.ray_transfer_v1 import SpectralRayTransferResult
+from exhaust_plume.contracts.common_v1 import canonical_digest
+from exhaust_plume.validation.sensor_operators import (
+  ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
+  AtmosphericPathLayer,
+  apply_atmospheric_path_layers,
+  compose_atmospheric_path_layers,
+)
 
 
 FPA_PIXEL_DETECTOR_OPERATOR_ID = 'op.sensor.fpa-pixel-detector'
@@ -318,6 +326,9 @@ class FpaPixelImage:
   camera_optics_id: str | None = None
   camera_mapping_model_id: str | None = None
   operator_id: str = FPA_PIXEL_DETECTOR_OPERATOR_ID
+  atmospheric_path_operator_id: str | None = None
+  atmospheric_path_layer_digest: str | None = None
+  atmospheric_path_layer_ids: tuple[str, ...] = ()
 
   def __post_init__(self) -> None:
     width = _positive_dimension(self.width_px, 'width_px')
@@ -362,6 +373,30 @@ class FpaPixelImage:
     if not isinstance(self.operator_id, str) or self.operator_id != FPA_PIXEL_DETECTOR_OPERATOR_ID:
       raise ValueError(f'operator_id must be {FPA_PIXEL_DETECTOR_OPERATOR_ID!r}')
     ####
+    atmospheric_path_operator_id = _optional_identity(
+      self.atmospheric_path_operator_id,
+      'atmospheric_path_operator_id',
+    )
+    atmospheric_path_layer_digest = _optional_identity(
+      self.atmospheric_path_layer_digest,
+      'atmospheric_path_layer_digest',
+    )
+    atmospheric_path_layer_ids = tuple(self.atmospheric_path_layer_ids)
+    if any(not isinstance(layer_id, str) or not layer_id for layer_id in atmospheric_path_layer_ids):
+      raise ValueError('atmospheric_path_layer_ids must contain nonempty strings')
+    ####
+    if atmospheric_path_operator_id is not None:
+      if atmospheric_path_operator_id != ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID:
+        raise ValueError(
+          f'atmospheric_path_operator_id must be {ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID!r}'
+        )
+      ####
+      if atmospheric_path_layer_digest is None:
+        raise ValueError('atmospheric_path_layer_digest is required with an atmospheric path operator')
+      ####
+    elif atmospheric_path_layer_digest is not None or atmospheric_path_layer_ids:
+      raise ValueError('atmospheric path lineage requires its operator identity')
+    ####
     object.__setattr__(self, 'width_px', width)
     object.__setattr__(self, 'height_px', height)
     object.__setattr__(self, 'wavelengths_m', wavelengths)
@@ -372,6 +407,9 @@ class FpaPixelImage:
     object.__setattr__(self, 'validity_mask', validity)
     object.__setattr__(self, 'camera_optics_id', _optional_identity(self.camera_optics_id, 'camera_optics_id'))
     object.__setattr__(self, 'camera_mapping_model_id', _optional_identity(self.camera_mapping_model_id, 'camera_mapping_model_id'))
+    object.__setattr__(self, 'atmospheric_path_operator_id', atmospheric_path_operator_id)
+    object.__setattr__(self, 'atmospheric_path_layer_digest', atmospheric_path_layer_digest)
+    object.__setattr__(self, 'atmospheric_path_layer_ids', atmospheric_path_layer_ids)
   ####
 ####
 
@@ -667,23 +705,86 @@ def integrate_spectral_ray_result_to_fpa(
     geometry: FpaPixelGeometry,
     detector: DetectorResponse,
     exposure_s: float,
+    background_spectral_radiance: tuple[tuple[float, ...], ...]
+    | list[tuple[float, ...]]
+    | list[list[float]]
+    | None = None,
+    atmospheric_path_layers: Sequence[AtmosphericPathLayer] | None = None,
 ) -> FpaPixelImage:
   """Adapt a lifecycle ray-transfer result into the deterministic FPA operator.
 
   The wavelength axis is supplied by the original ray request because the
   ray-transfer result intentionally carries matrix data but not request axes.
+  When ``background_spectral_radiance`` is supplied, the result's explicit
+  ``background_transmittance`` matrix is used to compose
+  ``L_source + L_background * tau``.  When ``atmospheric_path_layers`` is
+  supplied, that caller-owned homogeneous path is applied between the source
+  and detector; its transmittance also attenuates the optional background
+  contribution.  Neither option infers an atmosphere or a detector model.
   """
 
   if not isinstance(result, SpectralRayTransferResult):
     raise TypeError('result must be SpectralRayTransferResult')
   ####
-  return integrate_ray_transfer_to_fpa(
+  source_spectral_radiance = result.source_spectral_radiance
+  validity_mask = result.validity_mask
+  effective_background_transmittance = None
+  path_applied = atmospheric_path_layers is not None
+  selected_path_layers = None if atmospheric_path_layers is None else tuple(atmospheric_path_layers)
+  if path_applied:
+    transferred = apply_atmospheric_path_layers(
+      wavelengths_m,
+      source_spectral_radiance,
+      selected_path_layers or (),
+      validity_mask=validity_mask,
+    )
+    source_spectral_radiance = transferred.values
+    validity_mask = transferred.validity_mask
+    if background_spectral_radiance is not None:
+      path_transfer = compose_atmospheric_path_layers(
+        wavelengths_m,
+        selected_path_layers or (),
+      )
+      effective_background_transmittance = tuple(
+        tuple(
+          plume_transmission * path_transmission
+          for plume_transmission, path_transmission in zip(
+            plume_row,
+            path_transfer.transmittance,
+            strict=True,
+          )
+        )
+        for plume_row in result.background_transmittance
+      )
+    ####
+  elif background_spectral_radiance is not None:
+    effective_background_transmittance = result.background_transmittance
+  ####
+  image = integrate_ray_transfer_to_fpa(
     wavelengths_m,
-    result.source_spectral_radiance,
+    source_spectral_radiance,
     geometry=geometry,
     detector=detector,
     exposure_s=exposure_s,
-    validity_mask=result.validity_mask,
+    validity_mask=validity_mask,
+    background_transmittance=effective_background_transmittance,
+    background_spectral_radiance=background_spectral_radiance,
+  )
+  if not path_applied:
+    return image
+  ####
+  semantics = (
+    'source-after-explicit-atmospheric-path-plus-transmitted-background'
+    if background_spectral_radiance is not None
+    else 'source-after-explicit-atmospheric-path'
+  )
+  assert selected_path_layers is not None
+  return replace(
+    image,
+    source_semantics=semantics,
+    atmospheric_path_operator_id=ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
+    atmospheric_path_layer_digest=canonical_digest(selected_path_layers),
+    atmospheric_path_layer_ids=tuple(layer.layer_id for layer in selected_path_layers),
   )
 ####
 

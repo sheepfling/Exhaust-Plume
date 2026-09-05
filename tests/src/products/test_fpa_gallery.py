@@ -8,6 +8,7 @@ from exhaust_plume.products import render_fpa_gallery, write_interactive_fpa_gal
 from exhaust_plume import Pose, SPECTRAL_RAY_TRANSFER_V1, SpectralRayTransferRequest
 from exhaust_plume.providers import CurvedGrayRayTransferProvider
 from exhaust_plume.validation import (
+  AtmosphericPathLayer,
   DetectorResponse,
   FpaCameraOptics,
   FpaDigitizationPolicy,
@@ -152,4 +153,109 @@ def test_fpa_source_reference_preserves_curved_ray_provider_identity() -> None:
   )
   assert integrated.width_px == 1
   assert integrated.validity_mask == ((True,),)
+####
+
+
+def test_direct_fpa_ray_adapter_composes_result_background_and_explicit_path() -> None:
+  from tests.src.providers.test_curved_gray_ray_transfer import _definition
+
+  session = CurvedGrayRayTransferProvider().create_session(definition=_definition())
+  snapshot = session.create_snapshot(
+    time_s=4.0,
+    source_pose=Pose(frame_id='world', translation_m=(0.0, 0.0, 0.0), rotation_xyzw=(0.0, 0.0, 0.0, 1.0)),
+    dynamic_state={'throttle_fraction': 0.5},
+    ambient_state={'altitude_m': 1000.0},
+  )
+  try:
+    result = snapshot.evaluate(
+      SPECTRAL_RAY_TRANSFER_V1,
+      SpectralRayTransferRequest(
+        ray_frame_id='sensor',
+        ray_origins_m=((-1.0, 0.0, 0.0),),
+        ray_directions=((1.0, 0.0, 0.0),),
+        ray_t_min_m=(0.0,),
+        ray_t_max_m=(5.0,),
+        wavelengths_m=(1.0e-6, 2.0e-6),
+      ),
+    )
+  finally:
+    session.close()
+  ####
+  geometry = FpaPixelGeometry(
+    width_px=1,
+    height_px=1,
+    ray_pixel_indices_row_col=((0, 0),),
+    ray_collection_weights_m2_sr=(1.0e-6,),
+  )
+  detector = DetectorResponse(
+    wavelengths_m=(1.0e-6, 2.0e-6),
+    quantum_efficiency=(0.5, 0.5),
+    optical_throughput=(1.0, 1.0),
+  )
+  source_only = integrate_spectral_ray_result_to_fpa(
+    result,
+    (1.0e-6, 2.0e-6),
+    geometry=geometry,
+    detector=detector,
+    exposure_s=1.0,
+  )
+  with_background = integrate_spectral_ray_result_to_fpa(
+    result,
+    (1.0e-6, 2.0e-6),
+    geometry=geometry,
+    detector=detector,
+    exposure_s=1.0,
+    background_spectral_radiance=((10.0, 10.0),),
+  )
+  with_path = integrate_spectral_ray_result_to_fpa(
+    result,
+    (1.0e-6, 2.0e-6),
+    geometry=geometry,
+    detector=detector,
+    exposure_s=1.0,
+    atmospheric_path_layers=(
+      AtmosphericPathLayer(
+        source_function_w_sr_m=(100.0, 100.0),
+        absorption_coefficient_per_m=(0.5, 0.5),
+        length_m=1.0,
+        layer_id='fpa-test-path',
+      ),
+    ),
+  )
+  with_path_and_background = integrate_spectral_ray_result_to_fpa(
+    result,
+    (1.0e-6, 2.0e-6),
+    geometry=geometry,
+    detector=detector,
+    exposure_s=1.0,
+    background_spectral_radiance=((10.0, 10.0),),
+    atmospheric_path_layers=(
+      AtmosphericPathLayer(
+        source_function_w_sr_m=(100.0, 100.0),
+        absorption_coefficient_per_m=(0.5, 0.5),
+        length_m=1.0,
+        layer_id='fpa-test-path',
+      ),
+    ),
+  )
+
+  assert with_background.source_semantics == 'source-plus-transmitted-background'
+  assert with_background.expected_electrons[0][0] > source_only.expected_electrons[0][0]
+  assert with_path.source_semantics == 'source-after-explicit-atmospheric-path'
+  assert with_path.expected_electrons[0][0] != source_only.expected_electrons[0][0]
+  assert with_path_and_background.source_semantics == (
+    'source-after-explicit-atmospheric-path-plus-transmitted-background'
+  )
+  assert with_path_and_background.expected_electrons[0][0] > with_path.expected_electrons[0][0]
+  assert with_path.atmospheric_path_operator_id == 'op.atmosphere.path-transfer'
+  assert with_path.atmospheric_path_layer_ids == ('fpa-test-path',)
+  assert with_path.atmospheric_path_layer_digest is not None
+  inputs = FpaVisualizationInput(
+    image=with_path,
+    source=FpaSourceReference.from_ray_result(result),
+  )
+  assert inputs.operator_ids == (
+    'op.atmosphere.path-transfer',
+    'op.sensor.fpa-pixel-detector',
+  )
 ####
