@@ -184,6 +184,12 @@ from exhaust_plume.models.moc.euler_entropy_characteristic_transport import (
   MocTransonicCharacteristicTransportResult,
   solve_moc_transonic_characteristic_transport,
 )
+from exhaust_plume.models.moc.transonic_placement import (
+  MocTransonicPlacementStatus,
+  MocTransonicPlacementRequest,
+  MocTransonicPlacementResult,
+  solve_moc_transonic_placement,
+)
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
@@ -874,6 +880,10 @@ __all__ = (
   'MocTransonicCharacteristicTransportRequest',
   'MocTransonicCharacteristicTransportResult',
   'solve_moc_transonic_characteristic_transport',
+  'MocTransonicPlacementStatus',
+  'MocTransonicPlacementRequest',
+  'MocTransonicPlacementResult',
+  'solve_moc_transonic_placement',
   'solve_mixed_regime_planar_free_boundary_reference',
   'build_mixed_regime_entropy_handoff',
   'solve_mixed_regime_entropy_transport_boundary',

@@ -671,6 +671,76 @@ def test_transonic_transport_visualization_retains_bounded_trace_and_lineage() -
 ####
 
 
+def test_transonic_frontier_placement_visualization_retains_frontier_and_seams() -> None:
+  class TransportResult:
+    request = _AttachmentResult.request
+    attachment = _AttachmentResult()
+    status = 'converged-bounded-transonic-characteristic-transport'
+    termination = 'bounded-field-boundary'
+    samples = (
+      SimpleNamespace(point_m=(1.0, 0.0)),
+      SimpleNamespace(point_m=(1.1, 0.1)),
+    )
+    segments = (SimpleNamespace(),)
+    bounded_transport_verified = True
+    physical_closure_verified = False
+    production_claim_allowed = False
+  ####
+
+  class PlacementResult:
+    request = SimpleNamespace(
+      transport=TransportResult(),
+      target_frontier=(
+        SimpleNamespace(point_m=(1.0, 0.2)),
+        SimpleNamespace(point_m=(1.1, 0.1)),
+        SimpleNamespace(point_m=(1.3, -0.1)),
+      ),
+      frontier_kind='post-shock-field-perimeter',
+      frontier_fidelity='resolved-planar-moc',
+    )
+    status = 'converged-bounded-transonic-placement'
+    placement_verified = True
+    intersection_point_m = (1.1, 0.1)
+    physical_closure_verified = False
+    chain_promotion_blocked = True
+    production_claim_allowed = False
+    transport_segment_index = 0
+    frontier_segment_index = 0
+    transport_fraction = 1.0
+    frontier_fraction = 0.0
+    state_seam_residual = 0.0
+    pressure_seam_residual = 0.0
+    shock_geometry = SimpleNamespace(
+      shock_point_m=(1.1, 0.1),
+      shock_normal_angle_rad=0.0,
+    )
+  ####
+
+  bundle = standardize_model_visualization(
+    PlacementResult(),
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-transonic-frontier-placement'
+  assert {path.path_id for path in bundle.paths} >= {
+    'moc-transonic-characteristic-transport',
+    'moc-transonic-placement-frontier',
+    'moc-transonic-placement-intersection',
+  }
+  assert bundle.diagnostics['moc_transonic_placement_verified'] is True
+  assert bundle.diagnostics['moc_transonic_placement_frontier_sample_count'] == 3
+  assert bundle.diagnostics['moc_transonic_placement_state_seam_residual'] == pytest.approx(0.0)
+  assert bundle.diagnostics['moc_transonic_placement_chain_promotion_blocked'] is True
+  assert bundle.claims.production_claim_allowed is False
+  assert any(
+    'transonic placement marker, frontier, and transport trace' in warning
+    for warning in bundle.warnings
+  )
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_canonical_visual_result_retains_lane_metadata() -> None:
   bundle = standardize_model_visualization(_curved_result(), section_count=8)
   snapshot = SnapshotMetadata(

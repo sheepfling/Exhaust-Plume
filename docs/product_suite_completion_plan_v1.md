@@ -853,3 +853,22 @@ therefore remains blocked from continued shock-cell chains, production
 Signature/FPA claims, accepted physical length, and provider validation until
 neighboring-field coupling, conservative closure, refinement, and disjoint
 external validation are complete.
+
+### Solver-owned bounded frontier-placement evidence
+
+The MOC research lane now has a bounded solver-owned placement seam after
+characteristic transport.  It searches for one in-domain intersection with a
+typed neighboring frontier and accepts only ``RESOLVED_PLANAR_MOC`` geometry.
+At that point it interpolates the transported and frontier state/pressure
+lineages, checks state and log-total-pressure seam residuals, binds the scalar
+shock geometry to the frontier tangent, and independently re-solves and
+remeasures the complete local result.
+
+The seam fails closed for reduced-order or prescribed frontiers, ambiguous or
+unreached intersections, mismatched lineages, and geometry-audit failures.
+Even when the local placement evidence verifies, it remains research-only:
+global reflected/mixed-regime closure, physical shock-cell length, continued
+chain promotion, external validation, and production Signature/FPA claims are
+still blocked.  The standardized Visualization adapter exposes the retained
+transport, frontier, intersection marker, fidelity, seam residuals, and
+promotion gates without presenting the local seam as a global shock boundary.

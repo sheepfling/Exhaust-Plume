@@ -3792,3 +3792,28 @@ transport status, termination, sample/segment counts, residual maxima, and
 first-unavailable point as diagnostics.  The attachment marker and trace are
 kept distinct from a fitted global shock boundary, and the visualization
 retains the research-only claim ceiling.
+
+## Solver-owned bounded frontier-placement checkpoint
+
+The next MOC-1 seam now searches the retained transported path for one
+in-domain intersection with a typed neighboring frontier.  Placement accepts
+only a ``RESOLVED_PLANAR_MOC`` frontier, interpolates the retained state and
+log-total-pressure lineages at the intersection, checks state and pressure
+seam residuals, and binds the scalar shock geometry to the frontier tangent.
+An independent placement operator re-solves the intersection, recomputes the
+seams, and re-audits the scalar geometry.
+
+This is deliberately a bounded placement result rather than global reflected
+closure.  Prescribed or reduced-order frontiers, ambiguous intersections,
+missing intersections, state/pressure mismatches, and failed geometry audits
+are typed stops.  Even a verified local placement keeps physical closure,
+continued-chain promotion, physical shock-cell length, production Signature /
+FPA claims, and external validation disabled until the neighboring field,
+mixed-regime boundary, conservative residual, refinement, and validation
+gates are complete.
+
+The standardized planar visualization now unwraps the retained field through
+the placement request, shows the neighboring frontier and intersection as
+separate named paths, and carries the frontier fidelity, segment/fraction,
+seam residual, and promotion-block diagnostics.  It does not relabel the
+frontier as a global shock boundary or alter any lower-fidelity provider.

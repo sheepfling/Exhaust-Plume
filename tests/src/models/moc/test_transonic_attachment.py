@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from math import atan2, log, sqrt
+from math import atan2, cos, log, pi, sin, sqrt
+
+import pytest
 
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
+  MocChainBoundaryKind,
+  MocChainBoundarySample,
+  MocChainGeometryFidelity,
   MocTransonicCharacteristicTransportRequest,
   MocTransonicCharacteristicTransportStatus,
   MocTransonicCharacteristicTransportTermination,
+  MocTransonicPlacementRequest,
+  MocTransonicPlacementStatus,
   MocTransonicShockFieldAttachmentRequest,
   MocTransonicShockFieldAttachmentStatus,
   MocTransonicShockState,
@@ -19,10 +26,12 @@ from exhaust_plume.models.moc import (
   solve_euler_ambient_first_wedge_entropy_characteristic_field,
   solve_attached_compression_to_turn,
   solve_moc_transonic_characteristic_transport,
+  solve_moc_transonic_placement,
   solve_moc_transonic_shock_field_attachment,
 )
 from exhaust_plume.validation import (
   measure_moc_transonic_characteristic_transport,
+  measure_moc_transonic_placement,
   measure_moc_transonic_shock_field_attachment,
 )
 
@@ -292,4 +301,135 @@ def test_bounded_transport_preserves_typed_failure_and_rejects_strict_geometry()
   assert not result.bounded_transport_verified
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
+
+
+def test_bounded_transport_places_a_scalar_branch_on_a_resolved_frontier() -> None:
+  field = _internal_field()
+  attachment = solve_moc_transonic_shock_field_attachment(
+    MocTransonicShockFieldAttachmentRequest(
+      upstream_field=field,
+      shock_state=_shock_state_for_node(field.nodes[0]),
+      state_tolerance=1.0e-8,
+      pressure_tolerance_fraction=1.0e-8,
+    )
+  )
+  transport = solve_moc_transonic_characteristic_transport(
+    MocTransonicCharacteristicTransportRequest(
+      attachment=attachment,
+      family=CharacteristicFamily.PLUS,
+      step_length_m=1.0e-2,
+      maximum_steps=64,
+    )
+  )
+  assert transport.bounded_transport_verified
+  start = transport.samples[0]
+  normal = attachment.geometry.shock_normal_angle_rad
+  tangent = normal - 0.5 * pi
+  half_length = 0.01
+  frontier = tuple(
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=start.point_m[0] + offset * cos(tangent),
+        y_m=start.point_m[1] + offset * sin(tangent),
+        theta_rad=start.state.theta_rad,
+        mach=start.state.mach,
+        gamma=start.state.gamma,
+      ),
+      total_pressure_Pa=start.total_pressure_Pa,
+    )
+    for offset in (-half_length, half_length)
+  )
+  result = solve_moc_transonic_placement(
+    MocTransonicPlacementRequest(
+      transport=transport,
+      target_frontier=frontier,
+      frontier_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+      frontier_fidelity=MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
+      frontier_source='test-resolved-neighboring-frontier',
+    )
+  )
+  audit = measure_moc_transonic_placement(result)
+
+  assert result.status is MocTransonicPlacementStatus.CONVERGED_BOUNDED_PLACEMENT
+  assert result.placement_verified
+  assert result.intersection_point_m == pytest.approx(start.point_m)
+  assert result.state_seam_residual == pytest.approx(0.0)
+  assert result.pressure_seam_residual == pytest.approx(0.0)
+  assert audit.converged
+  assert audit.rederived
+  assert audit.frontier_fidelity_verified
+  assert audit.frontier_geometry_verified
+  assert audit.intersection_verified
+  assert audit.state_seam_verified
+  assert audit.pressure_seam_verified
+  assert audit.shock_geometry_verified
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_transonic_placement_rejects_unresolved_frontier_and_missing_intersection() -> None:
+  field = _internal_field()
+  attachment = solve_moc_transonic_shock_field_attachment(
+    MocTransonicShockFieldAttachmentRequest(
+      upstream_field=field,
+      shock_state=_shock_state_for_node(field.nodes[0]),
+    )
+  )
+  transport = solve_moc_transonic_characteristic_transport(
+    MocTransonicCharacteristicTransportRequest(
+      attachment=attachment,
+      family=CharacteristicFamily.PLUS,
+    )
+  )
+  start = transport.samples[0]
+  frontier = (
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=start.point_m[0] + 1.0,
+        y_m=start.point_m[1] - 0.1,
+        theta_rad=start.state.theta_rad,
+        mach=start.state.mach,
+        gamma=start.state.gamma,
+      ),
+      total_pressure_Pa=start.total_pressure_Pa,
+    ),
+    MocChainBoundarySample(
+      state=CharacteristicState(
+        x_m=start.point_m[0] + 1.1,
+        y_m=start.point_m[1] - 0.1,
+        theta_rad=start.state.theta_rad,
+        mach=start.state.mach,
+        gamma=start.state.gamma,
+      ),
+      total_pressure_Pa=start.total_pressure_Pa,
+    ),
+  )
+  unresolved = solve_moc_transonic_placement(
+    MocTransonicPlacementRequest(
+      transport=transport,
+      target_frontier=frontier,
+      frontier_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+      frontier_fidelity=MocChainGeometryFidelity.SCALED_REDUCED_ORDER,
+      frontier_source='test-reduced-frontier',
+    )
+  )
+  missing = solve_moc_transonic_placement(
+    MocTransonicPlacementRequest(
+      transport=transport,
+      target_frontier=frontier,
+      frontier_kind=MocChainBoundaryKind.POST_SHOCK_FIELD_PERIMETER,
+      frontier_fidelity=MocChainGeometryFidelity.RESOLVED_PLANAR_MOC,
+      frontier_source='test-resolved-frontier-without-intersection',
+    )
+  )
+
+  assert unresolved.status is MocTransonicPlacementStatus.FRONTIER_FIDELITY_FAILURE
+  assert missing.status is MocTransonicPlacementStatus.FRONTIER_NOT_REACHED
+  assert not unresolved.placement_verified
+  assert not missing.placement_verified
+  assert unresolved.chain_promotion_blocked
+  assert missing.chain_promotion_blocked
 ####
