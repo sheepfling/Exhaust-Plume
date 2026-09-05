@@ -1368,3 +1368,19 @@ downstream-boundary closure gate remain false.  This is the measurement seam
 needed by the next fixed-point/global-frontier iteration; it is not a
 canonical closure, refinement result, physical shock-cell length, or product
 validation.
+
+### Global/coupled response refinement checkpoint
+
+The downstream response now has its own fresh mesh-ladder operator.  Each
+declared axial/transverse resolution re-solves the coupled field from the same
+closure fingerprint, independently remeasures the global/coupled boundary
+response, and verifies that the solver-retained response matches the
+independent measurement.  The ladder reports coordinate, tangent, pressure,
+and normal-velocity residuals separately, so a locally converged field cannot
+hide an unresolved global overlap.
+
+The compatible research ladder has ordered mesh growth and complete local
+response coverage, but both resolutions remain a typed overlap residual
+failure.  This is useful refinement evidence for the next solver-owned
+feedback iteration; it does not claim global feedback, canonical downstream
+closure, a physical shock-cell length, or a production product comparison.

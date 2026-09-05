@@ -164,6 +164,10 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import 
   measure_reflected_domain_coupled_euler_free_boundary_refinement,
   run_reflected_domain_coupled_euler_free_boundary_refinement,
 )
+from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
+  MocReflectedDomainGlobalCoupledDownstreamRefinementStatus,
+  run_reflected_domain_global_coupled_downstream_refinement,
+)
 from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MocReflectedDomainCoupledEulerPressureContinuationStatus,
   measure_reflected_domain_coupled_euler_pressure_continuation,
@@ -2388,6 +2392,49 @@ def test_global_coupled_downstream_measures_boundary_overlap_without_promotion()
   )
   assert tampered_response.overlap_coverage_verified is False
   assert tampered_response.converged is False
+####
+
+
+def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open():
+  closure = _global_physical_closure_for_mixed_regime()
+  run = run_reflected_domain_global_coupled_downstream_refinement(
+    closure,
+    reference_total_temperature_K=1500.0,
+    resolutions=((6, 3), (8, 4)),
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+  )
+
+  assert run.requested_resolutions == ((6, 3), (8, 4))
+  assert run.fresh_solver_invocation_verified
+  assert run.fidelity_isolation_verified
+  assert len(run.cases) == 2
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledDownstreamRefinementStatus
+    .RESPONSE_FAILURE
+  )
+  assert run.measurement.resolution_order_verified
+  assert run.measurement.mesh_growth_verified
+  assert run.measurement.case_audits_verified
+  assert run.measurement.response_lineage_verified
+  assert run.measurement.response_channels_finite
+  assert run.measurement.overlap_coverage_verified
+  assert run.measurement.overlap_residuals_verified is False
+  assert run.measurement.global_coupling_verified is False
+  assert run.measurement.downstream_boundary_closure_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.measurement.production_claim_allowed is False
+  assert run.production_claim_allowed is False
+  assert all(
+    case.response is not None
+    and case.response.maximum_coordinate_residual_m
+    > case.response.coordinate_tolerance_m
+    for case in run.cases
+  )
 ####
 
 

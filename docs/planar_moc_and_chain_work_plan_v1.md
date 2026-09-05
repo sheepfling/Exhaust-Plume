@@ -3861,3 +3861,19 @@ visible without changing ``global_coupling_verified`` or the downstream
 closure gate.  This is the quantitative input to the next solver-owned
 global-frontier feedback iteration; it is not a canonical reflected field,
 physical chain cell, or product claim.
+
+## Global/coupled response refinement checkpoint
+
+The downstream response now has a separate fresh mesh-ladder operator.  Every
+declared axial/transverse resolution re-solves the coupled field from the
+same closure fingerprint, independently remeasures the retained boundary
+response, and checks the solver-stored response against that independent
+record.  Coordinate, tangent, pressure, and normal-velocity residuals remain
+separate channels, and local mesh convergence cannot erase a failed global
+overlap.
+
+The compatible research ladder has ordered mesh growth and complete local
+coverage at both tested resolutions, but both cases remain a typed overlap
+residual failure.  This is refinement evidence for the next solver-owned
+feedback iteration; it does not create a global feedback gate, canonical
+downstream boundary, physical chain cell, or product claim.
