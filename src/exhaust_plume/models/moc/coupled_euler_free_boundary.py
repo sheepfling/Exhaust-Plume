@@ -49,6 +49,10 @@ from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceResult,
   MocTransonicShockInterfaceStatus,
 )
+from exhaust_plume.models.moc.field_continuation import (
+  MocPhysicalFieldContinuationProfile,
+  MocPhysicalFieldContinuationProfileResult,
+)
 
 __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
@@ -61,6 +65,8 @@ __all__ = (
   'MocReflectedDomainCoupledEulerTransonicFrontierCompatibility',
   'MocReflectedDomainCoupledEulerFreeBoundaryRequest',
   'MocReflectedDomainCoupledEulerFreeBoundaryResult',
+  'MocPhysicalFieldContinuationProfile',
+  'MocPhysicalFieldContinuationProfileResult',
   'build_reflected_domain_coupled_euler_free_boundary_request',
   'assess_reflected_domain_coupled_euler_subsonic_pressure_budget',
   'assess_reflected_domain_coupled_euler_transonic_transition',
@@ -112,6 +118,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   INLET_SHOCK_INTERFACE_PLACEMENT_FAILURE = (
     'coupled-euler-inlet-shock-interface-placement-failure'
   )
+  INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE = (
+    'coupled-euler-inlet-physical-field-continuation-failure'
+  )
 ####
 
 
@@ -128,6 +137,9 @@ class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
   )
   SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE = (
     'solver-owned-interior-shock-interface-profile'
+  )
+  SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE = (
+    'solver-owned-physical-field-continuation-profile'
   )
 ####
 
@@ -794,6 +806,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   transonic_shock_interface_field_placement: (
     MocTransonicShockInterfaceFieldPlacementResult | None
   ) = None
+  physical_field_continuation_profile: (
+    MocPhysicalFieldContinuationProfileResult | None
+  ) = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -927,6 +942,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'MocTransonicShockInterfaceFieldPlacementResult or None'
       )
     ####
+    if self.physical_field_continuation_profile is not None and not isinstance(
+      self.physical_field_continuation_profile,
+      MocPhysicalFieldContinuationProfileResult,
+    ):
+      raise TypeError(
+        'physical_field_continuation_profile must be a '
+        'MocPhysicalFieldContinuationProfileResult or None'
+      )
+    ####
     if (
       self.inlet_boundary_mode
       is MocReflectedDomainCoupledEulerInletBoundaryMode.SCALAR_NORMAL_SHOCK_BRANCH
@@ -967,7 +991,21 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       raise ValueError(
         'solver-owned interior shock-interface mode requires '
         'transonic_shock_interface_field_placement, and other inlet modes '
-        'must not supply it'
+      'must not supply it'
+      )
+    ####
+    continuation_mode = (
+      self.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    )
+    if continuation_mode != (
+      self.physical_field_continuation_profile is not None
+    ):
+      raise ValueError(
+        'solver-owned physical-field continuation mode requires '
+        'physical_field_continuation_profile, and other inlet modes must not '
+        'supply it'
       )
     ####
     if (
@@ -985,7 +1023,20 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
     ):
       raise ValueError(
         'explicit shock-interface profile and solver-owned placement handoff '
-        'are mutually exclusive'
+      'are mutually exclusive'
+      )
+    ####
+    if (
+      self.physical_field_continuation_profile is not None
+      and (
+        self.transonic_shock_interface is not None
+        or self.transonic_shock_interface_profile is not None
+        or self.transonic_shock_interface_field_placement is not None
+      )
+    ):
+      raise ValueError(
+        'physical-field continuation and shock-interface handoffs are '
+        'mutually exclusive'
       )
     ####
   ####
@@ -1036,6 +1087,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         None
         if self.transonic_shock_interface_field_placement is None
         else self.transonic_shock_interface_field_placement.as_report()
+      ),
+      'physical_field_continuation_profile': (
+        None
+        if self.physical_field_continuation_profile is None
+        else self.physical_field_continuation_profile.as_report()
       ),
       'free_boundary_flux_model': COUPLED_EULER_FREE_BOUNDARY_FLUX_MODEL,
       'claim_status': (
@@ -1093,6 +1149,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   transonic_shock_interface_field_placement: (
     MocTransonicShockInterfaceFieldPlacementResult | None
   ) = None,
+  physical_field_continuation_profile: (
+    MocPhysicalFieldContinuationProfileResult | None
+  ) = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   """Bind one mixed-regime reference to the coupled-Euler research lane.
 
@@ -1141,6 +1200,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     transonic_shock_interface_field_placement=(
       transonic_shock_interface_field_placement
     ),
+    physical_field_continuation_profile=physical_field_continuation_profile,
   )
 ####
 
@@ -1215,6 +1275,10 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     MocTransonicShockInterfaceFieldPlacementResult | None
   ) = None
   transonic_shock_interface_field_placement_consumed: bool = False
+  physical_field_continuation_profile: (
+    MocPhysicalFieldContinuationProfileResult | None
+  ) = None
+  physical_field_continuation_profile_consumed: bool = False
   transonic_frontier_compatibility: (
     MocReflectedDomainCoupledEulerTransonicFrontierCompatibility | None
   ) = None
@@ -1399,6 +1463,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'MocTransonicShockInterfaceFieldPlacementResult or None'
       )
     ####
+    if self.physical_field_continuation_profile is not None and not isinstance(
+      self.physical_field_continuation_profile,
+      MocPhysicalFieldContinuationProfileResult,
+    ):
+      raise TypeError(
+        'physical_field_continuation_profile must be a '
+        'MocPhysicalFieldContinuationProfileResult or None'
+      )
+    ####
     if self.transonic_frontier_compatibility is not None and not isinstance(
       self.transonic_frontier_compatibility,
       MocReflectedDomainCoupledEulerTransonicFrontierCompatibility,
@@ -1478,7 +1551,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       self.transonic_shock_interface_field_placement is None
     ):
       raise ValueError(
-        'retained solver-owned field placement must match the request mode'
+      'retained solver-owned field placement must match the request mode'
+      )
+    ####
+    if self.request is not None and (
+      self.request.physical_field_continuation_profile is None
+    ) != (
+      self.physical_field_continuation_profile is None
+    ):
+      raise ValueError(
+        'retained physical-field continuation profile must match the request mode'
       )
     ####
     for name in (
@@ -1533,6 +1615,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     ):
       raise TypeError(
         'transonic_shock_interface_field_placement_consumed must be a bool'
+      )
+    ####
+    if not isinstance(
+      self.physical_field_continuation_profile_consumed,
+      bool,
+    ):
+      raise TypeError(
+        'physical_field_continuation_profile_consumed must be a bool'
       )
     ####
     coverage = dict(self.residual_channel_coverage)
@@ -1638,6 +1728,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         ),
         'transonic_shock_interface_field_placement_consumed': (
           self.transonic_shock_interface_field_placement_consumed
+        ),
+        'physical_field_continuation_profile_consumed': (
+          self.physical_field_continuation_profile_consumed
+        ),
+        'physical_field_continuation_profile': (
+          None
+          if self.physical_field_continuation_profile is None
+          else self.physical_field_continuation_profile.as_report()
         ),
         'transonic_shock_interface_field_placement': (
           None
@@ -1785,6 +1883,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'transonic_shock_interface_field_placement_consumed': (
         self.transonic_shock_interface_field_placement_consumed
+      ),
+      'physical_field_continuation_profile': (
+        None
+        if self.physical_field_continuation_profile is None
+        else self.physical_field_continuation_profile.as_report()
+      ),
+      'physical_field_continuation_profile_consumed': (
+        self.physical_field_continuation_profile_consumed
       ),
       'transonic_frontier_compatibility': (
         None
@@ -2037,6 +2143,7 @@ def _failure(
   transonic_shock_interface = None
   transonic_shock_interface_profile = None
   transonic_shock_interface_field_placement = None
+  physical_field_continuation_profile = None
   if request is not None and request.transonic_shock_geometry is not None:
     transonic_shock_geometry = solve_moc_transonic_shock_geometry(
       request.transonic_shock_geometry
@@ -2059,6 +2166,11 @@ def _failure(
       transonic_shock_interface_field_placement.profile
     )
   ####
+  if request is not None and request.physical_field_continuation_profile is not None:
+    physical_field_continuation_profile = (
+      request.physical_field_continuation_profile
+    )
+  ####
   return MocReflectedDomainCoupledEulerFreeBoundaryResult(
     status=status,
     request=request,
@@ -2075,6 +2187,7 @@ def _failure(
     transonic_shock_interface_field_placement=(
       transonic_shock_interface_field_placement
     ),
+    physical_field_continuation_profile=physical_field_continuation_profile,
   )
 ####
 
@@ -2106,6 +2219,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   transonic_shock_interface_profile: MocTransonicShockInterfaceProfile | None = None,
   transonic_shock_interface_field_placement: (
     MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None,
+  physical_field_continuation_profile: (
+    MocPhysicalFieldContinuationProfileResult | None
   ) = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   """Run the coupled research field from one bound mixed-regime reference.
@@ -2147,6 +2263,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       transonic_shock_interface_field_placement=(
         transonic_shock_interface_field_placement
       ),
+      physical_field_continuation_profile=physical_field_continuation_profile,
     )
   except (TypeError, ValueError) as error:
     return _failure(
@@ -3302,6 +3419,103 @@ def _prepare_transonic_interface_profile_inlet(
 ####
 
 
+def _prepare_physical_field_continuation_inlet(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  *,
+  x_start: float,
+  lower_ordinate: float,
+  inlet_height: float,
+) -> tuple[
+  tuple[np.ndarray, ...],
+  MocPhysicalFieldContinuationProfileResult,
+]:
+  """Consume an exact physical-field section without a second shock jump."""
+
+  continuation = request.physical_field_continuation_profile
+  if continuation is None:
+    raise RuntimeError(
+      'physical-field continuation mode requires a retained continuation result'
+    )
+  ####
+  from exhaust_plume.validation.moc_field_continuation import (
+    measure_moc_physical_field_continuation_profile,
+  )
+
+  audit = measure_moc_physical_field_continuation_profile(continuation)
+  if not continuation.converged or not audit.converged:
+    raise RuntimeError(
+      'physical-field continuation inlet failed its independent field audit'
+    )
+  ####
+  profile = continuation.profile
+  if profile is None:
+    raise RuntimeError(
+      'physical-field continuation result retained no profile'
+    )
+  ####
+  x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+  y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
+  if abs(profile.cross_section_x_m - x_start) > x_tolerance:
+    raise RuntimeError(
+      'physical-field continuation profile cross-section does not match the '
+      'coupled-field inlet'
+    )
+  ####
+  if abs(profile.lower_ordinate_m - lower_ordinate) > y_tolerance:
+    raise RuntimeError(
+      'physical-field continuation profile lower ordinate does not match the '
+      'coupled-field inlet'
+    )
+  ####
+  if abs(profile.upper_ordinate_m - (lower_ordinate + inlet_height)) > y_tolerance:
+    raise RuntimeError(
+      'physical-field continuation profile upper ordinate does not match the '
+      'coupled-field inlet'
+    )
+  ####
+  reference_sample = request.mixed_regime_request.control_section.samples[-1]
+  if abs(profile.gamma - float(reference_sample.gamma)) > 1.0e-10:
+    raise RuntimeError(
+      'physical-field continuation profile gamma does not match the coupled '
+      'inlet'
+    )
+  ####
+  ordinates = np.asarray(
+    [sample.point_m[1] for sample in profile.samples],
+    dtype=float,
+  )
+  fields = {
+    name: np.asarray(
+      [getattr(sample, name) for sample in profile.samples],
+      dtype=float,
+    )
+    for name in ('total_pressure_Pa', 'mach', 'flow_angle_rad')
+  }
+  inlet_states: list[np.ndarray] = []
+  face_width = inlet_height / request.transverse_cell_count
+  for index in range(request.transverse_cell_count):
+    ordinate = lower_ordinate + (index + 0.5) * face_width
+    inlet_states.append(
+      _state_from_sample(
+        float(np.interp(ordinate, ordinates, fields['total_pressure_Pa'])),
+        float(np.interp(ordinate, ordinates, fields['mach'])),
+        float(np.interp(ordinate, ordinates, fields['flow_angle_rad'])),
+        profile.gamma,
+        request.reference_total_temperature_K,
+        request.gas_constant_J_kgK,
+      )
+    )
+  ####
+  if len(inlet_states) != request.transverse_cell_count:
+    raise RuntimeError(
+      'physical-field continuation profile could not provide every coupled '
+      'inlet face state'
+    )
+  ####
+  return tuple(inlet_states), continuation
+####
+
+
 def _entropy_production_fractions(
   states: np.ndarray,
   inlet_states: tuple[np.ndarray, ...],
@@ -3437,6 +3651,9 @@ def _result_from_field(
   transonic_shock_interface_profile: MocTransonicShockInterfaceProfile | None = None,
   transonic_shock_interface_field_placement: (
     MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None,
+  physical_field_continuation_profile: (
+    MocPhysicalFieldContinuationProfileResult | None
   ) = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   flattened = _flatten_field(
@@ -3578,6 +3795,10 @@ def _result_from_field(
     ),
     transonic_shock_interface_field_placement_consumed=(
       transonic_shock_interface_field_placement is not None
+    ),
+    physical_field_continuation_profile=physical_field_continuation_profile,
+    physical_field_continuation_profile_consumed=(
+      physical_field_continuation_profile is not None
     ),
     transonic_frontier_compatibility=transonic_frontier_compatibility,
     control_section_compatibility=control_section_compatibility,
@@ -3727,6 +3948,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     else None
   )
   effective_profile = request.transonic_shock_interface_profile
+  physical_field_continuation = request.physical_field_continuation_profile
   if solver_owned_placement is not None:
     try:
       from exhaust_plume.validation.moc_transonic_interface import (
@@ -3756,6 +3978,40 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       )
     ####
     effective_profile = solver_owned_placement.profile
+  ####
+  if request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ):
+    if (
+      physical_field_continuation is None
+      or not physical_field_continuation.converged
+      or physical_field_continuation.profile is None
+    ):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE,
+        'solver-owned physical-field continuation must pass its independent '
+        'field/profile audit before coupled free-boundary consumption',
+        request,
+      )
+    ####
+    continuation_profile = physical_field_continuation.profile
+    x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+    if continuation_profile.cross_section_x_m <= x_start + x_tolerance:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE,
+        'solver-owned physical-field continuation must start strictly '
+        'downstream of the upstream control section',
+        request,
+      )
+    ####
+    x_start = continuation_profile.cross_section_x_m
+    lower_ordinate = continuation_profile.lower_ordinate_m
+    inlet_height = (
+      continuation_profile.upper_ordinate_m - lower_ordinate
+    )
   ####
   if request.inlet_boundary_mode in (
     MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -3844,6 +4100,9 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   transonic_shock_geometry_audit: MocTransonicShockGeometryAudit | None = None
   transonic_shock_interface: MocTransonicShockInterfaceResult | None = None
   transonic_shock_interface_profile: MocTransonicShockInterfaceProfile | None = None
+  physical_field_continuation_result: (
+    MocPhysicalFieldContinuationProfileResult | None
+  ) = None
   if (
     request.inlet_boundary_mode
     is MocReflectedDomainCoupledEulerInletBoundaryMode.SCALAR_NORMAL_SHOCK_BRANCH
@@ -3909,7 +4168,27 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         request,
       )
     ####
-  ####
+  elif request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ):
+    try:
+      inlet_override_states, physical_field_continuation_result = (
+        _prepare_physical_field_continuation_inlet(
+          request,
+          x_start=x_start,
+          lower_ordinate=lower_ordinate,
+          inlet_height=inlet_height,
+        )
+      )
+    except RuntimeError as error:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE,
+        str(error),
+        request,
+      )
+    ####
   downstream_length = request.effective_downstream_length_m
   x_stations = np.linspace(
     x_start,
@@ -3929,6 +4208,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE,
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
     )
     else request.mixed_regime_request.initial_outlet_height_m
   )
@@ -4175,5 +4456,6 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     transonic_shock_interface,
     transonic_shock_interface_profile,
     solver_owned_placement,
+    physical_field_continuation_result,
   )
 ####

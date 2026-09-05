@@ -1279,7 +1279,8 @@ The retained global physical field can remain supersonic downstream of an
 oblique shock, so its sampled cross-section must not be sent through the
 normal-shock profile builder a second time.  The new continuation profile
 preserves the field state, flow angle, static pressure, total pressure, and
-section geometry, then independently re-samples the source field.  It remains
-research-only until the coupled solver consumes it with an explicit
-shock/front and neighboring free-boundary conditions; it does not close or
-promote the downstream field by itself.
+section geometry, then independently re-samples the source field.  The coupled
+research solver now consumes it through a distinct inlet mode and the coupled
+audit independently verifies that handoff.  It remains research-only until the
+solver also closes the explicit shock/front and neighboring free-boundary
+conditions; this handoff does not promote the downstream field by itself.

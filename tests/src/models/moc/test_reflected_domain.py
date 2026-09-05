@@ -639,6 +639,37 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
   )
   assert not tampered_audit.converged
   assert not tampered_audit.rederived
+
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=40,
+    max_shape_iterations=2,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=continuation,
+  )
+  coupled = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
+  assert coupled.status is not (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE
+  )
+  assert coupled.x_stations_m[0] == pytest.approx(
+    continuation.profile.cross_section_x_m
+  )
+  assert coupled.physical_field_continuation_profile_consumed
+  assert coupled.physical_field_continuation_profile == continuation
+  assert coupled.transonic_shock_interface_profile is None
+  assert coupled.production_claim_allowed is False
+  coupled_audit = measure_reflected_domain_coupled_euler_free_boundary(coupled)
+  assert coupled_audit.physical_field_continuation_profile_verified
+  assert coupled_audit.chain_promotion_blocked
+  assert coupled_audit.production_claim_allowed is False
 ####
 
 

@@ -44,9 +44,16 @@ from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceResult,
   MocTransonicShockInterfaceStatus,
 )
+from exhaust_plume.models.moc.field_continuation import (
+  MocPhysicalFieldContinuationProfile,
+  MocPhysicalFieldContinuationProfileResult,
+)
 from exhaust_plume.validation.moc_transonic_interface import (
   measure_moc_transonic_shock_interface,
   measure_moc_transonic_shock_interface_profile,
+)
+from exhaust_plume.validation.moc_field_continuation import (
+  measure_moc_physical_field_continuation_profile,
 )
 
 __all__ = (
@@ -75,12 +82,30 @@ def _effective_field_inlet_geometry(
   if request.inlet_boundary_mode is not (
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ) and request.inlet_boundary_mode is not (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ) and request.inlet_boundary_mode is not (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
   ):
     return control_x, control_lower, control_height
   ####
   profile = request.transonic_shock_interface_profile
+  if request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ):
+    placement = request.transonic_shock_interface_field_placement
+    profile = None if placement is None else placement.profile
+  elif request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ):
+    continuation = request.physical_field_continuation_profile
+    profile = None if continuation is None else continuation.profile
   if profile is None:
-    raise ValueError('interior profile mode requires a retained profile')
+    raise ValueError('downstream profile mode requires a retained profile')
   ####
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(control_x), 1.0))
   if profile.cross_section_x_m <= control_x + x_tolerance:
@@ -127,6 +152,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   CONTROL_SECTION_COMPATIBILITY_FAILURE = (
     'coupled-euler-audit-control-section-compatibility-failure'
   )
+  PHYSICAL_FIELD_CONTINUATION_FAILURE = (
+    'coupled-euler-audit-physical-field-continuation-failure'
+  )
   INLET_CHARACTERISTIC_FAILURE = (
     'coupled-euler-audit-inlet-characteristic-failure'
   )
@@ -167,6 +195,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   transonic_shock_geometry_verified: bool = False
   transonic_shock_interface_verified: bool = False
   transonic_shock_interface_profile_verified: bool = False
+  physical_field_continuation_profile_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -246,6 +275,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'transonic_shock_geometry_verified',
       'transonic_shock_interface_verified',
       'transonic_shock_interface_profile_verified',
+      'physical_field_continuation_profile_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -298,6 +328,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.transonic_shock_geometry_verified
       and self.transonic_shock_interface_verified
       and (not profile_active or self.transonic_shock_interface_profile_verified)
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.physical_field_continuation_profile
+          is not None
+        )
+        or self.physical_field_continuation_profile_verified
+      )
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
@@ -359,6 +398,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'transonic_shock_interface_verified': self.transonic_shock_interface_verified,
       'transonic_shock_interface_profile_verified': (
         self.transonic_shock_interface_profile_verified
+      ),
+      'physical_field_continuation_profile_verified': (
+        self.physical_field_continuation_profile_verified
       ),
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
@@ -1384,6 +1426,135 @@ def _audit_transonic_shock_interface_profile(
 ####
 
 
+def _from_continuation_sample(
+  total_pressure: float,
+  mach: float,
+  flow_angle: float,
+  gamma: float,
+  total_temperature: float,
+  gas_constant: float,
+) -> np.ndarray:
+  pressure_factor = 1.0 + 0.5 * (gamma - 1.0) * mach * mach
+  static_temperature = total_temperature / pressure_factor
+  static_pressure = total_pressure / pressure_factor ** (
+    gamma / (gamma - 1.0)
+  )
+  density = static_pressure / (gas_constant * static_temperature)
+  sound_speed = sqrt(gamma * gas_constant * static_temperature)
+  speed = mach * sound_speed
+  return np.array(
+    (
+      density,
+      density * speed * np.cos(flow_angle),
+      density * speed * np.sin(flow_angle),
+      static_pressure / (gamma - 1.0) + 0.5 * density * speed * speed,
+    ),
+    dtype=float,
+  )
+####
+
+
+def _audit_physical_field_continuation(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> tuple[bool, tuple[np.ndarray, ...] | None]:
+  """Re-sample the exact physical-field continuation handoff independently."""
+
+  request = candidate.request
+  if request is None:
+    return False, None
+  ####
+  expected = request.physical_field_continuation_profile
+  if expected is None:
+    return (
+      candidate.physical_field_continuation_profile is None
+      and not candidate.physical_field_continuation_profile_consumed,
+      None,
+    )
+  ####
+  reported = candidate.physical_field_continuation_profile
+  if not isinstance(reported, MocPhysicalFieldContinuationProfileResult):
+    return False, None
+  ####
+  try:
+    audit = measure_moc_physical_field_continuation_profile(reported)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    return False, None
+  ####
+  if not audit.converged or reported != expected:
+    return False, None
+  ####
+  if not candidate.physical_field_continuation_profile_consumed:
+    return False, None
+  ####
+  profile = reported.profile
+  if not isinstance(profile, MocPhysicalFieldContinuationProfile):
+    return False, None
+  ####
+  control = request.mixed_regime_request.control_section
+  x_start, lower_ordinate, inlet_height = _effective_field_inlet_geometry(
+    request
+  )
+  x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+  y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
+  if abs(profile.cross_section_x_m - x_start) > x_tolerance:
+    return False, None
+  ####
+  if (
+    abs(profile.lower_ordinate_m - lower_ordinate) > y_tolerance
+    or abs(profile.upper_ordinate_m - (lower_ordinate + inlet_height))
+    > y_tolerance
+  ):
+    return False, None
+  ####
+  reference_sample = control.samples[-1]
+  if abs(profile.gamma - float(reference_sample.gamma)) > 1.0e-10:
+    return False, None
+  ####
+  ordinates = np.asarray(
+    [sample.point_m[1] for sample in profile.samples],
+    dtype=float,
+  )
+  fields = {
+    name: np.asarray(
+      [getattr(sample, name) for sample in profile.samples],
+      dtype=float,
+    )
+    for name in ('total_pressure_Pa', 'mach', 'flow_angle_rad')
+  }
+  face_width = inlet_height / request.transverse_cell_count
+  override_states = tuple(
+    _from_continuation_sample(
+      float(
+        np.interp(
+          lower_ordinate + (index + 0.5) * face_width,
+          ordinates,
+          fields['total_pressure_Pa'],
+        )
+      ),
+      float(
+        np.interp(
+          lower_ordinate + (index + 0.5) * face_width,
+          ordinates,
+          fields['mach'],
+        )
+      ),
+      float(
+        np.interp(
+          lower_ordinate + (index + 0.5) * face_width,
+          ordinates,
+          fields['flow_angle_rad'],
+        )
+      ),
+      profile.gamma,
+      request.reference_total_temperature_K,
+      request.gas_constant_J_kgK,
+    )
+    for index in range(request.transverse_cell_count)
+  )
+  return True, tuple(state.copy() for state in override_states)
+####
+
+
 def _audit_control_section_compatibility(
   candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
 ) -> tuple[bool, float | None, float | None]:
@@ -1613,21 +1784,33 @@ def _audit_field(
       'independent handoff re-derivation'
     )
   ####
+  physical_field_continuation_profile_verified, continuation_override_states = (
+    _audit_physical_field_continuation(candidate)
+  )
+  if not physical_field_continuation_profile_verified:
+    raise ValueError(
+      'audited physical-field continuation profile does not match its '
+      'independent field re-sampling'
+    )
+  ####
   if sum(
     override is not None
     for override in (
       geometry_override_states,
       interface_override_states,
       interface_profile_override_states,
+      continuation_override_states,
     )
   ) > 1:
     raise ValueError(
-      'audited geometry, scalar shock-interface, and shock-interface-profile '
-      'inlet branches cannot be active together'
+      'audited geometry, shock-interface, shock-interface-profile, and '
+      'physical-field-continuation inlet branches cannot be active together'
     )
   ####
   inlet_override_states = (
-    interface_profile_override_states
+    continuation_override_states
+    if continuation_override_states is not None
+    else interface_profile_override_states
     if interface_profile_override_states is not None
     else interface_override_states
     if interface_override_states is not None
@@ -1922,6 +2105,9 @@ def _audit_field(
     'transonic_shock_interface_profile_verified': (
       transonic_shock_interface_profile_verified
     ),
+    'physical_field_continuation_profile_verified': (
+      physical_field_continuation_profile_verified
+    ),
   }
 ####
 
@@ -1960,6 +2146,17 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     return _failure(
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
       .TRANSONIC_SHOCK_INTERFACE_PROFILE_FAILURE,
+      candidate,
+      candidate.message,
+    )
+  ####
+  if candidate.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE
+  ):
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .PHYSICAL_FIELD_CONTINUATION_FAILURE,
       candidate,
       candidate.message,
     )
@@ -2130,6 +2327,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   transonic_shock_interface_profile_verified = bool(
     raw['transonic_shock_interface_profile_verified']
   )
+  physical_field_continuation_profile_verified = bool(
+    raw['physical_field_continuation_profile_verified']
+  )
   (
     control_section_compatibility_verified,
     control_section_pressure_jump,
@@ -2249,6 +2449,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       'candidate audited transonic shock-interface profile does not match its '
       'independent handoff re-derivation'
     )
+  elif not physical_field_continuation_profile_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .PHYSICAL_FIELD_CONTINUATION_FAILURE
+    )
+    message = (
+      'candidate exact physical-field continuation does not match its '
+      'independent field re-sampling'
+    )
   elif not control_section_compatibility_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -2315,6 +2524,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     transonic_shock_interface_verified=transonic_shock_interface_verified,
     transonic_shock_interface_profile_verified=(
       transonic_shock_interface_profile_verified
+    ),
+    physical_field_continuation_profile_verified=(
+      physical_field_continuation_profile_verified
     ),
     control_section_compatibility_verified=(
       control_section_compatibility_verified
