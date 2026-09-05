@@ -23,6 +23,8 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerSubsonicPressureBudget,
+  MocReflectedDomainCoupledEulerTransonicFrontierCompatibility,
+  MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
 )
 from exhaust_plume.models.moc.transonic_transition import (
@@ -110,6 +112,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   BOUNDARY_FAILURE = 'coupled-euler-audit-boundary-failure'
   PRESSURE_BUDGET_FAILURE = 'coupled-euler-audit-pressure-budget-failure'
   TRANSONIC_TRANSITION_FAILURE = 'coupled-euler-audit-transonic-transition-failure'
+  TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE = (
+    'coupled-euler-audit-transonic-frontier-compatibility-failure'
+  )
   TRANSONIC_SHOCK_GEOMETRY_FAILURE = (
     'coupled-euler-audit-transonic-shock-geometry-failure'
   )
@@ -158,6 +163,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   free_boundary_report_verified: bool = False
   pressure_budget_verified: bool = False
   transonic_transition_verified: bool = False
+  transonic_frontier_compatibility_verified: bool = False
   transonic_shock_geometry_verified: bool = False
   transonic_shock_interface_verified: bool = False
   transonic_shock_interface_profile_verified: bool = False
@@ -236,6 +242,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_report_verified',
       'free_boundary_report_verified',
       'transonic_transition_verified',
+      'transonic_frontier_compatibility_verified',
       'transonic_shock_geometry_verified',
       'transonic_shock_interface_verified',
       'transonic_shock_interface_profile_verified',
@@ -345,6 +352,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'free_boundary_report_verified': self.free_boundary_report_verified,
       'pressure_budget_verified': self.pressure_budget_verified,
       'transonic_transition_verified': self.transonic_transition_verified,
+      'transonic_frontier_compatibility_verified': (
+        self.transonic_frontier_compatibility_verified
+      ),
       'transonic_shock_geometry_verified': self.transonic_shock_geometry_verified,
       'transonic_shock_interface_verified': self.transonic_shock_interface_verified,
       'transonic_shock_interface_profile_verified': (
@@ -846,6 +856,165 @@ def _audit_transonic_transition(
     )
     and transition_audit.shock_state_conservation_verified
     == expected_audit.shock_state_conservation_verified
+  )
+####
+
+
+def _audit_transonic_frontier_compatibility(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+) -> bool:
+  """Re-derive the scalar/global-frontier state comparison independently."""
+
+  request = candidate.request
+  transition = candidate.transonic_transition
+  reported = candidate.transonic_frontier_compatibility
+  if request is None or not isinstance(
+    transition,
+    MocTransonicTransitionResult,
+  ) or not isinstance(
+    reported,
+    MocReflectedDomainCoupledEulerTransonicFrontierCompatibility,
+  ):
+    return False
+  ####
+  closure = request.mixed_regime_request.closure
+  global_euler = closure.global_euler
+  curve = None if global_euler is None else global_euler.shock_boundary
+  if curve is None:
+    return bool(
+      reported.status
+      is MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+      .FRONTIER_DATA_FAILURE
+      and reported.frontier_sample_count == 0
+      and reported.matching_sample_count == 0
+      and reported.nearest_sample_index is None
+    )
+  ####
+  points = tuple(curve.shock_points_m)
+  states = tuple(curve.downstream_states)
+  static_pressures = tuple(curve.downstream_static_pressure_Pa)
+  total_pressures = tuple(curve.downstream_total_pressure_Pa)
+  lengths = (len(points), len(states), len(static_pressures), len(total_pressures))
+  if not lengths[0] or len(set(lengths)) != 1:
+    return bool(
+      reported.status
+      is MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+      .FRONTIER_DATA_FAILURE
+      and reported.frontier_sample_count == lengths[0]
+      and reported.matching_sample_count == 0
+      and reported.nearest_sample_index is None
+    )
+  ####
+  frontier_machs = tuple(float(state.mach) for state in states)
+
+  def close(reported_value: float | None, expected_value: float | None) -> bool:
+    if reported_value is None or expected_value is None:
+      return reported_value is None and expected_value is None
+    ####
+    return bool(np.isclose(reported_value, expected_value, rtol=3.0e-6, atol=1.0e-10))
+  ####
+
+  common = (
+    reported.source == 'global-euler-shock-frontier-transonic-compatibility-v1'
+    and np.isclose(reported.mach_tolerance, 1.0e-6, rtol=0.0, atol=1.0e-15)
+    and np.isclose(
+      reported.pressure_tolerance_fraction,
+      1.0e-6,
+      rtol=0.0,
+      atol=1.0e-15,
+    )
+    and reported.frontier_sample_count == len(states)
+    and close(reported.frontier_downstream_mach_min, min(frontier_machs))
+    and close(reported.frontier_downstream_mach_max, max(frontier_machs))
+    and reported.transition_required == transition.transition_required
+    and reported.required_upstream_mach == transition.required_upstream_mach
+    and reported.required_upstream_static_pressure_Pa
+    == transition.upstream_static_pressure_Pa
+    and close(
+      reported.required_upstream_total_pressure_Pa,
+      transition.request.upstream_total_pressure_Pa
+      if transition.transition_required
+      else None,
+    )
+  )
+  if not common:
+    return False
+  ####
+  if not transition.transition_required:
+    return bool(
+      reported.status
+      is MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+      .NOT_REQUIRED
+      and reported.matching_sample_count == 0
+      and reported.nearest_sample_index is None
+      and reported.nearest_sample_point_m is None
+      and reported.nearest_mach_residual is None
+      and reported.nearest_static_pressure_residual_fraction is None
+      and reported.nearest_total_pressure_residual_fraction is None
+    )
+  ####
+  required_mach = transition.required_upstream_mach
+  required_static_pressure = transition.upstream_static_pressure_Pa
+  required_total_pressure = transition.request.upstream_total_pressure_Pa
+  if required_mach is None or required_static_pressure is None:
+    return reported.status is (
+      MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+      .FRONTIER_DATA_FAILURE
+    )
+  ####
+  candidates: list[tuple[float, int, float, float, float]] = []
+  for index, (state, static_pressure, total_pressure) in enumerate(zip(
+    states,
+    static_pressures,
+    total_pressures,
+    strict=True,
+  )):
+    mach_residual = abs(float(state.mach) - required_mach)
+    static_residual = abs(float(static_pressure) - required_static_pressure) / max(
+      abs(required_static_pressure),
+      abs(float(static_pressure)),
+      1.0,
+    )
+    total_residual = abs(float(total_pressure) - required_total_pressure) / max(
+      abs(required_total_pressure),
+      abs(float(total_pressure)),
+      1.0,
+    )
+    score = max(
+      mach_residual / reported.mach_tolerance,
+      static_residual / reported.pressure_tolerance_fraction,
+      total_residual / reported.pressure_tolerance_fraction,
+    )
+    candidates.append((score, index, mach_residual, static_residual, total_residual))
+  ####
+  _score, nearest_index, mach_residual, static_residual, total_residual = min(
+    candidates,
+    key=lambda candidate_value: candidate_value[0],
+  )
+  matching = tuple(
+    candidate_value
+    for candidate_value in candidates
+    if candidate_value[2] <= reported.mach_tolerance
+    and candidate_value[3] <= reported.pressure_tolerance_fraction
+    and candidate_value[4] <= reported.pressure_tolerance_fraction
+  )
+  expected_status = (
+    MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+    .MATCHED_FRONTIER_STATE
+    if matching
+    else MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+    .REQUIRED_UPSTREAM_NOT_RETAINED
+  )
+  return bool(
+    reported.status is expected_status
+    and reported.matching_sample_count == len(matching)
+    and reported.nearest_sample_index == nearest_index
+    and reported.nearest_sample_point_m == tuple(
+      float(value) for value in points[nearest_index]
+    )
+    and close(reported.nearest_mach_residual, mach_residual)
+    and close(reported.nearest_static_pressure_residual_fraction, static_residual)
+    and close(reported.nearest_total_pressure_residual_fraction, total_residual)
   )
 ####
 
@@ -1402,6 +1571,15 @@ def _audit_field(
       'branch re-derivation'
     )
   ####
+  transonic_frontier_compatibility_verified = (
+    _audit_transonic_frontier_compatibility(candidate)
+  )
+  if not transonic_frontier_compatibility_verified:
+    raise ValueError(
+      'audited scalar/global-frontier transonic compatibility does not match '
+      'its independent re-derivation'
+    )
+  ####
   transonic_shock_interface_verified, interface_override_states = (
     _audit_transonic_shock_interface(candidate)
   )
@@ -1722,6 +1900,9 @@ def _audit_field(
     'pressure_budget': pressure_budget,
     'expected_cell_count': expected_cell_count,
     'transonic_shock_geometry_verified': transonic_shock_geometry_verified,
+    'transonic_frontier_compatibility_verified': (
+      transonic_frontier_compatibility_verified
+    ),
     'transonic_shock_interface_verified': transonic_shock_interface_verified,
     'transonic_shock_interface_profile_verified': (
       transonic_shock_interface_profile_verified
@@ -1766,6 +1947,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       .TRANSONIC_SHOCK_INTERFACE_PROFILE_FAILURE,
       candidate,
       candidate.message,
+    )
+  ####
+  if not _audit_transonic_frontier_compatibility(candidate):
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE,
+      candidate,
+      'candidate scalar/global-frontier transonic compatibility evidence does '
+      'not match the retained global shock frontier',
     )
   ####
   try:
@@ -1829,6 +2019,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     )
   )
   transonic_transition_verified = _audit_transonic_transition(candidate)
+  transonic_frontier_compatibility_verified = bool(
+    raw['transonic_frontier_compatibility_verified']
+  )
   transonic_shock_geometry_verified = bool(
     raw['transonic_shock_geometry_verified']
   )
@@ -1921,6 +2114,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not transonic_transition_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
     message = 'candidate scalar transonic transition evidence does not match the control section'
+  elif not transonic_frontier_compatibility_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
+    )
+    message = (
+      'candidate scalar/global-frontier transonic compatibility evidence does '
+      'not match the retained global shock frontier'
+    )
   elif not transonic_shock_geometry_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -2007,6 +2209,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     free_boundary_report_verified=boundary_report_verified,
     pressure_budget_verified=pressure_budget_verified,
     transonic_transition_verified=transonic_transition_verified,
+    transonic_frontier_compatibility_verified=(
+      transonic_frontier_compatibility_verified
+    ),
     transonic_shock_geometry_verified=transonic_shock_geometry_verified,
     transonic_shock_interface_verified=transonic_shock_interface_verified,
     transonic_shock_interface_profile_verified=(

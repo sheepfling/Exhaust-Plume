@@ -31,6 +31,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
   MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus,
+  MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus,
   MocTransonicShockGeometryRequest,
   MocTransonicShockGeometryStatus,
   MocTransonicShockInterfaceProfile,
@@ -75,6 +76,7 @@ from exhaust_plume.models.moc import (
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
   assess_reflected_domain_coupled_euler_transonic_transition,
   assess_reflected_domain_coupled_euler_control_section_compatibility,
+  assess_reflected_domain_coupled_euler_transonic_frontier_compatibility,
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   moc_reflected_domain_global_physical_closure_fingerprint,
@@ -1806,6 +1808,22 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert result.as_report()['control_section_compatibility']['status'] == (
     'target-below-control-section-pressure'
   )
+  assert result.transonic_frontier_compatibility is not None
+  assert result.transonic_frontier_compatibility.status is (
+    MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+    .REQUIRED_UPSTREAM_NOT_RETAINED
+  )
+  assert result.transonic_frontier_compatibility.frontier_state_compatible is False
+  assert result.transonic_frontier_compatibility.frontier_sample_count == 9
+  assert result.transonic_frontier_compatibility.matching_sample_count == 0
+  assert result.transonic_frontier_compatibility.required_upstream_mach == pytest.approx(
+    result.transonic_transition.required_upstream_mach
+  )
+  assert result.transonic_frontier_compatibility.nearest_mach_residual is not None
+  assert result.transonic_frontier_compatibility.nearest_mach_residual > 1.0
+  assert result.as_report()['transonic_frontier_compatibility']['status'] == (
+    'transonic-required-upstream-state-not-retained-on-frontier'
+  )
   transition = assess_reflected_domain_coupled_euler_transonic_transition(
     coupled_request
   )
@@ -1822,6 +1840,13 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
     transition,
   )
   assert compatibility == result.control_section_compatibility
+  frontier_compatibility = (
+    assess_reflected_domain_coupled_euler_transonic_frontier_compatibility(
+      coupled_request,
+      transition,
+    )
+  )
+  assert frontier_compatibility == result.transonic_frontier_compatibility
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.OPEN_PHYSICAL_CLOSURE
   )
@@ -1833,6 +1858,7 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
   assert audit.residual_report_verified
   assert audit.free_boundary_report_verified
   assert audit.pressure_budget_verified
+  assert audit.transonic_frontier_compatibility_verified
   assert audit.control_section_compatibility_verified
   assert audit.entropy_report_verified
   assert audit.entropy_production_map_verified
@@ -1863,6 +1889,19 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.PRESSURE_BUDGET_FAILURE
   )
   assert not pressure_budget_audit.pressure_budget_verified
+  tampered_frontier = replace(
+    result.transonic_frontier_compatibility,
+    nearest_mach_residual=result.transonic_frontier_compatibility.nearest_mach_residual
+    + 0.01,
+  )
+  frontier_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(result, transonic_frontier_compatibility=tampered_frontier)
+  )
+  assert frontier_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
+  )
+  assert not frontier_audit.transonic_frontier_compatibility_verified
   tampered_transition = replace(
     result.transonic_transition,
     downstream_static_pressure_Pa=result.transonic_transition.downstream_static_pressure_Pa * 1.01,
@@ -2437,6 +2476,13 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert result.control_section_compatibility.absolute_pressure_jump_Pa == pytest.approx(
     0.0
   )
+  assert result.transonic_frontier_compatibility is not None
+  assert result.transonic_frontier_compatibility.status is (
+    MocReflectedDomainCoupledEulerTransonicFrontierCompatibilityStatus
+    .NOT_REQUIRED
+  )
+  assert result.transonic_frontier_compatibility.frontier_sample_count == 9
+  assert result.transonic_frontier_compatibility.frontier_state_compatible is False
   direct_budget = assess_reflected_domain_coupled_euler_subsonic_pressure_budget(
     coupled_request
   )

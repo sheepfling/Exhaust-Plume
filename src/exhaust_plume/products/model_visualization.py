@@ -2953,6 +2953,49 @@ def _moc_visualization(
         ####
       ####
     ####
+    frontier_compatibility = getattr(
+      source,
+      'transonic_frontier_compatibility',
+      None,
+    )
+    if frontier_compatibility is not None:
+      frontier_status = getattr(frontier_compatibility, 'status', '')
+      diagnostics[
+        'coupled_euler_transonic_frontier_compatibility_status'
+      ] = str(getattr(frontier_status, 'value', frontier_status))
+      diagnostics[
+        'coupled_euler_transonic_frontier_state_compatible'
+      ] = bool(getattr(frontier_compatibility, 'frontier_state_compatible', False))
+      for name in (
+        'transition_required',
+        'frontier_sample_count',
+        'frontier_downstream_mach_min',
+        'frontier_downstream_mach_max',
+        'matching_sample_count',
+        'nearest_sample_index',
+        'nearest_mach_residual',
+        'nearest_static_pressure_residual_fraction',
+        'nearest_total_pressure_residual_fraction',
+      ):
+        value = getattr(frontier_compatibility, name, None)
+        if isinstance(value, bool):
+          diagnostics[f'coupled_euler_transonic_frontier_{name}'] = value
+        elif isinstance(value, int):
+          diagnostics[f'coupled_euler_transonic_frontier_{name}'] = value
+        elif value is not None and isfinite(float(value)):
+          diagnostics[f'coupled_euler_transonic_frontier_{name}'] = float(value)
+        ####
+      ####
+      nearest_point = getattr(frontier_compatibility, 'nearest_sample_point_m', None)
+      if nearest_point is not None:
+        diagnostics[
+          'coupled_euler_transonic_frontier_nearest_sample_x_m'
+        ] = float(nearest_point[0])
+        diagnostics[
+          'coupled_euler_transonic_frontier_nearest_sample_y_m'
+        ] = float(nearest_point[1])
+      ####
+    ####
     if transonic_geometry is not None:
       geometry_status = getattr(transonic_geometry, 'status', '')
       diagnostics['coupled_euler_transonic_shock_geometry_status'] = str(

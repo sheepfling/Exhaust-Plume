@@ -307,6 +307,9 @@ claim is authorized.
 - [x] Carry an explicit scalar supersonic-to-subsonic normal-shock state
       handoff, audit every thermodynamic field, and expose it to planar
       research visualization without treating it as placed shock geometry.
+- [x] Compare the scalar transition requirement with the exact retained global
+      frontier; preserve an independently audited typed failure when the
+      required upstream state is absent.
 - [x] Add an independently audited, spatially sampled shock-interface profile
       handoff for coupled-field inlet faces; consume it without projecting
       interior profiles and expose its geometry/metadata in the standardized
@@ -600,6 +603,20 @@ increase. An independent measurement rederives those scalar invariants. This
 identifies an admissible entropy-producing mechanism for the next 2-D solver;
 it does not place a shock in the retained mesh, close the mixed-regime field,
 or authorize a continued physical cell.
+
+The coupled-field result now also performs a strict scalar-to-frontier
+compatibility check. It compares the pressure-matching transition's required
+upstream Mach/static-pressure state with the exact downstream states retained
+on the global Euler shock frontier. The actual case records
+``transonic-required-upstream-state-not-retained-on-frontier`` (required Mach
+about 3.02 versus retained frontier Mach about 1.49--1.58), with the nearest
+frontier point and residuals preserved. A pressure-compatible research case
+records ``transonic-frontier-check-not-required``. The independent coupled-field
+operator re-derives this comparison and the planar visualization exposes it as
+a diagnostic. This prevents the scalar branch from being mistaken for a
+placed transition; the next P2.2 slice still has to solve a solver-owned
+transonic placement and the surrounding mixed-regime field without fabricating
+an absent state or relaxing the fidelity gate.
 
 The coupled result now also retains an explicit control-section/free-boundary
 inlet-seam compatibility record.  It reports the signed and normalized
