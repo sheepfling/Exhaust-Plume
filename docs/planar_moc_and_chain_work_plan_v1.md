@@ -3938,9 +3938,26 @@ profile.
 
 The independent Euler audit rederives the retained boundary ordinates and
 marks exact geometry consumption separately from the pressure consumer.  The
-current target fixture still fails closed when the response-derived profile
-does not match the coupled inlet seam, so the runner records a typed second
-solve failure.  This is the next P2.2 implementation seam: reconcile the
-solver-owned reflected/frontier geometry and neighboring boundary conditions
-before attempting upstream global feedback, physical shock-cell fitting, or
-product promotion.
+initial response fixture correctly failed closed when the response-derived
+profile did not match the coupled inlet seam.  The follow-on frame-anchor
+slice below makes that seam explicit without translating coordinates.
+
+## Solver-owned geometry-frame anchor checkpoint
+
+The geometry profile now retains the lower ordinate of the source coupled
+request, and the downstream solver carries that ordinate through the typed
+request and independent audit.  A verified global geometry profile determines
+the coupled inlet height from its first retained boundary ordinate minus the
+source lower ordinate; the solver rebuilds the mixed-regime request at that
+height before consuming the aligned profile.  A lower-ordinate mismatch is a
+typed input failure.  No implicit frame translation, regridding,
+extrapolation, or pressure-only substitution is permitted.
+
+The compatible fixture now passes the geometry consumer and its coordinate
+response channel reaches tolerance with an independently audited local field.
+The combined pressure/geometry feedback runner also verifies exact lineage,
+station alignment, coverage, and consumption, while the second fresh field
+still fails the local pressure/tangency residual gate.  This remains a
+solver-owned P2.2 seam: global feedback, canonical reflected closure,
+continued-chain promotion, physical shock-cell fitting, Signature/FPA
+promotion, and external validation stay closed.

@@ -718,6 +718,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     'max_pseudo_iterations': int(max_pseudo_iterations),
     'max_shape_iterations': int(max_shape_iterations),
     'inlet_boundary_mode': inlet_boundary_mode.value,
+    'geometry_feedback_frame_policy': (
+      'solver-owned-first-ordinate-anchor-v1'
+    ),
     'outlet_static_pressure_Pa': outlet_static_pressure_Pa,
     'physical_field_continuation_profile_supplied': (
       physical_field_continuation_profile is not None

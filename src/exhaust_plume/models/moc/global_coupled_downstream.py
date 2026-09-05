@@ -301,6 +301,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
   source_closure_fingerprint: str
   x_stations_m: tuple[float, ...]
   boundary_y_m: tuple[float, ...]
+  lower_ordinate_m: float = 0.0
   source: str = (
     'research-global-coupled-downstream-response-geometry-feedback-v1'
   )
@@ -330,6 +331,10 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
     ):
       raise ValueError('x_stations_m must be strictly downstream ordered')
     ####
+    lower_ordinate = float(self.lower_ordinate_m)
+    if not isfinite(lower_ordinate):
+      raise ValueError('lower_ordinate_m must be finite')
+    ####
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
@@ -346,6 +351,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
     object.__setattr__(self, 'source_closure_fingerprint', fingerprint)
     object.__setattr__(self, 'x_stations_m', x_stations)
     object.__setattr__(self, 'boundary_y_m', boundary_y)
+    object.__setattr__(self, 'lower_ordinate_m', lower_ordinate)
     object.__setattr__(self, 'source', source)
     object.__setattr__(self, 'coordinate_tolerance_m', tolerance)
   ####
@@ -367,6 +373,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'x_stations_m': self.x_stations_m,
       'boundary_y_m': self.boundary_y_m,
+      'lower_ordinate_m': self.lower_ordinate_m,
       'coordinate_tolerance_m': self.coordinate_tolerance_m,
       'coverage_verified': self.coverage_verified,
       'profile_verified': self.profile_verified,
@@ -868,6 +875,11 @@ def build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
       'response geometry feedback requires verified overlap coverage'
     )
   ####
+  if response.coupled_field is None:
+    raise ValueError(
+      'response geometry feedback requires the retained coupled field'
+    )
+  ####
   if response.upstream_boundary != closure.downstream_boundary:
     raise ValueError(
       'response geometry feedback must retain the exact closure boundary'
@@ -907,12 +919,58 @@ def build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
       'response geometry feedback stations must be strictly downstream ordered'
     )
   ####
+  source_request = response.coupled_field.request
+  if source_request is None:
+    raise ValueError(
+      'response geometry feedback requires the source coupled request'
+    )
+  ####
+  lower_ordinate = float(
+    source_request.mixed_regime_request.control_section.points_m[0][1]
+  )
+  if source_request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ):
+    profile = source_request.transonic_shock_interface_profile
+    if profile is None:
+      raise ValueError(
+        'response geometry feedback requires the retained interior profile '
+        'lower ordinate'
+      )
+    lower_ordinate = float(profile.lower_ordinate_m)
+  elif source_request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ):
+    placement = source_request.transonic_shock_interface_field_placement
+    profile = None if placement is None else placement.profile
+    if profile is None:
+      raise ValueError(
+        'response geometry feedback requires the retained placement profile '
+        'lower ordinate'
+      )
+    lower_ordinate = float(profile.lower_ordinate_m)
+  elif source_request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ):
+    condition = source_request.physical_field_shock_front_condition
+    profile = None if condition is None else condition.coupled_inlet_profile
+    if profile is None:
+      raise ValueError(
+        'response geometry feedback requires the retained continuation profile '
+        'lower ordinate'
+      )
+    lower_ordinate = float(profile.lower_ordinate_m)
+  ####
   return MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile(
     source_closure_fingerprint=(
       moc_reflected_domain_global_physical_closure_fingerprint(closure)
     ),
     x_stations_m=tuple(float(point[0]) for point in coupled_points),
     boundary_y_m=tuple(float(point[1]) for point in upstream_points),
+    lower_ordinate_m=lower_ordinate,
     coordinate_tolerance_m=coordinate_tolerance_value,
     coverage_verified=True,
   )
@@ -1266,6 +1324,8 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         != profile.x_stations_m
         or self.coupled_request.free_boundary_geometry_profile_source
         != profile.source
+        or self.coupled_request.free_boundary_geometry_profile_lower_ordinate_m
+        != profile.lower_ordinate_m
       ):
         raise ValueError(
           'boundary_geometry_profile must match the coupled request geometry '
@@ -1329,6 +1389,8 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
           == self.boundary_geometry_profile.x_stations_m
           and self.coupled_request.free_boundary_geometry_profile_source
           == self.boundary_geometry_profile.source
+          and self.coupled_request.free_boundary_geometry_profile_lower_ordinate_m
+          == self.boundary_geometry_profile.lower_ordinate_m
         )
       )
       and (
@@ -1731,6 +1793,59 @@ def solve_reflected_domain_global_coupled_downstream(
       closure=closure,
     )
   ####
+  if boundary_geometry_profile is not None:
+    control_lower = float(
+      mixed_regime_request.control_section.points_m[0][1]
+    )
+    lower_tolerance = max(
+      1.0e-10,
+      1.0e-8 * max(abs(control_lower), abs(boundary_geometry_profile.lower_ordinate_m), 1.0),
+    )
+    if abs(boundary_geometry_profile.lower_ordinate_m - control_lower) > lower_tolerance:
+      return _failure(
+        MocReflectedDomainGlobalCoupledDownstreamStatus.INVALID_INPUT,
+        'boundary_geometry_profile lower ordinate does not match the '
+        'solver-owned global terminal frame; no frame translation was inferred',
+        closure=closure,
+        mixed_regime_request=mixed_regime_request,
+        boundary_geometry_profile=boundary_geometry_profile,
+      )
+    ####
+    anchored_height = float(
+      boundary_geometry_profile.boundary_y_m[0]
+      - boundary_geometry_profile.lower_ordinate_m
+    )
+    if not isfinite(anchored_height) or anchored_height <= 0.0:
+      return _failure(
+        MocReflectedDomainGlobalCoupledDownstreamStatus.INVALID_INPUT,
+        'boundary_geometry_profile first ordinate must define a finite '
+        'positive inlet height',
+        closure=closure,
+        mixed_regime_request=mixed_regime_request,
+        boundary_geometry_profile=boundary_geometry_profile,
+      )
+    ####
+    try:
+      mixed_regime_request = build_reflected_domain_mixed_regime_boundary_request(
+        closure,
+        ambient_pressure_Pa=ambient_pressure_Pa,
+        downstream_length_m=downstream_length_m,
+        initial_outlet_height_m=anchored_height,
+        control_section_x_offset_m=control_section_x_offset_m,
+        control_section_height_m=anchored_height,
+        control_section_sample_count=control_section_sample_count,
+        axial_station_count=axial_station_count,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _failure(
+        MocReflectedDomainGlobalCoupledDownstreamStatus
+        .MIXED_REGIME_REQUEST_FAILURE,
+        f'global coupled downstream geometry-anchored request failed: {error}',
+        closure=closure,
+        boundary_geometry_profile=boundary_geometry_profile,
+      )
+    ####
+  ####
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
   resolved_continuation_profile = physical_field_continuation_profile
   resolved_shock_front_condition = physical_field_shock_front_condition
@@ -1804,6 +1919,11 @@ def solve_reflected_domain_global_coupled_downstream(
         None
         if boundary_geometry_profile is None
         else boundary_geometry_profile.source
+      ),
+      free_boundary_geometry_profile_lower_ordinate_m=(
+        None
+        if boundary_geometry_profile is None
+        else boundary_geometry_profile.lower_ordinate_m
       ),
     )
     coupled_field = solve_reflected_domain_coupled_euler_free_boundary(

@@ -2515,11 +2515,42 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
     MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   )
   assert geometry_feedback_profile.profile_verified
+  assert geometry_feedback_profile.lower_ordinate_m == pytest.approx(0.0)
   assert geometry_feedback_profile.boundary_y_m == tuple(
     point[1]
     for point in baseline.downstream_boundary_response.upstream_boundary_points_m
   )
   assert geometry_feedback_profile.as_report()['production_claim_allowed'] is False
+
+  anchored_consumed = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    boundary_geometry_profile=geometry_feedback_profile,
+  )
+  assert anchored_consumed.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .CONVERGED_LOCAL_COUPLED_FIELD
+  )
+  assert anchored_consumed.mixed_regime_request is not None
+  assert anchored_consumed.mixed_regime_request.control_section_height_m == pytest.approx(
+    geometry_feedback_profile.boundary_y_m[0]
+    - geometry_feedback_profile.lower_ordinate_m
+  )
+  assert anchored_consumed.coupled_request is not None
+  assert anchored_consumed.coupled_request.free_boundary_geometry_profile_lower_ordinate_m == pytest.approx(
+    geometry_feedback_profile.lower_ordinate_m
+  )
+  assert anchored_consumed.coupled_field is not None
+  assert anchored_consumed.coupled_field.free_boundary_geometry_profile_consumed
+  assert anchored_consumed.downstream_boundary_response is not None
+  assert anchored_consumed.downstream_boundary_response.maximum_coordinate_residual_m <= (
+    anchored_consumed.downstream_boundary_response.coordinate_tolerance_m
+  )
 
   baseline_geometry = baseline.coupled_field.free_boundary_points_m
   exact_geometry_profile = MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile(
@@ -2617,14 +2648,18 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
   assert len(run.iterations) == 2
   assert run.fresh_solver_invocation_verified
   assert run.closure_lineage_verified
-  assert run.pressure_profile_lineage_verified is False
+  assert run.configuration['geometry_feedback_frame_policy'] == (
+    'solver-owned-first-ordinate-anchor-v1'
+  )
+  assert run.pressure_profile_lineage_verified
   assert run.pressure_profile_alignment_verified
-  assert run.geometry_profile_lineage_verified is False
+  assert run.geometry_profile_lineage_verified
   assert run.geometry_profile_alignment_verified
-  assert run.geometry_profile_consumption_verified is False
+  assert run.geometry_profile_consumption_verified
   assert run.response_lineage_verified
   assert run.response_channels_finite
-  assert run.response_coverage_verified is False
+  assert run.response_coverage_verified
+  assert run.response_residuals_verified is False
   assert run.local_coupled_field_verified is False
   assert run.pressure_update_convergence_verified is False
   assert run.status is (
@@ -2643,13 +2678,13 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
   assert first.next_geometry_profile is not None
   assert second.input_pressure_profile == first.next_pressure_profile
   assert second.input_geometry_profile == first.next_geometry_profile
-  assert second.pressure_profile_consumption_verified is False
+  assert second.pressure_profile_consumption_verified
   assert second.result.boundary_pressure_profile == second.input_pressure_profile
   assert second.result.coupled_field is not None
-  assert second.result.coupled_field.free_boundary_pressure_profile_consumed is False
-  assert second.geometry_profile_consumption_verified is False
+  assert second.result.coupled_field.free_boundary_pressure_profile_consumed
+  assert second.geometry_profile_consumption_verified
   assert second.result.boundary_geometry_profile == second.input_geometry_profile
-  assert second.result.coupled_field.free_boundary_geometry_profile_consumed is False
+  assert second.result.coupled_field.free_boundary_geometry_profile_consumed
   assert all(
     item.result.global_coupling_verified is False
     and item.result.downstream_boundary_closure_verified is False

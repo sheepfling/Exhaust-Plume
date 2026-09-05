@@ -1448,9 +1448,27 @@ extrapolation, or pressure-only substitution.
 
 The independent coupled-field audit rederives geometry-profile consumption
 from the retained boundary nodes.  An exactly aligned profile passes the local
-audit, while the current response fixture fails closed on the approximately
-half-metre global/coupled boundary mismatch at the downstream inlet.  The
-feedback runner records that typed second-solve failure rather than treating
-pressure convergence as geometric closure.  Global upstream feedback,
-canonical downstream closure, physical shock-cell fitting, provider-bound
-validation, and Signature/FPA promotion remain blocked.
+audit.  The initial response fixture correctly failed closed on the
+approximately half-metre global/coupled boundary mismatch at the downstream
+inlet; the follow-on frame-anchor slice below makes that seam explicit without
+translating coordinates.
+
+### Solver-owned geometry-frame anchor checkpoint
+
+The geometry profile now retains the lower ordinate of the source coupled
+request, and the downstream solver records that ordinate in the typed request
+and independent audit.  When a verified global geometry profile is consumed,
+the solver derives a positive inlet height from its first retained boundary
+ordinate minus that lower ordinate, then rebuilds the mixed-regime request
+with the same solver-owned height.  A lower-ordinate mismatch remains a typed
+input failure; no implicit frame translation, regridding, extrapolation, or
+pressure-only substitution is allowed.
+
+The compatible fixture now reaches a locally audited coupled field through
+the geometry consumer and its coordinate response channel closes to the
+declared tolerance.  The full pressure-plus-geometry feedback runner also
+proves exact profile lineage, station alignment, coverage, and consumption,
+but its second fresh field still fails the local pressure/tangency residual
+gate.  The runner therefore remains a typed solver failure with global
+feedback, canonical downstream closure, physical shock-cell fitting,
+provider-bound validation, and Signature/FPA promotion blocked.

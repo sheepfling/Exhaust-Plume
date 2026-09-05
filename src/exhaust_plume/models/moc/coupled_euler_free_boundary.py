@@ -830,6 +830,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   free_boundary_geometry_profile_y_m: tuple[float, ...] | None = None
   free_boundary_geometry_profile_x_stations_m: tuple[float, ...] | None = None
   free_boundary_geometry_profile_source: str | None = None
+  free_boundary_geometry_profile_lower_ordinate_m: float | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -987,11 +988,18 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
     geometry_profile = self.free_boundary_geometry_profile_y_m
     geometry_profile_x = self.free_boundary_geometry_profile_x_stations_m
     geometry_profile_source = self.free_boundary_geometry_profile_source
+    geometry_profile_lower = (
+      self.free_boundary_geometry_profile_lower_ordinate_m
+    )
     if geometry_profile is None:
-      if geometry_profile_x is not None or geometry_profile_source is not None:
+      if (
+        geometry_profile_x is not None
+        or geometry_profile_source is not None
+        or geometry_profile_lower is not None
+      ):
         raise ValueError(
-          'free-boundary geometry-profile coordinates and source require a '
-          'geometry profile'
+          'free-boundary geometry-profile coordinates, source, and lower '
+          'ordinate require a geometry profile'
         )
       ####
     else:
@@ -1034,6 +1042,18 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'free_boundary_geometry_profile_source must be non-empty'
         )
       ####
+      lower_ordinate = (
+        float(
+          self.mixed_regime_request.control_section.points_m[0][1]
+        )
+        if geometry_profile_lower is None
+        else float(geometry_profile_lower)
+      )
+      if not isfinite(lower_ordinate):
+        raise ValueError(
+          'free_boundary_geometry_profile_lower_ordinate_m must be finite'
+        )
+      ####
       object.__setattr__(self, 'free_boundary_geometry_profile_y_m', ordinates)
       object.__setattr__(
         self,
@@ -1041,6 +1061,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         coordinates,
       )
       object.__setattr__(self, 'free_boundary_geometry_profile_source', source)
+      object.__setattr__(
+        self,
+        'free_boundary_geometry_profile_lower_ordinate_m',
+        lower_ordinate,
+      )
     ####
     if self.transonic_shock_geometry is not None and not isinstance(
       self.transonic_shock_geometry,
@@ -1258,6 +1283,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'free_boundary_geometry_profile_source': (
         self.free_boundary_geometry_profile_source
       ),
+      'free_boundary_geometry_profile_lower_ordinate_m': (
+        self.free_boundary_geometry_profile_lower_ordinate_m
+      ),
       'inlet_boundary_mode': self.inlet_boundary_mode.value,
       'transonic_shock_geometry': (
         None
@@ -1357,6 +1385,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   free_boundary_geometry_profile_y_m: tuple[float, ...] | None = None,
   free_boundary_geometry_profile_x_stations_m: tuple[float, ...] | None = None,
   free_boundary_geometry_profile_source: str | None = None,
+  free_boundary_geometry_profile_lower_ordinate_m: float | None = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   """Bind one mixed-regime reference to the coupled-Euler research lane.
 
@@ -1417,6 +1446,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
       free_boundary_geometry_profile_x_stations_m
     ),
     free_boundary_geometry_profile_source=free_boundary_geometry_profile_source,
+    free_boundary_geometry_profile_lower_ordinate_m=(
+      free_boundary_geometry_profile_lower_ordinate_m
+    ),
   )
 ####
 
@@ -2591,6 +2623,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   free_boundary_geometry_profile_y_m: tuple[float, ...] | None = None,
   free_boundary_geometry_profile_x_stations_m: tuple[float, ...] | None = None,
   free_boundary_geometry_profile_source: str | None = None,
+  free_boundary_geometry_profile_lower_ordinate_m: float | None = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
   """Run the coupled research field from one bound mixed-regime reference.
 
@@ -2643,6 +2676,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
         free_boundary_geometry_profile_x_stations_m
       ),
       free_boundary_geometry_profile_source=free_boundary_geometry_profile_source,
+      free_boundary_geometry_profile_lower_ordinate_m=(
+        free_boundary_geometry_profile_lower_ordinate_m
+      ),
     )
   except (TypeError, ValueError) as error:
     return _failure(
@@ -4761,6 +4797,21 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     ####
   ####
   geometry_targets = _free_boundary_geometry_targets(request)
+  if request.free_boundary_geometry_profile_lower_ordinate_m is not None:
+    if not np.isclose(
+      request.free_boundary_geometry_profile_lower_ordinate_m,
+      lower_ordinate,
+      rtol=1.0e-9,
+      atol=1.0e-10,
+    ):
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONTROL_SECTION_FAILURE,
+        'free-boundary geometry profile lower ordinate must match the '
+        'coupled-field inlet frame; no frame translation was inferred',
+        request,
+      )
+    ####
+  ####
   if request.free_boundary_geometry_profile_x_stations_m is not None:
     supplied_geometry_x = np.asarray(
       request.free_boundary_geometry_profile_x_stations_m,

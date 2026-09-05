@@ -1822,6 +1822,13 @@ def _audit_field(
     )
     geometry_profile_verified = bool(
       candidate.free_boundary_geometry_profile_consumed
+      and request.free_boundary_geometry_profile_lower_ordinate_m is not None
+      and np.isclose(
+        request.free_boundary_geometry_profile_lower_ordinate_m,
+        lower_ordinate,
+        rtol=3.0e-6,
+        atol=1.0e-10,
+      )
       and profile_x.shape == candidate_x.shape
       and profile_y.shape == candidate_y.shape
       and np.allclose(
