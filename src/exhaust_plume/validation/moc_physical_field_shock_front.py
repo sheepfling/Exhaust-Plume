@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import hypot, isfinite
+from math import cos, hypot, isfinite, sin, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.field_continuation import (
@@ -63,6 +63,8 @@ class MocPhysicalFieldShockFrontConditionAudit:
   coupled_inlet_profile_verified: bool
   maximum_point_residual_m: float | None = None
   maximum_coupled_inlet_profile_residual_m: float | None = None
+  shock_front_jump_verified: bool = False
+  maximum_shock_front_jump_residual: float | None = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -91,6 +93,7 @@ class MocPhysicalFieldShockFrontConditionAudit:
       'centerline_neighbor_verified',
       'continuation_section_verified',
       'coupled_inlet_profile_verified',
+      'shock_front_jump_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -111,6 +114,15 @@ class MocPhysicalFieldShockFrontConditionAudit:
         )
       ####
       object.__setattr__(self, 'maximum_coupled_inlet_profile_residual_m', value)
+    ####
+    if self.maximum_shock_front_jump_residual is not None:
+      value = float(self.maximum_shock_front_jump_residual)
+      if not isfinite(value) or value < 0.0:
+        raise ValueError(
+          'maximum_shock_front_jump_residual must be finite and nonnegative'
+        )
+      ####
+      object.__setattr__(self, 'maximum_shock_front_jump_residual', value)
     ####
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -137,6 +149,10 @@ class MocPhysicalFieldShockFrontConditionAudit:
       'maximum_coupled_inlet_profile_residual_m': (
         self.maximum_coupled_inlet_profile_residual_m
       ),
+      'shock_front_jump_verified': self.shock_front_jump_verified,
+      'maximum_shock_front_jump_residual': (
+        self.maximum_shock_front_jump_residual
+      ),
       'physical_closure_verified': False,
       'chain_promotion_blocked': True,
       'production_claim_allowed': False,
@@ -159,6 +175,8 @@ def _failure(
   coupled_inlet_profile_verified: bool = False,
   maximum_point_residual_m: float | None = None,
   maximum_coupled_inlet_profile_residual_m: float | None = None,
+  shock_front_jump_verified: bool = False,
+  maximum_shock_front_jump_residual: float | None = None,
 ) -> MocPhysicalFieldShockFrontConditionAudit:
   return MocPhysicalFieldShockFrontConditionAudit(
     status=MocPhysicalFieldShockFrontConditionAuditStatus.RESULT_FAILURE,
@@ -175,6 +193,8 @@ def _failure(
     maximum_coupled_inlet_profile_residual_m=(
       maximum_coupled_inlet_profile_residual_m
     ),
+    shock_front_jump_verified=shock_front_jump_verified,
+    maximum_shock_front_jump_residual=maximum_shock_front_jump_residual,
     message=message,
   )
 ####
@@ -235,6 +255,135 @@ def _state_path_verified(
       and pressure > 0.0
       for point, state, pressure in zip(points, states, pressures, strict=True)
     )
+  )
+####
+
+
+def _normalized_shock_flux(
+  state: CharacteristicState,
+  total_pressure_Pa: float,
+  normal: tuple[float, float],
+  tangent: tuple[float, float],
+) -> tuple[float, float, float, float]:
+  """Return dimensionless conservative flux components across one front.
+
+  Total temperature and gas constant are not retained by the MOC state
+  contract.  Setting ``R*Tt = 1`` removes that common scale while preserving
+  the shock jump ratios derived from Mach, gamma, and total pressure.
+  """
+
+  factor = 1.0 + 0.5 * (state.gamma - 1.0) * state.mach**2
+  static_temperature = 1.0 / factor
+  static_pressure = total_pressure_Pa / factor ** (
+    state.gamma / (state.gamma - 1.0)
+  )
+  density = static_pressure / static_temperature
+  speed = state.mach * sqrt(state.gamma * static_temperature)
+  velocity = (
+    speed * cos(state.theta_rad),
+    speed * sin(state.theta_rad),
+  )
+  normal_velocity = velocity[0] * normal[0] + velocity[1] * normal[1]
+  tangential_velocity = velocity[0] * tangent[0] + velocity[1] * tangent[1]
+  specific_energy = (
+    static_temperature / (state.gamma - 1.0)
+    + static_temperature
+    + 0.5 * (velocity[0] ** 2 + velocity[1] ** 2)
+  )
+  return (
+    density * normal_velocity,
+    density * normal_velocity**2 + static_pressure,
+    density * normal_velocity * tangential_velocity,
+    density * normal_velocity * specific_energy,
+  )
+####
+
+
+def _shock_front_jump_residual(
+  points: tuple[tuple[float, float], ...],
+  upstream_states: tuple[CharacteristicState, ...],
+  upstream_pressures: tuple[float, ...],
+  downstream_states: tuple[CharacteristicState, ...],
+  downstream_pressures: tuple[float, ...],
+  tolerance: float,
+) -> tuple[bool, float | None]:
+  """Independently rederive conservative flux continuity across the front."""
+
+  if not (
+    len(points)
+    == len(upstream_states)
+    == len(upstream_pressures)
+    == len(downstream_states)
+    == len(downstream_pressures)
+    and len(points) >= 3
+  ):
+    return False, None
+  ####
+  residuals: list[float] = []
+  for index, point in enumerate(points):
+    if index == 0:
+      first, second = points[0], points[1]
+    elif index == len(points) - 1:
+      first, second = points[-2], points[-1]
+    else:
+      first, second = points[index - 1], points[index + 1]
+    ####
+    tangent_delta = (second[0] - first[0], second[1] - first[1])
+    tangent_length = hypot(*tangent_delta)
+    if not isfinite(tangent_length) or tangent_length <= 0.0:
+      return False, None
+    ####
+    tangent = (
+      tangent_delta[0] / tangent_length,
+      tangent_delta[1] / tangent_length,
+    )
+    normal_candidates = (
+      (-tangent[1], tangent[0]),
+      (tangent[1], -tangent[0]),
+    )
+    upstream_state = upstream_states[index]
+    normal = max(
+      normal_candidates,
+      key=lambda candidate: (
+        upstream_state.mach
+        * cos(upstream_state.theta_rad)
+        * candidate[0]
+        + upstream_state.mach
+        * sin(upstream_state.theta_rad)
+        * candidate[1]
+      ),
+    )
+    upstream_flux = _normalized_shock_flux(
+      upstream_state,
+      float(upstream_pressures[index]),
+      normal,
+      tangent,
+    )
+    downstream_flux = _normalized_shock_flux(
+      downstream_states[index],
+      float(downstream_pressures[index]),
+      normal,
+      tangent,
+    )
+    if not all(isfinite(value) for value in (*upstream_flux, *downstream_flux)):
+      return False, None
+    ####
+    residuals.append(
+      max(
+        abs(upstream_flux[channel] - downstream_flux[channel])
+        / max(
+          abs(upstream_flux[channel]),
+          abs(downstream_flux[channel]),
+          1.0e-12,
+        )
+        for channel in range(4)
+      )
+    )
+  ####
+  maximum_residual = max(residuals, default=None)
+  return (
+    maximum_residual is not None and maximum_residual <= tolerance,
+    maximum_residual,
   )
 ####
 
@@ -576,6 +725,16 @@ def measure_moc_physical_field_shock_front_condition(
     (value for value in (front_residual, ambient_residual, centerline_residual) if value is not None),
     default=None,
   )
+  shock_front_jump_verified, maximum_shock_front_jump_residual = (
+    _shock_front_jump_residual(
+      shock_points,
+      tuple(field.upstream_shock_boundary_states),
+      tuple(field.upstream_shock_boundary_total_pressure_Pa),
+      tuple(field.post_shock_boundary_states),
+      tuple(field.post_shock_boundary_total_pressure_Pa),
+      tolerance=max(request.state_tolerance, request.pressure_tolerance),
+    )
+  )
   shock_front_verified = bool(
     front_residual is not None
     and front_residual <= tolerance_m
@@ -595,6 +754,7 @@ def measure_moc_physical_field_shock_front_condition(
       field.post_shock_boundary_total_pressure_Pa,
       tolerance_m,
     )
+    and shock_front_jump_verified
   )
   ambient = field.ambient_boundary
   ambient_neighbor_verified = bool(
@@ -649,6 +809,8 @@ def measure_moc_physical_field_shock_front_condition(
       continuation_section_verified=continuation_section_verified,
       coupled_inlet_profile_verified=False,
       maximum_point_residual_m=maximum_point_residual,
+      shock_front_jump_verified=shock_front_jump_verified,
+      maximum_shock_front_jump_residual=maximum_shock_front_jump_residual,
     )
   ####
   coupled_inlet_profile_verified = False
@@ -703,6 +865,8 @@ def measure_moc_physical_field_shock_front_condition(
     maximum_coupled_inlet_profile_residual_m=(
       maximum_coupled_inlet_profile_residual
     ),
+    shock_front_jump_verified=shock_front_jump_verified,
+    maximum_shock_front_jump_residual=maximum_shock_front_jump_residual,
     message=(
       'exact shock front, ambient/free-boundary neighbor, centerline neighbor, '
       'and continuation section reproduced independently'

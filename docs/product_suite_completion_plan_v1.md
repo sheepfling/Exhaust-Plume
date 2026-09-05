@@ -1576,3 +1576,18 @@ normal-shock placement gate: it does not solve the surrounding C-/C+ field,
 ambient/centerline closure, feedback into the global remesh, physical cell
 length, Signature/FPA promotion, or external validation.  A target miss is
 therefore preserved as evidence for the next mixed-regime solver slice.
+
+### Shock-front conservative-jump audit checkpoint
+
+The independent physical-field shock-front audit now re-derives normalized
+mass, normal-momentum, tangential-momentum, and energy fluxes on both sides of
+each retained front sample.  It selects the front normal from the retained
+ordered geometry, reconstructs primitive quantities from Mach, gamma, and
+total-pressure lineage, and records the maximum conservative jump residual.
+The exact-field fixture passes this local jump gate at approximately machine
+precision; tampered or non-conservative front data remain auditable failures.
+
+This strengthens the local front contract without widening its claim ceiling.
+It does not close the global C-/C+ frontier, ambient/centerline feedback,
+mixed-regime finite-volume entrance, physical cell length, Signature/FPA
+promotion, or external validation.

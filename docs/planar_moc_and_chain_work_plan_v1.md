@@ -4053,3 +4053,18 @@ gate, not a claim that the transonic/frontier closure is complete: the
 surrounding C-/C+ field, ambient/centerline boundaries, global remesh
 feedback, physical shock-cell length, Signature/FPA promotion, and external
 validation remain separate work and remain closed.
+
+## Shock-front conservative-jump audit checkpoint
+
+The physical-field front audit now independently reconstructs the normalized
+conservative flux on both sides of every retained shock sample.  It checks
+mass, normal momentum, tangential momentum, and energy continuity using the
+front tangent, the upstream/downstream Mach and flow-angle states, and their
+total-pressure samples.  The retained exact-field case passes this local
+Rankine--Hugoniot evidence at machine precision; the result records the
+maximum jump residual separately from the neighboring-path checks.
+
+This is a stronger P2.2 handoff contract, not canonical closure.  The
+surrounding reflected C-/C+ solve, free-boundary feedback, mixed-regime
+entrance, refinement, physical shock-cell length, product promotion, and
+external validation remain open.

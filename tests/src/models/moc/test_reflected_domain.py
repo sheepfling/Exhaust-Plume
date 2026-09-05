@@ -710,6 +710,9 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
   assert front_audit.maximum_coupled_inlet_profile_residual_m == pytest.approx(
     0.0
   )
+  assert front_audit.shock_front_jump_verified
+  assert front_audit.maximum_shock_front_jump_residual is not None
+  assert front_audit.maximum_shock_front_jump_residual < 1.0e-8
   tampered_front = replace(
     front_condition,
     shock_front_points_m=(
