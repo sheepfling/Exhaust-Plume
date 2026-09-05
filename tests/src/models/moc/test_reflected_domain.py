@@ -1844,6 +1844,19 @@ def test_global_coupled_euler_free_boundary_isolated_lane_keeps_actual_seam_open
     MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
   )
   assert not transition_audit.transonic_transition_verified
+  assert result.transonic_transition_audit is not None
+  tampered_transition_audit = replace(
+    result.transonic_transition_audit,
+    shock_state_conservation_verified=False,
+  )
+  conservation_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    replace(result, transonic_transition_audit=tampered_transition_audit)
+  )
+  assert conservation_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .TRANSONIC_TRANSITION_FAILURE
+  )
+  assert not conservation_audit.transonic_transition_verified
   tampered_compatibility = measure_reflected_domain_coupled_euler_free_boundary(
     replace(
       result,
