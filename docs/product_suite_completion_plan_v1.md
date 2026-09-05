@@ -80,6 +80,12 @@ next product can make a stronger claim:
    without relabelling the interior continuation as a free boundary. This
    closes a boundary-context bookkeeping seam only; coupled residuals,
    refinement, and external validation remain open.
+   The coupled Euler result now also retains the conservative inlet-face
+   vector actually passed into the field solve. Its independent audit
+   rederives the same vector from the front-conditioned physical profile and
+   reports a typed inlet-seam failure when the retained faces are tampered
+   with. This closes source-to-consumer evidence accounting only; it does not
+   change the research-only claim ceiling or close the global field.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;

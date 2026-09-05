@@ -780,12 +780,33 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
   )
   assert coupled.physical_field_continuation_profile_consumed
   assert coupled.physical_field_continuation_profile == interior_continuation
+  assert coupled.inlet_boundary_states_consumed
+  assert len(coupled.inlet_boundary_conservative_states_by_face) == 8
   assert coupled.transonic_shock_interface_profile is None
   assert coupled.production_claim_allowed is False
   coupled_audit = measure_reflected_domain_coupled_euler_free_boundary(coupled)
   assert coupled_audit.physical_field_continuation_profile_verified
+  assert coupled_audit.physical_field_inlet_seam_verified
   assert coupled_audit.chain_promotion_blocked
   assert coupled_audit.production_claim_allowed is False
+  tampered_inlet = replace(
+    coupled,
+    inlet_boundary_conservative_states_by_face=(
+      (
+        coupled.inlet_boundary_conservative_states_by_face[0][0] + 0.01,
+        *coupled.inlet_boundary_conservative_states_by_face[0][1:],
+      ),
+      *coupled.inlet_boundary_conservative_states_by_face[1:],
+    ),
+  )
+  tampered_inlet_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    tampered_inlet
+  )
+  assert tampered_inlet_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .PHYSICAL_FIELD_INLET_SEAM_FAILURE
+  )
+  assert not tampered_inlet_audit.physical_field_inlet_seam_verified
 ####
 
 

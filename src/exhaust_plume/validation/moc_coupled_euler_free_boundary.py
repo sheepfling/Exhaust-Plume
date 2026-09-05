@@ -162,6 +162,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   PHYSICAL_FIELD_CONTINUATION_FAILURE = (
     'coupled-euler-audit-physical-field-continuation-failure'
   )
+  PHYSICAL_FIELD_INLET_SEAM_FAILURE = (
+    'coupled-euler-audit-physical-field-inlet-seam-failure'
+  )
   PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE = (
     'coupled-euler-audit-physical-field-shock-front-condition-failure'
   )
@@ -206,6 +209,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   transonic_shock_interface_verified: bool = False
   transonic_shock_interface_profile_verified: bool = False
   physical_field_continuation_profile_verified: bool = False
+  physical_field_inlet_seam_verified: bool = False
   physical_field_shock_front_condition_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
@@ -287,6 +291,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'transonic_shock_interface_verified',
       'transonic_shock_interface_profile_verified',
       'physical_field_continuation_profile_verified',
+      'physical_field_inlet_seam_verified',
       'physical_field_shock_front_condition_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
@@ -348,6 +353,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
           is not None
         )
         or self.physical_field_continuation_profile_verified
+      )
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.physical_field_continuation_profile
+          is not None
+        )
+        or self.physical_field_inlet_seam_verified
       )
       and (
         not (
@@ -423,6 +437,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'physical_field_continuation_profile_verified': (
         self.physical_field_continuation_profile_verified
       ),
+      'physical_field_inlet_seam_verified': self.physical_field_inlet_seam_verified,
       'physical_field_shock_front_condition_verified': (
         self.physical_field_shock_front_condition_verified
       ),
@@ -2188,6 +2203,7 @@ def _audit_field(
     'physical_field_continuation_profile_verified': (
       physical_field_continuation_profile_verified
     ),
+    'physical_field_continuation_inlet_states': continuation_override_states,
     'physical_field_shock_front_condition_verified': (
       physical_field_shock_front_condition_verified
     ),
@@ -2424,6 +2440,29 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   physical_field_continuation_profile_verified = bool(
     raw['physical_field_continuation_profile_verified']
   )
+  physical_field_inlet_seam_verified = True
+  if candidate.request.physical_field_continuation_profile is not None:
+    expected_inlet = raw['physical_field_continuation_inlet_states']
+    reported_inlet = np.asarray(
+      candidate.inlet_boundary_conservative_states_by_face,
+      dtype=float,
+    )
+    expected_inlet_array = np.asarray(
+      () if expected_inlet is None else expected_inlet,
+      dtype=float,
+    )
+    physical_field_inlet_seam_verified = bool(
+      candidate.inlet_boundary_states_consumed
+      and expected_inlet is not None
+      and reported_inlet.shape == expected_inlet_array.shape
+      and np.allclose(
+        reported_inlet,
+        expected_inlet_array,
+        rtol=3.0e-6,
+        atol=1.0e-10,
+      )
+    )
+  ####
   physical_field_shock_front_condition_verified = bool(
     raw['physical_field_shock_front_condition_verified']
   )
@@ -2501,6 +2540,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   if not promotion_flags_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.FLAG_FAILURE
     message = 'candidate promotion flags do not retain the research-only stop'
+  elif not physical_field_inlet_seam_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .PHYSICAL_FIELD_INLET_SEAM_FAILURE
+    )
+    message = (
+      'candidate consumed inlet conservative faces do not reproduce the '
+      'independently rederived physical-field continuation handoff'
+    )
   elif not report_verified or not residuals_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.RESIDUAL_FAILURE
     message = 'independent conservative residuals disagree or exceed tolerance'
@@ -2634,6 +2682,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     physical_field_continuation_profile_verified=(
       physical_field_continuation_profile_verified
     ),
+    physical_field_inlet_seam_verified=physical_field_inlet_seam_verified,
     physical_field_shock_front_condition_verified=(
       physical_field_shock_front_condition_verified
     ),

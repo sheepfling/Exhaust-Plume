@@ -1274,6 +1274,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   free_boundary_points_m: tuple[tuple[float, float], ...] = ()
   cell_centers_m: tuple[tuple[float, float], ...] = ()
   conservative_states_by_cell: tuple[tuple[float, float, float, float], ...] = ()
+  inlet_boundary_conservative_states_by_face: tuple[
+    tuple[float, float, float, float], ...
+  ] = ()
   density_by_cell_kg_m3: tuple[float, ...] = ()
   static_pressure_by_cell_Pa: tuple[float, ...] = ()
   temperature_by_cell_K: tuple[float, ...] = ()
@@ -1341,6 +1344,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None
   physical_field_shock_front_condition_consumed: bool = False
+  inlet_boundary_states_consumed: bool = False
   transonic_frontier_compatibility: (
     MocReflectedDomainCoupledEulerTransonicFrontierCompatibility | None
   ) = None
@@ -1410,6 +1414,32 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       raise ValueError('conservative_states_by_cell must be finite')
     ####
     object.__setattr__(self, 'conservative_states_by_cell', states)
+    inlet_states = tuple(
+      tuple(float(value) for value in state)
+      for state in self.inlet_boundary_conservative_states_by_face
+    )
+    if any(len(state) != 4 for state in inlet_states):
+      raise ValueError(
+        'inlet_boundary_conservative_states_by_face must contain four values'
+      )
+    ####
+    if any(not all(isfinite(value) for value in state) for state in inlet_states):
+      raise ValueError(
+        'inlet_boundary_conservative_states_by_face must be finite'
+      )
+    ####
+    if self.request is not None and self.inlet_boundary_states_consumed and (
+      len(inlet_states) != self.request.transverse_cell_count
+    ):
+      raise ValueError(
+        'consumed inlet boundary states must match the transverse cell count'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'inlet_boundary_conservative_states_by_face',
+      inlet_states,
+    )
     residuals = tuple(
       tuple(float(value) for value in residual)
       for residual in self.residual_channels_by_cell
@@ -1713,6 +1743,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'physical_field_shock_front_condition_consumed must be a bool'
       )
     ####
+    if not isinstance(self.inlet_boundary_states_consumed, bool):
+      raise TypeError('inlet_boundary_states_consumed must be a bool')
+    ####
     coverage = dict(self.residual_channel_coverage)
     validity = dict(self.residual_channel_validity)
     if any(
@@ -1823,6 +1856,10 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'physical_field_shock_front_condition_consumed': (
           self.physical_field_shock_front_condition_consumed
         ),
+        'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
+        'inlet_boundary_conservative_states_by_face': (
+          self.inlet_boundary_conservative_states_by_face
+        ),
         'physical_field_shock_front_condition': (
           None
           if self.physical_field_shock_front_condition is None
@@ -1861,6 +1898,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'free_boundary_points_m': self.free_boundary_points_m,
       'cell_centers_m': self.cell_centers_m,
       'conservative_states_by_cell': self.conservative_states_by_cell,
+      'inlet_boundary_conservative_states_by_face': (
+        self.inlet_boundary_conservative_states_by_face
+      ),
       'density_by_cell_kg_m3': self.density_by_cell_kg_m3,
       'static_pressure_by_cell_Pa': self.static_pressure_by_cell_Pa,
       'temperature_by_cell_K': self.temperature_by_cell_K,
@@ -1991,6 +2031,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'physical_field_shock_front_condition_consumed': (
         self.physical_field_shock_front_condition_consumed
       ),
+      'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
       'physical_field_shock_front_condition': (
         None
         if self.physical_field_shock_front_condition is None
@@ -3190,6 +3231,52 @@ def _inlet_states(
 ####
 
 
+def _consumed_inlet_boundary_states(
+  states: np.ndarray,
+  free_boundary_heights: np.ndarray,
+  lower_ordinate: float,
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  gamma: float,
+  gas_constant: float,
+  inlet_override_states: tuple[np.ndarray, ...] | None,
+) -> tuple[np.ndarray, ...]:
+  """Reconstruct the exact conservative states used on the inlet faces."""
+
+  if inlet_override_states is not None:
+    return inlet_override_states
+  ####
+  control_points = request.mixed_regime_request.control_section.points_m
+  control_samples = request.mixed_regime_request.control_section.samples
+  inlet_height = float(free_boundary_heights[0])
+  face_width = inlet_height / request.transverse_cell_count
+  inlet_states: list[np.ndarray] = []
+  for index in range(request.transverse_cell_count):
+    ordinate = lower_ordinate + (index + 0.5) * face_width
+    inlet = _interpolate_inlet_state(
+      ordinate,
+      control_points,
+      control_samples,
+      gamma,
+      request.reference_total_temperature_K,
+      gas_constant,
+    )
+    if (
+      request.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+    ):
+      inlet = _subsonic_characteristic_inlet_state(
+        states[0, index],
+        inlet,
+        gamma,
+        gas_constant,
+      )
+    ####
+    inlet_states.append(inlet)
+  ####
+  return tuple(inlet_states)
+####
+
+
 def _prepare_transonic_branch_inlet(
   request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   *,
@@ -3802,6 +3889,19 @@ def _result_from_field(
       gas_constant,
     )
   )
+  consumed_inlet_states = _consumed_inlet_boundary_states(
+    states,
+    free_boundary_heights,
+    lower_ordinate,
+    request,
+    gamma,
+    gas_constant,
+    inlet_override_states,
+  )
+  inlet_boundary_states = tuple(
+    tuple(float(value) for value in state)
+    for state in consumed_inlet_states
+  )
   flattened['entropy_production_fraction_by_cell'] = (
     _entropy_production_fractions(
       states,
@@ -3861,6 +3961,7 @@ def _result_from_field(
     ),
     residual_history=tuple(residual_history),
     shape_residual_history_m=tuple(shape_residual_history),
+    inlet_boundary_conservative_states_by_face=inlet_boundary_states,
     free_boundary_pressure_residuals_Pa=tuple(
       float(abs(value - request.mixed_regime_request.ambient_pressure_Pa))
       for value in top_pressures
@@ -3932,6 +4033,7 @@ def _result_from_field(
     physical_field_shock_front_condition_consumed=(
       physical_field_shock_front_condition is not None
     ),
+    inlet_boundary_states_consumed=True,
     transonic_frontier_compatibility=transonic_frontier_compatibility,
     control_section_compatibility=control_section_compatibility,
     **flattened,
