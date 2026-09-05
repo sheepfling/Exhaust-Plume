@@ -2520,6 +2520,7 @@ def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor
     .CONVERGED_RESEARCH_PRESSURE_UPDATE
   )
   assert run.converged
+  assert run.geometry_profile_lineage_verified
   assert run.geometry_profile_consumption_verified
   assert run.local_coupled_field_verified
   assert run.initial_state_lineage_verified
@@ -2529,6 +2530,13 @@ def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor
   assert run.chain_promotion_blocked
   assert run.production_claim_allowed is False
   assert len(run.iterations) == 2
+  assert all(
+    item.geometry_profile_lineage_verified
+    and item.geometry_profile_consumption_verified
+    and item.pressure_profile_lineage_verified
+    and item.pressure_profile_consumption_verified
+    for item in run.iterations
+  )
   assert all(
     item.pressure_profile_consumption_verified
     and item.geometry_profile_consumption_verified

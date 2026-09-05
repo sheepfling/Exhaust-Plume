@@ -429,6 +429,18 @@ residuals from the retained samples.  A passing audit is recorded as
 research-boundary evidence only: it does not solve the missing mixed-regime
 field, authorize continued physical shock cells, or change the release gate.
 
+## Feedback-ladder consumption checkpoint
+
+The exact-field downstream feedback ladder now keeps geometry-profile lineage
+and geometry-profile consumption as separate aggregate gates (`bb1019d`).  A
+profile that is merely aligned with the solver request cannot satisfy the
+feedback result: every retained iteration must independently prove that the
+geometry profile was consumed, alongside pressure-profile consumption,
+response lineage, and the exact initial-state source.  This closes an evidence
+accounting defect in the research ladder only; it does not turn the bounded
+downstream iteration into upstream/global feedback or change the production
+claim ceiling.
+
 ## Active execution ledger — 2026-09-04
 
 This section is the handoff for the active long-running goal. Work proceeds
