@@ -338,13 +338,21 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       len(self.tangent_residuals_rad),
       len(self.pressure_residuals_Pa),
       len(self.normal_velocity_residuals_m_s),
+    }
+    signed_lengths = {
       len(self.coordinate_offsets_m),
       len(self.tangent_offsets_rad),
       len(self.pressure_offsets_Pa),
       len(self.normal_velocity_values_m_s),
     }
+    if signed_lengths != {0}:
+      lengths.update(signed_lengths)
+    ####
     if len(lengths) != 1:
-      raise ValueError('downstream boundary response channels must be aligned')
+      raise ValueError(
+        'downstream boundary response channels must be aligned; signed '
+        'correction channels may be omitted only as a complete legacy group'
+      )
     ####
     for name in (
       'coordinate_tolerance_m',
