@@ -205,7 +205,11 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import 
   run_reflected_domain_coupled_euler_free_boundary_refinement,
 )
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
+  MocReflectedDomainGlobalCoupledDownstreamCrossCase,
+  MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus,
   MocReflectedDomainGlobalCoupledDownstreamRefinementStatus,
+  measure_reflected_domain_global_coupled_downstream_cross_case_refinement,
+  run_reflected_domain_global_coupled_downstream_cross_case_refinement,
   run_reflected_domain_global_coupled_downstream_refinement,
 )
 from exhaust_plume.validation.moc_global_coupled_downstream_feedback import (
@@ -3766,6 +3770,113 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
     <= case.response.coordinate_tolerance_m
     for case in run.cases
   )
+####
+
+
+def test_global_coupled_downstream_cross_case_measurement_rejects_reused_closure():
+  closure = _global_physical_closure_for_mixed_regime()
+  case_a = MocReflectedDomainGlobalCoupledDownstreamCrossCase(
+    case_id='mixed-a',
+    regime='mixed-regime',
+    closure=closure,
+    resolutions=((6, 3), (8, 4)),
+  )
+  case_b = MocReflectedDomainGlobalCoupledDownstreamCrossCase(
+    case_id='mixed-b',
+    regime='mixed-regime',
+    closure=closure,
+    resolutions=((6, 3), (8, 4)),
+  )
+  single_run = run_reflected_domain_global_coupled_downstream_refinement(
+    closure,
+    reference_total_temperature_K=1500.0,
+    resolutions=((6, 3), (8, 4)),
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+  )
+
+  measurement = (
+    measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
+      (case_a, case_b),
+      (single_run, single_run),
+    )
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.CLOSURE_FAILURE
+  )
+  assert measurement.case_ids_verified
+  assert measurement.closure_bindings_verified
+  assert measurement.distinct_closure_fingerprints_verified is False
+  assert measurement.converged is False
+  assert measurement.local_consistency_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.as_report()['external_validation_verified'] is False
+####
+
+
+def test_global_coupled_downstream_cross_case_runner_keeps_closure_ladders_separate():
+  reflected_closure = _global_physical_closure_for_mixed_regime(sample_count=9)
+  resampled_closure = _global_physical_closure_for_mixed_regime(sample_count=10)
+  cases = (
+    MocReflectedDomainGlobalCoupledDownstreamCrossCase(
+      case_id='reflected-placement',
+      regime='reflected',
+      closure=reflected_closure,
+      resolutions=((6, 3), (8, 4)),
+    ),
+    MocReflectedDomainGlobalCoupledDownstreamCrossCase(
+      case_id='resampled-placement',
+      regime='resampled-reflected',
+      closure=resampled_closure,
+      resolutions=((6, 3), (8, 4)),
+    ),
+  )
+
+  run = run_reflected_domain_global_coupled_downstream_cross_case_refinement(
+    cases,
+    reference_total_temperature_K=1500.0,
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+  )
+
+  assert len(run.runs) == 2
+  assert run.fresh_solver_invocation_verified
+  assert run.local_coupled_field_verified
+  assert run.fidelity_isolation_verified
+  assert run.runs[0].closure is reflected_closure
+  assert run.runs[1].closure is resampled_closure
+  assert run.runs[0].closure.as_report()['closure_fingerprint'] != (
+    run.runs[1].closure.as_report()['closure_fingerprint']
+  )
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus
+    .CONVERGED_LOCAL_CROSS_CASE
+  )
+  assert run.measurement.local_consistency_verified
+  assert run.measurement.case_ids == (
+    'reflected-placement',
+    'resampled-placement',
+  )
+  assert run.measurement.requested_resolutions == (
+    ((6, 3), (8, 4)),
+    ((6, 3), (8, 4)),
+  )
+  assert run.measurement.distinct_closure_fingerprints_verified
+  assert run.downstream_boundary_closure_verified is False
+  assert run.as_report()['checks']['downstream_boundary_closure_verified'] is False
+  assert run.as_report()['measurement']['external_validation_verified'] is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
 ####
 
 

@@ -2084,3 +2084,20 @@ is the first target-overlay path that reaches the 2-D downstream equations,
 but it remains a fixed candidate boundary condition: shock placement is not
 yet re-solved upstream, global coupling and downstream closure remain false,
 and cross-case refinement plus physical validation are still required.
+
+### Coupled downstream cross-case refinement checkpoint — 2026-09-08
+
+The coupled downstream validation lane now has a typed cross-case operator.
+Each named case owns its exact global-closure fingerprint and its own strict
+axial/transverse resolution ladder.  The aggregate audit rejects duplicate
+closure identities, mismatched run lineage, reused or reordered ladders, and
+failed nested local response audits; it never compares residual magnitudes
+between physically distinct cases as if they were mesh refinements.
+
+The regression covers both the duplicate-closure failure path and two fresh
+independently generated closure cases.  Both local ladders pass with finite
+response channels and retained feedback proposals, while global feedback,
+canonical downstream closure, physical shock-cell fitting, external
+validation, and production claims remain explicitly closed.  This is the
+cross-case evidence boundary required before a physical shock-cell fit; it is
+not itself an accepted physical comparison or a canonical global closure.

@@ -31,6 +31,7 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
 )
 from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
+  moc_reflected_domain_global_physical_closure_fingerprint,
 )
 
 __all__ = (
@@ -42,6 +43,14 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_RUN_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledDownstreamRefinementRun',
   'run_reflected_domain_global_coupled_downstream_refinement',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_OPERATOR_ID',
+  'MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamCrossCase',
+  'MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement',
+  'measure_reflected_domain_global_coupled_downstream_cross_case_refinement',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_RUN_OPERATOR_ID',
+  'MocReflectedDomainGlobalCoupledDownstreamCrossCaseRun',
+  'run_reflected_domain_global_coupled_downstream_cross_case_refinement',
 )
 
 
@@ -50,6 +59,12 @@ MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_OPERATOR_ID = (
 )
 MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_RUN_OPERATOR_ID = (
   'op.moc.reflected-domain.global-coupled-downstream-refinement-run'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-coupled-downstream-cross-case-refinement'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_RUN_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-coupled-downstream-cross-case-refinement-run'
 )
 
 
@@ -927,6 +942,819 @@ def run_reflected_domain_global_coupled_downstream_refinement(
       'fresh global/coupled downstream response refinement completed; '
       'global feedback, canonical boundary closure, physical chain promotion, '
       'and external validation remain separate gates'
+    ),
+  )
+####
+
+
+class MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus(str, Enum):
+  """Outcome of independent coupled-downstream ladders across named cases."""
+
+  CONVERGED_LOCAL_CROSS_CASE = (
+    'converged-local-global-coupled-downstream-cross-case'
+  )
+  INVALID_INPUT = 'invalid_input'
+  CASE_ID_FAILURE = 'global-coupled-downstream-cross-case-id-failure'
+  CLOSURE_FAILURE = 'global-coupled-downstream-cross-case-closure-failure'
+  RESOLUTION_FAILURE = (
+    'global-coupled-downstream-cross-case-resolution-failure'
+  )
+  CASE_FAILURE = 'global-coupled-downstream-cross-case-case-failure'
+  FIDELITY_FAILURE = 'global-coupled-downstream-cross-case-fidelity-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamCrossCase:
+  """One named closure with its own downstream resolution ladder.
+
+  A cross-case study never treats physically distinct closures as adjacent
+  mesh resolutions.  The case owns its closure fingerprint and ladder; the
+  aggregate operator only checks identity, lineage, and each nested ladder's
+  local result.
+  """
+
+  case_id: str
+  regime: str
+  closure: MocReflectedDomainGlobalPhysicalClosureResult
+  resolutions: tuple[tuple[int, int], ...]
+
+  def __post_init__(self) -> None:
+    case_id = str(self.case_id)
+    regime = str(self.regime)
+    if not case_id:
+      raise ValueError('case_id must be non-empty')
+    ####
+    if not regime:
+      raise ValueError('regime must be non-empty')
+    ####
+    if not isinstance(
+      self.closure,
+      MocReflectedDomainGlobalPhysicalClosureResult,
+    ):
+      raise TypeError(
+        'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+      )
+    ####
+    try:
+      resolutions = tuple(tuple(value) for value in self.resolutions)
+    except TypeError as error:
+      raise ValueError(
+        'resolutions must contain (axial, transverse) integer pairs'
+      ) from error
+    ####
+    if not resolutions:
+      raise ValueError('resolutions must not be empty')
+    ####
+    if any(
+      len(resolution) != 2
+      or any(
+        isinstance(value, bool) or not isinstance(value, int)
+        for value in resolution
+      )
+      or resolution[0] < 4
+      or resolution[1] < 3
+      for resolution in resolutions
+    ):
+      raise ValueError(
+        'resolutions must contain (axial, transverse) integer pairs with '
+        'axial >= 4 and transverse >= 3'
+      )
+    ####
+    object.__setattr__(self, 'case_id', case_id)
+    object.__setattr__(self, 'regime', regime)
+    object.__setattr__(self, 'resolutions', resolutions)
+  ####
+
+  @property
+  def closure_fingerprint(self) -> str:
+    """Return the exact physical-closure identity owned by this case."""
+
+    return moc_reflected_domain_global_physical_closure_fingerprint(
+      self.closure
+    )
+  ####
+
+  @property
+  def resolution_ladder_verified(self) -> bool:
+    """Whether this case declares a strict two-or-more-point ladder."""
+
+    return bool(
+      len(self.resolutions) >= 2
+      and all(
+        right[0] > left[0] and right[1] > left[1]
+        for left, right in zip(self.resolutions, self.resolutions[1:])
+      )
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'case_id': self.case_id,
+      'regime': self.regime,
+      'closure_fingerprint': self.closure_fingerprint,
+      'resolutions': self.resolutions,
+      'resolution_ladder_verified': self.resolution_ladder_verified,
+      'closure_status': self.closure.status.value,
+      'closure_converged': self.closure.converged,
+      'physical_closure_verified': self.closure.physical_closure_verified,
+      'downstream_boundary_model': self.closure.downstream_boundary_model,
+      'downstream_boundary_closure_verified': (
+        self.closure.downstream_boundary_closure_verified
+      ),
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
+  """Independent aggregate evidence for distinct coupled-downstream cases."""
+
+  status: MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus
+  cases: tuple[MocReflectedDomainGlobalCoupledDownstreamCrossCase, ...] = ()
+  runs: tuple[MocReflectedDomainGlobalCoupledDownstreamRefinementRun, ...] = ()
+  case_ids: tuple[str, ...] = ()
+  regimes: tuple[str, ...] = ()
+  closure_fingerprints: tuple[str, ...] = ()
+  requested_resolutions: tuple[tuple[tuple[int, int], ...], ...] = ()
+  run_statuses: tuple[str, ...] = ()
+  case_ids_verified: bool = False
+  closure_bindings_verified: bool = False
+  distinct_closure_fingerprints_verified: bool = False
+  resolution_ladders_verified: bool = False
+  case_runs_verified: bool = False
+  local_coupled_field_verified: bool = False
+  fidelity_isolation_verified: bool = False
+  global_coupling_verified: bool = False
+  downstream_boundary_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  external_validation_required: bool = True
+  message: str = ''
+  operator_id: str = (
+    MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_OPERATOR_ID
+  )
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus'
+      )
+    ####
+    cases = tuple(self.cases)
+    runs = tuple(self.runs)
+    if len(cases) != len(runs):
+      raise ValueError('cases and runs must have equal lengths')
+    ####
+    if any(
+      not isinstance(
+        case,
+        MocReflectedDomainGlobalCoupledDownstreamCrossCase,
+      )
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain typed global/coupled downstream cross-case values'
+      )
+    ####
+    if any(
+      not isinstance(
+        run,
+        MocReflectedDomainGlobalCoupledDownstreamRefinementRun,
+      )
+      for run in runs
+    ):
+      raise TypeError(
+        'runs must contain typed global/coupled downstream refinement runs'
+      )
+    ####
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'runs', runs)
+    derived_case_ids = tuple(case.case_id for case in cases)
+    if self.case_ids and tuple(self.case_ids) != derived_case_ids:
+      raise ValueError('case_ids must match the supplied cases')
+    ####
+    object.__setattr__(self, 'case_ids', derived_case_ids)
+    derived_regimes = tuple(case.regime for case in cases)
+    if self.regimes and tuple(self.regimes) != derived_regimes:
+      raise ValueError('regimes must match the supplied cases')
+    ####
+    object.__setattr__(self, 'regimes', derived_regimes)
+    derived_fingerprints = tuple(case.closure_fingerprint for case in cases)
+    if (
+      self.closure_fingerprints
+      and tuple(self.closure_fingerprints) != derived_fingerprints
+    ):
+      raise ValueError(
+        'closure_fingerprints must match the supplied cases'
+      )
+    ####
+    object.__setattr__(self, 'closure_fingerprints', derived_fingerprints)
+    derived_resolutions = tuple(case.resolutions for case in cases)
+    if (
+      self.requested_resolutions
+      and tuple(tuple(value) for value in self.requested_resolutions)
+      != derived_resolutions
+    ):
+      raise ValueError('requested_resolutions must match the supplied cases')
+    ####
+    object.__setattr__(self, 'requested_resolutions', derived_resolutions)
+    derived_statuses = tuple(run.measurement.status.value for run in runs)
+    if self.run_statuses and tuple(self.run_statuses) != derived_statuses:
+      raise ValueError('run_statuses must match the supplied runs')
+    ####
+    object.__setattr__(self, 'run_statuses', derived_statuses)
+    for name in (
+      'case_ids_verified',
+      'closure_bindings_verified',
+      'distinct_closure_fingerprints_verified',
+      'resolution_ladders_verified',
+      'case_runs_verified',
+      'local_coupled_field_verified',
+      'fidelity_isolation_verified',
+      'global_coupling_verified',
+      'downstream_boundary_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+      'external_validation_required',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    if self.global_coupling_verified or self.downstream_boundary_closure_verified:
+      raise ValueError(
+        'cross-case downstream refinement cannot claim global or downstream closure'
+      )
+    ####
+    if not self.chain_promotion_blocked or self.production_claim_allowed:
+      raise ValueError(
+        'cross-case downstream refinement must retain its promotion block'
+      )
+    ####
+    if not self.external_validation_required:
+      raise ValueError(
+        'cross-case downstream refinement must retain the external-validation gate'
+      )
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus
+      .CONVERGED_LOCAL_CROSS_CASE
+    )
+  ####
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.converged
+      and len(self.cases) >= 2
+      and self.case_ids_verified
+      and self.closure_bindings_verified
+      and self.distinct_closure_fingerprints_verified
+      and self.resolution_ladders_verified
+      and self.case_runs_verified
+      and self.local_coupled_field_verified
+      and self.fidelity_isolation_verified
+      and self.external_validation_required
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'operator_id': self.operator_id,
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'case_ids': self.case_ids,
+      'regimes': self.regimes,
+      'closure_fingerprints': self.closure_fingerprints,
+      'requested_resolutions': self.requested_resolutions,
+      'run_statuses': self.run_statuses,
+      'cases': tuple(case.as_report() for case in self.cases),
+      'runs': tuple(run.as_report() for run in self.runs),
+      'checks': {
+        'case_ids_verified': self.case_ids_verified,
+        'closure_bindings_verified': self.closure_bindings_verified,
+        'distinct_closure_fingerprints_verified': (
+          self.distinct_closure_fingerprints_verified
+        ),
+        'resolution_ladders_verified': self.resolution_ladders_verified,
+        'case_runs_verified': self.case_runs_verified,
+        'local_coupled_field_verified': self.local_coupled_field_verified,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'global_coupling_verified': self.global_coupling_verified,
+        'downstream_boundary_closure_verified': (
+          self.downstream_boundary_closure_verified
+        ),
+        'external_validation_required': self.external_validation_required,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'global_coupling_verified': self.global_coupling_verified,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'external_validation_required': self.external_validation_required,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'independent-global-coupled-downstream-cross-case-refinement; '
+        'local-research-field-only'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def _cross_case_measurement_failure(
+  status: MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus,
+  message: str,
+  *,
+  cases: Sequence[MocReflectedDomainGlobalCoupledDownstreamCrossCase] = (),
+  runs: Sequence[MocReflectedDomainGlobalCoupledDownstreamRefinementRun] = (),
+) -> MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
+  case_values = tuple(cases)
+  run_values = tuple(runs)
+  paired = min(len(case_values), len(run_values))
+  return MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement(
+    status=status,
+    cases=case_values[:paired],
+    runs=run_values[:paired],
+    message=message,
+  )
+####
+
+
+def measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
+  cases: Sequence[MocReflectedDomainGlobalCoupledDownstreamCrossCase],
+  runs: Sequence[MocReflectedDomainGlobalCoupledDownstreamRefinementRun],
+  *,
+  expected_case_ids: Sequence[str] | None = None,
+) -> MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
+  """Independently audit named coupled-downstream resolution ladders.
+
+  The operator deliberately does not compare residual magnitudes between
+  physically distinct cases.  It verifies that every nested run is bound to
+  the exact case closure and retains its own ordered local ladder.
+  """
+
+  try:
+    case_values = tuple(cases)
+    run_values = tuple(runs)
+  except TypeError:
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.INVALID_INPUT,
+      'cross-case cases and runs must be iterable',
+    )
+  ####
+  if len(case_values) < 2 or len(run_values) < 2:
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.INVALID_INPUT,
+      'cross-case refinement requires at least two named cases',
+    )
+  ####
+  if len(case_values) != len(run_values):
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.INVALID_INPUT,
+      'cross-case cases and runs must have equal lengths',
+      cases=tuple(
+        value for value in case_values
+        if isinstance(value, MocReflectedDomainGlobalCoupledDownstreamCrossCase)
+      ),
+      runs=tuple(
+        value for value in run_values
+        if isinstance(
+          value,
+          MocReflectedDomainGlobalCoupledDownstreamRefinementRun,
+        )
+      ),
+    )
+  ####
+  if any(
+    not isinstance(
+      case,
+      MocReflectedDomainGlobalCoupledDownstreamCrossCase,
+    )
+    for case in case_values
+  ):
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.INVALID_INPUT,
+      'cases must contain typed global/coupled downstream cross-case values',
+    )
+  ####
+  if any(
+    not isinstance(
+      run,
+      MocReflectedDomainGlobalCoupledDownstreamRefinementRun,
+    )
+    for run in run_values
+  ):
+    return _cross_case_measurement_failure(
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.INVALID_INPUT,
+      'runs must contain typed global/coupled downstream refinement runs',
+    )
+  ####
+  case_ids = tuple(case.case_id for case in case_values)
+  case_ids_verified = bool(
+    len(set(case_ids)) == len(case_ids)
+    and (
+      expected_case_ids is None
+      or case_ids == tuple(str(value) for value in expected_case_ids)
+    )
+  )
+  closure_fingerprints = tuple(
+    case.closure_fingerprint for case in case_values
+  )
+  closure_bindings_verified = all(
+    run.closure is not None
+    and moc_reflected_domain_global_physical_closure_fingerprint(run.closure)
+    == fingerprint
+    for case, run, fingerprint in zip(
+      case_values,
+      run_values,
+      closure_fingerprints,
+      strict=True,
+    )
+  )
+  distinct_closure_fingerprints_verified = bool(
+    len(set(closure_fingerprints)) == len(closure_fingerprints)
+  )
+  resolution_ladders_verified = bool(
+    all(case.resolution_ladder_verified for case in case_values)
+    and all(
+      run.requested_resolutions == case.resolutions
+      for case, run in zip(case_values, run_values, strict=True)
+    )
+  )
+  case_runs_verified = all(
+    run.converged and run.measurement.converged
+    for run in run_values
+  )
+  local_coupled_field_verified = all(
+    run.measurement.local_coupled_field_verified for run in run_values
+  )
+  fidelity_isolation_verified = all(
+    run.fidelity_isolation_verified
+    and run.measurement.chain_promotion_blocked
+    and not run.measurement.production_claim_allowed
+    for run in run_values
+  )
+  if not case_ids_verified:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus
+      .CASE_ID_FAILURE
+    )
+    message = 'cross-case IDs are duplicated or do not match expected order'
+  elif (
+    not closure_bindings_verified
+    or not distinct_closure_fingerprints_verified
+  ):
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus
+      .CLOSURE_FAILURE
+    )
+    message = (
+      'cross-case runs are not bound to distinct declared global-closure '
+      'fingerprints'
+    )
+  elif not resolution_ladders_verified:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus
+      .RESOLUTION_FAILURE
+    )
+    message = (
+      'one or more named cases does not retain the same strict resolution '
+      'ladder used by its run'
+    )
+  elif not case_runs_verified or not local_coupled_field_verified:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.CASE_FAILURE
+    )
+    message = (
+      'one or more named global/coupled downstream case ladders failed its '
+      'local response audit'
+    )
+  elif not fidelity_isolation_verified:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.FIDELITY_FAILURE
+    )
+    message = (
+      'cross-case aggregation weakened the coupled-downstream fidelity or '
+      'promotion boundary'
+    )
+  else:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus
+      .CONVERGED_LOCAL_CROSS_CASE
+    )
+    message = (
+      'named global/coupled downstream ladders passed independently; '
+      'cross-case evidence remains local research evidence below canonical, '
+      'physical shock-cell, and external promotion gates'
+    )
+  ####
+  return MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement(
+    status=status,
+    cases=case_values,
+    runs=run_values,
+    case_ids=case_ids,
+    regimes=tuple(case.regime for case in case_values),
+    closure_fingerprints=closure_fingerprints,
+    requested_resolutions=tuple(case.resolutions for case in case_values),
+    run_statuses=tuple(run.measurement.status.value for run in run_values),
+    case_ids_verified=case_ids_verified,
+    closure_bindings_verified=closure_bindings_verified,
+    distinct_closure_fingerprints_verified=(
+      distinct_closure_fingerprints_verified
+    ),
+    resolution_ladders_verified=resolution_ladders_verified,
+    case_runs_verified=case_runs_verified,
+    local_coupled_field_verified=local_coupled_field_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=message,
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamCrossCaseRun:
+  """Fresh execution of every named coupled-downstream case ladder."""
+
+  cases: tuple[MocReflectedDomainGlobalCoupledDownstreamCrossCase, ...]
+  runs: tuple[MocReflectedDomainGlobalCoupledDownstreamRefinementRun, ...]
+  measurement: MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement
+  configuration: tuple[tuple[str, Any], ...]
+  configuration_fingerprint: str
+  fresh_solver_invocation_verified: bool
+  local_coupled_field_verified: bool
+  fidelity_isolation_verified: bool
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    cases = tuple(self.cases)
+    runs = tuple(self.runs)
+    if len(cases) != len(runs):
+      raise ValueError('cases and runs must have equal lengths')
+    ####
+    if any(
+      not isinstance(
+        case,
+        MocReflectedDomainGlobalCoupledDownstreamCrossCase,
+      )
+      for case in cases
+    ):
+      raise TypeError('cases must contain typed downstream cross-case values')
+    ####
+    if any(
+      not isinstance(
+        run,
+        MocReflectedDomainGlobalCoupledDownstreamRefinementRun,
+      )
+      for run in runs
+    ):
+      raise TypeError('runs must contain typed downstream refinement runs')
+    ####
+    if not isinstance(
+      self.measurement,
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement,
+    ):
+      raise TypeError('measurement must be a typed downstream cross-case measurement')
+    ####
+    if self.measurement.cases and tuple(self.measurement.cases) != cases:
+      raise ValueError('measurement cases must match retained cross-case values')
+    ####
+    if self.measurement.runs and tuple(self.measurement.runs) != runs:
+      raise ValueError('measurement runs must match retained run values')
+    ####
+    configuration = tuple(self.configuration)
+    if any(
+      not isinstance(item, tuple)
+      or len(item) != 2
+      or not isinstance(item[0], str)
+      for item in configuration
+    ):
+      raise ValueError('configuration must contain (name, value) pairs')
+    ####
+    fingerprint = str(self.configuration_fingerprint)
+    if len(fingerprint) != 64:
+      raise ValueError('configuration_fingerprint must be a SHA-256 digest')
+    ####
+    for name in (
+      'fresh_solver_invocation_verified',
+      'local_coupled_field_verified',
+      'fidelity_isolation_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'runs', runs)
+    object.__setattr__(self, 'configuration', configuration)
+    object.__setattr__(self, 'configuration_fingerprint', fingerprint)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.measurement.converged
+      and self.fresh_solver_invocation_verified
+      and self.local_coupled_field_verified
+      and self.fidelity_isolation_verified
+    )
+  ####
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.measurement.local_consistency_verified
+      and len(self.cases) >= 2
+      and len(self.runs) == len(self.cases)
+      and self.fresh_solver_invocation_verified
+      and self.local_coupled_field_verified
+      and self.fidelity_isolation_verified
+    )
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return bool(
+      self.runs and all(run.measurement.chain_promotion_blocked for run in self.runs)
+    )
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  @property
+  def downstream_boundary_closure_verified(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.measurement.status.value,
+      'operator_id': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_RUN_OPERATOR_ID
+      ),
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'configuration': dict(self.configuration),
+      'configuration_fingerprint': self.configuration_fingerprint,
+      'cases': tuple(case.as_report() for case in self.cases),
+      'runs': tuple(run.as_report() for run in self.runs),
+      'measurement': self.measurement.as_report(),
+      'checks': {
+        'fresh_solver_invocation_verified': self.fresh_solver_invocation_verified,
+        'local_coupled_field_verified': self.local_coupled_field_verified,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'global_coupling_verified': False,
+        'downstream_boundary_closure_verified': False,
+        'canonical_free_boundary_verified': False,
+        'canonical_euler_verified': False,
+        'external_validation_verified': False,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'global_coupling_verified': False,
+      'downstream_boundary_closure_verified': False,
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'external_validation_verified': False,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'fresh-global-coupled-downstream-cross-case-refinement; '
+        'local-research-field-only'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def run_reflected_domain_global_coupled_downstream_cross_case_refinement(
+  cases: Sequence[MocReflectedDomainGlobalCoupledDownstreamCrossCase],
+  **runner_options: Any,
+) -> MocReflectedDomainGlobalCoupledDownstreamCrossCaseRun:
+  """Run every named closure through a separate fresh response ladder.
+
+  The closure and resolution ladder belong to each case and cannot be
+  overridden through ``runner_options``.  This prevents a cross-case study
+  from silently reusing one physical placement or treating cases as one mesh
+  sequence.
+  """
+
+  try:
+    case_values = tuple(cases)
+  except TypeError as error:
+    raise ValueError('cases must be an iterable of typed cross-case values') from error
+  ####
+  if len(case_values) < 2:
+    raise ValueError('cross-case refinement requires at least two named cases')
+  ####
+  if any(
+    not isinstance(
+      case,
+      MocReflectedDomainGlobalCoupledDownstreamCrossCase,
+    )
+    for case in case_values
+  ):
+    raise TypeError('cases must contain typed global/coupled downstream cross-case values')
+  ####
+  forbidden = {'closure', 'resolutions'}
+  if forbidden.intersection(runner_options):
+    raise ValueError(
+      'runner_options cannot override closure or resolutions owned by a case'
+    )
+  ####
+  runs = tuple(
+    run_reflected_domain_global_coupled_downstream_refinement(
+      case.closure,
+      resolutions=case.resolutions,
+      **runner_options,
+    )
+    for case in case_values
+  )
+  measurement = (
+    measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
+      case_values,
+      runs,
+    )
+  )
+  configuration_payload: dict[str, Any] = {
+    'operator_id': (
+      MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_RUN_OPERATOR_ID
+    ),
+    'cases': [
+      {
+        'case_id': case.case_id,
+        'regime': case.regime,
+        'closure_fingerprint': case.closure_fingerprint,
+        'resolutions': list(case.resolutions),
+      }
+      for case in case_values
+    ],
+    'runner_options': runner_options,
+  }
+  configuration = tuple(
+    (name, configuration_payload[name])
+    for name in sorted(configuration_payload)
+  )
+  configuration_fingerprint = sha256(
+    json.dumps(
+      configuration_payload,
+      sort_keys=True,
+      separators=(',', ':'),
+      default=str,
+    ).encode('utf-8')
+  ).hexdigest()
+  local_coupled_field_verified = bool(
+    runs and all(run.measurement.local_coupled_field_verified for run in runs)
+  )
+  fidelity_isolation_verified = bool(
+    runs
+    and all(
+      run.fidelity_isolation_verified
+      and run.measurement.chain_promotion_blocked
+      and not run.measurement.production_claim_allowed
+      for run in runs
+    )
+  )
+  return MocReflectedDomainGlobalCoupledDownstreamCrossCaseRun(
+    cases=case_values,
+    runs=runs,
+    measurement=measurement,
+    configuration=configuration,
+    configuration_fingerprint=configuration_fingerprint,
+    fresh_solver_invocation_verified=all(
+      run.fresh_solver_invocation_verified for run in runs
+    ),
+    local_coupled_field_verified=local_coupled_field_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=(
+      'fresh global/coupled downstream ladders executed independently for '
+      'every named closure; global feedback, canonical closure, physical '
+      'shock-cell fitting, and external promotion gates remain pending'
     ),
   )
 ####
