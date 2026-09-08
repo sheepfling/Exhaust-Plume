@@ -3261,6 +3261,9 @@ def _moc_visualization(
     diagnostics[
       'global_coupled_boundary_condition_feedback_frame_extension_required'
     ] = bool(getattr(result, 'frame_extension_required', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_extension_verified'
+    ] = bool(getattr(result, 'frame_extension_verified', False))
     feedback_iterations = tuple(getattr(result, 'iterations', ()))
     frame_negotiation = (
       None
@@ -3309,6 +3312,25 @@ def _moc_visualization(
       None
       if frame_negotiation is None
       else getattr(frame_negotiation, 'extension_upper_m', None)
+    )
+    frame_extension = (
+      None
+      if not feedback_iterations
+      else getattr(feedback_iterations[-1], 'frame_extension', None)
+    )
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_extension_status'
+    ] = (
+      None
+      if frame_extension is None
+      else getattr(getattr(frame_extension, 'status', None), 'value', None)
+    )
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_extension_station_count'
+    ] = (
+      0
+      if frame_extension is None
+      else len(getattr(frame_extension, 'extension_x_stations_m', ()))
     )
     diagnostics[
       'global_coupled_boundary_condition_feedback_iteration_count'

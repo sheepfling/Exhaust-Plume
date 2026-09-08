@@ -2477,9 +2477,9 @@ and the final release gates remain open.
 ### Active execution board — 2026-09-08
 
 The long-running goal remains active on the dedicated integration branch.  The
-current candidate is a clean, pushed research checkpoint; it is not a release
-candidate.  Work proceeds in the following order, with each item stopping
-closed when its evidence is absent:
+current candidate is a local research checkpoint; it is not a release
+candidate and has not yet been pushed.  Work proceeds in the following order,
+with each item stopping closed when its evidence is absent:
 
 1. **P2.2a — negotiate the moving solver frame.** Add a typed request and
    result for a bounded mixed-regime/free-boundary frame negotiation.  It must
@@ -2511,11 +2511,13 @@ closed when its evidence is absent:
    complete lane/test/static/documentation/package matrix, verify the manifest
    reports `release_ready=true`, and only then create a release tag.
 
-The immediate implementation target is item 1.  A successful frame
-negotiation is not closure by itself; its only purpose is to make the next
-solver-owned joint residual solve explicit and auditable.  The absence of the
-validation archives is a parallel release blocker, not a reason to synthesize
-observations or to promote the physical model early.
+The immediate implementation target is item 2.  The P2.2a negotiation seam is
+now complete for the current target, while the P2.2b extension is still
+research-only.  A successful frame extension is not canonical closure by
+itself; its purpose is to make the next solver-owned joint residual solve
+explicit and auditable.  The absence of the validation archives is a parallel
+release blocker, not a reason to synthesize observations or to promote the
+physical model early.
 
 ### Solver-owned moving-frame negotiation checkpoint — 2026-09-08
 
@@ -2536,3 +2538,33 @@ claims.  This is a real solver-observed frame request, not a fabricated
 station or a completed mixed-regime closure.  The next P2.2b slice must make a
 solver-owned mixed-regime/free-boundary law generate and audit that extension
 before the global iteration can continue.
+
+### P2.2b solver-owned ambient frame extension checkpoint — 2026-09-08
+
+The joint boundary-feedback operator now consumes the moving-frame request
+through the separately named
+``op.moc.reflected-domain.global-boundary-frame-extension`` operator.  The
+extension request is accepted only when the exact source/proposal lineage is
+preserved, the requested stations are an upper-frame extension within budget,
+and the retained terminal target pressure independently matches the
+solver-owned source ambient pressure.  It then adds only the newly requested
+stations with that declared ambient-pressure law; target geometry and tangent
+metadata are omitted so the fresh exact global solver must generate the
+boundary geometry and states itself.
+
+On the current mixed-regime target, the previously observed upper extension of
+approximately ``3.386e-4 m`` is generated as one new ambient-law station.  A
+fresh exact global solve consumes it, regenerates the ambient boundary, and
+passes the local pressure, tangent, entropy-lineage, conservative cell-Euler,
+target-consumption, and frame-coverage gates.  The outer operator now passes
+two consecutive research iterations with the extension path.  A zero
+extension budget still returns a typed frame-negotiation failure and retains
+the original coverage stop, proving that the new path is bounded rather than
+an implicit fallback.
+
+This closes a solver-owned moving-frame handoff for the current research
+case; it does not close the canonical reflected 2-D mixed-regime/free-boundary
+law, independent refinement, physical shock-cell length, external validation,
+or any production claim.  P2.2c must now repeat the joint operator across
+disjoint source closures and increasing frame/mesh resolutions, with explicit
+stability and conservative boundary-flux evidence before P3 can consume it.

@@ -53,6 +53,11 @@ from exhaust_plume.validation.moc_global_boundary_frame_negotiation import (
   negotiate_reflected_domain_global_boundary_frame,
   solver_owned_global_boundary_station_xs,
 )
+from exhaust_plume.validation.moc_global_boundary_frame_extension import (
+  MocReflectedDomainGlobalBoundaryFrameExtensionResult,
+  build_reflected_domain_global_boundary_frame_extension_request,
+  extend_reflected_domain_global_boundary_frame,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_OPERATOR_ID',
@@ -215,6 +220,43 @@ def _residual_channels_verified(
 ####
 
 
+def _negotiate_solver_frame(
+  source_closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  frontier_request: MocReflectedDomainGlobalFrontierReconciliationRequest,
+  boundary_condition: MocReflectedDomainGlobalFrontierBoundaryConditionResult,
+  *,
+  maximum_extension_m: float,
+  consumer_id: str,
+) -> MocReflectedDomainGlobalBoundaryFrameNegotiationResult | None:
+  """Measure one fresh solve's exact solver-owned boundary station frame."""
+
+  conditioned = boundary_condition.conditioned_closure
+  consumed_target = boundary_condition.consumed_target
+  if conditioned is None or consumed_target is None:
+    return None
+  ####
+  solver_stations = solver_owned_global_boundary_station_xs(conditioned)
+  if len(solver_stations) < 2:
+    return None
+  ####
+  frame_request = (
+    build_reflected_domain_global_boundary_frame_negotiation_request(
+      source_closure,
+      frontier_request,
+      consumed_target,
+      solver_stations,
+      maximum_extension_m=maximum_extension_m,
+      consumer_id=consumer_id,
+      # The global solver's exact station lookup uses its own 1e-9-domain
+      # tolerance.  The looser research measurement tolerance must not hide a
+      # station that the solver rejected.
+      position_tolerance_m=1.0e-9,
+    )
+  )
+  return negotiate_reflected_domain_global_boundary_frame(frame_request)
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
   """One downstream-response and solver-owned global boundary step."""
@@ -230,6 +272,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
   boundary_condition: MocReflectedDomainGlobalFrontierBoundaryConditionResult | None
   next_closure: MocReflectedDomainGlobalPhysicalClosureResult | None
   frame_negotiation: MocReflectedDomainGlobalBoundaryFrameNegotiationResult | None = None
+  frame_extension: MocReflectedDomainGlobalBoundaryFrameExtensionResult | None = None
   downstream_response_verified: bool = False
   source_lineage_verified: bool = False
   base_target_lineage_verified: bool = False
@@ -248,6 +291,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
   frame_negotiation_verified: bool = False
   frame_coverage_verified: bool = False
   frame_extension_required: bool = False
+  frame_extension_verified: bool = False
   fidelity_isolation_verified: bool = False
   message: str = ''
 
@@ -323,6 +367,14 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
         'frame_negotiation must be a typed boundary-frame result or None'
       )
     ####
+    if self.frame_extension is not None and not isinstance(
+      self.frame_extension,
+      MocReflectedDomainGlobalBoundaryFrameExtensionResult,
+    ):
+      raise TypeError(
+        'frame_extension must be a typed boundary-frame extension result or None'
+      )
+    ####
     for name in (
       'downstream_response_verified',
       'source_lineage_verified',
@@ -342,6 +394,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
       'frame_negotiation_verified',
       'frame_coverage_verified',
       'frame_extension_required',
+      'frame_extension_verified',
       'fidelity_isolation_verified',
     ):
       if not isinstance(getattr(self, name), bool):
@@ -372,6 +425,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
       and self.euler_residuals_verified
       and self.frame_negotiation_verified
       and self.frame_coverage_verified
+      and self.frame_extension_verified
       and self.fidelity_isolation_verified
       and self.boundary_condition is not None
       and self.boundary_condition.converged_research_resolve
@@ -402,6 +456,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
       'frame_negotiation_verified': self.frame_negotiation_verified,
       'frame_coverage_verified': self.frame_coverage_verified,
       'frame_extension_required': self.frame_extension_required,
+      'frame_extension_verified': self.frame_extension_verified,
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'source_closure_fingerprint': (
         moc_reflected_domain_global_physical_closure_fingerprint(
@@ -430,6 +485,11 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
         None
         if self.frame_negotiation is None
         else self.frame_negotiation.as_report()
+      ),
+      'frame_extension': (
+        None
+        if self.frame_extension is None
+        else self.frame_extension.as_report()
       ),
       'next_closure': (
         None if self.next_closure is None else self.next_closure.as_report()
@@ -471,6 +531,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   frame_negotiation_verified: bool = False
   frame_coverage_verified: bool = False
   frame_extension_required: bool = False
+  frame_extension_verified: bool = False
   fidelity_isolation_verified: bool = False
   global_coupling_verified: bool = False
   downstream_boundary_closure_verified: bool = False
@@ -540,6 +601,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'frame_negotiation_verified',
       'frame_coverage_verified',
       'frame_extension_required',
+      'frame_extension_verified',
       'fidelity_isolation_verified',
       'global_coupling_verified',
       'downstream_boundary_closure_verified',
@@ -590,6 +652,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       and self.euler_residuals_verified
       and self.frame_negotiation_verified
       and self.frame_coverage_verified
+      and self.frame_extension_verified
       and self.fidelity_isolation_verified
       and all(item.research_step_verified for item in self.iterations)
     )
@@ -640,6 +703,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'frame_negotiation_verified': self.frame_negotiation_verified,
       'frame_coverage_verified': self.frame_coverage_verified,
       'frame_extension_required': self.frame_extension_required,
+      'frame_extension_verified': self.frame_extension_verified,
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'global_coupling_verified': self.global_coupling_verified,
       'downstream_boundary_closure_verified': (
@@ -699,6 +763,7 @@ def _run_result(
     frame_extension_required=any(
       item.frame_extension_required for item in iterations
     ),
+    frame_extension_verified=all_steps('frame_extension_verified'),
     fidelity_isolation_verified=all_steps('fidelity_isolation_verified'),
     message=message,
   )
@@ -1017,6 +1082,97 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       break
     ####
     conditioned = boundary_condition.conditioned_closure
+    frame_extension: MocReflectedDomainGlobalBoundaryFrameExtensionResult | None = None
+    initial_frame_extension_required = False
+    try:
+      frame_negotiation = _negotiate_solver_frame(
+        current,
+        request,
+        boundary_condition,
+        maximum_extension_m=resolved_maximum_frame_extension,
+        consumer_id=f'{resolved_consumer_id}-frame-{iteration_index}',
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      failure_status = (
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+        .FRAME_NEGOTIATION_FAILURE
+      )
+      failure_message = f'boundary-frame negotiation raised: {error}'
+    ####
+    if (
+      frame_negotiation is not None
+      and frame_negotiation.status
+      in (
+        MocReflectedDomainGlobalBoundaryFrameNegotiationStatus
+        .EXTENSION_BUDGET_FAILURE,
+        MocReflectedDomainGlobalBoundaryFrameNegotiationStatus.NON_PHYSICAL_FRAME,
+        MocReflectedDomainGlobalBoundaryFrameNegotiationStatus.LINEAGE_FAILURE,
+      )
+    ):
+      failure_status = (
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+        .FRAME_NEGOTIATION_FAILURE
+      )
+      failure_message = frame_negotiation.message
+    ####
+    initial_frame_extension_required = bool(
+      frame_negotiation is not None
+      and frame_negotiation.extension_required
+    )
+    if failure_status is None and initial_frame_extension_required:
+      try:
+        extension_request = (
+          build_reflected_domain_global_boundary_frame_extension_request(
+            current,
+            request,
+            frame_negotiation,
+            base_target,
+            consumer_id=(
+              f'{resolved_consumer_id}-extension-{iteration_index}'
+            ),
+          )
+        )
+        frame_extension = extend_reflected_domain_global_boundary_frame(
+          extension_request
+        )
+        if (
+          not frame_extension.converged
+          or frame_extension.extended_target is None
+        ):
+          failure_status = (
+            MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+            .FRAME_NEGOTIATION_FAILURE
+          )
+          failure_message = frame_extension.message
+        else:
+          boundary_condition = (
+            run_reflected_domain_global_frontier_boundary_conditioned_resolve(
+              request,
+              current,
+              base_target=frame_extension.extended_target,
+              **resolved_boundary_options,
+            )
+          )
+          conditioned = boundary_condition.conditioned_closure
+          final_frame_negotiation = _negotiate_solver_frame(
+            current,
+            request,
+            boundary_condition,
+            maximum_extension_m=resolved_maximum_frame_extension,
+            consumer_id=f'{resolved_consumer_id}-frame-final-{iteration_index}',
+          )
+          if final_frame_negotiation is not None:
+            frame_negotiation = final_frame_negotiation
+          ####
+        ####
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        failure_status = (
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+          .FRAME_NEGOTIATION_FAILURE
+        )
+        failure_message = f'boundary-frame extension/resolution raised: {error}'
+      ####
+    ####
     fresh_global_solve_attempted = conditioned is not None
     fresh_global_solve_verified = bool(
       conditioned is not None
@@ -1038,38 +1194,6 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       and conditioned.field_audit is not None
       and conditioned.field_audit.cell_euler_residuals_verified
     )
-    if conditioned is not None and boundary_condition.consumed_target is not None:
-      try:
-        solver_stations = solver_owned_global_boundary_station_xs(conditioned)
-        if len(solver_stations) >= 2:
-          frame_request = (
-            build_reflected_domain_global_boundary_frame_negotiation_request(
-              current,
-              request,
-              boundary_condition.consumed_target,
-              solver_stations,
-              maximum_extension_m=resolved_maximum_frame_extension,
-              consumer_id=(
-                f'{resolved_consumer_id}-frame-{iteration_index}'
-              ),
-              # The global solver's exact station lookup uses its own
-              # 1e-9-domain tolerance.  The looser research measurement
-              # tolerance must not hide a station that the solver rejected.
-              position_tolerance_m=1.0e-9,
-            )
-          )
-          frame_negotiation = negotiate_reflected_domain_global_boundary_frame(
-            frame_request
-          )
-        ####
-      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
-        failure_status = (
-          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
-          .FRAME_NEGOTIATION_FAILURE
-        )
-        failure_message = f'boundary-frame negotiation raised: {error}'
-      ####
-    ####
     frame_negotiation_verified = bool(
       frame_negotiation is not None
       and frame_negotiation.lineage_verified
@@ -1078,9 +1202,17 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     frame_coverage_verified = bool(
       frame_negotiation is not None and frame_negotiation.frame_covered
     )
-    frame_extension_required = bool(
-      frame_negotiation is not None
-      and frame_negotiation.extension_required
+    frame_extension_required = initial_frame_extension_required
+    frame_extension_verified = bool(
+      frame_coverage_verified
+      and (
+        not initial_frame_extension_required
+        or (
+          frame_extension is not None
+          and frame_extension.extension_generated
+          and frame_extension.converged
+        )
+      )
     )
     if (
       frame_negotiation is not None
@@ -1139,9 +1271,11 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       entropy_residual_verified=entropy_verified,
       euler_residuals_verified=euler_verified,
       frame_negotiation=frame_negotiation,
+      frame_extension=frame_extension,
       frame_negotiation_verified=frame_negotiation_verified,
       frame_coverage_verified=frame_coverage_verified,
       frame_extension_required=frame_extension_required,
+      frame_extension_verified=frame_extension_verified,
       fidelity_isolation_verified=fidelity_isolation_verified,
       message=boundary_condition.message,
     )
@@ -1149,7 +1283,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     if failure_status is not None:
       break
     ####
-    if frame_extension_required:
+    if frame_extension_required and not frame_coverage_verified:
       failure_status = (
         MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
         .FRAME_NEGOTIATION_REQUIRED

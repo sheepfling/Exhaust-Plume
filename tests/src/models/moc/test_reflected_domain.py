@@ -7927,7 +7927,7 @@ def test_global_coupled_frontier_feedback_executes_fresh_global_steps_without_pr
 ####
 
 
-def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
+def test_global_coupled_boundary_condition_feedback_consumes_moving_frame_extension():
   closure = _global_physical_closure_for_mixed_regime()
   handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
     closure
@@ -7936,7 +7936,7 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
   run = run_reflected_domain_global_coupled_boundary_condition_feedback(
     closure,
     reference_total_temperature_K=1500.0,
-    maximum_iterations=1,
+    maximum_iterations=2,
     downstream_feedback_iterations=2,
     downstream_options={
       'axial_station_count': 7,
@@ -7955,23 +7955,25 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
 
   assert run.status is (
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
-    .FRAME_NEGOTIATION_REQUIRED
+    .COMPLETED_RESEARCH_BOUNDARY_FEEDBACK
   )
-  assert run.research_feedback_completed is False
-  assert len(run.iterations) == 1
+  assert run.research_feedback_completed is True
+  assert len(run.iterations) == 2
+  assert all(item.research_step_verified for item in run.iterations)
   assert run.downstream_response_verified
   assert run.source_lineage_verified
   assert run.base_target_lineage_verified
   assert run.target_lineage_verified
   assert run.target_composition_verified
   assert run.fresh_global_solve_attempted
-  assert run.fresh_global_solve_verified is False
-  assert run.target_consumption_verified is False
-  assert run.target_coverage_verified is False
-  assert run.target_match_verified is False
+  assert run.fresh_global_solve_verified
+  assert run.target_consumption_verified
+  assert run.target_coverage_verified
+  assert run.target_match_verified
   assert run.frame_negotiation_verified
-  assert run.frame_coverage_verified is False
+  assert run.frame_coverage_verified
   assert run.frame_extension_required
+  assert run.frame_extension_verified
   assert run.global_coupling_verified is False
   assert run.downstream_boundary_closure_verified is False
   assert run.chain_promotion_blocked
@@ -7981,7 +7983,7 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
   assert iteration.boundary_condition is not None
   assert iteration.boundary_condition.status is (
     MocReflectedDomainGlobalFrontierBoundaryConditionStatus
-    .TARGET_COVERAGE_FAILURE
+    .CONVERGED_RESEARCH_BOUNDARY_CONDITION
   )
   assert iteration.boundary_condition.consumed_target is not None
   assert iteration.boundary_condition.consumed_target.composition_mode == (
@@ -7991,19 +7993,25 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
   assert conditioned is not None
   assert conditioned.global_euler is not None
   assert conditioned.global_euler.physical_field is not None
-  failed_march = conditioned.global_euler.physical_field.ambient_march
-  assert failed_march is not None
-  assert failed_march.failed_point_result is not None
-  assert failed_march.failed_point_result.point_m is not None
+  final_march = conditioned.global_euler.physical_field.ambient_march
+  assert final_march is not None
+  assert final_march.failed_point_result is None
   assert iteration.frame_negotiation is not None
-  assert failed_march.failed_point_result.point_m[0] > (
-    iteration.frame_negotiation.available_x_interval_m[1]
-  )
-  assert iteration.frame_negotiation.extension_required
+  assert iteration.frame_negotiation.frame_covered
+  assert iteration.frame_negotiation.extension_required is False
   assert iteration.frame_negotiation.available_x_interval_m is not None
   assert iteration.frame_negotiation.requested_x_interval_m is not None
-  assert iteration.frame_negotiation.extension_upper_m > 0.0
-  assert iteration.frame_negotiation.extension_upper_m < 1.0e-3
+  assert iteration.frame_negotiation.extension_upper_m == pytest.approx(0.0)
+  assert iteration.frame_extension is not None
+  assert iteration.frame_extension.extension_generated
+  assert iteration.frame_extension.converged
+  assert iteration.frame_extension.extension_x_stations_m
+  assert iteration.frame_extension.generated_pressure_Pa
+  assert iteration.frame_extension.geometry_injection_blocked
+  assert iteration.frame_extension.extrapolation_blocked
+  assert iteration.frame_extension.endpoint_hold_blocked
+  assert run.iterations[1].frame_extension is not None
+  assert run.iterations[1].frame_extension.extension_generated
   visualization = standardize_model_visualization(run)
   assert visualization.model_id == (
     'planar-moc-global-coupled-boundary-condition-feedback'
@@ -8022,16 +8030,74 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
   ] is True
   assert visualization.diagnostics[
     'global_coupled_boundary_condition_feedback_frame_coverage_verified'
-  ] is False
+  ] is True
   assert visualization.diagnostics[
     'global_coupled_boundary_condition_feedback_frame_extension_required'
   ] is True
   assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_frame_extension_verified'
+  ] is True
+  assert visualization.diagnostics[
     'global_coupled_boundary_condition_feedback_frame_status'
-  ] == 'solver_owned_global_boundary_frame_extension_required'
+  ] == 'covered_solver_owned_global_boundary_frame'
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_frame_extension_status'
+  ] == 'solver-owned-ambient-frame-extension-generated'
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_frame_extension_station_count'
+  ] == 1
   assert visualization.claims.production_claim_allowed is False
   assert run.as_report()['configuration']['feedback_policy'] == (
     'downstream-response-explicit-pressure-overlay-fresh-global-ambient-march-v1'
+  )
+####
+
+
+def test_global_coupled_boundary_condition_feedback_preserves_extension_budget_stop():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+
+  run = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    maximum_frame_extension_m=0.0,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+      'inlet_boundary_mode': (
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+      ),
+      'physical_field_continuation_profile': handoff.continuation_profile,
+      'physical_field_shock_front_condition': handoff.shock_front_condition,
+    },
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+    .FRAME_NEGOTIATION_FAILURE
+  )
+  assert run.research_feedback_completed is False
+  assert run.frame_coverage_verified is False
+  assert run.frame_extension_required is False
+  assert run.frame_extension_verified is False
+  iteration = run.iterations[0]
+  assert iteration.frame_negotiation is not None
+  assert iteration.frame_negotiation.status.value == (
+    'global_boundary_frame_extension_budget_failure'
+  )
+  assert iteration.frame_extension is None
+  assert iteration.boundary_condition is not None
+  assert iteration.boundary_condition.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+    .TARGET_COVERAGE_FAILURE
   )
 ####
 
