@@ -3076,6 +3076,53 @@ def test_solver_owned_transonic_placement_stops_on_unreachable_pressure_target()
 ####
 
 
+def test_actual_ambient_target_stays_below_solver_owned_placement_gate():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  field = closure.global_euler.physical_field.field
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+
+  placement = build_reflected_domain_global_solver_owned_transonic_interface_placement(
+    closure,
+    target_downstream_static_pressure_Pa=ambient_pressure,
+    target_pressure_tolerance_fraction=0.02,
+  )
+
+  assert placement.status is (
+    MocTransonicShockInterfaceFieldPlacementStatus.TARGET_PRESSURE_UNREACHABLE
+  )
+  assert placement.converged is False
+  assert placement.target_pressure_residual_fraction is not None
+  assert placement.target_pressure_residual_fraction > 0.02
+
+  coupled = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
+    transonic_shock_interface_field_placement=placement,
+  )
+
+  assert coupled.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .PHYSICAL_FIELD_HANDOFF_FAILURE
+  )
+  assert coupled.coupled_request is None
+  assert coupled.coupled_field is None
+  assert coupled.chain_promotion_blocked
+  assert coupled.production_claim_allowed is False
+####
+
+
 def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open():
   closure = _global_physical_closure_for_mixed_regime()
   run = run_reflected_domain_global_coupled_downstream_refinement(

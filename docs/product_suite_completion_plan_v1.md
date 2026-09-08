@@ -1840,6 +1840,13 @@ an independent audit.  It must preserve the hard stop for unreachable
 targets and must not fall back to the basic, reduced-order, or mapped
 variable-entropy lanes.
 
+The P2.2 hard-stop is now regression-tested against the actual retained
+ambient pressure: the solver-owned placement reports
+`TARGET_PRESSURE_UNREACHABLE`, and the coupled consumer returns a typed
+physical-field handoff failure before constructing a downstream field.  This
+is stronger negative evidence for the missing 2-D physics, not a closure or
+promotion result.
+
 The exit order is unchanged: acquire and verify the missing validation assets
 and disjoint splits; close and refine the actual solver-owned reflected field;
 fit physical first/continued cells only from that closed field; run each
