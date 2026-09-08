@@ -167,6 +167,9 @@ class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
   SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY = (
     'solver-owned-physical-field-pressure-free-boundary'
   )
+  SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY = (
+    'solver-owned-physical-field-ambient-pressure-free-boundary'
+  )
 ####
 
 
@@ -1726,6 +1729,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
     )
     if continuation_mode != (
       self.physical_field_continuation_profile is not None
@@ -1779,6 +1784,29 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       raise ValueError(
         'solver-owned physical-field pressure free-boundary mode requires '
         'an explicit pressure profile with aligned stations and source'
+      )
+    ####
+    ambient_pressure_free_boundary_mode = (
+      self.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY
+    )
+    if ambient_pressure_free_boundary_mode and any(
+      value is not None
+      for value in (
+        self.free_boundary_pressure_profile_Pa,
+        self.free_boundary_pressure_profile_x_stations_m,
+        self.free_boundary_pressure_profile_source,
+        self.free_boundary_geometry_profile_y_m,
+        self.free_boundary_geometry_profile_x_stations_m,
+        self.free_boundary_geometry_profile_source,
+        self.free_boundary_geometry_profile_lower_ordinate_m,
+      )
+    ):
+      raise ValueError(
+        'solver-owned physical-field ambient-pressure free-boundary mode '
+        'owns the uniform ambient pressure target and geometry; explicit '
+        'pressure or geometry profiles are not accepted'
       )
     ####
     if pressure_free_boundary_mode and self.free_boundary_geometry_profile_y_m is not None:
@@ -2063,6 +2091,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   free_boundary_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   free_boundary_pressure_profile_consumed: bool = False
   free_boundary_geometry_profile_consumed: bool = False
+  free_boundary_ambient_pressure_target_consumed: bool = False
   pseudo_iteration_count: int = 0
   shape_iteration_count: int = 0
   maximum_conservative_mass_residual: float | None = None
@@ -2587,6 +2616,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'free_boundary_geometry_profile_consumed must be a bool'
       )
     ####
+    if not isinstance(
+      self.free_boundary_ambient_pressure_target_consumed,
+      bool,
+    ):
+      raise TypeError(
+        'free_boundary_ambient_pressure_target_consumed must be a bool'
+      )
+    ####
     coverage = dict(self.residual_channel_coverage)
     validity = dict(self.residual_channel_validity)
     if any(
@@ -2708,6 +2745,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'free_boundary_geometry_profile_consumed': (
           self.free_boundary_geometry_profile_consumed
         ),
+        'free_boundary_ambient_pressure_target_consumed': (
+          self.free_boundary_ambient_pressure_target_consumed
+        ),
         'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
         'initial_state_source': self.initial_state_source,
         'initial_state_field_bound': self.initial_state_field_bound,
@@ -2788,6 +2828,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'free_boundary_geometry_profile_consumed': (
         self.free_boundary_geometry_profile_consumed
+      ),
+      'free_boundary_ambient_pressure_target_consumed': (
+        self.free_boundary_ambient_pressure_target_consumed
       ),
       'pseudo_iteration_count': self.pseudo_iteration_count,
       'shape_iteration_count': self.shape_iteration_count,
@@ -5290,6 +5333,11 @@ def _result_from_field(
     free_boundary_geometry_profile_consumed=(
       request.free_boundary_geometry_profile_y_m is not None
     ),
+    free_boundary_ambient_pressure_target_consumed=(
+      request.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY
+    ),
     inlet_boundary_states_consumed=True,
     transonic_frontier_compatibility=transonic_frontier_compatibility,
     transonic_shock_state_compatibility=transonic_shock_state_compatibility,
@@ -5481,6 +5529,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
   ):
     if (
       physical_field_continuation is None
@@ -5733,6 +5783,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
   ):
     try:
       inlet_override_states, physical_field_continuation_result = (
@@ -5922,6 +5974,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
     )
     else request.mixed_regime_request.initial_outlet_height_m
   )

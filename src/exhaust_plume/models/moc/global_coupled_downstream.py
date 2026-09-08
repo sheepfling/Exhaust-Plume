@@ -1684,6 +1684,8 @@ def build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
     .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
   ):
     condition = source_request.physical_field_shock_front_condition
     profile = None if condition is None else condition.coupled_inlet_profile
@@ -2784,6 +2786,8 @@ def solve_reflected_domain_global_coupled_downstream(
       .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
     )
     and resolved_continuation_profile is None
     and resolved_shock_front_condition is None

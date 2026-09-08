@@ -3143,6 +3143,31 @@ def test_physical_field_pressure_free_boundary_owns_geometry():
   assert global_candidate.downstream_boundary_closure_verified is False
   assert global_candidate.chain_promotion_blocked
   assert global_candidate.production_claim_allowed is False
+
+  ambient_candidate = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY
+    ),
+  )
+  assert ambient_candidate.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .CONVERGED_LOCAL_COUPLED_FIELD
+  )
+  assert ambient_candidate.coupled_field is not None
+  assert ambient_candidate.coupled_field.free_boundary_ambient_pressure_target_consumed
+  assert not ambient_candidate.coupled_field.free_boundary_pressure_profile_consumed
+  assert not ambient_candidate.coupled_field.free_boundary_geometry_profile_consumed
+  assert ambient_candidate.global_coupling_verified is False
+  assert ambient_candidate.downstream_boundary_closure_verified is False
+  assert ambient_candidate.chain_promotion_blocked
+  assert ambient_candidate.production_claim_allowed is False
 ####
 
 
@@ -3172,6 +3197,82 @@ def test_physical_field_pressure_free_boundary_rejects_geometry_injection():
         5.5 + 0.01 * index for index in range(13)
       ),
       free_boundary_geometry_profile_source='test-geometry-profile',
+    )
+  ####
+####
+
+
+def test_physical_field_ambient_pressure_free_boundary_owns_uniform_target():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+  )
+
+  assert request.free_boundary_pressure_profile_Pa is None
+  assert request.free_boundary_geometry_profile_y_m is None
+  field = solve_reflected_domain_coupled_euler_free_boundary(request)
+
+  assert field.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .CONVERGED_LOCAL_PHYSICAL_CLOSURE
+  )
+  assert field.physical_field_continuation_profile_consumed
+  assert field.physical_field_shock_front_condition_consumed
+  assert field.free_boundary_ambient_pressure_target_consumed
+  assert not field.free_boundary_pressure_profile_consumed
+  assert not field.free_boundary_geometry_profile_consumed
+  assert max(field.free_boundary_pressure_residuals_Pa) <= (
+    request.free_boundary_pressure_tolerance_fraction
+    * mixed_request.ambient_pressure_Pa
+  )
+  assert len({round(point[1], 10) for point in field.free_boundary_points_m}) > 1
+
+  audit = measure_reflected_domain_coupled_euler_free_boundary(field)
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.physical_field_continuation_profile_verified
+  assert audit.physical_field_shock_front_condition_verified
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+####
+
+
+def test_physical_field_ambient_pressure_free_boundary_rejects_profiles():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  with pytest.raises(ValueError, match='uniform ambient pressure target'):
+    build_reflected_domain_coupled_euler_free_boundary_request(
+      mixed_request,
+      reference_total_temperature_K=1500.0,
+      inlet_boundary_mode=(
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY
+      ),
+      physical_field_continuation_profile=handoff.continuation_profile,
+      physical_field_shock_front_condition=handoff.shock_front_condition,
+      free_boundary_pressure_profile_Pa=(101325.0,) * 12,
+      free_boundary_pressure_profile_x_stations_m=tuple(
+        5.5 + 0.01 * index for index in range(12)
+      ),
+      free_boundary_pressure_profile_source='test-pressure-profile',
     )
   ####
 ####

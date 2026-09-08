@@ -2397,3 +2397,26 @@ length acceptance, external validation, and release readiness false.  The
 next P2.2 slice must replace this pressure-only handoff with a solver-owned
 mixed-regime/free-boundary iteration that solves the interface geometry,
 pressure, tangent, entropy, and conservative residuals together.
+
+### Ambient-pressure free-boundary checkpoint — 2026-09-08
+
+The coupled constant-gamma research lane now has a separate
+``solver-owned-physical-field-ambient-pressure-free-boundary`` mode. It
+consumes the exact global physical-field continuation and shock-front handoff,
+uses only the mixed-regime request's uniform ambient static pressure as the
+free-boundary target, and evolves the boundary ordinates from the local
+pressure/tangency iteration. It rejects caller-supplied axial pressure and
+geometry profiles, so a downstream packet cannot masquerade as a joint
+closure. The result records explicit ambient-target consumption and remains
+independently auditable.
+
+The focused solver/audit regressions pass for this new contract, including the
+typed rejection of profile injection. This advances the downstream boundary
+law but does not yet feed the evolved interface geometry or state back into
+the upstream global shock solve; the result therefore remains research-only
+with canonical/global coupling, accepted shock-cell length, external
+validation, product-provider comparisons, chain promotion, and release gates
+closed. The next P2.2 slice is a bounded joint global/downstream iteration
+that consumes this solver-owned boundary response on a fresh upstream solve,
+with explicit interval coverage and independent pressure/tangent/entropy/
+conservative residuals plus disjoint-case refinement.

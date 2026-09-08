@@ -105,6 +105,8 @@ def _effective_field_inlet_geometry(
     .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
   ):
     return control_x, control_lower, control_height
   ####
@@ -120,6 +122,8 @@ def _effective_field_inlet_geometry(
     .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
   ):
     condition = request.physical_field_shock_front_condition
     profile = None if condition is None else condition.coupled_inlet_profile
@@ -1930,6 +1934,8 @@ def _audit_physical_field_continuation(
     .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
   ):
     condition = request.physical_field_shock_front_condition
     coupled_profile = None if condition is None else condition.coupled_inlet_profile

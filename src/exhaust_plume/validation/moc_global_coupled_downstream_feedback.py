@@ -938,6 +938,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     if inlet_boundary_mode is (
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ) or inlet_boundary_mode is (
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY
     ):
       field = result.coupled_field
       iteration_initial_state_lineage_verified = bool(
