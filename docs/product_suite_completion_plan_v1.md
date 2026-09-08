@@ -1984,3 +1984,24 @@ coverage, consumption, station-count, and audit diagnostics.  This remains a
 fixed-front research result: shock placement, target geometry consumption,
 transonic/mixed-regime closure, upstream feedback, refinement, physical
 shock-cell lengths, external validation, and production claims remain open.
+
+### Global coupled frontier feedback runner checkpoint — 2026-09-08
+
+The downstream-response and fresh-global-target operators are now composed
+into a bounded outer runner.  Each declared step retains the exact source
+closure fingerprint, executes the downstream coupled response ladder, builds
+the exact frontier reconciliation request, and fresh-solves the global
+candidate family before selecting the next closure.  A selected closure must
+be a new object with verified target coverage, target matching, fresh-solve
+invocation, and preserved lineage; missing proposals and failed target steps
+stop the runner without a fallback or extrapolation.
+
+The runner is deliberately named research feedback rather than global
+closure.  It keeps ``global_coupling_verified=false``,
+``downstream_boundary_closure_verified=false``, the chain-promotion block,
+and the production block even when every bounded step succeeds.  It still
+does not impose the response as a canonical mixed-regime/free-boundary
+equation, establish refinement convergence, fit physical cell lengths, or
+replace provider-bound validation.  The next closure slice is the actual
+solver-owned pressure/geometry boundary-condition solve and its cross-case
+refinement evidence.

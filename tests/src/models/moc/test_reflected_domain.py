@@ -213,6 +213,10 @@ from exhaust_plume.validation.moc_global_frontier_target_pressure_reconciliation
   MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus,
   run_reflected_domain_global_frontier_target_pressure_reconciliation,
 )
+from exhaust_plume.validation.moc_global_coupled_frontier_feedback import (
+  MocReflectedDomainGlobalCoupledFrontierFeedbackStatus,
+  run_reflected_domain_global_coupled_frontier_feedback,
+)
 from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MocReflectedDomainCoupledEulerPressureContinuationStatus,
   measure_reflected_domain_coupled_euler_pressure_continuation,
@@ -6747,6 +6751,72 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
   ] is True
   assert visualization.claims.production_claim_allowed is False
   assert resolved.as_report()['candidate_count'] == 2
+####
+
+
+def test_global_coupled_frontier_feedback_executes_fresh_global_steps_without_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+
+  run = run_reflected_domain_global_coupled_frontier_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+      'inlet_boundary_mode': (
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+      ),
+      'physical_field_continuation_profile': handoff.continuation_profile,
+      'physical_field_shock_front_condition': handoff.shock_front_condition,
+    },
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledFrontierFeedbackStatus
+    .COMPLETED_RESEARCH_GLOBAL_FRONTIER_FEEDBACK
+  )
+  assert run.research_feedback_completed
+  assert len(run.iterations) == 1
+  assert run.downstream_feedback_verified
+  assert run.source_lineage_verified
+  assert run.target_lineage_verified
+  assert run.fresh_global_solve_verified
+  assert run.target_consumption_verified
+  assert run.target_match_verified
+  assert run.fidelity_isolation_verified
+  assert run.final_closure is not closure
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  iteration = run.iterations[0]
+  assert iteration.proposal is not None
+  assert iteration.frontier_request is not None
+  assert iteration.target_resolve is not None
+  assert iteration.target_resolve.fresh_global_solve_invocation_verified
+  assert iteration.target_resolve.target_consumption_verified
+  assert iteration.selected_closure is run.final_closure
+  visualization = standardize_model_visualization(run)
+  assert visualization.model_id == (
+    'planar-moc-global-coupled-frontier-feedback'
+  )
+  assert visualization.diagnostics['global_frontier_feedback'] is True
+  assert visualization.diagnostics[
+    'global_frontier_feedback_target_consumed'
+  ] is True
+  assert visualization.claims.production_claim_allowed is False
+  assert run.as_report()['configuration']['global_feedback_policy'] == (
+    'downstream-response-exact-proposal-fresh-global-target-guided-resolve-v1'
+  )
 ####
 
 

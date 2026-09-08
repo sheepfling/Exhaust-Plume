@@ -1692,6 +1692,7 @@ def _moc_field_from_result(result: object) -> tuple[object | None, object]:
       'field',
       'selected_candidate',
       'source_closure',
+      'final_closure',
       'candidates',
       'reconciliation',
     ):
@@ -1875,6 +1876,7 @@ def _moc_shock_front_condition(result: object) -> object | None:
       'field',
       'selected_candidate',
       'source_closure',
+      'final_closure',
       'candidates',
       'reconciliation',
     ):
@@ -2221,6 +2223,18 @@ def _moc_visualization(
       )
     )
     and hasattr(getattr(result, 'request', None), 'target_static_pressure_Pa')
+  )
+  global_frontier_feedback = bool(
+    all(
+      hasattr(result, name)
+      for name in (
+        'final_closure',
+        'target_consumption_verified',
+        'fresh_global_solve_verified',
+        'fidelity_isolation_verified',
+      )
+    )
+    and hasattr(result, 'iterations')
   )
   cell_polygons: list[tuple[Vector2, ...]] = []
   all_points: list[Vector2] = []
@@ -3060,6 +3074,21 @@ def _moc_visualization(
       diagnostics['global_frontier_target_pressure_source_id'] = target_source
     ####
   ####
+  if global_frontier_feedback:
+    diagnostics['global_frontier_feedback'] = True
+    diagnostics['global_frontier_feedback_completed'] = bool(
+      getattr(result, 'research_feedback_completed', False)
+    )
+    diagnostics['global_frontier_feedback_target_consumed'] = bool(
+      getattr(result, 'target_consumption_verified', False)
+    )
+    diagnostics['global_frontier_feedback_fresh_global_solve_verified'] = bool(
+      getattr(result, 'fresh_global_solve_verified', False)
+    )
+    diagnostics['global_frontier_feedback_iteration_count'] = len(
+      getattr(result, 'iterations', ())
+    )
+  ####
   if reconciled_euler:
     reconciliation_status = getattr(source, 'status', '')
     diagnostics['physical_field_euler_reconciliation_status'] = str(
@@ -3858,6 +3887,13 @@ def _moc_visualization(
       'coupling remain unresolved'
     )
   ####
+  if global_frontier_feedback:
+    warnings.append(
+      'global/downstream frontier feedback completed only bounded research '
+      'steps; canonical mixed-regime closure, refinement, and production '
+      'promotion remain unresolved'
+    )
+  ####
   if transonic_geometry is not None:
     warnings.append(
       (
@@ -3893,6 +3929,9 @@ def _moc_visualization(
       'planar-moc-global-frontier-target-pressure-reconciliation'
       if target_pressure_reconciliation
       else (
+        'planar-moc-global-coupled-frontier-feedback'
+        if global_frontier_feedback
+        else (
         'planar-moc-physical-field-euler-reconciliation'
         if reconciled_euler
         else (
@@ -3921,6 +3960,7 @@ def _moc_visualization(
         )
         )
         )
+        )
       )
     ),
     model_version='1',
@@ -3939,6 +3979,10 @@ def _moc_visualization(
           'conservative reconciliation; research visualization only'
           if target_pressure_reconciliation
           else (
+            'bounded global/downstream frontier feedback research steps; '
+            'canonical mixed-regime closure remains open'
+            if global_frontier_feedback
+            else (
             'front-aligned conservative physical-field reconciliation retained '
             'for research visualization'
             if reconciled_euler
@@ -3947,6 +3991,7 @@ def _moc_visualization(
               'research visualization'
               if coupled_euler
               else 'higher-fidelity planar characteristic/reflected-domain field retained for evaluation'
+            )
             )
           )
         ),

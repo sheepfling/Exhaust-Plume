@@ -253,6 +253,13 @@ from exhaust_plume.validation.moc_global_frontier_target_resolve import (
   MocReflectedDomainGlobalFrontierTargetResolveResult,
   run_reflected_domain_global_frontier_target_guided_resolve,
 )
+from exhaust_plume.validation.moc_global_coupled_frontier_feedback import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_FRONTIER_FEEDBACK_OPERATOR_ID,
+  MocReflectedDomainGlobalCoupledFrontierFeedbackStatus,
+  MocReflectedDomainGlobalCoupledFrontierFeedbackIteration,
+  MocReflectedDomainGlobalCoupledFrontierFeedbackRun,
+  run_reflected_domain_global_coupled_frontier_feedback,
+)
 from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MOC_REFLECTED_DOMAIN_COUPLED_EULER_PRESSURE_CONTINUATION_OPERATOR_ID,
   MocReflectedDomainCoupledEulerPressureContinuationStatus,
@@ -736,6 +743,11 @@ __all__ = (
   'MocReflectedDomainGlobalFrontierTargetResolveCandidate',
   'MocReflectedDomainGlobalFrontierTargetResolveResult',
   'run_reflected_domain_global_frontier_target_guided_resolve',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_FRONTIER_FEEDBACK_OPERATOR_ID',
+  'MocReflectedDomainGlobalCoupledFrontierFeedbackStatus',
+  'MocReflectedDomainGlobalCoupledFrontierFeedbackIteration',
+  'MocReflectedDomainGlobalCoupledFrontierFeedbackRun',
+  'run_reflected_domain_global_coupled_frontier_feedback',
   'MOC_REFLECTED_DOMAIN_COUPLED_EULER_PRESSURE_CONTINUATION_OPERATOR_ID',
   'MocReflectedDomainCoupledEulerPressureContinuationStatus',
   'MocReflectedDomainCoupledEulerPressureContinuationCase',
