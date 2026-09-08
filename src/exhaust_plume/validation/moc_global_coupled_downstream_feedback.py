@@ -25,10 +25,12 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
   MocReflectedDomainGlobalCoupledDownstreamResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
+  build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
 )
@@ -91,6 +93,9 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
   ) = None
   next_geometry_profile: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile | None
+  ) = None
+  upstream_feedback_proposal: (
+    MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal | None
   ) = None
   maximum_pressure_update_Pa: float | None = None
   pressure_profile_lineage_verified: bool = False
@@ -161,6 +166,15 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         'or None'
       )
     ####
+    if self.upstream_feedback_proposal is not None and not isinstance(
+      self.upstream_feedback_proposal,
+      MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
+    ):
+      raise TypeError(
+        'upstream_feedback_proposal must be a typed global feedback proposal '
+        'or None'
+      )
+    ####
     if self.maximum_pressure_update_Pa is not None:
       update = float(self.maximum_pressure_update_Pa)
       if not isfinite(update) or update < 0.0:
@@ -226,6 +240,17 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
   ####
 
   @property
+  def upstream_feedback_proposal_verified(self) -> bool:
+    proposal = self.upstream_feedback_proposal
+    return bool(
+      proposal is not None
+      and proposal.ready_for_global_resolve
+      and proposal.source_response_status
+      == (self.response.status.value if self.response is not None else '')
+    )
+  ####
+
+  @property
   def fidelity_isolation_verified(self) -> bool:
     return bool(
       not self.result.global_coupling_verified
@@ -250,6 +275,15 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
       )
       and (
         self.response is None or not self.response.production_claim_allowed
+      )
+      and (
+        self.upstream_feedback_proposal is None
+        or (
+          not self.upstream_feedback_proposal.consumed_by_global_solver
+          and not self.upstream_feedback_proposal.production_claim_allowed
+          and not self.upstream_feedback_proposal.global_coupling_verified
+          and not self.upstream_feedback_proposal.downstream_boundary_closure_verified
+        )
       )
     )
   ####
@@ -284,6 +318,9 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
       'response_coverage_verified': self.response_coverage_verified,
       'response_residuals_verified': self.response_residuals_verified,
       'response_channels_finite': self.response_channels_finite,
+      'upstream_feedback_proposal_verified': (
+        self.upstream_feedback_proposal_verified
+      ),
       'maximum_pressure_update_Pa': self.maximum_pressure_update_Pa,
       'next_pressure_profile': (
         None
@@ -294,6 +331,11 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         None
         if self.next_geometry_profile is None
         else self.next_geometry_profile.as_report()
+      ),
+      'upstream_feedback_proposal': (
+        None
+        if self.upstream_feedback_proposal is None
+        else self.upstream_feedback_proposal.as_report()
       ),
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'result': self.result.as_report(),
@@ -467,6 +509,32 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
     return self.pressure_update_convergence_verified
   ####
 
+  @property
+  def upstream_feedback_proposals(
+    self,
+  ) -> tuple[MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal, ...]:
+    """Return the covered proposals retained by the feedback iterations."""
+
+    return tuple(
+      item.upstream_feedback_proposal
+      for item in self.iterations
+      if item.upstream_feedback_proposal is not None
+    )
+  ####
+
+  @property
+  def upstream_feedback_proposal_verified(self) -> bool:
+    """Whether every measured covered response has a ready handoff packet."""
+
+    measured_iterations = tuple(
+      item for item in self.iterations if item.response is not None
+    )
+    return bool(
+      measured_iterations
+      and all(item.upstream_feedback_proposal_verified for item in measured_iterations)
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'operator_id': MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_OPERATOR_ID,
@@ -488,6 +556,10 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'response_channels_finite': self.response_channels_finite,
       'response_coverage_verified': self.response_coverage_verified,
       'response_residuals_verified': self.response_residuals_verified,
+      'upstream_feedback_proposal_verified': (
+        self.upstream_feedback_proposal_verified
+      ),
+      'upstream_feedback_proposal_count': len(self.upstream_feedback_proposals),
       'local_coupled_field_verified': self.local_coupled_field_verified,
       'initial_state_lineage_verified': self.initial_state_lineage_verified,
       'pressure_update_convergence_verified': (
@@ -787,6 +859,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     'geometry_feedback_frame_policy': (
       'solver-owned-first-ordinate-anchor-v1'
     ),
+    'upstream_feedback_proposal_policy': (
+      'bounded-global-resolve-handoff-unconsumed-v1'
+    ),
     'outlet_static_pressure_Pa': outlet_static_pressure_Pa,
     'physical_field_continuation_profile_supplied': (
       physical_field_continuation_profile is not None
@@ -885,6 +960,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     )
     next_profile = None
     next_geometry_profile = None
+    upstream_feedback_proposal = None
     pressure_profile_lineage_verified = bool(
       result.closure_lineage_verified
       and (
@@ -981,6 +1057,24 @@ def run_reflected_domain_global_coupled_downstream_feedback(
           or f'geometry feedback profile construction failed: {error}'
         )
       ####
+      try:
+        upstream_feedback_proposal = (
+          build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
+            closure,
+            response,
+            correction_fraction=fraction,
+            position_tolerance_m=position_tolerance,
+          )
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        if response.converged:
+          stop_reason = (
+            stop_reason
+            or 'upstream/global feedback proposal construction failed: '
+            f'{error}'
+          )
+        ####
+      ####
     ####
     if next_profile is not None and not (
       next_profile.profile_verified
@@ -1044,6 +1138,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         input_geometry_profile=input_geometry_profile,
         next_pressure_profile=next_profile,
         next_geometry_profile=next_geometry_profile,
+        upstream_feedback_proposal=upstream_feedback_proposal,
         maximum_pressure_update_Pa=maximum_pressure_update,
         pressure_profile_lineage_verified=pressure_profile_lineage_verified,
         geometry_profile_lineage_verified=geometry_profile_lineage_verified,

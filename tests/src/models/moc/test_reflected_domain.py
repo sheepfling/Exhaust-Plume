@@ -2528,6 +2528,15 @@ def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor
   assert run.local_coupled_field_verified
   assert run.initial_state_lineage_verified
   assert run.response_residuals_verified
+  assert run.upstream_feedback_proposal_verified
+  assert len(run.upstream_feedback_proposals) == len(run.iterations)
+  assert all(
+    proposal.ready_for_global_resolve
+    and proposal.consumed_by_global_solver is False
+    and proposal.global_coupling_verified is False
+    and proposal.downstream_boundary_closure_verified is False
+    for proposal in run.upstream_feedback_proposals
+  )
   assert run.global_coupling_verified is False
   assert run.downstream_boundary_closure_verified is False
   assert run.chain_promotion_blocked

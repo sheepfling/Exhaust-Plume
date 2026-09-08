@@ -1687,6 +1687,11 @@ The packet is explicitly ``global_resolve_required=true`` and
 ``consumed_by_global_solver=false``.  It therefore makes the missing
 upstream/global feedback contract executable and auditable without pretending
 that the current research global remesh has consumed downstream information.
+The bounded downstream feedback runner now retains one such packet per
+iteration when the independently measured overlap response passes; its
+aggregate readiness is reported separately from local pressure-update
+convergence.  A residual-failing response cannot be silently packaged as a
+global handoff.
 The canonical C-/C+ frontier solve, global feedback iteration, downstream
 boundary closure, physical shock-cell fitting, external validation, and
 Visualization/Signature/FPA production gates remain open.
