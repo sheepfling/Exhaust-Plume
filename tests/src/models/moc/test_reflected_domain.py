@@ -32,6 +32,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus,
   MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus,
+  MocReflectedDomainGlobalFrontierReconciliationStatus,
+  MocReflectedDomainGlobalFrontierReconciliationReceipt,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
@@ -95,6 +97,9 @@ from exhaust_plume.models.moc import (
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
+  build_reflected_domain_global_frontier_reconciliation_request,
+  moc_reflected_domain_global_frontier_proposal_fingerprint,
+  reconcile_reflected_domain_global_frontier,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_coupled_euler_free_boundary,
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
@@ -6141,4 +6146,126 @@ def test_reflected_domain_sequence_requires_exact_handoff_for_each_new_remesh(
   assert missing_provenance.diagnostics['reflected_domain_remesh_attempts'][0][
     'role'
   ] == 'initial-reflected-domain-remesh'
+####
+
+
+@pytest.fixture(scope='module')
+def _global_frontier_reconciliation_request():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+  )
+  assert result.downstream_boundary_response is not None
+  proposal = (
+    build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
+      closure,
+      result.downstream_boundary_response,
+    )
+  )
+  return build_reflected_domain_global_frontier_reconciliation_request(
+    closure,
+    proposal,
+    consumer_id='test-solver-owned-global-resolve-v1',
+  )
+####
+
+
+def _frontier_receipt(request):
+  return MocReflectedDomainGlobalFrontierReconciliationReceipt(
+    consumer_id=request.consumer_id,
+    source_closure_fingerprint=request.source_closure_fingerprint,
+    source_proposal_fingerprint=(
+      moc_reflected_domain_global_frontier_proposal_fingerprint(
+        request.proposal
+      )
+    ),
+    accepted_x_stations_m=request.target_x_stations_m,
+    accepted_boundary_points_m=request.target_boundary_points_m,
+    accepted_tangent_rad=request.target_tangent_rad,
+    accepted_static_pressure_Pa=request.target_static_pressure_Pa,
+  )
+####
+
+
+def test_global_frontier_reconciliation_stops_without_a_solver_consumer(
+  _global_frontier_reconciliation_request,
+):
+  request = _global_frontier_reconciliation_request
+  result = reconcile_reflected_domain_global_frontier(request)
+
+  assert result.status is (
+    MocReflectedDomainGlobalFrontierReconciliationStatus.CONSUMER_REQUIRED
+  )
+  assert result.source_lineage_verified
+  assert result.consumer_called is False
+  assert result.global_solver_consumed is False
+  assert result.global_coupling_verified is False
+  assert result.production_claim_allowed is False
+  assert result.converged_research_consumption is False
+####
+
+
+def test_global_frontier_reconciliation_accepts_exact_target_without_promotion(
+  _global_frontier_reconciliation_request,
+):
+  request = _global_frontier_reconciliation_request
+  receipt = _frontier_receipt(request)
+  result = reconcile_reflected_domain_global_frontier(
+    request,
+    consumer=lambda received: receipt,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalFrontierReconciliationStatus
+    .RESEARCH_TARGET_ACCEPTED
+  )
+  assert result.converged_research_consumption
+  assert result.consumer_called
+  assert result.source_lineage_verified
+  assert result.receipt_lineage_verified
+  assert result.solver_owned_target_accepted
+  assert result.global_solver_consumed is False
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_report()['receipt']['target_accepted'] is True
+####
+
+
+def test_global_frontier_reconciliation_rejects_changed_target_frame(
+  _global_frontier_reconciliation_request,
+):
+  request = _global_frontier_reconciliation_request
+  receipt = _frontier_receipt(request)
+  tampered = replace(
+    receipt,
+    accepted_static_pressure_Pa=(
+      receipt.accepted_static_pressure_Pa[0] + 1.0,
+      *receipt.accepted_static_pressure_Pa[1:],
+    ),
+  )
+  result = reconcile_reflected_domain_global_frontier(
+    request,
+    consumer=lambda received: tampered,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalFrontierReconciliationStatus.RECEIPT_FAILURE
+  )
+  assert result.consumer_called
+  assert result.source_lineage_verified
+  assert result.receipt_lineage_verified is False
+  assert result.solver_owned_target_accepted is False
+  assert result.global_solver_consumed is False
+  assert result.production_claim_allowed is False
 ####

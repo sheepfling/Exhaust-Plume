@@ -378,6 +378,9 @@ claim is authorized.
       optical depth from a frozen-mixture state and declared transition data;
       keep reactions, non-LTE inference, database lookup, and production
       claims blocked.
+- [x] Add an exact-fingerprint global-frontier reconciliation request and
+      solver-owned receipt seam; stop when no consumer is available and keep
+      accepted targets below global closure and production promotion.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -440,6 +443,24 @@ response lineage, and the exact initial-state source.  This closes an evidence
 accounting defect in the research ladder only; it does not turn the bounded
 downstream iteration into upstream/global feedback or change the production
 claim ceiling.
+
+### P2.2 global-frontier consumer checkpoint
+
+The downstream feedback proposal now has an explicit
+``global-frontier-reconciliation-consumer-v1`` seam.  A reconciliation request
+binds the exact global-closure fingerprint, immutable proposal fingerprint,
+station frame, relaxed boundary ordinates, tangent targets, and pressure
+targets.  A named solver-owned consumer must return a typed receipt that
+retains every target exactly; a missing consumer is a typed stop and a changed
+receipt is rejected.
+
+An accepted receipt proves only that a solver-owned target was accepted for a
+future global re-solve.  It does not mutate the original proposal, claim that
+the global equations were consumed, produce a new field, close the physical
+downstream boundary, fit a shock cell, or authorize a product claim.  The next
+physics slice is the actual solver-owned reflected/mixed-regime consumer and
+its independently audited re-solve; the current compression-envelope global
+remesh remains unable to satisfy that gate.
 
 ## Active execution ledger — 2026-09-04
 

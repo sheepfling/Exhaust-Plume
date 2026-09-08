@@ -440,6 +440,16 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
 )
+from exhaust_plume.models.moc.global_frontier_reconciliation import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_RECONCILIATION_MODEL,
+  MocReflectedDomainGlobalFrontierReconciliationStatus,
+  MocReflectedDomainGlobalFrontierReconciliationReceipt,
+  MocReflectedDomainGlobalFrontierReconciliationRequest,
+  MocReflectedDomainGlobalFrontierReconciliationResult,
+  moc_reflected_domain_global_frontier_proposal_fingerprint,
+  build_reflected_domain_global_frontier_reconciliation_request,
+  reconcile_reflected_domain_global_frontier,
+)
 from exhaust_plume.models.moc.family_band_solver import (
   MocCausticFamilyBandEnvelopeResult,
   MocCausticFamilyBandEnvelopeStatus,
@@ -1233,6 +1243,14 @@ __all__ = (
   'build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'solve_reflected_domain_global_coupled_downstream',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_RECONCILIATION_MODEL',
+  'MocReflectedDomainGlobalFrontierReconciliationStatus',
+  'MocReflectedDomainGlobalFrontierReconciliationReceipt',
+  'MocReflectedDomainGlobalFrontierReconciliationRequest',
+  'MocReflectedDomainGlobalFrontierReconciliationResult',
+  'moc_reflected_domain_global_frontier_proposal_fingerprint',
+  'build_reflected_domain_global_frontier_reconciliation_request',
+  'reconcile_reflected_domain_global_frontier',
   'MocCausticFamilyBandShockResult',
   'MocCausticFamilyBandShockStatus',
   'MocCausticFamilyBandInvariantShockResult',
