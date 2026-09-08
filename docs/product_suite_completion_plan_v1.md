@@ -2173,3 +2173,26 @@ This is packaging evidence for the research checkpoint, not release evidence:
 the canonical reflected/mixed-regime closure, accepted physical cell-length
 comparison, provider-bound VIS/SIG/RAY/FPA comparisons, validation archive,
 and final release freeze remain open.
+
+### Fresh production shock-cell runner checkpoint — 2026-09-08 (`1da39ef`)
+
+The exact candidate ``1da39ef`` adds a fresh
+``op.moc.reflected-domain.production-shock-cell-fit-refinement-run`` operator.
+For each declared resolution it re-executes the existing global Euler shock
+boundary refinement runner, retains the solver-owned physical field, fits the
+same solver-owned axial interval, and invokes the independent shock-cell
+measurement ladder.  The regression passes a two-resolution run, verifies
+fresh invocation, local physical closure, source/fidelity isolation, distinct
+closure identities, increasing solver-owned shock samples, and the typed
+reporting path.  The runner never accepts a caller-provided shock path or
+promotes a fitted length.
+
+The candidate also passes the offline wheel build and installed-wheel smoke
+(``python3 scripts/check_build.py --offline``); the new runner is present in
+the packaged validation surface.  This is still a research-only local fit
+checkpoint: ``physical_length_accepted=false``,
+``external_validation_verified=false``, chain promotion remains blocked, and
+the canonical solver-owned global/free-boundary closure is not established.
+The next gate is accepted disjoint physical shock-cell evidence, followed by
+the provider-bound VIS/SIG/RAY/FPA comparison matrix and the final release
+freeze.
