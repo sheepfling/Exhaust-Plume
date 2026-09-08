@@ -164,6 +164,9 @@ class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
   SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE = (
     'solver-owned-physical-field-continuation-profile'
   )
+  SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY = (
+    'solver-owned-physical-field-pressure-free-boundary'
+  )
 ####
 
 
@@ -1718,16 +1721,17 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'must not supply it'
       )
     ####
-    continuation_mode = (
-      self.inlet_boundary_mode
-      is MocReflectedDomainCoupledEulerInletBoundaryMode
-      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    continuation_mode = self.inlet_boundary_mode in (
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
     )
     if continuation_mode != (
       self.physical_field_continuation_profile is not None
     ):
       raise ValueError(
-        'solver-owned physical-field continuation mode requires '
+        'solver-owned physical-field continuation modes require '
         'physical_field_continuation_profile, and other inlet modes must not '
         'supply it'
       )
@@ -1736,7 +1740,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       self.physical_field_shock_front_condition is not None
     ):
       raise ValueError(
-        'solver-owned physical-field continuation mode requires an explicit '
+        'solver-owned physical-field continuation modes require an explicit '
         'physical-field shock-front condition, and other inlet modes must not '
         'supply it'
       )
@@ -1758,8 +1762,29 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       and self.physical_field_shock_front_condition.coupled_inlet_profile is None
     ):
       raise ValueError(
-        'solver-owned physical-field continuation mode requires the retained '
+        'solver-owned physical-field continuation modes require the retained '
         'shock-front condition to carry a complete coupled inlet profile'
+      )
+    ####
+    pressure_free_boundary_mode = (
+      self.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY
+    )
+    if pressure_free_boundary_mode and (
+      self.free_boundary_pressure_profile_Pa is None
+      or self.free_boundary_pressure_profile_x_stations_m is None
+      or self.free_boundary_pressure_profile_source is None
+    ):
+      raise ValueError(
+        'solver-owned physical-field pressure free-boundary mode requires '
+        'an explicit pressure profile with aligned stations and source'
+      )
+    ####
+    if pressure_free_boundary_mode and self.free_boundary_geometry_profile_y_m is not None:
+      raise ValueError(
+        'solver-owned physical-field pressure free-boundary mode must not '
+        'supply a geometry profile; the coupled solver owns boundary shape'
       )
     ####
     if (
@@ -5451,9 +5476,11 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     ####
     effective_profile = solver_owned_placement.profile
   ####
-  if request.inlet_boundary_mode is (
+  if request.inlet_boundary_mode in (
     MocReflectedDomainCoupledEulerInletBoundaryMode
-    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
   ):
     if (
       physical_field_continuation is None
@@ -5701,9 +5728,11 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         request,
       )
     ####
-  elif request.inlet_boundary_mode is (
+  elif request.inlet_boundary_mode in (
     MocReflectedDomainCoupledEulerInletBoundaryMode
-    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
   ):
     try:
       inlet_override_states, physical_field_continuation_result = (
@@ -5891,6 +5920,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE,
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
     )
     else request.mixed_regime_request.initial_outlet_height_m
   )

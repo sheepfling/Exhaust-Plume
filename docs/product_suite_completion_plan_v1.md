@@ -2238,3 +2238,22 @@ validation, chain promotion, and release readiness remain false.  The next
 physics gate is to replace the compression-envelope control with a true
 solver-owned mixed-regime boundary condition and independently refine that
 two-dimensional placement across cases.
+
+### Pressure-conditioned free-boundary checkpoint — 2026-09-08
+
+The coupled Euler lane now exposes a distinct
+``solver-owned-physical-field-pressure-free-boundary`` inlet mode.  It requires
+the exact retained physical-field continuation and shock-front condition plus
+an aligned pressure profile, rejects any caller-supplied geometry profile, and
+lets the two-dimensional solver evolve its own free-boundary ordinates through
+the existing pressure/tangency update.  The independent audit re-samples the
+exact inlet seam and pressure profile, verifies the local conservative field,
+and confirms that geometry was not injected as a hidden target.
+
+The global-to-coupled orchestrator can carry this pressure-only candidate with
+the closure fingerprint intact.  Focused direct and end-to-end regressions
+pass, including the expected research-only stop: global feedback,
+canonical/free-boundary closure, accepted shock-cell length, external
+provider validation, chain promotion, and release readiness remain false.  The
+next physics gate is independent placement/refinement of this pressure-only
+boundary across disjoint cases, followed by a true upstream global re-solve.

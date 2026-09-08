@@ -3039,6 +3039,122 @@ def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
   )
   assert 'does not cover coupled cell center' in out_of_field.message
   assert not out_of_field.initial_state_field_bound
+
+
+def test_physical_field_pressure_free_boundary_owns_geometry():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  assert handoff.converged
+  assert handoff.shock_front_condition.coupled_inlet_profile is not None
+  x_start = handoff.shock_front_condition.coupled_inlet_profile.cross_section_x_m
+  x_stations = np.linspace(x_start, x_start + 0.2, 9)
+  pressure_profile = (
+    build_reflected_domain_global_coupled_downstream_boundary_pressure_profile(
+      closure,
+      tuple(float(value) for value in 0.5 * (x_stations[:-1] + x_stations[1:])),
+    )
+  )
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+    free_boundary_pressure_profile_Pa=pressure_profile.pressure_Pa,
+    free_boundary_pressure_profile_x_stations_m=pressure_profile.x_stations_m,
+    free_boundary_pressure_profile_source=pressure_profile.source,
+  )
+  assert request.free_boundary_geometry_profile_y_m is None
+  field = solve_reflected_domain_coupled_euler_free_boundary(request)
+  assert field.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .CONVERGED_LOCAL_PHYSICAL_CLOSURE
+  )
+  assert field.physical_field_continuation_profile_consumed
+  assert field.physical_field_shock_front_condition_consumed
+  assert field.free_boundary_pressure_profile_consumed
+  assert not field.free_boundary_geometry_profile_consumed
+  assert field.free_boundary_points_m[0][1] == pytest.approx(
+    handoff.shock_front_condition.coupled_inlet_profile.upper_ordinate_m
+  )
+  assert len({round(point[1], 10) for point in field.free_boundary_points_m}) > 1
+  audit = measure_reflected_domain_coupled_euler_free_boundary(field)
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.physical_field_continuation_profile_verified
+  assert audit.physical_field_shock_front_condition_verified
+  assert audit.pressure_profile_compatibility_verified
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+  global_candidate = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY
+    ),
+    boundary_pressure_profile=pressure_profile,
+  )
+  assert global_candidate.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .CONVERGED_LOCAL_COUPLED_FIELD
+  )
+  assert global_candidate.converged
+  assert global_candidate.closure_lineage_verified
+  assert global_candidate.boundary_geometry_profile is None
+  assert global_candidate.coupled_request is not None
+  assert global_candidate.coupled_request.free_boundary_geometry_profile_y_m is None
+  assert global_candidate.coupled_field is not None
+  assert global_candidate.coupled_field.free_boundary_pressure_profile_consumed
+  assert not global_candidate.coupled_field.free_boundary_geometry_profile_consumed
+  assert global_candidate.global_coupling_verified is False
+  assert global_candidate.downstream_boundary_closure_verified is False
+  assert global_candidate.chain_promotion_blocked
+  assert global_candidate.production_claim_allowed is False
+
+
+def test_physical_field_pressure_free_boundary_rejects_geometry_injection():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  with pytest.raises(ValueError, match='must not supply a geometry profile'):
+    build_reflected_domain_coupled_euler_free_boundary_request(
+      mixed_request,
+      reference_total_temperature_K=1500.0,
+      inlet_boundary_mode=(
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY
+      ),
+      physical_field_continuation_profile=handoff.continuation_profile,
+      physical_field_shock_front_condition=handoff.shock_front_condition,
+      free_boundary_pressure_profile_Pa=(101325.0,) * 12,
+      free_boundary_pressure_profile_x_stations_m=tuple(
+        5.5 + 0.01 * index for index in range(12)
+      ),
+      free_boundary_pressure_profile_source='test-pressure-profile',
+      free_boundary_geometry_profile_y_m=(0.5,) * 13,
+      free_boundary_geometry_profile_x_stations_m=tuple(
+        5.5 + 0.01 * index for index in range(13)
+      ),
+      free_boundary_geometry_profile_source='test-geometry-profile',
+    )
 ####
 
 
