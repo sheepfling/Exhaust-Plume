@@ -3106,6 +3106,13 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
   assert run.measurement.overlap_coverage_verified
   assert run.measurement.overlap_residuals_verified
   assert run.measurement.upstream_feedback_proposals_verified
+  assert run.measurement.upstream_feedback_source_lineage_verified
+  assert run.measurement.upstream_feedback_common_station_domain_verified
+  assert run.measurement.upstream_feedback_common_station_domain_m is not None
+  assert all(
+    domain[1] > domain[0]
+    for domain in run.measurement.upstream_feedback_station_domains_m
+  )
   assert run.measurement.global_coupling_verified is False
   assert run.measurement.downstream_boundary_closure_verified is False
   assert run.measurement.chain_promotion_blocked

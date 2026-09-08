@@ -379,8 +379,9 @@ claim is authorized.
       keep reactions, non-LTE inference, database lookup, and production
       claims blocked.
 - [x] Add an exact-fingerprint global-frontier reconciliation request and
-      solver-owned receipt seam; stop when no consumer is available and keep
-      accepted targets below global closure and production promotion.
+      solver-owned receipt seam; stop when no consumer is available, verify
+      common station coverage across refinement cases, and keep accepted
+      targets below global closure and production promotion.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -460,7 +461,10 @@ the global equations were consumed, produce a new field, close the physical
 downstream boundary, fit a shock cell, or authorize a product claim.  The next
 physics slice is the actual solver-owned reflected/mixed-regime consumer and
 its independently audited re-solve; the current compression-envelope global
-remesh remains unable to satisfy that gate.
+remesh remains unable to satisfy that gate.  The cross-resolution downstream
+ladder now also retains a common-station-domain check and shared source-closure
+lineage check, so a locally passing proposal cannot be compared across cases
+when its target frames are disjoint or sourced from different closures.
 
 ## Active execution ledger — 2026-09-04
 

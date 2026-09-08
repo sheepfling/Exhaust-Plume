@@ -226,6 +226,10 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
   overlap_coverage_verified: bool = False
   overlap_residuals_verified: bool = False
   upstream_feedback_proposals_verified: bool = False
+  upstream_feedback_source_lineage_verified: bool = False
+  upstream_feedback_common_station_domain_verified: bool = False
+  upstream_feedback_station_domains_m: tuple[tuple[float, float], ...] = ()
+  upstream_feedback_common_station_domain_m: tuple[float, float] | None = None
   local_coupled_field_verified: bool = False
   fidelity_isolation_verified: bool = False
   global_coupling_verified: bool = False
@@ -270,6 +274,46 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       raise ValueError('cell_counts must match cases')
     ####
     object.__setattr__(self, 'cell_counts', cell_counts)
+    station_domains = tuple(
+      (float(domain[0]), float(domain[1]))
+      for domain in self.upstream_feedback_station_domains_m
+    )
+    if len(station_domains) != len(cases) or any(
+      not all(isfinite(value) for value in domain)
+      or domain[1] < domain[0]
+      for domain in station_domains
+    ):
+      raise ValueError(
+        'upstream_feedback_station_domains_m must contain one ordered '
+        'finite domain per case'
+      )
+    ####
+    common_domain = self.upstream_feedback_common_station_domain_m
+    if common_domain is not None:
+      common_domain = (
+        float(common_domain[0]),
+        float(common_domain[1]),
+      )
+      if (
+        not all(isfinite(value) for value in common_domain)
+        or common_domain[1] <= common_domain[0]
+      ):
+        raise ValueError(
+          'upstream_feedback_common_station_domain_m must be a finite '
+          'strictly ordered domain when supplied'
+        )
+      ####
+    ####
+    object.__setattr__(
+      self,
+      'upstream_feedback_station_domains_m',
+      station_domains,
+    )
+    object.__setattr__(
+      self,
+      'upstream_feedback_common_station_domain_m',
+      common_domain,
+    )
     for name in (
       'maximum_coordinate_residuals_m',
       'maximum_tangent_residuals_rad',
@@ -293,6 +337,8 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       'overlap_coverage_verified',
       'overlap_residuals_verified',
       'upstream_feedback_proposals_verified',
+      'upstream_feedback_source_lineage_verified',
+      'upstream_feedback_common_station_domain_verified',
       'local_coupled_field_verified',
       'fidelity_isolation_verified',
       'global_coupling_verified',
@@ -331,6 +377,8 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       and self.overlap_coverage_verified
       and self.overlap_residuals_verified
       and self.upstream_feedback_proposals_verified
+      and self.upstream_feedback_source_lineage_verified
+      and self.upstream_feedback_common_station_domain_verified
       and self.local_coupled_field_verified
       and self.fidelity_isolation_verified
     )
@@ -359,6 +407,18 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       'upstream_feedback_proposals_verified': (
         self.upstream_feedback_proposals_verified
       ),
+      'upstream_feedback_source_lineage_verified': (
+        self.upstream_feedback_source_lineage_verified
+      ),
+      'upstream_feedback_common_station_domain_verified': (
+        self.upstream_feedback_common_station_domain_verified
+      ),
+      'upstream_feedback_station_domains_m': (
+        self.upstream_feedback_station_domains_m
+      ),
+      'upstream_feedback_common_station_domain_m': (
+        self.upstream_feedback_common_station_domain_m
+      ),
       'local_coupled_field_verified': self.local_coupled_field_verified,
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'global_coupling_verified': self.global_coupling_verified,
@@ -384,6 +444,8 @@ def _measurement_status(
   overlap_coverage_verified: bool,
   overlap_residuals_verified: bool,
   upstream_feedback_proposals_verified: bool,
+  upstream_feedback_source_lineage_verified: bool,
+  upstream_feedback_common_station_domain_verified: bool,
   fidelity_isolation_verified: bool,
 ) -> tuple[
   MocReflectedDomainGlobalCoupledDownstreamRefinementStatus,
@@ -413,11 +475,14 @@ def _measurement_status(
     and overlap_coverage_verified
     and overlap_residuals_verified
     and upstream_feedback_proposals_verified
+    and upstream_feedback_source_lineage_verified
+    and upstream_feedback_common_station_domain_verified
   ):
     return (
       MocReflectedDomainGlobalCoupledDownstreamRefinementStatus.RESPONSE_FAILURE,
       'the coupled-Euler ladder is locally measured, but global-boundary '
-      'overlap evidence is incomplete or exceeds its declared tolerances',
+      'overlap or cross-resolution frontier evidence is incomplete or '
+      'exceeds its declared tolerances',
     )
   ####
   return (
@@ -503,6 +568,45 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
   upstream_feedback_proposals_verified = all(
     case.upstream_feedback_proposal_verified for case in retained_cases
   )
+  proposals = tuple(
+    case.upstream_feedback_proposal for case in retained_cases
+  )
+  upstream_feedback_source_lineage_verified = bool(
+    upstream_feedback_proposals_verified
+    and proposals
+    and len({
+      proposal.source_closure_fingerprint
+      for proposal in proposals
+      if proposal is not None
+    }) == 1
+  )
+  upstream_feedback_station_domains = tuple(
+    (
+      proposal.matched_x_stations_m[0],
+      proposal.matched_x_stations_m[-1],
+    )
+    if proposal is not None and proposal.ready_for_global_resolve
+    else (0.0, 0.0)
+    for proposal in proposals
+  )
+  common_station_domain: tuple[float, float] | None = None
+  if upstream_feedback_station_domains and all(
+    domain[1] > domain[0] for domain in upstream_feedback_station_domains
+  ):
+    common_start = max(
+      domain[0] for domain in upstream_feedback_station_domains
+    )
+    common_end = min(
+      domain[1] for domain in upstream_feedback_station_domains
+    )
+    if common_end > common_start:
+      common_station_domain = (common_start, common_end)
+    ####
+  ####
+  upstream_feedback_common_station_domain_verified = bool(
+    upstream_feedback_source_lineage_verified
+    and common_station_domain is not None
+  )
   fidelity_isolation_verified = all(
     case.fidelity_isolation_verified for case in retained_cases
   )
@@ -515,6 +619,12 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
     overlap_coverage_verified=overlap_coverage_verified,
     overlap_residuals_verified=overlap_residuals_verified,
     upstream_feedback_proposals_verified=upstream_feedback_proposals_verified,
+    upstream_feedback_source_lineage_verified=(
+      upstream_feedback_source_lineage_verified
+    ),
+    upstream_feedback_common_station_domain_verified=(
+      upstream_feedback_common_station_domain_verified
+    ),
     fidelity_isolation_verified=fidelity_isolation_verified,
   )
   return MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement(
@@ -534,6 +644,14 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
     overlap_coverage_verified=overlap_coverage_verified,
     overlap_residuals_verified=overlap_residuals_verified,
     upstream_feedback_proposals_verified=upstream_feedback_proposals_verified,
+    upstream_feedback_source_lineage_verified=(
+      upstream_feedback_source_lineage_verified
+    ),
+    upstream_feedback_common_station_domain_verified=(
+      upstream_feedback_common_station_domain_verified
+    ),
+    upstream_feedback_station_domains_m=upstream_feedback_station_domains,
+    upstream_feedback_common_station_domain_m=common_station_domain,
     local_coupled_field_verified=all(
       case.local_coupled_field_verified for case in retained_cases
     ),
