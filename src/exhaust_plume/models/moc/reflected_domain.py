@@ -16,7 +16,7 @@ losses, fit a shock, or promote an open field to a physical chain cell.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite, tan
 from typing import TYPE_CHECKING, Sequence
@@ -30,6 +30,7 @@ from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
   MocAmbientPressureBoundaryResult,
   validate_ambient_pressure_boundary,
+  validate_ambient_pressure_profile_boundary,
 )
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
@@ -47,6 +48,7 @@ from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicPointResult,
   CharacteristicState,
+  MocPrimitiveStatus,
   centerline_characteristic_point,
   inverse_prandtl_meyer_angle_rad,
 )
@@ -492,6 +494,7 @@ class MocReflectedDomainAlternatingSourceResult:
   invariant_tolerance: float = 1.0e-10
   pressure_tolerance: float = 1.0e-8
   incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainAlternatingSourceStatus):
@@ -554,6 +557,15 @@ class MocReflectedDomainAlternatingSourceResult:
         raise ValueError(f'{name} must be finite and positive when supplied')
       ####
       object.__setattr__(self, name, normalized)
+    ####
+    if self.ambient_pressure_target is not None and not isinstance(
+      self.ambient_pressure_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError(
+        'ambient_pressure_target must be a '
+        'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      )
     ####
     if self.outer_seed_state is not None and not isinstance(
       self.outer_seed_state,
@@ -969,6 +981,11 @@ class MocReflectedDomainAlternatingSourceResult:
       ),
       'outer_seed_total_pressure_Pa': self.outer_seed_total_pressure_Pa,
       'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'ambient_pressure_target': (
+        None
+        if self.ambient_pressure_target is None
+        else self.ambient_pressure_target.as_report()
+      ),
       'ambient_boundary': (
         None
         if self.ambient_boundary is None
@@ -2753,6 +2770,7 @@ def solve_reflected_domain_alternating_source(
   ambient_pressure_Pa: float,
   total_pressure_Pa: float | None = None,
   *,
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   source_sample_count: int = 6,
   outer_seed_state: CharacteristicState | None = None,
   outer_seed_total_pressure_Pa: float | None = None,
@@ -2782,6 +2800,13 @@ def solve_reflected_domain_alternating_source(
   its first value must match the exact patch anchor pressure and each value
   must exceed ambient pressure.  The solver transports these values; it does
   not infer shock entropy or authorize a physical chain cell.
+
+  ``ambient_pressure_target`` optionally replaces the scalar pressure only at
+  the solver-owned outer stations.  Its pressure is interpolated between
+  declared ``x`` stations without endpoint extrapolation; its boundary points
+  and tangent metadata are intentionally ignored.  The scalar ambient value
+  remains the required pressure at the retained seed anchor so existing
+  source-band callers keep the same attachment contract.
   """
 
   patch = (
@@ -2837,6 +2862,22 @@ def solve_reflected_domain_alternating_source(
       not isinstance(sample, MocChainBoundarySample)
       for sample in resolved_incoming_handoff
     )
+  ####
+  ambient_pressure_target_error = (
+    ambient_pressure_target is not None
+    and not isinstance(
+      ambient_pressure_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    )
+  )
+  resolved_ambient_pressure_target = (
+    ambient_pressure_target
+    if isinstance(
+      ambient_pressure_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    )
+    else None
+  )
   ####
   try:
     seed_pressure = (
@@ -2916,6 +2957,7 @@ def solve_reflected_domain_alternating_source(
       ),
       incoming_trace_validation=incoming_validation,
       incoming_trace_polarity=incoming_polarity,
+      ambient_pressure_target=resolved_ambient_pressure_target,
       centerline_results=tuple(centerline_results),
       point_results=tuple(point_results),
       ambient_boundary=ambient_boundary,
@@ -2946,6 +2988,12 @@ def solve_reflected_domain_alternating_source(
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'incoming_handoff must contain MocChainBoundarySample values',
+    )
+  ####
+  if ambient_pressure_target_error:
+    return failure(
+      MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
+      'ambient_pressure_target must be a MocPhysicalFieldEulerBoundaryPressureTarget or None',
     )
   ####
   if (
@@ -3103,6 +3151,126 @@ def solve_reflected_domain_alternating_source(
     )
   ####
 
+  if resolved_ambient_pressure_target is not None:
+    seed_target_pressure = resolved_ambient_pressure_target.pressure_at_x(
+      resolved_seed.x_m,
+      position_tolerance_m=resolved_position_tolerance,
+    )
+    if seed_target_pressure is None:
+      return failure(
+        MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE,
+        'ambient_pressure_target does not cover the retained outer seed station; no extrapolation was attempted',
+      )
+    ####
+    if (
+      abs(seed_target_pressure - ambient_pressure) / seed_target_pressure
+      > resolved_pressure_tolerance
+    ):
+      return failure(
+        MocReflectedDomainAlternatingSourceStatus.SEED_FAILURE,
+        'ambient_pressure_target must match ambient_pressure_Pa at the retained outer seed station',
+      )
+    ####
+
+  def solve_profiled_boundary_point(
+    axis_state: CharacteristicState,
+    previous_boundary: CharacteristicState,
+    total_pressure: float,
+  ) -> MocFreeBoundaryPointResult:
+    """Solve one outer point against a bounded, solver-owned pressure profile."""
+
+    target = resolved_ambient_pressure_target
+    if target is None:
+      raise RuntimeError('profiled boundary helper requires a pressure target')
+    ####
+    trial_pressure = target.pressure_at_x(
+      previous_boundary.x_m,
+      position_tolerance_m=resolved_position_tolerance,
+    )
+    if trial_pressure is None:
+      return MocFreeBoundaryPointResult(
+        status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+        family=CharacteristicFamily.PLUS,
+        state=None,
+        point_m=None,
+        pressure_residual=None,
+        tangent_residual=None,
+        geometry_residual=None,
+        iterations=0,
+        message='ambient_pressure_target does not cover the previous outer station; no extrapolation was attempted',
+      )
+    ####
+    last_result: MocFreeBoundaryPointResult | None = None
+    last_residual: float | None = None
+    for _ in range(maximum_iterations):
+      result = solve_ambient_pressure_free_boundary_point(
+        axis_state,
+        previous_boundary,
+        CharacteristicFamily.PLUS,
+        total_pressure_Pa=total_pressure,
+        ambient_pressure_Pa=trial_pressure,
+        position_tolerance_m=resolved_position_tolerance,
+        pressure_tolerance=resolved_pressure_tolerance,
+        maximum_iterations=maximum_iterations,
+      )
+      last_result = result
+      if (
+        not result.converged
+        or result.state is None
+        or result.point_m is None
+      ):
+        return result
+      ####
+      final_target_pressure = target.pressure_at_x(
+        result.point_m[0],
+        position_tolerance_m=resolved_position_tolerance,
+      )
+      if final_target_pressure is None:
+        return replace(
+          result,
+          status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+          pressure_residual=None,
+          message='ambient_pressure_target does not cover the solver-produced boundary station; no extrapolation was attempted',
+        )
+      ####
+      actual_static_pressure = _static_pressure_from_total_pressure(
+        result.state,
+        total_pressure,
+      )
+      residual = (
+        actual_static_pressure - final_target_pressure
+      ) / final_target_pressure
+      last_residual = residual
+      if abs(residual) <= resolved_pressure_tolerance:
+        return replace(
+          result,
+          pressure_residual=residual,
+          message='',
+        )
+      ####
+      trial_pressure = final_target_pressure
+    ####
+    if last_result is None:
+      return MocFreeBoundaryPointResult(
+        status=MocPrimitiveStatus.MAX_ITERATIONS,
+        family=CharacteristicFamily.PLUS,
+        state=None,
+        point_m=None,
+        pressure_residual=last_residual,
+        tangent_residual=None,
+        geometry_residual=None,
+        iterations=maximum_iterations,
+        message='profiled ambient-pressure boundary did not start',
+      )
+    ####
+    return replace(
+      last_result,
+      status=MocPrimitiveStatus.MAX_ITERATIONS,
+      pressure_residual=last_residual,
+      message='profiled ambient-pressure boundary pressure iteration did not converge',
+    )
+  ####
+
   previous_outer = resolved_seed
   previous_axis: CharacteristicState | None = None
   for index in range(source_sample_count):
@@ -3163,15 +3331,23 @@ def solve_reflected_domain_alternating_source(
     centerline.append(axis_state)
     centerline_pressures.append(resolved_centerline_pressures[index])
 
-    boundary_result = solve_ambient_pressure_free_boundary_point(
-      axis_state,
-      previous_outer,
-      CharacteristicFamily.PLUS,
-      total_pressure_Pa=resolved_centerline_pressures[index],
-      ambient_pressure_Pa=ambient_pressure,
-      position_tolerance_m=resolved_position_tolerance,
-      pressure_tolerance=resolved_pressure_tolerance,
-      maximum_iterations=maximum_iterations,
+    boundary_result = (
+      solve_profiled_boundary_point(
+        axis_state,
+        previous_outer,
+        resolved_centerline_pressures[index],
+      )
+      if resolved_ambient_pressure_target is not None
+      else solve_ambient_pressure_free_boundary_point(
+        axis_state,
+        previous_outer,
+        CharacteristicFamily.PLUS,
+        total_pressure_Pa=resolved_centerline_pressures[index],
+        ambient_pressure_Pa=ambient_pressure,
+        position_tolerance_m=resolved_position_tolerance,
+        pressure_tolerance=resolved_pressure_tolerance,
+        maximum_iterations=maximum_iterations,
+      )
     )
     point_results.append(boundary_result)
     if not boundary_result.converged or boundary_result.state is None or boundary_result.point_m is None:
@@ -3198,20 +3374,45 @@ def solve_reflected_domain_alternating_source(
     previous_outer = next_outer
   ####
 
-  ambient_boundary = validate_ambient_pressure_boundary(
-    tuple(
-      MocAmbientBoundarySample(
-        point_m=(state.x_m, state.y_m),
-        state=state,
-        total_pressure_Pa=pressure,
-      )
-      for state, pressure in zip(outer, outer_pressures, strict=True)
-    ),
-    ambient_pressure,
-    position_tolerance_m=resolved_position_tolerance,
-    pressure_tolerance=resolved_pressure_tolerance,
-    tangent_tolerance=resolved_pressure_tolerance,
+  outer_samples = tuple(
+    MocAmbientBoundarySample(
+      point_m=(state.x_m, state.y_m),
+      state=state,
+      total_pressure_Pa=pressure,
+    )
+    for state, pressure in zip(outer, outer_pressures, strict=True)
   )
+  if resolved_ambient_pressure_target is None:
+    ambient_boundary = validate_ambient_pressure_boundary(
+      outer_samples,
+      ambient_pressure,
+      position_tolerance_m=resolved_position_tolerance,
+      pressure_tolerance=resolved_pressure_tolerance,
+      tangent_tolerance=resolved_pressure_tolerance,
+    )
+  else:
+    sampled_target_pressures: list[float] = []
+    for state in outer:
+      target_pressure = resolved_ambient_pressure_target.pressure_at_x(
+        state.x_m,
+        position_tolerance_m=resolved_position_tolerance,
+      )
+      if target_pressure is None:
+        return failure(
+          MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE,
+          'ambient_pressure_target does not cover every solver-produced outer station; no extrapolation was attempted',
+        )
+      ####
+      sampled_target_pressures.append(target_pressure)
+    ####
+    ambient_boundary = validate_ambient_pressure_profile_boundary(
+      outer_samples,
+      sampled_target_pressures,
+      target_source=resolved_ambient_pressure_target.source_id,
+      position_tolerance_m=resolved_position_tolerance,
+      pressure_tolerance=resolved_pressure_tolerance,
+      tangent_tolerance=resolved_pressure_tolerance,
+    )
   if not ambient_boundary.converged:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE,
@@ -3293,6 +3494,7 @@ def solve_reflected_domain_alternating_source(
     ambient_pressure_Pa=ambient_pressure,
     incoming_trace_validation=incoming_validation,
     incoming_trace_polarity=incoming_polarity,
+    ambient_pressure_target=resolved_ambient_pressure_target,
     centerline_results=tuple(centerline_results),
     point_results=tuple(point_results),
     ambient_boundary=ambient_boundary,

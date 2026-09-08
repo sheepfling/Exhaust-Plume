@@ -1793,6 +1793,105 @@ def test_reflected_domain_alternating_source_band_closes_local_neighbor_seams():
 ####
 
 
+def test_reflected_domain_alternating_source_consumes_bounded_pressure_target():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  scalar = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  assert scalar.converged
+  assert scalar.ambient_boundary is not None
+
+  boundary = scalar.ambient_boundary
+  assert scalar.outer_seed_state is not None
+  assert scalar.outer_seed_total_pressure_Pa is not None
+  seed_static_pressure = scalar.outer_seed_total_pressure_Pa / (
+    1.0 + 0.5 * (scalar.outer_seed_state.gamma - 1.0)
+    * scalar.outer_seed_state.mach**2
+  ) ** (scalar.outer_seed_state.gamma / (scalar.outer_seed_state.gamma - 1.0))
+  target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=(
+      scalar.outer_seed_state.x_m,
+      *(point[0] for point in boundary.points_m),
+    ),
+    static_pressure_Pa=(seed_static_pressure, *boundary.static_pressure_Pa),
+    source_id='test-solver-owned-pressure-profile',
+    boundary_points_m=(
+      (scalar.outer_seed_state.x_m, scalar.outer_seed_state.y_m + 100.0),
+      *((point[0], point[1] + 100.0) for point in boundary.points_m),
+    ),
+    tangent_rad=(1.0,) * (len(boundary.points_m) + 1),
+  )
+
+  profiled = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    ambient_pressure_target=target,
+  )
+
+  assert profiled.status is MocReflectedDomainAlternatingSourceStatus.CONVERGED, profiled.message
+  assert profiled.source_field_verified
+  assert profiled.ambient_pressure_target is target
+  assert profiled.ambient_boundary is not None
+  assert profiled.ambient_boundary.ambient_pressure_Pa is None
+  assert profiled.ambient_boundary.ambient_pressure_target_source == target.source_id
+  assert profiled.ambient_boundary.ambient_pressure_profile_Pa == pytest.approx(
+    tuple(
+      target.pressure_at_x(
+        state.x_m,
+        position_tolerance_m=profiled.position_tolerance_m,
+      )
+      for state in profiled.outer_source_states
+    )
+  )
+  assert profiled.as_report()['ambient_pressure_target']['source_id'] == target.source_id
+  assert profiled.physical_closure_verified is False
+  assert profiled.chain_promotion_blocked
+  assert profiled.production_claim_allowed is False
+####
+
+
+def test_reflected_domain_alternating_source_rejects_uncovered_pressure_target():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  scalar = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  assert scalar.converged
+  assert scalar.ambient_boundary is not None
+  assert scalar.outer_seed_state is not None
+  assert scalar.outer_seed_total_pressure_Pa is not None
+  boundary = scalar.ambient_boundary
+  seed_static_pressure = scalar.outer_seed_total_pressure_Pa / (
+    1.0 + 0.5 * (scalar.outer_seed_state.gamma - 1.0)
+    * scalar.outer_seed_state.mach**2
+  ) ** (scalar.outer_seed_state.gamma / (scalar.outer_seed_state.gamma - 1.0))
+  incomplete_target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=(
+      scalar.outer_seed_state.x_m,
+      boundary.points_m[0][0],
+    ),
+    static_pressure_Pa=(seed_static_pressure, boundary.static_pressure_Pa[0]),
+    source_id='test-incomplete-pressure-profile',
+  )
+
+  result = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    ambient_pressure_target=incomplete_target,
+  )
+
+  assert result.status is MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE
+  assert result.source_field_verified is False
+  assert result.ambient_pressure_target is incomplete_target
+  assert 'no extrapolation was attempted' in result.message
+####
+
+
 def test_reflected_domain_alternating_source_measurement_rejects_changed_raw_row():
   field, patch = _patch()
   ambient_pressure = field.ambient_boundary.ambient_pressure_Pa

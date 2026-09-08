@@ -2682,3 +2682,24 @@ does not accept a physical length.
 Physical acceptance, canonical/global closure, provider-bound VIS/SIG/RAY/FPA
 validation, and production promotion remain blocked pending disjoint physical
 observations and the remaining closure gates.
+
+### P2.2 solver-owned profiled outer-pressure handoff checkpoint — 2026-09-08
+
+The alternating reflected-domain source solver now accepts the typed
+``MocPhysicalFieldEulerBoundaryPressureTarget`` as an optional, solver-owned
+outer pressure condition.  It interpolates only between declared axial
+stations, iterates the characteristic endpoint against the pressure sampled at
+the solver-produced station, and retains the exact target object and source
+identifier in the result and ambient-boundary report.  Boundary points and
+tangent metadata carried by the target are deliberately ignored; the fresh
+MOC march owns geometry and tangent acceptance.
+
+The target must cover the retained seed and every generated outer station.  A
+missing station is a typed boundary failure with no endpoint extrapolation or
+endpoint holding.  The scalar ambient path remains unchanged and the target
+path is covered by focused tests for scalar regression, profile retention,
+ignored target geometry metadata, and incomplete-target rejection.
+
+This is a bounded global-coupling handoff, not canonical closure: shock
+entropy, mixed-regime downstream closure, disjoint physical observations,
+provider-bound VIS/SIG/RAY/FPA acceptance, and release promotion remain open.
