@@ -1810,3 +1810,41 @@ still a local constant-gamma research candidate: global feedback, canonical
 mixed-regime/free-boundary closure, refinement, physical shock-cell length,
 provider-bound validation, Signature/FPA promotion, and production claims
 remain open.
+
+### Long-running execution checkpoint — 2026-09-08
+
+The active integration candidate is the clean, pushed branch
+`work/washed-integral-visual` at `9f9f16f`.  `main` remains untouched.  The
+latest documentation slice corrected the validation provenance language: the
+repository retains the historical Version 8 intake report, but the raw ZIP,
+the separately named alignment archive, and provider-bound measurement-space
+outputs are not present in the current workspace.  No committed report or
+embedded overlay is being treated as a substitute for those inputs.
+
+Local evidence through this checkpoint includes the full planar-MOC suite
+(466 passed), focused frontier/reconciliation and coupled-refinement tests,
+Ruff, Pyright, lane partitioning, public-contract checks, Markdown policy,
+diff checks, and offline wheel/install smoke.  GitHub CI for this exact
+candidate is still running at run `34197041795`; its result must be recorded
+before this checkpoint can become a release freeze.
+
+The next implementation slice remains `P2.2`, not product promotion.  A
+solver-owned placement with no pressure target is a valid local handoff, but
+the actual ambient target is currently typed as unreachable by the placement
+probe (the normalized target-pressure residual is approximately `0.584`).
+The downstream coupled-Euler candidate consequently remains a typed physical
+failure.  The next physics work must solve the two-dimensional transonic
+placement together with its C-/C+ frontier, entropy-producing shock jump,
+ambient/free-boundary and centerline neighbors, conservative residuals, and
+an independent audit.  It must preserve the hard stop for unreachable
+targets and must not fall back to the basic, reduced-order, or mapped
+variable-entropy lanes.
+
+The exit order is unchanged: acquire and verify the missing validation assets
+and disjoint splits; close and refine the actual solver-owned reflected field;
+fit physical first/continued cells only from that closed field; run each
+Visualization, Signature/ray, and FPA comparison in its own measurement
+space; then refresh the exact-HEAD freeze and release manifest.  Until all of
+those gates are green, the correct deliverable is a reproducible
+research-scoped candidate with explicit blockers, not a release tag or a
+production claim.
