@@ -240,6 +240,11 @@ from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback imp
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus,
   run_reflected_domain_global_coupled_boundary_condition_feedback,
 )
+from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_refinement import (
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase,
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus,
+  run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_refinement,
+)
 from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
   MocReflectedDomainGlobalFrontierBoundaryConditionStatus,
   run_reflected_domain_global_frontier_boundary_conditioned_resolve,
@@ -8098,6 +8103,65 @@ def test_global_coupled_boundary_condition_feedback_preserves_extension_budget_s
   assert iteration.boundary_condition.status is (
     MocReflectedDomainGlobalFrontierBoundaryConditionStatus
     .TARGET_COVERAGE_FAILURE
+  )
+####
+
+
+def test_global_coupled_boundary_condition_feedback_cross_case_refinement_retains_open_stability_and_flux_gates():
+  cases = (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase(
+      case_id='coarse-source',
+      regime='mixed-regime-research',
+      source_closure=_global_physical_closure_for_mixed_regime(5),
+      resolution=(7, 8, 4),
+      downstream_options={
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+    ),
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase(
+      case_id='fine-source',
+      regime='mixed-regime-research',
+      source_closure=_global_physical_closure_for_mixed_regime(9),
+      resolution=(9, 10, 5),
+      downstream_options={
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+    ),
+  )
+
+  run = (
+    run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_refinement(
+      cases,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      downstream_feedback_iterations=2,
+    )
+  )
+
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
+    .STABILITY_FAILURE
+  )
+  assert run.converged is False
+  assert run.measurement.resolution_order_verified
+  assert run.measurement.distinct_source_closures_verified
+  assert run.measurement.case_bindings_verified
+  assert run.measurement.fresh_solver_invocations_verified
+  assert run.measurement.target_lineage_verified
+  assert run.measurement.frame_coverage_verified
+  assert run.measurement.residuals_finite
+  assert run.measurement.geometry_profile_injection_blocked
+  assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.response_stability_verified
+  assert run.measurement.frame_extension_stability_verified is False
+  assert run.measurement.conservative_boundary_fluxes_verified is False
+  assert run.measurement.maximum_relative_frame_extension_change is not None
+  assert run.measurement.maximum_relative_frame_extension_change > 0.75
+  assert all(case.local_research_verified for case in run.cases)
+  assert all(
+    case.run.production_claim_allowed is False for case in run.cases
   )
 ####
 

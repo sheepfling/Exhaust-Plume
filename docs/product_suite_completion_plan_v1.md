@@ -2511,13 +2511,14 @@ with each item stopping closed when its evidence is absent:
    complete lane/test/static/documentation/package matrix, verify the manifest
    reports `release_ready=true`, and only then create a release tag.
 
-The immediate implementation target is item 2.  The P2.2a negotiation seam is
-now complete for the current target, while the P2.2b extension is still
-research-only.  A successful frame extension is not canonical closure by
-itself; its purpose is to make the next solver-owned joint residual solve
-explicit and auditable.  The absence of the validation archives is a parallel
-release blocker, not a reason to synthesize observations or to promote the
-physical model early.
+The immediate implementation target is item 3.  The P2.2a negotiation seam is
+complete for the current target and the P2.2b extension is still research-only.
+The first P2.2c disjoint ladder now proves the local solver/lineage gates but
+fails frame-demand stability and still lacks the explicit boundary-flux audit.
+A successful frame extension is not canonical closure by itself; its purpose
+is to make the next solver-owned joint residual solve explicit and auditable.
+The absence of the validation archives is a parallel release blocker, not a
+reason to synthesize observations or to promote the physical model early.
 
 ### Solver-owned moving-frame negotiation checkpoint — 2026-09-08
 
@@ -2568,3 +2569,30 @@ law, independent refinement, physical shock-cell length, external validation,
 or any production claim.  P2.2c must now repeat the joint operator across
 disjoint source closures and increasing frame/mesh resolutions, with explicit
 stability and conservative boundary-flux evidence before P3 can consume it.
+
+### P2.2c disjoint refinement checkpoint — 2026-09-08
+
+The next refinement seam is now typed as
+``op.moc.reflected-domain.global-coupled-boundary-condition-feedback-cross-case-refinement``.
+It binds each fresh feedback run to a distinct source-closure fingerprint and
+an explicitly increasing ``(axial stations, axial cells, transverse cells)``
+resolution.  Caller-supplied geometry, pressure, continuation, shock-front,
+and mesh overrides are rejected; the operator installs the exact
+solver-owned physical-field handoff and verifies the global geometry policy,
+fresh solve, target lineage, frame coverage, finite response channels, and
+fidelity isolation for every case.
+
+The first disjoint pair (source samples ``5 -> 9`` and downstream resolution
+``(7, 8, 4) -> (9, 10, 5)``) passes those local gates.  The response channel
+ladder is within the declared ``0.75`` research stability fraction, but the
+solver-observed initial frame-extension demand changes by approximately
+``0.794`` relative and therefore returns typed ``STABILITY_FAILURE``.  The
+operator also records ``conservative_boundary_fluxes_verified=false`` because
+the current retained field exposes cell-Euler and boundary-normal residuals,
+not an independently retained boundary-face flux ledger.
+
+This is a useful refinement result, not a promotion: P2.2c remains open until
+the moving-frame demand is stable across the declared ladder and a conservative
+boundary-flux audit is implemented and independently checked.  P3 physical
+shock-cell fitting, provider-bound VIS/SIG/RAY/FPA validation, the raw V8 and
+alignment archives, and P5 release gates remain blocked.
