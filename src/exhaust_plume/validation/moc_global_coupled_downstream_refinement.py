@@ -25,6 +25,8 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
   MocReflectedDomainGlobalCoupledDownstreamResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
+  build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target,
+  build_reflected_domain_global_solver_owned_physical_field_handoff,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
@@ -33,9 +35,16 @@ from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
+from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerBoundaryPressureTarget,
+)
+from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
+  build_reflected_domain_mixed_regime_boundary_request,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledDownstreamRefinementStatus',
   'MocReflectedDomainGlobalCoupledDownstreamRefinementCase',
   'MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement',
@@ -43,6 +52,7 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_RUN_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledDownstreamRefinementRun',
   'run_reflected_domain_global_coupled_downstream_refinement',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus',
   'MocReflectedDomainGlobalCoupledDownstreamCrossCase',
@@ -59,6 +69,12 @@ MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_OPERATOR_ID = (
 )
 MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_RUN_OPERATOR_ID = (
   'op.moc.reflected-domain.global-coupled-downstream-refinement-run'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-coupled-downstream-target-bound-refinement'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-coupled-downstream-target-bound-refinement-run'
 )
 MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_CROSS_CASE_REFINEMENT_OPERATOR_ID = (
   'op.moc.reflected-domain.global-coupled-downstream-cross-case-refinement'
@@ -94,6 +110,9 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
     MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal | None
   ) = None
   response_lineage_verified: bool = False
+  boundary_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
+  target_lineage_verified: bool = False
+  target_profiles_consumed_verified: bool = False
 
   def __post_init__(self) -> None:
     resolution = tuple(self.resolution)
@@ -141,6 +160,20 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
     ####
     if not isinstance(self.response_lineage_verified, bool):
       raise TypeError('response_lineage_verified must be a bool')
+    ####
+    if self.boundary_target is not None and not isinstance(
+      self.boundary_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError(
+        'boundary_target must be a '
+        'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      )
+    ####
+    for name in ('target_lineage_verified', 'target_profiles_consumed_verified'):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
     ####
     object.__setattr__(self, 'resolution', resolution)
   ####
@@ -193,6 +226,31 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
     )
   ####
 
+  @property
+  def target_binding_requested(self) -> bool:
+    """Whether this case consumed a typed target-bound profile pair."""
+
+    return self.boundary_target is not None
+  ####
+
+  @property
+  def target_binding_verified(self) -> bool:
+    """Whether target lineage and both solver profile consumers are verified."""
+
+    return bool(
+      not self.target_binding_requested
+      or (
+        self.target_lineage_verified
+        and self.target_profiles_consumed_verified
+        and self.result.boundary_pressure_profile is not None
+        and self.result.boundary_geometry_profile is not None
+        and self.result.coupled_field is not None
+        and self.result.coupled_field.free_boundary_pressure_profile_consumed
+        and self.result.coupled_field.free_boundary_geometry_profile_consumed
+      )
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'resolution': self.resolution,
@@ -204,6 +262,17 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
       'response_residuals_verified': self.response_residuals_verified,
       'upstream_feedback_proposal_verified': (
         self.upstream_feedback_proposal_verified
+      ),
+      'target_binding_requested': self.target_binding_requested,
+      'target_lineage_verified': self.target_lineage_verified,
+      'target_profiles_consumed_verified': (
+        self.target_profiles_consumed_verified
+      ),
+      'target_binding_verified': self.target_binding_verified,
+      'boundary_target': (
+        None
+        if self.boundary_target is None
+        else self.boundary_target.as_report()
       ),
       'upstream_feedback_proposal': (
         None
@@ -247,6 +316,9 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
   upstream_feedback_common_station_domain_m: tuple[float, float] | None = None
   local_coupled_field_verified: bool = False
   fidelity_isolation_verified: bool = False
+  target_binding_requested: bool = False
+  target_lineage_verified: bool = False
+  target_profiles_consumed_verified: bool = False
   global_coupling_verified: bool = False
   downstream_boundary_closure_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -356,6 +428,9 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       'upstream_feedback_common_station_domain_verified',
       'local_coupled_field_verified',
       'fidelity_isolation_verified',
+      'target_binding_requested',
+      'target_lineage_verified',
+      'target_profiles_consumed_verified',
       'global_coupling_verified',
       'downstream_boundary_closure_verified',
       'chain_promotion_blocked',
@@ -396,6 +471,13 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       and self.upstream_feedback_common_station_domain_verified
       and self.local_coupled_field_verified
       and self.fidelity_isolation_verified
+      and (
+        not self.target_binding_requested
+        or (
+          self.target_lineage_verified
+          and self.target_profiles_consumed_verified
+        )
+      )
     )
   ####
 
@@ -436,6 +518,11 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       ),
       'local_coupled_field_verified': self.local_coupled_field_verified,
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'target_binding_requested': self.target_binding_requested,
+      'target_lineage_verified': self.target_lineage_verified,
+      'target_profiles_consumed_verified': (
+        self.target_profiles_consumed_verified
+      ),
       'global_coupling_verified': self.global_coupling_verified,
       'downstream_boundary_closure_verified': (
         self.downstream_boundary_closure_verified
@@ -462,6 +549,9 @@ def _measurement_status(
   upstream_feedback_source_lineage_verified: bool,
   upstream_feedback_common_station_domain_verified: bool,
   fidelity_isolation_verified: bool,
+  target_binding_requested: bool,
+  target_lineage_verified: bool,
+  target_profiles_consumed_verified: bool,
 ) -> tuple[
   MocReflectedDomainGlobalCoupledDownstreamRefinementStatus,
   str,
@@ -476,6 +566,16 @@ def _measurement_status(
     return (
       MocReflectedDomainGlobalCoupledDownstreamRefinementStatus.FIDELITY_FAILURE,
       'a response-ladder case changed the global or production claim ceiling',
+    )
+  ####
+  if target_binding_requested and not (
+    target_lineage_verified and target_profiles_consumed_verified
+  ):
+    return (
+      MocReflectedDomainGlobalCoupledDownstreamRefinementStatus.RESPONSE_FAILURE,
+      'the target-bound coupled-Euler ladder did not retain exact target '
+      'lineage or consume both pressure and geometry profiles at every '
+      'declared resolution',
     )
   ####
   if not case_audits_verified:
@@ -625,6 +725,25 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
   fidelity_isolation_verified = all(
     case.fidelity_isolation_verified for case in retained_cases
   )
+  target_binding_requested = any(
+    case.target_binding_requested for case in retained_cases
+  )
+  target_lineage_verified = bool(
+    not target_binding_requested
+    or all(
+      case.target_lineage_verified
+      for case in retained_cases
+      if case.target_binding_requested
+    )
+  )
+  target_profiles_consumed_verified = bool(
+    not target_binding_requested
+    or all(
+      case.target_binding_verified
+      for case in retained_cases
+      if case.target_binding_requested
+    )
+  )
   status, message = _measurement_status(
     resolution_order_verified=resolution_order_verified,
     mesh_growth_verified=mesh_growth_verified,
@@ -641,6 +760,9 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
       upstream_feedback_common_station_domain_verified
     ),
     fidelity_isolation_verified=fidelity_isolation_verified,
+    target_binding_requested=target_binding_requested,
+    target_lineage_verified=target_lineage_verified,
+    target_profiles_consumed_verified=target_profiles_consumed_verified,
   )
   return MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement(
     status=status,
@@ -671,6 +793,14 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
       case.local_coupled_field_verified for case in retained_cases
     ),
     fidelity_isolation_verified=fidelity_isolation_verified,
+    target_binding_requested=target_binding_requested,
+    target_lineage_verified=target_lineage_verified,
+    target_profiles_consumed_verified=target_profiles_consumed_verified,
+    operator_id=(
+      MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID
+      if target_binding_requested
+      else MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_OPERATOR_ID
+    ),
     message=message,
   )
 ####
@@ -741,7 +871,11 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementRun:
 
   def as_report(self) -> dict[str, Any]:
     return {
-      'operator_id': MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_RUN_OPERATOR_ID,
+      'operator_id': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID
+        if self.measurement.target_binding_requested
+        else MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_RUN_OPERATOR_ID
+      ),
       'converged': self.converged,
       'requested_resolutions': self.requested_resolutions,
       'fresh_solver_invocation_verified': self.fresh_solver_invocation_verified,
@@ -773,6 +907,106 @@ def _failed_result(
 ####
 
 
+def _target_bound_profiles_for_resolution(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  *,
+  resolution: tuple[int, int],
+  ambient_pressure_Pa: float | None,
+  downstream_length_m: float,
+  initial_outlet_height_m: float,
+  control_section_x_offset_m: float,
+  control_section_height_m: float,
+  control_section_sample_count: int,
+  solver_inlet_x_start_m: float | None = None,
+  solver_inlet_lower_ordinate_m: float | None = None,
+) -> tuple[Any, Any]:
+  """Build exact pressure-center and geometry-node profiles for one mesh."""
+
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(
+    closure,
+    ambient_pressure_Pa=ambient_pressure_Pa,
+    downstream_length_m=downstream_length_m,
+    initial_outlet_height_m=initial_outlet_height_m,
+    control_section_x_offset_m=control_section_x_offset_m,
+    control_section_height_m=control_section_height_m,
+    control_section_sample_count=control_section_sample_count,
+    axial_station_count=resolution[0],
+  )
+  x_start = float(mixed_request.control_section.points_m[0][0])
+  lower_ordinate = float(mixed_request.control_section.points_m[0][1])
+  if solver_inlet_x_start_m is not None:
+    x_start = float(solver_inlet_x_start_m)
+  ####
+  if solver_inlet_lower_ordinate_m is not None:
+    lower_ordinate = float(solver_inlet_lower_ordinate_m)
+  ####
+  axial_count = resolution[0]
+  x_nodes = tuple(
+    x_start + float(downstream_length_m) * index / axial_count
+    for index in range(axial_count + 1)
+  )
+  x_centers = tuple(
+    0.5 * (first + second)
+    for first, second in zip(x_nodes, x_nodes[1:])
+  )
+  return build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target(
+    closure,
+    target,
+    x_centers,
+    x_nodes,
+    lower_ordinate_m=lower_ordinate,
+  )
+####
+
+
+def _target_bound_lineage_verified(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  result: MocReflectedDomainGlobalCoupledDownstreamResult,
+) -> bool:
+  """Verify that both consumed profiles retain target and closure identity."""
+
+  pressure_profile = result.boundary_pressure_profile
+  geometry_profile = result.boundary_geometry_profile
+  if pressure_profile is None or geometry_profile is None:
+    return False
+  ####
+  closure_fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
+    closure
+  )
+  target_source = f'{target.source_id}:{target.composition_mode}'
+  return bool(
+    pressure_profile.source == (
+      'research-global-frontier-target-coupled-pressure-v1:'
+      f'{target_source}'
+    )
+    and geometry_profile.source == (
+      'research-global-frontier-target-coupled-geometry-v1:'
+      f'{target_source}'
+    )
+    and pressure_profile.source_closure_fingerprint == closure_fingerprint
+    and geometry_profile.source_closure_fingerprint == closure_fingerprint
+  )
+####
+
+
+def _target_bound_profiles_consumed_verified(
+  result: MocReflectedDomainGlobalCoupledDownstreamResult,
+) -> bool:
+  """Verify that the coupled 2-D field consumed both target profile types."""
+
+  field = result.coupled_field
+  return bool(
+    result.boundary_pressure_profile is not None
+    and result.boundary_geometry_profile is not None
+    and field is not None
+    and field.free_boundary_pressure_profile_consumed
+    and field.free_boundary_geometry_profile_consumed
+  )
+####
+
+
 def run_reflected_domain_global_coupled_downstream_refinement(
   closure: MocReflectedDomainGlobalPhysicalClosureResult,
   *,
@@ -792,12 +1026,29 @@ def run_reflected_domain_global_coupled_downstream_refinement(
   outlet_static_pressure_Pa: float | None = None,
   physical_field_continuation_profile: Any | None = None,
   physical_field_shock_front_condition: Any | None = None,
+  boundary_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
 ) -> MocReflectedDomainGlobalCoupledDownstreamRefinementRun:
-  """Freshly solve and independently measure each declared mesh resolution."""
+  """Freshly solve and independently measure each declared mesh resolution.
+
+  When ``boundary_pressure_target`` is supplied, each resolution receives a
+  freshly sampled pressure profile at cell centers and geometry profile at
+  free-boundary nodes.  The exact target and closure lineage are retained in
+  every case; profile construction or coverage failure never falls back to an
+  unbound solve.
+  """
 
   if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
     raise TypeError(
       'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if boundary_pressure_target is not None and not isinstance(
+    boundary_pressure_target,
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  ):
+    raise TypeError(
+      'boundary_pressure_target must be a '
+      'MocPhysicalFieldEulerBoundaryPressureTarget or None'
     )
   ####
   requested_resolutions = tuple(tuple(value) for value in resolutions)
@@ -825,6 +1076,52 @@ def run_reflected_domain_global_coupled_downstream_refinement(
   ):
     raise ValueError('resolutions must strictly increase in both dimensions')
   ####
+  target_solver_x_start_m: float | None = None
+  target_solver_lower_ordinate_m: float | None = None
+  target_frame_failure: str | None = None
+  if (
+    boundary_pressure_target is not None
+    and inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  ):
+    coupled_inlet_profile = None
+    if physical_field_shock_front_condition is not None:
+      coupled_inlet_profile = getattr(
+        physical_field_shock_front_condition,
+        'coupled_inlet_profile',
+        None,
+      )
+    ####
+    if (
+      coupled_inlet_profile is None
+      and physical_field_continuation_profile is None
+      and physical_field_shock_front_condition is None
+    ):
+      try:
+        handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+          closure
+        )
+        coupled_inlet_profile = handoff.shock_front_condition.coupled_inlet_profile
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        target_frame_failure = (
+          'target-bound solver inlet frame construction failed: '
+          f'{error}'
+        )
+      ####
+    ####
+    if coupled_inlet_profile is not None:
+      target_solver_x_start_m = float(coupled_inlet_profile.cross_section_x_m)
+      target_solver_lower_ordinate_m = float(
+        coupled_inlet_profile.lower_ordinate_m
+      )
+    elif target_frame_failure is None:
+      target_frame_failure = (
+        'target-bound physical-field continuation retained no coupled inlet '
+        'profile for exact station construction'
+      )
+    ####
+  ####
   configuration = {
     'closure_fingerprint': closure.as_report()['closure_fingerprint'],
     'reference_total_temperature_K': float(reference_total_temperature_K),
@@ -839,6 +1136,24 @@ def run_reflected_domain_global_coupled_downstream_refinement(
     'inlet_boundary_mode': inlet_boundary_mode.value,
     'outlet_static_pressure_Pa': outlet_static_pressure_Pa,
     'resolutions': requested_resolutions,
+    'boundary_target': (
+      None
+      if boundary_pressure_target is None
+      else boundary_pressure_target.as_report()
+    ),
+    'target_profile_policy': (
+      'unbound-baseline-v1'
+      if boundary_pressure_target is None
+      else 'typed-target-cell-centers-and-boundary-nodes-no-extrapolation-v1'
+    ),
+    'target_solver_inlet_frame': (
+      None
+      if boundary_pressure_target is None
+      else {
+        'x_start_m': target_solver_x_start_m,
+        'lower_ordinate_m': target_solver_lower_ordinate_m,
+      }
+    ),
     'upstream_feedback_proposal_policy': (
       'bounded-global-resolve-handoff-unconsumed-v1'
     ),
@@ -852,32 +1167,70 @@ def run_reflected_domain_global_coupled_downstream_refinement(
     ).encode('utf-8')
   ).hexdigest()
   cases: list[MocReflectedDomainGlobalCoupledDownstreamRefinementCase] = []
+  fresh_solver_invocations: list[bool] = []
   for resolution in requested_resolutions:
+    boundary_pressure_profile = None
+    boundary_geometry_profile = None
+    target_profile_failure: str | None = None
+    if boundary_pressure_target is not None:
+      if target_frame_failure is not None:
+        target_profile_failure = target_frame_failure
+      else:
+        try:
+          boundary_pressure_profile, boundary_geometry_profile = (
+            _target_bound_profiles_for_resolution(
+              closure,
+              boundary_pressure_target,
+              resolution=resolution,
+              ambient_pressure_Pa=ambient_pressure_Pa,
+              downstream_length_m=downstream_length_m,
+              initial_outlet_height_m=initial_outlet_height_m,
+              control_section_x_offset_m=control_section_x_offset_m,
+              control_section_height_m=control_section_height_m,
+              control_section_sample_count=control_section_sample_count,
+              solver_inlet_x_start_m=target_solver_x_start_m,
+              solver_inlet_lower_ordinate_m=target_solver_lower_ordinate_m,
+            )
+          )
+        except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+          target_profile_failure = f'target-bound profile construction failed: {error}'
+        ####
+      ####
+    ####
     try:
-      result = solve_reflected_domain_global_coupled_downstream(
-        closure,
-        reference_total_temperature_K=reference_total_temperature_K,
-        ambient_pressure_Pa=ambient_pressure_Pa,
-        downstream_length_m=downstream_length_m,
-        initial_outlet_height_m=initial_outlet_height_m,
-        control_section_x_offset_m=control_section_x_offset_m,
-        control_section_height_m=control_section_height_m,
-        control_section_sample_count=control_section_sample_count,
-        axial_station_count=resolution[0],
-        axial_cell_count=resolution[0],
-        transverse_cell_count=resolution[1],
-        max_pseudo_iterations=max_pseudo_iterations,
-        max_shape_iterations=max_shape_iterations,
-        inlet_boundary_mode=inlet_boundary_mode,
-        outlet_static_pressure_Pa=outlet_static_pressure_Pa,
-        physical_field_continuation_profile=physical_field_continuation_profile,
-        physical_field_shock_front_condition=physical_field_shock_front_condition,
-      )
+      if target_profile_failure is not None:
+        result = _failed_result(closure, target_profile_failure)
+        fresh_solver_invocations.append(False)
+      else:
+        result = solve_reflected_domain_global_coupled_downstream(
+          closure,
+          reference_total_temperature_K=reference_total_temperature_K,
+          ambient_pressure_Pa=ambient_pressure_Pa,
+          downstream_length_m=downstream_length_m,
+          initial_outlet_height_m=initial_outlet_height_m,
+          control_section_x_offset_m=control_section_x_offset_m,
+          control_section_height_m=control_section_height_m,
+          control_section_sample_count=control_section_sample_count,
+          axial_station_count=resolution[0],
+          axial_cell_count=resolution[0],
+          transverse_cell_count=resolution[1],
+          max_pseudo_iterations=max_pseudo_iterations,
+          max_shape_iterations=max_shape_iterations,
+          inlet_boundary_mode=inlet_boundary_mode,
+          outlet_static_pressure_Pa=outlet_static_pressure_Pa,
+          physical_field_continuation_profile=physical_field_continuation_profile,
+          physical_field_shock_front_condition=physical_field_shock_front_condition,
+          boundary_pressure_profile=boundary_pressure_profile,
+          boundary_geometry_profile=boundary_geometry_profile,
+        )
+        fresh_solver_invocations.append(True)
+      ####
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       result = _failed_result(
         closure,
         f'fresh global/coupled downstream solve raised: {error}',
       )
+      fresh_solver_invocations.append(False)
     ####
     solver_response = result.downstream_boundary_response
     response = None
@@ -909,6 +1262,18 @@ def run_reflected_domain_global_coupled_downstream_refinement(
       and response is not None
       and solver_response.as_report() == response.as_report()
     )
+    target_lineage_verified = bool(
+      boundary_pressure_target is None
+      or _target_bound_lineage_verified(
+        closure,
+        boundary_pressure_target,
+        result,
+      )
+    )
+    target_profiles_consumed_verified = bool(
+      boundary_pressure_target is None
+      or _target_bound_profiles_consumed_verified(result)
+    )
     cases.append(
       MocReflectedDomainGlobalCoupledDownstreamRefinementCase(
         resolution=resolution,
@@ -917,6 +1282,9 @@ def run_reflected_domain_global_coupled_downstream_refinement(
         response=response,
         upstream_feedback_proposal=upstream_feedback_proposal,
         response_lineage_verified=response_lineage_verified,
+        boundary_target=boundary_pressure_target,
+        target_lineage_verified=target_lineage_verified,
+        target_profiles_consumed_verified=target_profiles_consumed_verified,
       )
     )
   ####
@@ -936,6 +1304,7 @@ def run_reflected_domain_global_coupled_downstream_refinement(
     configuration_fingerprint=configuration_fingerprint,
     fresh_solver_invocation_verified=(
       len(retained_cases) == len(requested_resolutions)
+      and all(fresh_solver_invocations)
     ),
     fidelity_isolation_verified=fidelity_isolation_verified,
     message=(
@@ -978,6 +1347,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCase:
   regime: str
   closure: MocReflectedDomainGlobalPhysicalClosureResult
   resolutions: tuple[tuple[int, int], ...]
+  boundary_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
 
   def __post_init__(self) -> None:
     case_id = str(self.case_id)
@@ -1021,6 +1391,15 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCase:
         'axial >= 4 and transverse >= 3'
       )
     ####
+    if self.boundary_target is not None and not isinstance(
+      self.boundary_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError(
+        'boundary_target must be a '
+        'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      )
+    ####
     object.__setattr__(self, 'case_id', case_id)
     object.__setattr__(self, 'regime', regime)
     object.__setattr__(self, 'resolutions', resolutions)
@@ -1055,6 +1434,11 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCase:
       'closure_fingerprint': self.closure_fingerprint,
       'resolutions': self.resolutions,
       'resolution_ladder_verified': self.resolution_ladder_verified,
+      'boundary_target': (
+        None
+        if self.boundary_target is None
+        else self.boundary_target.as_report()
+      ),
       'closure_status': self.closure.status.value,
       'closure_converged': self.closure.converged,
       'physical_closure_verified': self.closure.physical_closure_verified,
@@ -1083,6 +1467,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
   closure_bindings_verified: bool = False
   distinct_closure_fingerprints_verified: bool = False
   resolution_ladders_verified: bool = False
+  target_bindings_verified: bool = False
   case_runs_verified: bool = False
   local_coupled_field_verified: bool = False
   fidelity_isolation_verified: bool = False
@@ -1174,6 +1559,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
       'closure_bindings_verified',
       'distinct_closure_fingerprints_verified',
       'resolution_ladders_verified',
+      'target_bindings_verified',
       'case_runs_verified',
       'local_coupled_field_verified',
       'fidelity_isolation_verified',
@@ -1222,6 +1608,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
       and self.closure_bindings_verified
       and self.distinct_closure_fingerprints_verified
       and self.resolution_ladders_verified
+      and self.target_bindings_verified
       and self.case_runs_verified
       and self.local_coupled_field_verified
       and self.fidelity_isolation_verified
@@ -1251,6 +1638,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
           self.distinct_closure_fingerprints_verified
         ),
         'resolution_ladders_verified': self.resolution_ladders_verified,
+        'target_bindings_verified': self.target_bindings_verified,
         'case_runs_verified': self.case_runs_verified,
         'local_coupled_field_verified': self.local_coupled_field_verified,
         'fidelity_isolation_verified': self.fidelity_isolation_verified,
@@ -1402,6 +1790,17 @@ def measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
       for case, run in zip(case_values, run_values, strict=True)
     )
   )
+  target_bindings_verified = all(
+    all(
+      nested_case.boundary_target == case.boundary_target
+      and (
+        not case.boundary_target
+        or nested_case.target_binding_verified
+      )
+      for nested_case in run.cases
+    )
+    for case, run in zip(case_values, run_values, strict=True)
+  )
   case_runs_verified = all(
     run.converged and run.measurement.converged
     for run in run_values
@@ -1441,6 +1840,14 @@ def measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
     message = (
       'one or more named cases does not retain the same strict resolution '
       'ladder used by its run'
+    )
+  elif not target_bindings_verified:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.CASE_FAILURE
+    )
+    message = (
+      'one or more named cases did not retain its exact target binding or '
+      'target-bound profile consumption across the nested ladder'
     )
   elif not case_runs_verified or not local_coupled_field_verified:
     status = (
@@ -1484,6 +1891,7 @@ def measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
       distinct_closure_fingerprints_verified
     ),
     resolution_ladders_verified=resolution_ladders_verified,
+    target_bindings_verified=target_bindings_verified,
     case_runs_verified=case_runs_verified,
     local_coupled_field_verified=local_coupled_field_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
@@ -1681,7 +2089,7 @@ def run_reflected_domain_global_coupled_downstream_cross_case_refinement(
   ):
     raise TypeError('cases must contain typed global/coupled downstream cross-case values')
   ####
-  forbidden = {'closure', 'resolutions'}
+  forbidden = {'closure', 'resolutions', 'boundary_pressure_target'}
   if forbidden.intersection(runner_options):
     raise ValueError(
       'runner_options cannot override closure or resolutions owned by a case'
@@ -1691,6 +2099,7 @@ def run_reflected_domain_global_coupled_downstream_cross_case_refinement(
     run_reflected_domain_global_coupled_downstream_refinement(
       case.closure,
       resolutions=case.resolutions,
+      boundary_pressure_target=case.boundary_target,
       **runner_options,
     )
     for case in case_values
@@ -1711,6 +2120,11 @@ def run_reflected_domain_global_coupled_downstream_cross_case_refinement(
         'regime': case.regime,
         'closure_fingerprint': case.closure_fingerprint,
         'resolutions': list(case.resolutions),
+        'boundary_target': (
+          None
+          if case.boundary_target is None
+          else case.boundary_target.as_report()
+        ),
       }
       for case in case_values
     ],

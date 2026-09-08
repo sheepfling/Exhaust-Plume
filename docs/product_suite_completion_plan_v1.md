@@ -2120,3 +2120,24 @@ comparisons, validation-data provenance, and product-specific external claims
 remain open.  The next implementation gate is a solver-owned physical
 shock-cell/refinement slice with an accepted disjoint validation boundary,
 followed by a final exact-HEAD freeze and release-manifest refresh.
+
+### Target-bound coupled refinement checkpoint — 2026-09-08
+
+The coupled downstream refinement runner now accepts one typed
+``MocPhysicalFieldEulerBoundaryPressureTarget`` owned by each refinement case.
+For every declared axial/transverse resolution it derives the actual solver
+cell-center and free-boundary-node stations, including the solver-owned
+post-shock inlet frame used by physical-field continuation, and samples the
+target without extrapolation.  Both profiles are passed into the real 2-D
+coupled-Euler/free-boundary solve; the case retains target identity, closure
+fingerprint, profile sources, and independent consumption flags.
+
+The positive regression passes two target-bound mesh cases and verifies both
+pressure and geometry profile consumers.  A truncated target returns a typed
+response failure before solving, proving that the runner does not silently
+fall back to the unbound baseline.  The new operator remains explicitly
+research-only: global coupling, canonical downstream closure, physical
+shock-cell fitting, external validation, chain promotion, and production
+claims remain closed.  The next physics gate is to use this target-bound
+ladder as evidence for solver-owned placement/refinement, then bind it to an
+accepted disjoint physical comparison.

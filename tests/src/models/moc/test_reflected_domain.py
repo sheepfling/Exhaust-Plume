@@ -205,6 +205,8 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import 
   run_reflected_domain_coupled_euler_free_boundary_refinement,
 )
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
+  MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID,
   MocReflectedDomainGlobalCoupledDownstreamCrossCase,
   MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus,
   MocReflectedDomainGlobalCoupledDownstreamRefinementStatus,
@@ -3770,6 +3772,109 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
     <= case.response.coordinate_tolerance_m
     for case in run.cases
   )
+####
+
+
+def test_global_coupled_downstream_target_bound_refinement_consumes_profiles_per_mesh():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  ambient_boundary = closure.global_euler.physical_field.field.ambient_boundary
+  target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(point[0] for point in ambient_boundary.points_m),
+    static_pressure_Pa=tuple(ambient_boundary.static_pressure_Pa),
+    boundary_points_m=tuple(ambient_boundary.points_m),
+    tangent_rad=tuple(state.theta_rad for state in ambient_boundary.states),
+    source_id='test-target-bound-refinement',
+  )
+
+  run = run_reflected_domain_global_coupled_downstream_refinement(
+    closure,
+    reference_total_temperature_K=1500.0,
+    resolutions=((6, 3), (8, 4)),
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    boundary_pressure_target=target,
+  )
+
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledDownstreamRefinementStatus
+    .CONVERGED_RESEARCH_LADDER
+  )
+  assert run.measurement.operator_id == (
+    MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID
+  )
+  assert run.measurement.target_binding_requested
+  assert run.measurement.target_lineage_verified
+  assert run.measurement.target_profiles_consumed_verified
+  assert run.as_report()['operator_id'] == (
+    MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID
+  )
+  assert all(
+    case.boundary_target is target
+    and case.target_lineage_verified
+    and case.target_profiles_consumed_verified
+    and case.target_binding_verified
+    and case.result.boundary_pressure_profile is not None
+    and case.result.boundary_geometry_profile is not None
+    and case.result.coupled_field is not None
+    and case.result.coupled_field.free_boundary_pressure_profile_consumed
+    and case.result.coupled_field.free_boundary_geometry_profile_consumed
+    for case in run.cases
+  )
+  assert run.measurement.global_coupling_verified is False
+  assert run.measurement.downstream_boundary_closure_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+####
+
+
+def test_global_coupled_downstream_target_bound_refinement_rejects_uncovered_frame():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  ambient_boundary = closure.global_euler.physical_field.field.ambient_boundary
+  incomplete_target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(point[0] for point in ambient_boundary.points_m[:4]),
+    static_pressure_Pa=tuple(ambient_boundary.static_pressure_Pa[:4]),
+    boundary_points_m=tuple(ambient_boundary.points_m[:4]),
+    tangent_rad=tuple(
+      state.theta_rad for state in ambient_boundary.states[:4]
+    ),
+    source_id='test-target-bound-refinement-incomplete',
+  )
+
+  run = run_reflected_domain_global_coupled_downstream_refinement(
+    closure,
+    reference_total_temperature_K=1500.0,
+    resolutions=((6, 3),),
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    boundary_pressure_target=incomplete_target,
+  )
+
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledDownstreamRefinementStatus
+    .RESPONSE_FAILURE
+  )
+  assert run.fresh_solver_invocation_verified is False
+  assert run.cases[0].target_lineage_verified is False
+  assert run.cases[0].target_profiles_consumed_verified is False
+  assert run.cases[0].result.coupled_request is None
+  assert 'target-bound profile construction failed' in run.cases[0].result.message
+  assert run.measurement.global_coupling_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.production_claim_allowed is False
 ####
 
 
