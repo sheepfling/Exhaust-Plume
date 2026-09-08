@@ -17,14 +17,22 @@ from math import isfinite
 from typing import Any, Sequence
 
 from exhaust_plume.models.moc.chain import MocChainBoundarySample
+from exhaust_plume.models.moc.chain import MocChainContinuationPolicy
 from exhaust_plume.models.moc.global_physical_closure import (
   MocProductionShockCellFitResult,
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
   fit_reflected_domain_production_shock_cell,
+  solve_reflected_domain_global_physical_closure,
 )
 from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
+  MocReflectedDomainGlobalEulerShockBoundaryResult,
+)
+from exhaust_plume.models.moc.planner import (
+  MocChainPlannerResult,
+  MocGlobalEulerContinuedChainReference,
+  plan_reflected_domain_global_euler_continued_chain,
 )
 from exhaust_plume.validation.moc_measurements import (
   MocShockCellMeasurement,
@@ -43,6 +51,10 @@ __all__ = (
   'MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID',
   'MocProductionShockCellFitRefinementRun',
   'run_moc_production_shock_cell_fit_refinement',
+  'MOC_PRODUCTION_SHOCK_CELL_CONTINUED_CHAIN_RUN_OPERATOR_ID',
+  'MocProductionShockCellContinuedChainStatus',
+  'MocProductionShockCellContinuedChainRun',
+  'run_moc_production_shock_cell_continued_chain',
 )
 
 
@@ -51,6 +63,9 @@ MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_OPERATOR_ID = (
 )
 MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID = (
   'op.moc.reflected-domain.production-shock-cell-fit-refinement-run'
+)
+MOC_PRODUCTION_SHOCK_CELL_CONTINUED_CHAIN_RUN_OPERATOR_ID = (
+  'op.moc.reflected-domain.production-shock-cell-continued-chain-run'
 )
 
 
@@ -134,6 +149,23 @@ def _payload_fingerprint(payload: Any) -> str:
     default=str,
   )
   return sha256(serialized.encode('utf-8')).hexdigest()
+####
+
+
+def _boundary_sample_payload(sample: MocChainBoundarySample) -> dict[str, Any]:
+  """Return a deterministic JSON payload for one carried boundary sample."""
+
+  state = sample.state
+  return {
+    'state': {
+      'x_m': state.x_m,
+      'y_m': state.y_m,
+      'theta_rad': state.theta_rad,
+      'mach': state.mach,
+      'gamma': state.gamma,
+    },
+    'total_pressure_Pa': sample.total_pressure_Pa,
+  }
 ####
 
 
@@ -1079,7 +1111,7 @@ def run_moc_production_shock_cell_fit_refinement(
     'incoming_handoff': (
       None
       if resolved_handoff is None
-      else [sample.as_report() for sample in resolved_handoff]
+      else [_boundary_sample_payload(sample) for sample in resolved_handoff]
     ),
     'length_tolerance_m': length_tolerance_m,
     'position_tolerance_m': position_tolerance_m,
@@ -1211,5 +1243,590 @@ def run_moc_production_shock_cell_fit_refinement(
       'fresh global-closure fit ladder executed and independently measured; '
       'physical length acceptance and external validation remain pending'
     ),
+  )
+####
+
+
+class MocProductionShockCellContinuedChainStatus(str, Enum):
+  """Outcome of a fresh exact-Euler continued-chain evidence run."""
+
+  CONVERGED_LOCAL_CONTINUED_CHAIN = (
+    'converged_local_production_shock_cell_continued_chain'
+  )
+  INVALID_INPUT = 'invalid_input'
+  SEED_FAILURE = 'production_shock_cell_continued_chain_seed_failure'
+  CHAIN_FAILURE = 'production_shock_cell_continued_chain_solver_failure'
+  MEASUREMENT_FAILURE = (
+    'production_shock_cell_continued_chain_measurement_failure'
+  )
+####
+
+
+def _continued_chain_policy_report(
+  policy: MocChainContinuationPolicy,
+) -> dict[str, Any]:
+  """Serialize the state-carry policy without losing its fidelity boundary."""
+
+  return {
+    'max_cells': policy.max_cells,
+    'max_axial_distance_m': policy.max_axial_distance_m,
+    'position_tolerance_m': policy.position_tolerance_m,
+    'allowed_fidelities': [
+      getattr(fidelity, 'value', str(fidelity))
+      for fidelity in policy.allowed_fidelities
+    ],
+    'require_state_carry': policy.require_state_carry,
+    'state_tolerance': policy.state_tolerance,
+  }
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocProductionShockCellContinuedChainRun:
+  """Typed evidence for fresh solver-owned continued shock-cell fields.
+
+  The runner exposes the existing fresh-source global-Euler chain planner
+  through the production validation surface.  A converged result is local
+  research evidence only: canonical reflected/free-boundary closure,
+  accepted physical lengths, external comparison, and production promotion
+  remain separate gates.
+  """
+
+  source_band: MocReflectedDomainAlternatingSourceResult
+  seed_closure: MocReflectedDomainGlobalPhysicalClosureResult | None
+  seed_global_euler: MocReflectedDomainGlobalEulerShockBoundaryResult | None
+  planner: MocChainPlannerResult | None
+  reference: MocGlobalEulerContinuedChainReference
+  policy: MocChainContinuationPolicy
+  status: MocProductionShockCellContinuedChainStatus
+  source_band_fingerprint: str
+  configuration: tuple[tuple[str, Any], ...]
+  configuration_fingerprint: str
+  start_x_m: float
+  end_x_m: float
+  fresh_solver_invocation_verified: bool
+  seed_measurement_verified: bool
+  continued_chain_measurement_verified: bool
+  intercell_bridge_verified: bool
+  fidelity_isolation_verified: bool
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.source_band,
+      MocReflectedDomainAlternatingSourceResult,
+    ):
+      raise TypeError(
+        'source_band must be a MocReflectedDomainAlternatingSourceResult'
+      )
+    ####
+    for name, expected_type in (
+      (
+        'seed_closure',
+        MocReflectedDomainGlobalPhysicalClosureResult,
+      ),
+      ('seed_global_euler', MocReflectedDomainGlobalEulerShockBoundaryResult),
+      ('planner', MocChainPlannerResult),
+    ):
+      value = getattr(self, name)
+      if value is not None and not isinstance(value, expected_type):
+        raise TypeError(f'{name} must be a {expected_type.__name__} or None')
+      ####
+    ####
+    if (
+      self.seed_closure is not None
+      and self.seed_global_euler is not None
+      and self.seed_closure.global_euler is not self.seed_global_euler
+    ):
+      raise ValueError(
+        'seed_global_euler must be the exact global-Euler result retained by '
+        'seed_closure'
+      )
+    ####
+    if self.planner is not None and self.seed_global_euler is None:
+      raise ValueError('planner requires a retained seed_global_euler result')
+    ####
+    if not isinstance(self.reference, MocGlobalEulerContinuedChainReference):
+      raise TypeError(
+        'reference must be a MocGlobalEulerContinuedChainReference'
+      )
+    ####
+    if not isinstance(self.policy, MocChainContinuationPolicy):
+      raise TypeError('policy must be a MocChainContinuationPolicy')
+    ####
+    if not isinstance(
+      self.status,
+      MocProductionShockCellContinuedChainStatus,
+    ):
+      raise TypeError(
+        'status must be a MocProductionShockCellContinuedChainStatus'
+      )
+    ####
+    expected_source_fingerprint = _source_fingerprint(self.source_band)
+    if self.source_band_fingerprint != expected_source_fingerprint:
+      raise ValueError('source_band_fingerprint does not match source_band')
+    ####
+    configuration = tuple(self.configuration)
+    if any(
+      not isinstance(item, tuple)
+      or len(item) != 2
+      or not isinstance(item[0], str)
+      for item in configuration
+    ):
+      raise ValueError('configuration must contain (name, value) pairs')
+    ####
+    object.__setattr__(self, 'configuration', configuration)
+    configuration_fingerprint = str(self.configuration_fingerprint)
+    if not configuration_fingerprint:
+      raise ValueError('configuration_fingerprint must be non-empty')
+    ####
+    object.__setattr__(self, 'configuration_fingerprint', configuration_fingerprint)
+    start = float(self.start_x_m)
+    end = float(self.end_x_m)
+    if not isfinite(start) or not isfinite(end) or end <= start:
+      raise ValueError('continued-chain axial bounds must be finite and ordered')
+    ####
+    object.__setattr__(self, 'start_x_m', start)
+    object.__setattr__(self, 'end_x_m', end)
+    for name in (
+      'fresh_solver_invocation_verified',
+      'seed_measurement_verified',
+      'continued_chain_measurement_verified',
+      'intercell_bridge_verified',
+      'fidelity_isolation_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def resolved(self) -> bool:
+    return self.status is (
+      MocProductionShockCellContinuedChainStatus
+      .CONVERGED_LOCAL_CONTINUED_CHAIN
+    )
+  ####
+
+  @property
+  def research_physical_cell_count(self) -> int:
+    if self.planner is None:
+      return 0
+    ####
+    value = self.planner.diagnostics.get(
+      'global_euler_continued_chain_research_physical_cell_count',
+      max(0, self.planner.chain.cell_count - 1),
+    )
+    try:
+      return max(0, int(value))
+    except (TypeError, ValueError):
+      return 0
+    ####
+  ####
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.resolved
+      and self.seed_closure is not None
+      and self.seed_closure.physical_closure_verified
+      and self.seed_global_euler is not None
+      and self.planner is not None
+      and self.planner.resolved
+      and self.planner.handoff_links_verified is True
+      and self.fresh_solver_invocation_verified
+      and self.seed_measurement_verified
+      and self.continued_chain_measurement_verified
+      and self.intercell_bridge_verified
+      and self.fidelity_isolation_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    diagnostics = (
+      {} if self.planner is None else dict(self.planner.diagnostics)
+    )
+    return {
+      'status': self.status.value,
+      'operator_id': MOC_PRODUCTION_SHOCK_CELL_CONTINUED_CHAIN_RUN_OPERATOR_ID,
+      'resolved': self.resolved,
+      'local_consistency_verified': self.local_consistency_verified,
+      'source_band_fingerprint': self.source_band_fingerprint,
+      'configuration': dict(self.configuration),
+      'configuration_fingerprint': self.configuration_fingerprint,
+      'start_x_m': self.start_x_m,
+      'end_x_m': self.end_x_m,
+      'research_physical_cell_count': self.research_physical_cell_count,
+      'reference': self.reference.as_report(),
+      'policy': _continued_chain_policy_report(self.policy),
+      'seed_closure': (
+        None if self.seed_closure is None else self.seed_closure.as_report()
+      ),
+      'seed_global_euler': (
+        None
+        if self.seed_global_euler is None
+        else self.seed_global_euler.as_report()
+      ),
+      'planner': None if self.planner is None else self.planner.as_report(),
+      'planner_diagnostics': diagnostics,
+      'checks': {
+        'fresh_solver_invocation_verified': (
+          self.fresh_solver_invocation_verified
+        ),
+        'seed_measurement_verified': self.seed_measurement_verified,
+        'continued_chain_measurement_verified': (
+          self.continued_chain_measurement_verified
+        ),
+        'intercell_bridge_verified': self.intercell_bridge_verified,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'canonical_free_boundary_verified': False,
+      'canonical_euler_verified': False,
+      'physical_length_accepted': False,
+      'external_validation_verified': False,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'fresh-global-euler-continued-chain; local-research-only; '
+        'physical-length-not-accepted'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def run_moc_production_shock_cell_continued_chain(
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  *,
+  start_x_m: float,
+  end_x_m: float,
+  reference: MocGlobalEulerContinuedChainReference | None = None,
+  policy: MocChainContinuationPolicy | None = None,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+) -> MocProductionShockCellContinuedChainRun:
+  """Freshly seed and audit a solver-owned continued shock-cell chain.
+
+  The seed is re-solved from the immutable source band using the exact global
+  physical-closure path.  Each later cell is rebuilt by the existing fresh
+  source-band/global-Euler planner, which preserves explicit intercell bridge
+  evidence and never falls back to a lower-fidelity chain.  The result is
+  intentionally below canonical and production promotion.
+  """
+
+  if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
+    raise TypeError(
+      'source_band must be a MocReflectedDomainAlternatingSourceResult'
+    )
+  ####
+  resolved_reference = (
+    MocGlobalEulerContinuedChainReference()
+    if reference is None else reference
+  )
+  if not isinstance(
+    resolved_reference,
+    MocGlobalEulerContinuedChainReference,
+  ):
+    raise TypeError(
+      'reference must be a MocGlobalEulerContinuedChainReference or None'
+    )
+  ####
+  if resolved_reference.total_cell_count < 2:
+    raise ValueError(
+      'continued-chain evidence requires at least one cell beyond the seed'
+    )
+  ####
+  resolved_policy = (
+    MocChainContinuationPolicy(
+      max_cells=resolved_reference.total_cell_count,
+      require_state_carry=True,
+    )
+    if policy is None else policy
+  )
+  if not isinstance(resolved_policy, MocChainContinuationPolicy):
+    raise TypeError('policy must be a MocChainContinuationPolicy or None')
+  ####
+  start = float(start_x_m)
+  end = float(end_x_m)
+  if not isfinite(start) or not isfinite(end) or end <= start:
+    raise ValueError('start_x_m and end_x_m must be finite and ordered')
+  ####
+  resolved_handoff = (
+    tuple(source_band.incoming_handoff)
+    if incoming_handoff is None else tuple(incoming_handoff)
+  )
+  if any(
+    not isinstance(sample, MocChainBoundarySample)
+    for sample in resolved_handoff
+  ):
+    raise TypeError('incoming_handoff must contain MocChainBoundarySample values')
+  ####
+  if resolved_handoff != source_band.incoming_handoff:
+    raise ValueError(
+      'incoming_handoff must exactly match the source-band handoff'
+    )
+  ####
+  source_fingerprint = _source_fingerprint(source_band)
+  configuration_payload: dict[str, Any] = {
+    'operator_id': MOC_PRODUCTION_SHOCK_CELL_CONTINUED_CHAIN_RUN_OPERATOR_ID,
+    'source_band_fingerprint': source_fingerprint,
+    'start_x_m': start,
+    'end_x_m': end,
+    'incoming_handoff': [
+      _boundary_sample_payload(sample) for sample in resolved_handoff
+    ],
+    'reference': resolved_reference.as_report(),
+    'policy': _continued_chain_policy_report(resolved_policy),
+  }
+  configuration = tuple(
+    (name, configuration_payload[name])
+    for name in sorted(configuration_payload)
+  )
+  configuration_fingerprint = _payload_fingerprint(configuration_payload)
+
+  def build_run(
+    *,
+    status: MocProductionShockCellContinuedChainStatus,
+    seed_closure: MocReflectedDomainGlobalPhysicalClosureResult | None,
+    seed_global_euler: MocReflectedDomainGlobalEulerShockBoundaryResult | None,
+    planner: MocChainPlannerResult | None,
+    fresh_solver_invocation_verified: bool,
+    seed_measurement_verified: bool,
+    continued_chain_measurement_verified: bool,
+    intercell_bridge_verified: bool,
+    fidelity_isolation_verified: bool,
+    message: str,
+  ) -> MocProductionShockCellContinuedChainRun:
+    return MocProductionShockCellContinuedChainRun(
+      source_band=source_band,
+      seed_closure=seed_closure,
+      seed_global_euler=seed_global_euler,
+      planner=planner,
+      reference=resolved_reference,
+      policy=resolved_policy,
+      status=status,
+      source_band_fingerprint=source_fingerprint,
+      configuration=configuration,
+      configuration_fingerprint=configuration_fingerprint,
+      start_x_m=start,
+      end_x_m=end,
+      fresh_solver_invocation_verified=fresh_solver_invocation_verified,
+      seed_measurement_verified=seed_measurement_verified,
+      continued_chain_measurement_verified=continued_chain_measurement_verified,
+      intercell_bridge_verified=intercell_bridge_verified,
+      fidelity_isolation_verified=fidelity_isolation_verified,
+      message=message,
+    )
+  ####
+
+  try:
+    seed_closure = solve_reflected_domain_global_physical_closure(
+      source_band,
+      outer_source_indices=resolved_reference.outer_source_indices,
+      target_centerline_indices=resolved_reference.target_centerline_indices,
+      compression_amplitude_lower_rad=(
+        resolved_reference.compression_amplitude_lower_rad
+      ),
+      compression_amplitude_upper_rad=(
+        resolved_reference.compression_amplitude_upper_rad
+      ),
+      compression_envelope_skews=resolved_reference.compression_envelope_skews,
+      closure_tolerance_m=resolved_reference.closure_tolerance_m,
+      incoming_handoff=resolved_handoff,
+      sample_count=resolved_reference.sample_count,
+      branch=resolved_reference.branch,
+      position_tolerance_m=resolved_reference.position_tolerance_m,
+      invariant_tolerance=resolved_reference.invariant_tolerance,
+      attachment_pressure_tolerance=(
+        resolved_reference.attachment_pressure_tolerance
+      ),
+      pressure_tolerance=resolved_reference.pressure_tolerance,
+      tangent_tolerance=resolved_reference.tangent_tolerance,
+      shock_angle_tolerance_rad=resolved_reference.shock_angle_tolerance_rad,
+      euler_reconciliation_shock_angle_tolerance_rad=(
+        resolved_reference.euler_reconciliation_shock_angle_tolerance_rad
+      ),
+      euler_reconciliation_residual_tolerance=(
+        resolved_reference.euler_reconciliation_residual_tolerance
+      ),
+      maximum_segment_iterations=resolved_reference.maximum_segment_iterations,
+      maximum_boundary_iterations=resolved_reference.maximum_boundary_iterations,
+      maximum_shooting_iterations=resolved_reference.maximum_shooting_iterations,
+      maximum_bracket_scan_samples=resolved_reference.maximum_bracket_scan_samples,
+      maximum_attempts=resolved_reference.maximum_attempts,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return build_run(
+      status=MocProductionShockCellContinuedChainStatus.SEED_FAILURE,
+      seed_closure=None,
+      seed_global_euler=None,
+      planner=None,
+      fresh_solver_invocation_verified=True,
+      seed_measurement_verified=False,
+      continued_chain_measurement_verified=False,
+      intercell_bridge_verified=False,
+      fidelity_isolation_verified=True,
+      message=f'fresh continued-chain seed solve raised: {error}',
+    )
+  ####
+
+  seed_global_euler = seed_closure.global_euler
+  if (
+    not seed_closure.physical_closure_verified
+    or seed_global_euler is None
+    or seed_global_euler.physical_field is None
+    or seed_global_euler.physical_field.field is None
+  ):
+    return build_run(
+      status=MocProductionShockCellContinuedChainStatus.SEED_FAILURE,
+      seed_closure=seed_closure,
+      seed_global_euler=seed_global_euler,
+      planner=None,
+      fresh_solver_invocation_verified=True,
+      seed_measurement_verified=False,
+      continued_chain_measurement_verified=False,
+      intercell_bridge_verified=False,
+      fidelity_isolation_verified=bool(
+        seed_closure.chain_promotion_blocked
+        and not seed_closure.production_claim_allowed
+      ),
+      message=(
+        'fresh continued-chain seed retained no locally verified global '
+        f'physical field: {seed_closure.message}'
+      ),
+    )
+  ####
+
+  try:
+    planner = plan_reflected_domain_global_euler_continued_chain(
+      seed_global_euler,
+      start_x_m=start,
+      end_x_m=end,
+      reference=resolved_reference,
+      policy=resolved_policy,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return build_run(
+      status=MocProductionShockCellContinuedChainStatus.CHAIN_FAILURE,
+      seed_closure=seed_closure,
+      seed_global_euler=seed_global_euler,
+      planner=None,
+      fresh_solver_invocation_verified=True,
+      seed_measurement_verified=True,
+      continued_chain_measurement_verified=False,
+      intercell_bridge_verified=False,
+      fidelity_isolation_verified=True,
+      message=f'fresh continued-chain planner raised: {error}',
+    )
+  ####
+
+  diagnostics = dict(planner.diagnostics)
+  seed_measurement = diagnostics.get(
+    'global_euler_continued_chain_source_measurement'
+  )
+  seed_checks = (
+    {} if not isinstance(seed_measurement, dict)
+    else seed_measurement.get('checks', {})
+  )
+  seed_measurement_verified = bool(
+    isinstance(seed_measurement, dict)
+    and seed_measurement.get('status') == 'converged'
+    and isinstance(seed_checks, dict)
+    and seed_checks.get('incoming_handoff_verified') is True
+    and seed_checks.get('physical_closure_verified') is True
+    and seed_checks.get('chain_promotion_blocked') is True
+    and seed_checks.get('production_claim_allowed') is False
+  )
+  chain_measurement = diagnostics.get(
+    'global_euler_continued_chain_independent_measurement'
+  )
+  planner_measurement = diagnostics.get(
+    'global_euler_continued_chain_planner_measurement'
+  )
+  continued_chain_measurement_verified = bool(
+    diagnostics.get('global_euler_continued_chain_audit_accepted') is True
+    and isinstance(chain_measurement, dict)
+    and chain_measurement.get('status') == 'converged'
+    and isinstance(planner_measurement, dict)
+    and planner_measurement.get('status') == 'converged'
+  )
+  intercell_bridge_report = (
+    {} if not isinstance(chain_measurement, dict)
+    else chain_measurement.get('intercell_bridges', {})
+  )
+  intercell_bridge_verified = bool(
+    isinstance(intercell_bridge_report, dict)
+    and int(intercell_bridge_report.get('count', 0)) > 0
+    and intercell_bridge_report.get('verified') is True
+  )
+  field_reports = diagnostics.get(
+    'global_euler_continued_chain_global_euler_fields',
+    (),
+  )
+  fidelity_isolation_verified = bool(
+    planner.production_claim_allowed is False
+    and diagnostics.get('chain_promotion_blocked') is True
+    and diagnostics.get('production_claim_allowed') is False
+    and all(
+      isinstance(report, dict)
+      and report.get('chain_promotion_blocked') is True
+      and report.get('production_claim_allowed') is False
+      for report in field_reports
+    )
+  )
+  if not planner.resolved:
+    status = MocProductionShockCellContinuedChainStatus.CHAIN_FAILURE
+    message = (
+      'fresh continued-chain planner returned an unresolved chain; '
+      'no physical endpoint or lower-fidelity fallback was inferred'
+    )
+  elif not (
+    seed_measurement_verified
+    and continued_chain_measurement_verified
+    and intercell_bridge_verified
+  ):
+    status = MocProductionShockCellContinuedChainStatus.MEASUREMENT_FAILURE
+    message = (
+      'fresh continued-chain fields were retained, but the independent '
+      'chain/bridge measurement did not pass all local gates'
+    )
+  elif not fidelity_isolation_verified:
+    status = MocProductionShockCellContinuedChainStatus.MEASUREMENT_FAILURE
+    message = 'continued-chain evidence weakened its research-only promotion boundary'
+  else:
+    status = MocProductionShockCellContinuedChainStatus.CONVERGED_LOCAL_CONTINUED_CHAIN
+    message = (
+      'fresh global-Euler continued-chain fields passed independent handoff, '
+      'fresh-domain, and intercell-bridge audits; physical length acceptance '
+      'and external comparison remain separate gates'
+    )
+  ####
+  return build_run(
+    status=status,
+    seed_closure=seed_closure,
+    seed_global_euler=seed_global_euler,
+    planner=planner,
+    fresh_solver_invocation_verified=True,
+    seed_measurement_verified=seed_measurement_verified,
+    continued_chain_measurement_verified=continued_chain_measurement_verified,
+    intercell_bridge_verified=intercell_bridge_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=message,
   )
 ####

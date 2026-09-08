@@ -243,10 +243,13 @@ from exhaust_plume.validation.moc_reflected_domain_refinement import (
   run_moc_reflected_domain_global_euler_shock_boundary_refinement,
 )
 from exhaust_plume.validation.moc_production_shock_cell_refinement import (
+  MOC_PRODUCTION_SHOCK_CELL_CONTINUED_CHAIN_RUN_OPERATOR_ID,
   MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID,
+  MocProductionShockCellContinuedChainStatus,
   MocProductionShockCellFitRefinementCase,
   MocProductionShockCellFitRefinementStatus,
   measure_moc_production_shock_cell_fit_refinement,
+  run_moc_production_shock_cell_continued_chain,
   run_moc_production_shock_cell_fit_refinement,
 )
 
@@ -5656,6 +5659,59 @@ def test_global_euler_fresh_source_continuation_re_solves_each_cell():
   ] is True
   assert planner.diagnostics['chain_promotion_blocked'] is True
   assert planner.diagnostics['canonical_euler_verified'] is False
+####
+
+
+def test_production_continued_chain_runner_retains_research_gate():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  reference = MocGlobalEulerContinuedChainReference(
+    total_cell_count=3,
+    outer_source_indices=(0,),
+    target_centerline_indices=(1,),
+    compression_envelope_skews=(-0.75,),
+    sample_count=9,
+  )
+  run = run_moc_production_shock_cell_continued_chain(
+    source,
+    start_x_m=0.5,
+    end_x_m=field.ambient_boundary_points_m[-1][0] + 12.0,
+    reference=reference,
+    policy=MocChainContinuationPolicy(
+      max_cells=4,
+      require_state_carry=True,
+    ),
+  )
+
+  assert run.status is (
+    MocProductionShockCellContinuedChainStatus
+    .CONVERGED_LOCAL_CONTINUED_CHAIN
+  )
+  assert run.resolved
+  assert run.local_consistency_verified
+  assert run.fresh_solver_invocation_verified
+  assert run.seed_measurement_verified
+  assert run.continued_chain_measurement_verified
+  assert run.intercell_bridge_verified
+  assert run.fidelity_isolation_verified
+  assert run.research_physical_cell_count == 2
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  report = run.as_report()
+  assert report['operator_id'] == (
+    MOC_PRODUCTION_SHOCK_CELL_CONTINUED_CHAIN_RUN_OPERATOR_ID
+  )
+  assert report['physical_length_accepted'] is False
+  assert report['external_validation_verified'] is False
+  assert report['planner_diagnostics'][
+    'global_euler_continued_chain_intercell_bridge_count'
+  ] == 2
 ####
 
 
