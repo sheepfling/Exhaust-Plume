@@ -245,6 +245,10 @@ from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_ref
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus,
   run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_refinement,
 )
+from exhaust_plume.validation.moc_global_coupled_shock_cell_fit import (
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellFitStatus,
+  run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_fit,
+)
 from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
   MocReflectedDomainGlobalFrontierBoundaryConditionStatus,
   run_reflected_domain_global_frontier_boundary_conditioned_resolve,
@@ -8156,13 +8160,136 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_retain
   assert run.measurement.fidelity_isolation_verified
   assert run.measurement.response_stability_verified
   assert run.measurement.frame_extension_stability_verified is False
-  assert run.measurement.conservative_boundary_fluxes_verified is False
+  assert run.measurement.conservative_boundary_fluxes_verified
+  assert all(
+    audit.converged
+    for case in run.cases
+    for audit in case.boundary_flux_audits
+  )
   assert run.measurement.maximum_relative_frame_extension_change is not None
   assert run.measurement.maximum_relative_frame_extension_change > 0.75
   assert all(case.local_research_verified for case in run.cases)
   assert all(
     case.run.production_claim_allowed is False for case in run.cases
   )
+####
+
+
+def test_global_coupled_boundary_condition_feedback_cross_case_refinement_converges_on_fine_ladder():
+  cases = tuple(
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase(
+      case_id=f'fine-source-{sample_count}',
+      regime='mixed-regime-research',
+      source_closure=_global_physical_closure_for_mixed_regime(sample_count),
+      resolution=resolution,
+      downstream_options={
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+    )
+    for sample_count, resolution in (
+      (9, (9, 10, 5)),
+      (11, (11, 12, 6)),
+      (13, (13, 14, 7)),
+    )
+  )
+
+  run = (
+    run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_refinement(
+      cases,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      downstream_feedback_iterations=2,
+    )
+  )
+
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
+    .CONVERGED_RESEARCH_CROSS_CASE
+  )
+  assert run.converged
+  assert run.measurement.resolution_order_verified
+  assert run.measurement.distinct_source_closures_verified
+  assert run.measurement.case_bindings_verified
+  assert run.measurement.fresh_solver_invocations_verified
+  assert run.measurement.target_lineage_verified
+  assert run.measurement.frame_coverage_verified
+  assert run.measurement.residuals_finite
+  assert run.measurement.geometry_profile_injection_blocked
+  assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.response_stability_verified
+  assert run.measurement.frame_extension_stability_verified
+  assert run.measurement.conservative_boundary_fluxes_verified
+  assert run.measurement.maximum_relative_response_change is not None
+  assert run.measurement.maximum_relative_response_change < 0.75
+  assert run.measurement.maximum_relative_frame_extension_change is not None
+  assert run.measurement.maximum_relative_frame_extension_change < 0.75
+  assert all(case.local_research_verified for case in run.cases)
+  assert all(
+    all(audit.converged for audit in case.boundary_flux_audits)
+    for case in run.cases
+  )
+  assert all(case.run.production_claim_allowed is False for case in run.cases)
+####
+
+
+def test_global_coupled_boundary_condition_feedback_binds_first_cell_fit_to_fine_field():
+  cases = tuple(
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase(
+      case_id=f'fine-source-{sample_count}',
+      regime='mixed-regime-research',
+      source_closure=_global_physical_closure_for_mixed_regime(sample_count),
+      resolution=resolution,
+      downstream_options={
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+    )
+    for sample_count, resolution in (
+      (9, (9, 10, 5)),
+      (11, (11, 12, 6)),
+      (13, (13, 14, 7)),
+    )
+  )
+  refinement = (
+    run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_refinement(
+      cases,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      downstream_feedback_iterations=2,
+    )
+  )
+
+  fit_run = (
+    run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_fit(
+      refinement,
+      start_x_m=0.5,
+      end_margin_m=0.05,
+    )
+  )
+
+  assert fit_run.measurement.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellFitStatus
+    .CONVERGED_RESEARCH_FIRST_CELL_FIT
+  )
+  assert fit_run.converged
+  assert fit_run.measurement.local_consistency_verified
+  assert fit_run.upstream_refinement_verified
+  assert fit_run.field_binding_verified
+  assert fit_run.fidelity_isolation_verified
+  assert len(fit_run.cases) == 3
+  assert all(case.coupled_field_lineage_verified for case in fit_run.cases)
+  assert all(case.physical_field_handoff_verified for case in fit_run.cases)
+  assert all(case.fit_field_binding_verified for case in fit_run.cases)
+  assert all(case.measurement.converged for case in fit_run.cases)
+  assert fit_run.measurement.length_uncertainty_m is not None
+  assert fit_run.measurement.length_uncertainty_m >= 0.0
+  assert fit_run.measurement.length_uncertainty_fraction is not None
+  assert fit_run.measurement.continued_chain_fits_verified is False
+  assert fit_run.chain_promotion_blocked
+  assert fit_run.production_claim_allowed is False
+  assert fit_run.as_report()['measurement']['physical_length_accepted'] is False
+  assert fit_run.as_report()['measurement']['external_validation_verified'] is False
 ####
 
 

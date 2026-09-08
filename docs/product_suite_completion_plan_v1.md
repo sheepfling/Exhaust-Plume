@@ -2586,13 +2586,57 @@ The first disjoint pair (source samples ``5 -> 9`` and downstream resolution
 ``(7, 8, 4) -> (9, 10, 5)``) passes those local gates.  The response channel
 ladder is within the declared ``0.75`` research stability fraction, but the
 solver-observed initial frame-extension demand changes by approximately
-``0.794`` relative and therefore returns typed ``STABILITY_FAILURE``.  The
-operator also records ``conservative_boundary_fluxes_verified=false`` because
-the current retained field exposes cell-Euler and boundary-normal residuals,
-not an independently retained boundary-face flux ledger.
+``0.794`` relative and therefore returns typed ``STABILITY_FAILURE``.  A new
+independent retained-state boundary-face audit replays all centerline, inlet,
+free-boundary, and outlet fluxes, verifies internal-face antisymmetry, and
+passes for both cases; ``conservative_boundary_fluxes_verified`` is now true
+without being inferred from cell-Euler residuals.
 
 This is a useful refinement result, not a promotion: P2.2c remains open until
-the moving-frame demand is stable across the declared ladder and a conservative
-boundary-flux audit is implemented and independently checked.  P3 physical
+the moving-frame demand is stable across the declared ladder.  P3 physical
 shock-cell fitting, provider-bound VIS/SIG/RAY/FPA validation, the raw V8 and
 alignment archives, and P5 release gates remain blocked.
+
+### P2.2c accepted fine-ladder checkpoint — 2026-09-08
+
+The same operator now passes a declared fine disjoint ladder with source
+samples ``9 -> 11 -> 13`` and downstream resolutions
+``(9, 10, 5) -> (11, 12, 6) -> (13, 14, 7)``.  The maximum adjacent response
+change is approximately ``0.329`` and the maximum frame-demand change is
+approximately ``0.320``, both below the ``0.75`` research stability fraction.
+Every case retains a fresh solver invocation, exact source/target lineage,
+solver-owned geometry, finite residuals, frame coverage, fidelity isolation,
+and an independently replayed conservative boundary-face ledger.
+
+This closes the local P2.2c refinement gate for the declared fine-ladder
+research envelope.  The ``5 -> 9`` coarse ladder remains an explicit
+``STABILITY_FAILURE`` and is not promoted into the high-fidelity envelope.
+The result still does not establish canonical reflected 2-D mixed-regime
+closure, external validation, or production validity.  The next implementation
+slice is P3: bind physical shock-cell fitting to the accepted fine-ladder
+field, retain first/continued fit uncertainty, and keep the fit research-only
+until disjoint physical observations are available.
+
+### P3 coupled-field first-cell fitting checkpoint — 2026-09-08
+
+The new
+``op.moc.reflected-domain.global-coupled-boundary-condition-feedback-shock-cell-fit``
+adapter consumes only a converged fine P2.2c refinement run. For every
+resolution it follows the final retained coupled-Euler result, verifies that
+the result consumed the exact source shock-front condition and exact physical
+initial-state handoff, and binds the existing solver-owned first-cell fitter
+to that same physical field. The independent geometry measurement is retained
+per case rather than inferred from a display path or diagnostic spacing.
+
+The report now carries solver-owned axial lengths, adjacent resolution deltas,
+and a resolution-derived uncertainty (the maximum adjacent length change).
+This is numerical refinement evidence only: it is not a physical uncertainty,
+accepted cell length, external comparison, canonical mixed-regime closure, or
+production claim. Continued shock-cell fitting is still a separate carried
+field/chain gate and is reported as not attempted; the raw V8 and alignment
+archives remain unavailable.
+
+The focused regression passes for the 9 -> 11 -> 13 fine ladder. The next P3
+slice is to build the continued-chain handoff on the same accepted field
+contract, then execute the disjoint physical-observation comparison when the
+validation data is available.

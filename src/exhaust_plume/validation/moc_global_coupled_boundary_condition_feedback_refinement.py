@@ -33,6 +33,10 @@ from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback imp
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
   run_reflected_domain_global_coupled_boundary_condition_feedback,
 )
+from exhaust_plume.validation.moc_conservative_boundary_flux_audit import (
+  MocReflectedDomainCoupledEulerBoundaryFluxAudit,
+  measure_reflected_domain_coupled_euler_boundary_fluxes,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_REFINEMENT_OPERATOR_ID',
@@ -341,6 +345,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
   resolution: tuple[int, int, int]
   run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun
   response_signature: tuple[float, float, float, float, float]
+  boundary_flux_audits: tuple[
+    MocReflectedDomainCoupledEulerBoundaryFluxAudit, ...
+  ] = ()
   source_lineage_verified: bool = False
   fresh_solver_invocations_verified: bool = False
   target_lineage_verified: bool = False
@@ -376,6 +383,16 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
         'response_signature must contain five finite response magnitudes'
       )
     ####
+    audits = tuple(self.boundary_flux_audits)
+    if any(
+      not isinstance(
+        audit,
+        MocReflectedDomainCoupledEulerBoundaryFluxAudit,
+      )
+      for audit in audits
+    ):
+      raise TypeError('boundary_flux_audits must contain typed flux audits')
+    ####
     for name in (
       'source_lineage_verified',
       'fresh_solver_invocations_verified',
@@ -394,6 +411,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     object.__setattr__(self, 'regime', str(self.regime))
     object.__setattr__(self, 'resolution', resolution)
     object.__setattr__(self, 'response_signature', signature)
+    object.__setattr__(self, 'boundary_flux_audits', audits)
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -425,6 +443,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'resolution': self.resolution,
       'response_signature': self.response_signature,
+      'boundary_flux_audits': tuple(
+        audit.as_report() for audit in self.boundary_flux_audits
+      ),
       'local_research_verified': self.local_research_verified,
       'source_lineage_verified': self.source_lineage_verified,
       'fresh_solver_invocations_verified': (
@@ -762,6 +783,31 @@ def _adjacent_stability(
 ####
 
 
+def _boundary_flux_audits(
+  run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
+) -> tuple[MocReflectedDomainCoupledEulerBoundaryFluxAudit, ...]:
+  """Audit the final retained coupled field for every outer feedback step."""
+
+  audits: list[MocReflectedDomainCoupledEulerBoundaryFluxAudit] = []
+  for iteration in run.iterations:
+    downstream = iteration.downstream_feedback
+    if downstream is None or not downstream.iterations:
+      return ()
+    ####
+    candidate = downstream.iterations[-1].result.coupled_field
+    if candidate is None:
+      return ()
+    ####
+    try:
+      audits.append(measure_reflected_domain_coupled_euler_boundary_fluxes(candidate))
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+      return ()
+    ####
+  ####
+  return tuple(audits)
+####
+
+
 def _measurement(
   cases: tuple[
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase, ...
@@ -1002,6 +1048,11 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
       feedback.frame_coverage_verified
       and feedback.target_coverage_verified
     )
+    boundary_flux_audits = _boundary_flux_audits(feedback)
+    conservative_boundary_fluxes_verified = bool(
+      boundary_flux_audits
+      and all(audit.converged for audit in boundary_flux_audits)
+    )
     retained.append(
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase(
         case_id=requested.case_id,
@@ -1010,6 +1061,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
         resolution=requested.resolution,
         run=feedback,
         response_signature=_response_signature(feedback),
+        boundary_flux_audits=boundary_flux_audits,
         source_lineage_verified=source_lineage,
         fresh_solver_invocations_verified=bool(
           feedback.fresh_global_solve_attempted
@@ -1026,11 +1078,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
           requested.downstream_options,
         ),
         fidelity_isolation_verified=feedback.fidelity_isolation_verified,
-        # The current coupled field exposes conservative cell-Euler and
-        # boundary-normal residuals, but not an independently retained
-        # conservative boundary-face flux ledger.  Keep this gate explicit
-        # instead of treating cell residuals as boundary-flux evidence.
-        conservative_boundary_fluxes_verified=False,
+        conservative_boundary_fluxes_verified=(
+          conservative_boundary_fluxes_verified
+        ),
         message=feedback.message,
       )
     )
