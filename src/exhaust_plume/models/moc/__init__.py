@@ -233,6 +233,12 @@ from exhaust_plume.models.moc.physical_field_shock_front import (
   MocPhysicalFieldShockFrontConditionResult,
   build_moc_physical_field_shock_front_condition,
 )
+from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerReconciliationStatus,
+  MocPhysicalFieldEulerReconciliationRequest,
+  MocPhysicalFieldEulerReconciliationResult,
+  solve_moc_physical_field_euler_reconciliation,
+)
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
   MocFreeBoundaryResult,
@@ -989,6 +995,10 @@ __all__ = (
   'MocPhysicalFieldShockFrontConditionRequest',
   'MocPhysicalFieldShockFrontConditionResult',
   'build_moc_physical_field_shock_front_condition',
+  'MocPhysicalFieldEulerReconciliationStatus',
+  'MocPhysicalFieldEulerReconciliationRequest',
+  'MocPhysicalFieldEulerReconciliationResult',
+  'solve_moc_physical_field_euler_reconciliation',
   'build_moc_transonic_shock_interface_profile',
   'build_moc_transonic_shock_interface_profile_from_field',
   'build_moc_transonic_shock_interface_profile_from_field_placement',

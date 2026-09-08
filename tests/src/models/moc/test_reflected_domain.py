@@ -53,6 +53,8 @@ from exhaust_plume.models.moc import (
   MocTransonicShockInterfaceSample,
   MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileStatus,
+  MocPhysicalFieldEulerReconciliationRequest,
+  MocPhysicalFieldEulerReconciliationStatus,
   MocPhysicalFieldShockFrontConditionRequest,
   MocPhysicalFieldShockFrontConditionStatus,
   MocTransonicTransitionStatus,
@@ -112,6 +114,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_mixed_regime_boundary,
   fit_reflected_domain_production_shock_cell,
   build_moc_physical_field_continuation_profile,
+  solve_moc_physical_field_euler_reconciliation,
   build_moc_physical_field_shock_front_condition,
   build_moc_transonic_shock_interface_profile_from_field,
   build_moc_transonic_shock_interface_profile_from_field_placement,
@@ -177,6 +180,10 @@ from exhaust_plume.validation.moc_field_continuation import (
 from exhaust_plume.validation.moc_physical_field_shock_front import (
   MocPhysicalFieldShockFrontConditionAuditStatus,
   measure_moc_physical_field_shock_front_condition,
+)
+from exhaust_plume.validation.moc_physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerReconciliationAuditStatus,
+  measure_moc_physical_field_euler_reconciliation,
 )
 from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import (
   MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus,
@@ -964,6 +971,131 @@ def test_global_physical_field_continuation_preserves_oblique_post_shock_regime(
     MocReflectedDomainCoupledEulerFreeBoundaryStatus
     .INLET_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE
   )
+####
+
+
+def test_physical_field_euler_reconciliation_consumes_front_and_audits():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  field = closure.global_euler.physical_field.field
+  assert field is not None
+  points = tuple(
+    (5.5, ordinate)
+    for ordinate in (
+      0.0564,
+      0.1027,
+      0.1491,
+      0.1955,
+      0.2418,
+      0.2882,
+      0.3345,
+      0.3809,
+      0.4273,
+      0.4736,
+    )
+  )
+  continuation = build_moc_physical_field_continuation_profile(
+    MocPhysicalFieldContinuationProfileRequest(
+      field=field,
+      sample_points_m=points,
+    )
+  )
+  assert continuation.converged
+  condition = build_moc_physical_field_shock_front_condition(
+    MocPhysicalFieldShockFrontConditionRequest(
+      continuation_profile=continuation,
+      condition_id='test-front-aligned-euler-reconciliation',
+    )
+  )
+  assert condition.converged
+  candidate = solve_moc_physical_field_euler_reconciliation(
+    MocPhysicalFieldEulerReconciliationRequest(
+      shock_front_condition=condition,
+      reference_total_temperature_K=1500.0,
+    )
+  )
+  assert candidate.status is (
+    MocPhysicalFieldEulerReconciliationStatus
+    .CONVERGED_LOCAL_RECONCILIATION
+  )
+  assert candidate.converged
+  assert candidate.physical_closure_verified is False
+  assert candidate.global_coupling_verified is False
+  assert candidate.shock_boundary_edge_count == 8
+  assert candidate.ambient_boundary_edge_count == 8
+  assert candidate.centerline_boundary_edge_count == 9
+  assert candidate.terminal_boundary_count == 1
+  audit = measure_moc_physical_field_euler_reconciliation(candidate)
+  assert audit.status is MocPhysicalFieldEulerReconciliationAuditStatus.VERIFIED
+  assert audit.converged
+  assert audit.residual_channels_recomputed
+  assert audit.residual_report_verified
+  assert audit.shock_front_verified
+  assert audit.ambient_boundary_verified
+  assert audit.centerline_boundary_verified
+  assert audit.promotion_flags_verified
+  assert audit.physical_closure_verified is False
+####
+
+
+def test_physical_field_euler_reconciliation_audit_rejects_tampered_residuals():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  field = closure.global_euler.physical_field.field
+  assert field is not None
+  points = tuple(
+    (5.5, ordinate)
+    for ordinate in (
+      0.0564,
+      0.1027,
+      0.1491,
+      0.1955,
+      0.2418,
+      0.2882,
+      0.3345,
+      0.3809,
+      0.4273,
+      0.4736,
+    )
+  )
+  continuation = build_moc_physical_field_continuation_profile(
+    MocPhysicalFieldContinuationProfileRequest(
+      field=field,
+      sample_points_m=points,
+    )
+  )
+  condition = build_moc_physical_field_shock_front_condition(
+    MocPhysicalFieldShockFrontConditionRequest(
+      continuation_profile=continuation,
+      condition_id='test-front-aligned-euler-reconciliation-tamper',
+    )
+  )
+  candidate = solve_moc_physical_field_euler_reconciliation(
+    MocPhysicalFieldEulerReconciliationRequest(
+      shock_front_condition=condition,
+      reference_total_temperature_K=1500.0,
+    )
+  )
+  tampered_residual = (
+    (
+      candidate.residual_channels_by_cell[0][0] + 0.1,
+      *candidate.residual_channels_by_cell[0][1:],
+    ),
+    *candidate.residual_channels_by_cell[1:],
+  )
+  tampered = replace(
+    candidate,
+    residual_channels_by_cell=tampered_residual,
+  )
+  audit = measure_moc_physical_field_euler_reconciliation(tampered)
+  assert audit.status is (
+    MocPhysicalFieldEulerReconciliationAuditStatus.RESIDUAL_FAILURE
+  )
+  assert not audit.converged
+  assert audit.residual_channels_recomputed
+  assert audit.residual_report_verified is False
 ####
 
 

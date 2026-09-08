@@ -300,6 +300,12 @@ from exhaust_plume.validation.moc_physical_field_shock_front import (
   MocPhysicalFieldShockFrontConditionAudit,
   measure_moc_physical_field_shock_front_condition,
 )
+from exhaust_plume.validation.moc_physical_field_euler_reconciliation import (
+  MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_AUDIT_OPERATOR_ID,
+  MocPhysicalFieldEulerReconciliationAuditStatus,
+  MocPhysicalFieldEulerReconciliationAudit,
+  measure_moc_physical_field_euler_reconciliation,
+)
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -741,6 +747,10 @@ __all__ = (
   'MocPhysicalFieldShockFrontConditionAuditStatus',
   'MocPhysicalFieldShockFrontConditionAudit',
   'measure_moc_physical_field_shock_front_condition',
+  'MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_AUDIT_OPERATOR_ID',
+  'MocPhysicalFieldEulerReconciliationAuditStatus',
+  'MocPhysicalFieldEulerReconciliationAudit',
+  'measure_moc_physical_field_euler_reconciliation',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainMixedRegimeBoundaryRefinementStatus',
   'MocReflectedDomainMixedRegimeBoundaryRefinementCase',

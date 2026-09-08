@@ -1867,3 +1867,33 @@ space; then refresh the exact-HEAD freeze and release manifest.  Until all of
 those gates are green, the correct deliverable is a reproducible
 research-scoped candidate with explicit blockers, not a release tag or a
 production claim.
+
+### P2.2 front-aligned conservative reconciliation checkpoint — 2026-09-08
+
+The next solver-owned consumer now re-solves the retained physical-field mesh
+with conservative Euler face fluxes.  It consumes the exact fitted shock
+front, upstream and post-shock states, ambient-pressure path, centerline path,
+and the solver-owned terminal edge.  The edge topology is rebuilt from the
+retained cells; no cross-section profile is projected onto a free boundary and
+no lower-fidelity lane is selected when a path is unavailable.
+
+The target retained field currently has 53 cells, 88 internal edges, 8 shock
+edges, 8 ambient edges, 9 centerline edges, and one terminal outflow edge.
+The fixed-front research re-solve converges locally in 140 pseudo-iterations
+with a maximum normalized conservative residual of approximately
+``4.93e-4`` and a maximum shock jump residual of approximately ``7.93e-5``.
+The independent operator
+``op.moc.physical-field-euler-reconciliation-audit`` reconstructs the same
+residual channels, shock jump, ambient pressure/tangency, centerline, source
+geometry, and promotion flags.  Focused success and tampered-residual tests
+pass.
+
+This is genuine conservative field consumption, but it is not yet the P2.2
+exit condition.  The front geometry is still fixed from the retained MOC
+field; there is no solver-owned placement update, cross-case refinement
+ladder, or accepted physical comparison.  The result therefore reports
+``physical_closure_verified=false``, ``global_coupling_verified=false``, and
+the research-only claim ceiling.  The next slice is to bind this consumer to
+the global placement/refinement loop and demonstrate stable behavior across
+at least two declared resolutions before considering any physical shock-cell
+fit or product promotion.
