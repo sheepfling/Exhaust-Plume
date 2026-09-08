@@ -2218,20 +2218,34 @@ def _moc_visualization(
       None,
     )
   ####
-  target_pressure_reconciliation = bool(
-    (
-      getattr(result, 'target', None) is not None
-      and getattr(result, 'reconciliation', None) is not None
-    )
-    or all(
+  global_frontier_target_refinement = bool(
+    all(
       hasattr(result, name)
       for name in (
+        'selected_closure',
+        'refinement_brackets_verified',
         'target_match_verified',
-        'target_coverage_verified',
-        'target_consumption_verified',
       )
     )
     and hasattr(getattr(result, 'request', None), 'target_static_pressure_Pa')
+    and not hasattr(result, 'target_pressure_reconciliation')
+  )
+  ####
+  target_pressure_reconciliation = bool(
+    not global_frontier_target_refinement
+    and (
+      getattr(result, 'target', None) is not None
+      and getattr(result, 'reconciliation', None) is not None
+      or all(
+        hasattr(result, name)
+        for name in (
+          'target_match_verified',
+          'target_coverage_verified',
+          'target_consumption_verified',
+        )
+      )
+      and hasattr(getattr(result, 'request', None), 'target_static_pressure_Pa')
+    )
   )
   global_frontier_feedback = bool(
     all(
@@ -3131,6 +3145,21 @@ def _moc_visualization(
       getattr(result, 'iterations', ())
     )
   ####
+  if global_frontier_target_refinement:
+    diagnostics['global_frontier_target_refinement'] = True
+    diagnostics['global_frontier_target_refinement_completed'] = bool(
+      getattr(result, 'research_refinement_completed', False)
+    )
+    diagnostics['global_frontier_target_refinement_target_consumed'] = bool(
+      getattr(result, 'target_consumption_verified', False)
+    )
+    diagnostics['global_frontier_target_refinement_fresh_global_solve_verified'] = bool(
+      getattr(result, 'fresh_global_solve_verified', False)
+    )
+    diagnostics['global_frontier_target_refinement_iteration_count'] = len(
+      getattr(result, 'steps', ())
+    )
+  ####
   if reconciled_euler:
     reconciliation_status = getattr(source, 'status', '')
     diagnostics['physical_field_euler_reconciliation_status'] = str(
@@ -3948,6 +3977,13 @@ def _moc_visualization(
       'promotion remain unresolved'
     )
   ####
+  if global_frontier_target_refinement:
+    warnings.append(
+      'global-frontier target-conditioned refinement is a bounded research '
+      'parameter search; the compression-envelope skew is not a canonical '
+      'mixed-regime boundary condition or production shock-cell fit'
+    )
+  ####
   if transonic_geometry is not None:
     warnings.append(
       (
@@ -3980,6 +4016,9 @@ def _moc_visualization(
   return _bundle(
     lane=ModelVisualizationLane.PLANAR_MOC,
     model_id=(
+      'planar-moc-global-frontier-target-conditioned-refinement'
+      if global_frontier_target_refinement
+      else (
       'planar-moc-global-frontier-target-pressure-reconciliation'
       if target_pressure_reconciliation
       else (
@@ -4015,6 +4054,7 @@ def _moc_visualization(
         )
         )
         )
+        )
       )
     ),
     model_version='1',
@@ -4029,6 +4069,10 @@ def _moc_visualization(
       production_claim_allowed=False,
       claim_notes=(
         (
+          'global-frontier target-conditioned refinement retained for research '
+          'visualization; canonical closure remains open'
+          if global_frontier_target_refinement
+          else (
           'global-frontier pressure target consumed in a fixed-front '
           'conservative reconciliation; research visualization only'
           if target_pressure_reconciliation
@@ -4047,6 +4091,7 @@ def _moc_visualization(
               else 'higher-fidelity planar characteristic/reflected-domain field retained for evaluation'
             )
             )
+          )
           )
         ),
         'local field closure does not imply a production chain-cell or axisymmetric plume claim',

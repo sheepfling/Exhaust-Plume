@@ -222,6 +222,10 @@ from exhaust_plume.validation.moc_global_frontier_target_pressure_reconciliation
   MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus,
   run_reflected_domain_global_frontier_target_pressure_reconciliation,
 )
+from exhaust_plume.validation.moc_global_frontier_target_refinement import (
+  MocReflectedDomainGlobalFrontierTargetRefinementStatus,
+  run_reflected_domain_global_frontier_target_conditioned_refinement,
+)
 from exhaust_plume.validation.moc_global_coupled_frontier_feedback import (
   MocReflectedDomainGlobalCoupledFrontierFeedbackStatus,
   run_reflected_domain_global_coupled_frontier_feedback,
@@ -7569,6 +7573,83 @@ def test_global_coupled_frontier_feedback_executes_fresh_global_steps_without_pr
   assert visualization.claims.production_claim_allowed is False
   assert run.as_report()['configuration']['global_feedback_policy'] == (
     'downstream-response-exact-proposal-fresh-global-target-guided-resolve-v1'
+  )
+####
+
+
+def test_global_frontier_target_conditioned_refinement_fresh_probes_without_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  feedback = downstream_feedback.run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+  )
+  proposal = feedback.upstream_feedback_proposals[-1]
+  assert proposal is not None
+  request = build_reflected_domain_global_frontier_reconciliation_request(
+    closure,
+    proposal,
+    consumer_id='test-target-conditioned-refinement-v1',
+  )
+
+  refined = run_reflected_domain_global_frontier_target_conditioned_refinement(
+    request,
+    closure,
+    maximum_iterations=1,
+  )
+
+  assert refined.status is (
+    MocReflectedDomainGlobalFrontierTargetRefinementStatus
+    .CONVERGED_TARGET_CONDITIONED_RESEARCH_REFINEMENT
+  )
+  assert refined.research_refinement_completed
+  assert refined.target_lineage_verified
+  assert refined.fresh_global_solve_verified
+  assert refined.target_consumption_verified
+  assert refined.target_coverage_verified
+  assert refined.target_match_verified
+  assert refined.refinement_brackets_verified
+  assert refined.fidelity_isolation_verified
+  assert refined.selected_closure is not None
+  assert refined.selected_closure is not closure
+  assert len(refined.steps) == 1
+  step = refined.steps[0]
+  assert step.research_step_verified
+  assert len(step.probe_skews) == 3
+  assert step.selected_probe_skew in step.probe_skews
+  assert step.target_resolve.target_lineage_verified
+  assert step.target_resolve.fresh_global_solve_invocation_verified
+  assert refined.global_coupling_verified is False
+  assert refined.downstream_boundary_closure_verified is False
+  assert refined.chain_promotion_blocked
+  assert refined.production_claim_allowed is False
+  visualization = standardize_model_visualization(refined)
+  assert visualization.model_id == (
+    'planar-moc-global-frontier-target-conditioned-refinement'
+  )
+  assert visualization.diagnostics[
+    'global_frontier_target_refinement'
+  ] is True
+  assert visualization.diagnostics[
+    'global_frontier_target_refinement_completed'
+  ] is True
+  assert visualization.claims.production_claim_allowed is False
+  assert refined.as_report()['operator_id'] == (
+    'op.moc.reflected-domain.global-frontier-target-conditioned-refinement'
   )
 ####
 

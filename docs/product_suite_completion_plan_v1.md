@@ -2216,3 +2216,25 @@ must not be replaced by synthetic data.  The next gate is a solver-owned
 canonical mixed-regime/free-boundary closure with accepted physical
 shock-cell lengths, followed by provider-bound VIS/SIG/RAY/FPA cases and the
 final release-manifest acceptance matrix.
+
+### Target-conditioned global frontier refinement checkpoint — 2026-09-08
+
+The global frontier validation surface now exposes the typed
+``op.moc.reflected-domain.global-frontier-target-conditioned-refinement``
+operator.  It consumes one exact downstream proposal, evaluates a bounded
+lower/middle/upper compression-envelope-skew family with fresh global
+physical-closure solves, measures each candidate against the target without
+extrapolation, and narrows the retained bracket around the best finite
+candidate.  Source closure identity, proposal identity, fresh invocation,
+target coverage, and fidelity-isolation evidence are retained at every step.
+
+The new research result is also accepted by the standardized planar-MOC
+visualization adapter with an explicit target-refinement model ID and
+diagnostics.  The focused regression passes with a fresh selected closure and
+all promotion gates closed.  This is parameter-conditioned global research
+evidence, not a solver-owned physical downstream boundary: global coupling,
+canonical free-boundary closure, physical cell-length acceptance, external
+validation, chain promotion, and release readiness remain false.  The next
+physics gate is to replace the compression-envelope control with a true
+solver-owned mixed-regime boundary condition and independently refine that
+two-dimensional placement across cases.
