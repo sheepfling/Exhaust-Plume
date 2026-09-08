@@ -2274,6 +2274,25 @@ def _moc_visualization(
     )
     and hasattr(result, 'iterations')
   )
+  global_coupled_boundary_condition_feedback = bool(
+    all(
+      hasattr(result, name)
+      for name in (
+        'base_target_lineage_verified',
+        'target_composition_verified',
+        'fresh_global_solve_attempted',
+        'coordinate_residuals_verified',
+        'entropy_residual_verified',
+        'euler_residuals_verified',
+      )
+    )
+    and hasattr(result, 'final_closure')
+    and hasattr(result, 'iterations')
+  )
+  global_frontier_feedback = (
+    global_frontier_feedback
+    and not global_coupled_boundary_condition_feedback
+  )
   cell_polygons: list[tuple[Vector2, ...]] = []
   all_points: list[Vector2] = []
   for cell in getattr(field, 'cells', ()):
@@ -3198,6 +3217,45 @@ def _moc_visualization(
       getattr(result, 'iterations', ())
     )
   ####
+  if global_coupled_boundary_condition_feedback:
+    diagnostics['global_coupled_boundary_condition_feedback'] = True
+    diagnostics['global_coupled_boundary_condition_feedback_completed'] = bool(
+      getattr(result, 'research_feedback_completed', False)
+    )
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_downstream_response_verified'
+    ] = bool(getattr(result, 'downstream_response_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_base_target_lineage_verified'
+    ] = bool(getattr(result, 'base_target_lineage_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_target_composition_verified'
+    ] = bool(getattr(result, 'target_composition_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_fresh_global_solve_attempted'
+    ] = bool(getattr(result, 'fresh_global_solve_attempted', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_fresh_global_solve_verified'
+    ] = bool(getattr(result, 'fresh_global_solve_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_target_coverage_verified'
+    ] = bool(getattr(result, 'target_coverage_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_pressure_residuals_verified'
+    ] = bool(getattr(result, 'pressure_residuals_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_tangent_residuals_verified'
+    ] = bool(getattr(result, 'tangent_residuals_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_entropy_residual_verified'
+    ] = bool(getattr(result, 'entropy_residual_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_euler_residuals_verified'
+    ] = bool(getattr(result, 'euler_residuals_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_iteration_count'
+    ] = len(getattr(result, 'iterations', ()))
+  ####
   if global_frontier_target_refinement:
     diagnostics['global_frontier_target_refinement'] = True
     diagnostics['global_frontier_target_refinement_completed'] = bool(
@@ -4101,6 +4159,13 @@ def _moc_visualization(
       'promotion remain unresolved'
     )
   ####
+  if global_coupled_boundary_condition_feedback:
+    warnings.append(
+      'downstream/global boundary-condition feedback is bounded research '
+      'evidence; moving-frame coverage, canonical mixed-regime closure, '
+      'refinement, validation, and production promotion remain unresolved'
+    )
+  ####
   if global_frontier_target_refinement:
     warnings.append(
       'global-frontier target-conditioned refinement is a bounded research '
@@ -4145,6 +4210,8 @@ def _moc_visualization(
     model_id = 'planar-moc-global-frontier-target-conditioned-refinement'
   elif target_pressure_reconciliation:
     model_id = 'planar-moc-global-frontier-target-pressure-reconciliation'
+  elif global_coupled_boundary_condition_feedback:
+    model_id = 'planar-moc-global-coupled-boundary-condition-feedback'
   elif global_frontier_feedback:
     model_id = 'planar-moc-global-coupled-frontier-feedback'
   elif reconciled_euler:
@@ -4185,6 +4252,11 @@ def _moc_visualization(
     claim_note = (
       'global-frontier pressure target consumed in a fixed-front conservative '
       'reconciliation; research visualization only'
+    )
+  elif global_coupled_boundary_condition_feedback:
+    claim_note = (
+      'bounded downstream/global pressure-frame feedback research evidence; '
+      'solver-owned geometry and canonical closure remain open'
     )
   elif global_frontier_feedback:
     claim_note = (

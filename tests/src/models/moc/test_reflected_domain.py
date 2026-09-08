@@ -236,6 +236,10 @@ from exhaust_plume.validation.moc_global_coupled_frontier_feedback import (
   MocReflectedDomainGlobalCoupledFrontierFeedbackStatus,
   run_reflected_domain_global_coupled_frontier_feedback,
 )
+from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback import (
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus,
+  run_reflected_domain_global_coupled_boundary_condition_feedback,
+)
 from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
   MocReflectedDomainGlobalFrontierBoundaryConditionStatus,
   run_reflected_domain_global_frontier_boundary_conditioned_resolve,
@@ -7919,6 +7923,83 @@ def test_global_coupled_frontier_feedback_executes_fresh_global_steps_without_pr
   assert visualization.claims.production_claim_allowed is False
   assert run.as_report()['configuration']['global_feedback_policy'] == (
     'downstream-response-exact-proposal-fresh-global-target-guided-resolve-v1'
+  )
+####
+
+
+def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+
+  run = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+      'inlet_boundary_mode': (
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+      ),
+      'physical_field_continuation_profile': handoff.continuation_profile,
+      'physical_field_shock_front_condition': handoff.shock_front_condition,
+    },
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+    .BOUNDARY_CONDITION_FAILURE
+  )
+  assert run.research_feedback_completed is False
+  assert len(run.iterations) == 1
+  assert run.downstream_response_verified
+  assert run.source_lineage_verified
+  assert run.base_target_lineage_verified
+  assert run.target_lineage_verified
+  assert run.target_composition_verified
+  assert run.fresh_global_solve_attempted
+  assert run.fresh_global_solve_verified is False
+  assert run.target_consumption_verified is False
+  assert run.target_coverage_verified is False
+  assert run.target_match_verified is False
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  iteration = run.iterations[0]
+  assert iteration.base_target is not None
+  assert iteration.boundary_condition is not None
+  assert iteration.boundary_condition.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+    .TARGET_COVERAGE_FAILURE
+  )
+  assert iteration.boundary_condition.consumed_target is not None
+  assert iteration.boundary_condition.consumed_target.composition_mode == (
+    'explicit-overlay'
+  )
+  visualization = standardize_model_visualization(run)
+  assert visualization.model_id == (
+    'planar-moc-global-coupled-boundary-condition-feedback'
+  )
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback'
+  ] is True
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_target_composition_verified'
+  ] is True
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_fresh_global_solve_attempted'
+  ] is True
+  assert visualization.claims.production_claim_allowed is False
+  assert run.as_report()['configuration']['feedback_policy'] == (
+    'downstream-response-explicit-pressure-overlay-fresh-global-ambient-march-v1'
   )
 ####
 

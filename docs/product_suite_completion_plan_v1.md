@@ -2448,3 +2448,28 @@ iteration that can negotiate the moving station frame while independently
 checking pressure, tangent, entropy, and conservative residuals.  The
 provider-bound VIS/SIG/RAY/FPA matrix, raw V8 validation archive, alignment
 archive, and final release gates remain unchanged blockers.
+
+### Joint downstream/global boundary-feedback checkpoint — 2026-09-08
+
+The validation surface now exposes
+``op.moc.reflected-domain.global-coupled-boundary-condition-feedback``.  It
+executes the bounded outer sequence of coupled downstream response, exact
+frontier request, solver-owned ambient base frame, explicit pressure overlay,
+and fresh global ambient re-solve.  The base and overlay identities retain
+the source closure and proposal fingerprints; target geometry remains
+diagnostic, and the global solver owns the new boundary ordinates.
+
+The iteration result separates response, lineage, composition, fresh-solve,
+coverage, pressure, tangent, entropy, conservative-Euler, and fidelity gates.
+The current target case reaches the fresh global attempt and returns the
+typed moving-frame ``TARGET_COVERAGE_FAILURE`` without extrapolation or a
+lower-fidelity fallback.  The standardized planar visualization exposes the
+new feedback model ID and all of those diagnostics while keeping canonical
+coupling, chain promotion, and production claims false.  This is a concrete
+outer-iteration handoff, not accepted mixed-regime closure.
+
+The next physics slice must negotiate the moving station frame inside a
+solver-owned mixed-regime/free-boundary iteration, then repeat this operator
+over disjoint cases and refinement levels.  Physical shock-cell acceptance,
+provider-bound VIS/SIG/RAY/FPA comparisons, the raw V8 and alignment archives,
+and the final release gates remain open.
