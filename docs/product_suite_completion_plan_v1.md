@@ -2196,3 +2196,23 @@ the canonical solver-owned global/free-boundary closure is not established.
 The next gate is accepted disjoint physical shock-cell evidence, followed by
 the provider-bound VIS/SIG/RAY/FPA comparison matrix and the final release
 freeze.
+
+### Continued shock-cell chain checkpoint — 2026-09-08 (`2c60906`)
+
+The production-fit validation surface now exposes the typed
+``op.moc.reflected-domain.production-shock-cell-continued-chain-run``
+operator.  It fresh-solves the seed global physical field, then invokes the
+exact-Euler continued-chain planner so each downstream cell is independently
+re-solved from its carried state.  The report retains source/global/planner
+measurements, explicit inter-cell bridge measurements, carried-state lineage,
+and the fidelity-isolation policy.  A two-cell continuation regression passes
+with two fresh downstream solves and two verified bridges.
+
+This remains a research-only evidence slice: canonical global closure,
+free-boundary closure, accepted physical cell length, external validation, and
+chain promotion are all explicitly false or blocked.  The missing raw
+validation archive and separate alignment archive are still unresolved and
+must not be replaced by synthetic data.  The next gate is a solver-owned
+canonical mixed-regime/free-boundary closure with accepted physical
+shock-cell lengths, followed by provider-bound VIS/SIG/RAY/FPA cases and the
+final release-manifest acceptance matrix.
