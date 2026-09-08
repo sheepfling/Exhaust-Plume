@@ -11,7 +11,7 @@ it cannot close global shock placement or authorize a production cell fit.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from hashlib import sha256
 import json
@@ -522,7 +522,9 @@ class MocPhysicalFieldEulerReconciliationRefinementRun:
   source_cases: tuple[MocPhysicalFieldEulerReconciliationSourceCase, ...]
   cases: tuple[MocPhysicalFieldEulerReconciliationRefinementCase, ...]
   measurement: MocPhysicalFieldEulerReconciliationRefinementMeasurement
-  request_options: MappingProxyType = MappingProxyType({})
+  request_options: MappingProxyType = field(
+    default_factory=lambda: MappingProxyType({})
+  )
   operator_id: str = (
     MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_RUN_OPERATOR_ID
   )
