@@ -214,6 +214,10 @@ from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   run_reflected_domain_global_coupled_downstream_cross_case_refinement,
   run_reflected_domain_global_coupled_downstream_refinement,
 )
+from exhaust_plume.validation.moc_global_coupled_pressure_free_boundary_refinement import (
+  MocReflectedDomainGlobalCoupledPressureFreeBoundaryRefinementStatus,
+  run_reflected_domain_global_coupled_pressure_free_boundary_refinement,
+)
 from exhaust_plume.validation.moc_global_coupled_downstream_feedback import (
   MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus,
   run_reflected_domain_global_coupled_downstream_feedback,
@@ -3155,6 +3159,56 @@ def test_physical_field_pressure_free_boundary_rejects_geometry_injection():
       ),
       free_boundary_geometry_profile_source='test-geometry-profile',
     )
+
+
+def test_pressure_free_boundary_refinement_keeps_geometry_solver_owned():
+  closure = _global_physical_closure_for_mixed_regime()
+  field = closure.global_euler.physical_field.field
+  assert field is not None
+  ambient_boundary = field.ambient_boundary
+  target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(point[0] for point in ambient_boundary.points_m),
+    static_pressure_Pa=ambient_boundary.static_pressure_Pa,
+    source_id='test-pressure-free-boundary-refinement-target',
+    boundary_points_m=ambient_boundary.points_m,
+    source_closure_fingerprint=(
+      moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    ),
+    source_proposal_fingerprint='1' * 64,
+  )
+  run = run_reflected_domain_global_coupled_pressure_free_boundary_refinement(
+    closure,
+    target=target,
+    reference_total_temperature_K=1500.0,
+    resolutions=((8, 8), (10, 10)),
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+  )
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledPressureFreeBoundaryRefinementStatus
+    .CONVERGED_RESEARCH_LADDER
+  )
+  assert run.converged
+  assert run.measurement.resolution_order_verified
+  assert run.measurement.target_lineage_verified
+  assert run.measurement.pressure_consumption_verified
+  assert run.measurement.geometry_injection_blocked
+  assert run.measurement.geometry_solver_owned_verified
+  assert run.measurement.independent_audits_verified
+  assert run.measurement.response_channels_finite
+  assert run.measurement.local_coupled_field_verified
+  assert run.measurement.fidelity_isolation_verified
+  assert run.fresh_solver_invocation_verified
+  assert run.production_claim_allowed is False
+  assert all(
+    case.result.global_coupling_verified is False
+    and case.result.downstream_boundary_closure_verified is False
+    and case.result.coupled_request is not None
+    and case.result.coupled_request.free_boundary_geometry_profile_y_m is None
+    and case.result.coupled_field is not None
+    and not case.result.coupled_field.free_boundary_geometry_profile_consumed
+    for case in run.cases
+  )
 ####
 
 

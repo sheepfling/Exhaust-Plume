@@ -2257,3 +2257,20 @@ canonical/free-boundary closure, accepted shock-cell length, external
 provider validation, chain promotion, and release readiness remain false.  The
 next physics gate is independent placement/refinement of this pressure-only
 boundary across disjoint cases, followed by a true upstream global re-solve.
+
+### Pressure-free-boundary refinement checkpoint — 2026-09-08
+
+The validation surface now exposes a separate
+``op.moc.reflected-domain.global-coupled-pressure-free-boundary-refinement``
+ladder.  Each mesh resolution fresh-solves the global-to-coupled candidate
+from one exact closure and one closure-bound pressure target, samples only
+cell-center pressure stations with no extrapolation, independently audits the
+coupled field, and verifies that geometry injection stayed blocked while the
+solver-generated boundary changed with the mesh/field response.
+
+The two-resolution regression passes with fresh invocation, target/closure
+lineage, pressure consumption, solver-owned geometry, finite response
+channels, and fidelity isolation.  This remains local research evidence:
+cross-case refinement, upstream global feedback, canonical closure, accepted
+physical shock-cell length, external provider validation, and release
+readiness remain open.
