@@ -2101,3 +2101,22 @@ canonical downstream closure, physical shock-cell fitting, external
 validation, and production claims remain explicitly closed.  This is the
 cross-case evidence boundary required before a physical shock-cell fit; it is
 not itself an accepted physical comparison or a canonical global closure.
+
+### Candidate packaging checkpoint — 2026-09-08
+
+The exact candidate at ``eb748e16782f77f2ee047e13d141deccfbd1fc2a`` passes the
+repository's offline wheel build and installed-wheel smoke harness
+(``python3 scripts/check_build.py --offline``).  The smoke exercised the
+current Visualization, Signature, validation, and compatibility entry points
+from a fresh system-site-packages environment with no index access.  The
+checkout remained clean after the run; the known legacy expansion-fan
+warnings and expected unattainable pressure-target diagnostic were retained
+as non-fatal diagnostics.
+
+This closes the current packaging checkpoint only.  It does not refresh the
+historical release-freeze artifact, and it does not promote any lane: the
+canonical globally coupled closure, physical shock-cell fit, provider-bound
+comparisons, validation-data provenance, and product-specific external claims
+remain open.  The next implementation gate is a solver-owned physical
+shock-cell/refinement slice with an accepted disjoint validation boundary,
+followed by a final exact-HEAD freeze and release-manifest refresh.
