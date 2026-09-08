@@ -2516,3 +2516,23 @@ negotiation is not closure by itself; its only purpose is to make the next
 solver-owned joint residual solve explicit and auditable.  The absence of the
 validation archives is a parallel release blocker, not a reason to synthesize
 observations or to promote the physical model early.
+
+### Solver-owned moving-frame negotiation checkpoint — 2026-09-08
+
+The next P2.2a seam is now typed as
+``op.moc.reflected-domain.global-boundary-frame-negotiation``.  It binds the
+available pressure frame to the exact source-closure and downstream-proposal
+fingerprints, measures the stations actually attempted by the fresh global
+solver, and reports the lower/upper frame extension required by that attempt.
+The ambient march retains a failed solver point separately from the aligned
+accepted-sample arrays, so a coverage failure cannot be misreported as a
+covered prefix.
+
+On the current target case, the outer feedback operator now returns
+``FRAME_NEGOTIATION_REQUIRED`` and retains an upper extension of approximately
+``3.4e-4 m``.  The result explicitly blocks pressure extrapolation, endpoint
+holding, downstream geometry injection, chain promotion, and production
+claims.  This is a real solver-observed frame request, not a fabricated
+station or a completed mixed-regime closure.  The next P2.2b slice must make a
+solver-owned mixed-regime/free-boundary law generate and audit that extension
+before the global iteration can continue.

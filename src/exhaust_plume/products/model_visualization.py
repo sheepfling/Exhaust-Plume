@@ -3253,6 +3253,64 @@ def _moc_visualization(
       'global_coupled_boundary_condition_feedback_euler_residuals_verified'
     ] = bool(getattr(result, 'euler_residuals_verified', False))
     diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_negotiation_verified'
+    ] = bool(getattr(result, 'frame_negotiation_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_coverage_verified'
+    ] = bool(getattr(result, 'frame_coverage_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_extension_required'
+    ] = bool(getattr(result, 'frame_extension_required', False))
+    feedback_iterations = tuple(getattr(result, 'iterations', ()))
+    frame_negotiation = (
+      None
+      if not feedback_iterations
+      else getattr(feedback_iterations[-1], 'frame_negotiation', None)
+    )
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_status'
+    ] = (
+      None
+      if frame_negotiation is None
+      else getattr(getattr(frame_negotiation, 'status', None), 'value', None)
+    )
+    available_interval = (
+      None
+      if frame_negotiation is None
+      else getattr(frame_negotiation, 'available_x_interval_m', None)
+    )
+    requested_interval = (
+      None
+      if frame_negotiation is None
+      else getattr(frame_negotiation, 'requested_x_interval_m', None)
+    )
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_available_x_min_m'
+    ] = None if available_interval is None else available_interval[0]
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_available_x_max_m'
+    ] = None if available_interval is None else available_interval[1]
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_requested_x_min_m'
+    ] = None if requested_interval is None else requested_interval[0]
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_requested_x_max_m'
+    ] = None if requested_interval is None else requested_interval[1]
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_extension_lower_m'
+    ] = (
+      None
+      if frame_negotiation is None
+      else getattr(frame_negotiation, 'extension_lower_m', None)
+    )
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_frame_extension_upper_m'
+    ] = (
+      None
+      if frame_negotiation is None
+      else getattr(frame_negotiation, 'extension_upper_m', None)
+    )
+    diagnostics[
       'global_coupled_boundary_condition_feedback_iteration_count'
     ] = len(getattr(result, 'iterations', ()))
   ####
@@ -4162,7 +4220,8 @@ def _moc_visualization(
   if global_coupled_boundary_condition_feedback:
     warnings.append(
       'downstream/global boundary-condition feedback is bounded research '
-      'evidence; moving-frame coverage, canonical mixed-regime closure, '
+      'evidence; solver-owned frame negotiation and moving-frame coverage, '
+      'canonical mixed-regime closure, '
       'refinement, validation, and production promotion remain unresolved'
     )
   ####

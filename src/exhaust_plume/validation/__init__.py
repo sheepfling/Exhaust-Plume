@@ -305,6 +305,15 @@ from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback imp
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
   run_reflected_domain_global_coupled_boundary_condition_feedback,
 )
+from exhaust_plume.validation.moc_global_boundary_frame_negotiation import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_FRAME_NEGOTIATION_OPERATOR_ID,
+  MocReflectedDomainGlobalBoundaryFrameNegotiationStatus,
+  MocReflectedDomainGlobalBoundaryFrameNegotiationRequest,
+  MocReflectedDomainGlobalBoundaryFrameNegotiationResult,
+  solver_owned_global_boundary_station_xs,
+  build_reflected_domain_global_boundary_frame_negotiation_request,
+  negotiate_reflected_domain_global_boundary_frame,
+)
 from exhaust_plume.validation.moc_global_frontier_boundary_condition_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_BOUNDARY_CONDITION_REFINEMENT_OPERATOR_ID,
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_BOUNDARY_CONDITION_CROSS_CASE_REFINEMENT_OPERATOR_ID,
@@ -860,6 +869,13 @@ __all__ = (
   'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration',
   'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun',
   'run_reflected_domain_global_coupled_boundary_condition_feedback',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_FRAME_NEGOTIATION_OPERATOR_ID',
+  'MocReflectedDomainGlobalBoundaryFrameNegotiationStatus',
+  'MocReflectedDomainGlobalBoundaryFrameNegotiationRequest',
+  'MocReflectedDomainGlobalBoundaryFrameNegotiationResult',
+  'solver_owned_global_boundary_station_xs',
+  'build_reflected_domain_global_boundary_frame_negotiation_request',
+  'negotiate_reflected_domain_global_boundary_frame',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_BOUNDARY_CONDITION_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_BOUNDARY_CONDITION_CROSS_CASE_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainGlobalFrontierBoundaryConditionRefinementStatus',

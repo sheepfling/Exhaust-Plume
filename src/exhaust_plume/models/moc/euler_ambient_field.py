@@ -531,6 +531,7 @@ class MocEulerAmbientBoundaryMarchResult:
   ambient_pressure_target_source: str | None = None
   ambient_pressure_target_consumed: bool = False
   ambient_pressure_target_geometry_consumed: bool = False
+  failed_point_result: MocFreeBoundaryPointResult | None = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -577,6 +578,14 @@ class MocEulerAmbientBoundaryMarchResult:
     ):
       raise TypeError(
         'ambient_boundary must be a MocAmbientPressureBoundaryResult'
+      )
+    ####
+    if self.failed_point_result is not None and not isinstance(
+      self.failed_point_result,
+      MocFreeBoundaryPointResult,
+    ):
+      raise TypeError(
+        'failed_point_result must be a MocFreeBoundaryPointResult or None'
       )
     ####
     samples = tuple(self.boundary_samples)
@@ -728,6 +737,11 @@ class MocEulerAmbientBoundaryMarchResult:
       'ambient_pressure_target_geometry_consumed': (
         self.ambient_pressure_target_geometry_consumed
       ),
+      'failed_point_result': (
+        None
+        if self.failed_point_result is None
+        else _free_boundary_point_report(self.failed_point_result)
+      ),
       'sample_count': len(self.boundary_samples),
       'points_m': [list(point) for point in self.points_m],
       'mach': [sample.state.mach for sample in self.boundary_samples],
@@ -772,6 +786,7 @@ def _march_failure(
   incoming_k_plus_residuals: Sequence[float] = (),
   attachment_relative_pressure_residual: float | None = None,
   ambient_boundary: MocAmbientPressureBoundaryResult | None = None,
+  failed_point_result: MocFreeBoundaryPointResult | None = None,
   message: str,
 ) -> MocEulerAmbientBoundaryMarchResult:
   resolved_samples = tuple(samples)
@@ -791,6 +806,10 @@ def _march_failure(
   resolved_samples = resolved_samples[:aligned_count]
   resolved_results = resolved_results[:aligned_count]
   resolved_residuals = resolved_residuals[:aligned_count]
+  retained_failed_point_result = failed_point_result
+  if retained_failed_point_result is None and len(point_results) > aligned_count:
+    retained_failed_point_result = point_results[aligned_count]
+  ####
   return MocEulerAmbientBoundaryMarchResult(
     status=status,
     shock_boundary=shock_boundary,
@@ -803,6 +822,7 @@ def _march_failure(
       else ambient_boundary
     ),
     incoming_k_plus_residuals=resolved_residuals,
+    failed_point_result=retained_failed_point_result,
     attachment_relative_pressure_residual=attachment_relative_pressure_residual,
     maximum_geometry_residual_m=max(
       (
@@ -833,6 +853,26 @@ def _static_pressure_from_total(
   return float(total_pressure_Pa) / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
+####
+
+
+def _free_boundary_point_report(
+  result: MocFreeBoundaryPointResult,
+) -> dict[str, Any]:
+  """Serialize a retained point result, including a failed solver point."""
+
+  return {
+    'status': result.status.value,
+    'converged': result.converged,
+    'family': result.family.value,
+    'point_m': None if result.point_m is None else list(result.point_m),
+    'pressure_residual': result.pressure_residual,
+    'tangent_residual': result.tangent_residual,
+    'geometry_residual': result.geometry_residual,
+    'iterations': result.iterations,
+    'intersection_status': result.intersection_status,
+    'message': result.message,
+  }
 ####
 
 

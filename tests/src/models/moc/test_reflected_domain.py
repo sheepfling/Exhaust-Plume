@@ -7955,7 +7955,7 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
 
   assert run.status is (
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
-    .BOUNDARY_CONDITION_FAILURE
+    .FRAME_NEGOTIATION_REQUIRED
   )
   assert run.research_feedback_completed is False
   assert len(run.iterations) == 1
@@ -7969,6 +7969,9 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
   assert run.target_consumption_verified is False
   assert run.target_coverage_verified is False
   assert run.target_match_verified is False
+  assert run.frame_negotiation_verified
+  assert run.frame_coverage_verified is False
+  assert run.frame_extension_required
   assert run.global_coupling_verified is False
   assert run.downstream_boundary_closure_verified is False
   assert run.chain_promotion_blocked
@@ -7984,6 +7987,23 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
   assert iteration.boundary_condition.consumed_target.composition_mode == (
     'explicit-overlay'
   )
+  conditioned = iteration.boundary_condition.conditioned_closure
+  assert conditioned is not None
+  assert conditioned.global_euler is not None
+  assert conditioned.global_euler.physical_field is not None
+  failed_march = conditioned.global_euler.physical_field.ambient_march
+  assert failed_march is not None
+  assert failed_march.failed_point_result is not None
+  assert failed_march.failed_point_result.point_m is not None
+  assert iteration.frame_negotiation is not None
+  assert failed_march.failed_point_result.point_m[0] > (
+    iteration.frame_negotiation.available_x_interval_m[1]
+  )
+  assert iteration.frame_negotiation.extension_required
+  assert iteration.frame_negotiation.available_x_interval_m is not None
+  assert iteration.frame_negotiation.requested_x_interval_m is not None
+  assert iteration.frame_negotiation.extension_upper_m > 0.0
+  assert iteration.frame_negotiation.extension_upper_m < 1.0e-3
   visualization = standardize_model_visualization(run)
   assert visualization.model_id == (
     'planar-moc-global-coupled-boundary-condition-feedback'
@@ -7997,6 +8017,18 @@ def test_global_coupled_boundary_condition_feedback_retains_moving_frame_stop():
   assert visualization.diagnostics[
     'global_coupled_boundary_condition_feedback_fresh_global_solve_attempted'
   ] is True
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_frame_negotiation_verified'
+  ] is True
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_frame_coverage_verified'
+  ] is False
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_frame_extension_required'
+  ] is True
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_frame_status'
+  ] == 'solver_owned_global_boundary_frame_extension_required'
   assert visualization.claims.production_claim_allowed is False
   assert run.as_report()['configuration']['feedback_policy'] == (
     'downstream-response-explicit-pressure-overlay-fresh-global-ambient-march-v1'
