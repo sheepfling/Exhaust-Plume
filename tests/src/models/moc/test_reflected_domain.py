@@ -8,6 +8,10 @@ import pytest
 
 import exhaust_plume.models.moc.coupled_euler_free_boundary as coupled_euler
 import exhaust_plume.validation.moc_global_coupled_downstream_feedback as downstream_feedback
+from exhaust_plume.validation.moc_global_frontier_target_resolve import (
+  MocReflectedDomainGlobalFrontierTargetResolveStatus,
+  run_reflected_domain_global_frontier_target_guided_resolve,
+)
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
@@ -6590,4 +6594,59 @@ def test_global_frontier_reconciliation_rejects_changed_target_frame(
   assert result.solver_owned_target_accepted is False
   assert result.global_solver_consumed is False
   assert result.production_claim_allowed is False
+####
+
+
+def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  feedback = downstream_feedback.run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+  )
+  proposal = feedback.upstream_feedback_proposals[-1]
+  assert proposal is not None
+  request = build_reflected_domain_global_frontier_reconciliation_request(
+    closure,
+    proposal,
+    consumer_id='test-target-guided-global-resolve-v1',
+  )
+
+  resolved = run_reflected_domain_global_frontier_target_guided_resolve(
+    request,
+    closure,
+  )
+
+  assert resolved.status is (
+    MocReflectedDomainGlobalFrontierTargetResolveStatus
+    .CONVERGED_TARGET_GUIDED_RESEARCH_RESOLVE
+  )
+  assert resolved.converged_research_resolve
+  assert resolved.target_lineage_verified
+  assert resolved.fresh_global_solve_invocation_verified
+  assert resolved.target_consumption_verified
+  assert resolved.target_coverage_verified
+  assert resolved.target_match_verified
+  assert resolved.selected_candidate is not None
+  assert len(resolved.candidates) == 2
+  assert all(candidate.closure is not closure for candidate in resolved.candidates)
+  assert resolved.global_coupling_verified is False
+  assert resolved.downstream_boundary_closure_verified is False
+  assert resolved.chain_promotion_blocked
+  assert resolved.production_claim_allowed is False
+  assert resolved.as_report()['candidate_count'] == 2
 ####

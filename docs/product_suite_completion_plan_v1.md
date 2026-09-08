@@ -1935,3 +1935,25 @@ rejected.  The ladder remains explicitly local research evidence with
 the chain/production gates closed.  It does not substitute for a solver-owned
 placement update, a canonical reflected/free-boundary closure, accepted
 physical shock-cell lengths, or provider validation.
+
+### Global frontier target-guided re-solve checkpoint — 2026-09-08
+
+The downstream feedback packet now has a bounded global consumer seam.  Given
+one exact closure fingerprint and one exact relaxed frontier target, the new
+operator re-runs the retained global physical closure for every declared
+compression-envelope candidate, measures the fresh downstream boundary at the
+target stations without extrapolation, and selects the lowest normalized
+target-residual candidate.  The regression exercises two fresh global solves,
+checks that neither aliases the source closure, and verifies target coverage,
+target matching, and proposal lineage.
+
+This is the first fresh upstream/global invocation in the feedback chain, but
+it is intentionally not being called full global coupling: the target still
+guides selection within an existing candidate family rather than entering the
+global equations as a canonical mixed-regime boundary condition.  The result
+therefore keeps ``global_coupling_verified=false``,
+``downstream_boundary_closure_verified=false``, the chain promotion block, and
+the production claim block.  The next physics slice is to replace candidate
+selection with a solver-owned pressure/geometry boundary condition and then
+re-measure a coupled placement/refinement ladder against independent physical
+data.
