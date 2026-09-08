@@ -243,9 +243,11 @@ from exhaust_plume.validation.moc_reflected_domain_refinement import (
   run_moc_reflected_domain_global_euler_shock_boundary_refinement,
 )
 from exhaust_plume.validation.moc_production_shock_cell_refinement import (
+  MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID,
   MocProductionShockCellFitRefinementCase,
   MocProductionShockCellFitRefinementStatus,
   measure_moc_production_shock_cell_fit_refinement,
+  run_moc_production_shock_cell_fit_refinement,
 )
 
 
@@ -2614,6 +2616,50 @@ def test_production_shock_cell_fit_refinement_preserves_physical_length_gate():
   )
   assert moved_measurement.converged is False
   assert moved_measurement.production_claim_allowed is False
+####
+
+
+def test_production_shock_cell_fit_refinement_runner_reexecutes_closure_ladder():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+
+  run = run_moc_production_shock_cell_fit_refinement(
+    source,
+    (5, 9),
+    start_x_m=0.5,
+    outer_source_indices=(2,),
+    target_centerline_indices=(3,),
+    compression_amplitude_lower_rad=0.007,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(-0.75, 0.0),
+    shock_angle_tolerance_rad=0.02,
+    length_tolerance_m=1.0,
+  )
+
+  assert run.fresh_solver_invocation_verified
+  assert run.local_physical_closure_verified
+  assert run.fidelity_isolation_verified
+  assert run.measurement.status is (
+    MocProductionShockCellFitRefinementStatus
+    .CONVERGED_LOCAL_FIT_REFINEMENT
+  )
+  assert run.converged
+  assert run.local_consistency_verified
+  assert len(run.closures) == 2
+  assert len(run.cases) == 2
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  assert run.as_report()['operator_id'] == (
+    MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID
+  )
+  assert run.as_report()['physical_length_accepted'] is False
+  assert run.as_report()['external_validation_verified'] is False
 ####
 
 

@@ -448,6 +448,9 @@ from exhaust_plume.validation.moc_production_shock_cell_refinement import (
   MocProductionShockCellFitRefinementCase,
   MocProductionShockCellFitRefinementMeasurement,
   measure_moc_production_shock_cell_fit_refinement,
+  MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID,
+  MocProductionShockCellFitRefinementRun,
+  run_moc_production_shock_cell_fit_refinement,
 )
 from exhaust_plume.validation.moc_euler_characteristic import (
   MOC_EULER_AMBIENT_FIRST_WEDGE_CHARACTERISTIC_AUDIT_OPERATOR_ID,
@@ -675,6 +678,7 @@ __all__ = (
   'MOC_SHOCK_CELL_GEOMETRY_OPERATOR_ID',
   'MOC_PRODUCTION_SHOCK_CELL_FIT_OPERATOR_ID',
   'MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_OPERATOR_ID',
+  'MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID',
   'MOC_TERMINAL_CLOSURE_OPERATOR_ID',
   'MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID',
   'MocCausticRemeshMeasurement',
@@ -876,6 +880,8 @@ __all__ = (
   'MocProductionShockCellFitRefinementCase',
   'MocProductionShockCellFitRefinementMeasurement',
   'measure_moc_production_shock_cell_fit_refinement',
+  'MocProductionShockCellFitRefinementRun',
+  'run_moc_production_shock_cell_fit_refinement',
   'MocExternalValidationSplit',
   'MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID',
   'MocShockCellExternalFeature',

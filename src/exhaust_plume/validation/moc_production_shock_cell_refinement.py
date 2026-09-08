@@ -16,13 +16,22 @@ import json
 from math import isfinite
 from typing import Any, Sequence
 
+from exhaust_plume.models.moc.chain import MocChainBoundarySample
 from exhaust_plume.models.moc.global_physical_closure import (
   MocProductionShockCellFitResult,
+  MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
+  fit_reflected_domain_production_shock_cell,
+)
+from exhaust_plume.models.moc.reflected_domain import (
+  MocReflectedDomainAlternatingSourceResult,
 )
 from exhaust_plume.validation.moc_measurements import (
   MocShockCellMeasurement,
   measure_moc_production_shock_cell_fit,
+)
+from exhaust_plume.validation.moc_reflected_domain_refinement import (
+  run_moc_reflected_domain_global_euler_shock_boundary_refinement,
 )
 
 __all__ = (
@@ -31,11 +40,17 @@ __all__ = (
   'MocProductionShockCellFitRefinementCase',
   'MocProductionShockCellFitRefinementMeasurement',
   'measure_moc_production_shock_cell_fit_refinement',
+  'MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID',
+  'MocProductionShockCellFitRefinementRun',
+  'run_moc_production_shock_cell_fit_refinement',
 )
 
 
 MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_OPERATOR_ID = (
   'op.moc.reflected-domain.production-shock-cell-fit-refinement'
+)
+MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID = (
+  'op.moc.reflected-domain.production-shock-cell-fit-refinement-run'
 )
 
 
@@ -78,6 +93,25 @@ class MocProductionShockCellFitRefinementCase:
       )
     ####
   ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'resolution': self.resolution,
+      'fit_status': self.fit.status.value,
+      'local_fit_verified': self.fit.local_fit_verified,
+      'closure_fingerprint': (
+        None
+        if self.fit.closure is None
+        else moc_reflected_domain_global_physical_closure_fingerprint(
+          self.fit.closure
+        )
+      ),
+      'fitted_shock_sample_count': len(self.fit.fitted_shock_points_m),
+      'start_x_m': self.fit.start_x_m,
+      'end_x_m': self.fit.end_x_m,
+      'cell_index': self.fit.cell_index,
+    }
+  ####
 ####
 
 
@@ -85,8 +119,15 @@ def _source_fingerprint(source_band: Any) -> str:
   """Fingerprint the immutable upstream source carried by a closure."""
 
   report = source_band.as_report()
+  return _payload_fingerprint(report)
+####
+
+
+def _payload_fingerprint(payload: Any) -> str:
+  """Return a deterministic fingerprint for a configuration payload."""
+
   serialized = json.dumps(
-    report,
+    payload,
     sort_keys=True,
     separators=(',', ':'),
     ensure_ascii=True,
@@ -756,5 +797,419 @@ def measure_moc_production_shock_cell_fit_refinement(
     ),
     message=message,
     **common,
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocProductionShockCellFitRefinementRun:
+  """Fresh global-closure execution followed by fit-ladder evidence."""
+
+  source_band: MocReflectedDomainAlternatingSourceResult
+  requested_resolutions: tuple[int, ...]
+  closures: tuple[MocReflectedDomainGlobalPhysicalClosureResult, ...]
+  cases: tuple[MocProductionShockCellFitRefinementCase, ...]
+  measurement: MocProductionShockCellFitRefinementMeasurement
+  source_band_fingerprint: str
+  configuration: tuple[tuple[str, Any], ...]
+  configuration_fingerprint: str
+  start_x_m: float
+  end_x_m: float | None
+  fresh_solver_invocation_verified: bool
+  local_physical_closure_verified: bool
+  fidelity_isolation_verified: bool
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.source_band,
+      MocReflectedDomainAlternatingSourceResult,
+    ):
+      raise TypeError(
+        'source_band must be a MocReflectedDomainAlternatingSourceResult'
+      )
+    ####
+    resolutions = tuple(self.requested_resolutions)
+    if not resolutions:
+      raise ValueError('requested_resolutions must not be empty')
+    ####
+    if any(
+      isinstance(resolution, bool)
+      or not isinstance(resolution, int)
+      or resolution < 1
+      for resolution in resolutions
+    ):
+      raise ValueError('requested_resolutions must contain positive integers')
+    ####
+    closures = tuple(self.closures)
+    if len(closures) != len(resolutions):
+      raise ValueError('closures must match requested_resolutions')
+    ####
+    if any(
+      not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult)
+      for closure in closures
+    ):
+      raise TypeError(
+        'closures must contain MocReflectedDomainGlobalPhysicalClosureResult values'
+      )
+    ####
+    cases = tuple(self.cases)
+    if any(
+      not isinstance(case, MocProductionShockCellFitRefinementCase)
+      for case in cases
+    ):
+      raise TypeError(
+        'cases must contain MocProductionShockCellFitRefinementCase values'
+      )
+    ####
+    if not isinstance(
+      self.measurement,
+      MocProductionShockCellFitRefinementMeasurement,
+    ):
+      raise TypeError(
+        'measurement must be a MocProductionShockCellFitRefinementMeasurement'
+      )
+    ####
+    if self.measurement.cases and self.measurement.cases != cases:
+      raise ValueError('measurement cases must match retained fit cases')
+    ####
+    object.__setattr__(self, 'requested_resolutions', resolutions)
+    object.__setattr__(self, 'closures', closures)
+    object.__setattr__(self, 'cases', cases)
+    start = float(self.start_x_m)
+    if not isfinite(start):
+      raise ValueError('start_x_m must be finite')
+    ####
+    object.__setattr__(self, 'start_x_m', start)
+    if self.end_x_m is not None:
+      end = float(self.end_x_m)
+      if not isfinite(end) or end <= start:
+        raise ValueError('end_x_m must be finite and greater than start_x_m')
+      ####
+      object.__setattr__(self, 'end_x_m', end)
+    ####
+    for name in ('source_band_fingerprint', 'configuration_fingerprint'):
+      value = str(getattr(self, name))
+      if not value:
+        raise ValueError(f'{name} must be non-empty')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    configuration = tuple(self.configuration)
+    if any(
+      not isinstance(item, tuple)
+      or len(item) != 2
+      or not isinstance(item[0], str)
+      for item in configuration
+    ):
+      raise ValueError('configuration must contain (name, value) pairs')
+    ####
+    object.__setattr__(self, 'configuration', configuration)
+    for name in (
+      'fresh_solver_invocation_verified',
+      'local_physical_closure_verified',
+      'fidelity_isolation_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.measurement.converged
+  ####
+
+  @property
+  def local_consistency_verified(self) -> bool:
+    return bool(
+      self.measurement.local_consistency_verified
+      and self.fresh_solver_invocation_verified
+      and self.local_physical_closure_verified
+      and self.fidelity_isolation_verified
+    )
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return all(case.fit.chain_promotion_blocked for case in self.cases)
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.measurement.status.value,
+      'operator_id': MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID,
+      'converged': self.converged,
+      'local_consistency_verified': self.local_consistency_verified,
+      'source_band_fingerprint': self.source_band_fingerprint,
+      'configuration': dict(self.configuration),
+      'configuration_fingerprint': self.configuration_fingerprint,
+      'requested_resolutions': list(self.requested_resolutions),
+      'start_x_m': self.start_x_m,
+      'end_x_m': self.end_x_m,
+      'closures': [
+        {
+          'resolution': resolution,
+          'status': closure.status.value,
+          'converged': closure.converged,
+          'physical_closure_verified': closure.physical_closure_verified,
+          'global_euler_retained': closure.global_euler is not None,
+          'downstream_boundary_model': closure.downstream_boundary_model,
+          'downstream_boundary_closure_verified': (
+            closure.downstream_boundary_closure_verified
+          ),
+          'production_claim_allowed': closure.production_claim_allowed,
+        }
+        for resolution, closure in zip(
+          self.requested_resolutions,
+          self.closures,
+          strict=True,
+        )
+      ],
+      'cases': [case.as_report() for case in self.measurement.cases],
+      'measurement': self.measurement.as_report(),
+      'checks': {
+        'fresh_solver_invocation_verified': (
+          self.fresh_solver_invocation_verified
+        ),
+        'local_physical_closure_verified': (
+          self.local_physical_closure_verified
+        ),
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'chain_promotion_blocked': self.chain_promotion_blocked,
+        'production_claim_allowed': self.production_claim_allowed,
+      },
+      'external_validation_verified': False,
+      'physical_length_accepted': False,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'fresh-production-shock-cell-fit-refinement; '
+        'local-research-only; physical-length-not-accepted'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def run_moc_production_shock_cell_fit_refinement(
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  resolutions: Sequence[int],
+  *,
+  start_x_m: float,
+  end_x_m: float | None = None,
+  end_margin_m: float = 0.05,
+  cell_index: int = 1,
+  incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  length_tolerance_m: float = 1.0e-6,
+  position_tolerance_m: float = 1.0e-8,
+  measurement_position_tolerance_m: float = 1.0e-10,
+  measurement_axis_tolerance_m: float = 1.0e-10,
+  measurement_area_tolerance_m2: float = 1.0e-9,
+  measurement_mesh_vertex_tolerance_m: float = 1.0e-12,
+  **solver_options: Any,
+) -> MocProductionShockCellFitRefinementRun:
+  """Freshly solve and audit a solver-generated shock-cell fit ladder.
+
+  The existing global-Euler refinement runner owns the closure resolution
+  ladder.  This runner consumes only its retained physically verified fields,
+  fits the same solver-owned axial interval at every resolution, and then
+  invokes the independent fit-refinement measurement.  It never falls back to
+  a caller-supplied shock path or promotes the resulting length.
+  """
+
+  if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
+    raise TypeError(
+      'source_band must be a MocReflectedDomainAlternatingSourceResult'
+    )
+  ####
+  try:
+    requested_resolutions = tuple(resolutions)
+  except TypeError as error:
+    raise ValueError(
+      'resolutions must be an iterable of positive integers'
+    ) from error
+  ####
+  if not requested_resolutions:
+    raise ValueError('resolutions must not be empty')
+  ####
+  if any(
+    isinstance(resolution, bool)
+    or not isinstance(resolution, int)
+    or resolution < 1
+    for resolution in requested_resolutions
+  ):
+    raise ValueError('resolutions must contain positive integers')
+  ####
+  start = float(start_x_m)
+  margin = float(end_margin_m)
+  if not isfinite(start):
+    raise ValueError('start_x_m must be finite')
+  ####
+  if not isfinite(margin) or margin < 0.0:
+    raise ValueError('end_margin_m must be finite and nonnegative')
+  ####
+  if isinstance(cell_index, bool) or not isinstance(cell_index, int) or cell_index < 1:
+    raise ValueError('cell_index must be a positive integer')
+  ####
+  resolved_handoff = None if incoming_handoff is None else tuple(incoming_handoff)
+  if resolved_handoff is not None and any(
+    not isinstance(sample, MocChainBoundarySample)
+    for sample in resolved_handoff
+  ):
+    raise TypeError('incoming_handoff must contain MocChainBoundarySample values')
+  ####
+  source_fingerprint = _source_fingerprint(source_band)
+  configuration_payload: dict[str, Any] = {
+    'operator_id': MOC_PRODUCTION_SHOCK_CELL_FIT_REFINEMENT_RUN_OPERATOR_ID,
+    'source_band_fingerprint': source_fingerprint,
+    'requested_resolutions': list(requested_resolutions),
+    'start_x_m': start,
+    'end_x_m': None if end_x_m is None else float(end_x_m),
+    'end_margin_m': margin,
+    'cell_index': cell_index,
+    'incoming_handoff': (
+      None
+      if resolved_handoff is None
+      else [sample.as_report() for sample in resolved_handoff]
+    ),
+    'length_tolerance_m': length_tolerance_m,
+    'position_tolerance_m': position_tolerance_m,
+    'measurement_position_tolerance_m': measurement_position_tolerance_m,
+    'measurement_axis_tolerance_m': measurement_axis_tolerance_m,
+    'measurement_area_tolerance_m2': measurement_area_tolerance_m2,
+    'measurement_mesh_vertex_tolerance_m': measurement_mesh_vertex_tolerance_m,
+    'solver_options': solver_options,
+  }
+  configuration = tuple(
+    (name, configuration_payload[name])
+    for name in sorted(configuration_payload)
+  )
+  configuration_fingerprint = _payload_fingerprint(configuration_payload)
+
+  global_run = run_moc_reflected_domain_global_euler_shock_boundary_refinement(
+    source_band,
+    requested_resolutions,
+    incoming_handoff=resolved_handoff,
+    **solver_options,
+  )
+  closures = tuple(global_run.closures)
+  local_physical_closure_verified = bool(
+    closures and all(closure.physical_closure_verified for closure in closures)
+  )
+  missing_resolutions = tuple(
+    resolution
+    for resolution, closure in zip(requested_resolutions, closures, strict=True)
+    if closure.global_euler is None
+    or closure.global_euler.physical_field is None
+    or closure.global_euler.physical_field.field is None
+  )
+  if missing_resolutions:
+    measurement = MocProductionShockCellFitRefinementMeasurement(
+      status=MocProductionShockCellFitRefinementStatus.FIT_FAILURE,
+      message=(
+        'fresh global closure retained no physical field for fit resolution(s) '
+        f'{missing_resolutions}; no lower-fidelity fit was attempted'
+      ),
+    )
+    return MocProductionShockCellFitRefinementRun(
+      source_band=source_band,
+      requested_resolutions=requested_resolutions,
+      closures=closures,
+      cases=(),
+      measurement=measurement,
+      source_band_fingerprint=source_fingerprint,
+      configuration=configuration,
+      configuration_fingerprint=configuration_fingerprint,
+      start_x_m=start,
+      end_x_m=None if end_x_m is None else float(end_x_m),
+      fresh_solver_invocation_verified=(
+        global_run.fresh_solver_invocation_verified
+      ),
+      local_physical_closure_verified=local_physical_closure_verified,
+      fidelity_isolation_verified=bool(
+        closures
+        and all(
+          closure.chain_promotion_blocked
+          and not closure.production_claim_allowed
+          for closure in closures
+        )
+      ),
+      message=measurement.message,
+    )
+  ####
+
+  fields = tuple(
+    closure.global_euler.physical_field.field
+    for closure in closures
+    if closure.global_euler is not None
+    and closure.global_euler.physical_field is not None
+    and closure.global_euler.physical_field.field is not None
+  )
+  resolved_end = (
+    max(field.ambient_boundary_points_m[-1][0] for field in fields) + margin
+    if end_x_m is None
+    else float(end_x_m)
+  )
+  if not isfinite(resolved_end) or resolved_end <= start:
+    raise ValueError('resolved end_x_m must be finite and greater than start_x_m')
+  ####
+  cases = tuple(
+    MocProductionShockCellFitRefinementCase(
+      resolution=resolution,
+      fit=fit_reflected_domain_production_shock_cell(
+        closure,
+        start_x_m=start,
+        end_x_m=resolved_end,
+        cell_index=cell_index,
+        incoming_frontier=closure.incoming_handoff,
+        position_tolerance_m=position_tolerance_m,
+      ),
+    )
+    for resolution, closure in zip(requested_resolutions, closures, strict=True)
+  )
+  measurement = measure_moc_production_shock_cell_fit_refinement(
+    cases,
+    position_tolerance_m=position_tolerance_m,
+    length_tolerance_m=length_tolerance_m,
+    measurement_position_tolerance_m=measurement_position_tolerance_m,
+    measurement_axis_tolerance_m=measurement_axis_tolerance_m,
+    measurement_area_tolerance_m2=measurement_area_tolerance_m2,
+    measurement_mesh_vertex_tolerance_m=measurement_mesh_vertex_tolerance_m,
+  )
+  fidelity_isolation_verified = bool(
+    cases
+    and all(
+      case.fit.chain_promotion_blocked
+      and not case.fit.production_claim_allowed
+      for case in cases
+    )
+  )
+  return MocProductionShockCellFitRefinementRun(
+    source_band=source_band,
+    requested_resolutions=requested_resolutions,
+    closures=closures,
+    cases=cases,
+    measurement=measurement,
+    source_band_fingerprint=source_fingerprint,
+    configuration=configuration,
+    configuration_fingerprint=configuration_fingerprint,
+    start_x_m=start,
+    end_x_m=resolved_end,
+    fresh_solver_invocation_verified=global_run.fresh_solver_invocation_verified,
+    local_physical_closure_verified=local_physical_closure_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=(
+      'fresh global-closure fit ladder executed and independently measured; '
+      'physical length acceptance and external validation remain pending'
+    ),
   )
 ####
