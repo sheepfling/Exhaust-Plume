@@ -2473,3 +2473,46 @@ solver-owned mixed-regime/free-boundary iteration, then repeat this operator
 over disjoint cases and refinement levels.  Physical shock-cell acceptance,
 provider-bound VIS/SIG/RAY/FPA comparisons, the raw V8 and alignment archives,
 and the final release gates remain open.
+
+### Active execution board — 2026-09-08
+
+The long-running goal remains active on the dedicated integration branch.  The
+current candidate is a clean, pushed research checkpoint; it is not a release
+candidate.  Work proceeds in the following order, with each item stopping
+closed when its evidence is absent:
+
+1. **P2.2a — negotiate the moving solver frame.** Add a typed request and
+   result for a bounded mixed-regime/free-boundary frame negotiation.  It must
+   retain the source-closure and downstream-proposal fingerprints, define an
+   explicit extension budget, and distinguish covered, under-covered, and
+   non-physical frame requests.  It may request new solver-owned stations only
+   through the physical boundary law; it may not hold an endpoint, extrapolate
+   pressure, inject downstream geometry, or fall back to a lower-fidelity
+   model.
+2. **P2.2b — close the joint boundary.** Consume the negotiated frame in a
+   fresh global solve and audit pressure, tangent, entropy transport, Euler
+   residuals, and conservative boundary fluxes from retained states.  Keep the
+   current research-only claim ceiling until the actual target case converges
+   and the independent audit agrees.
+3. **P2.2c — prove stability.** Run the joint operator across disjoint source
+   closures and strictly increasing mesh/frame resolutions.  Require fresh
+   solver invocations, exact lineage, finite residuals, stable response, and
+   no geometry/profile injection before the closure can feed P3.
+4. **P3 — fit physical cells.** Bind first and continued shock-cell fits only
+   to an accepted P2.2 field.  Measure solver-owned axial length and uncertainty
+   independently, then compare against disjoint physical observations; the
+   current diagnostic spacing and research candidates remain ineligible.
+5. **P1/P4 — acquire and execute external validation in parallel.** The raw V8
+   archive, separately named alignment archive, provider outputs, camera/
+   detector observations, and product-specific measurement operators must be
+   supplied and provenance-verified.  Until then, VIS/SIG/RAY/FPA outputs stay
+   local engineering or research evidence.
+6. **P5 — freeze and release.** Refresh the exact-candidate freeze, rerun the
+   complete lane/test/static/documentation/package matrix, verify the manifest
+   reports `release_ready=true`, and only then create a release tag.
+
+The immediate implementation target is item 1.  A successful frame
+negotiation is not closure by itself; its only purpose is to make the next
+solver-owned joint residual solve explicit and auditable.  The absence of the
+validation archives is a parallel release blocker, not a reason to synthesize
+observations or to promote the physical model early.
