@@ -122,7 +122,8 @@ linked layer/pixel controls and view-spec export. Declared camera metadata is
 limited to image-plane coordinates; the view does not infer ray directions,
 hit masks, optical depth, noise realizations, detections, or measured counts.
 
-The recovered Version 8 corpus is content-verified but has no camera,
+The prior Version 8 intake report is content-verified, but the raw archive is
+not present in the current workspace and it has no camera,
 detector, pixel-image, or FPA observation member. The separate product-
 alignment archive is also still missing. The reproducible readiness result is
 [`fpa_visualization_readiness_v1.json`](validation/fpa_visualization_readiness_v1.json);

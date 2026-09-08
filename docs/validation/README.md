@@ -1,11 +1,11 @@
 # Validation corpus intake
 
 The merged validation handoff describes two external, content-addressed
-archives. The Version 8 corpus archive has now been recovered from a
-user-provided attachment and verified against its expected digest. The
-separately named product-alignment archive is still missing; the recovered
-corpus contains an embedded alignment overlay, but that is not silently treated
-as the separately hashed archive.
+archives. The repository contains a prior verified intake report for the
+Version 8 corpus, but the raw ZIP is not present in the current workspace or
+attachment path. The separately named product-alignment archive is also
+missing; the committed reports and embedded alignment overlay are provenance
+records, not substitutes for either content-addressed input.
 
 The intake gate is:
 
@@ -36,7 +36,7 @@ internal operator namespace difference, scoped semantic-crosswalk coverage,
 and provider-comparison gates rather than treating a structurally valid corpus
 as product validation.
 
-The recovered corpus intake evidence is recorded in
+The prior recovered-corpus intake evidence is recorded in
 [`corpus_intake_report_v1.json`](corpus_intake_report_v1.json). It matched the
 handoff SHA-256, passed safe-ZIP inspection, verified all 137 internal checksum
 entries, and its bundled test suite was executed from an isolated extraction:
@@ -52,10 +52,11 @@ structural reconstruction. None supplies the content-addressed ZIP, so the
 embedded alignment overlay remains useful for scoped repository checks but is
 not treated as the separately hashed release input.
 
-The recovered archive contains 17 benchmark definitions, 19 source records, 60
-indexed products, 78 alignment mappings, 11 validation gates, and 57 source-
-corpus tests. These counts establish corpus integrity; they do not by
-themselves establish provider-specific product validation.
+The prior recovered archive contained 17 benchmark definitions, 19 source
+records, 60 indexed products, 78 alignment mappings, 11 validation gates, and
+57 source-corpus tests. These recorded counts establish the historical corpus
+integrity report; they do not make the missing raw archive available or
+establish provider-specific product validation.
 
 After the archive preflight, record provider-specific comparability with:
 
@@ -83,7 +84,7 @@ does not dereference or invent the named source/output assets; their owner
 must retain those artifacts for independent audit.
 
 The committed [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json)
-is the result for the recovered attachment. It records all ten gate-eligible
+is the result for the prior recovered attachment. It records all ten gate-eligible
 VIS/SIG/RAY comparison mappings and the actual provider channels and corpus
 observation shapes, while leaving every comparison explicitly blocked. A blocked comparison is not a
 failed physics result: it means that the current provider does not produce the

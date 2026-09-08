@@ -9,16 +9,18 @@ condition explicit.
 
 ## Global prerequisites
 
-The user-provided Version 8 archive is integrity-valid:
+The repository records a prior user-provided Version 8 archive as
+integrity-valid, but its raw ZIP is not present in the current workspace:
 
 - SHA-256: `79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa`
 - 138 members, 137 internal checksum entries, and 57 isolated corpus tests
-- embedded MVP alignment overlay present and verified
+- embedded MVP alignment overlay present and verified in the prior intake
 - separately named `plume_mvp_validation_alignment_v1.zip` still missing
 
-The missing alignment archive must be acquired or explicitly removed from the
-release requirement by its owner. It must not be reconstructed from the
-embedded overlay or from digitized source figures.
+Both the raw Version 8 archive and the separately named alignment archive must
+be reacquired or explicitly removed from the release requirement by their
+owner. Neither may be reconstructed from committed reports, the embedded
+overlay, or digitized source figures.
 
 The repository already has generic LOS/FOV, path-transfer, spectral sampling,
 peak-normalization, bandpass, ray-to-signature, and FPA boundary operators.
