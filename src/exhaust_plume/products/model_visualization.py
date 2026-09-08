@@ -1693,8 +1693,12 @@ def _moc_field_from_result(result: object) -> tuple[object | None, object]:
       'selected_candidate',
       'source_closure',
       'final_closure',
+      'conditioned_closure',
       'candidates',
       'reconciliation',
+      'steps',
+      'results',
+      'measurement',
     ):
       nested_value = getattr(candidate, attribute, None)
       if nested_value is not None:
@@ -2218,6 +2222,18 @@ def _moc_visualization(
       None,
     )
   ####
+  boundary_condition_operator = str(
+    getattr(getattr(result, 'measurement', None), 'operator_id', '')
+  )
+  global_frontier_boundary_condition = bool(
+    hasattr(result, 'target_boundary_condition_consumed')
+    and hasattr(result, 'conditioned_closure')
+  )
+  global_frontier_boundary_condition_refinement = bool(
+    boundary_condition_operator.startswith(
+      'op.moc.reflected-domain.global-frontier-boundary-condition'
+    )
+  )
   global_frontier_target_refinement = bool(
     all(
       hasattr(result, name)
@@ -2332,6 +2348,44 @@ def _moc_visualization(
       if path is not None:
         paths.append(path)
       ####
+    ####
+  ####
+  if global_frontier_boundary_condition or global_frontier_boundary_condition_refinement:
+    target_detail: object | None = getattr(result, 'target', None)
+    if target_detail is None:
+      target_detail = getattr(result, 'request', None)
+    ####
+    if target_detail is None:
+      steps = getattr(result, 'steps', ())
+      if steps:
+        first_result = getattr(steps[0], 'result', None)
+        target_detail = getattr(first_result, 'target', None)
+      ####
+    ####
+    if target_detail is None:
+      case_results = getattr(result, 'results', ())
+      if case_results:
+        target_detail = getattr(case_results[0], 'request', None)
+      ####
+    ####
+    try:
+      target_points = _finite_path(
+        getattr(target_detail, 'boundary_points_m', ())
+      )
+    except (TypeError, ValueError, IndexError):
+      target_points = ()
+    ####
+    target_path = _path3(
+      'moc-global-frontier-pressure-target',
+      (
+        'frontier pressure target geometry shown as a reference packet; '
+        'the global solver owns the consumed boundary geometry'
+      ),
+      target_points,
+    )
+    if target_path is not None:
+      paths.append(target_path)
+      all_points.extend(target_points)
     ####
   ####
   shock_front_condition = _moc_shock_front_condition(result)
@@ -3159,6 +3213,63 @@ def _moc_visualization(
       getattr(result, 'steps', ())
     )
   ####
+  if global_frontier_boundary_condition:
+    diagnostics['global_frontier_boundary_condition'] = True
+    diagnostics['global_frontier_boundary_condition_consumed'] = bool(
+      getattr(result, 'target_boundary_condition_consumed', False)
+    )
+    diagnostics['global_frontier_boundary_condition_geometry_solver_owned'] = bool(
+      getattr(result, 'solver_owned_geometry_verified', False)
+    )
+    diagnostics['global_frontier_boundary_condition_target_match_verified'] = bool(
+      getattr(result, 'target_match_verified', False)
+    )
+    diagnostics['global_frontier_boundary_condition_fidelity_isolation_verified'] = bool(
+      getattr(result, 'fidelity_isolation_verified', False)
+    )
+  ####
+  if global_frontier_boundary_condition_refinement:
+    measurement = getattr(result, 'measurement', None)
+    requested_sample_counts = (
+      getattr(measurement, 'requested_sample_counts', ())
+      if measurement is not None
+      else ()
+    )
+    if requested_sample_counts:
+      resolution_count = len(requested_sample_counts)
+    else:
+      resolution_count = max(
+        (
+          len(getattr(case_result, 'requested_sample_counts', ()))
+          for case_result in getattr(result, 'results', ())
+        ),
+        default=0,
+      )
+    ####
+    diagnostics['global_frontier_boundary_condition_refinement'] = True
+    diagnostics[
+      'global_frontier_boundary_condition_refinement_completed'
+    ] = bool(getattr(measurement, 'converged', False))
+    diagnostics[
+      'global_frontier_boundary_condition_refinement_case_count'
+    ] = int(
+      len(getattr(result, 'cases', ()))
+      if hasattr(result, 'cases')
+      else 1
+    )
+    diagnostics[
+      'global_frontier_boundary_condition_refinement_resolution_count'
+    ] = int(resolution_count)
+    diagnostics[
+      'global_frontier_boundary_condition_refinement_target_consumed'
+    ] = bool(getattr(measurement, 'target_consumption_verified', False))
+    diagnostics[
+      'global_frontier_boundary_condition_refinement_geometry_solver_owned'
+    ] = bool(getattr(measurement, 'solver_owned_geometry_verified', False))
+    diagnostics[
+      'global_frontier_boundary_condition_refinement_fidelity_isolation_verified'
+    ] = bool(getattr(measurement, 'fidelity_isolation_verified', False))
+  ####
   if reconciled_euler:
     reconciliation_status = getattr(source, 'status', '')
     diagnostics['physical_field_euler_reconciliation_status'] = str(
@@ -3969,6 +4080,20 @@ def _moc_visualization(
       )
     ####
   ####
+  if global_frontier_boundary_condition:
+    warnings.append(
+      'the global frontier pressure profile was consumed by a fresh exact '
+      'ambient march while boundary geometry remained solver-owned; canonical '
+      'global closure and production use remain blocked'
+    )
+  ####
+  if global_frontier_boundary_condition_refinement:
+    warnings.append(
+      'global frontier pressure-consumer refinement is disjoint research '
+      'evidence; it does not establish canonical closure, accepted cell '
+      'length, external validation, or production promotion'
+    )
+  ####
   if global_frontier_feedback:
     warnings.append(
       'global/downstream frontier feedback completed only bounded research '
@@ -4012,50 +4137,70 @@ def _moc_visualization(
   ):
     warnings.append('state samples were unavailable on the centerline; field values remain masked where unavailable')
   ####
+  if global_frontier_boundary_condition_refinement:
+    model_id = 'planar-moc-global-frontier-boundary-condition-refinement'
+  elif global_frontier_boundary_condition:
+    model_id = 'planar-moc-global-frontier-boundary-condition'
+  elif global_frontier_target_refinement:
+    model_id = 'planar-moc-global-frontier-target-conditioned-refinement'
+  elif target_pressure_reconciliation:
+    model_id = 'planar-moc-global-frontier-target-pressure-reconciliation'
+  elif global_frontier_feedback:
+    model_id = 'planar-moc-global-coupled-frontier-feedback'
+  elif reconciled_euler:
+    model_id = 'planar-moc-physical-field-euler-reconciliation'
+  elif coupled_euler:
+    model_id = 'planar-moc-coupled-euler-free-boundary'
+  elif production_fit_result:
+    model_id = 'planar-moc-production-shock-cell-fit'
+  elif mixed_regime_reference is not None:
+    model_id = 'planar-moc-mixed-regime-reference'
+  elif is_transonic_interface:
+    model_id = 'planar-moc-transonic-shock-interface'
+  elif is_transonic_placement:
+    model_id = 'planar-moc-transonic-frontier-placement'
+  elif is_transonic_transport:
+    model_id = 'planar-moc-transonic-characteristic-transport'
+  elif is_transonic_attachment:
+    model_id = 'planar-moc-transonic-field-attachment'
+  else:
+    model_id = 'planar-moc-reflected-domain'
+  ####
+  if global_frontier_boundary_condition_refinement:
+    claim_note = (
+      'global frontier pressure-consumer refinement retained for research '
+      'visualization; canonical closure remains open'
+    )
+  elif global_frontier_boundary_condition:
+    claim_note = (
+      'global frontier pressure profile consumed by a fresh exact global '
+      'ambient march; solver-owned geometry and research-only gates retained'
+    )
+  elif global_frontier_target_refinement:
+    claim_note = (
+      'global-frontier target-conditioned refinement retained for research '
+      'visualization; canonical closure remains open'
+    )
+  elif target_pressure_reconciliation:
+    claim_note = (
+      'global-frontier pressure target consumed in a fixed-front conservative '
+      'reconciliation; research visualization only'
+    )
+  elif global_frontier_feedback:
+    claim_note = (
+      'bounded global/downstream frontier feedback research steps; canonical '
+      'mixed-regime closure remains open'
+    )
+  elif reconciled_euler:
+    claim_note = 'front-aligned conservative physical-field reconciliation retained for research visualization'
+  elif coupled_euler:
+    claim_note = 'coupled constant-gamma Euler/free-boundary field retained for research visualization'
+  else:
+    claim_note = 'higher-fidelity planar characteristic/reflected-domain field retained for evaluation'
+  ####
   return _bundle(
     lane=ModelVisualizationLane.PLANAR_MOC,
-    model_id=(
-      'planar-moc-global-frontier-target-conditioned-refinement'
-      if global_frontier_target_refinement
-      else (
-      'planar-moc-global-frontier-target-pressure-reconciliation'
-      if target_pressure_reconciliation
-      else (
-        'planar-moc-global-coupled-frontier-feedback'
-        if global_frontier_feedback
-        else (
-        'planar-moc-physical-field-euler-reconciliation'
-        if reconciled_euler
-        else (
-        'planar-moc-coupled-euler-free-boundary'
-        if coupled_euler
-        else (
-          'planar-moc-production-shock-cell-fit'
-          if production_fit_result
-          else (
-          'planar-moc-mixed-regime-reference'
-          if mixed_regime_reference is not None
-          else (
-            'planar-moc-transonic-shock-interface'
-          if is_transonic_interface
-          else (
-            'planar-moc-transonic-frontier-placement'
-            if is_transonic_placement
-            else (
-              'planar-moc-transonic-characteristic-transport'
-              if is_transonic_transport
-              else 'planar-moc-transonic-field-attachment'
-              if is_transonic_attachment else 'planar-moc-reflected-domain'
-            )
-          )
-        )
-        )
-        )
-        )
-        )
-        )
-      )
-    ),
+    model_id=model_id,
     model_version='1',
     result=result,
     frame_id=frame_id,
@@ -4067,32 +4212,7 @@ def _moc_visualization(
       geometry_claim=GeometryClaim.ILLUSTRATIVE,
       production_claim_allowed=False,
       claim_notes=(
-        (
-          'global-frontier target-conditioned refinement retained for research '
-          'visualization; canonical closure remains open'
-          if global_frontier_target_refinement
-          else (
-          'global-frontier pressure target consumed in a fixed-front '
-          'conservative reconciliation; research visualization only'
-          if target_pressure_reconciliation
-          else (
-            'bounded global/downstream frontier feedback research steps; '
-            'canonical mixed-regime closure remains open'
-            if global_frontier_feedback
-            else (
-            'front-aligned conservative physical-field reconciliation retained '
-            'for research visualization'
-            if reconciled_euler
-            else (
-              'coupled constant-gamma Euler/free-boundary field retained for '
-              'research visualization'
-              if coupled_euler
-              else 'higher-fidelity planar characteristic/reflected-domain field retained for evaluation'
-            )
-            )
-          )
-          )
-        ),
+        claim_note,
         'local field closure does not imply a production chain-cell or axisymmetric plume claim',
       ),
     ),

@@ -450,6 +450,7 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
   pressure_tolerance_fraction: float = 0.02,
   shock_angle_tolerance_rad: float = 0.02,
   maximum_boundary_iterations: int = 16,
+  sample_count: int | None = None,
 ) -> MocReflectedDomainGlobalFrontierBoundaryConditionResult:
   """Consume one exact frontier pressure packet in a fresh global solve."""
 
@@ -495,6 +496,13 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     or maximum_boundary_iterations < 1
   ):
     raise ValueError('maximum_boundary_iterations must be a positive integer')
+  ####
+  if sample_count is not None and (
+    isinstance(sample_count, bool)
+    or not isinstance(sample_count, int)
+    or sample_count < 3
+  ):
+    raise ValueError('sample_count must be an integer >= 3 when supplied')
   ####
   source_fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
     source_closure
@@ -577,8 +585,11 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       'source closure retained no solver-owned amplitude bracket or field',
     )
   ####
-  sample_count = len(selected_field.field.shock_boundary_points_m)
-  if sample_count < 3:
+  resolved_sample_count = len(selected_field.field.shock_boundary_points_m)
+  if sample_count is not None:
+    resolved_sample_count = sample_count
+  ####
+  if resolved_sample_count < 3:
     return _result(
       MocReflectedDomainGlobalFrontierBoundaryConditionStatus.SOURCE_CLOSURE_FAILURE,
       request,
@@ -601,7 +612,7 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       ),
       incoming_handoff=source_band.incoming_handoff,
       ambient_pressure_target=target,
-      sample_count=sample_count,
+      sample_count=resolved_sample_count,
       branch=ShockBranch.WEAK,
       shock_angle_tolerance_rad=shock_tolerance,
       maximum_boundary_iterations=maximum_boundary_iterations,

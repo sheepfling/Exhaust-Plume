@@ -2348,3 +2348,30 @@ disjoint cases, then bind only accepted solver-owned fields to the production
 shock-cell fitter.  The missing raw V8 validation archive and separate
 alignment archive remain release blockers; synthetic substitutes are not
 acceptable.
+
+### Global pressure-consumer refinement and disjoint-case checkpoint — 2026-09-08
+
+The pressure-consumer lane now has a separate research refinement operator and
+cross-case aggregate.  Every requested resolution fresh-solves the global
+closure from the same lineage-verified source, consumes pressure at the
+solver-produced stations, and independently checks target coverage, target
+matching, finite response channels, solver-owned geometry, and fidelity
+isolation.  The cross-case runner requires unique case IDs and distinct source
+closure fingerprints before it combines the per-case ladders; it never treats
+different physical closures as adjacent mesh resolutions.
+
+The two-resolution single-case ladder and two-case disjoint ladder pass in the
+focused and broad regression set (155 tests total).  The existing solver
+alignment invariant also records that sample count 7 is not currently a valid
+resolution for this lane; the accepted research ladder uses fresh 9- and
+10-sample solves rather than hiding that limitation.  Standardized
+visualization now exposes the consumed target as a reference packet, marks
+solver-owned geometry and fidelity isolation, and keeps the model explicitly
+research-only.
+
+This does not close canonical/global fixed-point coupling, physical shock-cell
+length acceptance, continued-chain fitting, provider-bound VIS/SIG/RAY/FPA
+cases, or release readiness.  The raw V8 validation archive and separate
+alignment archive are still absent, and the next gate remains an independently
+validated solver-owned field bound to production fitting only after the final
+acceptance matrix turns green.

@@ -240,6 +240,12 @@ from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
   MocReflectedDomainGlobalFrontierBoundaryConditionStatus,
   run_reflected_domain_global_frontier_boundary_conditioned_resolve,
 )
+from exhaust_plume.validation.moc_global_frontier_boundary_condition_refinement import (
+  MocReflectedDomainGlobalFrontierBoundaryConditionCrossCase,
+  MocReflectedDomainGlobalFrontierBoundaryConditionRefinementStatus,
+  run_reflected_domain_global_frontier_boundary_condition_cross_case_refinement,
+  run_reflected_domain_global_frontier_boundary_condition_refinement,
+)
 from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MocReflectedDomainCoupledEulerPressureContinuationStatus,
   measure_reflected_domain_coupled_euler_pressure_continuation,
@@ -8041,4 +8047,155 @@ def test_global_frontier_boundary_condition_consumes_pressure_with_solver_owned_
   assert result.target.boundary_points_m == points
   assert result.as_report()['target_boundary_condition_consumed'] is True
   assert result.as_report()['solver_owned_geometry_verified'] is True
+####
+
+
+def _identity_frontier_request_for_closure(
+  closure,
+  template_request,
+  *,
+  consumer_id,
+):
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  boundary = closure.global_euler.physical_field.field.ambient_boundary
+  points = tuple(boundary.points_m)
+  count = len(points)
+  proposal = replace(
+    template_request.proposal,
+    source_closure_fingerprint=(
+      moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    ),
+    matched_x_stations_m=tuple(point[0] for point in points),
+    reference_boundary_points_m=points,
+    proposed_boundary_points_m=points,
+    reference_tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    proposed_tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    reference_static_pressure_Pa=tuple(boundary.static_pressure_Pa),
+    proposed_static_pressure_Pa=tuple(boundary.static_pressure_Pa),
+    coordinate_corrections_m=(0.0,) * count,
+    tangent_corrections_rad=(0.0,) * count,
+    pressure_corrections_Pa=(0.0,) * count,
+    normal_velocity_values_m_s=(0.0,) * count,
+  )
+  return build_reflected_domain_global_frontier_reconciliation_request(
+    closure,
+    proposal,
+    consumer_id=consumer_id,
+  )
+####
+
+
+def test_global_frontier_boundary_condition_refinement_keeps_fresh_resolutions_separate(
+  _global_frontier_reconciliation_request,
+):
+  closure = _global_physical_closure_for_mixed_regime()
+  request = _identity_frontier_request_for_closure(
+    closure,
+    _global_frontier_reconciliation_request,
+    consumer_id='test-global-frontier-boundary-refinement-v1',
+  )
+
+  refined = run_reflected_domain_global_frontier_boundary_condition_refinement(
+    request,
+    closure,
+    sample_counts=(9, 10),
+  )
+
+  assert refined.measurement.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionRefinementStatus
+    .CONVERGED_RESEARCH_LADDER
+  )
+  assert refined.converged
+  assert refined.fresh_solver_invocation_verified
+  assert refined.fidelity_isolation_verified
+  assert refined.measurement.resolution_order_verified
+  assert refined.measurement.target_consumption_verified
+  assert refined.measurement.target_match_verified
+  assert refined.measurement.solver_owned_geometry_verified
+  assert refined.measurement.external_validation_required
+  assert all(step.research_step_verified for step in refined.measurement.steps)
+  assert refined.measurement.global_coupling_verified is False
+  assert refined.measurement.downstream_boundary_closure_verified is False
+  assert refined.production_claim_allowed is False
+  visualization = standardize_model_visualization(refined)
+  assert visualization.model_id == (
+    'planar-moc-global-frontier-boundary-condition-refinement'
+  )
+  assert visualization.diagnostics[
+    'global_frontier_boundary_condition_refinement'
+  ] is True
+  assert visualization.diagnostics[
+    'global_frontier_boundary_condition_refinement_completed'
+  ] is True
+  assert visualization.claims.production_claim_allowed is False
+  assert refined.as_report()['measurement']['operator_id'] == (
+    'op.moc.reflected-domain.global-frontier-boundary-condition-refinement'
+  )
+####
+
+
+def test_global_frontier_boundary_condition_cross_case_refinement_keeps_source_ladders_disjoint(
+  _global_frontier_reconciliation_request,
+):
+  closures = (
+    _global_physical_closure_for_mixed_regime(sample_count=9),
+    _global_physical_closure_for_mixed_regime(sample_count=8),
+  )
+  cases = tuple(
+    MocReflectedDomainGlobalFrontierBoundaryConditionCrossCase(
+      case_id=f'global-pressure-case-{index}',
+      regime='mixed-regime-research',
+      source_closure=closure,
+      request=_identity_frontier_request_for_closure(
+        closure,
+        _global_frontier_reconciliation_request,
+        consumer_id=f'test-global-frontier-boundary-cross-case-{index}',
+      ),
+      sample_counts=(9, 10),
+    )
+    for index, closure in enumerate(closures, start=1)
+  )
+
+  run = (
+    run_reflected_domain_global_frontier_boundary_condition_cross_case_refinement(
+      cases,
+    )
+  )
+
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionRefinementStatus
+    .CONVERGED_RESEARCH_CROSS_CASE
+  )
+  assert run.converged
+  assert run.measurement.case_ids == (
+    'global-pressure-case-1',
+    'global-pressure-case-2',
+  )
+  assert run.measurement.case_bindings_verified
+  assert run.measurement.distinct_source_closures_verified
+  assert run.measurement.resolution_ladders_verified
+  assert run.measurement.fresh_global_solves_verified
+  assert run.measurement.target_consumption_verified
+  assert run.measurement.target_match_verified
+  assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.global_coupling_verified is False
+  assert run.measurement.downstream_boundary_closure_verified is False
+  assert run.measurement.external_validation_required
+  assert run.production_claim_allowed is False
+  visualization = standardize_model_visualization(run)
+  assert visualization.model_id == (
+    'planar-moc-global-frontier-boundary-condition-refinement'
+  )
+  assert visualization.diagnostics[
+    'global_frontier_boundary_condition_refinement_case_count'
+  ] == 2
+  assert visualization.diagnostics[
+    'global_frontier_boundary_condition_refinement_resolution_count'
+  ] == 2
+  assert visualization.claims.production_claim_allowed is False
+  assert run.as_report()['operator_id'] == (
+    'op.moc.reflected-domain.global-frontier-boundary-condition-cross-case-refinement'
+  )
 ####
