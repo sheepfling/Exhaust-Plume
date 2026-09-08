@@ -2481,7 +2481,7 @@ and the final release gates remain open.
 
 The long-running goal remains active on the dedicated integration branch.  The
 current candidate is a local research checkpoint; it is not a release
-candidate.  The current pushed checkpoint is `8e7ca25` on
+  candidate.  The current pushed checkpoint is `0b109e0` on
 `work/washed-integral-visual`; `main` remains untouched.  Work proceeds in the
 following order,
 with each item stopping closed when its evidence is absent:
@@ -2752,6 +2752,29 @@ fixture roles and confirms that external evidence can be recorded while
 false.  The owner validation archives and provider-bound observations are
 still absent, so this checkpoint does not change the release freeze.
 
+### Terminal final-response audit checkpoint — 2026-09-08 (`0b109e0`)
+
+The bounded outer feedback lane now exposes
+``op.moc.reflected-domain.global-coupled-boundary-condition-feedback-terminal-fixed-point``.
+It re-measures ``final_closure`` against a fresh downstream feedback field
+instead of treating the last upstream solve as self-validating.  The replay
+uses the exact retained downstream configuration and refreshes solver-owned
+physical-field continuation/shock-front handoffs by final-field identity.  A
+caller may also provide a separately retained terminal run; its final-closure
+fingerprint, temperature/iteration configuration, response lineage, and
+unconsumed proposal are checked before acceptance.
+
+The terminal audit requires covered finite coordinate, tangent, pressure, and
+normal-velocity response channels and compares their signed offsets against
+explicit research tolerances.  The current target passes this terminal local
+response check in both supplied-run and replayed-run paths.  The audit still
+reports ``global_coupling_verified=false``,
+``downstream_boundary_closure_verified=false``,
+``chain_promotion_blocked=true``, and ``production_claim_allowed=false``.
+This closes a missing end-of-loop evidence seam only; it does not establish
+canonical reflected/mixed-regime closure, physical shock-cell acceptance,
+provider-bound product validation, or release readiness.
+
 ### Full product-suite release map — 2026-09-08
 
 This is the go-forward definition of completion for the long-running goal.  A
@@ -2761,7 +2784,7 @@ are also accepted.
 
 | Gate | Must be true | Current state | Unlocks |
 | --- | --- | --- | --- |
-| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `8e7ca25` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
+| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `0b109e0` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
 | Visualization | All five model lanes emit the common bundle, views, slices, paths, regions, masks, diagnostics, and provenance; supplied provider overlays use the declared operator | Local standardized gallery is complete; provider comparison is pending | Visualization product claim |
 | Mission-time composition | State/cursor advancement preserves source, pose, atmosphere, chemistry, optics, ray, Signature, and FPA lineage without inferred time evolution | Local timeline and exact Signature/FPA point/timeline seams are present | Time-resolved product demonstrations |
 | Solver fidelity | Basic, reduced-order, straight/washed, and planar-MOC lanes remain independently configured and promotion-guarded | Local separation passes; planar-MOC is still research-only | Controlled use of each fidelity |
