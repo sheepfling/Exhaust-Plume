@@ -1814,7 +1814,7 @@ remain open.
 ### Long-running execution checkpoint — 2026-09-08
 
 The active integration candidate is the clean, pushed branch
-`work/washed-integral-visual` at `9f9f16f`.  `main` remains untouched.  The
+`work/washed-integral-visual` at `fc4bc93`.  `main` remains untouched.  The
 latest documentation slice corrected the validation provenance language: the
 repository retains the historical Version 8 intake report, but the raw ZIP,
 the separately named alignment archive, and provider-bound measurement-space
@@ -1825,7 +1825,7 @@ Local evidence through this checkpoint includes the full planar-MOC suite
 (466 passed), focused frontier/reconciliation and coupled-refinement tests,
 Ruff, Pyright, lane partitioning, public-contract checks, Markdown policy,
 diff checks, and offline wheel/install smoke.  GitHub CI for this exact
-candidate is still running at run `34197041795`; its result must be recorded
+candidate is still running at run `34198095292`; its result must be recorded
 before this checkpoint can become a release freeze.
 
 The next implementation slice remains `P2.2`, not product promotion.  A
