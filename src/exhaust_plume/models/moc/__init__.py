@@ -234,6 +234,7 @@ from exhaust_plume.models.moc.physical_field_shock_front import (
   build_moc_physical_field_shock_front_condition,
 )
 from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerBoundaryPressureTarget,
   MocPhysicalFieldEulerReconciliationStatus,
   MocPhysicalFieldEulerReconciliationRequest,
   MocPhysicalFieldEulerReconciliationResult,
@@ -996,6 +997,7 @@ __all__ = (
   'MocPhysicalFieldShockFrontConditionResult',
   'build_moc_physical_field_shock_front_condition',
   'MocPhysicalFieldEulerReconciliationStatus',
+  'MocPhysicalFieldEulerBoundaryPressureTarget',
   'MocPhysicalFieldEulerReconciliationRequest',
   'MocPhysicalFieldEulerReconciliationResult',
   'solve_moc_physical_field_euler_reconciliation',

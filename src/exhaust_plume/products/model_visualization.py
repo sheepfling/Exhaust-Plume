@@ -1651,6 +1651,15 @@ def _coupled_euler_field_from_result(result: object) -> object | None:
 def _moc_field_from_result(result: object) -> tuple[object | None, object]:
   """Find a retained planar field without requiring one concrete MOC wrapper."""
 
+  target_pressure_reconciliation = getattr(result, 'reconciliation', None)
+  if target_pressure_reconciliation is not None:
+    target_field = _physical_field_euler_reconciliation_from_result(
+      target_pressure_reconciliation
+    )
+    if target_field is not None:
+      return target_field, target_pressure_reconciliation
+    ####
+  ####
   attached_field = _entropy_characteristic_field_from_result(result)
   if attached_field is not None:
     return attached_field, result
@@ -1681,10 +1690,18 @@ def _moc_field_from_result(result: object) -> tuple[object | None, object]:
       'global_euler',
       'closure',
       'field',
+      'selected_candidate',
+      'source_closure',
+      'candidates',
+      'reconciliation',
     ):
       nested_value = getattr(candidate, attribute, None)
       if nested_value is not None:
-        pending.append(nested_value)
+        if isinstance(nested_value, (tuple, list)):
+          pending.extend(nested_value)
+        else:
+          pending.append(nested_value)
+        ####
       ####
     ####
   ####
@@ -1856,10 +1873,18 @@ def _moc_shock_front_condition(result: object) -> object | None:
       'global_euler',
       'physical_field',
       'field',
+      'selected_candidate',
+      'source_closure',
+      'candidates',
+      'reconciliation',
     ):
       nested = getattr(candidate, attribute, None)
       if nested is not None:
-        pending.append(nested)
+        if isinstance(nested, (tuple, list)):
+          pending.extend(nested)
+        else:
+          pending.append(nested)
+        ####
       ####
     ####
   ####
@@ -2182,6 +2207,21 @@ def _moc_visualization(
   ####
   coupled_euler = isinstance(field, _CoupledEulerFieldView)
   reconciled_euler = isinstance(field, _PhysicalFieldEulerReconciliationView)
+  target_pressure_reconciliation = bool(
+    (
+      getattr(result, 'target', None) is not None
+      and getattr(result, 'reconciliation', None) is not None
+    )
+    or all(
+      hasattr(result, name)
+      for name in (
+        'target_match_verified',
+        'target_coverage_verified',
+        'target_consumption_verified',
+      )
+    )
+    and hasattr(getattr(result, 'request', None), 'target_static_pressure_Pa')
+  )
   cell_polygons: list[tuple[Vector2, ...]] = []
   all_points: list[Vector2] = []
   for cell in getattr(field, 'cells', ()):
@@ -2986,6 +3026,40 @@ def _moc_visualization(
     'state_sampling_available': bool(getattr(source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
+  if target_pressure_reconciliation:
+    target = getattr(result, 'target', None)
+    if target is None:
+      target = getattr(result, 'request', None)
+    ####
+    diagnostics['global_frontier_target_pressure_reconciliation'] = True
+    diagnostics['global_frontier_target_pressure_target_consumed'] = bool(
+      getattr(result, 'target_consumption_verified', False)
+    )
+    diagnostics['global_frontier_target_pressure_target_coverage_verified'] = bool(
+      getattr(result, 'target_coverage_verified', False)
+    )
+    independent_audit_verified = getattr(
+      result,
+      'independent_audit_verified',
+      None,
+    )
+    if isinstance(independent_audit_verified, bool):
+      diagnostics[
+        'global_frontier_target_pressure_independent_audit_verified'
+      ] = independent_audit_verified
+    ####
+    target_count = getattr(target, 'sample_count', None)
+    if target_count is None:
+      target_count = len(getattr(target, 'target_x_stations_m', ()))
+    ####
+    if isinstance(target_count, int) and not isinstance(target_count, bool):
+      diagnostics['global_frontier_target_pressure_station_count'] = target_count
+    ####
+    target_source = getattr(target, 'source_id', None)
+    if isinstance(target_source, str) and target_source:
+      diagnostics['global_frontier_target_pressure_source_id'] = target_source
+    ####
+  ####
   if reconciled_euler:
     reconciliation_status = getattr(source, 'status', '')
     diagnostics['physical_field_euler_reconciliation_status'] = str(
@@ -3777,6 +3851,13 @@ def _moc_visualization(
       'refinement convergence, or production shock-cell validity'
     )
   ####
+  if target_pressure_reconciliation:
+    warnings.append(
+      'the global-frontier pressure target was consumed only on the fixed '
+      'ambient path; shock placement, boundary geometry, and canonical global '
+      'coupling remain unresolved'
+    )
+  ####
   if transonic_geometry is not None:
     warnings.append(
       (
@@ -3809,9 +3890,12 @@ def _moc_visualization(
   return _bundle(
     lane=ModelVisualizationLane.PLANAR_MOC,
     model_id=(
-      'planar-moc-physical-field-euler-reconciliation'
-      if reconciled_euler
+      'planar-moc-global-frontier-target-pressure-reconciliation'
+      if target_pressure_reconciliation
       else (
+        'planar-moc-physical-field-euler-reconciliation'
+        if reconciled_euler
+        else (
         'planar-moc-coupled-euler-free-boundary'
         if coupled_euler
         else (
@@ -3836,6 +3920,7 @@ def _moc_visualization(
         )
         )
         )
+        )
       )
     ),
     model_version='1',
@@ -3850,14 +3935,19 @@ def _moc_visualization(
       production_claim_allowed=False,
       claim_notes=(
         (
-          'front-aligned conservative physical-field reconciliation retained '
-          'for research visualization'
-          if reconciled_euler
+          'global-frontier pressure target consumed in a fixed-front '
+          'conservative reconciliation; research visualization only'
+          if target_pressure_reconciliation
           else (
-          'coupled constant-gamma Euler/free-boundary field retained for '
-          'research visualization'
-          if coupled_euler
-          else 'higher-fidelity planar characteristic/reflected-domain field retained for evaluation'
+            'front-aligned conservative physical-field reconciliation retained '
+            'for research visualization'
+            if reconciled_euler
+            else (
+              'coupled constant-gamma Euler/free-boundary field retained for '
+              'research visualization'
+              if coupled_euler
+              else 'higher-fidelity planar characteristic/reflected-domain field retained for evaluation'
+            )
           )
         ),
         'local field closure does not imply a production chain-cell or axisymmetric plume claim',

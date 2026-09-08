@@ -30,6 +30,7 @@ from exhaust_plume.models.moc.primitives import CharacteristicState
 
 __all__ = (
   'MocPhysicalFieldEulerReconciliationStatus',
+  'MocPhysicalFieldEulerBoundaryPressureTarget',
   'MocPhysicalFieldEulerReconciliationRequest',
   'MocPhysicalFieldEulerReconciliationResult',
   'solve_moc_physical_field_euler_reconciliation',
@@ -49,6 +50,198 @@ _CHANNEL_NAMES = (
   'energy',
   'euler',
 )
+
+
+PHYSICAL_FIELD_EULER_BOUNDARY_PRESSURE_TARGET_MODEL = (
+  'research-solver-owned-frontier-pressure-target-v1'
+)
+
+
+@dataclass(frozen=True, slots=True)
+class MocPhysicalFieldEulerBoundaryPressureTarget:
+  """A bounded pressure target consumed on the retained ambient path.
+
+  The target is deliberately narrower than a free-boundary condition.  Its
+  stations define a pressure profile only; the fixed reconciliation mesh still
+  owns the boundary geometry and tangent checks.  Interpolation is allowed
+  only between declared stations, and a target that does not cover every
+  ambient-face midpoint is rejected before the conservative solve starts.
+  """
+
+  x_stations_m: tuple[float, ...]
+  static_pressure_Pa: tuple[float, ...]
+  source_id: str
+  boundary_points_m: tuple[tuple[float, float], ...] = ()
+  tangent_rad: tuple[float, ...] = ()
+  model: str = PHYSICAL_FIELD_EULER_BOUNDARY_PRESSURE_TARGET_MODEL
+  source_closure_fingerprint: str | None = None
+  source_proposal_fingerprint: str | None = None
+
+  def __post_init__(self) -> None:
+    stations = tuple(float(value) for value in self.x_stations_m)
+    pressures = tuple(float(value) for value in self.static_pressure_Pa)
+    if len(stations) < 2:
+      raise ValueError('x_stations_m must contain at least two stations')
+    ####
+    if len(stations) != len(pressures):
+      raise ValueError(
+        'x_stations_m and static_pressure_Pa must have equal lengths'
+      )
+    ####
+    if any(not isfinite(value) for value in stations):
+      raise ValueError('x_stations_m must contain finite values')
+    ####
+    if any(
+      second <= first
+      for first, second in zip(stations, stations[1:])
+    ):
+      raise ValueError('x_stations_m must be strictly increasing')
+    ####
+    if any(not isfinite(value) or value <= 0.0 for value in pressures):
+      raise ValueError(
+        'static_pressure_Pa must contain finite positive values'
+      )
+    ####
+    points = tuple(
+      (float(point[0]), float(point[1])) for point in self.boundary_points_m
+    )
+    if points and len(points) != len(stations):
+      raise ValueError(
+        'boundary_points_m must match the target station count when supplied'
+      )
+    ####
+    if any(not all(isfinite(value) for value in point) for point in points):
+      raise ValueError('boundary_points_m must contain finite points')
+    ####
+    tangents = tuple(float(value) for value in self.tangent_rad)
+    if tangents and len(tangents) != len(stations):
+      raise ValueError(
+        'tangent_rad must match the target station count when supplied'
+      )
+    ####
+    if any(not isfinite(value) for value in tangents):
+      raise ValueError('tangent_rad must contain finite values')
+    ####
+    source_id = str(self.source_id)
+    if not source_id:
+      raise ValueError('source_id must be non-empty')
+    ####
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be non-empty')
+    ####
+    closure_fingerprint = self.source_closure_fingerprint
+    proposal_fingerprint = self.source_proposal_fingerprint
+    if (closure_fingerprint is None) != (proposal_fingerprint is None):
+      raise ValueError(
+        'source_closure_fingerprint and source_proposal_fingerprint must '
+        'be supplied together'
+      )
+    ####
+    if closure_fingerprint is not None and (
+      len(str(closure_fingerprint)) != 64
+      or any(
+        character not in '0123456789abcdef'
+        for character in str(closure_fingerprint)
+      )
+      or len(str(proposal_fingerprint)) != 64
+      or any(
+        character not in '0123456789abcdef'
+        for character in str(proposal_fingerprint)
+      )
+    ):
+      raise ValueError(
+        'source target fingerprints must be lowercase SHA-256 digests'
+      )
+    ####
+    object.__setattr__(self, 'x_stations_m', stations)
+    object.__setattr__(self, 'static_pressure_Pa', pressures)
+    object.__setattr__(self, 'boundary_points_m', points)
+    object.__setattr__(self, 'tangent_rad', tangents)
+    object.__setattr__(self, 'source_id', source_id)
+    object.__setattr__(self, 'model', model)
+    if closure_fingerprint is not None:
+      object.__setattr__(
+        self,
+        'source_closure_fingerprint',
+        str(closure_fingerprint),
+      )
+      object.__setattr__(
+        self,
+        'source_proposal_fingerprint',
+        str(proposal_fingerprint),
+      )
+    ####
+  ####
+
+  @property
+  def sample_count(self) -> int:
+    return len(self.x_stations_m)
+  ####
+
+  @property
+  def minimum_pressure_Pa(self) -> float:
+    return min(self.static_pressure_Pa)
+  ####
+
+  @property
+  def maximum_pressure_Pa(self) -> float:
+    return max(self.static_pressure_Pa)
+  ####
+
+  def pressure_at_x(
+    self,
+    x_m: float,
+    *,
+    position_tolerance_m: float,
+  ) -> float | None:
+    """Interpolate a target pressure without endpoint extrapolation."""
+
+    x_value = float(x_m)
+    tolerance = float(position_tolerance_m)
+    if not isfinite(x_value) or not isfinite(tolerance) or tolerance <= 0.0:
+      raise ValueError('x_m and position_tolerance_m must be finite and valid')
+    ####
+    if (
+      x_value < self.x_stations_m[0] - tolerance
+      or x_value > self.x_stations_m[-1] + tolerance
+    ):
+      return None
+    ####
+    for index, (first, second) in enumerate(
+      zip(self.x_stations_m, self.x_stations_m[1:])
+    ):
+      if abs(x_value - first) <= tolerance:
+        return self.static_pressure_Pa[index]
+      ####
+      if x_value <= second + tolerance:
+        span = second - first
+        fraction = min(max((x_value - first) / span, 0.0), 1.0)
+        return self.static_pressure_Pa[index] + fraction * (
+          self.static_pressure_Pa[index + 1]
+          - self.static_pressure_Pa[index]
+        )
+      ####
+    ####
+    return self.static_pressure_Pa[-1]
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': self.model,
+      'source_id': self.source_id,
+      'x_stations_m': self.x_stations_m,
+      'static_pressure_Pa': self.static_pressure_Pa,
+      'boundary_points_m': self.boundary_points_m,
+      'tangent_rad': self.tangent_rad,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
+      'source_proposal_fingerprint': self.source_proposal_fingerprint,
+      'sample_count': self.sample_count,
+      'minimum_pressure_Pa': self.minimum_pressure_Pa,
+      'maximum_pressure_Pa': self.maximum_pressure_Pa,
+    }
+  ####
+####
 
 
 class MocPhysicalFieldEulerReconciliationStatus(str, Enum):
@@ -83,6 +276,7 @@ class MocPhysicalFieldEulerReconciliationRequest:
   relaxation: float = 0.75
   position_tolerance_m: float = 1.0e-8
   source: str = PHYSICAL_FIELD_EULER_RECONCILIATION_MODEL
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -138,6 +332,15 @@ class MocPhysicalFieldEulerReconciliationRequest:
     if not source:
       raise ValueError('source must be a non-empty string')
     ####
+    if self.ambient_pressure_target is not None and not isinstance(
+      self.ambient_pressure_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError(
+        'ambient_pressure_target must be a '
+        'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      )
+    ####
     object.__setattr__(self, 'source', source)
   ####
 
@@ -159,6 +362,11 @@ class MocPhysicalFieldEulerReconciliationRequest:
       'relaxation': self.relaxation,
       'position_tolerance_m': self.position_tolerance_m,
       'source': self.source,
+      'ambient_pressure_target': (
+        None
+        if self.ambient_pressure_target is None
+        else self.ambient_pressure_target.as_report()
+      ),
     }
   ####
 ####
@@ -180,6 +388,7 @@ class MocPhysicalFieldEulerReconciliationResult:
   ambient_pressure_residuals_Pa: tuple[float, ...] = ()
   ambient_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   centerline_normal_velocity_residuals_m_s: tuple[float, ...] = ()
+  ambient_pressure_target_residuals_Pa: tuple[float, ...] = ()
   terminal_boundary_count: int = 0
   shock_boundary_edge_count: int = 0
   ambient_boundary_edge_count: int = 0
@@ -204,6 +413,8 @@ class MocPhysicalFieldEulerReconciliationResult:
   residual_channel_validity: MappingProxyType = field(
     default_factory=lambda: MappingProxyType({})
   )
+  ambient_pressure_target_coverage_verified: bool = False
+  ambient_pressure_target_consumed: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
   message: str = ''
@@ -250,6 +461,7 @@ class MocPhysicalFieldEulerReconciliationResult:
       'ambient_pressure_residuals_Pa',
       'ambient_normal_velocity_residuals_m_s',
       'centerline_normal_velocity_residuals_m_s',
+      'ambient_pressure_target_residuals_Pa',
     ):
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) or value < 0.0 for value in values):
@@ -348,6 +560,8 @@ class MocPhysicalFieldEulerReconciliationResult:
       'mesh_verified',
       'conservative_euler_residuals_measured',
       'conservative_euler_residuals_verified',
+      'ambient_pressure_target_coverage_verified',
+      'ambient_pressure_target_consumed',
       'chain_promotion_blocked',
       'production_claim_allowed',
     ):
@@ -383,6 +597,14 @@ class MocPhysicalFieldEulerReconciliationResult:
       and self.centerline_boundary_verified
       and self.conservative_euler_residuals_measured
       and self.conservative_euler_residuals_verified
+      and (
+        self.request is None
+        or self.request.ambient_pressure_target is None
+        or (
+          self.ambient_pressure_target_coverage_verified
+          and self.ambient_pressure_target_consumed
+        )
+      )
     )
   ####
 
@@ -420,6 +642,9 @@ class MocPhysicalFieldEulerReconciliationResult:
       'centerline_normal_velocity_residuals_m_s': (
         self.centerline_normal_velocity_residuals_m_s
       ),
+      'ambient_pressure_target_residuals_Pa': (
+        self.ambient_pressure_target_residuals_Pa
+      ),
       'terminal_boundary_count': self.terminal_boundary_count,
       'shock_boundary_edge_count': self.shock_boundary_edge_count,
       'ambient_boundary_edge_count': self.ambient_boundary_edge_count,
@@ -452,6 +677,10 @@ class MocPhysicalFieldEulerReconciliationResult:
       ),
       'residual_channel_coverage': dict(self.residual_channel_coverage),
       'residual_channel_validity': dict(self.residual_channel_validity),
+      'ambient_pressure_target_coverage_verified': (
+        self.ambient_pressure_target_coverage_verified
+      ),
+      'ambient_pressure_target_consumed': self.ambient_pressure_target_consumed,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'request': None if self.request is None else self.request.as_report(),
@@ -915,6 +1144,50 @@ def _interpolate_boundary_state(
 ####
 
 
+def _ambient_pressure_at_x(
+  request: MocPhysicalFieldEulerReconciliationRequest,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+  ambient_pressure_Pa: float,
+) -> float:
+  target = request.ambient_pressure_target
+  if target is None:
+    return float(ambient_pressure_Pa)
+  ####
+  pressure = target.pressure_at_x(
+    x_m,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if pressure is None:
+    raise ValueError(
+      'ambient pressure target does not cover every retained boundary face'
+    )
+  ####
+  return float(pressure)
+####
+
+
+def _ambient_pressure_target_covers_mesh(
+  request: MocPhysicalFieldEulerReconciliationRequest,
+  mesh: _Mesh,
+) -> bool:
+  target = request.ambient_pressure_target
+  if target is None:
+    return True
+  ####
+  return all(
+    target.pressure_at_x(
+      0.5 * (face.first[0] + face.second[0]),
+      position_tolerance_m=request.position_tolerance_m,
+    )
+    is not None
+    for face in mesh.boundary_faces
+    if face.kind == 'ambient'
+  )
+####
+
+
 def _source_cell_states(
   condition: MocPhysicalFieldShockFrontConditionResult,
   mesh: _Mesh,
@@ -1116,6 +1389,12 @@ def _residuals(
           )
         )
       elif face.kind == 'ambient':
+        target_pressure = _ambient_pressure_at_x(
+          request,
+          midpoint[0],
+          position_tolerance_m=request.position_tolerance_m,
+          ambient_pressure_Pa=float(ambient_pressure),
+        )
         flux, wave, pressure, normal_velocity = _wall_flux(
           state,
           face.normal_x,
@@ -1123,9 +1402,9 @@ def _residuals(
           face.length_m,
           gamma,
           request.gas_constant_J_kgK,
-          float(ambient_pressure),
+          target_pressure,
         )
-        ambient_pressures.append(abs(pressure - float(ambient_pressure)))
+        ambient_pressures.append(abs(pressure - target_pressure))
         ambient_normals.append(abs(normal_velocity))
       elif face.kind == 'centerline':
         flux, wave, _pressure, normal_velocity = _wall_flux(
@@ -1208,6 +1487,21 @@ def solve_moc_physical_field_euler_reconciliation(
       request,
       condition=condition,
       message=f'front-aligned source mesh failed: {error}',
+    )
+  ####
+  target_coverage_verified = _ambient_pressure_target_covers_mesh(
+    request,
+    mesh,
+  )
+  if not target_coverage_verified:
+    return _failure(
+      MocPhysicalFieldEulerReconciliationStatus.BOUNDARY_FAILURE,
+      request,
+      condition=condition,
+      message=(
+        'solver-owned ambient pressure target does not cover every retained '
+        'ambient-face midpoint; no extrapolation was attempted'
+      ),
     )
   ####
   try:
@@ -1336,6 +1630,11 @@ def solve_moc_physical_field_euler_reconciliation(
     default=0.0,
   )
   ambient_pressure = float(condition.field.ambient_boundary.ambient_pressure_Pa)
+  pressure_reference = (
+    ambient_pressure
+    if request.ambient_pressure_target is None
+    else request.ambient_pressure_target.maximum_pressure_Pa
+  )
   maximum_speed = 0.0
   for state in states:
     _density, velocity_u, velocity_v, _pressure, sound_speed = _primitive(
@@ -1358,7 +1657,7 @@ def solve_moc_physical_field_euler_reconciliation(
   shock_verified = maximum_shock <= request.shock_jump_tolerance
   ambient_verified = bool(
     maximum_ambient_pressure
-    <= request.ambient_pressure_tolerance_fraction * ambient_pressure
+    <= request.ambient_pressure_tolerance_fraction * pressure_reference
     and maximum_ambient_normal
     <= request.boundary_normal_velocity_tolerance_fraction
     * max(maximum_speed, 1.0e-12)
@@ -1419,6 +1718,9 @@ def solve_moc_physical_field_euler_reconciliation(
     ambient_pressure_residuals_Pa=ambient_pressures,
     ambient_normal_velocity_residuals_m_s=ambient_normals,
     centerline_normal_velocity_residuals_m_s=centerline_normals,
+    ambient_pressure_target_residuals_Pa=(
+      ambient_pressures if request.ambient_pressure_target is not None else ()
+    ),
     terminal_boundary_count=edge_counts['terminal'],
     shock_boundary_edge_count=edge_counts['shock'],
     ambient_boundary_edge_count=edge_counts['ambient'],
@@ -1439,6 +1741,10 @@ def solve_moc_physical_field_euler_reconciliation(
     conservative_euler_residuals_verified=residual_verified,
     residual_channel_coverage=coverage,
     residual_channel_validity=validity,
+    ambient_pressure_target_coverage_verified=target_coverage_verified,
+    ambient_pressure_target_consumed=(
+      request.ambient_pressure_target is not None and bool(ambient_pressures)
+    ),
     message=message,
   )
 ####

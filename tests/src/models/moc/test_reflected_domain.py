@@ -58,6 +58,7 @@ from exhaust_plume.models.moc import (
   MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileStatus,
   MocPhysicalFieldEulerReconciliationRequest,
+  MocPhysicalFieldEulerBoundaryPressureTarget,
   MocPhysicalFieldEulerReconciliationStatus,
   MocPhysicalFieldShockFrontConditionRequest,
   MocPhysicalFieldShockFrontConditionStatus,
@@ -133,6 +134,7 @@ from exhaust_plume.models.nozzle.exit_state import (
   derive_ambient_state,
   derive_uniform_nozzle_exit,
 )
+from exhaust_plume.products import standardize_model_visualization
 from exhaust_plume.validation.moc_measurements import (
   MOC_PRODUCTION_SHOCK_CELL_FIT_OPERATOR_ID,
   MocReflectedDomainAlternatingPhysicalFieldChainRefinementCase,
@@ -206,6 +208,10 @@ from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
 from exhaust_plume.validation.moc_global_coupled_downstream_feedback import (
   MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus,
   run_reflected_domain_global_coupled_downstream_feedback,
+)
+from exhaust_plume.validation.moc_global_frontier_target_pressure_reconciliation import (
+  MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus,
+  run_reflected_domain_global_frontier_target_pressure_reconciliation,
 )
 from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MocReflectedDomainCoupledEulerPressureContinuationStatus,
@@ -1045,6 +1051,87 @@ def test_physical_field_euler_reconciliation_consumes_front_and_audits():
   assert audit.centerline_boundary_verified
   assert audit.promotion_flags_verified
   assert audit.physical_closure_verified is False
+####
+
+
+def test_physical_field_euler_reconciliation_consumes_solver_owned_pressure_target():
+  closure = _global_physical_closure_for_mixed_regime()
+  condition = _front_condition_for_reconciliation(
+    closure,
+    'test-front-aligned-euler-pressure-target',
+  )
+  assert condition.field is not None
+  boundary = condition.field.ambient_boundary
+  target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(point[0] for point in boundary.points_m),
+    static_pressure_Pa=tuple(boundary.static_pressure_Pa),
+    boundary_points_m=tuple(boundary.points_m),
+    tangent_rad=tuple(
+      state.theta_rad for state in boundary.states
+    ),
+    source_id='test-global-frontier-pressure-target-v1',
+  )
+  candidate = solve_moc_physical_field_euler_reconciliation(
+    MocPhysicalFieldEulerReconciliationRequest(
+      shock_front_condition=condition,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_target=target,
+    )
+  )
+  assert candidate.status is (
+    MocPhysicalFieldEulerReconciliationStatus
+    .CONVERGED_LOCAL_RECONCILIATION
+  )
+  assert candidate.converged
+  assert candidate.ambient_pressure_target_coverage_verified
+  assert candidate.ambient_pressure_target_consumed
+  assert len(candidate.ambient_pressure_target_residuals_Pa) == (
+    candidate.ambient_boundary_edge_count
+  )
+  audit = measure_moc_physical_field_euler_reconciliation(candidate)
+  assert audit.status is MocPhysicalFieldEulerReconciliationAuditStatus.VERIFIED
+  assert audit.converged
+  assert audit.ambient_pressure_target_coverage_verified
+  assert audit.ambient_pressure_target_consumption_verified
+  assert audit.ambient_pressure_target_residual_report_verified
+  assert audit.ambient_boundary_verified
+
+  incomplete_target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=target.x_stations_m[1:],
+    static_pressure_Pa=target.static_pressure_Pa[1:],
+    source_id='test-global-frontier-pressure-target-incomplete',
+  )
+  incomplete = solve_moc_physical_field_euler_reconciliation(
+    MocPhysicalFieldEulerReconciliationRequest(
+      shock_front_condition=condition,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_target=incomplete_target,
+    )
+  )
+  assert incomplete.status is (
+    MocPhysicalFieldEulerReconciliationStatus.BOUNDARY_FAILURE
+  )
+  assert incomplete.converged is False
+  assert incomplete.ambient_pressure_target_consumed is False
+
+  tampered_target = replace(
+    target,
+    static_pressure_Pa=(
+      target.static_pressure_Pa[0] + 1.0e3,
+      *target.static_pressure_Pa[1:],
+    ),
+  )
+  assert candidate.request is not None
+  tampered = replace(
+    candidate,
+    request=replace(
+      candidate.request,
+      ambient_pressure_target=tampered_target,
+    ),
+  )
+  tampered_audit = measure_moc_physical_field_euler_reconciliation(tampered)
+  assert tampered_audit.converged is False
+  assert tampered_audit.residual_report_verified is False
 ####
 
 
@@ -6648,5 +6735,87 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
   assert resolved.downstream_boundary_closure_verified is False
   assert resolved.chain_promotion_blocked
   assert resolved.production_claim_allowed is False
+  visualization = standardize_model_visualization(resolved)
+  assert visualization.model_id == (
+    'planar-moc-global-frontier-target-pressure-reconciliation'
+  )
+  assert visualization.diagnostics[
+    'global_frontier_target_pressure_target_consumed'
+  ] is True
+  assert visualization.diagnostics[
+    'global_frontier_target_pressure_target_coverage_verified'
+  ] is True
+  assert visualization.claims.production_claim_allowed is False
   assert resolved.as_report()['candidate_count'] == 2
+####
+
+
+def test_global_frontier_target_pressure_reconciliation_consumes_exact_target_without_promotion(
+  _global_frontier_reconciliation_request,
+):
+  request = _global_frontier_reconciliation_request
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  boundary = closure.global_euler.physical_field.field.ambient_boundary
+  points = tuple(boundary.points_m)
+  x_stations = tuple(point[0] for point in points)
+  tangent = tuple(state.theta_rad for state in boundary.states)
+  pressure = tuple(boundary.static_pressure_Pa)
+  count = len(points)
+  proposal = replace(
+    request.proposal,
+    matched_x_stations_m=x_stations,
+    reference_boundary_points_m=points,
+    proposed_boundary_points_m=points,
+    reference_tangent_rad=tangent,
+    proposed_tangent_rad=tangent,
+    reference_static_pressure_Pa=pressure,
+    proposed_static_pressure_Pa=pressure,
+    coordinate_corrections_m=(0.0,) * count,
+    tangent_corrections_rad=(0.0,) * count,
+    pressure_corrections_Pa=(0.0,) * count,
+    normal_velocity_values_m_s=(0.0,) * count,
+  )
+  exact_request = build_reflected_domain_global_frontier_reconciliation_request(
+    closure,
+    proposal,
+    consumer_id='test-global-frontier-target-pressure-consumer',
+  )
+  resolved = run_reflected_domain_global_frontier_target_pressure_reconciliation(
+    exact_request,
+    closure,
+  )
+  assert resolved.status is (
+    MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
+    .CONVERGED_LOCAL_TARGET_PRESSURE_RECONCILIATION
+  )
+  assert resolved.converged_research_reconciliation
+  assert resolved.target_lineage_verified
+  assert resolved.target_coverage_verified
+  assert resolved.target_consumption_verified
+  assert resolved.independent_audit_verified
+  assert resolved.reconciliation is not None
+  assert resolved.reconciliation.ambient_pressure_target_consumed
+  assert resolved.audit is not None
+  assert resolved.audit.ambient_pressure_target_residual_report_verified
+  assert resolved.global_coupling_verified is False
+  assert resolved.downstream_boundary_closure_verified is False
+  assert resolved.chain_promotion_blocked
+  assert resolved.production_claim_allowed is False
+
+  uncovered = run_reflected_domain_global_frontier_target_pressure_reconciliation(
+    request,
+    closure,
+  )
+  assert uncovered.status is (
+    MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
+    .TARGET_COVERAGE_FAILURE
+  )
+  assert uncovered.target_lineage_verified
+  assert uncovered.target_coverage_verified is False
+  assert uncovered.target_consumption_verified is False
+  assert uncovered.reconciliation is not None
+  assert uncovered.reconciliation.converged is False
 ####

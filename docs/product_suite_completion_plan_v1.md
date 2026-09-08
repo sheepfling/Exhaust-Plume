@@ -1957,3 +1957,30 @@ the production claim block.  The next physics slice is to replace candidate
 selection with a solver-owned pressure/geometry boundary condition and then
 re-measure a coupled placement/refinement ladder against independent physical
 data.
+
+### P2.2 pressure-target consumer checkpoint — 2026-09-08
+
+The exact global-frontier request now has a real conservative consumer for its
+static-pressure channel.  A typed
+``MocPhysicalFieldEulerBoundaryPressureTarget`` retains the station frame,
+pressure profile, optional target geometry/tangent metadata, and the exact
+source closure/proposal fingerprints.  The fixed-front conservative
+reconciliation samples that profile at every ambient-face midpoint and uses
+it directly in the boundary momentum flux; uncovered stations fail before
+the solve and no endpoint extrapolation is allowed.
+
+The independent reconciliation operator rederives the same target pressure
+profile, coverage, flux residuals, and target-residual report.  The new
+global-frontier target-pressure operator binds the proposal fingerprints,
+builds a fresh source-owned front condition, runs the consumer, and retains
+the independent audit.  A source-aligned regression passes this local
+research path; the actual downstream feedback fixture correctly returns a
+typed target-coverage failure because its stations do not cover the retained
+ambient path.
+
+The standardized planar-MOC Visualization adapter exposes the consumer as
+``planar-moc-global-frontier-target-pressure-reconciliation`` with target
+coverage, consumption, station-count, and audit diagnostics.  This remains a
+fixed-front research result: shock placement, target geometry consumption,
+transonic/mixed-regime closure, upstream feedback, refinement, physical
+shock-cell lengths, external validation, and production claims remain open.

@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 
 from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerBoundaryPressureTarget,
   MocPhysicalFieldEulerReconciliationResult,
 )
 from exhaust_plume.models.moc.primitives import CharacteristicState
@@ -71,6 +72,9 @@ class MocPhysicalFieldEulerReconciliationAudit:
   maximum_ambient_pressure_residual_Pa: float | None = None
   maximum_ambient_normal_velocity_residual_m_s: float | None = None
   maximum_centerline_normal_velocity_residual_m_s: float | None = None
+  ambient_pressure_target_coverage_verified: bool = False
+  ambient_pressure_target_consumption_verified: bool = False
+  ambient_pressure_target_residual_report_verified: bool = False
   geometry_verified: bool = False
   source_lineage_verified: bool = False
   state_samples_verified: bool = False
@@ -135,6 +139,9 @@ class MocPhysicalFieldEulerReconciliationAudit:
       'shock_front_verified',
       'ambient_boundary_verified',
       'centerline_boundary_verified',
+      'ambient_pressure_target_coverage_verified',
+      'ambient_pressure_target_consumption_verified',
+      'ambient_pressure_target_residual_report_verified',
       'promotion_flags_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
@@ -182,6 +189,15 @@ class MocPhysicalFieldEulerReconciliationAudit:
       ),
       'maximum_centerline_normal_velocity_residual_m_s': (
         self.maximum_centerline_normal_velocity_residual_m_s
+      ),
+      'ambient_pressure_target_coverage_verified': (
+        self.ambient_pressure_target_coverage_verified
+      ),
+      'ambient_pressure_target_consumption_verified': (
+        self.ambient_pressure_target_consumption_verified
+      ),
+      'ambient_pressure_target_residual_report_verified': (
+        self.ambient_pressure_target_residual_report_verified
       ),
       'geometry_verified': self.geometry_verified,
       'source_lineage_verified': self.source_lineage_verified,
@@ -421,6 +437,29 @@ def _interpolate_state(
     ),
     pressure,
   )
+####
+
+
+def _target_pressure_at_x(
+  target: MocPhysicalFieldEulerBoundaryPressureTarget | None,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+  fallback_pressure_Pa: float,
+) -> float:
+  if target is None:
+    return float(fallback_pressure_Pa)
+  ####
+  pressure = target.pressure_at_x(
+    x_m,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if pressure is None:
+    raise ValueError(
+      'independent audit target does not cover an ambient-face midpoint'
+    )
+  ####
+  return float(pressure)
 ####
 
 
@@ -752,11 +791,17 @@ def measure_moc_physical_field_euler_reconciliation(
         request.gas_constant_J_kgK,
       )
       del sound_speed
+      target_pressure = _target_pressure_at_x(
+        request.ambient_pressure_target,
+        midpoint[0],
+        position_tolerance_m=request.position_tolerance_m,
+        fallback_pressure_Pa=float(ambient_pressure),
+      )
       raw_residual[cell_index] += np.array(
-        (0.0, float(ambient_pressure) * normal_x, float(ambient_pressure) * normal_y, 0.0),
+        (0.0, target_pressure * normal_x, target_pressure * normal_y, 0.0),
         dtype=float,
       ) * length
-      ambient_pressures.append(abs(pressure - float(ambient_pressure)))
+      ambient_pressures.append(abs(pressure - target_pressure))
       ambient_normals.append(abs(velocity_u * normal_x + velocity_v * normal_y))
     elif boundary is not None and boundary[0] == 'centerline':
       _density, velocity_u, velocity_v, pressure, _sound_speed = _primitive(
@@ -791,6 +836,61 @@ def measure_moc_physical_field_euler_reconciliation(
   maximum_shock = max(shock_jumps, default=0.0)
   maximum_ambient_pressure = max(ambient_pressures, default=0.0)
   maximum_ambient_normal = max(ambient_normals, default=0.0)
+  target = request.ambient_pressure_target
+  target_coverage_verified = bool(
+    target is None
+    or all(
+      target.pressure_at_x(
+        0.5 * (first[0] + second[0]),
+        position_tolerance_m=request.position_tolerance_m,
+      )
+      is not None
+      for boundary_key, entries in edge_entries.items()
+      if len(entries) == 1
+      for boundary in (path_map.get(boundary_key),)
+      if boundary is not None and boundary[0] == 'ambient'
+      for _cell_index, _edge_index, first, second in entries
+    )
+  )
+  target_consumption_verified = bool(
+    target is None
+    or (
+      target_coverage_verified
+      and candidate.ambient_pressure_target_coverage_verified
+      and candidate.ambient_pressure_target_consumed
+      and (
+        target is None
+        or (
+          len(candidate.ambient_pressure_target_residuals_Pa)
+          == len(ambient_pressures)
+          and np.allclose(
+            np.asarray(candidate.ambient_pressure_target_residuals_Pa),
+            np.asarray(ambient_pressures),
+            rtol=1.0e-7,
+            atol=1.0e-10,
+          )
+        )
+      )
+    )
+  )
+  target_residual_report_verified = bool(
+    target is None
+    or (
+      len(candidate.ambient_pressure_target_residuals_Pa)
+      == len(ambient_pressures)
+      and np.allclose(
+        np.asarray(candidate.ambient_pressure_target_residuals_Pa),
+        np.asarray(ambient_pressures),
+        rtol=1.0e-7,
+        atol=1.0e-10,
+      )
+    )
+  )
+  pressure_reference = (
+    float(ambient_pressure)
+    if target is None
+    else target.maximum_pressure_Pa
+  )
   maximum_centerline_normal = max(centerline_normals, default=0.0)
   residual_report_verified = bool(
     len(candidate.residual_channels_by_cell) == len(normalised)
@@ -838,7 +938,7 @@ def measure_moc_physical_field_euler_reconciliation(
     and abs(candidate.maximum_ambient_pressure_residual_Pa - maximum_ambient_pressure)
     <= 1.0e-7 * max(1.0, maximum_ambient_pressure)
     and maximum_ambient_pressure
-    <= request.ambient_pressure_tolerance_fraction * float(ambient_pressure)
+    <= request.ambient_pressure_tolerance_fraction * pressure_reference
     and candidate.maximum_ambient_normal_velocity_residual_m_s is not None
     and abs(
       candidate.maximum_ambient_normal_velocity_residual_m_s
@@ -881,6 +981,9 @@ def measure_moc_physical_field_euler_reconciliation(
   elif not ambient_verified or not centerline_verified:
     status = MocPhysicalFieldEulerReconciliationAuditStatus.BOUNDARY_FAILURE
     message = 'independent ambient or centerline boundary residual remains open'
+  elif not target_consumption_verified:
+    status = MocPhysicalFieldEulerReconciliationAuditStatus.BOUNDARY_FAILURE
+    message = 'independent ambient pressure-target consumption audit failed'
   elif not geometry_verified or not source_lineage_verified:
     status = MocPhysicalFieldEulerReconciliationAuditStatus.GEOMETRY_FAILURE
     message = 'independent source geometry or path lineage audit failed'
@@ -907,6 +1010,11 @@ def measure_moc_physical_field_euler_reconciliation(
     maximum_ambient_pressure_residual_Pa=maximum_ambient_pressure,
     maximum_ambient_normal_velocity_residual_m_s=maximum_ambient_normal,
     maximum_centerline_normal_velocity_residual_m_s=maximum_centerline_normal,
+    ambient_pressure_target_coverage_verified=target_coverage_verified,
+    ambient_pressure_target_consumption_verified=target_consumption_verified,
+    ambient_pressure_target_residual_report_verified=(
+      target_residual_report_verified
+    ),
     geometry_verified=geometry_verified,
     source_lineage_verified=source_lineage_verified,
     state_samples_verified=True,

@@ -313,6 +313,12 @@ from exhaust_plume.validation.moc_physical_field_euler_reconciliation import (
   MocPhysicalFieldEulerReconciliationAudit,
   measure_moc_physical_field_euler_reconciliation,
 )
+from exhaust_plume.validation.moc_global_frontier_target_pressure_reconciliation import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_PRESSURE_RECONCILIATION_OPERATOR_ID,
+  MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus,
+  MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult,
+  run_reflected_domain_global_frontier_target_pressure_reconciliation,
+)
 from exhaust_plume.validation.moc_physical_field_euler_reconciliation_refinement import (
   MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_OPERATOR_ID,
   MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_RUN_OPERATOR_ID,
@@ -774,6 +780,10 @@ __all__ = (
   'MocPhysicalFieldEulerReconciliationAuditStatus',
   'MocPhysicalFieldEulerReconciliationAudit',
   'measure_moc_physical_field_euler_reconciliation',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_PRESSURE_RECONCILIATION_OPERATOR_ID',
+  'MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus',
+  'MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult',
+  'run_reflected_domain_global_frontier_target_pressure_reconciliation',
   'MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_OPERATOR_ID',
   'MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_RUN_OPERATOR_ID',
   'MocPhysicalFieldEulerReconciliationRefinementStatus',
