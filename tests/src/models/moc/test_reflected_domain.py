@@ -3085,22 +3085,60 @@ def test_actual_ambient_target_stays_below_solver_owned_placement_gate():
   ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
   assert ambient_pressure is not None
 
-  placement = build_reflected_domain_global_solver_owned_transonic_interface_placement(
+  coupled = solve_reflected_domain_global_coupled_downstream(
     closure,
-    target_downstream_static_pressure_Pa=ambient_pressure,
-    target_pressure_tolerance_fraction=0.02,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
   )
 
+  assert coupled.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .PHYSICAL_FIELD_HANDOFF_FAILURE
+  )
+  placement = coupled.transonic_shock_interface_field_placement
+  assert placement is not None
+  assert placement.request.target_downstream_static_pressure_Pa == pytest.approx(
+    ambient_pressure
+  )
   assert placement.status is (
     MocTransonicShockInterfaceFieldPlacementStatus.TARGET_PRESSURE_UNREACHABLE
   )
   assert placement.converged is False
   assert placement.target_pressure_residual_fraction is not None
   assert placement.target_pressure_residual_fraction > 0.02
+  assert coupled.coupled_request is None
+  assert coupled.coupled_field is None
+  assert coupled.chain_promotion_blocked
+  assert coupled.production_claim_allowed is False
+####
+
+
+def test_solver_owned_interior_rejects_unbound_ambient_target_placement():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  field = closure.global_euler.physical_field.field
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  placement = build_reflected_domain_global_solver_owned_transonic_interface_placement(
+    closure
+  )
+  assert placement.converged
+  assert placement.request.target_downstream_static_pressure_Pa is None
 
   coupled = solve_reflected_domain_global_coupled_downstream(
     closure,
     reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
     axial_cell_count=8,
     transverse_cell_count=8,
     max_pseudo_iterations=400,
@@ -3116,8 +3154,10 @@ def test_actual_ambient_target_stays_below_solver_owned_placement_gate():
     MocReflectedDomainGlobalCoupledDownstreamStatus
     .PHYSICAL_FIELD_HANDOFF_FAILURE
   )
+  assert coupled.transonic_shock_interface_field_placement is placement
   assert coupled.coupled_request is None
   assert coupled.coupled_field is None
+  assert 'must bind that exact ambient pressure target' in coupled.message
   assert coupled.chain_promotion_blocked
   assert coupled.production_claim_allowed is False
 ####

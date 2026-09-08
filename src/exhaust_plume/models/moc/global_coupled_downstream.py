@@ -2397,9 +2397,15 @@ def solve_reflected_domain_global_coupled_downstream(
       if resolved_transonic_shock_interface_field_placement is None:
         resolved_transonic_shock_interface_field_placement = (
           build_reflected_domain_global_solver_owned_transonic_interface_placement(
-            closure
+            closure,
+            target_downstream_static_pressure_Pa=(
+              ambient_pressure_Pa
+              if ambient_pressure_Pa is not None
+              else None
+            ),
           )
         )
+        placement_for_failure = resolved_transonic_shock_interface_field_placement
       else:
         if not isinstance(
           resolved_transonic_shock_interface_field_placement,
@@ -2420,6 +2426,30 @@ def solve_reflected_domain_global_coupled_downstream(
             'transonic shock-interface placement must retain the exact '
             'global closure physical field; no cross-field handoff is allowed'
           )
+        ####
+        if ambient_pressure_Pa is not None:
+          placement_target = (
+            resolved_transonic_shock_interface_field_placement.request
+            .target_downstream_static_pressure_Pa
+          )
+          target_tolerance = max(
+            1.0e-12,
+            1.0e-9
+            * max(
+              abs(float(ambient_pressure_Pa)),
+              0.0 if placement_target is None else abs(placement_target),
+              1.0,
+            ),
+          )
+          if (
+            placement_target is None
+            or abs(placement_target - float(ambient_pressure_Pa))
+            > target_tolerance
+          ):
+            raise ValueError(
+              'a solver-owned interior placement supplied with an explicit '
+              'ambient pressure must bind that exact ambient pressure target'
+            )
         ####
         from exhaust_plume.validation.moc_transonic_interface import (
           measure_moc_transonic_shock_interface_field_placement,
