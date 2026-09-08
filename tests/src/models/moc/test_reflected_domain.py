@@ -238,6 +238,8 @@ from exhaust_plume.validation.moc_global_coupled_frontier_feedback import (
 )
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback import (
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus,
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus,
+  audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point,
   run_reflected_domain_global_coupled_boundary_condition_feedback,
 )
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_refinement import (
@@ -8186,6 +8188,55 @@ def test_global_coupled_boundary_condition_feedback_consumes_moving_frame_extens
   assert run.as_report()['configuration']['feedback_policy'] == (
     'downstream-response-explicit-pressure-overlay-fresh-global-ambient-march-v1'
   )
+  terminal_handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    run.final_closure
+  )
+  terminal_feedback = run_reflected_domain_global_coupled_downstream_feedback(
+    run.final_closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=terminal_handoff.continuation_profile,
+    physical_field_shock_front_condition=terminal_handoff.shock_front_condition,
+  )
+  terminal_audit = (
+    audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
+      run,
+      terminal_feedback=terminal_feedback,
+    )
+  )
+  assert terminal_audit.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+    .COMPLETED_RESEARCH_TERMINAL_FIXED_POINT
+  )
+  assert terminal_audit.terminal_fixed_point_verified
+  assert terminal_audit.terminal_configuration_verified
+  assert terminal_audit.terminal_closure_lineage_verified
+  assert terminal_audit.terminal_response_lineage_verified
+  assert terminal_audit.terminal_offset_tolerances_verified
+  assert terminal_audit.global_coupling_verified is False
+  assert terminal_audit.downstream_boundary_closure_verified is False
+  assert terminal_audit.chain_promotion_blocked
+  assert terminal_audit.production_claim_allowed is False
+  replayed_terminal_audit = (
+    audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
+      run
+    )
+  )
+  assert replayed_terminal_audit.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+    .COMPLETED_RESEARCH_TERMINAL_FIXED_POINT
+  )
+  assert replayed_terminal_audit.terminal_fixed_point_verified
+  assert replayed_terminal_audit.terminal_feedback is not None
 ####
 
 

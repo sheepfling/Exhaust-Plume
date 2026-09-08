@@ -65,15 +65,22 @@ from exhaust_plume.validation.moc_global_boundary_frame_extension import (
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_TERMINAL_FIXED_POINT_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus',
   'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration',
   'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun',
+  'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus',
+  'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit',
   'run_reflected_domain_global_coupled_boundary_condition_feedback',
+  'audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point',
 )
 
 
 MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_OPERATOR_ID = (
   'op.moc.reflected-domain.global-coupled-boundary-condition-feedback'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_TERMINAL_FIXED_POINT_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-coupled-boundary-condition-feedback-terminal-fixed-point'
 )
 
 
@@ -125,6 +132,51 @@ def _options(
     raise ValueError(
       f'{name} cannot override positional controls: {", ".join(collisions)}'
     )
+  ####
+  return resolved
+####
+
+
+def _refresh_solver_owned_downstream_options(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  options: Mapping[str, Any],
+) -> dict[str, Any]:
+  """Refresh exact physical-field inputs when a closure has changed."""
+
+  resolved = dict(options)
+  configured_inlet_mode = resolved.get('inlet_boundary_mode')
+  configured_inlet_mode_value = getattr(
+    configured_inlet_mode,
+    'value',
+    configured_inlet_mode,
+  )
+  if configured_inlet_mode_value not in {
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE.value,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY.value,
+  }:
+    return resolved
+  ####
+  current_field = (
+    None
+    if closure.global_euler is None or closure.global_euler.physical_field is None
+    else closure.global_euler.physical_field.field
+  )
+  supplied_continuation = resolved.get('physical_field_continuation_profile')
+  supplied_front = resolved.get('physical_field_shock_front_condition')
+  supplied_continuation_field = getattr(supplied_continuation, 'field', None)
+  supplied_front_field = getattr(supplied_front, 'field', None)
+  if (
+    current_field is None
+    or supplied_continuation_field is not current_field
+    or supplied_front_field is not current_field
+  ):
+    handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+      closure
+    )
+    resolved['physical_field_continuation_profile'] = handoff.continuation_profile
+    resolved['physical_field_shock_front_condition'] = handoff.shock_front_condition
   ####
   return resolved
 ####
@@ -774,6 +826,261 @@ def _run_result(
 ####
 
 
+class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus(
+  str, Enum
+):
+  """Outcome of re-measuring the final outer-feedback closure."""
+
+  COMPLETED_RESEARCH_TERMINAL_FIXED_POINT = (
+    'completed-research-global-coupled-boundary-condition-terminal-fixed-point'
+  )
+  INVALID_INPUT = 'invalid_input'
+  TERMINAL_FEEDBACK_FAILURE = (
+    'global-coupled-boundary-condition-terminal-feedback-failure'
+  )
+  TERMINAL_RESPONSE_FAILURE = (
+    'global-coupled-boundary-condition-terminal-response-failure'
+  )
+  FIDELITY_FAILURE = (
+    'global-coupled-boundary-condition-terminal-fidelity-failure'
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit:
+  """Research-only evidence that the final closure has a bounded response.
+
+  The audit deliberately measures the final global closure again against a
+  fresh downstream field.  Passing this contract means only that the retained
+  research response is inside declared overlap tolerances; it never means the
+  upstream/global solver has achieved canonical mixed-regime closure.
+  """
+
+  feedback_run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun
+  terminal_feedback: MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None
+  status: (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+  )
+  configuration: dict[str, Any]
+  configuration_fingerprint: str
+  final_closure_fingerprint: str
+  terminal_closure_fingerprint: str | None = None
+  terminal_configuration_verified: bool = False
+  terminal_closure_lineage_verified: bool = False
+  terminal_feedback_verified: bool = False
+  terminal_response_verified: bool = False
+  terminal_response_lineage_verified: bool = False
+  terminal_response_channels_finite: bool = False
+  terminal_response_coverage_verified: bool = False
+  terminal_response_residuals_verified: bool = False
+  terminal_proposal_verified: bool = False
+  terminal_offset_tolerances_verified: bool = False
+  fidelity_isolation_verified: bool = False
+  maximum_coordinate_offset_m: float | None = None
+  maximum_tangent_offset_rad: float | None = None
+  maximum_pressure_offset_Pa: float | None = None
+  maximum_normal_velocity_offset_m_s: float | None = None
+  coordinate_offset_tolerance_m: float = 1.0e-3
+  tangent_offset_tolerance_rad: float = 5.0e-2
+  pressure_offset_tolerance_Pa: float = 2.0e4
+  normal_velocity_offset_tolerance_m_s: float = 2.0e2
+  global_coupling_verified: bool = False
+  downstream_boundary_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.feedback_run,
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
+    ):
+      raise TypeError(
+        'feedback_run must be a '
+        'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun'
+      )
+    ####
+    if self.terminal_feedback is not None and not isinstance(
+      self.terminal_feedback,
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRun,
+    ):
+      raise TypeError(
+        'terminal_feedback must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamFeedbackRun or None'
+      )
+    ####
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus,
+    ):
+      raise TypeError('status must be a typed terminal fixed-point status')
+    ####
+    final_fingerprint = str(self.final_closure_fingerprint)
+    if not final_fingerprint:
+      raise ValueError('final_closure_fingerprint must be non-empty')
+    ####
+    terminal_fingerprint = self.terminal_closure_fingerprint
+    if terminal_fingerprint is not None:
+      terminal_fingerprint = str(terminal_fingerprint)
+      if not terminal_fingerprint:
+        raise ValueError(
+          'terminal_closure_fingerprint must be non-empty when supplied'
+        )
+      ####
+    ####
+    if len(self.configuration_fingerprint) != 64:
+      raise ValueError('configuration_fingerprint must be a SHA-256 digest')
+    ####
+    for name in (
+      'terminal_configuration_verified',
+      'terminal_closure_lineage_verified',
+      'terminal_feedback_verified',
+      'terminal_response_verified',
+      'terminal_response_lineage_verified',
+      'terminal_response_channels_finite',
+      'terminal_response_coverage_verified',
+      'terminal_response_residuals_verified',
+      'terminal_proposal_verified',
+      'terminal_offset_tolerances_verified',
+      'fidelity_isolation_verified',
+      'global_coupling_verified',
+      'downstream_boundary_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    for name in (
+      'coordinate_offset_tolerance_m',
+      'tangent_offset_tolerance_rad',
+      'pressure_offset_tolerance_Pa',
+      'normal_velocity_offset_tolerance_m_s',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    for name in (
+      'maximum_coordinate_offset_m',
+      'maximum_tangent_offset_rad',
+      'maximum_pressure_offset_Pa',
+      'maximum_normal_velocity_offset_m_s',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        value = float(value)
+        if not isfinite(value) or value < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
+        object.__setattr__(self, name, value)
+      ####
+    ####
+    if self.global_coupling_verified or self.downstream_boundary_closure_verified:
+      raise ValueError(
+        'terminal fixed-point audit cannot claim canonical global closure'
+      )
+    ####
+    if not self.chain_promotion_blocked or self.production_claim_allowed:
+      raise ValueError(
+        'terminal fixed-point audit must remain blocked from production'
+      )
+    ####
+    object.__setattr__(self, 'final_closure_fingerprint', final_fingerprint)
+    object.__setattr__(self, 'terminal_closure_fingerprint', terminal_fingerprint)
+    object.__setattr__(self, 'configuration', dict(self.configuration))
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def terminal_fixed_point_verified(self) -> bool:
+    """Whether the final closure passed the declared research-only response gate."""
+
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+      .COMPLETED_RESEARCH_TERMINAL_FIXED_POINT
+      and self.feedback_run.research_feedback_completed
+      and self.terminal_configuration_verified
+      and self.terminal_closure_lineage_verified
+      and self.terminal_feedback_verified
+      and self.terminal_response_verified
+      and self.terminal_response_lineage_verified
+      and self.terminal_response_channels_finite
+      and self.terminal_response_coverage_verified
+      and self.terminal_response_residuals_verified
+      and self.terminal_proposal_verified
+      and self.terminal_offset_tolerances_verified
+      and self.fidelity_isolation_verified
+    )
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Alias for the research terminal response, never canonical closure."""
+
+    return self.terminal_fixed_point_verified
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'operator_id': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_TERMINAL_FIXED_POINT_OPERATOR_ID
+      ),
+      'status': self.status.value,
+      'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
+      'converged': self.converged,
+      'feedback_run_configuration_fingerprint': (
+        self.feedback_run.configuration_fingerprint
+      ),
+      'final_closure_fingerprint': self.final_closure_fingerprint,
+      'terminal_closure_fingerprint': self.terminal_closure_fingerprint,
+      'terminal_configuration_verified': self.terminal_configuration_verified,
+      'terminal_closure_lineage_verified': self.terminal_closure_lineage_verified,
+      'terminal_feedback_verified': self.terminal_feedback_verified,
+      'terminal_response_verified': self.terminal_response_verified,
+      'terminal_response_lineage_verified': self.terminal_response_lineage_verified,
+      'terminal_response_channels_finite': self.terminal_response_channels_finite,
+      'terminal_response_coverage_verified': self.terminal_response_coverage_verified,
+      'terminal_response_residuals_verified': self.terminal_response_residuals_verified,
+      'terminal_proposal_verified': self.terminal_proposal_verified,
+      'terminal_offset_tolerances_verified': self.terminal_offset_tolerances_verified,
+      'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'maximum_coordinate_offset_m': self.maximum_coordinate_offset_m,
+      'maximum_tangent_offset_rad': self.maximum_tangent_offset_rad,
+      'maximum_pressure_offset_Pa': self.maximum_pressure_offset_Pa,
+      'maximum_normal_velocity_offset_m_s': (
+        self.maximum_normal_velocity_offset_m_s
+      ),
+      'coordinate_offset_tolerance_m': self.coordinate_offset_tolerance_m,
+      'tangent_offset_tolerance_rad': self.tangent_offset_tolerance_rad,
+      'pressure_offset_tolerance_Pa': self.pressure_offset_tolerance_Pa,
+      'normal_velocity_offset_tolerance_m_s': (
+        self.normal_velocity_offset_tolerance_m_s
+      ),
+      'global_coupling_verified': self.global_coupling_verified,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'configuration': self.configuration,
+      'configuration_fingerprint': self.configuration_fingerprint,
+      'terminal_feedback': (
+        None
+        if self.terminal_feedback is None
+        else self.terminal_feedback.as_report()
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
 def run_reflected_domain_global_coupled_boundary_condition_feedback(
   closure: MocReflectedDomainGlobalPhysicalClosureResult,
   *,
@@ -907,54 +1214,10 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     ) = None
     frame_negotiation: MocReflectedDomainGlobalBoundaryFrameNegotiationResult | None = None
     try:
-      iteration_downstream_options = dict(resolved_downstream_options)
-      configured_inlet_mode = iteration_downstream_options.get(
-        'inlet_boundary_mode'
+      iteration_downstream_options = _refresh_solver_owned_downstream_options(
+        current,
+        resolved_downstream_options,
       )
-      configured_inlet_mode_value = getattr(
-        configured_inlet_mode,
-        'value',
-        configured_inlet_mode,
-      )
-      if configured_inlet_mode_value in {
-        MocReflectedDomainCoupledEulerInletBoundaryMode
-        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE.value,
-        MocReflectedDomainCoupledEulerInletBoundaryMode
-        .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY.value,
-      }:
-        current_field = (
-          None
-          if current.global_euler is None
-          or current.global_euler.physical_field is None
-          else current.global_euler.physical_field.field
-        )
-        supplied_continuation = iteration_downstream_options.get(
-          'physical_field_continuation_profile'
-        )
-        supplied_front = iteration_downstream_options.get(
-          'physical_field_shock_front_condition'
-        )
-        supplied_continuation_field = getattr(
-          supplied_continuation,
-          'field',
-          None,
-        )
-        supplied_front_field = getattr(supplied_front, 'field', None)
-        if (
-          current_field is None
-          or supplied_continuation_field is not current_field
-          or supplied_front_field is not current_field
-        ):
-          handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
-            current
-          )
-          iteration_downstream_options[
-            'physical_field_continuation_profile'
-          ] = handoff.continuation_profile
-          iteration_downstream_options[
-            'physical_field_shock_front_condition'
-          ] = handoff.shock_front_condition
-      ####
       downstream = run_reflected_domain_global_coupled_downstream_feedback(
         current,
         reference_total_temperature_K=reference_temperature,
@@ -1397,5 +1660,328 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     status,
     configuration,
     message,
+  )
+####
+
+
+def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
+  feedback_run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
+  *,
+  terminal_feedback: MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None = None,
+  coordinate_offset_tolerance_m: float = 1.0e-3,
+  tangent_offset_tolerance_rad: float = 5.0e-2,
+  pressure_offset_tolerance_Pa: float = 2.0e4,
+  normal_velocity_offset_tolerance_m_s: float = 2.0e2,
+) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit:
+  """Re-measure the final outer closure against a fresh downstream field.
+
+  When ``terminal_feedback`` is omitted, the exact downstream configuration
+  retained by ``feedback_run`` is replayed against ``feedback_run.final_closure``.
+  A caller may supply a separately retained terminal run to avoid repeating an
+  expensive solve; its closure fingerprint and configuration are still checked.
+  No response is extrapolated or promoted to canonical global closure.
+  """
+
+  if not isinstance(
+    feedback_run,
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
+  ):
+    raise TypeError(
+      'feedback_run must be a '
+      'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun'
+    )
+  ####
+  if terminal_feedback is not None and not isinstance(
+    terminal_feedback,
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRun,
+  ):
+    raise TypeError(
+      'terminal_feedback must be a '
+      'MocReflectedDomainGlobalCoupledDownstreamFeedbackRun or None'
+    )
+  ####
+  tolerances: dict[str, float] = {}
+  for name, value in (
+    ('coordinate_offset_tolerance_m', coordinate_offset_tolerance_m),
+    ('tangent_offset_tolerance_rad', tangent_offset_tolerance_rad),
+    ('pressure_offset_tolerance_Pa', pressure_offset_tolerance_Pa),
+    ('normal_velocity_offset_tolerance_m_s', normal_velocity_offset_tolerance_m_s),
+  ):
+    try:
+      resolved = float(value)
+    except (TypeError, ValueError) as error:
+      raise ValueError(f'{name} must be numeric') from error
+    ####
+    if not isfinite(resolved) or resolved <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+    ####
+    tolerances[name] = resolved
+  ####
+  final_fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
+    feedback_run.final_closure
+  )
+  configuration: dict[str, Any] = {
+    'feedback_run_configuration_fingerprint': (
+      feedback_run.configuration_fingerprint
+    ),
+    'final_closure_fingerprint': final_fingerprint,
+    'terminal_feedback_supplied': terminal_feedback is not None,
+    'terminal_fixed_point_policy': (
+      'fresh-final-closure-downstream-response-without-extrapolation-v1'
+    ),
+    **tolerances,
+  }
+  configuration_fingerprint = _configuration_fingerprint(configuration)
+
+  def result(
+    status: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus,
+    message: str,
+    **values: Any,
+  ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit:
+    return MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit(
+      feedback_run=feedback_run,
+      terminal_feedback=terminal_feedback,
+      status=status,
+      configuration=configuration,
+      configuration_fingerprint=configuration_fingerprint,
+      final_closure_fingerprint=final_fingerprint,
+      coordinate_offset_tolerance_m=tolerances['coordinate_offset_tolerance_m'],
+      tangent_offset_tolerance_rad=tolerances['tangent_offset_tolerance_rad'],
+      pressure_offset_tolerance_Pa=tolerances['pressure_offset_tolerance_Pa'],
+      normal_velocity_offset_tolerance_m_s=(
+        tolerances['normal_velocity_offset_tolerance_m_s']
+      ),
+      message=message,
+      **values,
+    )
+  ####
+
+  if not feedback_run.research_feedback_completed:
+    return result(
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+      .INVALID_INPUT,
+      'terminal audit requires a completed bounded research feedback run',
+    )
+  ####
+  if terminal_feedback is None:
+    downstream_options = feedback_run.configuration.get('downstream_options')
+    reference_temperature = feedback_run.configuration.get(
+      'reference_total_temperature_K'
+    )
+    downstream_iterations = feedback_run.configuration.get(
+      'downstream_feedback_iterations'
+    )
+    if not isinstance(downstream_options, Mapping):
+      return result(
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+        .INVALID_INPUT,
+        'feedback run did not retain downstream options for terminal replay',
+      )
+    ####
+    try:
+      refreshed_options = _refresh_solver_owned_downstream_options(
+        feedback_run.final_closure,
+        downstream_options,
+      )
+      terminal_feedback = run_reflected_domain_global_coupled_downstream_feedback(
+        feedback_run.final_closure,
+        reference_total_temperature_K=float(reference_temperature),
+        maximum_iterations=int(downstream_iterations),
+        **refreshed_options,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return result(
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+        .TERMINAL_FEEDBACK_FAILURE,
+        f'terminal downstream feedback replay raised: {error}',
+      )
+    ####
+  ####
+  assert terminal_feedback is not None
+  terminal_fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
+    terminal_feedback.closure
+  )
+  terminal_configuration = terminal_feedback.configuration
+  expected_temperature = feedback_run.configuration.get(
+    'reference_total_temperature_K'
+  )
+  expected_iterations = feedback_run.configuration.get(
+    'downstream_feedback_iterations'
+  )
+  try:
+    terminal_configuration_verified = bool(
+      terminal_configuration.get('closure_fingerprint') == final_fingerprint
+      and terminal_configuration.get('reference_total_temperature_K') is not None
+      and abs(
+        float(terminal_configuration['reference_total_temperature_K'])
+        - float(expected_temperature)
+      )
+      <= 1.0e-12 * max(abs(float(expected_temperature)), 1.0)
+      and int(terminal_configuration.get('maximum_iterations'))
+      == int(expected_iterations)
+    )
+  except (TypeError, ValueError):
+    terminal_configuration_verified = False
+  ####
+  terminal_closure_lineage_verified = bool(
+    terminal_fingerprint == final_fingerprint
+    and (
+      terminal_feedback.closure is feedback_run.final_closure
+      or terminal_feedback.closure == feedback_run.final_closure
+    )
+  )
+  terminal_feedback_verified = bool(
+    terminal_feedback.converged
+    and terminal_feedback.closure_lineage_verified
+  )
+  terminal_iteration = (
+    terminal_feedback.iterations[-1] if terminal_feedback.iterations else None
+  )
+  terminal_response = (
+    None if terminal_iteration is None else terminal_iteration.response
+  )
+  terminal_response_lineage_verified = bool(
+    terminal_feedback.response_lineage_verified
+    and terminal_iteration is not None
+    and terminal_iteration.response_lineage_verified
+    and terminal_response is not None
+    and terminal_response.upstream_boundary
+    is feedback_run.final_closure.downstream_boundary
+  )
+  terminal_response_channels_finite = bool(
+    terminal_feedback.response_channels_finite
+    and terminal_iteration is not None
+    and terminal_iteration.response_channels_finite
+  )
+  terminal_response_coverage_verified = bool(
+    terminal_feedback.response_coverage_verified
+    and terminal_iteration is not None
+    and terminal_iteration.response_coverage_verified
+  )
+  terminal_response_residuals_verified = bool(
+    terminal_feedback.response_residuals_verified
+    and terminal_iteration is not None
+    and terminal_iteration.response_residuals_verified
+  )
+  terminal_proposal = (
+    terminal_feedback.upstream_feedback_proposals[-1]
+    if terminal_feedback.upstream_feedback_proposals
+    else None
+  )
+  terminal_proposal_verified = bool(
+    terminal_feedback.upstream_feedback_proposal_verified
+    and terminal_proposal is not None
+    and terminal_proposal.ready_for_global_resolve
+    and terminal_proposal.source_closure_fingerprint == final_fingerprint
+    and not terminal_proposal.consumed_by_global_solver
+  )
+  terminal_fidelity_isolation_verified = bool(
+    terminal_feedback.fidelity_isolation_verified
+    and not terminal_feedback.global_coupling_verified
+    and not terminal_feedback.downstream_boundary_closure_verified
+    and terminal_feedback.chain_promotion_blocked
+    and not terminal_feedback.production_claim_allowed
+  )
+
+  def maximum_absolute(values: tuple[float, ...]) -> float | None:
+    return max((abs(value) for value in values), default=None)
+  ####
+
+  maximum_coordinate_offset = (
+    None
+    if terminal_response is None
+    else maximum_absolute(terminal_response.coordinate_offsets_m)
+  )
+  maximum_tangent_offset = (
+    None
+    if terminal_response is None
+    else maximum_absolute(terminal_response.tangent_offsets_rad)
+  )
+  maximum_pressure_offset = (
+    None
+    if terminal_response is None
+    else maximum_absolute(terminal_response.pressure_offsets_Pa)
+  )
+  maximum_normal_velocity_offset = (
+    None
+    if terminal_response is None
+    else maximum_absolute(terminal_response.normal_velocity_values_m_s)
+  )
+  terminal_response_verified = bool(
+    terminal_response is not None
+    and terminal_response.converged
+    and terminal_feedback_verified
+  )
+  terminal_offset_tolerances_verified = bool(
+    maximum_coordinate_offset is not None
+    and maximum_tangent_offset is not None
+    and maximum_pressure_offset is not None
+    and maximum_normal_velocity_offset is not None
+    and maximum_coordinate_offset
+    <= tolerances['coordinate_offset_tolerance_m']
+    and maximum_tangent_offset <= tolerances['tangent_offset_tolerance_rad']
+    and maximum_pressure_offset <= tolerances['pressure_offset_tolerance_Pa']
+    and maximum_normal_velocity_offset
+    <= tolerances['normal_velocity_offset_tolerance_m_s']
+  )
+  common_values = {
+    'terminal_closure_fingerprint': terminal_fingerprint,
+    'terminal_configuration_verified': terminal_configuration_verified,
+    'terminal_closure_lineage_verified': terminal_closure_lineage_verified,
+    'terminal_feedback_verified': terminal_feedback_verified,
+    'terminal_response_verified': terminal_response_verified,
+    'terminal_response_lineage_verified': terminal_response_lineage_verified,
+    'terminal_response_channels_finite': terminal_response_channels_finite,
+    'terminal_response_coverage_verified': terminal_response_coverage_verified,
+    'terminal_response_residuals_verified': terminal_response_residuals_verified,
+    'terminal_proposal_verified': terminal_proposal_verified,
+    'terminal_offset_tolerances_verified': terminal_offset_tolerances_verified,
+    'fidelity_isolation_verified': terminal_fidelity_isolation_verified,
+    'maximum_coordinate_offset_m': maximum_coordinate_offset,
+    'maximum_tangent_offset_rad': maximum_tangent_offset,
+    'maximum_pressure_offset_Pa': maximum_pressure_offset,
+    'maximum_normal_velocity_offset_m_s': maximum_normal_velocity_offset,
+  }
+  if not terminal_configuration_verified or not terminal_closure_lineage_verified:
+    return result(
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+      .TERMINAL_FEEDBACK_FAILURE,
+      'terminal feedback did not retain the exact final-closure configuration '
+      'and lineage',
+      **common_values,
+    )
+  ####
+  if not terminal_feedback_verified or not terminal_fidelity_isolation_verified:
+    return result(
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+      .FIDELITY_FAILURE,
+      'terminal downstream feedback did not retain a converged research-only '
+      'field with isolated claim gates',
+      **common_values,
+    )
+  ####
+  if not (
+    terminal_response_verified
+    and terminal_response_lineage_verified
+    and terminal_response_channels_finite
+    and terminal_response_coverage_verified
+    and terminal_response_residuals_verified
+    and terminal_proposal_verified
+    and terminal_offset_tolerances_verified
+  ):
+    return result(
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+      .TERMINAL_RESPONSE_FAILURE,
+      'terminal downstream response or declared offset tolerances remain open',
+      **common_values,
+    )
+  ####
+  return result(
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+    .COMPLETED_RESEARCH_TERMINAL_FIXED_POINT,
+    'the final global closure passed a fresh covered downstream response and '
+    'declared offset tolerances; canonical closure, external validation, and '
+    'production promotion remain open',
+    **common_values,
   )
 ####
