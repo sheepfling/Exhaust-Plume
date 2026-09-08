@@ -215,6 +215,8 @@ from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   run_reflected_domain_global_coupled_downstream_refinement,
 )
 from exhaust_plume.validation.moc_global_coupled_pressure_free_boundary_refinement import (
+  MocReflectedDomainGlobalCoupledPressureFreeBoundaryCrossCase,
+  run_reflected_domain_global_coupled_pressure_free_boundary_cross_case_refinement,
   MocReflectedDomainGlobalCoupledPressureFreeBoundaryRefinementStatus,
   run_reflected_domain_global_coupled_pressure_free_boundary_refinement,
 )
@@ -3209,6 +3211,63 @@ def test_pressure_free_boundary_refinement_keeps_geometry_solver_owned():
     and not case.result.coupled_field.free_boundary_geometry_profile_consumed
     for case in run.cases
   )
+
+
+def test_pressure_free_boundary_cross_case_refinement_keeps_cases_disjoint():
+  closures = (
+    _global_physical_closure_for_mixed_regime(sample_count=9),
+    _global_physical_closure_for_mixed_regime(sample_count=8),
+  )
+  cases = []
+  for index, closure in enumerate(closures, start=1):
+    field = closure.global_euler.physical_field.field
+    assert field is not None
+    ambient_boundary = field.ambient_boundary
+    target = MocPhysicalFieldEulerBoundaryPressureTarget(
+      x_stations_m=tuple(point[0] for point in ambient_boundary.points_m),
+      static_pressure_Pa=ambient_boundary.static_pressure_Pa,
+      source_id=f'test-pressure-free-boundary-cross-case-{index}',
+      boundary_points_m=ambient_boundary.points_m,
+      source_closure_fingerprint=(
+        moc_reflected_domain_global_physical_closure_fingerprint(closure)
+      ),
+      source_proposal_fingerprint=f'{index:x}' * 64,
+    )
+    cases.append(
+      MocReflectedDomainGlobalCoupledPressureFreeBoundaryCrossCase(
+        case_id=f'case-{index}',
+        regime='mixed-regime-research',
+        closure=closure,
+        target=target,
+        resolutions=((8, 8), (10, 10)),
+      )
+    )
+  run = (
+    run_reflected_domain_global_coupled_pressure_free_boundary_cross_case_refinement(
+      tuple(cases),
+      reference_total_temperature_K=1500.0,
+      max_pseudo_iterations=400,
+      max_shape_iterations=8,
+    )
+  )
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledPressureFreeBoundaryRefinementStatus
+    .CONVERGED_RESEARCH_CROSS_CASE
+  )
+  assert run.converged
+  assert run.measurement.case_ids == ('case-1', 'case-2')
+  assert run.measurement.closure_bindings_verified
+  assert run.measurement.distinct_closure_fingerprints_verified
+  assert run.measurement.resolution_ladders_verified
+  assert run.measurement.target_bindings_verified
+  assert run.measurement.case_runs_verified
+  assert run.measurement.local_coupled_field_verified
+  assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.global_coupling_verified is False
+  assert run.measurement.downstream_boundary_closure_verified is False
+  assert run.measurement.external_validation_required
+  assert run.measurement.chain_promotion_blocked
+  assert run.production_claim_allowed is False
 ####
 
 

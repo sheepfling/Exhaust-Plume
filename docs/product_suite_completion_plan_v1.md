@@ -2274,3 +2274,18 @@ channels, and fidelity isolation.  This remains local research evidence:
 cross-case refinement, upstream global feedback, canonical closure, accepted
 physical shock-cell length, external provider validation, and release
 readiness remain open.
+
+### Disjoint pressure-free-boundary cases checkpoint — 2026-09-08
+
+The pressure-only refinement lane now also has a typed cross-case runner.  It
+requires unique case IDs, distinct source closure fingerprints, a separately
+bound target for every case, and an independent resolution ladder per case.
+The aggregate never compares different closures as adjacent mesh resolutions;
+it verifies each nested ladder first, then reports the cross-case evidence.
+
+The two-case regression passes with four fresh coupled solves and retains
+``global_coupling_verified=false``, ``downstream_boundary_closure_verified=false``,
+the external-validation requirement, and the chain-promotion stop.  This closes
+only local disjoint-case evidence.  A solver-owned upstream/global re-solve,
+accepted physical shock-cell measurements, provider-bound product cases, and
+the missing validation archives remain release blockers.
