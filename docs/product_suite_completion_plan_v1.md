@@ -1916,3 +1916,22 @@ residual heat map is not global placement, refinement convergence, a physical
 shock-cell fit, Signature radiance, ray transfer, or FPA evidence.  A focused
 renderer-neutral regression test passes, including JSON serialization and the
 promotion guard.
+
+### P2.2 source-bound reconciliation refinement checkpoint — 2026-09-08
+
+The front-aligned consumer now has a typed local resolution ladder.  Each
+ladder member must carry an independently generated physical-field
+shock-front condition, declare the retained shock-front sample count as its
+resolution, and freshly execute both the conservative reconciliation and its
+independent residual audit.  The aggregate operator fingerprints the retained
+boundary paths and cell topology, requires strictly increasing resolutions and
+cell counts, and rejects a relabeled copy of one mesh.
+
+The mixed-regime regression exercises distinct five- and nine-sample source
+fields: both local reconciliations and audits pass, source fingerprints differ,
+and cell counts grow with resolution.  A same-source relabeling case is
+rejected.  The ladder remains explicitly local research evidence with
+``physical_closure_verified=false``, ``global_coupling_verified=false``, and
+the chain/production gates closed.  It does not substitute for a solver-owned
+placement update, a canonical reflected/free-boundary closure, accepted
+physical shock-cell lengths, or provider validation.

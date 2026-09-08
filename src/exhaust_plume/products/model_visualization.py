@@ -1434,7 +1434,6 @@ class _PhysicalFieldEulerReconciliationView:
           entropy_production_fraction=None,
         )
       )
-      ####
     ####
     for name in arrays:
       arrays[name] = tuple(

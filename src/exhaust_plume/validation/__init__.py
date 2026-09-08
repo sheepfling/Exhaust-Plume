@@ -306,6 +306,17 @@ from exhaust_plume.validation.moc_physical_field_euler_reconciliation import (
   MocPhysicalFieldEulerReconciliationAudit,
   measure_moc_physical_field_euler_reconciliation,
 )
+from exhaust_plume.validation.moc_physical_field_euler_reconciliation_refinement import (
+  MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_OPERATOR_ID,
+  MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_RUN_OPERATOR_ID,
+  MocPhysicalFieldEulerReconciliationRefinementStatus,
+  MocPhysicalFieldEulerReconciliationSourceCase,
+  MocPhysicalFieldEulerReconciliationRefinementCase,
+  MocPhysicalFieldEulerReconciliationRefinementMeasurement,
+  MocPhysicalFieldEulerReconciliationRefinementRun,
+  measure_moc_physical_field_euler_reconciliation_refinement,
+  run_moc_physical_field_euler_reconciliation_refinement,
+)
 from exhaust_plume.validation.moc_external_comparisons import (
   MOC_SHOCK_CELL_EXTERNAL_COMPARISON_OPERATOR_ID,
   MOC_SHOCK_CELL_EXTERNAL_PROMOTION_REVIEW_OPERATOR_ID,
@@ -751,6 +762,15 @@ __all__ = (
   'MocPhysicalFieldEulerReconciliationAuditStatus',
   'MocPhysicalFieldEulerReconciliationAudit',
   'measure_moc_physical_field_euler_reconciliation',
+  'MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_OPERATOR_ID',
+  'MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_REFINEMENT_RUN_OPERATOR_ID',
+  'MocPhysicalFieldEulerReconciliationRefinementStatus',
+  'MocPhysicalFieldEulerReconciliationSourceCase',
+  'MocPhysicalFieldEulerReconciliationRefinementCase',
+  'MocPhysicalFieldEulerReconciliationRefinementMeasurement',
+  'MocPhysicalFieldEulerReconciliationRefinementRun',
+  'measure_moc_physical_field_euler_reconciliation_refinement',
+  'run_moc_physical_field_euler_reconciliation_refinement',
   'MOC_REFLECTED_DOMAIN_MIXED_REGIME_BOUNDARY_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainMixedRegimeBoundaryRefinementStatus',
   'MocReflectedDomainMixedRegimeBoundaryRefinementCase',

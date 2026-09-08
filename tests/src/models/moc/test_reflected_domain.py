@@ -185,6 +185,11 @@ from exhaust_plume.validation.moc_physical_field_euler_reconciliation import (
   MocPhysicalFieldEulerReconciliationAuditStatus,
   measure_moc_physical_field_euler_reconciliation,
 )
+from exhaust_plume.validation.moc_physical_field_euler_reconciliation_refinement import (
+  MocPhysicalFieldEulerReconciliationRefinementStatus,
+  MocPhysicalFieldEulerReconciliationSourceCase,
+  run_moc_physical_field_euler_reconciliation_refinement,
+)
 from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import (
   MocReflectedDomainCoupledEulerFreeBoundaryRefinementStatus,
   measure_reflected_domain_coupled_euler_free_boundary_refinement,
@@ -216,7 +221,7 @@ from exhaust_plume.validation.moc_reflected_domain_refinement import (
 )
 
 
-def _canonical_field():
+def _canonical_field(sample_count: int = 9):
   upstream = CharacteristicState(
     x_m=0.5,
     y_m=0.5,
@@ -229,7 +234,7 @@ def _canonical_field():
     lambda _point: 100000.0,
     (0.5, 0.5),
     downstream_flow_angle_at=lambda _index, point: 0.05 * point[1] / 0.5,
-    sample_count=9,
+    sample_count=sample_count,
   )
   assert shock.shock_fit is not None
   first = shock.shock_fit.boundary_states[0]
@@ -243,7 +248,7 @@ def _canonical_field():
     ambient_pressure,
     0.02,
     0.12,
-    sample_count=9,
+    sample_count=sample_count,
   )
   assert result.field is not None
   assert result.field.physical_closure_verified
@@ -251,8 +256,8 @@ def _canonical_field():
 ####
 
 
-def _patch():
-  field = _canonical_field()
+def _patch(sample_count: int = 9):
+  field = _canonical_field(sample_count)
   patch = assemble_terminal_trace_centerline_patch(
     field.as_open_shock_ambient_strip()
   )
@@ -361,8 +366,8 @@ def _handoff(field):
 ####
 
 
-def _global_physical_closure_for_mixed_regime():
-  field, patch = _patch()
+def _global_physical_closure_for_mixed_regime(sample_count: int = 9):
+  field, patch = _patch(sample_count)
   ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
   assert ambient_pressure is not None
   source = solve_reflected_domain_alternating_source(
@@ -377,7 +382,7 @@ def _global_physical_closure_for_mixed_regime():
     compression_amplitude_lower_rad=0.007,
     compression_amplitude_upper_rad=0.03,
     compression_envelope_skews=(-0.75, 0.0),
-    sample_count=9,
+    sample_count=sample_count,
     shock_angle_tolerance_rad=0.02,
   )
 ####
@@ -1036,6 +1041,97 @@ def test_physical_field_euler_reconciliation_consumes_front_and_audits():
   assert audit.centerline_boundary_verified
   assert audit.promotion_flags_verified
   assert audit.physical_closure_verified is False
+####
+
+
+def _front_condition_for_reconciliation(closure, condition_id: str):
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  field = closure.global_euler.physical_field.field
+  assert field is not None
+  placement = build_moc_transonic_shock_interface_profile_from_field_placement(
+    MocTransonicShockInterfaceFieldPlacementRequest(
+      field=field,
+      boundary_margin_fraction=0.0,
+    )
+  )
+  assert placement.converged
+  continuation = build_moc_physical_field_continuation_profile(
+    MocPhysicalFieldContinuationProfileRequest(
+      field=field,
+      sample_points_m=placement.sample_points_m,
+    )
+  )
+  assert continuation.converged
+  condition = build_moc_physical_field_shock_front_condition(
+    MocPhysicalFieldShockFrontConditionRequest(
+      continuation_profile=continuation,
+      condition_id=condition_id,
+    )
+  )
+  assert condition.converged
+  return condition
+####
+
+
+def test_physical_field_euler_reconciliation_refinement_requires_distinct_fresh_meshes():
+  coarse_condition = _front_condition_for_reconciliation(
+    _global_physical_closure_for_mixed_regime(5),
+    'test-front-aligned-euler-reconciliation-coarse',
+  )
+  fine_condition = _front_condition_for_reconciliation(
+    _global_physical_closure_for_mixed_regime(9),
+    'test-front-aligned-euler-reconciliation-fine',
+  )
+  run = run_moc_physical_field_euler_reconciliation_refinement(
+    (
+      MocPhysicalFieldEulerReconciliationSourceCase(5, coarse_condition),
+      MocPhysicalFieldEulerReconciliationSourceCase(9, fine_condition),
+    ),
+    reference_total_temperature_K=1500.0,
+    request_options={'max_pseudo_iterations': 240},
+  )
+  assert run.measurement.status is (
+    MocPhysicalFieldEulerReconciliationRefinementStatus
+    .CONVERGED_LOCAL_REFINEMENT
+  )
+  assert run.measurement.converged
+  assert run.measurement.local_consistency_verified
+  assert run.measurement.resolution_order_verified
+  assert run.measurement.source_geometry_distinct_verified
+  assert run.measurement.mesh_growth_verified
+  assert run.measurement.case_audits_verified
+  assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.physical_closure_verified is False
+  assert run.measurement.global_coupling_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.measurement.production_claim_allowed is False
+  assert run.measurement.resolutions == (5, 9)
+  assert run.measurement.cell_counts[0] < run.measurement.cell_counts[1]
+  assert len(set(run.measurement.source_geometry_fingerprints)) == 2
+  assert all(case.local_closure_verified for case in run.cases)
+####
+
+
+def test_physical_field_euler_reconciliation_refinement_rejects_relabelled_mesh():
+  condition = _front_condition_for_reconciliation(
+    _global_physical_closure_for_mixed_regime(9),
+    'test-front-aligned-euler-reconciliation-same-source',
+  )
+  source = MocPhysicalFieldEulerReconciliationSourceCase(9, condition)
+  run = run_moc_physical_field_euler_reconciliation_refinement(
+    (source, source),
+    reference_total_temperature_K=1500.0,
+    request_options={'max_pseudo_iterations': 180},
+  )
+  assert run.measurement.status is (
+    MocPhysicalFieldEulerReconciliationRefinementStatus
+    .RESOLUTION_FAILURE
+  )
+  assert run.measurement.converged is False
+  assert run.measurement.source_geometry_distinct_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.measurement.production_claim_allowed is False
 ####
 
 
