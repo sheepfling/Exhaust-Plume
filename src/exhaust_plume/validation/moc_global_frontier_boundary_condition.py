@@ -28,6 +28,7 @@ from exhaust_plume.models.moc.global_physical_closure import (
 )
 from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
   MocPhysicalFieldEulerBoundaryPressureTarget,
+  compose_moc_physical_field_euler_boundary_pressure_target,
 )
 from exhaust_plume.models.moc.reflected_domain import ShockBranch
 
@@ -52,6 +53,9 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionStatus(str, Enum):
   )
   INVALID_INPUT = 'invalid_input'
   SOURCE_CLOSURE_FAILURE = 'global-frontier-boundary-source-failure'
+  TARGET_COMPOSITION_FAILURE = (
+    'global-frontier-boundary-target-composition-failure'
+  )
   TARGET_COVERAGE_FAILURE = 'global-frontier-boundary-target-coverage-failure'
   GLOBAL_SOLVE_FAILURE = 'global-frontier-boundary-global-solve-failure'
   TARGET_CONSUMPTION_FAILURE = (
@@ -224,10 +228,13 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
   source_closure: MocReflectedDomainGlobalPhysicalClosureResult
   target: MocPhysicalFieldEulerBoundaryPressureTarget | None
   conditioned_closure: MocReflectedDomainGlobalPhysicalClosureResult | None
+  base_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
+  consumed_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
   coordinate_residuals_m: tuple[float, ...] = ()
   tangent_residuals_rad: tuple[float, ...] = ()
   pressure_residuals_Pa: tuple[float, ...] = ()
   target_lineage_verified: bool = False
+  target_composition_verified: bool = False
   target_coverage_verified: bool = False
   target_boundary_condition_consumed: bool = False
   solver_owned_geometry_verified: bool = False
@@ -277,6 +284,22 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
         'target must be a MocPhysicalFieldEulerBoundaryPressureTarget or None'
       )
     ####
+    if self.base_target is not None and not isinstance(
+      self.base_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError(
+        'base_target must be a MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      )
+    ####
+    if self.consumed_target is not None and not isinstance(
+      self.consumed_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError(
+        'consumed_target must be a MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      )
+    ####
     if self.conditioned_closure is not None and not isinstance(
       self.conditioned_closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
@@ -306,6 +329,7 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
     ####
     for name in (
       'target_lineage_verified',
+      'target_composition_verified',
       'target_coverage_verified',
       'target_boundary_condition_consumed',
       'solver_owned_geometry_verified',
@@ -341,6 +365,7 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
       is MocReflectedDomainGlobalFrontierBoundaryConditionStatus
       .CONVERGED_RESEARCH_BOUNDARY_CONDITION
       and self.target_lineage_verified
+      and self.target_composition_verified
       and self.target_coverage_verified
       and self.target_boundary_condition_consumed
       and self.solver_owned_geometry_verified
@@ -366,6 +391,7 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
       'status': self.status.value,
       'converged_research_resolve': self.converged_research_resolve,
       'target_lineage_verified': self.target_lineage_verified,
+      'target_composition_verified': self.target_composition_verified,
       'target_coverage_verified': self.target_coverage_verified,
       'target_boundary_condition_consumed': self.target_boundary_condition_consumed,
       'solver_owned_geometry_verified': self.solver_owned_geometry_verified,
@@ -400,6 +426,14 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
       'configuration': self.configuration,
       'configuration_fingerprint': self.configuration_fingerprint,
       'target': None if self.target is None else self.target.as_report(),
+      'base_target': (
+        None if self.base_target is None else self.base_target.as_report()
+      ),
+      'consumed_target': (
+        None
+        if self.consumed_target is None
+        else self.consumed_target.as_report()
+      ),
       'conditioned_closure': (
         None
         if self.conditioned_closure is None
@@ -422,6 +456,8 @@ def _result(
   request: MocReflectedDomainGlobalFrontierReconciliationRequest,
   source_closure: MocReflectedDomainGlobalPhysicalClosureResult,
   target: MocPhysicalFieldEulerBoundaryPressureTarget | None,
+  base_target: MocPhysicalFieldEulerBoundaryPressureTarget | None,
+  consumed_target: MocPhysicalFieldEulerBoundaryPressureTarget | None,
   conditioned_closure: MocReflectedDomainGlobalPhysicalClosureResult | None,
   configuration: Mapping[str, Any],
   message: str,
@@ -432,6 +468,8 @@ def _result(
     request=request,
     source_closure=source_closure,
     target=target,
+    base_target=base_target,
+    consumed_target=consumed_target,
     conditioned_closure=conditioned_closure,
     configuration=dict(configuration),
     configuration_fingerprint=_configuration_fingerprint(configuration),
@@ -451,8 +489,17 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
   shock_angle_tolerance_rad: float = 0.02,
   maximum_boundary_iterations: int = 16,
   sample_count: int | None = None,
+  base_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
+  target_composition_seam_pressure_tolerance_fraction: float = 0.25,
 ) -> MocReflectedDomainGlobalFrontierBoundaryConditionResult:
-  """Consume one exact frontier pressure packet in a fresh global solve."""
+  """Consume one exact frontier pressure packet in a fresh global solve.
+
+  ``base_target`` may supply the complete lineage-bound pressure frame when
+  the downstream packet is only an explicitly bounded overlay.  The overlay
+  is measured separately, while the composed pressure frame is the only
+  target passed to the fresh ambient march.  Boundary ordinates and tangents
+  remain solver-owned and are never injected from either target.
+  """
 
   if not isinstance(
     request,
@@ -476,6 +523,9 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     tangent_tolerance = float(tangent_tolerance_rad)
     pressure_tolerance = float(pressure_tolerance_fraction)
     shock_tolerance = float(shock_angle_tolerance_rad)
+    seam_pressure_tolerance = float(
+      target_composition_seam_pressure_tolerance_fraction
+    )
   except (TypeError, ValueError) as error:
     raise ValueError('boundary-condition tolerances must be numeric') from error
   ####
@@ -489,6 +539,15 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     )
   ):
     raise ValueError('boundary-condition tolerances must be finite and positive')
+  ####
+  if (
+    not isfinite(seam_pressure_tolerance)
+    or seam_pressure_tolerance < 0.0
+  ):
+    raise ValueError(
+      'target_composition_seam_pressure_tolerance_fraction must be finite '
+      'and nonnegative'
+    )
   ####
   if (
     isinstance(maximum_boundary_iterations, bool)
@@ -517,6 +576,22 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     'pressure_tolerance_fraction': pressure_tolerance,
     'shock_angle_tolerance_rad': shock_tolerance,
     'maximum_boundary_iterations': maximum_boundary_iterations,
+    'base_target_source_id': (
+      None if base_target is None else getattr(base_target, 'source_id', None)
+    ),
+    'base_target_source_closure_fingerprint': (
+      None
+      if base_target is None
+      else getattr(base_target, 'source_closure_fingerprint', None)
+    ),
+    'base_target_source_proposal_fingerprint': (
+      None
+      if base_target is None
+      else getattr(base_target, 'source_proposal_fingerprint', None)
+    ),
+    'target_composition_seam_pressure_tolerance_fraction': (
+      seam_pressure_tolerance
+    ),
     'geometry_policy': 'solver-owned-global-march-no-target-geometry-injection-v1',
   }
   if not request.lineage_verified or request.source_closure_fingerprint != source_fingerprint:
@@ -524,6 +599,8 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       MocReflectedDomainGlobalFrontierBoundaryConditionStatus.INVALID_INPUT,
       request,
       source_closure,
+      None,
+      None,
       None,
       None,
       configuration,
@@ -535,6 +612,8 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       MocReflectedDomainGlobalFrontierBoundaryConditionStatus.SOURCE_CLOSURE_FAILURE,
       request,
       source_closure,
+      None,
+      None,
       None,
       None,
       configuration,
@@ -553,6 +632,73 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     source_closure_fingerprint=source_fingerprint,
     source_proposal_fingerprint=configuration['source_proposal_fingerprint'],
   )
+  base_target_for_result = base_target
+  if base_target is not None and not isinstance(
+    base_target,
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  ):
+    return _result(
+      MocReflectedDomainGlobalFrontierBoundaryConditionStatus.INVALID_INPUT,
+      request,
+      source_closure,
+      target,
+      None,
+      None,
+      None,
+      configuration,
+      'base_target must be a MocPhysicalFieldEulerBoundaryPressureTarget',
+      target_lineage_verified=True,
+    )
+  ####
+  if base_target is not None and (
+    base_target.source_closure_fingerprint != source_fingerprint
+    or base_target.source_proposal_fingerprint
+    != configuration['source_proposal_fingerprint']
+  ):
+    return _result(
+      MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+      .TARGET_COMPOSITION_FAILURE,
+      request,
+      source_closure,
+      target,
+      base_target_for_result,
+      None,
+      None,
+      configuration,
+      'base pressure target does not retain the exact source closure and '
+      'frontier proposal lineage',
+      target_lineage_verified=True,
+    )
+  ####
+  consumed_target = target
+  target_composition_verified = True
+  if base_target is not None:
+    try:
+      consumed_target = compose_moc_physical_field_euler_boundary_pressure_target(
+        base_target,
+        target,
+        source_id=(
+          'global-frontier-boundary-condition:explicit-overlay:'
+          f'{configuration["source_proposal_fingerprint"]}'
+        ),
+        seam_pressure_tolerance_fraction=seam_pressure_tolerance,
+      )
+    except (ArithmeticError, TypeError, ValueError) as error:
+      return _result(
+        MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+        .TARGET_COMPOSITION_FAILURE,
+        request,
+        source_closure,
+        target,
+        base_target_for_result,
+        None,
+        None,
+        configuration,
+        f'frontier target overlay composition failed: {error}',
+        target_lineage_verified=True,
+      )
+    ####
+  ####
   remesh = source_closure.global_remesh
   selected_attempt = None if remesh is None else remesh.selected_attempt
   source_band = source_closure.source_band
@@ -562,9 +708,13 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       request,
       source_closure,
       target,
+      base_target_for_result,
+      consumed_target,
       None,
       configuration,
       'source closure retained no selected remesh attempt or source band',
+      target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
     )
   ####
   bracket = selected_attempt.first_cell_result.compression_amplitude_bracket
@@ -580,9 +730,13 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       request,
       source_closure,
       target,
+      base_target_for_result,
+      consumed_target,
       None,
       configuration,
       'source closure retained no solver-owned amplitude bracket or field',
+      target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
     )
   ####
   resolved_sample_count = len(selected_field.field.shock_boundary_points_m)
@@ -595,14 +749,18 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       request,
       source_closure,
       target,
+      base_target_for_result,
+      consumed_target,
       None,
       configuration,
       'source closure retained too few shock samples for a fresh solve',
+      target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
     )
   ####
   shock_points = tuple(selected_field.field.shock_boundary_points_m)
-  target_min_x = request.target_x_stations_m[0]
-  target_max_x = request.target_x_stations_m[-1]
+  target_min_x = consumed_target.x_stations_m[0]
+  target_max_x = consumed_target.x_stations_m[-1]
   shock_min_x = min(point[0] for point in shock_points)
   shock_max_x = max(point[0] for point in shock_points)
   if (
@@ -615,12 +773,15 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       request,
       source_closure,
       target,
+      base_target_for_result,
+      consumed_target,
       None,
       configuration,
       'partial frontier pressure target does not cover the solver-owned shock '
       'station interval; a joint geometry/state boundary solve is required '
       'and no extrapolation was attempted',
       target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
     )
   ####
   try:
@@ -634,7 +795,7 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
         float(selected_attempt.compression_envelope_skew),
       ),
       incoming_handoff=source_band.incoming_handoff,
-      ambient_pressure_target=target,
+      ambient_pressure_target=consumed_target,
       sample_count=resolved_sample_count,
       branch=ShockBranch.WEAK,
       shock_angle_tolerance_rad=shock_tolerance,
@@ -646,20 +807,44 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       request,
       source_closure,
       target,
+      base_target_for_result,
+      consumed_target,
       None,
       configuration,
       f'conditioned global solve raised: {error}',
+      target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
     )
   ####
   if not conditioned.converged or not conditioned.physical_closure_verified:
+    target_coverage_failure = 'pressure target does not cover' in (
+      conditioned.message.lower()
+    )
     return _result(
-      MocReflectedDomainGlobalFrontierBoundaryConditionStatus.GLOBAL_SOLVE_FAILURE,
+      (
+        MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+        .TARGET_COVERAGE_FAILURE
+        if target_coverage_failure
+        else MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+        .GLOBAL_SOLVE_FAILURE
+      ),
       request,
       source_closure,
       target,
+      base_target_for_result,
+      consumed_target,
       conditioned,
       configuration,
-      f'conditioned global solve did not pass local closure gates: {conditioned.message}',
+      (
+        'fresh solver-owned boundary moved outside the composed pressure '
+        'target; no extrapolation was attempted: '
+        f'{conditioned.message}'
+        if target_coverage_failure
+        else 'conditioned global solve did not pass local closure gates: '
+        f'{conditioned.message}'
+      ),
+      target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
     )
   ####
   field_result = conditioned.global_euler
@@ -668,7 +853,7 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
   target_consumed = bool(
     march is not None
     and march.ambient_pressure_target_consumed
-    and march.ambient_pressure_target_source == target.source_id
+    and march.ambient_pressure_target_source == consumed_target.source_id
     and len(march.ambient_boundary.ambient_pressure_profile_Pa)
     == len(march.boundary_samples)
   )
@@ -738,6 +923,8 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     request,
     source_closure,
     target,
+    base_target_for_result,
+    consumed_target,
     conditioned,
     configuration,
     message,
@@ -745,6 +932,7 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     tangent_residuals_rad=tangent_residuals,
     pressure_residuals_Pa=pressure_residuals,
     target_lineage_verified=True,
+    target_composition_verified=target_composition_verified,
     target_coverage_verified=coverage_verified,
     target_boundary_condition_consumed=target_consumed,
     solver_owned_geometry_verified=geometry_solver_owned,

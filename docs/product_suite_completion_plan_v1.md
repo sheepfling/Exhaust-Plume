@@ -2420,3 +2420,31 @@ closed. The next P2.2 slice is a bounded joint global/downstream iteration
 that consumes this solver-owned boundary response on a fresh upstream solve,
 with explicit interval coverage and independent pressure/tangent/entropy/
 conservative residuals plus disjoint-case refinement.
+
+### Bounded global pressure-frame composition checkpoint — 2026-09-08
+
+The global pressure consumer now accepts an optional lineage-bound base target
+when a downstream response is only a bounded overlay.  The base frame must
+carry the exact source-closure and frontier-proposal fingerprints; the
+downstream packet is composed only over its declared interval, with seam
+pressure checks and no endpoint extrapolation.  The direct overlay remains
+available for measurement, while the composed target is the only pressure
+profile passed to the fresh ambient march.  Target ordinates and tangents from
+both packets remain diagnostics; the global solver still owns geometry.
+
+The focused boundary-condition suite passes all five cases, including the
+full-target solve, the original partial-target hard stop, lineage-mismatched
+base rejection, the fresh-resolution ladder, and disjoint-case refinement.
+The composed path advances past the initial shock-interval coverage check but
+currently returns a typed ``TARGET_COVERAGE_FAILURE`` when the fresh
+solver-owned ambient boundary moves to a later station outside the composed
+frame.  The result retains the source/base/overlay identities and records
+that no extrapolation was attempted.  This is evidence for the next joint
+geometry/state solve, not canonical global coupling, accepted physical
+shock-cell length, chain promotion, external validation, or release readiness.
+
+The next P2.2 slice is therefore a bounded mixed-regime/free-boundary
+iteration that can negotiate the moving station frame while independently
+checking pressure, tangent, entropy, and conservative residuals.  The
+provider-bound VIS/SIG/RAY/FPA matrix, raw V8 validation archive, alignment
+archive, and final release gates remain unchanged blockers.

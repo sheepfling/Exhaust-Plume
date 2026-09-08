@@ -8175,6 +8175,85 @@ def test_global_frontier_boundary_condition_rejects_partial_target_before_resolv
 ####
 
 
+def test_global_frontier_boundary_condition_composes_lineage_bound_base_target(
+  _global_frontier_reconciliation_request,
+):
+  source_closure = _global_physical_closure_for_mixed_regime()
+  request = _global_frontier_reconciliation_request
+  assert source_closure.global_euler is not None
+  assert source_closure.global_euler.physical_field is not None
+  assert source_closure.global_euler.physical_field.field is not None
+  boundary = source_closure.global_euler.physical_field.field.ambient_boundary
+  base_target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(point[0] for point in boundary.points_m),
+    static_pressure_Pa=tuple(boundary.static_pressure_Pa),
+    boundary_points_m=tuple(boundary.points_m),
+    tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    source_id='test-global-frontier-boundary-condition-base-v1',
+    source_closure_fingerprint=(
+      moc_reflected_domain_global_physical_closure_fingerprint(source_closure)
+    ),
+    source_proposal_fingerprint=(
+      moc_reflected_domain_global_frontier_proposal_fingerprint(
+        request.proposal
+      )
+    ),
+  )
+
+  result = run_reflected_domain_global_frontier_boundary_conditioned_resolve(
+    request,
+    source_closure,
+    base_target=base_target,
+  )
+
+  assert result.target_lineage_verified
+  assert result.target_composition_verified
+  assert result.base_target == base_target
+  assert result.target is not None
+  assert result.target.composition_mode == 'direct'
+  assert result.consumed_target is not None
+  assert result.consumed_target.composition_mode == 'explicit-overlay'
+  assert result.consumed_target.composition_base_source_id == base_target.source_id
+  assert result.consumed_target.composition_overlay_source_id == result.target.source_id
+  assert result.consumed_target.x_stations_m[0] <= base_target.x_stations_m[0]
+  assert result.consumed_target.x_stations_m[-1] >= base_target.x_stations_m[-1]
+  assert result.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+    .TARGET_COVERAGE_FAILURE
+  )
+  assert result.target_coverage_verified is False
+  assert result.conditioned_closure is not None
+  assert 'no extrapolation was attempted' in result.message
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+  mismatched_base = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=base_target.x_stations_m,
+    static_pressure_Pa=base_target.static_pressure_Pa,
+    boundary_points_m=base_target.boundary_points_m,
+    tangent_rad=base_target.tangent_rad,
+    source_id='test-global-frontier-boundary-condition-mismatched-base-v1',
+    source_closure_fingerprint='0' * 64,
+    source_proposal_fingerprint=base_target.source_proposal_fingerprint,
+  )
+  rejected = run_reflected_domain_global_frontier_boundary_conditioned_resolve(
+    request,
+    source_closure,
+    base_target=mismatched_base,
+  )
+  assert rejected.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+    .TARGET_COMPOSITION_FAILURE
+  )
+  assert rejected.target_lineage_verified
+  assert rejected.target_composition_verified is False
+  assert rejected.conditioned_closure is None
+  assert 'exact source closure' in rejected.message
+####
+
+
 def _identity_frontier_request_for_closure(
   closure,
   template_request,
