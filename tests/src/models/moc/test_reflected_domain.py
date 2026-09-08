@@ -249,6 +249,14 @@ from exhaust_plume.validation.moc_global_coupled_shock_cell_fit import (
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellFitStatus,
   run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_fit,
 )
+from exhaust_plume.validation.moc_global_coupled_shock_cell_chain import (
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainStatus,
+  run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_chain,
+)
+from exhaust_plume.validation.moc_global_coupled_shock_cell_chain_refinement import (
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementStatus,
+  run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_chain_refinement,
+)
 from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
   MocReflectedDomainGlobalFrontierBoundaryConditionStatus,
   run_reflected_domain_global_frontier_boundary_conditioned_resolve,
@@ -8290,6 +8298,89 @@ def test_global_coupled_boundary_condition_feedback_binds_first_cell_fit_to_fine
   assert fit_run.production_claim_allowed is False
   assert fit_run.as_report()['measurement']['physical_length_accepted'] is False
   assert fit_run.as_report()['measurement']['external_validation_verified'] is False
+
+  chain_run = (
+    run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_chain(
+      fit_run,
+      reference=MocGlobalEulerContinuedChainReference(
+        total_cell_count=2,
+        outer_source_indices=(0,),
+        target_centerline_indices=(1,),
+        compression_envelope_skews=(-0.75,),
+        sample_count=9,
+      ),
+      end_margin_m=8.0,
+      policy=MocChainContinuationPolicy(
+        max_cells=3,
+        require_state_carry=True,
+      ),
+    )
+  )
+
+  assert chain_run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainStatus
+    .CONVERGED_RESEARCH_CONTINUED_CHAIN
+  )
+  assert chain_run.resolved
+  assert chain_run.local_consistency_verified
+  assert chain_run.seed_field_handoff_verified
+  assert chain_run.seed_measurement_verified
+  assert chain_run.continued_chain_measurement_verified
+  assert chain_run.continued_field_fit_verified
+  assert chain_run.intercell_bridge_verified
+  assert chain_run.stage_measurements_verified
+  assert chain_run.fidelity_isolation_verified
+  assert chain_run.continued_cell_count == 1
+  assert len(chain_run.physical_fields) == 2
+  assert chain_run.physical_fields[0] is fit_run.cases[-1].physical_field
+  assert chain_run.physical_field_chain_measurement is not None
+  assert chain_run.physical_field_chain_measurement.converged
+  assert len(chain_run.continued_field_fit_measurements) == 1
+  assert chain_run.continued_field_fit_measurements[0].converged
+  assert len(chain_run.continued_cell_lengths_m) == 1
+  assert chain_run.continued_length_refinement_pending
+  assert chain_run.seed_case is fit_run.cases[-1]
+  assert chain_run.seed_global_euler is fit_run.cases[-1].source_closure.global_euler
+  assert chain_run.chain_promotion_blocked
+  assert chain_run.production_claim_allowed is False
+  chain_report = chain_run.as_report()
+  assert chain_report['physical_length_accepted'] is False
+  assert chain_report['external_validation_verified'] is False
+  assert chain_report['checks']['continued_field_fit_verified'] is True
+  assert chain_report['retained_physical_field_count'] == 2
+
+  refinement_run = (
+    run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_chain_refinement(
+      fit_run,
+      reference=chain_run.reference,
+      end_margin_m=8.0,
+      policy=chain_run.policy,
+      length_tolerance_m=1.0e-4,
+      endpoint_tolerance_m=2.5e-4,
+      shock_spacing_tolerance_m=1.0e-4,
+    )
+  )
+
+  assert refinement_run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementStatus
+    .CONVERGED_RESEARCH_CONTINUED_CHAIN_REFINEMENT
+  ), refinement_run.message
+  assert refinement_run.resolved
+  assert refinement_run.local_consistency_verified
+  assert refinement_run.case_lineage_verified
+  assert refinement_run.continued_field_fit_verified
+  assert refinement_run.fidelity_isolation_verified
+  assert len(refinement_run.chain_runs) == 3
+  assert refinement_run.continued_cell_count == 1
+  assert refinement_run.maximum_continued_length_delta_m is not None
+  assert refinement_run.maximum_continued_length_delta_m <= 1.0e-4
+  assert refinement_run.measurement is not None
+  assert refinement_run.measurement.converged
+  assert refinement_run.chain_promotion_blocked
+  assert refinement_run.production_claim_allowed is False
+  refinement_report = refinement_run.as_report()
+  assert refinement_report['physical_length_accepted'] is False
+  assert refinement_report['external_validation_verified'] is False
 ####
 
 

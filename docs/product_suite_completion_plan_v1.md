@@ -382,6 +382,9 @@ claim is authorized.
       solver-owned receipt seam; stop when no consumer is available, verify
       common station coverage across refinement cases, and keep accepted
       targets below global closure and production promotion.
+- [x] Bind the accepted fine P2.2c field to the solver-owned first-cell fit
+      and exact fresh global-Euler continued-chain handoff; retain explicit
+      bridge, stage, and research-only promotion gates.
 - [ ] Close and independently validate the global planar-MOC physical field.
 - [ ] Produce accepted physical shock-cell lengths and continued-chain fits.
 - [ ] Bind external VIS/SIG/RAY/FPA cases to accepted measurement operators.
@@ -2511,14 +2514,19 @@ with each item stopping closed when its evidence is absent:
    complete lane/test/static/documentation/package matrix, verify the manifest
    reports `release_ready=true`, and only then create a release tag.
 
-The immediate implementation target is item 3.  The P2.2a negotiation seam is
-complete for the current target and the P2.2b extension is still research-only.
-The first P2.2c disjoint ladder now proves the local solver/lineage gates but
-fails frame-demand stability and still lacks the explicit boundary-flux audit.
-A successful frame extension is not canonical closure by itself; its purpose
-is to make the next solver-owned joint residual solve explicit and auditable.
+The immediate implementation target is item 4.  P2.2a and P2.2b are complete
+for the current research target, and the fine P2.2c ladder now passes the
+declared local stability and conservative-flux gates; the coarse ladder remains
+an explicit stability failure.  P3 now has a first-cell fit and an exact
+highest-resolution carried-field continuation handoff, both research-only.
+The continued-chain adapter now retains and independently fits the downstream
+research fields from one accepted chain.  The continued-chain refinement
+ladder now also passes its declared local geometry and downstream-length
+sensitivity gates; this is numerical research evidence only.  The remaining
+physics slice is comparison against disjoint physical observations and
+canonical/global closure.
 The absence of the validation archives is a parallel release blocker, not a
-reason to synthesize observations or to promote the physical model early.
+reason to synthesize observations or promote the physical model early.
 
 ### Solver-owned moving-frame negotiation checkpoint — 2026-09-08
 
@@ -2640,3 +2648,37 @@ The focused regression passes for the 9 -> 11 -> 13 fine ladder. The next P3
 slice is to build the continued-chain handoff on the same accepted field
 contract, then execute the disjoint physical-observation comparison when the
 validation data is available.
+
+### P3 accepted-field continued-chain handoff checkpoint — 2026-09-08
+
+The new
+``op.moc.reflected-domain.global-coupled-boundary-condition-feedback-shock-cell-chain``
+adapter consumes the converged P3 first-cell run and selects only its highest
+resolution case. It verifies object-identity lineage from the P2.2c source
+closure through the retained global-Euler field, the first-cell fit, and the
+coupled solver-owned shock-front condition before invoking the fresh exact
+global-Euler continuation planner. The continuation retains fresh source-band,
+global-remesh, exact-Euler, state-carry, and explicit intercell-bridge audits;
+the planner receives one extra typed terminal callback slot so configured cell
+exhaustion is not confused with a physical endpoint.
+
+The focused 9 -> 11 -> 13 regression now passes with one exact retained seed
+and one independently remeasured downstream research field. The chain report
+exposes the downstream axial fit and its retained-field lineage, while keeping
+continued-length refinement uncertainty explicitly pending until the ladder
+comparison completes.
+
+### P3 continued-chain refinement ladder checkpoint — 2026-09-08
+
+The new
+``op.moc.reflected-domain.global-coupled-boundary-condition-feedback-shock-cell-chain-refinement``
+runner executes the same fresh exact-Euler continuation once for each accepted
+P2.2c/P3 resolution, preserves exact case identity, independently remeasures
+each retained field, and compares chain extent, shock spacing, mesh area, typed
+termination, and downstream axial lengths. The 9 -> 11 -> 13 ladder passes
+with declared local tolerances; the measured result remains research-only and
+does not accept a physical length.
+
+Physical acceptance, canonical/global closure, provider-bound VIS/SIG/RAY/FPA
+validation, and production promotion remain blocked pending disjoint physical
+observations and the remaining closure gates.

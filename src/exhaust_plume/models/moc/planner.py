@@ -20582,6 +20582,7 @@ def plan_reflected_domain_global_euler_continued_chain(
   end_x_m: float,
   reference: MocGlobalEulerContinuedChainReference | None = None,
   policy: MocChainContinuationPolicy | None = None,
+  _field_observer: Callable[[MocPhysicalPostShockFieldResult], None] | None = None,
 ) -> MocChainPlannerResult:
   """Re-solve a bounded exact-Euler field for every continued chain cell.
 
@@ -20597,7 +20598,9 @@ def plan_reflected_domain_global_euler_continued_chain(
   meshes is retained as an explicit reflected/source bridge and audited by
   the physical-field chain measurement; it is never treated as an implicit
   direct interface.  The result remains research-only and cannot update a
-  lower-fidelity product provider.
+  lower-fidelity product provider.  The private observer is a provenance hook
+  for a higher-level validation adapter; it receives the exact retained seed
+  and each accepted downstream field after the planner accepts it.
   """
 
   if not isinstance(
@@ -20647,6 +20650,9 @@ def plan_reflected_domain_global_euler_continued_chain(
   ####
   if policy is not None and not isinstance(policy, MocChainContinuationPolicy):
     raise TypeError('policy must be a MocChainContinuationPolicy or None')
+  ####
+  if _field_observer is not None and not callable(_field_observer):
+    raise TypeError('_field_observer must be callable or None')
   ####
 
   from exhaust_plume.validation.moc_measurements import (
@@ -20744,6 +20750,9 @@ def plan_reflected_domain_global_euler_continued_chain(
   ####
 
   captured_fields: list[MocPhysicalPostShockFieldResult] = [seed_field]
+  if _field_observer is not None:
+    _field_observer(seed_field)
+  ####
   bridge_endpoints: list[tuple[tuple[float, float], tuple[float, float]]] = []
   source_bands: list[MocReflectedDomainAlternatingSourceResult] = []
   global_remeshes: list[MocReflectedDomainGlobalShockRemeshResult] = []
@@ -21304,6 +21313,9 @@ def plan_reflected_domain_global_euler_continued_chain(
       (float(bridge_end[0]), float(bridge_end[1])),
     ))
     captured_fields.append(next_field)
+    if _field_observer is not None:
+      _field_observer(next_field)
+    ####
     active_field = next_field
     step['accepted'] = True
     step['next_field_end_x_m'] = next_end_x
