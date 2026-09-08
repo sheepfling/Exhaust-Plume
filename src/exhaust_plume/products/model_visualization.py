@@ -2230,7 +2230,6 @@ def _moc_visualization(
     and hasattr(getattr(result, 'request', None), 'target_static_pressure_Pa')
     and not hasattr(result, 'target_pressure_reconciliation')
   )
-  ####
   target_pressure_reconciliation = bool(
     not global_frontier_target_refinement
     and (
