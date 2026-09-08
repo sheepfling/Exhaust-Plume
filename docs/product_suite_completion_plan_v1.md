@@ -2481,7 +2481,9 @@ and the final release gates remain open.
 
 The long-running goal remains active on the dedicated integration branch.  The
 current candidate is a local research checkpoint; it is not a release
-candidate and has not yet been pushed.  Work proceeds in the following order,
+candidate.  The current pushed checkpoint is `8e7ca25` on
+`work/washed-integral-visual`; `main` remains untouched.  Work proceeds in the
+following order,
 with each item stopping closed when its evidence is absent:
 
 1. **P2.2a — negotiate the moving solver frame.** Add a typed request and
@@ -2749,3 +2751,59 @@ fixture roles and confirms that external evidence can be recorded while
 ``physical_length_accepted``, chain promotion, and product claims remain
 false.  The owner validation archives and provider-bound observations are
 still absent, so this checkpoint does not change the release freeze.
+
+### Full product-suite release map — 2026-09-08
+
+This is the go-forward definition of completion for the long-running goal.  A
+green local test run is necessary evidence, but it does not close a product
+lane unless the lane's own measurement space, fidelity, and external evidence
+are also accepted.
+
+| Gate | Must be true | Current state | Unlocks |
+| --- | --- | --- | --- |
+| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `8e7ca25` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
+| Visualization | All five model lanes emit the common bundle, views, slices, paths, regions, masks, diagnostics, and provenance; supplied provider overlays use the declared operator | Local standardized gallery is complete; provider comparison is pending | Visualization product claim |
+| Mission-time composition | State/cursor advancement preserves source, pose, atmosphere, chemistry, optics, ray, Signature, and FPA lineage without inferred time evolution | Local timeline and exact Signature/FPA point/timeline seams are present | Time-resolved product demonstrations |
+| Solver fidelity | Basic, reduced-order, straight/washed, and planar-MOC lanes remain independently configured and promotion-guarded | Local separation passes; planar-MOC is still research-only | Controlled use of each fidelity |
+| Canonical physical field | A solver-owned reflected/mixed-regime free boundary closes geometry, Euler residuals, entropy, ambient attachment, centerline reflection, conservative boundary flux, and refinement; an independent audit agrees | P2.2 moving-frame and fine-ladder evidence pass locally, but canonical closure remains open | Physical shock-cell fitting |
+| Physical shock cells | First and continued cells come only from the accepted physical field, have solver-owned lengths and uncertainty, and pass disjoint physical observations | Research fits and indexed-review plumbing exist; physical observations are absent | Chain promotion and physical plume claims |
+| Signature and ray | Source-bound chemistry/radiation and ray-transfer outputs are compared in the declared spectral/radiometric measurement space with provider cases | Local table/gray/LTE/timeline paths pass engineering checks; provider-bound evidence is pending | Signature product claim |
+| FPA | Camera, optics, detector, pixel, exposure, digitization, and invalid-ray behavior are compared against supplied FPA observations in pixel/ADC space | Deterministic downstream boundary is implemented; no FPA observation corpus is available | FPA product claim |
+| Validation intake | V8 and separately named alignment archives match their recorded digests, retain provenance/member checksums, and provide disjoint calibration/validation cases plus provider outputs | Both owner archives are missing from the checkout/attachment paths | External validation gates |
+| Release freeze | Exact-HEAD lane manifest, full tests, static checks, docs, public contracts, wheel build, installed-wheel smoke, and package metadata are green; no blocker remains | Historical freeze remains `release_ready=false` and must not be reused as current evidence | Release tag and production claims |
+
+The remaining work is therefore executed in five waves:
+
+1. **Intake and measurement binding (parallel).** Obtain the recorded V8
+   archive and the separate alignment archive; verify digests, member
+   checksums, provenance, license, coordinate conventions, and disjoint
+   calibration/validation roles.  Obtain the provider-bound Visualization,
+   Signature/ray, and FPA measurement outputs and register each operator.
+2. **Canonical solver closure.** Replace the current research boundary
+   envelope with the solver-owned mixed-regime/free-boundary law.  Preserve
+   the current moving-frame and conservative-flux audits, add the missing
+   physical closure equations and independent re-derivation, and repeat the
+   result across disjoint cases and strictly increasing resolutions.  A
+   pressure/geometry profile, endpoint hold, extrapolation, or lower-fidelity
+   fallback cannot close this wave.
+3. **Physical cell acceptance.** Bind the first-cell and continued-chain
+   fitters only to the accepted canonical field.  Compare solver-owned
+   lengths, spacing, branch identity, and uncertainty against the disjoint
+   physical observations.  Keep the current indexed external-review adapter
+   as an evidence handoff only; it must not promote a research fit by itself.
+4. **Product acceptance.** Run the five Visualization lanes, Signature/ray
+   operators, and FPA chain against their own provider-bound cases.  Confirm
+   that missing coverage remains masked, time/pose/source lineage is exact,
+   and no planar-MOC result is routed backward into a lower-fidelity product.
+5. **Exact-candidate release.** Refresh the freeze and lane manifest from the
+   actual candidate `HEAD`; run the complete test, static, documentation,
+   public-contract, wheel, and installed-wheel matrix; inspect every blocker;
+   and create a tag only after `release_ready=true`.
+
+The working rule for this goal is to keep the current dedicated branch as the
+integration candidate, commit vertical slices, and merge toward `main` only
+after their contracts and focused evidence are reviewable.  Missing archives
+or provider outputs are external blockers to record and request, not inputs to
+replace with synthetic observations.  Approximate lanes remain useful for
+Visualization and engineering exploration, but they never inherit the
+canonical solver's unresolved claims.
