@@ -2067,3 +2067,20 @@ false, and chain/production gates remain closed.  The next physics slice is
 to put this pressure/geometry condition inside the global free-boundary
 equations and then demonstrate cross-case refinement of the resulting
 placement rather than only fixed-front consumption.
+
+### Target-bound coupled free-boundary profile checkpoint — 2026-09-08
+
+The coupled downstream lane now accepts a composed typed frontier target at
+its actual solver stations.  A target is sampled separately at cell centers
+for the pressure condition and at boundary nodes for the free-boundary
+geometry condition; the exact candidate closure fingerprint is retained in
+both profiles.  Any uncovered station or target whose geometry points do not
+retain their declared station frame fails closed without extrapolation.
+
+The regression composes a full solver-owned ambient base with a bounded
+frontier overlay, builds both profiles, consumes them in the conservative
+coupled-Euler/free-boundary solve, and independently audits the result.  This
+is the first target-overlay path that reaches the 2-D downstream equations,
+but it remains a fixed candidate boundary condition: shock placement is not
+yet re-solved upstream, global coupling and downstream closure remain false,
+and cross-case refinement plus physical validation are still required.

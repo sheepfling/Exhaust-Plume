@@ -102,6 +102,8 @@ from exhaust_plume.models.moc import (
   build_reflected_domain_global_solver_owned_transonic_interface_placement,
   build_reflected_domain_global_solver_owned_physical_field_handoff,
   build_reflected_domain_global_coupled_downstream_boundary_pressure_profile,
+  build_reflected_domain_global_coupled_downstream_boundary_geometry_profile,
+  build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target,
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
@@ -3388,6 +3390,166 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
   assert geometry_consumed.coupled_field_audit.free_boundary_geometry_profile_verified
   assert geometry_consumed.coupled_field_audit.local_consistency_verified
   assert geometry_consumed.boundary_geometry_profile == exact_geometry_profile
+####
+
+
+def test_global_coupled_downstream_consumes_composed_target_profiles():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  assert closure.global_euler.physical_field is not None
+  assert closure.global_euler.physical_field.field is not None
+  ambient_boundary = closure.global_euler.physical_field.field.ambient_boundary
+  base_target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(point[0] for point in ambient_boundary.points_m),
+    static_pressure_Pa=tuple(ambient_boundary.static_pressure_Pa),
+    boundary_points_m=tuple(ambient_boundary.points_m),
+    tangent_rad=tuple(state.theta_rad for state in ambient_boundary.states),
+    source_id='test-global-coupled-target-base',
+  )
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  ambient_pressure = mixed_request.control_section.samples[-1].static_pressure_Pa
+  baseline = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  assert baseline.coupled_field is not None
+  geometry_stations = tuple(
+    point[0] for point in baseline.coupled_field.free_boundary_points_m
+  )
+  direct_geometry_profile = (
+    build_reflected_domain_global_coupled_downstream_boundary_geometry_profile(
+      closure,
+      geometry_stations,
+    )
+  )
+  assert direct_geometry_profile.boundary_y_m == pytest.approx(
+    tuple(
+      np.interp(
+        x_value,
+        np.asarray(base_target.x_stations_m),
+        np.asarray([point[1] for point in base_target.boundary_points_m]),
+      )
+      for x_value in geometry_stations
+    )
+  )
+  pressure_stations = tuple(
+    0.5 * (first + second)
+    for first, second in zip(geometry_stations, geometry_stations[1:])
+  )
+  assert baseline.downstream_boundary_response is not None
+  feedback_profile = (
+    build_reflected_domain_global_coupled_downstream_feedback_pressure_profile(
+      closure,
+      baseline.downstream_boundary_response,
+      pressure_correction_fraction=1.0,
+    )
+  )
+  feedback_geometry_profile = (
+    build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
+      closure,
+      baseline.downstream_boundary_response,
+    )
+  )
+  overlay_stations = tuple(sorted((*geometry_stations, *pressure_stations)))
+  assert len(overlay_stations) >= 2
+  overlay_target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=overlay_stations,
+    static_pressure_Pa=tuple(
+      float(
+        np.interp(
+          x_value,
+          np.asarray(feedback_profile.x_stations_m),
+          np.asarray(feedback_profile.pressure_Pa),
+        )
+      )
+      for x_value in overlay_stations
+    ),
+    boundary_points_m=tuple(
+      (
+        x_value,
+        float(
+          np.interp(
+            x_value,
+            np.asarray(feedback_geometry_profile.x_stations_m),
+            np.asarray(feedback_geometry_profile.boundary_y_m),
+          )
+        ),
+      )
+      for x_value in overlay_stations
+    ),
+    tangent_rad=tuple(
+      float(
+        np.interp(
+          x_value,
+          np.asarray(base_target.x_stations_m),
+          np.asarray(base_target.tangent_rad),
+        )
+      )
+      for x_value in overlay_stations
+    ),
+    source_id='test-global-coupled-target-overlay',
+  )
+  composed_target = compose_moc_physical_field_euler_boundary_pressure_target(
+    base_target,
+    overlay_target,
+    source_id='test-global-coupled-target-composed',
+    seam_pressure_tolerance_fraction=0.75,
+  )
+  assert composed_target.composition_mode == 'explicit-overlay'
+  pressure_profile, geometry_profile = (
+    build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target(
+      closure,
+      composed_target,
+      pressure_stations,
+      geometry_stations,
+    )
+  )
+  assert pressure_profile.pressure_Pa == pytest.approx(
+    feedback_profile.pressure_Pa
+  )
+  assert geometry_profile.boundary_y_m == pytest.approx(
+    feedback_geometry_profile.boundary_y_m
+  )
+  assert 'test-global-coupled-target-composed' in pressure_profile.source
+  assert 'test-global-coupled-target-composed' in geometry_profile.source
+  consumed = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    boundary_pressure_profile=pressure_profile,
+    boundary_geometry_profile=geometry_profile,
+  )
+  assert consumed.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .CONVERGED_LOCAL_COUPLED_FIELD
+  )
+  assert consumed.boundary_pressure_profile == pressure_profile
+  assert consumed.boundary_geometry_profile == geometry_profile
+  assert consumed.coupled_field is not None
+  assert consumed.coupled_field.free_boundary_pressure_profile_consumed
+  assert consumed.coupled_field.free_boundary_geometry_profile_consumed
+  assert consumed.coupled_field_audit is not None
+  assert consumed.coupled_field_audit.converged
+  assert consumed.global_coupling_verified is False
+  assert consumed.downstream_boundary_closure_verified is False
+  assert consumed.production_claim_allowed is False
+  with pytest.raises(ValueError, match='does not cover'):
+    build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target(
+      closure,
+      composed_target,
+      (composed_target.x_stations_m[-1] + 1.0,),
+      geometry_stations,
+    )
+  ####
 ####
 
 

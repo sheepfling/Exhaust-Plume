@@ -32,6 +32,9 @@ from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
+from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerBoundaryPressureTarget,
+)
 from exhaust_plume.models.moc.field_continuation import (
   MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileResult,
@@ -62,6 +65,8 @@ __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus',
   'MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal',
   'build_reflected_domain_global_coupled_downstream_boundary_pressure_profile',
+  'build_reflected_domain_global_coupled_downstream_boundary_geometry_profile',
+  'build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target',
   'build_reflected_domain_global_coupled_downstream_feedback_pressure_profile',
   'build_reflected_domain_global_coupled_downstream_feedback_geometry_profile',
   'build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal',
@@ -535,6 +540,283 @@ def build_reflected_domain_global_coupled_downstream_boundary_pressure_profile(
     x_stations_m=x_values,
     pressure_Pa=tuple(pressures),
     coverage_verified=True,
+  )
+####
+
+
+def _ordered_profile_stations(
+  values: tuple[float, ...],
+  *,
+  name: str,
+  minimum_count: int,
+) -> tuple[float, ...]:
+  resolved = tuple(float(value) for value in values)
+  if len(resolved) < minimum_count:
+    raise ValueError(
+      f'{name} must contain at least {minimum_count} stations'
+    )
+  ####
+  if any(not isfinite(value) for value in resolved):
+    raise ValueError(f'{name} must contain finite stations')
+  ####
+  if any(second <= first for first, second in zip(resolved, resolved[1:])):
+    raise ValueError(f'{name} must be strictly downstream ordered')
+  ####
+  return resolved
+####
+
+
+def build_reflected_domain_global_coupled_downstream_boundary_geometry_profile(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  x_stations_m: tuple[float, ...],
+  *,
+  lower_ordinate_m: float = 0.0,
+  position_tolerance_m: float = 1.0e-9,
+  coordinate_tolerance_m: float = 1.0e-3,
+) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
+  """Sample a solver-owned global boundary at exact coupled mesh nodes.
+
+  This is the geometry companion to the direct global pressure-profile
+  builder.  It is intentionally explicit about the lower ordinate and
+  rejects stations outside the retained global boundary; no projection,
+  endpoint hold, or frame translation is inferred.
+  """
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if not closure.converged or not closure.physical_closure_verified:
+    raise ValueError(
+      'global boundary geometry profile requires a locally verified global '
+      'physical closure'
+    )
+  ####
+  boundary = closure.downstream_boundary
+  if boundary is None or not boundary.samples_available:
+    raise ValueError(
+      'global closure retained no downstream boundary samples for geometry '
+      'profile construction'
+    )
+  ####
+  try:
+    tolerance = float(position_tolerance_m)
+    coordinate_tolerance = float(coordinate_tolerance_m)
+    lower_ordinate = float(lower_ordinate_m)
+  except (TypeError, ValueError) as error:
+    raise ValueError('geometry profile tolerances and frame must be numeric') from error
+  ####
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  ####
+  if not isfinite(coordinate_tolerance) or coordinate_tolerance <= 0.0:
+    raise ValueError('coordinate_tolerance_m must be finite and positive')
+  ####
+  if not isfinite(lower_ordinate):
+    raise ValueError('lower_ordinate_m must be finite')
+  ####
+  x_values = _ordered_profile_stations(
+    x_stations_m,
+    name='x_stations_m',
+    minimum_count=2,
+  )
+  boundary_y: list[float] = []
+  for x_value in x_values:
+    sample = _interpolate_downstream_boundary(
+      boundary,
+      x_value,
+      position_tolerance_m=tolerance,
+    )
+    if sample is None:
+      raise ValueError(
+        'requested geometry-profile station lies outside the retained global '
+        'boundary; no extrapolation was attempted'
+      )
+    ####
+    boundary_y.append(float(sample[0]))
+  ####
+  return MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile(
+    source_closure_fingerprint=(
+      moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    ),
+    x_stations_m=x_values,
+    boundary_y_m=tuple(boundary_y),
+    lower_ordinate_m=lower_ordinate,
+    source='research-global-coupled-downstream-closure-geometry-v1',
+    coordinate_tolerance_m=coordinate_tolerance,
+    coverage_verified=True,
+  )
+####
+
+
+def _interpolate_pressure_target_boundary_y(
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> float | None:
+  points = target.boundary_points_m
+  stations = target.x_stations_m
+  if len(points) != len(stations) or len(points) < 2:
+    return None
+  ####
+  x_value = float(x_m)
+  tolerance = float(position_tolerance_m)
+  if (
+    x_value < stations[0] - tolerance
+    or x_value > stations[-1] + tolerance
+  ):
+    return None
+  ####
+  if any(
+    abs(point[0] - station) > tolerance
+    for point, station in zip(points, stations)
+  ):
+    raise ValueError(
+      'pressure target boundary points must retain their declared station '
+      'frame before coupled geometry consumption'
+    )
+  ####
+  for index, (first, second) in enumerate(zip(stations, stations[1:])):
+    if abs(x_value - first) <= tolerance:
+      return float(points[index][1])
+    ####
+    if x_value <= second + tolerance:
+      span = second - first
+      if span <= tolerance:
+        return None
+      ####
+      fraction = min(max((x_value - first) / span, 0.0), 1.0)
+      return float(
+        points[index][1]
+        + fraction * (points[index + 1][1] - points[index][1])
+      )
+    ####
+  ####
+  if abs(x_value - stations[-1]) <= tolerance:
+    return float(points[-1][1])
+  ####
+  return None
+####
+
+
+def build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  pressure_x_stations_m: tuple[float, ...],
+  geometry_x_stations_m: tuple[float, ...],
+  *,
+  lower_ordinate_m: float = 0.0,
+  position_tolerance_m: float = 1.0e-8,
+  coordinate_tolerance_m: float = 1.0e-3,
+) -> tuple[
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
+]:
+  """Turn a typed pressure/geometry target into coupled solver profiles.
+
+  The target must already be composed by the explicit overlay contract when
+  a partial frontier packet is being consumed.  Both returned profiles are
+  sampled only at the caller-declared coupled solver stations, retain the
+  candidate closure fingerprint, and fail closed if either station frame is
+  uncovered.  The profiles remain research-only handoffs.
+  """
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if not closure.converged or not closure.physical_closure_verified:
+    raise ValueError(
+      'target-bound coupled profiles require a locally verified global '
+      'physical closure'
+    )
+  ####
+  if not isinstance(target, MocPhysicalFieldEulerBoundaryPressureTarget):
+    raise TypeError(
+      'target must be a MocPhysicalFieldEulerBoundaryPressureTarget'
+    )
+  ####
+  try:
+    tolerance = float(position_tolerance_m)
+    lower_ordinate = float(lower_ordinate_m)
+  except (TypeError, ValueError) as error:
+    raise ValueError('target-bound profile tolerances and frame must be numeric') from error
+  ####
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  ####
+  if not isfinite(lower_ordinate):
+    raise ValueError('lower_ordinate_m must be finite')
+  ####
+  pressure_stations = _ordered_profile_stations(
+    pressure_x_stations_m,
+    name='pressure_x_stations_m',
+    minimum_count=1,
+  )
+  geometry_stations = _ordered_profile_stations(
+    geometry_x_stations_m,
+    name='geometry_x_stations_m',
+    minimum_count=2,
+  )
+  pressures: list[float] = []
+  for x_value in pressure_stations:
+    pressure = target.pressure_at_x(
+      x_value,
+      position_tolerance_m=tolerance,
+    )
+    if pressure is None:
+      raise ValueError(
+        'pressure target does not cover a requested coupled cell-center '
+        'station; no extrapolation was attempted'
+      )
+    ####
+    pressures.append(float(pressure))
+  ####
+  geometry_y: list[float] = []
+  for x_value in geometry_stations:
+    boundary_y = _interpolate_pressure_target_boundary_y(
+      target,
+      x_value,
+      position_tolerance_m=tolerance,
+    )
+    if boundary_y is None:
+      raise ValueError(
+        'pressure target does not retain boundary geometry over a requested '
+        'coupled node station; no extrapolation was attempted'
+      )
+    ####
+    geometry_y.append(float(boundary_y))
+  ####
+  target_source = f'{target.source_id}:{target.composition_mode}'
+  source_fingerprint = (
+    moc_reflected_domain_global_physical_closure_fingerprint(closure)
+  )
+  return (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile(
+      source_closure_fingerprint=source_fingerprint,
+      x_stations_m=pressure_stations,
+      pressure_Pa=tuple(pressures),
+      source=(
+        'research-global-frontier-target-coupled-pressure-v1:'
+        f'{target_source}'
+      ),
+      coverage_verified=True,
+    ),
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile(
+      source_closure_fingerprint=source_fingerprint,
+      x_stations_m=geometry_stations,
+      boundary_y_m=tuple(geometry_y),
+      lower_ordinate_m=lower_ordinate,
+      source=(
+        'research-global-frontier-target-coupled-geometry-v1:'
+        f'{target_source}'
+      ),
+      coordinate_tolerance_m=coordinate_tolerance_m,
+      coverage_verified=True,
+    ),
   )
 ####
 
