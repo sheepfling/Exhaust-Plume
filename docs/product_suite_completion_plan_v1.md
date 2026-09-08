@@ -2028,3 +2028,23 @@ solver-owned two-dimensional transonic/free-boundary condition required for
 canonical global closure.  The next physics work remains target geometry
 coverage/placement inside the global solve, followed by cross-case refinement
 before any physical shock-cell fit or product promotion.
+
+### Explicit frontier-target overlay checkpoint — 2026-09-08
+
+The fixed-front pressure consumer now has an explicit bounded-overlay
+contract for the measured partial-overlap case.  A base target owns the full
+retained station frame; a frontier target may replace it only on its declared
+interval.  Composition rejects an overlay outside the base frame, performs no
+extrapolation or endpoint hold, checks the pressure seam discontinuity, and
+retains the base/overlay source IDs plus the measured seam diagnostic in a
+distinct ``explicit-overlay`` target model.  The global target-pressure
+consumer retains both the exact frontier target and the actually consumed
+composite target in its report.
+
+This is intentionally a fixed-front research seam, not a solver-owned shock
+geometry update: the direct target path still fails closed when its station
+frame does not cover the retained ambient faces, and every global, chain, and
+production gate remains closed.  The next implementation slice is to make the
+overlay/target contract a boundary condition of the two-dimensional
+transonic/free-boundary solve itself, then run the resulting geometry through
+the existing cross-case refinement ladder.

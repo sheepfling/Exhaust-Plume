@@ -32,6 +32,7 @@ from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
   MocPhysicalFieldEulerBoundaryPressureTarget,
   MocPhysicalFieldEulerReconciliationRequest,
   MocPhysicalFieldEulerReconciliationResult,
+  compose_moc_physical_field_euler_boundary_pressure_target,
   solve_moc_physical_field_euler_reconciliation,
 )
 from exhaust_plume.models.moc.physical_field_shock_front import (
@@ -73,6 +74,9 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus(str, En
     'global-frontier-target-pressure-candidate-failure'
   )
   TARGET_LINEAGE_FAILURE = 'global-frontier-target-pressure-lineage-failure'
+  TARGET_COMPOSITION_FAILURE = (
+    'global-frontier-target-pressure-composition-failure'
+  )
   FRONT_CONDITION_FAILURE = 'global-frontier-target-pressure-front-failure'
   TARGET_COVERAGE_FAILURE = 'global-frontier-target-pressure-coverage-failure'
   SOLVER_FAILURE = 'global-frontier-target-pressure-solver-failure'
@@ -89,10 +93,12 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
   source_closure: MocReflectedDomainGlobalPhysicalClosureResult
   candidate_closure_fingerprint: str | None = None
   target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
+  consumed_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
   front_condition: MocPhysicalFieldShockFrontConditionResult | None = None
   reconciliation: MocPhysicalFieldEulerReconciliationResult | None = None
   audit: MocPhysicalFieldEulerReconciliationAudit | None = None
   target_lineage_verified: bool = False
+  target_composition_verified: bool = False
   target_coverage_verified: bool = False
   target_consumption_verified: bool = False
   independent_audit_verified: bool = False
@@ -143,6 +149,12 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
     ):
       raise TypeError('target must be a typed pressure target or None')
     ####
+    if self.consumed_target is not None and not isinstance(
+      self.consumed_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError('consumed_target must be a typed pressure target or None')
+    ####
     if self.front_condition is not None and not isinstance(
       self.front_condition,
       MocPhysicalFieldShockFrontConditionResult,
@@ -163,6 +175,7 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
     ####
     for name in (
       'target_lineage_verified',
+      'target_composition_verified',
       'target_coverage_verified',
       'target_consumption_verified',
       'independent_audit_verified',
@@ -195,6 +208,7 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
       is MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
       .CONVERGED_LOCAL_TARGET_PRESSURE_RECONCILIATION
       and self.target_lineage_verified
+      and self.target_composition_verified
       and self.target_coverage_verified
       and self.target_consumption_verified
       and self.independent_audit_verified
@@ -211,6 +225,7 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
       'status': self.status.value,
       'converged_research_reconciliation': self.converged_research_reconciliation,
       'target_lineage_verified': self.target_lineage_verified,
+      'target_composition_verified': self.target_composition_verified,
       'target_coverage_verified': self.target_coverage_verified,
       'target_consumption_verified': self.target_consumption_verified,
       'independent_audit_verified': self.independent_audit_verified,
@@ -230,6 +245,11 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
         )
       ),
       'target': None if self.target is None else self.target.as_report(),
+      'consumed_target': (
+        None
+        if self.consumed_target is None
+        else self.consumed_target.as_report()
+      ),
       'front_condition': (
         None if self.front_condition is None else self.front_condition.as_report()
       ),
@@ -256,10 +276,12 @@ def _result(
   *,
   candidate_closure_fingerprint: str | None = None,
   target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
+  consumed_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   front_condition: MocPhysicalFieldShockFrontConditionResult | None = None,
   reconciliation: MocPhysicalFieldEulerReconciliationResult | None = None,
   audit: MocPhysicalFieldEulerReconciliationAudit | None = None,
   target_lineage_verified: bool = False,
+  target_composition_verified: bool = False,
   target_coverage_verified: bool = False,
   target_consumption_verified: bool = False,
   independent_audit_verified: bool = False,
@@ -271,10 +293,12 @@ def _result(
     source_closure=source_closure,
     candidate_closure_fingerprint=candidate_closure_fingerprint,
     target=target,
+    consumed_target=consumed_target,
     front_condition=front_condition,
     reconciliation=reconciliation,
     audit=audit,
     target_lineage_verified=target_lineage_verified,
+    target_composition_verified=target_composition_verified,
     target_coverage_verified=target_coverage_verified,
     target_consumption_verified=target_consumption_verified,
     independent_audit_verified=independent_audit_verified,
@@ -335,6 +359,8 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
   candidate_closure: MocReflectedDomainGlobalPhysicalClosureResult | None = None,
   reference_total_temperature_K: float = 1500.0,
   request_options: Mapping[str, Any] | None = None,
+  base_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
+  target_composition_seam_pressure_tolerance_fraction: float = 0.25,
 ) -> MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
   """Consume an exact frontier target in a fixed-front conservative solve.
 
@@ -342,7 +368,10 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
   optional fresh global candidate whose retained physical field supplies the
   fixed mesh and shock-front condition consumed by the conservative solver.
   Keeping those identities separate prevents a fresh candidate from being
-  mistaken for the closure that produced the target packet.
+  mistaken for the closure that produced the target packet.  When
+  ``base_target`` is supplied, it owns the full candidate station frame and
+  the exact frontier target is consumed only as an explicit bounded overlay;
+  the resulting profile is retained separately as ``consumed_target``.
   """
 
   if not isinstance(
@@ -442,6 +471,31 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       message=f'frontier target could not become a typed pressure profile: {error}',
     )
   ####
+  consumed_target = target
+  target_composition_verified = True
+  if base_target is not None:
+    try:
+      consumed_target = compose_moc_physical_field_euler_boundary_pressure_target(
+        base_target,
+        target,
+        source_id=f'{request.consumer_id}:explicit-overlay',
+        seam_pressure_tolerance_fraction=(
+          target_composition_seam_pressure_tolerance_fraction
+        ),
+      )
+    except (ArithmeticError, TypeError, ValueError) as error:
+      return _result(
+        MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
+        .TARGET_COMPOSITION_FAILURE,
+        request,
+        source_closure,
+        candidate_closure_fingerprint=candidate_fingerprint,
+        target=target,
+        target_lineage_verified=True,
+        message=f'frontier target overlay composition failed: {error}',
+      )
+    ####
+  ####
   try:
     condition = _build_front_condition(resolved_candidate)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -452,7 +506,9 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       source_closure,
       candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
+      consumed_target=consumed_target,
       target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
       message=f'source field could not produce a typed front condition: {error}',
     )
   ####
@@ -465,8 +521,10 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       source_closure,
       candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
+      consumed_target=consumed_target,
       front_condition=condition,
       target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
       message='request_options cannot replace the exact frontier pressure target',
     )
   ####
@@ -474,7 +532,7 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
     solver_request = MocPhysicalFieldEulerReconciliationRequest(
       shock_front_condition=condition,
       reference_total_temperature_K=reference_total_temperature_K,
-      ambient_pressure_target=target,
+      ambient_pressure_target=consumed_target,
       **options,
     )
     reconciliation = solve_moc_physical_field_euler_reconciliation(
@@ -488,8 +546,10 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       source_closure,
       candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
+      consumed_target=consumed_target,
       front_condition=condition,
       target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
       message=f'target-pressure conservative solve raised: {error}',
     )
   ####
@@ -504,9 +564,11 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       source_closure,
       candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
+      consumed_target=consumed_target,
       front_condition=condition,
       reconciliation=reconciliation,
       target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
       message=(
         'exact frontier target did not cover the fixed-field ambient path; '
         'no extrapolation or endpoint hold was attempted'
@@ -528,10 +590,12 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       source_closure,
       candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
+      consumed_target=consumed_target,
       front_condition=condition,
       reconciliation=reconciliation,
       audit=audit,
       target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
       target_coverage_verified=target_coverage_verified,
       target_consumption_verified=target_consumed,
       independent_audit_verified=independent_audit_verified,
@@ -546,10 +610,12 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       source_closure,
       candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
+      consumed_target=consumed_target,
       front_condition=condition,
       reconciliation=reconciliation,
       audit=audit,
       target_lineage_verified=True,
+      target_composition_verified=target_composition_verified,
       target_coverage_verified=target_coverage_verified,
       target_consumption_verified=target_consumed,
       independent_audit_verified=independent_audit_verified,
@@ -566,10 +632,12 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
     source_closure,
     candidate_closure_fingerprint=candidate_fingerprint,
     target=target,
+    consumed_target=consumed_target,
     front_condition=condition,
     reconciliation=reconciliation,
     audit=audit,
     target_lineage_verified=True,
+    target_composition_verified=target_composition_verified,
     target_coverage_verified=True,
     target_consumption_verified=True,
     independent_audit_verified=True,

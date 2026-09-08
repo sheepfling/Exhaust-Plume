@@ -62,6 +62,7 @@ from exhaust_plume.models.moc import (
   MocPhysicalFieldEulerReconciliationStatus,
   MocPhysicalFieldShockFrontConditionRequest,
   MocPhysicalFieldShockFrontConditionStatus,
+  compose_moc_physical_field_euler_boundary_pressure_target,
   MocTransonicTransitionStatus,
   MocReflectedDomainMixedRegimeBoundaryStatus,
   MocReflectedDomainPromotionEvidence,
@@ -1055,6 +1056,67 @@ def test_physical_field_euler_reconciliation_consumes_front_and_audits():
   assert audit.centerline_boundary_verified
   assert audit.promotion_flags_verified
   assert audit.physical_closure_verified is False
+####
+
+
+def test_physical_field_euler_reconciliation_composes_explicit_bounded_target_overlay():
+  closure = _global_physical_closure_for_mixed_regime()
+  condition = _front_condition_for_reconciliation(
+    closure,
+    'test-front-aligned-euler-pressure-target-overlay',
+  )
+  assert condition.field is not None
+  boundary = condition.field.ambient_boundary
+  base = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(point[0] for point in boundary.points_m),
+    static_pressure_Pa=tuple(boundary.static_pressure_Pa),
+    boundary_points_m=tuple(boundary.points_m),
+    tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    source_id='test-global-frontier-pressure-target-base',
+  )
+  overlay = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=base.x_stations_m[2:6],
+    static_pressure_Pa=base.static_pressure_Pa[2:6],
+    boundary_points_m=base.boundary_points_m[2:6],
+    tangent_rad=base.tangent_rad[2:6],
+    source_id='test-global-frontier-pressure-target-overlay',
+  )
+  composed = compose_moc_physical_field_euler_boundary_pressure_target(
+    base,
+    overlay,
+    source_id='test-global-frontier-pressure-target-composed',
+  )
+  assert composed.composition_mode == 'explicit-overlay'
+  assert composed.composition_base_source_id == base.source_id
+  assert composed.composition_overlay_source_id == overlay.source_id
+  assert composed.composition_seam_pressure_jump_fraction == pytest.approx(0.0)
+  assert composed.x_stations_m == base.x_stations_m
+  assert composed.static_pressure_Pa == pytest.approx(base.static_pressure_Pa)
+  assert composed.boundary_points_m == base.boundary_points_m
+  assert composed.tangent_rad == pytest.approx(base.tangent_rad)
+
+  candidate = solve_moc_physical_field_euler_reconciliation(
+    MocPhysicalFieldEulerReconciliationRequest(
+      shock_front_condition=condition,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_target=composed,
+    )
+  )
+  assert candidate.converged
+  assert candidate.ambient_pressure_target_coverage_verified
+  assert candidate.ambient_pressure_target_consumed
+
+  outside = replace(
+    overlay,
+    x_stations_m=(base.x_stations_m[0] - 0.01, *overlay.x_stations_m[1:]),
+  )
+  with pytest.raises(ValueError, match='contained by the base target'):
+    compose_moc_physical_field_euler_boundary_pressure_target(
+      base,
+      outside,
+      source_id='test-global-frontier-pressure-target-outside',
+    )
+  ####
 ####
 
 
@@ -6945,6 +7007,27 @@ def test_global_frontier_target_pressure_reconciliation_consumes_exact_target_wi
   assert resolved.downstream_boundary_closure_verified is False
   assert resolved.chain_promotion_blocked
   assert resolved.production_claim_allowed is False
+
+  base_target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=x_stations,
+    static_pressure_Pa=pressure,
+    boundary_points_m=points,
+    tangent_rad=tangent,
+    source_id='test-global-frontier-pressure-target-composition-base',
+  )
+  composed = run_reflected_domain_global_frontier_target_pressure_reconciliation(
+    exact_request,
+    closure,
+    base_target=base_target,
+  )
+  assert composed.status is (
+    MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
+    .CONVERGED_LOCAL_TARGET_PRESSURE_RECONCILIATION
+  )
+  assert composed.target_composition_verified
+  assert composed.consumed_target is not None
+  assert composed.consumed_target.composition_mode == 'explicit-overlay'
+  assert composed.converged_research_reconciliation
 
   uncovered = run_reflected_domain_global_frontier_target_pressure_reconciliation(
     request,

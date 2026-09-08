@@ -31,6 +31,7 @@ from exhaust_plume.models.moc.primitives import CharacteristicState
 __all__ = (
   'MocPhysicalFieldEulerReconciliationStatus',
   'MocPhysicalFieldEulerBoundaryPressureTarget',
+  'compose_moc_physical_field_euler_boundary_pressure_target',
   'MocPhysicalFieldEulerReconciliationRequest',
   'MocPhysicalFieldEulerReconciliationResult',
   'solve_moc_physical_field_euler_reconciliation',
@@ -55,6 +56,9 @@ _CHANNEL_NAMES = (
 PHYSICAL_FIELD_EULER_BOUNDARY_PRESSURE_TARGET_MODEL = (
   'research-solver-owned-frontier-pressure-target-v1'
 )
+PHYSICAL_FIELD_EULER_BOUNDARY_PRESSURE_TARGET_COMPOSITE_MODEL = (
+  'research-solver-owned-frontier-pressure-target-explicit-overlay-v1'
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +80,10 @@ class MocPhysicalFieldEulerBoundaryPressureTarget:
   model: str = PHYSICAL_FIELD_EULER_BOUNDARY_PRESSURE_TARGET_MODEL
   source_closure_fingerprint: str | None = None
   source_proposal_fingerprint: str | None = None
+  composition_mode: str = 'direct'
+  composition_base_source_id: str | None = None
+  composition_overlay_source_id: str | None = None
+  composition_seam_pressure_jump_fraction: float | None = None
 
   def __post_init__(self) -> None:
     stations = tuple(float(value) for value in self.x_stations_m)
@@ -130,6 +138,44 @@ class MocPhysicalFieldEulerBoundaryPressureTarget:
     if not model:
       raise ValueError('model must be non-empty')
     ####
+    composition_mode = str(self.composition_mode)
+    if composition_mode not in ('direct', 'explicit-overlay'):
+      raise ValueError(
+        "composition_mode must be 'direct' or 'explicit-overlay'"
+      )
+    ####
+    base_source_id = self.composition_base_source_id
+    overlay_source_id = self.composition_overlay_source_id
+    seam_jump = self.composition_seam_pressure_jump_fraction
+    if composition_mode == 'direct' and (
+      base_source_id is not None
+      or overlay_source_id is not None
+      or seam_jump is not None
+    ):
+      raise ValueError(
+        'direct pressure targets cannot carry overlay composition metadata'
+      )
+    ####
+    if composition_mode == 'explicit-overlay':
+      if not str(base_source_id or '') or not str(overlay_source_id or ''):
+        raise ValueError(
+          'explicit-overlay pressure targets require base and overlay source IDs'
+        )
+      ####
+      if seam_jump is None:
+        raise ValueError(
+          'explicit-overlay pressure targets require a seam pressure diagnostic'
+        )
+      ####
+    ####
+    if seam_jump is not None:
+      seam_jump = float(seam_jump)
+      if not isfinite(seam_jump) or seam_jump < 0.0:
+        raise ValueError(
+          'composition_seam_pressure_jump_fraction must be finite and nonnegative'
+        )
+      ####
+    ####
     closure_fingerprint = self.source_closure_fingerprint
     proposal_fingerprint = self.source_proposal_fingerprint
     if (closure_fingerprint is None) != (proposal_fingerprint is None):
@@ -160,6 +206,12 @@ class MocPhysicalFieldEulerBoundaryPressureTarget:
     object.__setattr__(self, 'tangent_rad', tangents)
     object.__setattr__(self, 'source_id', source_id)
     object.__setattr__(self, 'model', model)
+    object.__setattr__(self, 'composition_mode', composition_mode)
+    if composition_mode == 'explicit-overlay':
+      object.__setattr__(self, 'composition_base_source_id', str(base_source_id))
+      object.__setattr__(self, 'composition_overlay_source_id', str(overlay_source_id))
+      object.__setattr__(self, 'composition_seam_pressure_jump_fraction', seam_jump)
+    ####
     if closure_fingerprint is not None:
       object.__setattr__(
         self,
@@ -236,11 +288,276 @@ class MocPhysicalFieldEulerBoundaryPressureTarget:
       'tangent_rad': self.tangent_rad,
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'source_proposal_fingerprint': self.source_proposal_fingerprint,
+      'composition_mode': self.composition_mode,
+      'composition_base_source_id': self.composition_base_source_id,
+      'composition_overlay_source_id': self.composition_overlay_source_id,
+      'composition_seam_pressure_jump_fraction': (
+        self.composition_seam_pressure_jump_fraction
+      ),
       'sample_count': self.sample_count,
       'minimum_pressure_Pa': self.minimum_pressure_Pa,
       'maximum_pressure_Pa': self.maximum_pressure_Pa,
     }
   ####
+####
+
+
+def _interpolate_target_values(
+  x_stations_m: tuple[float, ...],
+  values: tuple[float, ...],
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> tuple[float, ...]:
+  """Interpolate one target-aligned value tuple without extrapolation."""
+
+  x_value = float(x_m)
+  tolerance = float(position_tolerance_m)
+  if (
+    x_value < x_stations_m[0] - tolerance
+    or x_value > x_stations_m[-1] + tolerance
+  ):
+    raise ValueError('target interpolation requested outside its station frame')
+  ####
+  for index, (first, second) in enumerate(zip(x_stations_m, x_stations_m[1:])):
+    if abs(x_value - first) <= tolerance:
+      return (values[index],)
+    ####
+    if x_value <= second + tolerance:
+      span = second - first
+      fraction = min(max((x_value - first) / span, 0.0), 1.0)
+      return (
+        values[index] + fraction * (values[index + 1] - values[index]),
+      )
+    ####
+  ####
+  return (values[-1],)
+####
+
+
+def _interpolate_target_points(
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> tuple[float, float]:
+  """Interpolate optional target geometry in the target station frame."""
+
+  if not target.boundary_points_m:
+    raise ValueError('target has no boundary-point metadata')
+  ####
+  x_value = float(x_m)
+  tolerance = float(position_tolerance_m)
+  if (
+    x_value < target.x_stations_m[0] - tolerance
+    or x_value > target.x_stations_m[-1] + tolerance
+  ):
+    raise ValueError('target point requested outside its station frame')
+  ####
+  for index, (first, second) in enumerate(
+    zip(target.x_stations_m, target.x_stations_m[1:])
+  ):
+    if abs(x_value - first) <= tolerance:
+      return target.boundary_points_m[index]
+    ####
+    if x_value <= second + tolerance:
+      span = second - first
+      fraction = min(max((x_value - first) / span, 0.0), 1.0)
+      first_point = target.boundary_points_m[index]
+      second_point = target.boundary_points_m[index + 1]
+      return (
+        first_point[0] + fraction * (second_point[0] - first_point[0]),
+        first_point[1] + fraction * (second_point[1] - first_point[1]),
+      )
+    ####
+  ####
+  return target.boundary_points_m[-1]
+####
+
+
+def _interpolate_target_scalar(
+  x_stations_m: tuple[float, ...],
+  values: tuple[float, ...],
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> float:
+  return _interpolate_target_values(
+    x_stations_m,
+    values,
+    x_m,
+    position_tolerance_m=position_tolerance_m,
+  )[0]
+####
+
+
+def compose_moc_physical_field_euler_boundary_pressure_target(
+  base_target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  overlay_target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  *,
+  source_id: str,
+  position_tolerance_m: float = 1.0e-8,
+  seam_pressure_tolerance_fraction: float = 0.25,
+) -> MocPhysicalFieldEulerBoundaryPressureTarget:
+  """Compose an explicit bounded pressure-target overlay.
+
+  ``base_target`` owns the complete retained boundary station frame.  The
+  ``overlay_target`` is consumed only on its declared interval; outside that
+  interval the base profile is sampled.  The overlay must be contained by the
+  base frame, so this helper never extrapolates or invents an endpoint hold.
+  The resulting target is explicitly marked as an overlay and retains both
+  source IDs.  It remains a fixed-front research input; it is not a global
+  geometry update or a free-boundary solve.
+  """
+
+  if not isinstance(base_target, MocPhysicalFieldEulerBoundaryPressureTarget):
+    raise TypeError(
+      'base_target must be a MocPhysicalFieldEulerBoundaryPressureTarget'
+    )
+  ####
+  if not isinstance(overlay_target, MocPhysicalFieldEulerBoundaryPressureTarget):
+    raise TypeError(
+      'overlay_target must be a MocPhysicalFieldEulerBoundaryPressureTarget'
+    )
+  ####
+  try:
+    tolerance = float(position_tolerance_m)
+    seam_tolerance = float(seam_pressure_tolerance_fraction)
+  except (TypeError, ValueError) as error:
+    raise ValueError(
+      'position and seam tolerances must be numeric'
+    ) from error
+  ####
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  ####
+  if not isfinite(seam_tolerance) or seam_tolerance < 0.0:
+    raise ValueError(
+      'seam_pressure_tolerance_fraction must be finite and nonnegative'
+    )
+  ####
+  if not str(source_id):
+    raise ValueError('source_id must be non-empty')
+  ####
+  base_min = base_target.x_stations_m[0]
+  base_max = base_target.x_stations_m[-1]
+  overlay_min = overlay_target.x_stations_m[0]
+  overlay_max = overlay_target.x_stations_m[-1]
+  if (
+    overlay_min < base_min - tolerance
+    or overlay_max > base_max + tolerance
+  ):
+    raise ValueError(
+      'overlay target must be contained by the base target station frame; '
+      'no extrapolation is allowed'
+    )
+  ####
+  seam_jumps: list[float] = []
+  for seam_x in (overlay_min, overlay_max):
+    is_interior = (
+      seam_x > base_min + tolerance
+      and seam_x < base_max - tolerance
+    )
+    if not is_interior:
+      continue
+    ####
+    base_pressure = base_target.pressure_at_x(
+      seam_x,
+      position_tolerance_m=tolerance,
+    )
+    overlay_pressure = overlay_target.pressure_at_x(
+      seam_x,
+      position_tolerance_m=tolerance,
+    )
+    if base_pressure is None or overlay_pressure is None:
+      raise ValueError('target composition seam is outside a declared profile')
+    ####
+    seam_jumps.append(
+      abs(float(overlay_pressure) - float(base_pressure))
+      / max(float(overlay_pressure), float(base_pressure))
+    )
+  ####
+  maximum_seam_jump = max(seam_jumps, default=0.0)
+  if maximum_seam_jump > seam_tolerance:
+    raise ValueError(
+      'overlay target has a pressure discontinuity at its declared seam: '
+      f'{maximum_seam_jump} > {seam_tolerance}'
+    )
+  ####
+  stations: list[float] = []
+  for value in sorted((*base_target.x_stations_m, *overlay_target.x_stations_m)):
+    if not stations or abs(value - stations[-1]) > tolerance:
+      stations.append(float(value))
+    ####
+  ####
+  pressures: list[float] = []
+  for station in stations:
+    in_overlay = (
+      overlay_min - tolerance <= station <= overlay_max + tolerance
+    )
+    active = overlay_target if in_overlay else base_target
+    pressure = active.pressure_at_x(
+      station,
+      position_tolerance_m=tolerance,
+    )
+    if pressure is None:
+      raise ValueError('composed target sampling left the declared station frame')
+    ####
+    pressures.append(float(pressure))
+  ####
+  boundary_points: tuple[tuple[float, float], ...] = ()
+  tangent: tuple[float, ...] = ()
+  if base_target.boundary_points_m and overlay_target.boundary_points_m:
+    composed_points: list[tuple[float, float]] = []
+    for station in stations:
+      active = (
+        overlay_target
+        if overlay_min - tolerance <= station <= overlay_max + tolerance
+        else base_target
+      )
+      composed_points.append(
+        _interpolate_target_points(
+          active,
+          station,
+          position_tolerance_m=tolerance,
+        )
+      )
+    ####
+    boundary_points = tuple(composed_points)
+  ####
+  if base_target.tangent_rad and overlay_target.tangent_rad:
+    tangent = tuple(
+      _interpolate_target_scalar(
+        (
+          overlay_target.x_stations_m
+          if overlay_min - tolerance <= station <= overlay_max + tolerance
+          else base_target.x_stations_m
+        ),
+        (
+          overlay_target.tangent_rad
+          if overlay_min - tolerance <= station <= overlay_max + tolerance
+          else base_target.tangent_rad
+        ),
+        station,
+        position_tolerance_m=tolerance,
+      )
+      for station in stations
+    )
+  ####
+  return MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(stations),
+    static_pressure_Pa=tuple(pressures),
+    source_id=str(source_id),
+    boundary_points_m=boundary_points,
+    tangent_rad=tangent,
+    model=PHYSICAL_FIELD_EULER_BOUNDARY_PRESSURE_TARGET_COMPOSITE_MODEL,
+    source_closure_fingerprint=overlay_target.source_closure_fingerprint,
+    source_proposal_fingerprint=overlay_target.source_proposal_fingerprint,
+    composition_mode='explicit-overlay',
+    composition_base_source_id=base_target.source_id,
+    composition_overlay_source_id=overlay_target.source_id,
+    composition_seam_pressure_jump_fraction=maximum_seam_jump,
+  )
 ####
 
 
