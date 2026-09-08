@@ -1813,20 +1813,24 @@ remain open.
 
 ### Long-running execution checkpoint — 2026-09-08
 
-The active integration candidate is the clean, pushed branch
-`work/washed-integral-visual` at `c1615a8`.  `main` remains untouched.  The
-latest documentation slice corrected the validation provenance language: the
-repository retains the historical Version 8 intake report, but the raw ZIP,
-the separately named alignment archive, and provider-bound measurement-space
-outputs are not present in the current workspace.  No committed report or
-embedded overlay is being treated as a substitute for those inputs.
+The active integration candidate at this checkpoint is the clean, pushed
+branch `work/washed-integral-visual` at `f74baa1`.  `main` remains untouched.
+The latest code slice corrected a scope-marker omission in the downstream
+solver without changing the fidelity boundary.  The repository retains the
+historical Version 8 intake report, but the raw ZIP, the separately named
+alignment archive, and provider-bound measurement-space outputs are not
+present in the current workspace.  No committed report or embedded overlay is
+being treated as a substitute for those inputs.
 
-Local evidence through this checkpoint includes the full planar-MOC suite
-(466 passed), focused frontier/reconciliation and coupled-refinement tests,
+Local evidence through this checkpoint includes the full test suite
+(`1132 passed`), focused frontier/reconciliation and coupled-refinement tests,
 Ruff, Pyright, lane partitioning, public-contract checks, Markdown policy,
 diff checks, and offline wheel/install smoke.  GitHub CI for this exact
-candidate is still queued/running at run `34198993264`; its result must be recorded
-before this checkpoint can become a release freeze.
+candidate passed all four Python matrix jobs in run `34201987974`.  This is a
+green integration checkpoint, not a release freeze: the release manifest
+still reports `release_ready=false`, and its freeze/validated-code references
+must be refreshed only after the final physics, validation, documentation, and
+packaging slices are complete.
 
 The next implementation slice remains `P2.2`, not product promotion.  A
 solver-owned placement with no pressure target is a valid local handoff, but
