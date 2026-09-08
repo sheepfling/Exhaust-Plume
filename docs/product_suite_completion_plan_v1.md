@@ -2160,3 +2160,16 @@ block even when all local fit and measurement gates pass.  The remaining P3
 gate is an accepted, disjoint physical length comparison from the validation
 handoff; the missing archive/provider evidence cannot be substituted with
 synthetic data.
+
+### Candidate packaging checkpoint — 2026-09-08 (`eb56a66`)
+
+The exact shock-cell-fit refinement candidate ``eb56a66`` passes
+``python3 scripts/check_build.py --offline``.  The wheel contains the new
+typed refinement operator, and the installed smoke completes with only the
+known legacy expansion-fan warnings and expected pressure-target diagnostic.
+The checkout remains clean after the build.
+
+This is packaging evidence for the research checkpoint, not release evidence:
+the canonical reflected/mixed-regime closure, accepted physical cell-length
+comparison, provider-bound VIS/SIG/RAY/FPA comparisons, validation archive,
+and final release freeze remain open.
