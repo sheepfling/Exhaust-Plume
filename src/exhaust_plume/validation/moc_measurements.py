@@ -19336,6 +19336,10 @@ class MocReflectedDomainDownstreamBoundaryMeasurement:
   physical_closure_verified: bool
   chain_promotion_blocked: bool
   production_claim_allowed: bool
+  ambient_pressure_profile_Pa: tuple[float, ...] = ()
+  ambient_pressure_target_source: str | None = None
+  ambient_pressure_target_consumed: bool = False
+  ambient_pressure_target_geometry_consumed: bool = False
   maximum_coordinate_residual_m: float | None = None
   maximum_static_pressure_residual_Pa: float | None = None
   maximum_pressure_residual: float | None = None
@@ -19380,6 +19384,34 @@ class MocReflectedDomainDownstreamBoundaryMeasurement:
     if self.segment_count > max(0, self.sample_count - 1):
       raise ValueError('segment_count cannot exceed the boundary segment count')
     ####
+    ambient_pressure_profile = tuple(
+      float(value) for value in self.ambient_pressure_profile_Pa
+    )
+    if any(
+      not isfinite(value) or value <= 0.0
+      for value in ambient_pressure_profile
+    ):
+      raise ValueError(
+        'ambient_pressure_profile_Pa must contain finite positive values'
+      )
+    ####
+    if ambient_pressure_profile and len(ambient_pressure_profile) != self.sample_count:
+      raise ValueError(
+        'ambient_pressure_profile_Pa must match the boundary sample count'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'ambient_pressure_profile_Pa',
+      ambient_pressure_profile,
+    )
+    if self.ambient_pressure_target_source is not None:
+      object.__setattr__(
+        self,
+        'ambient_pressure_target_source',
+        str(self.ambient_pressure_target_source),
+      )
+    ####
     for name in (
       'model_verified',
       'status_verified',
@@ -19392,6 +19424,8 @@ class MocReflectedDomainDownstreamBoundaryMeasurement:
       'physical_closure_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
+      'ambient_pressure_target_consumed',
+      'ambient_pressure_target_geometry_consumed',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -19432,6 +19466,12 @@ class MocReflectedDomainDownstreamBoundaryMeasurement:
       'boundary_status': self.boundary_status,
       'model': self.model,
       'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'ambient_pressure_profile_Pa': list(self.ambient_pressure_profile_Pa),
+      'ambient_pressure_target_source': self.ambient_pressure_target_source,
+      'ambient_pressure_target_consumed': self.ambient_pressure_target_consumed,
+      'ambient_pressure_target_geometry_consumed': (
+        self.ambient_pressure_target_geometry_consumed
+      ),
       'counts': {
         'sample_count': self.sample_count,
         'segment_count': self.segment_count,
@@ -19481,6 +19521,10 @@ def _reflected_domain_downstream_boundary_measurement_failure(
   tangent_lineage_verified: bool = False,
   reported_residuals_verified: bool = False,
   research_only_verified: bool = False,
+  ambient_pressure_profile_Pa: tuple[float, ...] = (),
+  ambient_pressure_target_source: str | None = None,
+  ambient_pressure_target_consumed: bool = False,
+  ambient_pressure_target_geometry_consumed: bool = False,
   maximum_coordinate_residual_m: float | None = None,
   maximum_static_pressure_residual_Pa: float | None = None,
   maximum_pressure_residual: float | None = None,
@@ -19505,6 +19549,12 @@ def _reflected_domain_downstream_boundary_measurement_failure(
     physical_closure_verified=False,
     chain_promotion_blocked=True,
     production_claim_allowed=False,
+    ambient_pressure_profile_Pa=ambient_pressure_profile_Pa,
+    ambient_pressure_target_source=ambient_pressure_target_source,
+    ambient_pressure_target_consumed=ambient_pressure_target_consumed,
+    ambient_pressure_target_geometry_consumed=(
+      ambient_pressure_target_geometry_consumed
+    ),
     maximum_coordinate_residual_m=maximum_coordinate_residual_m,
     maximum_static_pressure_residual_Pa=maximum_static_pressure_residual_Pa,
     maximum_pressure_residual=maximum_pressure_residual,
@@ -19578,6 +19628,7 @@ def measure_moc_reflected_domain_downstream_boundary(
   model = boundary.model
   boundary_status = boundary.status.value
   ambient_pressure = boundary.ambient_pressure_Pa
+  ambient_pressure_profile = tuple(boundary.ambient_pressure_profile_Pa)
 
   status_verified = boundary.status in (
     MocReflectedDomainDownstreamBoundaryStatus.RESEARCH_COMPRESSION_ENVELOPE,
@@ -19658,14 +19709,22 @@ def measure_moc_reflected_domain_downstream_boundary(
 
   static_pressure_residuals: list[float] = []
   expected_pressure_residuals: list[float] = []
-  if ambient_pressure is not None:
+  pressure_targets = (
+    ambient_pressure_profile
+    if ambient_pressure_profile
+    else (() if ambient_pressure is None else (ambient_pressure,) * sample_count)
+  )
+  if pressure_targets:
     try:
-      ambient_pressure_value = float(ambient_pressure)
-      if isfinite(ambient_pressure_value) and ambient_pressure_value > 0.0:
-        for state, total_pressure, static_pressure in zip(
+      if len(pressure_targets) == sample_count and all(
+        isfinite(float(value)) and float(value) > 0.0
+        for value in pressure_targets
+      ):
+        for state, total_pressure, static_pressure, target_pressure in zip(
           states,
           total_pressures,
           static_pressures,
+          pressure_targets,
           strict=True,
         ):
           expected_static_pressure = (
@@ -19679,8 +19738,8 @@ def measure_moc_reflected_domain_downstream_boundary(
           )
           expected_pressure_residuals.append(
             abs(
-              (expected_static_pressure - ambient_pressure_value)
-              / ambient_pressure_value
+              (expected_static_pressure - float(target_pressure))
+              / float(target_pressure)
             )
           )
         ####
@@ -19798,6 +19857,12 @@ def measure_moc_reflected_domain_downstream_boundary(
     tangent_lineage_verified=tangent_lineage_verified,
     reported_residuals_verified=reported_residuals_verified,
     research_only_verified=research_only_verified,
+    ambient_pressure_profile_Pa=ambient_pressure_profile,
+    ambient_pressure_target_source=boundary.ambient_pressure_target_source,
+    ambient_pressure_target_consumed=boundary.ambient_pressure_target_consumed,
+    ambient_pressure_target_geometry_consumed=(
+      boundary.ambient_pressure_target_geometry_consumed
+    ),
     maximum_coordinate_residual_m=maximum_coordinate_residual,
     maximum_static_pressure_residual_Pa=maximum_static_pressure_residual,
     maximum_pressure_residual=maximum_pressure_residual,

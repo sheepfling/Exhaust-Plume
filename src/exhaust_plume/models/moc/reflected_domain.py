@@ -75,6 +75,9 @@ from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryCurveResult,
   fit_euler_consistent_shock_boundary_from_geometry,
 )
+from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerBoundaryPressureTarget,
+)
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
@@ -2305,6 +2308,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
   global_remesh: MocReflectedDomainGlobalShockRemeshResult,
   *,
   selected_attempt_index: int | None = None,
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   branch: ShockBranch = ShockBranch.WEAK,
   position_tolerance_m: float = 1.0e-9,
   invariant_tolerance: float = 1.0e-10,
@@ -2379,6 +2383,16 @@ def solve_reflected_domain_global_euler_shock_boundary(
     return failure(
       MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
       'global_remesh must be a MocReflectedDomainGlobalShockRemeshResult',
+    )
+  ####
+  if ambient_pressure_target is not None and not isinstance(
+    ambient_pressure_target,
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  ):
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.INVALID_INPUT,
+      'ambient_pressure_target must be a '
+      'MocPhysicalFieldEulerBoundaryPressureTarget or None',
     )
   ####
   if not isinstance(branch, ShockBranch):
@@ -2684,6 +2698,7 @@ def solve_reflected_domain_global_euler_shock_boundary(
     physical_field = assemble_euler_ambient_physical_field(
       curve,
       ambient_pressure,
+      ambient_pressure_target=ambient_pressure_target,
       incoming_handoff=(
         source_band.incoming_handoff
         if source_band.incoming_handoff

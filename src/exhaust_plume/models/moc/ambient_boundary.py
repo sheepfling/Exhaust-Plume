@@ -33,6 +33,7 @@ __all__ = (
   'MocAmbientBoundaryStatus',
   'MocAmbientPressureBoundaryResult',
   'validate_ambient_pressure_boundary',
+  'validate_ambient_pressure_profile_boundary',
   'validate_post_shock_ambient_boundary',
 )
 
@@ -87,6 +88,8 @@ class MocAmbientPressureBoundaryResult:
   maximum_absolute_pressure_residual: float | None
   maximum_absolute_tangent_residual: float | None
   message: str = ''
+  ambient_pressure_profile_Pa: tuple[float, ...] = ()
+  ambient_pressure_target_source: str | None = None
 
   @property
   def converged(self) -> bool:
@@ -114,6 +117,8 @@ class MocAmbientPressureBoundaryResult:
       'ambient_pressure_Pa': self.ambient_pressure_Pa,
       'maximum_absolute_pressure_residual': self.maximum_absolute_pressure_residual,
       'maximum_absolute_tangent_residual': self.maximum_absolute_tangent_residual,
+      'ambient_pressure_profile_Pa': self.ambient_pressure_profile_Pa,
+      'ambient_pressure_target_source': self.ambient_pressure_target_source,
       'message': self.message,
     }
   ####
@@ -299,6 +304,205 @@ def validate_ambient_pressure_boundary(
       if status is MocAmbientBoundaryStatus.CONVERGED
       else 'ambient-pressure boundary streamline-tangent residual exceeded tolerance'
     ),
+  )
+####
+
+
+def validate_ambient_pressure_profile_boundary(
+  samples: Sequence[MocAmbientBoundarySample],
+  target_pressure_Pa: Sequence[float],
+  *,
+  target_source: str | None = None,
+  position_tolerance_m: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+) -> MocAmbientPressureBoundaryResult:
+  """Validate a solver-marched boundary against a pressure profile.
+
+  Unlike :func:`validate_ambient_pressure_boundary`, this contract compares
+  each state to the target pressure at its own retained station.  The points
+  and tangents remain solver-owned; the profile is a boundary condition, not
+  a geometry injection.  The result retains the sampled target explicitly so
+  downstream audits can distinguish profile consumption from a scalar ambient
+  check.
+  """
+
+  resolved = tuple(samples)
+  target = tuple(float(value) for value in target_pressure_Pa)
+  source = None if target_source is None else str(target_source)
+
+  def failure(
+    status: MocAmbientBoundaryStatus,
+    message: str,
+    *,
+    retained: Sequence[MocAmbientBoundarySample] = (),
+    static: Sequence[float] = (),
+    residuals: Sequence[float] = (),
+    tangents: Sequence[float] = (),
+  ) -> MocAmbientPressureBoundaryResult:
+    return MocAmbientPressureBoundaryResult(
+      status=status,
+      points_m=tuple(sample.point_m for sample in retained),
+      states=tuple(sample.state for sample in retained),
+      total_pressure_Pa=tuple(
+        float(sample.total_pressure_Pa) for sample in retained
+      ),
+      static_pressure_Pa=tuple(float(value) for value in static),
+      pressure_residuals=tuple(float(value) for value in residuals),
+      tangent_residuals=tuple(float(value) for value in tangents),
+      ambient_pressure_Pa=None,
+      maximum_absolute_pressure_residual=max(
+        (abs(float(value)) for value in residuals),
+        default=None,
+      ),
+      maximum_absolute_tangent_residual=max(
+        (abs(float(value)) for value in tangents),
+        default=None,
+      ),
+      message=message,
+      ambient_pressure_profile_Pa=target,
+      ambient_pressure_target_source=source,
+    )
+  ####
+
+  if len(resolved) < 2:
+    return failure(
+      MocAmbientBoundaryStatus.INVALID_INPUT,
+      'profile-matched ambient boundary requires at least two ordered samples',
+    )
+  ####
+  if len(target) != len(resolved):
+    return failure(
+      MocAmbientBoundaryStatus.INVALID_INPUT,
+      'profile-matched ambient boundary requires one target pressure per sample',
+      retained=resolved,
+    )
+  ####
+  if any(not isfinite(value) or value <= 0.0 for value in target):
+    return failure(
+      MocAmbientBoundaryStatus.INVALID_INPUT,
+      'profile target pressures must be finite and positive',
+      retained=resolved,
+    )
+  ####
+  for name, value in (
+    ('position_tolerance_m', position_tolerance_m),
+    ('pressure_tolerance', pressure_tolerance),
+    ('tangent_tolerance', tangent_tolerance),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+    ####
+  ####
+  if any(not isinstance(sample, MocAmbientBoundarySample) for sample in resolved):
+    return failure(
+      MocAmbientBoundaryStatus.INVALID_INPUT,
+      'ambient boundary samples have an invalid type',
+    )
+  ####
+  gamma = resolved[0].state.gamma
+  for index, sample in enumerate(resolved):
+    if abs(sample.state.gamma - gamma) > pressure_tolerance:
+      return failure(
+        MocAmbientBoundaryStatus.INVALID_INPUT,
+        f'ambient boundary sample {index} uses a different gamma',
+        retained=resolved[:index],
+      )
+    ####
+    if (
+      abs(sample.state.x_m - sample.point_m[0]) > position_tolerance_m
+      or abs(sample.state.y_m - sample.point_m[1]) > position_tolerance_m
+    ):
+      return failure(
+        MocAmbientBoundaryStatus.STATE_FAILURE,
+        f'ambient boundary state {index} does not lie on its sample point',
+        retained=resolved[:index],
+      )
+    ####
+    if sample.point_m[1] < -position_tolerance_m:
+      return failure(
+        MocAmbientBoundaryStatus.GEOMETRY_FAILURE,
+        f'ambient boundary sample {index} crossed the symmetry line',
+        retained=resolved[:index],
+      )
+    ####
+    if index and sample.point_m[0] <= resolved[index - 1].point_m[0] + position_tolerance_m:
+      return failure(
+        MocAmbientBoundaryStatus.GEOMETRY_FAILURE,
+        f'ambient boundary sample {index} is not strictly downstream in x',
+        retained=resolved[:index],
+      )
+    ####
+  ####
+  static_pressures = tuple(
+    float(sample.total_pressure_Pa)
+    / (1.0 + 0.5 * (sample.state.gamma - 1.0) * sample.state.mach**2)
+    ** (sample.state.gamma / (sample.state.gamma - 1.0))
+    for sample in resolved
+  )
+  pressure_residuals = tuple(
+    (pressure - target_value) / target_value
+    for pressure, target_value in zip(static_pressures, target, strict=True)
+  )
+  tangent_residuals = tuple(
+    sin(
+      atan2(
+        second.point_m[1] - first.point_m[1],
+        second.point_m[0] - first.point_m[0],
+      )
+      - 0.5 * (first.state.theta_rad + second.state.theta_rad)
+    )
+    for first, second in zip(resolved, resolved[1:])
+  )
+  maximum_pressure = max((abs(value) for value in pressure_residuals), default=None)
+  maximum_tangent = max((abs(value) for value in tangent_residuals), default=None)
+  if maximum_pressure is None or maximum_pressure > pressure_tolerance:
+    return failure(
+      MocAmbientBoundaryStatus.PRESSURE_FAILURE,
+      'profile-matched ambient boundary pressure residual exceeded tolerance',
+      retained=resolved,
+      static=static_pressures,
+      residuals=pressure_residuals,
+      tangents=tangent_residuals,
+    )
+  ####
+  tangent_cosines = tuple(
+    cos(
+      atan2(
+        second.point_m[1] - first.point_m[1],
+        second.point_m[0] - first.point_m[0],
+      )
+      - 0.5 * (first.state.theta_rad + second.state.theta_rad)
+    )
+    for first, second in zip(resolved, resolved[1:])
+  )
+  status = (
+    MocAmbientBoundaryStatus.CONVERGED
+    if (
+      maximum_tangent is not None
+      and maximum_tangent <= tangent_tolerance
+      and all(value > 0.0 for value in tangent_cosines)
+    )
+    else MocAmbientBoundaryStatus.TANGENT_FAILURE
+  )
+  return MocAmbientPressureBoundaryResult(
+    status=status,
+    points_m=tuple(sample.point_m for sample in resolved),
+    states=tuple(sample.state for sample in resolved),
+    total_pressure_Pa=tuple(sample.total_pressure_Pa for sample in resolved),
+    static_pressure_Pa=static_pressures,
+    pressure_residuals=pressure_residuals,
+    tangent_residuals=tangent_residuals,
+    ambient_pressure_Pa=None,
+    maximum_absolute_pressure_residual=maximum_pressure,
+    maximum_absolute_tangent_residual=maximum_tangent,
+    message=(
+      ''
+      if status is MocAmbientBoundaryStatus.CONVERGED
+      else 'profile-matched ambient boundary streamline tangency exceeded tolerance'
+    ),
+    ambient_pressure_profile_Pa=target,
+    ambient_pressure_target_source=source,
   )
 ####
 

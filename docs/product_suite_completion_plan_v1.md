@@ -2318,3 +2318,33 @@ residuals.  A candidate-selection score or fixed-front overlay cannot satisfy
 that gate.  Only after this operator closes across disjoint cases can the
 accepted physical shock-cell fit, continued-chain handoff, provider-bound
 VIS/SIG/RAY/FPA matrix, and final release manifest advance.
+
+### Solver-owned global pressure-profile consumer checkpoint — 2026-09-08
+
+The next boundary-condition seam is now implemented and independently
+regressed through the exact global ambient march.  The typed
+``op.moc.reflected-domain.global-frontier-boundary-condition`` runner builds
+an explicit pressure-profile target from one lineage-verified frontier
+request, fresh-solves the global physical closure, and requires every
+solver-produced ambient station to be covered by the target.  The marching
+solver re-samples the pressure profile at its own downstream ordinates and
+iterates pressure/tangency together; target boundary ordinates are never
+read or injected.
+
+The pressure profile and source lineage now survive the ambient boundary,
+Euler physical field, global closure, downstream-boundary result, and
+independent downstream measurement reports.  The focused boundary-condition
+regression, all 126 reflected-domain tests, and the ambient/physical-field
+and measurement regression set (95 tests) pass.  Scalar ambient-pressure
+behavior remains green.  The result is still explicitly research-only:
+global fixed-point coupling, canonical mixed-regime/free-boundary closure,
+accepted physical shock-cell lengths, independent refinement across cases,
+external provider validation, chain promotion, and release readiness remain
+closed.
+
+The immediate next physics slice is to add the independent residual and
+refinement evidence around this pressure-conditioned global solve across
+disjoint cases, then bind only accepted solver-owned fields to the production
+shock-cell fitter.  The missing raw V8 validation archive and separate
+alignment archive remain release blockers; synthetic substitutes are not
+acceptable.

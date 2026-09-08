@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
@@ -40,6 +40,12 @@ from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
   assemble_ambient_boundary_post_shock_field_with_centerline_reflection,
 )
+
+if TYPE_CHECKING:
+  from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  )
+####
 from exhaust_plume.models.moc.post_shock import (
   MocPostShockBoundaryState,
   MocShockBoundaryFitResult,
@@ -377,6 +383,7 @@ def assemble_euler_ambient_physical_field(
   shock_boundary: MocEulerShockBoundaryCurveResult,
   ambient_pressure_Pa: float,
   *,
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   target_centerline_y_m: float = 0.0,
   position_tolerance_m: float = 1.0e-10,
@@ -401,6 +408,27 @@ def assemble_euler_ambient_physical_field(
       field=None,
       ambient_pressure_Pa=None,
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
+    )
+  ####
+  if ambient_pressure_target is not None:
+    from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    )
+  ####
+  if ambient_pressure_target is not None and not isinstance(
+    ambient_pressure_target,
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  ):
+    return _failure(
+      MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT,
+      shock_boundary=shock_boundary,
+      ambient_march=None,
+      field=None,
+      ambient_pressure_Pa=None,
+      message=(
+        'ambient_pressure_target must be a '
+        'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      ),
     )
   ####
   try:
@@ -509,6 +537,7 @@ def assemble_euler_ambient_physical_field(
     ambient_march = march_euler_ambient_boundary(
       shock_boundary,
       ambient_pressure,
+      ambient_pressure_target=ambient_pressure_target,
       target_centerline_y_m=target_y,
       position_tolerance_m=position_tolerance,
       invariant_tolerance=invariant_tolerance_value,
@@ -557,6 +586,7 @@ def assemble_euler_ambient_physical_field(
         for sample in ambient_march.boundary_samples
       ),
       ambient_pressure,
+      ambient_pressure_target=ambient_pressure_target,
       incoming_handoff=(
         resolved_incoming_handoff if incoming_handoff is not None else None
       ),

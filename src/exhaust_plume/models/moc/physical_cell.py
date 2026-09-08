@@ -22,6 +22,7 @@ from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundaryStatus,
   MocAmbientPressureBoundaryResult,
   validate_ambient_pressure_boundary,
+  validate_ambient_pressure_profile_boundary,
 )
 from exhaust_plume.models.moc.ambient_shock_strip import (
   MocAmbientShockStripResult,
@@ -73,6 +74,9 @@ from exhaust_plume.models.moc.terminal_patch_solver import (
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 if TYPE_CHECKING:
+  from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  )
   from exhaust_plume.models.moc.shock_chain import MocTerminalShockCellFieldResult
 ####
 
@@ -2271,6 +2275,7 @@ def assemble_ambient_boundary_post_shock_field(
   ambient_boundary: Sequence[MocAmbientBoundarySample],
   ambient_pressure_Pa: float,
   *,
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   centerline_reflection: bool = False,
   position_tolerance_m: float = 1.0e-10,
@@ -2312,6 +2317,20 @@ def assemble_ambient_boundary_post_shock_field(
   ####
   if not isfinite(float(ambient_pressure_Pa)) or ambient_pressure_Pa <= 0.0:
     raise ValueError('ambient_pressure_Pa must be finite and positive')
+  ####
+  if ambient_pressure_target is not None:
+    from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    )
+  ####
+  if ambient_pressure_target is not None and not isinstance(
+    ambient_pressure_target,
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  ):
+    raise TypeError(
+      'ambient_pressure_target must be a '
+      'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+    )
   ####
   if not isinstance(centerline_reflection, bool):
     raise TypeError('centerline_reflection must be a bool')
@@ -2454,13 +2473,45 @@ def assemble_ambient_boundary_post_shock_field(
       message='shock-fit upstream coupling does not match the fitted shock samples',
     )
   ####
-  ambient_result = validate_ambient_pressure_boundary(
-    samples,
-    ambient_pressure_Pa,
-    position_tolerance_m=position_tolerance_m,
-    pressure_tolerance=pressure_tolerance,
-    tangent_tolerance=tangent_tolerance,
-  )
+  if ambient_pressure_target is None:
+    ambient_result = validate_ambient_pressure_boundary(
+      samples,
+      ambient_pressure_Pa,
+      position_tolerance_m=position_tolerance_m,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+    )
+  else:
+    target_pressures: list[float] = []
+    for sample in samples:
+      target_pressure = ambient_pressure_target.pressure_at_x(
+        sample.point_m[0],
+        position_tolerance_m=position_tolerance_m,
+      )
+      if target_pressure is None:
+        ambient_result = _empty_ambient_boundary(float(ambient_pressure_Pa))
+        return _failure(
+          MocPhysicalPostShockFieldStatus.AMBIENT_BOUNDARY_FAILURE,
+          ambient_boundary=ambient_result,
+          shock_points=tuple(sample.point_m for sample in shock_samples),
+          ambient_points=tuple(sample.point_m for sample in samples),
+          message=(
+            'ambient pressure target does not cover every retained boundary '
+            'station; no extrapolation was attempted'
+          ),
+        )
+      ####
+      target_pressures.append(float(target_pressure))
+    ####
+    ambient_result = validate_ambient_pressure_profile_boundary(
+      samples,
+      target_pressures,
+      target_source=ambient_pressure_target.source_id,
+      position_tolerance_m=position_tolerance_m,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=tangent_tolerance,
+    )
+  ####
   if not ambient_result.converged:
     return _failure(
       MocPhysicalPostShockFieldStatus.AMBIENT_BOUNDARY_FAILURE,
@@ -3126,6 +3177,7 @@ def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
   ambient_boundary: Sequence[MocAmbientBoundarySample],
   ambient_pressure_Pa: float,
   *,
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
@@ -3149,6 +3201,7 @@ def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
     shock_fit,
     ambient_boundary,
     ambient_pressure_Pa,
+    ambient_pressure_target=ambient_pressure_target,
     incoming_handoff=incoming_handoff,
     centerline_reflection=True,
     position_tolerance_m=position_tolerance_m,

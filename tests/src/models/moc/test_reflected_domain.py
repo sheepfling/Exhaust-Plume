@@ -236,6 +236,10 @@ from exhaust_plume.validation.moc_global_coupled_frontier_feedback import (
   MocReflectedDomainGlobalCoupledFrontierFeedbackStatus,
   run_reflected_domain_global_coupled_frontier_feedback,
 )
+from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
+  MocReflectedDomainGlobalFrontierBoundaryConditionStatus,
+  run_reflected_domain_global_frontier_boundary_conditioned_resolve,
+)
 from exhaust_plume.validation.moc_coupled_euler_pressure_continuation import (
   MocReflectedDomainCoupledEulerPressureContinuationStatus,
   measure_reflected_domain_coupled_euler_pressure_continuation,
@@ -7978,4 +7982,63 @@ def test_global_frontier_target_pressure_reconciliation_consumes_exact_target_wi
   assert uncovered.target_consumption_verified is False
   assert uncovered.reconciliation is not None
   assert uncovered.reconciliation.converged is False
+####
+
+
+def test_global_frontier_boundary_condition_consumes_pressure_with_solver_owned_geometry(
+  _global_frontier_reconciliation_request,
+):
+  source_closure = _global_physical_closure_for_mixed_regime()
+  assert source_closure.global_euler is not None
+  assert source_closure.global_euler.physical_field is not None
+  assert source_closure.global_euler.physical_field.field is not None
+  boundary = source_closure.global_euler.physical_field.field.ambient_boundary
+  points = tuple(boundary.points_m)
+  count = len(points)
+  source_request = _global_frontier_reconciliation_request
+  proposal = replace(
+    source_request.proposal,
+    matched_x_stations_m=tuple(point[0] for point in points),
+    reference_boundary_points_m=points,
+    proposed_boundary_points_m=points,
+    reference_tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    proposed_tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    reference_static_pressure_Pa=tuple(boundary.static_pressure_Pa),
+    proposed_static_pressure_Pa=tuple(boundary.static_pressure_Pa),
+    coordinate_corrections_m=(0.0,) * count,
+    tangent_corrections_rad=(0.0,) * count,
+    pressure_corrections_Pa=(0.0,) * count,
+    normal_velocity_values_m_s=(0.0,) * count,
+  )
+  request = build_reflected_domain_global_frontier_reconciliation_request(
+    source_closure,
+    proposal,
+    consumer_id='test-global-frontier-boundary-condition-v1',
+  )
+
+  result = run_reflected_domain_global_frontier_boundary_conditioned_resolve(
+    request,
+    source_closure,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+    .CONVERGED_RESEARCH_BOUNDARY_CONDITION
+  )
+  assert result.converged_research_resolve
+  assert result.target_lineage_verified
+  assert result.target_coverage_verified
+  assert result.target_boundary_condition_consumed
+  assert result.solver_owned_geometry_verified
+  assert result.target_match_verified
+  assert result.fidelity_isolation_verified
+  assert result.conditioned_closure is not source_closure
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.target is not None
+  assert result.target.boundary_points_m == points
+  assert result.as_report()['target_boundary_condition_consumed'] is True
+  assert result.as_report()['solver_owned_geometry_verified'] is True
 ####

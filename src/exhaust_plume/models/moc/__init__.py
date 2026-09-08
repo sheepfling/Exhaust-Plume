@@ -254,6 +254,7 @@ from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundaryStatus,
   MocAmbientPressureBoundaryResult,
   validate_ambient_pressure_boundary,
+  validate_ambient_pressure_profile_boundary,
   validate_post_shock_ambient_boundary,
 )
 from exhaust_plume.models.moc.free_boundary import (
@@ -1472,6 +1473,7 @@ __all__ = (
   'solve_ambient_pressure_free_boundary_point',
   'solve_reflected_free_boundary',
   'validate_ambient_pressure_boundary',
+  'validate_ambient_pressure_profile_boundary',
   'validate_post_shock_ambient_boundary',
   'solve_marched_attached_shock_field',
   'solve_marched_attached_shock_with_invariant_boundary',

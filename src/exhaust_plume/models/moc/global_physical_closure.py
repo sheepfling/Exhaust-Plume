@@ -26,7 +26,7 @@ from enum import Enum
 from hashlib import sha256
 from math import hypot, isfinite, log
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from exhaust_plume.models.moc.chain import (
   MocChainBoundarySample,
@@ -50,6 +50,12 @@ from exhaust_plume.models.moc.reflected_domain import (
   solve_reflected_domain_global_shock_remesh,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
+
+if TYPE_CHECKING:
+  from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  )
+####
 
 __all__ = (
   'MocReflectedDomainGlobalPhysicalClosureStatus',
@@ -402,6 +408,10 @@ class MocReflectedDomainDownstreamBoundaryResult:
   residual_tolerance: float = 1.0e-8
   message: str = ''
   ambient_pressure_Pa: float | None = None
+  ambient_pressure_profile_Pa: tuple[float, ...] = ()
+  ambient_pressure_target_source: str | None = None
+  ambient_pressure_target_consumed: bool = False
+  ambient_pressure_target_geometry_consumed: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -518,6 +528,42 @@ class MocReflectedDomainDownstreamBoundaryResult:
         )
       ####
       object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    ####
+    ambient_pressure_profile = tuple(
+      float(value) for value in self.ambient_pressure_profile_Pa
+    )
+    if any(
+      not isfinite(value) or value <= 0.0
+      for value in ambient_pressure_profile
+    ):
+      raise ValueError(
+        'ambient_pressure_profile_Pa must contain finite positive values'
+      )
+    ####
+    if ambient_pressure_profile and len(ambient_pressure_profile) != sample_count:
+      raise ValueError(
+        'ambient_pressure_profile_Pa must match the boundary sample count'
+      )
+    ####
+    for name in (
+      'ambient_pressure_target_consumed',
+      'ambient_pressure_target_geometry_consumed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(
+      self,
+      'ambient_pressure_profile_Pa',
+      ambient_pressure_profile,
+    )
+    if self.ambient_pressure_target_source is not None:
+      object.__setattr__(
+        self,
+        'ambient_pressure_target_source',
+        str(self.ambient_pressure_target_source),
+      )
     ####
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -655,6 +701,12 @@ class MocReflectedDomainDownstreamBoundaryResult:
       'position_tolerance_m': self.position_tolerance_m,
       'residual_tolerance': self.residual_tolerance,
       'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'ambient_pressure_profile_Pa': list(self.ambient_pressure_profile_Pa),
+      'ambient_pressure_target_source': self.ambient_pressure_target_source,
+      'ambient_pressure_target_consumed': self.ambient_pressure_target_consumed,
+      'ambient_pressure_target_geometry_consumed': (
+        self.ambient_pressure_target_geometry_consumed
+      ),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'message': self.message,
@@ -707,6 +759,7 @@ def _build_downstream_boundary_result(
     )
   ####
   boundary = field.ambient_boundary
+  ambient_march = physical.ambient_march
   points = tuple(boundary.points_m)
   states = tuple(boundary.states)
   total_pressure = tuple(boundary.total_pressure_Pa)
@@ -732,6 +785,18 @@ def _build_downstream_boundary_result(
     tangent_residuals=tangent_residuals,
     coordinate_residuals_m=coordinate_residuals,
     ambient_pressure_Pa=boundary.ambient_pressure_Pa,
+    ambient_pressure_profile_Pa=tuple(boundary.ambient_pressure_profile_Pa),
+    ambient_pressure_target_source=boundary.ambient_pressure_target_source,
+    ambient_pressure_target_consumed=(
+      False
+      if ambient_march is None
+      else ambient_march.ambient_pressure_target_consumed
+    ),
+    ambient_pressure_target_geometry_consumed=(
+      False
+      if ambient_march is None
+      else ambient_march.ambient_pressure_target_geometry_consumed
+    ),
     solver_owned=True,
     boundary_condition_verified=False,
     mixed_regime_field_verified=False,
@@ -1282,6 +1347,7 @@ def solve_reflected_domain_global_physical_closure(
   compression_envelope_skews: Sequence[float] = (-0.75, 0.0, 0.75),
   closure_tolerance_m: float = 1.0e-6,
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   sample_count: int = 17,
   branch: ShockBranch = ShockBranch.WEAK,
   position_tolerance_m: float = 1.0e-9,
@@ -1314,6 +1380,26 @@ def solve_reflected_domain_global_physical_closure(
       None,
       None,
       message='source_band must be a MocReflectedDomainAlternatingSourceResult',
+    )
+  ####
+  if ambient_pressure_target is not None:
+    from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    )
+  ####
+  if ambient_pressure_target is not None and not isinstance(
+    ambient_pressure_target,
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  ):
+    return _closure_result(
+      status_type.INVALID_INPUT,
+      source_band,
+      None,
+      None,
+      message=(
+        'ambient_pressure_target must be a '
+        'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      ),
     )
   ####
   try:
@@ -1407,6 +1493,7 @@ def solve_reflected_domain_global_physical_closure(
   try:
     global_euler = solve_reflected_domain_global_euler_shock_boundary(
       global_remesh,
+      ambient_pressure_target=ambient_pressure_target,
       branch=branch,
       position_tolerance_m=position_tolerance_m,
       invariant_tolerance=invariant_tolerance,

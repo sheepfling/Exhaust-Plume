@@ -13,16 +13,17 @@ are separate gates and are never inferred from the open strip topology.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
   MocAmbientBoundaryStatus,
   MocAmbientPressureBoundaryResult,
   validate_ambient_pressure_boundary,
+  validate_ambient_pressure_profile_boundary,
 )
 from exhaust_plume.models.moc.boundary import (
   MocFreeBoundaryPointResult,
@@ -49,6 +50,12 @@ from exhaust_plume.models.moc.primitives import (
   MocPrimitiveStatus,
   interior_characteristic_point,
 )
+
+if TYPE_CHECKING:
+  from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  )
+####
 
 __all__ = (
   'MocEulerAmbientBoundaryMarchStatus',
@@ -521,6 +528,9 @@ class MocEulerAmbientBoundaryMarchResult:
   physical_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
+  ambient_pressure_target_source: str | None = None
+  ambient_pressure_target_consumed: bool = False
+  ambient_pressure_target_geometry_consumed: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -545,6 +555,21 @@ class MocEulerAmbientBoundaryMarchResult:
         )
       ####
       object.__setattr__(self, 'ambient_pressure_Pa', ambient_pressure)
+    ####
+    if self.ambient_pressure_target_source is not None:
+      object.__setattr__(
+        self,
+        'ambient_pressure_target_source',
+        str(self.ambient_pressure_target_source),
+      )
+    ####
+    for name in (
+      'ambient_pressure_target_consumed',
+      'ambient_pressure_target_geometry_consumed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if not isinstance(
       self.ambient_boundary,
@@ -698,6 +723,11 @@ class MocEulerAmbientBoundaryMarchResult:
       'converged': self.converged,
       'state_sampling_available': self.state_sampling_available,
       'ambient_pressure_Pa': self.ambient_pressure_Pa,
+      'ambient_pressure_target_source': self.ambient_pressure_target_source,
+      'ambient_pressure_target_consumed': self.ambient_pressure_target_consumed,
+      'ambient_pressure_target_geometry_consumed': (
+        self.ambient_pressure_target_geometry_consumed
+      ),
       'sample_count': len(self.boundary_samples),
       'points_m': [list(point) for point in self.points_m],
       'mach': [sample.state.mach for sample in self.boundary_samples],
@@ -792,10 +822,120 @@ def _static_pressure_from_total(
 ####
 
 
+def _pressure_target_type() -> type[Any]:
+  """Load the optional target type without creating an import cycle."""
+
+  from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+  )
+
+  return MocPhysicalFieldEulerBoundaryPressureTarget
+####
+
+
+def _solve_ambient_pressure_profile_point(
+  incoming: CharacteristicState,
+  previous_boundary: CharacteristicState,
+  family: CharacteristicFamily,
+  *,
+  total_pressure_Pa: float,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  position_tolerance_m: float,
+  pressure_tolerance: float,
+  maximum_iterations: int,
+) -> MocFreeBoundaryPointResult:
+  """Solve one free-boundary point against a station-dependent pressure.
+
+  The characteristic intersection determines the boundary ordinate and its
+  downstream station.  The target pressure is therefore re-sampled at the
+  solver-produced ``x`` coordinate until the pressure and geometry are
+  mutually consistent.  Target geometry is never read by this routine.
+  """
+
+  target_pressure = target.pressure_at_x(
+    previous_boundary.x_m,
+    position_tolerance_m=position_tolerance_m,
+  )
+  if target_pressure is None:
+    return MocFreeBoundaryPointResult(
+      status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+      family=family,
+      state=None,
+      point_m=None,
+      pressure_residual=None,
+      tangent_residual=None,
+      geometry_residual=None,
+      iterations=0,
+      message=(
+        'pressure target does not cover the initial free-boundary station; '
+        'no extrapolation was attempted'
+      ),
+    )
+  ####
+  last_result: MocFreeBoundaryPointResult | None = None
+  last_residual: float | None = None
+  for _iteration in range(1, maximum_iterations + 1):
+    result = solve_ambient_pressure_free_boundary_point(
+      incoming,
+      previous_boundary,
+      family,
+      total_pressure_Pa=total_pressure_Pa,
+      ambient_pressure_Pa=float(target_pressure),
+      position_tolerance_m=position_tolerance_m,
+      pressure_tolerance=pressure_tolerance,
+      maximum_iterations=maximum_iterations,
+    )
+    last_result = result
+    if not result.converged or result.state is None or result.point_m is None:
+      return result
+    ####
+    sampled_target = target.pressure_at_x(
+      result.point_m[0],
+      position_tolerance_m=position_tolerance_m,
+    )
+    if sampled_target is None:
+      return replace(
+        result,
+        status=MocPrimitiveStatus.OUTSIDE_DOMAIN,
+        pressure_residual=None,
+        message=(
+          'pressure target does not cover the solver-produced boundary '
+          'station; no extrapolation was attempted'
+        ),
+      )
+    ####
+    actual_pressure = _static_pressure_from_total(
+      result.state,
+      total_pressure_Pa,
+    )
+    last_residual = (actual_pressure - sampled_target) / sampled_target
+    if abs(last_residual) <= pressure_tolerance:
+      return replace(
+        result,
+        pressure_residual=last_residual,
+        message='solver-owned point matched the station-dependent pressure target',
+      )
+    ####
+    target_pressure = sampled_target
+  ####
+  assert last_result is not None
+  return replace(
+    last_result,
+    status=MocPrimitiveStatus.MAX_ITERATIONS,
+    pressure_residual=last_residual,
+    message=(
+      'solver-owned point did not converge to the station-dependent pressure '
+      'target before the bounded profile iteration limit'
+    ),
+  )
+####
+
+
 def march_euler_ambient_boundary(
   shock_boundary: MocEulerShockBoundaryCurveResult,
   ambient_pressure_Pa: float,
   *,
+  ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   target_centerline_y_m: float = 0.0,
   position_tolerance_m: float = 1.0e-10,
   invariant_tolerance: float = 1.0e-10,
@@ -805,8 +945,10 @@ def march_euler_ambient_boundary(
   """March the exact post-shock ``C+`` sources to an ambient boundary.
 
   The attachment is strict: the first downstream shock static pressure must
-  equal ``ambient_pressure_Pa``.  This prevents a low-pressure companion
-  fixture from being mistaken for a physical shock/ambient corner.
+  equal ``ambient_pressure_Pa``.  When a pressure target is supplied, the
+  target value at the attachment station is used instead, and every later
+  boundary point is solved against the target value at its solver-owned
+  station.  Target geometry is intentionally ignored.
   """
 
   if not isinstance(shock_boundary, MocEulerShockBoundaryCurveResult):
@@ -815,6 +957,20 @@ def march_euler_ambient_boundary(
       None,
       None,
       message='shock_boundary must be a MocEulerShockBoundaryCurveResult',
+    )
+  ####
+  if ambient_pressure_target is not None and not isinstance(
+    ambient_pressure_target,
+    _pressure_target_type(),
+  ):
+    return _march_failure(
+      MocEulerAmbientBoundaryMarchStatus.INVALID_INPUT,
+      shock_boundary,
+      None,
+      message=(
+        'ambient_pressure_target must be a '
+        'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      ),
     )
   ####
   try:
@@ -923,10 +1079,40 @@ def march_euler_ambient_boundary(
     )
   ####
 
+  target_pressures_at_shock: tuple[float, ...] = ()
+  target_source = None
+  if ambient_pressure_target is not None:
+    target_source = ambient_pressure_target.source_id
+    sampled_target_pressures: list[float] = []
+    for point in points:
+      target_pressure = ambient_pressure_target.pressure_at_x(
+        point[0],
+        position_tolerance_m=position_tolerance,
+      )
+      if target_pressure is None:
+        return _march_failure(
+          MocEulerAmbientBoundaryMarchStatus.BOUNDARY_FAILURE,
+          shock_boundary,
+          ambient_pressure,
+          message=(
+            'pressure target does not cover every retained shock station; '
+            'no extrapolation was attempted'
+          ),
+        )
+      ####
+      sampled_target_pressures.append(float(target_pressure))
+    ####
+    target_pressures_at_shock = tuple(sampled_target_pressures)
+  ####
+  attachment_pressure = (
+    ambient_pressure
+    if ambient_pressure_target is None
+    else target_pressures_at_shock[0]
+  )
   first_static_pressure = _static_pressure_from_total(states[0], pressures[0])
   attachment_residual = (
-    first_static_pressure - ambient_pressure
-  ) / ambient_pressure
+    first_static_pressure - attachment_pressure
+  ) / attachment_pressure
   if abs(attachment_residual) > pressure_tolerance_value:
     first_result = MocFreeBoundaryPointResult(
       status=MocPrimitiveStatus.INVARIANT_FAILURE,
@@ -986,15 +1172,28 @@ def march_euler_ambient_boundary(
     zip(states[1:], pressures[1:], points[1:], strict=True),
     start=1,
   ):
-    result = solve_ambient_pressure_free_boundary_point(
-      state,
-      previous_boundary,
-      CharacteristicFamily.PLUS,
-      total_pressure_Pa=float(total_pressure),
-      ambient_pressure_Pa=ambient_pressure,
-      position_tolerance_m=position_tolerance,
-      pressure_tolerance=pressure_tolerance_value,
-      maximum_iterations=maximum_iterations,
+    result = (
+      solve_ambient_pressure_free_boundary_point(
+        state,
+        previous_boundary,
+        CharacteristicFamily.PLUS,
+        total_pressure_Pa=float(total_pressure),
+        ambient_pressure_Pa=ambient_pressure,
+        position_tolerance_m=position_tolerance,
+        pressure_tolerance=pressure_tolerance_value,
+        maximum_iterations=maximum_iterations,
+      )
+      if ambient_pressure_target is None
+      else _solve_ambient_pressure_profile_point(
+        state,
+        previous_boundary,
+        CharacteristicFamily.PLUS,
+        total_pressure_Pa=float(total_pressure),
+        target=ambient_pressure_target,
+        position_tolerance_m=position_tolerance,
+        pressure_tolerance=pressure_tolerance_value,
+        maximum_iterations=maximum_iterations,
+      )
     )
     point_results.append(result)
     if not result.converged or result.state is None or result.point_m is None:
@@ -1066,13 +1265,47 @@ def march_euler_ambient_boundary(
     previous_boundary = result.state
   ####
 
-  ambient_boundary = validate_ambient_pressure_boundary(
-    samples,
-    ambient_pressure,
-    position_tolerance_m=position_tolerance,
-    pressure_tolerance=pressure_tolerance_value,
-    tangent_tolerance=pressure_tolerance_value,
-  )
+  if ambient_pressure_target is None:
+    ambient_boundary = validate_ambient_pressure_boundary(
+      samples,
+      ambient_pressure,
+      position_tolerance_m=position_tolerance,
+      pressure_tolerance=pressure_tolerance_value,
+      tangent_tolerance=pressure_tolerance_value,
+    )
+  else:
+    target_pressures_at_boundary: list[float] = []
+    for sample in samples:
+      target_pressure = ambient_pressure_target.pressure_at_x(
+        sample.point_m[0],
+        position_tolerance_m=position_tolerance,
+      )
+      if target_pressure is None:
+        return _march_failure(
+          MocEulerAmbientBoundaryMarchStatus.BOUNDARY_FAILURE,
+          shock_boundary,
+          ambient_pressure,
+          samples=samples,
+          point_results=point_results,
+          incoming_k_plus_residuals=k_plus_residuals,
+          attachment_relative_pressure_residual=attachment_residual,
+          message=(
+            'pressure target does not cover every solver-produced boundary '
+            'station; no extrapolation was attempted'
+          ),
+        )
+      ####
+      target_pressures_at_boundary.append(float(target_pressure))
+    ####
+    ambient_boundary = validate_ambient_pressure_profile_boundary(
+      samples,
+      target_pressures_at_boundary,
+      target_source=target_source,
+      position_tolerance_m=position_tolerance,
+      pressure_tolerance=pressure_tolerance_value,
+      tangent_tolerance=pressure_tolerance_value,
+    )
+  ####
   if not ambient_boundary.converged:
     status = (
       MocEulerAmbientBoundaryMarchStatus.PRESSURE_FAILURE
@@ -1098,6 +1331,9 @@ def march_euler_ambient_boundary(
     status=MocEulerAmbientBoundaryMarchStatus.CONVERGED,
     shock_boundary=shock_boundary,
     ambient_pressure_Pa=ambient_pressure,
+    ambient_pressure_target_source=target_source,
+    ambient_pressure_target_consumed=ambient_pressure_target is not None,
+    ambient_pressure_target_geometry_consumed=False,
     boundary_samples=tuple(samples),
     point_results=tuple(point_results),
     ambient_boundary=ambient_boundary,
