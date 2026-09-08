@@ -8107,6 +8107,17 @@ def test_global_coupled_boundary_condition_feedback_consumes_moving_frame_extens
   )
   conditioned = iteration.boundary_condition.conditioned_closure
   assert conditioned is not None
+  assert conditioned.source_pressure_target_consumed
+  assert conditioned.source_pressure_target_source is not None
+  assert conditioned.source_pressure_target_geometry_consumed is False
+  assert conditioned.source_band is not None
+  assert conditioned.source_band.ambient_pressure_target is not None
+  assert conditioned.source_band.ambient_pressure_target.composition_mode == (
+    'explicit-overlay'
+  )
+  assert conditioned.source_band.ambient_pressure_target.x_stations_m[0] < (
+    iteration.boundary_condition.consumed_target.x_stations_m[0]
+  )
   assert conditioned.global_euler is not None
   assert conditioned.global_euler.physical_field is not None
   final_march = conditioned.global_euler.physical_field.ambient_march

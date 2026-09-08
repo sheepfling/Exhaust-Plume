@@ -2703,3 +2703,27 @@ ignored target geometry metadata, and incomplete-target rejection.
 This is a bounded global-coupling handoff, not canonical closure: shock
 entropy, mixed-regime downstream closure, disjoint physical observations,
 provider-bound VIS/SIG/RAY/FPA acceptance, and release promotion remain open.
+
+### P2.2 fresh source-band consumption checkpoint — 2026-09-08
+
+The global physical-closure consumer now composes a separate source-band
+pressure target from the exact source seed/ambient frame and the lineage-bound
+downstream overlay.  A fresh alternating ``C-``/``C+`` source band consumes
+that composed pressure profile before global shock remesh and exact-Euler
+closure.  The downstream/global target retains its own station frame, so
+source-frame coverage cannot hide a global ambient-frame extension request.
+
+The source result retains the composed target and reports its source ID,
+consumption, and geometry-injection guard.  Geometry and tangent metadata are
+not consumed as boundary conditions.  If the overlay cannot be contained by
+the source frame, or any solver-produced station leaves the declared frame,
+the closure returns a typed remesh failure without extrapolation or endpoint
+holding.
+
+The two-step feedback regression, zero-extension-budget stop, and all five
+global coupled-boundary-feedback tests pass.  Solver-owned continuation and
+shock-front handoffs are also refreshed by object identity after each fresh
+upstream closure, preventing a downstream iteration from using stale field
+lineage.  This advances global coupling evidence but does not close the
+canonical mixed-regime downstream boundary, physical shock-cell acceptance,
+external validation, or production release gates.

@@ -25,6 +25,10 @@ from typing import Any
 
 from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
+  build_reflected_domain_global_solver_owned_physical_field_handoff,
+)
+from exhaust_plume.models.moc.coupled_euler_free_boundary import (
+  MocReflectedDomainCoupledEulerInletBoundaryMode,
 )
 from exhaust_plume.models.moc.global_frontier_reconciliation import (
   MocReflectedDomainGlobalFrontierReconciliationRequest,
@@ -865,6 +869,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     'feedback_policy': (
       'downstream-response-explicit-pressure-overlay-fresh-global-ambient-march-v1'
     ),
+    'solver_owned_handoff_refresh_policy': (
+      'refresh-exact-physical-field-handoff-after-each-fresh-upstream-closure-v1'
+    ),
   }
   if not closure.converged or not closure.physical_closure_verified:
     return _run_result(
@@ -900,11 +907,59 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     ) = None
     frame_negotiation: MocReflectedDomainGlobalBoundaryFrameNegotiationResult | None = None
     try:
+      iteration_downstream_options = dict(resolved_downstream_options)
+      configured_inlet_mode = iteration_downstream_options.get(
+        'inlet_boundary_mode'
+      )
+      configured_inlet_mode_value = getattr(
+        configured_inlet_mode,
+        'value',
+        configured_inlet_mode,
+      )
+      if configured_inlet_mode_value in {
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE.value,
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY.value,
+      }:
+        current_field = (
+          None
+          if current.global_euler is None
+          or current.global_euler.physical_field is None
+          else current.global_euler.physical_field.field
+        )
+        supplied_continuation = iteration_downstream_options.get(
+          'physical_field_continuation_profile'
+        )
+        supplied_front = iteration_downstream_options.get(
+          'physical_field_shock_front_condition'
+        )
+        supplied_continuation_field = getattr(
+          supplied_continuation,
+          'field',
+          None,
+        )
+        supplied_front_field = getattr(supplied_front, 'field', None)
+        if (
+          current_field is None
+          or supplied_continuation_field is not current_field
+          or supplied_front_field is not current_field
+        ):
+          handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+            current
+          )
+          iteration_downstream_options[
+            'physical_field_continuation_profile'
+          ] = handoff.continuation_profile
+          iteration_downstream_options[
+            'physical_field_shock_front_condition'
+          ] = handoff.shock_front_condition
+      ####
       downstream = run_reflected_domain_global_coupled_downstream_feedback(
         current,
         reference_total_temperature_K=reference_temperature,
         maximum_iterations=downstream_feedback_iterations,
-        **resolved_downstream_options,
+        **iteration_downstream_options,
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       failure_status = (

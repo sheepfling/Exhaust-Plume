@@ -46,6 +46,7 @@ from exhaust_plume.models.moc.reflected_domain import (
   MocReflectedDomainAlternatingSourceResult,
   MocReflectedDomainGlobalEulerShockBoundaryResult,
   MocReflectedDomainGlobalShockRemeshResult,
+  solve_reflected_domain_alternating_source,
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_shock_remesh,
 )
@@ -865,6 +866,11 @@ def moc_reflected_domain_global_physical_closure_fingerprint(
         closure.maximum_entropy_lineage_residual
       ),
       'cell_euler_residuals_verified': closure.cell_euler_residuals_verified,
+      'source_pressure_target_source': closure.source_pressure_target_source,
+      'source_pressure_target_consumed': closure.source_pressure_target_consumed,
+      'source_pressure_target_geometry_consumed': (
+        closure.source_pressure_target_geometry_consumed
+      ),
     },
   }
   serialized = json.dumps(
@@ -875,6 +881,60 @@ def moc_reflected_domain_global_physical_closure_fingerprint(
     default=str,
   )
   return sha256(serialized.encode('utf-8')).hexdigest()
+####
+
+
+def _build_source_band_pressure_target(
+  source_band: MocReflectedDomainAlternatingSourceResult,
+  overlay_target: MocPhysicalFieldEulerBoundaryPressureTarget,
+) -> MocPhysicalFieldEulerBoundaryPressureTarget:
+  """Extend a downstream pressure overlay over the source-band station frame."""
+
+  from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+    MocPhysicalFieldEulerBoundaryPressureTarget,
+    compose_moc_physical_field_euler_boundary_pressure_target,
+  )
+
+  if not source_band.source_field_verified:
+    raise ValueError('source-band pressure target requires a verified source field')
+  ####
+  seed_state = source_band.outer_seed_state
+  seed_total_pressure = source_band.outer_seed_total_pressure_Pa
+  boundary = source_band.ambient_boundary
+  if seed_state is None or seed_total_pressure is None or boundary is None:
+    raise ValueError('source band retained no complete ambient pressure frame')
+  ####
+  seed_static_pressure = seed_total_pressure / (
+    1.0 + 0.5 * (seed_state.gamma - 1.0) * seed_state.mach**2
+  ) ** (seed_state.gamma / (seed_state.gamma - 1.0))
+  base_target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=(
+      seed_state.x_m,
+      *tuple(point[0] for point in boundary.points_m),
+    ),
+    static_pressure_Pa=(seed_static_pressure, *boundary.static_pressure_Pa),
+    source_id=(
+      'global-physical-closure:source-band-base:'
+      f'{overlay_target.source_id}'
+    ),
+    boundary_points_m=(
+      (seed_state.x_m, seed_state.y_m),
+      *tuple(boundary.points_m),
+    ),
+    tangent_rad=(seed_state.theta_rad, *tuple(
+      state.theta_rad for state in boundary.states
+    )),
+  )
+  ####
+  return compose_moc_physical_field_euler_boundary_pressure_target(
+    base_target,
+    overlay_target,
+    source_id=(
+      'global-physical-closure:source-band-overlay:'
+      f'{overlay_target.source_id}'
+    ),
+    seam_pressure_tolerance_fraction=0.25,
+  )
 ####
 
 
@@ -901,6 +961,9 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
   promotion_evidence: MocReflectedDomainPromotionEvidence | None = None
   downstream_boundary: MocReflectedDomainDownstreamBoundaryResult | None = None
   downstream_boundary_audit: Any | None = None
+  source_pressure_target_source: str | None = None
+  source_pressure_target_consumed: bool = False
+  source_pressure_target_geometry_consumed: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalPhysicalClosureStatus):
@@ -956,10 +1019,19 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       'canonical_euler_verified',
       'refinement_verified',
       'external_validation_verified',
+      'source_pressure_target_consumed',
+      'source_pressure_target_geometry_consumed',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
       ####
+    ####
+    if self.source_pressure_target_source is not None:
+      source = str(self.source_pressure_target_source)
+      if not source:
+        raise ValueError('source_pressure_target_source must be non-empty')
+      ####
+      object.__setattr__(self, 'source_pressure_target_source', source)
     ####
     if self.promotion_evidence is not None and not isinstance(
       self.promotion_evidence,
@@ -1033,6 +1105,13 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       and field_audit.cell_euler_residuals_verified
       and self.source_frontier_verified
       and self.incoming_handoff_verified
+      and (
+        self.source_pressure_target_source is None
+        or (
+          self.source_pressure_target_consumed
+          and not self.source_pressure_target_geometry_consumed
+        )
+      )
       and self.variable_entropy_transport_verified
       and self.cell_euler_residuals_verified
     )
@@ -1229,6 +1308,11 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         'incoming_handoff_verified': self.incoming_handoff_verified,
         'variable_entropy_transport_verified': self.variable_entropy_transport_verified,
         'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+        'source_pressure_target_source': self.source_pressure_target_source,
+        'source_pressure_target_consumed': self.source_pressure_target_consumed,
+        'source_pressure_target_geometry_consumed': (
+          self.source_pressure_target_geometry_consumed
+        ),
         'downstream_boundary_closure_verified': (
           self.downstream_boundary_closure_verified
         ),
@@ -1263,6 +1347,11 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
       'variable_entropy_transport_verified': self.variable_entropy_transport_verified,
       'maximum_entropy_lineage_residual': self.maximum_entropy_lineage_residual,
       'cell_euler_residuals_verified': self.cell_euler_residuals_verified,
+      'source_pressure_target_source': self.source_pressure_target_source,
+      'source_pressure_target_consumed': self.source_pressure_target_consumed,
+      'source_pressure_target_geometry_consumed': (
+        self.source_pressure_target_geometry_consumed
+      ),
       'downstream_boundary_closure_verified': (
         self.downstream_boundary_closure_verified
       ),
@@ -1316,8 +1405,20 @@ def _closure_result(
   cell_euler_residuals_verified: bool = False,
   downstream_boundary: MocReflectedDomainDownstreamBoundaryResult | None = None,
   downstream_boundary_audit: Any | None = None,
+  source_pressure_target_source: str | None = None,
+  source_pressure_target_consumed: bool = False,
+  source_pressure_target_geometry_consumed: bool = False,
   message: str,
 ) -> MocReflectedDomainGlobalPhysicalClosureResult:
+  if (
+    source_pressure_target_source is None
+    and source_band is not None
+    and source_band.ambient_pressure_target is not None
+  ):
+    source_pressure_target_source = source_band.ambient_pressure_target.source_id
+    source_pressure_target_consumed = bool(source_band.source_field_verified)
+    source_pressure_target_geometry_consumed = False
+  ####
   return MocReflectedDomainGlobalPhysicalClosureResult(
     status=status,
     source_band=source_band,
@@ -1332,6 +1433,9 @@ def _closure_result(
     cell_euler_residuals_verified=cell_euler_residuals_verified,
     downstream_boundary=downstream_boundary,
     downstream_boundary_audit=downstream_boundary_audit,
+    source_pressure_target_source=source_pressure_target_source,
+    source_pressure_target_consumed=source_pressure_target_consumed,
+    source_pressure_target_geometry_consumed=source_pressure_target_geometry_consumed,
     message=message,
   )
 ####
@@ -1402,6 +1506,85 @@ def solve_reflected_domain_global_physical_closure(
       ),
     )
   ####
+  if ambient_pressure_target is not None:
+    if (
+      source_band.reflection_patch is None
+      or source_band.ambient_pressure_Pa is None
+      or source_band.outer_seed_state is None
+      or source_band.outer_seed_total_pressure_Pa is None
+    ):
+      return _closure_result(
+        status_type.GLOBAL_REMESH_FAILURE,
+        source_band,
+        None,
+        None,
+        message=(
+          'global physical closure cannot consume an ambient pressure target '
+          'without the exact source reflection patch and outer seed'
+        ),
+      )
+    ####
+    try:
+      source_pressure_target = _build_source_band_pressure_target(
+        source_band,
+        ambient_pressure_target,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _closure_result(
+        status_type.GLOBAL_REMESH_FAILURE,
+        source_band,
+        None,
+        None,
+        message=f'global physical closure source target composition failed: {error}',
+      )
+    ####
+    try:
+      source_band = solve_reflected_domain_alternating_source(
+        source_band.reflection_patch,
+        source_band.ambient_pressure_Pa,
+        total_pressure_Pa=source_band.outer_seed_total_pressure_Pa,
+        ambient_pressure_target=source_pressure_target,
+        source_sample_count=len(source_band.centerline_source_states),
+        outer_seed_state=source_band.outer_seed_state,
+        outer_seed_total_pressure_Pa=source_band.outer_seed_total_pressure_Pa,
+        centerline_total_pressure_Pa=source_band.centerline_total_pressure_Pa,
+        target_centerline_y_m=source_band.target_centerline_y_m,
+        target_centerline_flow_angle_rad=(
+          source_band.target_centerline_flow_angle_rad
+        ),
+        declared_polarity=(
+          None
+          if source_band.incoming_trace_polarity is None
+          else source_band.incoming_trace_polarity.status
+        ),
+        position_tolerance_m=source_band.position_tolerance_m,
+        trace_forward_tolerance_m=source_band.trace_forward_tolerance_m,
+        invariant_tolerance=source_band.invariant_tolerance,
+        pressure_tolerance=source_band.pressure_tolerance,
+        maximum_iterations=maximum_boundary_iterations,
+        incoming_handoff=source_band.incoming_handoff,
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _closure_result(
+        status_type.GLOBAL_REMESH_FAILURE,
+        source_band,
+        None,
+        None,
+        message=f'global physical closure source target solve raised: {error}',
+      )
+    ####
+    if not source_band.source_field_verified:
+      return _closure_result(
+        status_type.GLOBAL_REMESH_FAILURE,
+        source_band,
+        None,
+        None,
+        message=(
+          'global physical closure source pressure target was not consumed '
+          f'by a verified fresh source band: {source_band.message}'
+        ),
+      )
+    ####
   try:
     resolved_handoff = (
       source_band.incoming_handoff
