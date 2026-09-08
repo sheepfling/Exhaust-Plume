@@ -600,6 +600,29 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       'source closure retained too few shock samples for a fresh solve',
     )
   ####
+  shock_points = tuple(selected_field.field.shock_boundary_points_m)
+  target_min_x = request.target_x_stations_m[0]
+  target_max_x = request.target_x_stations_m[-1]
+  shock_min_x = min(point[0] for point in shock_points)
+  shock_max_x = max(point[0] for point in shock_points)
+  if (
+    target_min_x > shock_min_x + position_tolerance
+    or target_max_x < shock_max_x - position_tolerance
+  ):
+    return _result(
+      MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+      .TARGET_COVERAGE_FAILURE,
+      request,
+      source_closure,
+      target,
+      None,
+      configuration,
+      'partial frontier pressure target does not cover the solver-owned shock '
+      'station interval; a joint geometry/state boundary solve is required '
+      'and no extrapolation was attempted',
+      target_lineage_verified=True,
+    )
+  ####
   try:
     conditioned = solve_reflected_domain_global_physical_closure(
       source_band,

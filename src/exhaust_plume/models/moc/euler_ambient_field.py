@@ -777,6 +777,20 @@ def _march_failure(
   resolved_samples = tuple(samples)
   resolved_results = tuple(point_results)
   resolved_residuals = tuple(float(value) for value in incoming_k_plus_residuals)
+  # A failed point is appended to ``point_results`` before the caller knows
+  # whether it can be materialized as a boundary sample.  Keep the retained
+  # failure object in the message/status, but normalize the evidence channels
+  # to the common accepted-sample prefix so a typed failure can always be
+  # serialized and independently inspected.  A malformed failure record must
+  # not mask the numerical stop with a dataclass-construction exception.
+  aligned_count = min(
+    len(resolved_samples),
+    len(resolved_results),
+    len(resolved_residuals),
+  )
+  resolved_samples = resolved_samples[:aligned_count]
+  resolved_results = resolved_results[:aligned_count]
+  resolved_residuals = resolved_residuals[:aligned_count]
   return MocEulerAmbientBoundaryMarchResult(
     status=status,
     shock_boundary=shock_boundary,

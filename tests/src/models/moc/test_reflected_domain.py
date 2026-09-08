@@ -8050,6 +8050,30 @@ def test_global_frontier_boundary_condition_consumes_pressure_with_solver_owned_
 ####
 
 
+def test_global_frontier_boundary_condition_rejects_partial_target_before_resolve(
+  _global_frontier_reconciliation_request,
+):
+  source_closure = _global_physical_closure_for_mixed_regime()
+  result = run_reflected_domain_global_frontier_boundary_conditioned_resolve(
+    _global_frontier_reconciliation_request,
+    source_closure,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+    .TARGET_COVERAGE_FAILURE
+  )
+  assert result.target_lineage_verified
+  assert result.target_coverage_verified is False
+  assert result.conditioned_closure is None
+  assert result.target_boundary_condition_consumed is False
+  assert result.global_coupling_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert 'joint geometry/state boundary solve is required' in result.message
+####
+
+
 def _identity_frontier_request_for_closure(
   closure,
   template_request,

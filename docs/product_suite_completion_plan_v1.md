@@ -2375,3 +2375,25 @@ cases, or release readiness.  The raw V8 validation archive and separate
 alignment archive are still absent, and the next gate remains an independently
 validated solver-owned field bound to production fitting only after the final
 acceptance matrix turns green.
+
+### Partial global-target hard-stop checkpoint — 2026-09-08
+
+The boundary-conditioned global consumer now classifies an incomplete frontier
+packet before attempting a fresh solve.  A downstream response whose station
+interval does not cover the solver-owned shock interval returns the typed
+``TARGET_COVERAGE_FAILURE`` stop, retaining the exact proposal lineage and
+without extrapolation, endpoint hold, or a lower-fidelity fallback.  The
+ambient-march failure record was also hardened so a failed target station
+cannot be hidden by a secondary evidence-shape exception; retained samples,
+point results, and invariant residuals remain aligned on every typed stop.
+
+The direct solver-owned full-boundary regression remains green, and the
+partial-target regression now proves that the correct next operation is a
+joint geometry/state boundary solve.  This is a contract-hardening slice, not
+canonical closure: the current consumer still accepts pressure only, ignores
+target ordinates/tangents for geometry evolution, and leaves
+``global_coupling_verified``, downstream mixed-regime closure, physical cell
+length acceptance, external validation, and release readiness false.  The
+next P2.2 slice must replace this pressure-only handoff with a solver-owned
+mixed-regime/free-boundary iteration that solves the interface geometry,
+pressure, tangent, entropy, and conservative residuals together.

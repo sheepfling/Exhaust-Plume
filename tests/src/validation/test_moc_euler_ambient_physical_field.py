@@ -8,6 +8,7 @@ import pytest
 from exhaust_plume.models.moc import (
   CharacteristicFamily,
   CharacteristicState,
+  MocEulerAmbientBoundaryMarchStatus,
   MocChainBoundarySample,
   MocChainTerminationReason,
   MocEulerShockBoundaryStatus,
@@ -17,9 +18,11 @@ from exhaust_plume.models.moc import (
   MocEulerAmbientFirstWedgeEntropyCarryStatus,
   MocEulerAmbientFirstWedgeEntropyCarryRefinementStatus,
   MocEulerAmbientPhysicalFieldStatus,
+  MocPhysicalFieldEulerBoundaryPressureTarget,
   assemble_euler_ambient_physical_field,
   fit_euler_consistent_shock_boundary,
   fit_euler_consistent_shock_boundary_from_geometry,
+  march_euler_ambient_boundary,
   plan_euler_ambient_first_wedge_remesh_mock,
   plan_euler_ambient_first_wedge_characteristic_remesh,
   plan_euler_ambient_first_wedge_characteristic_field,
@@ -292,6 +295,35 @@ def test_exact_ambient_physical_field_closes_local_mesh_but_stops_chain() -> Non
   decision = result.as_chain_termination_decision()
   assert decision.reason is MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   assert decision.physical_termination is False
+####
+
+
+def test_ambient_profile_coverage_failure_retains_aligned_typed_channels() -> None:
+  shock = _shaped_exact_shock()
+  first_state = shock.downstream_states[0]
+  first_pressure = shock.downstream_total_pressure_Pa[0] / (
+    1.0 + 0.5 * (first_state.gamma - 1.0) * first_state.mach**2
+  ) ** (first_state.gamma / (first_state.gamma - 1.0))
+  target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=(
+      shock.shock_points_m[0][0],
+      shock.shock_points_m[-1][0] + 0.01,
+    ),
+    static_pressure_Pa=(first_pressure, first_pressure),
+    source_id='test-partial-ambient-profile',
+  )
+
+  result = march_euler_ambient_boundary(
+    shock,
+    first_pressure,
+    ambient_pressure_target=target,
+    maximum_iterations=8,
+  )
+
+  assert result.status is MocEulerAmbientBoundaryMarchStatus.BOUNDARY_FAILURE
+  assert 'does not cover the solver-produced boundary station' in result.message
+  assert len(result.boundary_samples) == len(result.point_results)
+  assert len(result.boundary_samples) == len(result.incoming_k_plus_residuals)
 ####
 
 
