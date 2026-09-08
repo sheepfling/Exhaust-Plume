@@ -242,6 +242,11 @@ from exhaust_plume.validation.moc_reflected_domain_refinement import (
   run_moc_reflected_domain_global_euler_shock_boundary_cross_case_refinement,
   run_moc_reflected_domain_global_euler_shock_boundary_refinement,
 )
+from exhaust_plume.validation.moc_production_shock_cell_refinement import (
+  MocProductionShockCellFitRefinementCase,
+  MocProductionShockCellFitRefinementStatus,
+  measure_moc_production_shock_cell_fit_refinement,
+)
 
 
 def _canonical_field(sample_count: int = 9):
@@ -2519,6 +2524,96 @@ def test_global_physical_closure_carries_variable_entropy_and_gates_cell_promoti
   ] is False
   assert fully_evidenced_fit.production_claim_allowed is False
   assert fully_evidenced_fit.chain_promotion_blocked
+####
+
+
+def test_production_shock_cell_fit_refinement_preserves_physical_length_gate():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  closures = tuple(
+    solve_reflected_domain_global_physical_closure(
+      source,
+      outer_source_indices=(2,),
+      target_centerline_indices=(3,),
+      compression_amplitude_lower_rad=0.007,
+      compression_amplitude_upper_rad=0.03,
+      compression_envelope_skews=(-0.75, 0.0),
+      sample_count=resolution,
+      shock_angle_tolerance_rad=0.02,
+    )
+    for resolution in (5, 9)
+  )
+  assert all(closure.physical_closure_verified for closure in closures)
+  fields = tuple(
+    closure.global_euler.physical_field.field
+    for closure in closures
+    if closure.global_euler is not None
+    and closure.global_euler.physical_field is not None
+    and closure.global_euler.physical_field.field is not None
+  )
+  assert len(fields) == len(closures)
+  common_end = max(
+    field_result.ambient_boundary_points_m[-1][0]
+    for field_result in fields
+  ) + 0.05
+  cases = tuple(
+    MocProductionShockCellFitRefinementCase(
+      resolution=resolution,
+      fit=fit_reflected_domain_production_shock_cell(
+        closure,
+        start_x_m=0.5,
+        end_x_m=common_end,
+        incoming_frontier=closure.incoming_handoff,
+      ),
+    )
+    for resolution, closure in zip((5, 9), closures, strict=True)
+  )
+
+  measurement = measure_moc_production_shock_cell_fit_refinement(
+    cases,
+    length_tolerance_m=1.0,
+  )
+
+  assert measurement.status is (
+    MocProductionShockCellFitRefinementStatus
+    .CONVERGED_LOCAL_FIT_REFINEMENT
+  )
+  assert measurement.converged
+  assert measurement.local_consistency_verified
+  assert measurement.resolutions == (5, 9)
+  assert measurement.source_binding_verified
+  assert measurement.closure_resolution_identity_verified
+  assert measurement.placement_verified
+  assert measurement.measurements_verified
+  assert measurement.shock_sample_growth_verified
+  assert measurement.lengths_finite_verified
+  assert measurement.length_resolution_sequence_verified
+  assert measurement.physical_closure_verified
+  assert measurement.fidelity_isolation_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.as_report()['physical_length_accepted'] is False
+  assert measurement.as_report()['external_validation_verified'] is False
+
+  moved_case = replace(
+    cases[1],
+    fit=replace(cases[1].fit, end_x_m=common_end + 0.1),
+  )
+  moved_measurement = measure_moc_production_shock_cell_fit_refinement(
+    (cases[0], moved_case),
+    length_tolerance_m=1.0,
+  )
+  assert moved_measurement.status is (
+    MocProductionShockCellFitRefinementStatus.PLACEMENT_FAILURE
+  )
+  assert moved_measurement.converged is False
+  assert moved_measurement.production_claim_allowed is False
 ####
 
 

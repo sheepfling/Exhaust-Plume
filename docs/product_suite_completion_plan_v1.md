@@ -2141,3 +2141,22 @@ shock-cell fitting, external validation, chain promotion, and production
 claims remain closed.  The next physics gate is to use this target-bound
 ladder as evidence for solver-owned placement/refinement, then bind it to an
 accepted disjoint physical comparison.
+
+### Production shock-cell fit refinement checkpoint — 2026-09-08
+
+The production-fit validation lane now has a typed
+``op.moc.reflected-domain.production-shock-cell-fit-refinement`` operator.
+It independently remeasures a caller-produced fit at each declared shock
+resolution, requires one immutable upstream source band, distinct closure
+fingerprints, one common axial interval/cell index, increasing solver-owned
+shock sample counts, and finite resolution-to-resolution length deltas.  It
+reports the retained axial lengths and their differences without replacing
+the solver-generated shock path or treating the result as an observation.
+
+The regression passes a two-resolution ladder and rejects a moved interval.
+The operator retains ``physical_length_accepted=false``,
+``external_validation_verified=false``, and the chain/production promotion
+block even when all local fit and measurement gates pass.  The remaining P3
+gate is an accepted, disjoint physical length comparison from the validation
+handoff; the missing archive/provider evidence cannot be substituted with
+synthetic data.
