@@ -1814,7 +1814,7 @@ remain open.
 ### Long-running execution checkpoint — 2026-09-08
 
 The active integration candidate is the clean, pushed branch
-`work/washed-integral-visual` at `fc4bc93`.  `main` remains untouched.  The
+`work/washed-integral-visual` at `c1615a8`.  `main` remains untouched.  The
 latest documentation slice corrected the validation provenance language: the
 repository retains the historical Version 8 intake report, but the raw ZIP,
 the separately named alignment archive, and provider-bound measurement-space
@@ -1825,7 +1825,7 @@ Local evidence through this checkpoint includes the full planar-MOC suite
 (466 passed), focused frontier/reconciliation and coupled-refinement tests,
 Ruff, Pyright, lane partitioning, public-contract checks, Markdown policy,
 diff checks, and offline wheel/install smoke.  GitHub CI for this exact
-candidate is still running at run `34198095292`; its result must be recorded
+candidate is still queued/running at run `34198993264`; its result must be recorded
 before this checkpoint can become a release freeze.
 
 The next implementation slice remains `P2.2`, not product promotion.  A
@@ -1846,6 +1846,14 @@ ambient pressure: the solver-owned placement reports
 physical-field handoff failure before constructing a downstream field.  This
 is stronger negative evidence for the missing 2-D physics, not a closure or
 promotion result.
+
+The downstream consumer now binds an explicitly supplied ambient pressure into
+the solver-owned placement request.  A caller-supplied interior placement that
+does not carry the exact ambient target is rejected before the coupled request
+is built, and an unreachable automatically derived placement is retained in
+the failure result with its best residual and field lineage.  The reflected-
+domain contract file passes 103 tests for this packet; this strengthens the
+hard-stop/provenance boundary but does not close the two-dimensional physics.
 
 The exit order is unchanged: acquire and verify the missing validation assets
 and disjoint splits; close and refine the actual solver-owned reflected field;
