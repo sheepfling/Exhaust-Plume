@@ -635,6 +635,123 @@ def test_moc_global_euler_visualization_exposes_solver_owned_shock_parameters() 
 ####
 
 
+def test_physical_field_euler_reconciliation_visualization_exposes_residual_field() -> None:
+  gamma = 1.4
+  source_field = SimpleNamespace(
+    post_shock_boundary_states=(
+      CharacteristicState(
+        x_m=0.0,
+        y_m=1.0,
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=gamma,
+      ),
+    ),
+  )
+  condition = SimpleNamespace(
+    field=source_field,
+    shock_front_points_m=((0.0, 1.0), (1.0, 1.1), (2.0, 1.2)),
+    ambient_neighbor_points_m=((0.0, 0.5), (1.0, 0.55), (2.0, 0.6)),
+    centerline_neighbor_points_m=((0.0, 0.0), (1.0, 0.0), (2.0, 0.0)),
+    status='converged-physical-field-shock-front-condition',
+    converged=True,
+    shock_front_verified=True,
+    ambient_neighbor_verified=True,
+    centerline_neighbor_verified=True,
+    continuation_section_verified=True,
+    coupled_inlet_profile_verified=True,
+    physical_closure_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    independent_measurement=SimpleNamespace(
+      converged=True,
+      shock_front_jump_verified=True,
+      maximum_shock_front_jump_residual=8.0e-5,
+    ),
+  )
+  result = SimpleNamespace(
+    status='converged-local-physical-field-euler-reconciliation',
+    request=SimpleNamespace(
+      gas_constant_J_kgK=287.05,
+    ),
+    shock_front_condition=condition,
+    cell_vertices_by_cell_m=(
+      ((0.0, 0.0), (1.0, 0.0), (1.0, 0.5), (0.0, 0.5)),
+      ((1.0, 0.0), (2.0, 0.0), (2.0, 0.6), (1.0, 0.5)),
+    ),
+    cell_centers_m=((0.5, 0.25), (1.5, 0.3)),
+    conservative_states_by_cell=(
+      (1.0, 500.0, 0.0, 375_000.0),
+      (0.9, 405.0, 9.0, 316_170.0),
+    ),
+    residual_channels_by_cell=(
+      (1.0e-4, 2.0e-4, 3.0e-4, 4.0e-4, 4.0e-4),
+      (2.0e-4, 3.0e-4, 4.0e-4, 5.0e-4, 5.0e-4),
+    ),
+    physical_closure_verified=False,
+    global_coupling_verified=False,
+    state_sampling_available=True,
+    production_claim_allowed=False,
+    chain_promotion_blocked=True,
+    mesh_verified=True,
+    coupled_euler_field_verified=True,
+    shock_jump_verified=True,
+    ambient_boundary_verified=True,
+    centerline_boundary_verified=True,
+    conservative_euler_residuals_measured=True,
+    conservative_euler_residuals_verified=True,
+    terminal_boundary_count=1,
+    shock_boundary_edge_count=2,
+    ambient_boundary_edge_count=2,
+    centerline_boundary_edge_count=2,
+    internal_edge_count=1,
+    pseudo_iteration_count=140,
+    maximum_conservative_euler_residual=5.0e-4,
+    maximum_shock_jump_residual=8.0e-5,
+    maximum_ambient_pressure_residual_Pa=17_000.0,
+    maximum_ambient_normal_velocity_residual_m_s=43.0,
+    maximum_centerline_normal_velocity_residual_m_s=18.0,
+    independent_measurement=SimpleNamespace(
+      converged=True,
+      operator_id='op.moc.physical-field-euler-reconciliation-audit',
+    ),
+  )
+
+  bundle = standardize_model_visualization(
+    result,
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-physical-field-euler-reconciliation'
+  assert len(bundle.fields) == 1
+  assert set(bundle.fields[0].channels) >= {
+    'mach',
+    'static_pressure',
+    'total_pressure',
+    'euler_residual',
+  }
+  assert bundle.fields[0].channels['euler_residual'] == pytest.approx(
+    (4.0e-4, 5.0e-4),
+  )
+  assert {path.path_id for path in bundle.paths} >= {
+    'moc-shock-boundary',
+    'moc-ambient-boundary',
+    'moc-centerline-boundary',
+    'moc-physical-field-shock-front',
+  }
+  assert bundle.diagnostics[
+    'physical_field_euler_reconciliation_audit_verified'
+  ] is True
+  assert bundle.diagnostics[
+    'physical_field_euler_reconciliation_maximum_conservative_euler_residual'
+  ] == pytest.approx(5.0e-4)
+  assert bundle.claims.production_claim_allowed is False
+  assert any('residual heat maps' in warning for warning in bundle.warnings)
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_moc_production_fit_visualization_exposes_candidate_boundary_without_promotion() -> None:
   class ProductionFitResult(_MocResult):
     candidate_field = _MocField()

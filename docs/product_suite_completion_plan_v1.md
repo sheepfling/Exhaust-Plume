@@ -1897,3 +1897,22 @@ the research-only claim ceiling.  The next slice is to bind this consumer to
 the global placement/refinement loop and demonstrate stable behavior across
 at least two declared resolutions before considering any physical shock-cell
 fit or product promotion.
+
+### Standardized reconciliation Visualization checkpoint — 2026-09-08
+
+The standardized planar-MOC adapter now recognizes the front-aligned
+conservative reconciliation result as its own research visualization model:
+``planar-moc-physical-field-euler-reconciliation``.  It preserves the
+solver-owned mesh polygons, shock/ambient/centerline paths, derived primitive
+state channels, and five cell-associated normalized residual channels
+(``mass``, streamwise/transverse momentum, energy, and maximum Euler
+residual).  The bundle also reports the solver status, boundary-edge counts,
+pseudo-iteration count, maximum boundary/shock residuals, and independent
+audit operator status.
+
+This closes a Visualization-product evidence seam for the new consumer only.
+The adapter explicitly retains the research claim ceiling and warns that a
+residual heat map is not global placement, refinement convergence, a physical
+shock-cell fit, Signature radiance, ray transfer, or FPA evidence.  A focused
+renderer-neutral regression test passes, including JSON serialization and the
+promotion guard.

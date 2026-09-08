@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from math import atan2, cos, isfinite, pi, sin, sqrt
+from math import atan2, cos, isfinite, log, pi, sin, sqrt
 import re
 from typing import Any, Literal, TypeAlias, cast
 
@@ -1313,6 +1313,214 @@ class _CoupledEulerFieldView:
 ####
 
 
+class _PhysicalFieldEulerReconciliationView:
+  """Adapt a front-aligned conservative reconciliation to the MOC view.
+
+  The reconciliation result deliberately does not expose the structured-grid
+  fields required by ``_CoupledEulerFieldView``.  This adapter keeps its
+  polygon mesh and conservative state vector intact while deriving only the
+  primitive quantities needed by the renderer-neutral Visualization contract.
+  It is a display adapter; it does not change the solver's research-only
+  promotion ceiling.
+  """
+
+  def __init__(self, result: object) -> None:
+    polygons = tuple(
+      tuple(_vector2('reconciliation cell vertex', point) for point in polygon)
+      for polygon in getattr(result, 'cell_vertices_by_cell_m', ())
+    )
+    centers = tuple(
+      _vector2('reconciliation cell center', point)
+      for point in getattr(result, 'cell_centers_m', ())
+    )
+    states = tuple(
+      tuple(float(value) for value in state)
+      for state in getattr(result, 'conservative_states_by_cell', ())
+    )
+    if not polygons or len(polygons) != len(centers) or len(polygons) != len(states):
+      raise ValueError(
+        'physical-field reconciliation visualization requires matching mesh, '
+        'center, and conservative-state arrays'
+      )
+    ####
+    if any(len(polygon) < 3 for polygon in polygons):
+      raise ValueError('physical-field reconciliation cells require polygons')
+    ####
+    condition = getattr(result, 'shock_front_condition', None)
+    if condition is None:
+      raise ValueError(
+        'physical-field reconciliation visualization requires its retained '
+        'shock-front condition'
+      )
+    ####
+    source_field = getattr(condition, 'field', None)
+    source_states = tuple(
+      getattr(source_field, 'post_shock_boundary_states', ())
+    )
+    if not source_states or not hasattr(source_states[0], 'gamma'):
+      raise ValueError(
+        'physical-field reconciliation visualization requires the retained '
+        'source gamma; it will not infer a gas model'
+      )
+    ####
+    gamma = _finite(
+      'reconciliation gamma',
+      getattr(source_states[0], 'gamma'),
+    )
+    request = getattr(result, 'request', None)
+    if request is None or not hasattr(request, 'gas_constant_J_kgK'):
+      raise ValueError(
+        'physical-field reconciliation visualization requires its exact '
+        'thermodynamic request'
+      )
+    ####
+    gas_constant = _finite(
+      'reconciliation gas constant',
+      getattr(request, 'gas_constant_J_kgK'),
+    )
+    if gas_constant <= 0.0:
+      raise ValueError('reconciliation gas constant must be positive')
+    ####
+    arrays: dict[str, tuple[float, ...]] = {
+      'mach': (),
+      'static_pressure': (),
+      'density': (),
+      'temperature': (),
+      'velocity_u': (),
+      'velocity_v': (),
+      'total_pressure': (),
+      'entropy_proxy': (),
+    }
+    primitive_rows: list[_CoupledEulerSample] = []
+    for state in states:
+      if len(state) != 4:
+        raise ValueError('reconciliation conservative states require four values')
+      ####
+      density = state[0]
+      if not isfinite(density) or density <= 0.0:
+        raise ValueError('reconciliation density must be positive')
+      ####
+      velocity_u = state[1] / density
+      velocity_v = state[2] / density
+      speed_squared = velocity_u * velocity_u + velocity_v * velocity_v
+      pressure = (gamma - 1.0) * (
+        state[3] - 0.5 * density * speed_squared
+      )
+      if not isfinite(pressure) or pressure <= 0.0:
+        raise ValueError('reconciliation pressure must be positive')
+      ####
+      sound_speed = sqrt(gamma * pressure / density)
+      speed = sqrt(max(speed_squared, 0.0))
+      mach = speed / sound_speed
+      temperature = pressure / (density * gas_constant)
+      total_pressure = pressure * (
+        1.0 + 0.5 * (gamma - 1.0) * mach * mach
+      ) ** (gamma / (gamma - 1.0))
+      entropy_proxy = log(pressure) - gamma * log(density)
+      primitive_rows.append(
+        _CoupledEulerSample(
+          x_m=0.0,
+          y_m=0.0,
+          theta_rad=atan2(velocity_v, velocity_u),
+          mach=mach,
+          gamma=gamma,
+          static_pressure_Pa=pressure,
+          density_kg_m3=density,
+          temperature_K=temperature,
+          velocity_u_m_s=velocity_u,
+          velocity_v_m_s=velocity_v,
+          total_pressure_Pa=total_pressure,
+          entropy_proxy=entropy_proxy,
+          entropy_production_fraction=None,
+        )
+      )
+      ####
+    ####
+    for name in arrays:
+      arrays[name] = tuple(
+        float(getattr(sample, {
+          'mach': 'mach',
+          'static_pressure': 'static_pressure_Pa',
+          'density': 'density_kg_m3',
+          'temperature': 'temperature_K',
+          'velocity_u': 'velocity_u_m_s',
+          'velocity_v': 'velocity_v_m_s',
+          'total_pressure': 'total_pressure_Pa',
+          'entropy_proxy': 'entropy_proxy',
+        }[name]))
+        for sample in primitive_rows
+      )
+    ####
+    self._centers = centers
+    self._arrays = arrays
+    self._primitive_rows = tuple(primitive_rows)
+    self.cells = tuple(_CoupledEulerCellView(polygon) for polygon in polygons)
+    self.nodes = tuple(sorted({point for polygon in polygons for point in polygon}))
+    self.shock_boundary_points_m = tuple(
+      _vector2('reconciliation shock point', point)
+      for point in getattr(condition, 'shock_front_points_m', ())
+    )
+    self.ambient_boundary_points_m = tuple(
+      _vector2('reconciliation ambient point', point)
+      for point in getattr(condition, 'ambient_neighbor_points_m', ())
+    )
+    self.centerline_boundary_points_m = tuple(
+      _vector2('reconciliation centerline point', point)
+      for point in getattr(condition, 'centerline_neighbor_points_m', ())
+    )
+    self.centerline_boundary_states = tuple(
+      self.state_at(point) for point in self.centerline_boundary_points_m
+    )
+    self.centerline_boundary_total_pressure_Pa = tuple(
+      self.total_pressure_at(point) for point in self.centerline_boundary_points_m
+    )
+    self.physical_closure_verified = bool(
+      getattr(result, 'physical_closure_verified', False)
+    )
+    self.state_sampling_available = True
+    self.production_claim_allowed = bool(
+      getattr(result, 'production_claim_allowed', False)
+    )
+  ####
+
+  def _nearest_index(self, point: tuple[float, float]) -> int:
+    return min(
+      range(len(self._centers)),
+      key=lambda index: (
+        (self._centers[index][0] - point[0]) ** 2
+        + (self._centers[index][1] - point[1]) ** 2,
+        index,
+      ),
+    )
+  ####
+
+  def state_at(self, point: tuple[float, float]) -> _CoupledEulerSample:
+    index = self._nearest_index(point)
+    center = self._centers[index]
+    sample = self._primitive_rows[index]
+    return _CoupledEulerSample(
+      x_m=center[0],
+      y_m=center[1],
+      theta_rad=sample.theta_rad,
+      mach=sample.mach,
+      gamma=sample.gamma,
+      static_pressure_Pa=sample.static_pressure_Pa,
+      density_kg_m3=sample.density_kg_m3,
+      temperature_K=sample.temperature_K,
+      velocity_u_m_s=sample.velocity_u_m_s,
+      velocity_v_m_s=sample.velocity_v_m_s,
+      total_pressure_Pa=sample.total_pressure_Pa,
+      entropy_proxy=sample.entropy_proxy,
+      entropy_production_fraction=None,
+    )
+  ####
+
+  def total_pressure_at(self, point: tuple[float, float]) -> float:
+    return self._arrays['total_pressure'][self._nearest_index(point)]
+  ####
+####
+
+
 class _EntropyCharacteristicFieldView:
   """Adapt a bounded entropy-characteristic field to the MOC view protocol."""
 
@@ -1410,6 +1618,26 @@ def _entropy_characteristic_field_from_result(result: object) -> object | None:
 ####
 
 
+def _physical_field_euler_reconciliation_from_result(
+  result: object,
+) -> object | None:
+  """Return a field view for the front-aligned conservative consumer."""
+
+  if not all(
+    hasattr(result, name)
+    for name in (
+      'cell_vertices_by_cell_m',
+      'cell_centers_m',
+      'conservative_states_by_cell',
+      'shock_front_condition',
+    )
+  ):
+    return None
+  ####
+  return _PhysicalFieldEulerReconciliationView(result)
+####
+
+
 def _coupled_euler_field_from_result(result: object) -> object | None:
   if not hasattr(result, 'cell_vertices_by_cell_m'):
     return None
@@ -1427,6 +1655,10 @@ def _moc_field_from_result(result: object) -> tuple[object | None, object]:
   attached_field = _entropy_characteristic_field_from_result(result)
   if attached_field is not None:
     return attached_field, result
+  ####
+  reconciled_field = _physical_field_euler_reconciliation_from_result(result)
+  if reconciled_field is not None:
+    return reconciled_field, result
   ####
   coupled_field = _coupled_euler_field_from_result(result)
   if coupled_field is not None:
@@ -1950,6 +2182,7 @@ def _moc_visualization(
     raise ValueError('planar-MOC visualization requires a retained field with cells and boundaries')
   ####
   coupled_euler = isinstance(field, _CoupledEulerFieldView)
+  reconciled_euler = isinstance(field, _PhysicalFieldEulerReconciliationView)
   cell_polygons: list[tuple[Vector2, ...]] = []
   all_points: list[Vector2] = []
   for cell in getattr(field, 'cells', ()):
@@ -2580,6 +2813,26 @@ def _moc_visualization(
       )
     ####
   ####
+  if reconciled_euler:
+    axis_samples = tuple(state for state, _pressure in axis_states)
+    for channel_id, attribute, semantic, unit in (
+      ('static_pressure', 'static_pressure_Pa', 'reconciled centerline static pressure', 'Pa'),
+      ('density', 'density_kg_m3', 'reconciled centerline density', 'kg m^-3'),
+      ('temperature', 'temperature_K', 'reconciled centerline static temperature', 'K'),
+      ('velocity_u', 'velocity_u_m_s', 'reconciled centerline streamwise velocity', 'm s^-1'),
+      ('velocity_v', 'velocity_v_m_s', 'reconciled centerline transverse velocity', 'm s^-1'),
+      ('entropy_proxy', 'entropy_proxy', 'reconciled centerline entropy proxy', '1'),
+    ):
+      values = tuple(
+        float(getattr(state, attribute))
+        for state in axis_samples
+        if hasattr(state, attribute)
+      )
+      if len(values) == len(centerline):
+        optional_channels.append(_section_channel(channel_id, semantic, unit, values))
+      ####
+    ####
+  ####
   solver_channels, solver_diagnostics, solver_warnings = (
     _moc_solver_evidence_channels(
       result,
@@ -2652,6 +2905,24 @@ def _moc_visualization(
       )
     ####
   ####
+  if reconciled_euler:
+    residual_rows = tuple(
+      tuple(float(value) for value in row)
+      for row in getattr(source, 'residual_channels_by_cell', ())
+    )
+    if len(residual_rows) == len(cell_polygons) and all(
+      len(row) == 5 and all(isfinite(value) for value in row)
+      for row in residual_rows
+    ):
+      field_channel_values.update({
+        'mass_residual': [row[0] for row in residual_rows],
+        'streamwise_momentum_residual': [row[1] for row in residual_rows],
+        'transverse_momentum_residual': [row[2] for row in residual_rows],
+        'energy_residual': [row[3] for row in residual_rows],
+        'euler_residual': [row[4] for row in residual_rows],
+      })
+    ####
+  ####
   field_channel_units = {
     'mach': '1',
     'flow_angle': 'rad',
@@ -2664,6 +2935,22 @@ def _moc_visualization(
     'static_pressure': 'cell-center isentropic static pressure',
     'total_pressure': 'cell-center carried total pressure',
   }
+  if reconciled_euler:
+    field_channel_units.update({
+      'mass_residual': '1',
+      'streamwise_momentum_residual': '1',
+      'transverse_momentum_residual': '1',
+      'energy_residual': '1',
+      'euler_residual': '1',
+    })
+    field_channel_semantics.update({
+      'mass_residual': 'cell-local normalized mass residual from the conservative reconciliation',
+      'streamwise_momentum_residual': 'cell-local normalized streamwise momentum residual from the conservative reconciliation',
+      'transverse_momentum_residual': 'cell-local normalized transverse momentum residual from the conservative reconciliation',
+      'energy_residual': 'cell-local normalized energy residual from the conservative reconciliation',
+      'euler_residual': 'cell-local maximum normalized conservative Euler residual',
+    })
+  ####
   if 'entropy_production_fraction' in field_channel_values:
     field_channel_units['entropy_production_fraction'] = '1'
     field_channel_semantics['entropy_production_fraction'] = (
@@ -2700,6 +2987,65 @@ def _moc_visualization(
     'state_sampling_available': bool(getattr(source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
+  if reconciled_euler:
+    reconciliation_status = getattr(source, 'status', '')
+    diagnostics['physical_field_euler_reconciliation_status'] = str(
+      getattr(reconciliation_status, 'value', reconciliation_status)
+    )
+    for name in (
+      'converged',
+      'mesh_verified',
+      'coupled_euler_field_verified',
+      'shock_jump_verified',
+      'ambient_boundary_verified',
+      'centerline_boundary_verified',
+      'conservative_euler_residuals_measured',
+      'conservative_euler_residuals_verified',
+      'physical_closure_verified',
+      'global_coupling_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      value = getattr(source, name, None)
+      if isinstance(value, bool):
+        diagnostics[f'physical_field_euler_reconciliation_{name}'] = value
+      ####
+    ####
+    for name in (
+      'terminal_boundary_count',
+      'shock_boundary_edge_count',
+      'ambient_boundary_edge_count',
+      'centerline_boundary_edge_count',
+      'internal_edge_count',
+      'pseudo_iteration_count',
+    ):
+      value = getattr(source, name, None)
+      if isinstance(value, int) and not isinstance(value, bool):
+        diagnostics[f'physical_field_euler_reconciliation_{name}'] = value
+      ####
+    ####
+    for name in (
+      'maximum_conservative_euler_residual',
+      'maximum_shock_jump_residual',
+      'maximum_ambient_pressure_residual_Pa',
+      'maximum_ambient_normal_velocity_residual_m_s',
+      'maximum_centerline_normal_velocity_residual_m_s',
+    ):
+      value = getattr(source, name, None)
+      if value is not None and isfinite(float(value)):
+        diagnostics[f'physical_field_euler_reconciliation_{name}'] = float(value)
+      ####
+    ####
+    audit = getattr(source, 'independent_measurement', None)
+    if audit is not None:
+      diagnostics['physical_field_euler_reconciliation_audit_verified'] = bool(
+        getattr(audit, 'converged', False)
+      )
+      diagnostics['physical_field_euler_reconciliation_audit_operator'] = str(
+        getattr(audit, 'operator_id', '')
+      )
+    ####
+  ####
   if production_fit_result:
     fit_status = getattr(source, 'status', '')
     diagnostics['production_fit_status'] = str(
@@ -3425,6 +3771,13 @@ def _moc_visualization(
       )
     ####
   ####
+  if reconciled_euler:
+    warnings.append(
+      'front-aligned conservative reconciliation is a fixed-front research '
+      'consumer; residual heat maps do not establish global placement, '
+      'refinement convergence, or production shock-cell validity'
+    )
+  ####
   if transonic_geometry is not None:
     warnings.append(
       (
@@ -3457,29 +3810,33 @@ def _moc_visualization(
   return _bundle(
     lane=ModelVisualizationLane.PLANAR_MOC,
     model_id=(
-      'planar-moc-coupled-euler-free-boundary'
-      if coupled_euler
+      'planar-moc-physical-field-euler-reconciliation'
+      if reconciled_euler
       else (
-        'planar-moc-production-shock-cell-fit'
-        if production_fit_result
+        'planar-moc-coupled-euler-free-boundary'
+        if coupled_euler
         else (
-        'planar-moc-mixed-regime-reference'
-        if mixed_regime_reference is not None
-        else (
-          'planar-moc-transonic-shock-interface'
-        if is_transonic_interface
-        else (
-          'planar-moc-transonic-frontier-placement'
-          if is_transonic_placement
+          'planar-moc-production-shock-cell-fit'
+          if production_fit_result
           else (
-            'planar-moc-transonic-characteristic-transport'
-            if is_transonic_transport
-            else 'planar-moc-transonic-field-attachment'
-            if is_transonic_attachment else 'planar-moc-reflected-domain'
+          'planar-moc-mixed-regime-reference'
+          if mixed_regime_reference is not None
+          else (
+            'planar-moc-transonic-shock-interface'
+          if is_transonic_interface
+          else (
+            'planar-moc-transonic-frontier-placement'
+            if is_transonic_placement
+            else (
+              'planar-moc-transonic-characteristic-transport'
+              if is_transonic_transport
+              else 'planar-moc-transonic-field-attachment'
+              if is_transonic_attachment else 'planar-moc-reflected-domain'
+            )
           )
         )
         )
-      )
+        )
       )
     ),
     model_version='1',
@@ -3494,10 +3851,15 @@ def _moc_visualization(
       production_claim_allowed=False,
       claim_notes=(
         (
+          'front-aligned conservative physical-field reconciliation retained '
+          'for research visualization'
+          if reconciled_euler
+          else (
           'coupled constant-gamma Euler/free-boundary field retained for '
           'research visualization'
           if coupled_euler
           else 'higher-fidelity planar characteristic/reflected-domain field retained for evaluation'
+          )
         ),
         'local field closure does not imply a production chain-cell or axisymmetric plume claim',
       ),
