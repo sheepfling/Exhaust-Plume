@@ -2289,3 +2289,32 @@ the external-validation requirement, and the chain-promotion stop.  This closes
 only local disjoint-case evidence.  A solver-owned upstream/global re-solve,
 accepted physical shock-cell measurements, provider-bound product cases, and
 the missing validation archives remain release blockers.
+
+### Upstream/global consumption audit checkpoint — 2026-09-08
+
+The existing global frontier-feedback composition has been audited at the
+solver call boundary.  It does perform fresh
+``solve_reflected_domain_global_physical_closure`` calls, but the downstream
+frontier packet currently changes only the declared compression-envelope
+candidate family; the fresh global results are then measured against the
+packet and the best candidate is selected.  That is parameter-conditioned
+research evidence, not downstream pressure consumed as a boundary condition
+inside the global equations.
+
+The optional pressure consumer in the target-guided resolver is a separate
+fixed-front conservative reconciliation on the selected candidate.  It proves
+that a pressure profile can be covered and measured on an already retained
+front, but it does not move the global shock, solve the ambient/free boundary,
+or establish upstream/downstream fixed-point coupling.  The plan therefore
+keeps ``global_coupling_verified`` and
+``downstream_boundary_closure_verified`` false for every such report.
+
+The next canonical-closure slice must introduce a typed solver-owned global
+boundary-condition request (or an equivalent mixed-regime solve) that retains
+the source and proposal fingerprints, rejects incomplete pressure coverage,
+consumes the pressure response while solving geometry and state together, and
+independently audits pressure, tangent, entropy, Euler, and refinement
+residuals.  A candidate-selection score or fixed-front overlay cannot satisfy
+that gate.  Only after this operator closes across disjoint cases can the
+accepted physical shock-cell fit, continued-chain handoff, provider-bound
+VIS/SIG/RAY/FPA matrix, and final release manifest advance.
