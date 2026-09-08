@@ -64,6 +64,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementStatus(str, Enum):
   TARGET_MISMATCH = 'global-frontier-target-refinement-target-mismatch'
   REFINEMENT_LIMIT = 'global-frontier-target-refinement-iteration-limit'
   FIDELITY_FAILURE = 'global-frontier-target-refinement-fidelity-failure'
+####
 
 
 def _configuration_fingerprint(configuration: Mapping[str, Any]) -> str:
@@ -75,6 +76,7 @@ def _configuration_fingerprint(configuration: Mapping[str, Any]) -> str:
     default=str,
   )
   return sha256(serialized.encode('utf-8')).hexdigest()
+####
 
 
 def _as_finite_float(value: object, name: str) -> float:
@@ -82,9 +84,12 @@ def _as_finite_float(value: object, name: str) -> float:
     resolved = float(value)
   except (TypeError, ValueError) as error:
     raise ValueError(f'{name} must be numeric') from error
+  ####
   if not isfinite(resolved):
     raise ValueError(f'{name} must be finite')
+  ####
   return resolved
+####
 
 
 def _candidate_score(
@@ -122,6 +127,7 @@ def _candidate_score(
     / tangent_tolerance_rad,
     pressure_score,
   )
+####
 
 
 def _probe_skews(lower: float, upper: float) -> tuple[float, ...]:
@@ -132,6 +138,7 @@ def _probe_skews(lower: float, upper: float) -> tuple[float, ...]:
     for index, value in enumerate(probes)
     if index == 0 or value != probes[index - 1]
   )
+####
 
 
 def _next_bracket(
@@ -144,13 +151,16 @@ def _next_bracket(
   midpoint = (lower + upper) / 2.0
   if selected_skew <= lower:
     return lower, midpoint
+  ####
   if selected_skew >= upper:
     return midpoint, upper
+  ####
   half_width = (upper - lower) / 4.0
   return max(lower, selected_skew - half_width), min(
     upper,
     selected_skew + half_width,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +200,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementStep:
     probes = tuple(_as_finite_float(value, 'probe_skew') for value in self.probe_skews)
     if not probes or len(set(probes)) != len(probes):
       raise ValueError('probe_skews must contain unique values')
+    ####
     if any(value < lower or value > upper for value in probes):
       raise ValueError('probe_skews must remain inside the retained bracket')
     ####
@@ -206,12 +217,14 @@ class MocReflectedDomainGlobalFrontierTargetRefinementStep:
       selected = _as_finite_float(self.selected_probe_skew, 'selected_probe_skew')
       if selected not in probes:
         raise ValueError('selected_probe_skew must select a retained probe')
+      ####
       object.__setattr__(self, 'selected_probe_skew', selected)
     ####
     if self.selected_score is not None:
       score = _as_finite_float(self.selected_score, 'selected_score')
       if score < 0.0:
         raise ValueError('selected_score must be nonnegative')
+      ####
       object.__setattr__(self, 'selected_score', score)
     ####
     for name in ('next_lower_skew', 'next_upper_skew'):
@@ -219,9 +232,11 @@ class MocReflectedDomainGlobalFrontierTargetRefinementStep:
       if value is not None:
         resolved = _as_finite_float(value, name)
         object.__setattr__(self, name, resolved)
+      ####
     ####
     if (self.next_lower_skew is None) != (self.next_upper_skew is None):
       raise ValueError('next bracket bounds must be supplied together')
+    ####
     if self.next_lower_skew is not None and not (
       -1.0 <= self.next_lower_skew < self.next_upper_skew <= 1.0
     ):
@@ -237,6 +252,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementStep:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.target_match_verified and self.selected_probe_skew is None:
       raise ValueError('target_match_verified requires a selected probe')
@@ -245,6 +261,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementStep:
     object.__setattr__(self, 'upper_skew', upper)
     object.__setattr__(self, 'probe_skews', probes)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def research_step_verified(self) -> bool:
@@ -256,6 +273,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementStep:
       and self.fidelity_isolation_verified
       and self.selected_probe_skew is not None
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -277,6 +295,8 @@ class MocReflectedDomainGlobalFrontierTargetRefinementStep:
       'target_resolve': self.target_resolve.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,6 +333,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
         'status must be a '
         'MocReflectedDomainGlobalFrontierTargetRefinementStatus'
       )
+    ####
     if not isinstance(
       self.request,
       MocReflectedDomainGlobalFrontierReconciliationRequest,
@@ -321,6 +342,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
         'request must be a '
         'MocReflectedDomainGlobalFrontierReconciliationRequest'
       )
+    ####
     if not isinstance(
       self.source_closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
@@ -329,6 +351,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
         'source_closure must be a '
         'MocReflectedDomainGlobalPhysicalClosureResult'
       )
+    ####
     if (
       isinstance(self.requested_iterations, bool)
       or not isinstance(self.requested_iterations, int)
@@ -345,8 +368,10 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
       for step in steps
     ):
       raise TypeError('steps must contain typed target-refinement steps')
+    ####
     if len(steps) > self.requested_iterations:
       raise ValueError('steps cannot exceed requested_iterations')
+    ####
     if tuple(step.iteration_index for step in steps) != tuple(range(len(steps))):
       raise ValueError('steps must have contiguous zero-based indices')
     ####
@@ -374,11 +399,13 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.global_coupling_verified or self.downstream_boundary_closure_verified:
       raise ValueError(
         'target-conditioned research refinement cannot claim canonical closure'
       )
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError(
         'target-conditioned research refinement must remain blocked from production'
@@ -389,6 +416,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
       expected = _configuration_fingerprint(configuration)
       if self.configuration_fingerprint != expected:
         raise ValueError('configuration_fingerprint does not match configuration')
+      ####
     else:
       object.__setattr__(
         self,
@@ -399,6 +427,7 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
     object.__setattr__(self, 'steps', steps)
     object.__setattr__(self, 'configuration', configuration)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def research_refinement_completed(self) -> bool:
@@ -416,12 +445,14 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
       and self.fidelity_isolation_verified
       and all(step.research_step_verified for step in self.steps)
     )
+  ####
 
   @property
   def converged(self) -> bool:
     """Alias for local research completion, never canonical closure."""
 
     return self.research_refinement_completed
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -471,6 +502,8 @@ class MocReflectedDomainGlobalFrontierTargetRefinementResult:
         'promoted to a canonical mixed-regime boundary condition'
       ),
     }
+  ####
+####
 
 
 def _result(
@@ -509,6 +542,7 @@ def _result(
     configuration_fingerprint=_configuration_fingerprint(configuration),
     message=message,
   )
+####
 
 
 def run_reflected_domain_global_frontier_target_conditioned_refinement(
@@ -537,6 +571,7 @@ def run_reflected_domain_global_frontier_target_conditioned_refinement(
       'request must be a '
       'MocReflectedDomainGlobalFrontierReconciliationRequest'
     )
+  ####
   if not isinstance(
     source_closure,
     MocReflectedDomainGlobalPhysicalClosureResult,
@@ -544,12 +579,14 @@ def run_reflected_domain_global_frontier_target_conditioned_refinement(
     raise TypeError(
       'source_closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
     )
+  ####
   if (
     isinstance(maximum_iterations, bool)
     or not isinstance(maximum_iterations, int)
     or maximum_iterations < 1
   ):
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
   minimum_width = _as_finite_float(
     minimum_bracket_width,
     'minimum_bracket_width',
@@ -596,6 +633,7 @@ def run_reflected_domain_global_frontier_target_conditioned_refinement(
     resolved_options = dict(target_resolve_options)
   else:
     raise TypeError('target_resolve_options must be a mapping when supplied')
+  ####
   if 'candidate_compression_envelope_skews' in resolved_options:
     raise ValueError(
       'target_resolve_options cannot override the refinement probe family'
@@ -609,10 +647,12 @@ def run_reflected_domain_global_frontier_target_conditioned_refinement(
         raise ValueError(
           'source closure retained fewer than two compression-envelope skews'
         )
+      ####
       lower, upper = min(retained), max(retained)
     else:
       if len(compression_envelope_skew_bounds) != 2:
         raise ValueError('compression_envelope_skew_bounds must have two values')
+      ####
       lower = _as_finite_float(
         compression_envelope_skew_bounds[0],
         'compression_envelope_skew_bounds lower',
@@ -621,6 +661,7 @@ def run_reflected_domain_global_frontier_target_conditioned_refinement(
         compression_envelope_skew_bounds[1],
         'compression_envelope_skew_bounds upper',
       )
+    ####
   except (TypeError, ValueError) as error:
     return _result(
       MocReflectedDomainGlobalFrontierTargetRefinementStatus.INVALID_INPUT,
@@ -672,7 +713,6 @@ def run_reflected_domain_global_frontier_target_conditioned_refinement(
       'fresh-global-target-guided-three-probe-bracket-v1'
     ),
   }
-  ####
   steps: list[MocReflectedDomainGlobalFrontierTargetRefinementStep] = []
   selected_closure: MocReflectedDomainGlobalPhysicalClosureResult | None = None
   target_lineage_verified = True
@@ -881,3 +921,4 @@ def run_reflected_domain_global_frontier_target_conditioned_refinement(
     fidelity_isolation_verified=fidelity_isolation_verified,
     message=message,
   )
+####

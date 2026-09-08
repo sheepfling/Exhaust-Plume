@@ -3045,6 +3045,7 @@ def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
   )
   assert 'does not cover coupled cell center' in out_of_field.message
   assert not out_of_field.initial_state_field_bound
+####
 
 
 def test_physical_field_pressure_free_boundary_owns_geometry():
@@ -3132,6 +3133,7 @@ def test_physical_field_pressure_free_boundary_owns_geometry():
   assert global_candidate.downstream_boundary_closure_verified is False
   assert global_candidate.chain_promotion_blocked
   assert global_candidate.production_claim_allowed is False
+####
 
 
 def test_physical_field_pressure_free_boundary_rejects_geometry_injection():
@@ -3161,6 +3163,8 @@ def test_physical_field_pressure_free_boundary_rejects_geometry_injection():
       ),
       free_boundary_geometry_profile_source='test-geometry-profile',
     )
+  ####
+####
 
 
 def test_pressure_free_boundary_refinement_keeps_geometry_solver_owned():
@@ -3211,6 +3215,7 @@ def test_pressure_free_boundary_refinement_keeps_geometry_solver_owned():
     and not case.result.coupled_field.free_boundary_geometry_profile_consumed
     for case in run.cases
   )
+####
 
 
 def test_pressure_free_boundary_cross_case_refinement_keeps_cases_disjoint():
@@ -3242,6 +3247,7 @@ def test_pressure_free_boundary_cross_case_refinement_keeps_cases_disjoint():
         resolutions=((8, 8), (10, 10)),
       )
     )
+  ####
   run = (
     run_reflected_domain_global_coupled_pressure_free_boundary_cross_case_refinement(
       tuple(cases),
