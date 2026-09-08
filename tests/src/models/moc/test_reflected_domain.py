@@ -6751,6 +6751,77 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
   ] is True
   assert visualization.claims.production_claim_allowed is False
   assert resolved.as_report()['candidate_count'] == 2
+  pressure_requested = run_reflected_domain_global_frontier_target_guided_resolve(
+    request,
+    closure,
+    consume_target_pressure=True,
+  )
+  assert pressure_requested.status is (
+    MocReflectedDomainGlobalFrontierTargetResolveStatus.TARGET_PRESSURE_FAILURE
+  )
+  assert pressure_requested.target_pressure_consumption_requested
+  assert pressure_requested.target_pressure_consumption_verified is False
+  assert pressure_requested.selected_candidate is not None
+  assert pressure_requested.selected_candidate.target_pressure_reconciliation is not None
+  assert pressure_requested.selected_candidate.target_pressure_reconciliation.status is (
+    MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
+    .TARGET_COVERAGE_FAILURE
+  )
+  assert pressure_requested.converged_research_resolve is False
+  candidate = resolved.selected_candidate.closure
+  assert candidate is not None
+  assert candidate.global_euler is not None
+  assert candidate.global_euler.physical_field is not None
+  assert candidate.global_euler.physical_field.field is not None
+  candidate_boundary = candidate.global_euler.physical_field.field.ambient_boundary
+  candidate_points = tuple(candidate_boundary.points_m)
+  candidate_count = len(candidate_points)
+  candidate_proposal = replace(
+    request.proposal,
+    matched_x_stations_m=tuple(point[0] for point in candidate_points),
+    reference_boundary_points_m=candidate_points,
+    proposed_boundary_points_m=candidate_points,
+    reference_tangent_rad=tuple(
+      state.theta_rad for state in candidate_boundary.states
+    ),
+    proposed_tangent_rad=tuple(
+      state.theta_rad for state in candidate_boundary.states
+    ),
+    reference_static_pressure_Pa=tuple(candidate_boundary.static_pressure_Pa),
+    proposed_static_pressure_Pa=tuple(candidate_boundary.static_pressure_Pa),
+    coordinate_corrections_m=(0.0,) * candidate_count,
+    tangent_corrections_rad=(0.0,) * candidate_count,
+    pressure_corrections_Pa=(0.0,) * candidate_count,
+    normal_velocity_values_m_s=(0.0,) * candidate_count,
+  )
+  candidate_request = build_reflected_domain_global_frontier_reconciliation_request(
+    closure,
+    candidate_proposal,
+    consumer_id='test-fresh-candidate-target-pressure-consumer',
+  )
+  candidate_consumption = (
+    run_reflected_domain_global_frontier_target_pressure_reconciliation(
+      candidate_request,
+      closure,
+      candidate_closure=candidate,
+    )
+  )
+  assert candidate_consumption.status is (
+    MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
+    .CONVERGED_LOCAL_TARGET_PRESSURE_RECONCILIATION
+  )
+  assert candidate_consumption.converged_research_reconciliation
+  assert candidate_consumption.target_lineage_verified
+  assert candidate_consumption.target_consumption_verified
+  assert candidate_consumption.candidate_closure_fingerprint is not None
+  assert candidate_consumption.candidate_closure_fingerprint != (
+    candidate_consumption.as_report()['source_closure_fingerprint']
+  )
+  assert candidate_consumption.reconciliation is not None
+  assert candidate_consumption.reconciliation.ambient_pressure_target_consumed
+  assert candidate_consumption.global_coupling_verified is False
+  assert candidate_consumption.chain_promotion_blocked
+  assert candidate_consumption.production_claim_allowed is False
 ####
 
 

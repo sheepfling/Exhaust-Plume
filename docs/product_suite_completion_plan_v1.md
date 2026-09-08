@@ -2005,3 +2005,26 @@ equation, establish refinement convergence, fit physical cell lengths, or
 replace provider-bound validation.  The next closure slice is the actual
 solver-owned pressure/geometry boundary-condition solve and its cross-case
 refinement evidence.
+
+### Fresh-candidate pressure-consumption checkpoint — 2026-09-08
+
+The target-guided global resolver can now optionally pass its selected fresh
+candidate through the exact fixed-front conservative pressure consumer.  The
+consumer keeps the proposal-producing closure fingerprint separate from the
+fresh candidate fingerprint, reconstructs the candidate-owned shock-front
+condition, applies the exact pressure profile in the ambient-face momentum
+flux, and independently audits coverage and residual channels.  This removes
+an ambiguity in the feedback record: a target match can now be distinguished
+from actual pressure consumption by the fresh candidate's conservative field.
+
+The mixed-regime feedback target currently fails the new optional consumer's
+coverage gate because its stations do not span the candidate's retained
+ambient path.  That typed failure is retained; no interpolation outside the
+declared station frame, endpoint hold, or lower-fidelity fallback is allowed.
+An exact candidate-bound target passes the consumer regression, with distinct
+source/candidate fingerprints and all global, chain, and production gates
+closed.  This is still a fixed-front research reconciliation, not the
+solver-owned two-dimensional transonic/free-boundary condition required for
+canonical global closure.  The next physics work remains target geometry
+coverage/placement inside the global solve, followed by cross-case refinement
+before any physical shock-cell fit or product promotion.

@@ -69,6 +69,9 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus(str, En
   )
   INVALID_INPUT = 'invalid_input'
   SOURCE_CLOSURE_FAILURE = 'global-frontier-target-pressure-source-failure'
+  CANDIDATE_CLOSURE_FAILURE = (
+    'global-frontier-target-pressure-candidate-failure'
+  )
   TARGET_LINEAGE_FAILURE = 'global-frontier-target-pressure-lineage-failure'
   FRONT_CONDITION_FAILURE = 'global-frontier-target-pressure-front-failure'
   TARGET_COVERAGE_FAILURE = 'global-frontier-target-pressure-coverage-failure'
@@ -84,6 +87,7 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
   status: MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
   request: MocReflectedDomainGlobalFrontierReconciliationRequest
   source_closure: MocReflectedDomainGlobalPhysicalClosureResult
+  candidate_closure_fingerprint: str | None = None
   target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
   front_condition: MocPhysicalFieldShockFrontConditionResult | None = None
   reconciliation: MocPhysicalFieldEulerReconciliationResult | None = None
@@ -116,6 +120,22 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('source_closure must be a global physical closure result')
+    ####
+    if self.candidate_closure_fingerprint is not None:
+      candidate_fingerprint = str(self.candidate_closure_fingerprint)
+      if len(candidate_fingerprint) != 64 or any(
+        character not in '0123456789abcdef'
+        for character in candidate_fingerprint
+      ):
+        raise ValueError(
+          'candidate_closure_fingerprint must be a lowercase SHA-256 digest'
+        )
+      ####
+      object.__setattr__(
+        self,
+        'candidate_closure_fingerprint',
+        candidate_fingerprint,
+      )
     ####
     if self.target is not None and not isinstance(
       self.target,
@@ -203,6 +223,7 @@ class MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
           self.source_closure
         )
       ),
+      'candidate_closure_fingerprint': self.candidate_closure_fingerprint,
       'source_proposal_fingerprint': (
         moc_reflected_domain_global_frontier_proposal_fingerprint(
           self.request.proposal
@@ -233,6 +254,7 @@ def _result(
   request: MocReflectedDomainGlobalFrontierReconciliationRequest,
   source_closure: MocReflectedDomainGlobalPhysicalClosureResult,
   *,
+  candidate_closure_fingerprint: str | None = None,
   target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   front_condition: MocPhysicalFieldShockFrontConditionResult | None = None,
   reconciliation: MocPhysicalFieldEulerReconciliationResult | None = None,
@@ -247,6 +269,7 @@ def _result(
     status=status,
     request=request,
     source_closure=source_closure,
+    candidate_closure_fingerprint=candidate_closure_fingerprint,
     target=target,
     front_condition=front_condition,
     reconciliation=reconciliation,
@@ -309,10 +332,18 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
   request: MocReflectedDomainGlobalFrontierReconciliationRequest,
   source_closure: MocReflectedDomainGlobalPhysicalClosureResult,
   *,
+  candidate_closure: MocReflectedDomainGlobalPhysicalClosureResult | None = None,
   reference_total_temperature_K: float = 1500.0,
   request_options: Mapping[str, Any] | None = None,
 ) -> MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult:
-  """Consume the exact frontier pressure target in a fresh conservative solve."""
+  """Consume an exact frontier target in a fixed-front conservative solve.
+
+  ``source_closure`` owns the proposal lineage.  ``candidate_closure`` is an
+  optional fresh global candidate whose retained physical field supplies the
+  fixed mesh and shock-front condition consumed by the conservative solver.
+  Keeping those identities separate prevents a fresh candidate from being
+  mistaken for the closure that produced the target packet.
+  """
 
   if not isinstance(
     request,
@@ -330,6 +361,19 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       'source_closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
     )
   ####
+  resolved_candidate = source_closure if candidate_closure is None else candidate_closure
+  if not isinstance(
+    resolved_candidate,
+    MocReflectedDomainGlobalPhysicalClosureResult,
+  ):
+    raise TypeError(
+      'candidate_closure must be a MocReflectedDomainGlobalPhysicalClosureResult '
+      'or None'
+    )
+  ####
+  candidate_fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
+    resolved_candidate
+  )
   lineage_verified = bool(
     request.lineage_verified
     and request.source_closure_fingerprint
@@ -345,6 +389,7 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       .TARGET_LINEAGE_FAILURE,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       message='global frontier request does not match the exact source closure or proposal',
     )
   ####
@@ -354,8 +399,26 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       .SOURCE_CLOSURE_FAILURE,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       target_lineage_verified=True,
       message='target-pressure consumption requires a locally verified source closure',
+    )
+  ####
+  if (
+    not resolved_candidate.converged
+    or not resolved_candidate.physical_closure_verified
+  ):
+    return _result(
+      MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
+      .CANDIDATE_CLOSURE_FAILURE,
+      request,
+      source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
+      target_lineage_verified=True,
+      message=(
+        'target-pressure consumption requires a locally verified fresh '
+        'candidate closure'
+      ),
     )
   ####
   try:
@@ -374,18 +437,20 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       .TARGET_LINEAGE_FAILURE,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       target_lineage_verified=True,
       message=f'frontier target could not become a typed pressure profile: {error}',
     )
   ####
   try:
-    condition = _build_front_condition(source_closure)
+    condition = _build_front_condition(resolved_candidate)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _result(
       MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
       .FRONT_CONDITION_FAILURE,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
       target_lineage_verified=True,
       message=f'source field could not produce a typed front condition: {error}',
@@ -398,6 +463,7 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       .INVALID_INPUT,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
       front_condition=condition,
       target_lineage_verified=True,
@@ -420,6 +486,7 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       .SOLVER_FAILURE,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
       front_condition=condition,
       target_lineage_verified=True,
@@ -435,6 +502,7 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       .TARGET_COVERAGE_FAILURE,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
       front_condition=condition,
       reconciliation=reconciliation,
@@ -458,6 +526,7 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       .SOLVER_FAILURE,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
       front_condition=condition,
       reconciliation=reconciliation,
@@ -475,6 +544,7 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
       .AUDIT_FAILURE,
       request,
       source_closure,
+      candidate_closure_fingerprint=candidate_fingerprint,
       target=target,
       front_condition=condition,
       reconciliation=reconciliation,
@@ -494,6 +564,7 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
     .CONVERGED_LOCAL_TARGET_PRESSURE_RECONCILIATION,
     request,
     source_closure,
+    candidate_closure_fingerprint=candidate_fingerprint,
     target=target,
     front_condition=condition,
     reconciliation=reconciliation,
@@ -504,8 +575,8 @@ def run_reflected_domain_global_frontier_target_pressure_reconciliation(
     independent_audit_verified=True,
     message=(
       'exact global-frontier pressure target was consumed in the fixed-front '
-      'conservative field and independently audited; global geometry and '
-      'free-boundary closure remain open'
+      'conservative field of the retained candidate and independently audited; '
+      'global geometry and free-boundary closure remain open'
     ),
   )
 ####

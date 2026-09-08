@@ -14,10 +14,10 @@ production gates closed.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from exhaust_plume.models.moc.global_frontier_reconciliation import (
   MocReflectedDomainGlobalFrontierReconciliationRequest,
@@ -29,6 +29,10 @@ from exhaust_plume.models.moc.global_physical_closure import (
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
 from exhaust_plume.models.moc.reflected_domain import ShockBranch
+from exhaust_plume.validation.moc_global_frontier_target_pressure_reconciliation import (
+  MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult,
+  run_reflected_domain_global_frontier_target_pressure_reconciliation,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID',
@@ -55,6 +59,7 @@ class MocReflectedDomainGlobalFrontierTargetResolveStatus(str, Enum):
   CANDIDATE_RESOLVE_FAILURE = 'global-frontier-candidate-resolve-failure'
   TARGET_COVERAGE_FAILURE = 'global-frontier-target-coverage-failure'
   TARGET_MISMATCH = 'global-frontier-target-mismatch'
+  TARGET_PRESSURE_FAILURE = 'global-frontier-target-pressure-failure'
   FIDELITY_FAILURE = 'global-frontier-fidelity-isolation-failure'
 ####
 
@@ -133,6 +138,9 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
 
   compression_envelope_skew: float
   closure: MocReflectedDomainGlobalPhysicalClosureResult | None
+  target_pressure_reconciliation: (
+    MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult | None
+  ) = None
   target_coordinate_residuals_m: tuple[float, ...] = ()
   target_tangent_residuals_rad: tuple[float, ...] = ()
   target_pressure_residuals_Pa: tuple[float, ...] = ()
@@ -155,6 +163,15 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
     ):
       raise TypeError(
         'closure must be a MocReflectedDomainGlobalPhysicalClosureResult or None'
+      )
+    ####
+    if self.target_pressure_reconciliation is not None and not isinstance(
+      self.target_pressure_reconciliation,
+      MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult,
+    ):
+      raise TypeError(
+        'target_pressure_reconciliation must be a typed target-pressure '
+        'reconciliation or None'
       )
     ####
     for name in (
@@ -205,6 +222,16 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
   ####
 
   @property
+  def target_pressure_consumption_verified(self) -> bool:
+    """Whether the optional fixed-front pressure consumer passed."""
+
+    return bool(
+      self.target_pressure_reconciliation is not None
+      and self.target_pressure_reconciliation.converged_research_reconciliation
+    )
+  ####
+
+  @property
   def target_residual_magnitude(self) -> float:
     """Return the largest unscaled residual channel for inspection."""
 
@@ -226,6 +253,9 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
     return {
       'compression_envelope_skew': self.compression_envelope_skew,
       'global_closure_verified': self.global_closure_verified,
+      'target_pressure_consumption_verified': (
+        self.target_pressure_consumption_verified
+      ),
       'target_coordinate_residuals_m': self.target_coordinate_residuals_m,
       'target_tangent_residuals_rad': self.target_tangent_residuals_rad,
       'target_pressure_residuals_Pa': self.target_pressure_residuals_Pa,
@@ -247,6 +277,11 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
       'target_match_verified': self.target_match_verified,
       'fresh_global_solve_attempted': self.fresh_global_solve_attempted,
       'closure': None if self.closure is None else self.closure.as_report(),
+      'target_pressure_reconciliation': (
+        None
+        if self.target_pressure_reconciliation is None
+        else self.target_pressure_reconciliation.as_report()
+      ),
       'message': self.message,
     }
   ####
@@ -270,6 +305,8 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
   target_consumption_verified: bool = False
   target_coverage_verified: bool = False
   target_match_verified: bool = False
+  target_pressure_consumption_requested: bool = False
+  target_pressure_consumption_verified: bool = False
   global_coupling_verified: bool = False
   downstream_boundary_closure_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -329,6 +366,8 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
       'target_consumption_verified',
       'target_coverage_verified',
       'target_match_verified',
+      'target_pressure_consumption_requested',
+      'target_pressure_consumption_verified',
       'global_coupling_verified',
       'downstream_boundary_closure_verified',
       'chain_promotion_blocked',
@@ -351,6 +390,14 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
     if self.target_match_verified and not self.target_consumption_verified:
       raise ValueError(
         'target_match_verified requires a verified target consumption seam'
+      )
+    ####
+    if (
+      self.target_pressure_consumption_verified
+      and not self.target_pressure_consumption_requested
+    ):
+      raise ValueError(
+        'target_pressure_consumption_verified requires an explicit request'
       )
     ####
     object.__setattr__(self, 'candidates', candidates)
@@ -378,6 +425,10 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
       and self.target_consumption_verified
       and self.target_coverage_verified
       and self.target_match_verified
+      and (
+        not self.target_pressure_consumption_requested
+        or self.target_pressure_consumption_verified
+      )
       and self.selected_candidate is not None
       and self.selected_candidate.global_closure_verified
     )
@@ -395,6 +446,12 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
       'target_consumption_verified': self.target_consumption_verified,
       'target_coverage_verified': self.target_coverage_verified,
       'target_match_verified': self.target_match_verified,
+      'target_pressure_consumption_requested': (
+        self.target_pressure_consumption_requested
+      ),
+      'target_pressure_consumption_verified': (
+        self.target_pressure_consumption_verified
+      ),
       'selected_candidate_index': self.selected_candidate_index,
       'selected_candidate': (
         None
@@ -572,13 +629,20 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
   tangent_tolerance_rad: float = 5.0e-3,
   pressure_tolerance_fraction: float = 0.02,
   maximum_candidate_count: int = 8,
+  consume_target_pressure: bool = False,
+  target_pressure_reference_total_temperature_K: float = 1500.0,
+  target_pressure_options: Mapping[str, Any] | None = None,
 ) -> MocReflectedDomainGlobalFrontierTargetResolveResult:
   """Fresh-solve bounded global candidates against one exact target packet.
 
   The source band, outer/centerline source indices, and amplitude bracket come
   from the retained global solver result.  The target changes only candidate
   selection within that explicit family; it never changes the source field,
-  extrapolates a state, or promotes the selected candidate.
+  extrapolates a state, or promotes the selected candidate.  When
+  ``consume_target_pressure`` is enabled, the selected fresh candidate is also
+  passed through the fixed-front conservative target-pressure consumer.  That
+  optional step is a separate research gate and is never treated as canonical
+  global boundary closure.
   """
 
   if not isinstance(
@@ -729,6 +793,25 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       f'contain at most {maximum_candidate_count} values',
     )
   ####
+  if not isinstance(consume_target_pressure, bool):
+    return _invalid_result(
+      MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
+      request,
+      source_closure,
+      'consume_target_pressure must be a bool',
+    )
+  ####
+  if target_pressure_options is not None and not isinstance(
+    target_pressure_options,
+    Mapping,
+  ):
+    return _invalid_result(
+      MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
+      request,
+      source_closure,
+      'target_pressure_options must be a mapping when supplied',
+    )
+  ####
   candidates: list[MocReflectedDomainGlobalFrontierTargetResolveCandidate] = []
   for skew in skews:
     try:
@@ -836,6 +919,54 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
     and selected is not None
     and target_coverage_verified
   )
+  target_pressure_consumption_verified = False
+  target_pressure_message: str | None = None
+  if consume_target_pressure:
+    if selected is None or selected.closure is None:
+      target_pressure_message = (
+        'fixed-front target-pressure consumption had no selected fresh '
+        'candidate closure'
+      )
+    elif not target_match_verified:
+      target_pressure_message = (
+        'fixed-front target-pressure consumption requires a candidate that '
+        'matches the exact frontier target'
+      )
+    else:
+      try:
+        target_pressure = (
+          run_reflected_domain_global_frontier_target_pressure_reconciliation(
+            request,
+            source_closure,
+            candidate_closure=selected.closure,
+            reference_total_temperature_K=(
+              target_pressure_reference_total_temperature_K
+            ),
+            request_options=target_pressure_options,
+          )
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        target_pressure = None
+        target_pressure_message = (
+          f'fixed-front target-pressure consumer raised: {error}'
+        )
+      ####
+      if target_pressure is not None:
+        target_pressure_consumption_verified = bool(
+          target_pressure.converged_research_reconciliation
+        )
+        if not target_pressure_consumption_verified:
+          target_pressure_message = target_pressure.message
+        ####
+        selected = replace(
+          selected,
+          target_pressure_reconciliation=target_pressure,
+        )
+        assert selected_index is not None
+        candidates[selected_index] = selected
+      ####
+    ####
+  ####
   if selected is None:
     status = (
       MocReflectedDomainGlobalFrontierTargetResolveStatus.TARGET_COVERAGE_FAILURE
@@ -846,7 +977,9 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       'fresh global candidates did not produce a covered, locally verified '
       'boundary for the exact frontier target'
     )
-  elif target_match_verified:
+  elif target_match_verified and (
+    not consume_target_pressure or target_pressure_consumption_verified
+  ):
     status = (
       MocReflectedDomainGlobalFrontierTargetResolveStatus
       .CONVERGED_TARGET_GUIDED_RESEARCH_RESOLVE
@@ -855,6 +988,13 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       'fresh global closure candidates were measured against the exact '
       'frontier target and the selected candidate passed bounded research '
       'tolerances; canonical global coupling remains open'
+    )
+  elif target_match_verified and consume_target_pressure:
+    status = MocReflectedDomainGlobalFrontierTargetResolveStatus.TARGET_PRESSURE_FAILURE
+    message = (
+      'fresh global candidate matched the frontier target, but the optional '
+      'fixed-front target-pressure consumer did not converge: '
+      f'{target_pressure_message or "no consumer result was retained"}'
     )
   else:
     status = MocReflectedDomainGlobalFrontierTargetResolveStatus.TARGET_MISMATCH
@@ -874,6 +1014,8 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
     target_consumption_verified=target_consumption_verified,
     target_coverage_verified=target_coverage_verified,
     target_match_verified=target_match_verified,
+    target_pressure_consumption_requested=consume_target_pressure,
+    target_pressure_consumption_verified=target_pressure_consumption_verified,
     message=message,
   )
 ####
