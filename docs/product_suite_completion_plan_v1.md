@@ -2727,3 +2727,25 @@ upstream closure, preventing a downstream iteration from using stale field
 lineage.  This advances global coupling evidence but does not close the
 canonical mixed-regime downstream boundary, physical shock-cell acceptance,
 external validation, or production release gates.
+
+### P3 indexed external-review handoff checkpoint — 2026-09-08
+
+The accepted local P3 continued-chain refinement now has a typed external-data
+review adapter.  It selects only the exact highest-resolution chain measurement
+retained by the refinement ladder, verifies the scalar source-resolution
+lineage against the coupled case resolution tuple, and preserves the
+research-only fidelity boundary before delegating to the existing exact-index
+external comparison operator.
+
+The adapter requires caller-provided calibration and validation datasets,
+explicit provenance and coordinate metadata, exact indexed coverage, and an
+owner-declared residual/uncertainty policy.  It performs no calibration,
+interpolation, origin fitting, feature synthesis, or product promotion.  Even
+when an external review passes, canonical reflected closure, physical-length
+acceptance, and VIS/SIG/RAY/FPA product claims remain separate gates.
+
+The end-to-end coupled-chain regression passes with two disjoint test-only
+fixture roles and confirms that external evidence can be recorded while
+``physical_length_accepted``, chain promotion, and product claims remain
+false.  The owner validation archives and provider-bound observations are
+still absent, so this checkpoint does not change the release freeze.

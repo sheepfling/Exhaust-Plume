@@ -256,6 +256,15 @@ from exhaust_plume.validation.moc_global_coupled_shock_cell_chain import (
 from exhaust_plume.validation.moc_global_coupled_shock_cell_chain_refinement import (
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementStatus,
   run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_chain_refinement,
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus,
+  review_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_external_validation,
+)
+from exhaust_plume.validation.moc_external_comparisons import (
+  MocExternalValidationSplit,
+  MocShockCellExternalFeature,
+  MocShockCellExternalDataset,
+  MocShockCellExternalObservation,
+  MocShockCellExternalPromotionPolicy,
 )
 from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
   MocReflectedDomainGlobalFrontierBoundaryConditionStatus,
@@ -8491,6 +8500,73 @@ def test_global_coupled_boundary_condition_feedback_binds_first_cell_fit_to_fine
   refinement_report = refinement_run.as_report()
   assert refinement_report['physical_length_accepted'] is False
   assert refinement_report['external_validation_verified'] is False
+  assert refinement_run.measurement is not None
+  highest_chain_measurement = refinement_run.measurement.chain_measurements[-1]
+
+  def external_dataset(
+    dataset_id: str,
+    case_id: str,
+    split: MocExternalValidationSplit,
+  ) -> MocShockCellExternalDataset:
+    observations = tuple(
+      MocShockCellExternalObservation(
+        cell_index=cell.cell_index,
+        axial_length_m=cell.axial_length_m,
+        maximum_radius_m=cell.maximum_radius_m,
+        shock_start_x_m=None if cell.shock_start_m is None else cell.shock_start_m[0],
+        shock_end_x_m=None if cell.shock_end_m is None else cell.shock_end_m[0],
+        centerline_end_x_m=(
+          None if cell.centerline_end_m is None else cell.centerline_end_m[0]
+        ),
+      )
+      for cell in highest_chain_measurement.cells
+    )
+    return MocShockCellExternalDataset(
+      dataset_id=dataset_id,
+      case_id=case_id,
+      split=split,
+      observations=observations,
+      source='owner-indexed-regression-fixture',
+      provenance='test-only exact indexed fixture; not a product observation',
+    )
+
+  external_policy = MocShockCellExternalPromotionPolicy(
+    maximum_rmse_m=tuple(
+      (feature, 1.0e-12)
+      for feature in MocShockCellExternalFeature
+    ),
+  )
+  external_review = (
+    review_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_external_validation(
+      refinement_run,
+      (
+        external_dataset(
+          'calibration-regression-dataset',
+          'calibration-regression-case',
+          MocExternalValidationSplit.CALIBRATION,
+        ),
+        external_dataset(
+          'validation-regression-dataset',
+          'validation-regression-case',
+          MocExternalValidationSplit.VALIDATION,
+        ),
+      ),
+      policy=external_policy,
+    )
+  )
+  assert external_review.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus
+    .EXTERNAL_REVIEW_COMPUTED
+  )
+  assert external_review.selected_resolution == 13
+  assert external_review.refinement_lineage_verified
+  assert external_review.fidelity_isolation_verified
+  assert external_review.review is not None
+  assert external_review.review.external_validation_verified
+  assert external_review.external_validation_verified
+  assert external_review.chain_promotion_allowed is False
+  assert external_review.product_claim_allowed is False
+  assert external_review.as_report()['physical_length_accepted'] is False
 ####
 
 

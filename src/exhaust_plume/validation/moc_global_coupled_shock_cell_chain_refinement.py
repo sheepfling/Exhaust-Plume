@@ -30,10 +30,17 @@ from exhaust_plume.validation.moc_global_coupled_shock_cell_chain import (
 from exhaust_plume.validation.moc_global_coupled_shock_cell_fit import (
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellFitRun,
 )
+from exhaust_plume.validation.moc_external_comparisons import (
+  MocShockCellExternalDataset,
+  MocShockCellExternalPromotionPolicy,
+  MocShockCellExternalPromotionReview,
+  review_moc_shock_cell_external_promotion,
+)
 from exhaust_plume.validation.moc_measurements import (
   MocShockCellChainRefinementCase,
   MocShockCellChainRefinementMeasurement,
   MocShockCellChainRefinementMeasurementStatus,
+  MocShockCellChainMeasurement,
   MocShockCellObservation,
   measure_moc_shock_cell_chain_refinement,
 )
@@ -43,7 +50,11 @@ __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_SHOCK_CELL_CHAIN_REFINEMENT_RUN_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementStatus',
   'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementRun',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_SHOCK_CELL_EXTERNAL_VALIDATION_REVIEW_OPERATOR_ID',
+  'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus',
+  'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReview',
   'run_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_chain_refinement',
+  'review_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_external_validation',
 )
 
 
@@ -52,6 +63,9 @@ MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_SHOCK_CELL_CHAIN
 )
 MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_SHOCK_CELL_CHAIN_REFINEMENT_RUN_OPERATOR_ID = (
   'op.moc.reflected-domain.global-coupled-boundary-condition-feedback-shock-cell-chain-refinement-run'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_SHOCK_CELL_EXTERNAL_VALIDATION_REVIEW_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-coupled-boundary-condition-feedback-shock-cell-external-validation-review'
 )
 
 
@@ -82,6 +96,16 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefi
   FIDELITY_FAILURE = (
     'global-coupled-boundary-condition-feedback-continued-chain-refinement-fidelity-failure'
   )
+####
+
+
+class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus(
+  str, Enum
+):
+  """Outcome of binding the P3 chain to indexed external observations."""
+
+  EXTERNAL_REVIEW_COMPUTED = 'external-review-computed'
+  P3_REFINEMENT_REQUIRED = 'p3-refinement-required'
 ####
 
 
@@ -428,6 +452,243 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefi
       'message': self.message,
     }
   ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReview:
+  """External-data review bound to the highest-resolution P3 chain case.
+
+  This adapter selects only the exact highest-resolution chain measurement
+  retained by the P3 refinement run.  It never creates observations from the
+  model, calibrates the model, or changes the chain/product promotion gates.
+  """
+
+  refinement_run: (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementRun
+  )
+  selected_resolution: int | None
+  selected_chain_measurement: MocShockCellChainMeasurement | None
+  review: MocShockCellExternalPromotionReview | None
+  status: (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus
+  )
+  refinement_lineage_verified: bool
+  fidelity_isolation_verified: bool
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.refinement_run,
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementRun,
+    ):
+      raise TypeError('refinement_run must be a typed P3 chain-refinement run')
+    ####
+    if self.selected_resolution is not None:
+      if (
+        isinstance(self.selected_resolution, bool)
+        or not isinstance(self.selected_resolution, int)
+        or self.selected_resolution < 1
+      ):
+        raise ValueError('selected_resolution must be a positive integer or None')
+      ####
+    ####
+    if self.selected_chain_measurement is not None and not isinstance(
+      self.selected_chain_measurement,
+      MocShockCellChainMeasurement,
+    ):
+      raise TypeError(
+        'selected_chain_measurement must be a typed chain measurement or None'
+      )
+    ####
+    if self.review is not None and not isinstance(
+      self.review,
+      MocShockCellExternalPromotionReview,
+    ):
+      raise TypeError(
+        'review must be a MocShockCellExternalPromotionReview or None'
+      )
+    ####
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus,
+    ):
+      raise TypeError('status must be a typed external-review status')
+    ####
+    for name in ('refinement_lineage_verified', 'fidelity_isolation_verified'):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    if self.review is None and self.status is (
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus
+      .EXTERNAL_REVIEW_COMPUTED
+    ):
+      raise ValueError('computed external review status requires a review')
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def external_validation_verified(self) -> bool:
+    """Return external-data evidence status without authorizing promotion."""
+
+    return bool(
+      self.review is not None
+      and self.review.external_validation_verified
+      and self.refinement_lineage_verified
+      and self.fidelity_isolation_verified
+    )
+  ####
+
+  @property
+  def chain_promotion_allowed(self) -> bool:
+    """Keep the canonical/free-boundary promotion gate closed."""
+
+    return False
+  ####
+
+  @property
+  def product_claim_allowed(self) -> bool:
+    """External evidence alone cannot authorize a product claim."""
+
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'operator_id': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_SHOCK_CELL_EXTERNAL_VALIDATION_REVIEW_OPERATOR_ID
+      ),
+      'status': self.status.value,
+      'selected_resolution': self.selected_resolution,
+      'checks': {
+        'refinement_lineage_verified': self.refinement_lineage_verified,
+        'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'external_validation_verified': self.external_validation_verified,
+        'chain_promotion_allowed': self.chain_promotion_allowed,
+        'product_claim_allowed': self.product_claim_allowed,
+      },
+      'selected_chain_measurement': (
+        None
+        if self.selected_chain_measurement is None
+        else self.selected_chain_measurement.as_report()
+      ),
+      'review': None if self.review is None else self.review.as_report(),
+      'physical_length_accepted': False,
+      'claim_status': 'external-evidence-review; product-claim-not-accepted',
+      'message': self.message,
+    }
+  ####
+####
+
+
+def review_reflected_domain_global_coupled_boundary_condition_feedback_shock_cell_external_validation(
+  refinement_run: (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementRun
+  ),
+  datasets: Sequence[MocShockCellExternalDataset],
+  *,
+  policy: MocShockCellExternalPromotionPolicy | None = None,
+) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReview:
+  """Review indexed external observations against the highest-resolution P3 chain.
+
+  The P3 run must already be locally resolved.  External observations remain
+  caller-provided and indexed; no feature, cell, origin, or uncertainty is
+  inferred here.  The review can verify external evidence, but canonical MOC
+  closure, physical length acceptance, and product promotion stay separate.
+  """
+
+  if not isinstance(
+    refinement_run,
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellChainRefinementRun,
+  ):
+    raise TypeError('refinement_run must be a typed P3 chain-refinement run')
+  ####
+  resolved_policy = (
+    MocShockCellExternalPromotionPolicy()
+    if policy is None else policy
+  )
+  if not isinstance(
+    resolved_policy,
+    MocShockCellExternalPromotionPolicy,
+  ):
+    raise TypeError(
+      'policy must be a MocShockCellExternalPromotionPolicy or None'
+    )
+  ####
+  measurement = refinement_run.measurement
+  selected_resolution: int | None = None
+  selected_chain_measurement: MocShockCellChainMeasurement | None = None
+  if measurement is not None and measurement.chain_measurements:
+    selected_resolution = measurement.resolutions[-1]
+    selected_chain_measurement = measurement.chain_measurements[-1]
+  ####
+  case_resolutions = tuple(
+    run.seed_case.resolution[0]
+    for run in refinement_run.chain_runs
+    if run.seed_case is not None
+  )
+  refinement_lineage_verified = bool(
+    refinement_run.resolved
+    and refinement_run.local_consistency_verified
+    and refinement_run.case_lineage_verified
+    and refinement_run.continued_field_fit_verified
+    and measurement is not None
+    and measurement.converged
+    and measurement.resolution_order_verified
+    and len(measurement.chain_measurements) == len(refinement_run.chain_runs)
+    and tuple(measurement.resolutions) == case_resolutions
+    and selected_resolution == measurement.resolutions[-1]
+    and selected_chain_measurement is not None
+    and selected_chain_measurement.converged
+  )
+  fidelity_isolation_verified = bool(
+    refinement_run.fidelity_isolation_verified
+    and refinement_run.chain_promotion_blocked
+    and not refinement_run.production_claim_allowed
+    and all(
+      run.chain_promotion_blocked and not run.production_claim_allowed
+      for run in refinement_run.chain_runs
+    )
+  )
+  if not refinement_lineage_verified or not fidelity_isolation_verified:
+    return MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReview(
+      refinement_run=refinement_run,
+      selected_resolution=selected_resolution,
+      selected_chain_measurement=selected_chain_measurement,
+      review=None,
+      status=(
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus
+        .P3_REFINEMENT_REQUIRED
+      ),
+      refinement_lineage_verified=refinement_lineage_verified,
+      fidelity_isolation_verified=fidelity_isolation_verified,
+      message=(
+        'external observations cannot be reviewed until the exact highest-'
+        'resolution P3 chain refinement and fidelity-isolation gates pass'
+      ),
+    )
+  ####
+  assert selected_chain_measurement is not None
+  review = review_moc_shock_cell_external_promotion(
+    selected_chain_measurement,
+    datasets,
+    resolved_policy,
+  )
+  return MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReview(
+    refinement_run=refinement_run,
+    selected_resolution=selected_resolution,
+    selected_chain_measurement=selected_chain_measurement,
+    review=review,
+    status=(
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackShockCellExternalValidationReviewStatus
+      .EXTERNAL_REVIEW_COMPUTED
+    ),
+    refinement_lineage_verified=True,
+    fidelity_isolation_verified=True,
+    message=review.message,
+  )
 ####
 
 
