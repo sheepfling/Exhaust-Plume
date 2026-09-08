@@ -6829,6 +6829,51 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
     MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
     .TARGET_COVERAGE_FAILURE
   )
+  composed_pressure_requested = (
+    run_reflected_domain_global_frontier_target_guided_resolve(
+      request,
+      closure,
+      consume_target_pressure=True,
+      compose_target_pressure_with_candidate_boundary=True,
+    )
+  )
+  assert composed_pressure_requested.target_pressure_consumption_requested
+  assert composed_pressure_requested.selected_candidate is not None
+  assert (
+    composed_pressure_requested.selected_candidate.target_pressure_reconciliation
+    is not None
+  )
+  assert composed_pressure_requested.selected_candidate.target_pressure_reconciliation.consumed_target is not None
+  assert (
+    composed_pressure_requested.selected_candidate.target_pressure_reconciliation
+    .consumed_target.composition_mode
+    == 'explicit-overlay'
+  )
+  assert composed_pressure_requested.status is (
+    MocReflectedDomainGlobalFrontierTargetResolveStatus
+    .CONVERGED_TARGET_GUIDED_RESEARCH_RESOLVE
+  )
+  assert composed_pressure_requested.target_pressure_consumption_verified
+  assert composed_pressure_requested.converged_research_resolve
+  assert (
+    composed_pressure_requested.selected_candidate.target_pressure_reconciliation
+    .status
+    is MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus
+    .CONVERGED_LOCAL_TARGET_PRESSURE_RECONCILIATION
+  )
+  composed_visualization = standardize_model_visualization(
+    composed_pressure_requested
+  )
+  assert composed_visualization.model_id == (
+    'planar-moc-global-frontier-target-pressure-reconciliation'
+  )
+  assert composed_visualization.diagnostics[
+    'global_frontier_target_pressure_composition_verified'
+  ] is True
+  assert composed_visualization.diagnostics[
+    'global_frontier_target_pressure_consumed_target_mode'
+  ] == 'explicit-overlay'
+  assert composed_visualization.claims.production_claim_allowed is False
   assert pressure_requested.converged_research_resolve is False
   candidate = resolved.selected_candidate.closure
   assert candidate is not None

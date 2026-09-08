@@ -2209,6 +2209,15 @@ def _moc_visualization(
   ####
   coupled_euler = isinstance(field, _CoupledEulerFieldView)
   reconciled_euler = isinstance(field, _PhysicalFieldEulerReconciliationView)
+  target_pressure_detail = getattr(result, 'target_pressure_reconciliation', None)
+  if target_pressure_detail is None:
+    selected_candidate = getattr(result, 'selected_candidate', None)
+    target_pressure_detail = getattr(
+      selected_candidate,
+      'target_pressure_reconciliation',
+      None,
+    )
+  ####
   target_pressure_reconciliation = bool(
     (
       getattr(result, 'target', None) is not None
@@ -3041,7 +3050,10 @@ def _moc_visualization(
     'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
   }
   if target_pressure_reconciliation:
-    target = getattr(result, 'target', None)
+    target = getattr(target_pressure_detail, 'target', None)
+    if target is None:
+      target = getattr(result, 'target', None)
+    ####
     if target is None:
       target = getattr(result, 'request', None)
     ####
@@ -3072,6 +3084,36 @@ def _moc_visualization(
     target_source = getattr(target, 'source_id', None)
     if isinstance(target_source, str) and target_source:
       diagnostics['global_frontier_target_pressure_source_id'] = target_source
+    ####
+    composition_verified = getattr(
+      target_pressure_detail,
+      'target_composition_verified',
+      None,
+    )
+    if isinstance(composition_verified, bool):
+      diagnostics['global_frontier_target_pressure_composition_verified'] = (
+        composition_verified
+      )
+    ####
+    consumed_target = getattr(target_pressure_detail, 'consumed_target', None)
+    composition_mode = getattr(consumed_target, 'composition_mode', None)
+    if isinstance(composition_mode, str) and composition_mode:
+      diagnostics['global_frontier_target_pressure_consumed_target_mode'] = (
+        composition_mode
+      )
+      diagnostics[
+        'global_frontier_target_pressure_consumed_target_base_source_id'
+      ] = getattr(consumed_target, 'composition_base_source_id', None)
+      diagnostics[
+        'global_frontier_target_pressure_consumed_target_overlay_source_id'
+      ] = getattr(consumed_target, 'composition_overlay_source_id', None)
+      diagnostics[
+        'global_frontier_target_pressure_consumed_target_seam_pressure_jump_fraction'
+      ] = getattr(
+        consumed_target,
+        'composition_seam_pressure_jump_fraction',
+        None,
+      )
     ####
   ####
   if global_frontier_feedback:
@@ -3886,6 +3928,18 @@ def _moc_visualization(
       'ambient path; shock placement, boundary geometry, and canonical global '
       'coupling remain unresolved'
     )
+    if (
+      isinstance(
+        getattr(target_pressure_detail, 'target_composition_verified', None),
+        bool,
+      )
+      and getattr(target_pressure_detail, 'target_composition_verified')
+    ):
+      warnings.append(
+        'the consumed frontier pressure profile used an explicit candidate '
+        'ambient-base overlay; it is not a solver-owned geometry update'
+      )
+    ####
   ####
   if global_frontier_feedback:
     warnings.append(

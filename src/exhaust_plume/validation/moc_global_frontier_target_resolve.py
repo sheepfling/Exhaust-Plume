@@ -28,6 +28,9 @@ from exhaust_plume.models.moc.global_physical_closure import (
   solve_reflected_domain_global_physical_closure,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
+from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerBoundaryPressureTarget,
+)
 from exhaust_plume.models.moc.reflected_domain import ShockBranch
 from exhaust_plume.validation.moc_global_frontier_target_pressure_reconciliation import (
   MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult,
@@ -584,6 +587,30 @@ def _measure_candidate_target(
 ####
 
 
+def _candidate_ambient_pressure_target(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+) -> MocPhysicalFieldEulerBoundaryPressureTarget:
+  """Build the fresh candidate's full ambient base target without extrapolation."""
+
+  if closure.global_euler is None or closure.global_euler.physical_field is None:
+    raise ValueError('candidate closure retained no global physical field')
+  ####
+  field = closure.global_euler.physical_field.field
+  if field is None or not field.physical_closure_verified:
+    raise ValueError('candidate closure retained no verified physical field')
+  ####
+  boundary = field.ambient_boundary
+  fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(closure)
+  return MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=tuple(point[0] for point in boundary.points_m),
+    static_pressure_Pa=tuple(boundary.static_pressure_Pa),
+    boundary_points_m=tuple(boundary.points_m),
+    tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    source_id=f'candidate-global-ambient-boundary:{fingerprint}',
+  )
+####
+
+
 def _candidate_target_score(
   candidate: MocReflectedDomainGlobalFrontierTargetResolveCandidate,
   request: MocReflectedDomainGlobalFrontierReconciliationRequest,
@@ -632,6 +659,8 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
   consume_target_pressure: bool = False,
   target_pressure_reference_total_temperature_K: float = 1500.0,
   target_pressure_options: Mapping[str, Any] | None = None,
+  compose_target_pressure_with_candidate_boundary: bool = False,
+  target_pressure_composition_seam_tolerance_fraction: float = 0.25,
 ) -> MocReflectedDomainGlobalFrontierTargetResolveResult:
   """Fresh-solve bounded global candidates against one exact target packet.
 
@@ -642,7 +671,12 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
   ``consume_target_pressure`` is enabled, the selected fresh candidate is also
   passed through the fixed-front conservative target-pressure consumer.  That
   optional step is a separate research gate and is never treated as canonical
-  global boundary closure.
+  global boundary closure.  When
+  ``compose_target_pressure_with_candidate_boundary`` is enabled, the fresh
+  candidate's complete ambient boundary is supplied as an explicit base
+  profile and the partial frontier packet is overlaid only on its declared
+  station interval.  This opt-in composition still remains fixed-front
+  research evidence.
   """
 
   if not isinstance(
@@ -801,6 +835,25 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       'consume_target_pressure must be a bool',
     )
   ####
+  if not isinstance(compose_target_pressure_with_candidate_boundary, bool):
+    return _invalid_result(
+      MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
+      request,
+      source_closure,
+      'compose_target_pressure_with_candidate_boundary must be a bool',
+    )
+  ####
+  if (
+    compose_target_pressure_with_candidate_boundary
+    and not consume_target_pressure
+  ):
+    return _invalid_result(
+      MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
+      request,
+      source_closure,
+      'target-pressure boundary composition requires consume_target_pressure',
+    )
+  ####
   if target_pressure_options is not None and not isinstance(
     target_pressure_options,
     Mapping,
@@ -934,6 +987,10 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       )
     else:
       try:
+        base_target = None
+        if compose_target_pressure_with_candidate_boundary:
+          base_target = _candidate_ambient_pressure_target(selected.closure)
+        ####
         target_pressure = (
           run_reflected_domain_global_frontier_target_pressure_reconciliation(
             request,
@@ -943,6 +1000,10 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
               target_pressure_reference_total_temperature_K
             ),
             request_options=target_pressure_options,
+            base_target=base_target,
+            target_composition_seam_pressure_tolerance_fraction=(
+              target_pressure_composition_seam_tolerance_fraction
+            ),
           )
         )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:

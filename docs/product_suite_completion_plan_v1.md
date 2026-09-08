@@ -2048,3 +2048,22 @@ production gate remains closed.  The next implementation slice is to make the
 overlay/target contract a boundary condition of the two-dimensional
 transonic/free-boundary solve itself, then run the resulting geometry through
 the existing cross-case refinement ladder.
+
+### Candidate-bound frontier pressure consumption checkpoint — 2026-09-08
+
+The target-guided resolver now has an explicit opt-in path that derives the
+fresh candidate's complete ambient boundary as the base target before asking
+the fixed-front pressure consumer to consume a partial downstream frontier
+packet.  On the mixed-regime fixture, the default request still returns the
+typed target-coverage failure, while the explicit candidate-bound composition
+passes target coverage, conservative pressure consumption, and the
+independent residual audit.  The result retains separate source/candidate
+fingerprints and the composed target lineage.
+
+This is stronger evidence that the measured overlap can be consumed without
+extrapolation, but it is still not a two-dimensional placement update: the
+candidate shock/mesh remains fixed, global coupling and downstream closure are
+false, and chain/production gates remain closed.  The next physics slice is
+to put this pressure/geometry condition inside the global free-boundary
+equations and then demonstrate cross-case refinement of the resulting
+placement rather than only fixed-front consumption.
