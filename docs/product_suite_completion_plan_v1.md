@@ -1692,6 +1692,10 @@ iteration when the independently measured overlap response passes; its
 aggregate readiness is reported separately from local pressure-update
 convergence.  A residual-failing response cannot be silently packaged as a
 global handoff.
+The fresh downstream resolution ladder carries the same packet per mesh and
+requires that handoff evidence alongside response coverage and residual
+checks.  Its tangent-residual summary is also one value per declared mesh,
+so the refinement report cannot hide a dimensional aggregation error.
 The canonical C-/C+ frontier solve, global feedback iteration, downstream
 boundary closure, physical shock-cell fitting, external validation, and
 Visualization/Signature/FPA production gates remain open.

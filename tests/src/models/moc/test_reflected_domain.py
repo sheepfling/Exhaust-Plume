@@ -3100,6 +3100,7 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
   assert run.measurement.response_channels_finite
   assert run.measurement.overlap_coverage_verified
   assert run.measurement.overlap_residuals_verified
+  assert run.measurement.upstream_feedback_proposals_verified
   assert run.measurement.global_coupling_verified is False
   assert run.measurement.downstream_boundary_closure_verified is False
   assert run.measurement.chain_promotion_blocked
@@ -3107,6 +3108,9 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
   assert run.production_claim_allowed is False
   assert all(
     case.response is not None
+    and case.upstream_feedback_proposal is not None
+    and case.upstream_feedback_proposal.ready_for_global_resolve
+    and case.upstream_feedback_proposal.consumed_by_global_solver is False
     and case.response.status is (
       MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
       .CONVERGED_LOCAL_OVERLAP

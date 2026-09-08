@@ -22,8 +22,10 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
   MocReflectedDomainGlobalCoupledDownstreamResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
+  build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
 )
@@ -73,6 +75,9 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
   result: MocReflectedDomainGlobalCoupledDownstreamResult
   solver_response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
   response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
+  upstream_feedback_proposal: (
+    MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal | None
+  ) = None
   response_lineage_verified: bool = False
 
   def __post_init__(self) -> None:
@@ -110,6 +115,15 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
         )
       ####
     ####
+    if self.upstream_feedback_proposal is not None and not isinstance(
+      self.upstream_feedback_proposal,
+      MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
+    ):
+      raise TypeError(
+        'upstream_feedback_proposal must be a typed global feedback proposal '
+        'or None'
+      )
+    ####
     if not isinstance(self.response_lineage_verified, bool):
       raise TypeError('response_lineage_verified must be a bool')
     ####
@@ -134,6 +148,17 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
   ####
 
   @property
+  def upstream_feedback_proposal_verified(self) -> bool:
+    proposal = self.upstream_feedback_proposal
+    return bool(
+      proposal is not None
+      and proposal.ready_for_global_resolve
+      and self.response is not None
+      and proposal.source_response_status == self.response.status.value
+    )
+  ####
+
+  @property
   def fidelity_isolation_verified(self) -> bool:
     return bool(
       not self.result.global_coupling_verified
@@ -141,6 +166,15 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
       and self.result.chain_promotion_blocked
       and not self.result.production_claim_allowed
       and (self.response is None or not self.response.production_claim_allowed)
+      and (
+        self.upstream_feedback_proposal is None
+        or (
+          not self.upstream_feedback_proposal.consumed_by_global_solver
+          and not self.upstream_feedback_proposal.production_claim_allowed
+          and not self.upstream_feedback_proposal.global_coupling_verified
+          and not self.upstream_feedback_proposal.downstream_boundary_closure_verified
+        )
+      )
     )
   ####
 
@@ -153,6 +187,14 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
       'response_lineage_verified': self.response_lineage_verified,
       'response_coverage_verified': self.response_coverage_verified,
       'response_residuals_verified': self.response_residuals_verified,
+      'upstream_feedback_proposal_verified': (
+        self.upstream_feedback_proposal_verified
+      ),
+      'upstream_feedback_proposal': (
+        None
+        if self.upstream_feedback_proposal is None
+        else self.upstream_feedback_proposal.as_report()
+      ),
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'solver_response': (
         None if self.solver_response is None else self.solver_response.as_report()
@@ -183,6 +225,7 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
   response_channels_finite: bool = False
   overlap_coverage_verified: bool = False
   overlap_residuals_verified: bool = False
+  upstream_feedback_proposals_verified: bool = False
   local_coupled_field_verified: bool = False
   fidelity_isolation_verified: bool = False
   global_coupling_verified: bool = False
@@ -249,6 +292,7 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       'response_channels_finite',
       'overlap_coverage_verified',
       'overlap_residuals_verified',
+      'upstream_feedback_proposals_verified',
       'local_coupled_field_verified',
       'fidelity_isolation_verified',
       'global_coupling_verified',
@@ -286,6 +330,7 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       and self.response_channels_finite
       and self.overlap_coverage_verified
       and self.overlap_residuals_verified
+      and self.upstream_feedback_proposals_verified
       and self.local_coupled_field_verified
       and self.fidelity_isolation_verified
     )
@@ -311,6 +356,9 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       'response_channels_finite': self.response_channels_finite,
       'overlap_coverage_verified': self.overlap_coverage_verified,
       'overlap_residuals_verified': self.overlap_residuals_verified,
+      'upstream_feedback_proposals_verified': (
+        self.upstream_feedback_proposals_verified
+      ),
       'local_coupled_field_verified': self.local_coupled_field_verified,
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'global_coupling_verified': self.global_coupling_verified,
@@ -335,6 +383,7 @@ def _measurement_status(
   response_channels_finite: bool,
   overlap_coverage_verified: bool,
   overlap_residuals_verified: bool,
+  upstream_feedback_proposals_verified: bool,
   fidelity_isolation_verified: bool,
 ) -> tuple[
   MocReflectedDomainGlobalCoupledDownstreamRefinementStatus,
@@ -363,6 +412,7 @@ def _measurement_status(
     and response_channels_finite
     and overlap_coverage_verified
     and overlap_residuals_verified
+    and upstream_feedback_proposals_verified
   ):
     return (
       MocReflectedDomainGlobalCoupledDownstreamRefinementStatus.RESPONSE_FAILURE,
@@ -450,6 +500,9 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
   overlap_residuals_verified = all(
     case.response_residuals_verified for case in retained_cases
   )
+  upstream_feedback_proposals_verified = all(
+    case.upstream_feedback_proposal_verified for case in retained_cases
+  )
   fidelity_isolation_verified = all(
     case.fidelity_isolation_verified for case in retained_cases
   )
@@ -461,6 +514,7 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
     response_channels_finite=response_channels_finite,
     overlap_coverage_verified=overlap_coverage_verified,
     overlap_residuals_verified=overlap_residuals_verified,
+    upstream_feedback_proposals_verified=upstream_feedback_proposals_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
   )
   return MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement(
@@ -479,6 +533,7 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
     response_channels_finite=response_channels_finite,
     overlap_coverage_verified=overlap_coverage_verified,
     overlap_residuals_verified=overlap_residuals_verified,
+    upstream_feedback_proposals_verified=upstream_feedback_proposals_verified,
     local_coupled_field_verified=all(
       case.local_coupled_field_verified for case in retained_cases
     ),
@@ -651,6 +706,9 @@ def run_reflected_domain_global_coupled_downstream_refinement(
     'inlet_boundary_mode': inlet_boundary_mode.value,
     'outlet_static_pressure_Pa': outlet_static_pressure_Pa,
     'resolutions': requested_resolutions,
+    'upstream_feedback_proposal_policy': (
+      'bounded-global-resolve-handoff-unconsumed-v1'
+    ),
   }
   configuration_fingerprint = sha256(
     json.dumps(
@@ -700,6 +758,19 @@ def run_reflected_domain_global_coupled_downstream_refinement(
         response = None
       ####
     ####
+    upstream_feedback_proposal = None
+    if response is not None:
+      try:
+        upstream_feedback_proposal = (
+          build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
+            closure,
+            response,
+          )
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        upstream_feedback_proposal = None
+      ####
+    ####
     response_lineage_verified = bool(
       solver_response is not None
       and response is not None
@@ -711,6 +782,7 @@ def run_reflected_domain_global_coupled_downstream_refinement(
         result=result,
         solver_response=solver_response,
         response=response,
+        upstream_feedback_proposal=upstream_feedback_proposal,
         response_lineage_verified=response_lineage_verified,
       )
     )
