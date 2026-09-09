@@ -3026,3 +3026,12 @@ on missing or tampered files.  Diagnostic and blocked handoffs remain usable
 for review without those files, but cannot promote a comparison.  This closes
 an evidence-integrity seam; it does not create the missing V8/alignment data or
 change the external-validation and release blockers.
+
+### Candidate release-manifest rebinding checkpoint — 2026-09-08 (`3ba857f`)
+
+The committed lane-release manifest has been rebound to the current integrity
+candidate.  Its local lane records and mission-time composition remain
+deterministic, while the umbrella release remains blocked by the missing
+provider-bound assets, canonical physical-field closure, accepted physical
+shock-cell observations, and exact release freeze.  Rebinding provenance does
+not turn a local manifest into external validation evidence.
