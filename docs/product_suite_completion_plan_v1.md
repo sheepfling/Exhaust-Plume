@@ -3686,3 +3686,20 @@ silently drop the centerline gate while carrying the outer boundary trace.
 This is contract/evidence propagation only.  It does not create global
 feedback, close the mixed-wave interface, or authorize canonical Signature,
 FPA, or production claims.
+
+### Candidate functional/package-gate checkpoint — 2026-09-09
+
+The exact clean candidate at ``70357e8`` passed the full release-facing
+functional and package checks: ``1,207`` tests passed, the twelve-lane test
+partition passed, Ruff, scope-marker, documentation, Pyright, and public
+contract-asset checks passed, and the isolated wheel build plus installed-wheel
+smoke exited successfully.  The resulting wheel digest was
+``c6a9109dccb92fa7755d07d03fd7bb07dc82642de0eb8abb59c66a09c0228bf1``.
+
+The current release manifest confirms a clean checkout and no low-fidelity
+promotion, but ``release_ready`` remains false.  Its open blockers are still
+canonical mixed-regime closure, accepted physical first/continued shock-cell
+fits, provider-bound VIS/SIG/RAY/FPA measurement evidence, the separate
+alignment archive, and a release freeze refreshed to the final candidate
+commit.  The wheel/build evidence therefore closes a package gate only; it
+does not authorize a merge toward ``main`` or a release tag.
