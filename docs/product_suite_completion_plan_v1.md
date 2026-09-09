@@ -2793,6 +2793,9 @@ documentation lint, and diff checks are green.  This strengthens the local
 P2.2c evidence boundary but does not change the claim ceiling:
 ``global_coupling_verified=false``, canonical closure remains open, physical
 shock-cell observations remain absent, and production claims stay blocked.
+The exact pushed candidate also passes the full repository regression:
+``1179 passed, 18 warnings``.  The warnings are pre-existing legacy-API and
+projected-area numerical warnings; they do not alter the release blockers.
 
 ### Full product-suite release map — 2026-09-08
 
