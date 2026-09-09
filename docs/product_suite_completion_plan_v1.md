@@ -3724,3 +3724,10 @@ fitting, external validation, Signature/FPA acceptance, and release promotion
 remain blocked.  The focused mixed-wave regression and the broader coupled-
 Euler/MOC subset pass (1 and 14 tests respectively); Pyright, Ruff, bytecode,
 documentation, and diff checks pass.
+
+The subsequent full repository regression at ``90c4bc6`` also passes: ``1,207``
+tests passed with 18 existing warnings.  The lane partition, public-contract
+assets, and offline wheel/install smoke pass at the same source state.  The
+release manifest still records ``release_ready=false`` and the candidate is
+not frozen for release; these checks establish compatibility and source-term
+auditability only.
