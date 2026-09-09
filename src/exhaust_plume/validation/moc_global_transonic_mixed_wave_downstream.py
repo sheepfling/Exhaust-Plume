@@ -23,6 +23,9 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
 from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
 )
+from exhaust_plume.models.moc.global_coupled_downstream import (
+  build_reflected_domain_global_solver_owned_transonic_interface_placement,
+)
 from exhaust_plume.models.moc.mixed_regime import (
   MocMixedRegimeControlSection,
   MocMixedRegimeFieldSample,
@@ -35,6 +38,9 @@ from exhaust_plume.models.moc.mixed_regime_entropy import (
 from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRequest,
   build_reflected_domain_mixed_regime_boundary_request_from_perimeter,
+)
+from exhaust_plume.models.moc.transonic_interface import (
+  MocTransonicShockInterfaceFieldPlacementResult,
 )
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_interface import (
   MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult,
@@ -58,6 +64,8 @@ DEFAULT_TRANSVERSE_CELL_COUNT = 4
 DEFAULT_MAX_PSEUDO_ITERATIONS = 300
 DEFAULT_MAX_SHAPE_ITERATIONS = 5
 DEFAULT_TERMINAL_ANGLE_TOLERANCE_RAD = 1.0e-10
+DEFAULT_TRANSONIC_PLACEMENT_SAMPLE_COUNT = 10
+DEFAULT_TRANSONIC_PLACEMENT_POST_SHOCK_FRACTION = 0.25
 
 
 class MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus(str, Enum):
@@ -84,11 +92,16 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
   field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None
   entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None
   control_section: MocMixedRegimeControlSection | None = None
+  transonic_interface_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None
   reference_total_temperature_K: float | None = None
   interface_consumed: bool = False
   perimeter_contract_verified: bool = False
   entropy_handoff_verified: bool = False
   control_section_verified: bool = False
+  transonic_interface_placement_verified: bool = False
+  transonic_interface_placement_consumed: bool = False
   downstream_field_attempted: bool = False
   downstream_field_local_closure_verified: bool = False
   centerline_boundary_verified: bool = False
@@ -114,6 +127,10 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       ('field', MocReflectedDomainCoupledEulerFreeBoundaryResult),
       ('entropy_handoff', MocMixedRegimeEntropyHandoffResult),
       ('control_section', MocMixedRegimeControlSection),
+      (
+        'transonic_interface_placement',
+        MocTransonicShockInterfaceFieldPlacementResult,
+      ),
     ):
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected_type):
@@ -134,6 +151,8 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       'perimeter_contract_verified',
       'entropy_handoff_verified',
       'control_section_verified',
+      'transonic_interface_placement_verified',
+      'transonic_interface_placement_consumed',
       'downstream_field_attempted',
       'downstream_field_local_closure_verified',
       'centerline_boundary_verified',
@@ -176,6 +195,8 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       and self.perimeter_contract_verified
       and self.entropy_handoff_verified
       and self.control_section_verified
+      and self.transonic_interface_placement_verified
+      and self.transonic_interface_placement_consumed
       and self.downstream_field_attempted
       and self.downstream_field_local_closure_verified
       and self.field is not None
@@ -214,6 +235,12 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       'perimeter_contract_verified': self.perimeter_contract_verified,
       'entropy_handoff_verified': self.entropy_handoff_verified,
       'control_section_verified': self.control_section_verified,
+      'transonic_interface_placement_verified': (
+        self.transonic_interface_placement_verified
+      ),
+      'transonic_interface_placement_consumed': (
+        self.transonic_interface_placement_consumed
+      ),
       'downstream_field_attempted': self.downstream_field_attempted,
       'downstream_field_local_closure_verified': (
         self.downstream_field_local_closure_verified
@@ -238,6 +265,11 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
         if self.control_section is None
         else self.control_section.as_report()
       ),
+      'transonic_interface_placement': (
+        None
+        if self.transonic_interface_placement is None
+        else self.transonic_interface_placement.as_report()
+      ),
       'field': None if self.field is None else self.field.as_report(),
       'claim_status': (
         'research-only downstream coupled-Euler field driven by an explicit '
@@ -259,11 +291,16 @@ def _failure(
   field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None,
   entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None,
   control_section: MocMixedRegimeControlSection | None = None,
+  transonic_interface_placement: (
+    MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None,
   reference_total_temperature_K: float | None = None,
   interface_consumed: bool = False,
   perimeter_contract_verified: bool = False,
   entropy_handoff_verified: bool = False,
   control_section_verified: bool = False,
+  transonic_interface_placement_verified: bool = False,
+  transonic_interface_placement_consumed: bool = False,
   downstream_field_attempted: bool = False,
   downstream_field_local_closure_verified: bool = False,
 ) -> MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
@@ -275,11 +312,18 @@ def _failure(
     field=field,
     entropy_handoff=entropy_handoff,
     control_section=control_section,
+    transonic_interface_placement=transonic_interface_placement,
     reference_total_temperature_K=reference_total_temperature_K,
     interface_consumed=interface_consumed,
     perimeter_contract_verified=perimeter_contract_verified,
     entropy_handoff_verified=entropy_handoff_verified,
     control_section_verified=control_section_verified,
+    transonic_interface_placement_verified=(
+      transonic_interface_placement_verified
+    ),
+    transonic_interface_placement_consumed=(
+      transonic_interface_placement_consumed
+    ),
     downstream_field_attempted=downstream_field_attempted,
     downstream_field_local_closure_verified=(
       downstream_field_local_closure_verified
@@ -360,6 +404,12 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
   max_pseudo_iterations: int = DEFAULT_MAX_PSEUDO_ITERATIONS,
   max_shape_iterations: int = DEFAULT_MAX_SHAPE_ITERATIONS,
   terminal_angle_tolerance_rad: float = DEFAULT_TERMINAL_ANGLE_TOLERANCE_RAD,
+  transonic_placement_sample_count: int = (
+    DEFAULT_TRANSONIC_PLACEMENT_SAMPLE_COUNT
+  ),
+  transonic_placement_post_shock_fraction: float = (
+    DEFAULT_TRANSONIC_PLACEMENT_POST_SHOCK_FRACTION
+  ),
 ) -> MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
   """Consume one verified local interface inside the coupled Euler field.
 
@@ -478,6 +528,22 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     angle_tolerance = float(terminal_angle_tolerance_rad)
     if not isfinite(angle_tolerance) or angle_tolerance <= 0.0:
       raise ValueError('terminal_angle_tolerance_rad must be finite and positive')
+    ####
+    if (
+      isinstance(transonic_placement_sample_count, bool)
+      or not isinstance(transonic_placement_sample_count, int)
+      or transonic_placement_sample_count < 3
+    ):
+      raise ValueError(
+        'transonic_placement_sample_count must be at least three'
+      )
+    ####
+    placement_fraction = float(transonic_placement_post_shock_fraction)
+    if not isfinite(placement_fraction) or not 0.0 < placement_fraction < 1.0:
+      raise ValueError(
+        'transonic_placement_post_shock_fraction must lie strictly between '
+        'zero and one'
+      )
   except (TypeError, ValueError):
     return _failure(
       MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INVALID_INPUT,
@@ -609,6 +675,61 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     )
   ####
   try:
+    transonic_interface_placement = (
+      build_reflected_domain_global_solver_owned_transonic_interface_placement(
+        closure,
+        sample_count=transonic_placement_sample_count,
+        post_shock_fraction=placement_fraction,
+        target_downstream_static_pressure_Pa=None,
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _failure(
+      MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE,
+      f'solver-owned transonic interface placement raised: {error}',
+      closure=closure,
+      interface=interface,
+      request=request,
+      entropy_handoff=entropy_handoff,
+      control_section=control_section,
+      interface_consumed=interface_consumed,
+      perimeter_contract_verified=perimeter_contract_verified,
+      entropy_handoff_verified=entropy_handoff_verified,
+      control_section_verified=control_section_verified,
+    )
+  ####
+  exact_field = None
+  if closure.global_euler is not None:
+    physical = closure.global_euler.physical_field
+    if physical is not None:
+      exact_field = physical.field
+    ####
+  ####
+  transonic_interface_placement_verified = bool(
+    transonic_interface_placement.converged
+    and exact_field is not None
+    and transonic_interface_placement.request.field is exact_field
+    and transonic_interface_placement.field is exact_field
+    and transonic_interface_placement.profile is not None
+  )
+  if not transonic_interface_placement_verified:
+    return _failure(
+      MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE,
+      'solver-owned transonic interface placement did not pass its exact '
+      f'field/profile lineage gate: {transonic_interface_placement.message}',
+      closure=closure,
+      interface=interface,
+      request=request,
+      entropy_handoff=entropy_handoff,
+      control_section=control_section,
+      transonic_interface_placement=transonic_interface_placement,
+      interface_consumed=interface_consumed,
+      perimeter_contract_verified=perimeter_contract_verified,
+      entropy_handoff_verified=entropy_handoff_verified,
+      control_section_verified=control_section_verified,
+    )
+  ####
+  try:
     field = solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request(
       request,
       reference_total_temperature_K=reference_temperature,
@@ -617,7 +738,11 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       max_pseudo_iterations=max_pseudo_iterations,
       max_shape_iterations=max_shape_iterations,
       inlet_boundary_mode=(
-        MocReflectedDomainCoupledEulerInletBoundaryMode.SUBSONIC_CHARACTERISTIC
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+      ),
+      transonic_shock_interface_field_placement=(
+        transonic_interface_placement
       ),
       outlet_static_pressure_Pa=float(ambient_pressure),
     )
@@ -630,15 +755,25 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       request=request,
       entropy_handoff=entropy_handoff,
       control_section=control_section,
+      transonic_interface_placement=transonic_interface_placement,
       reference_total_temperature_K=reference_temperature,
       interface_consumed=interface_consumed,
       perimeter_contract_verified=perimeter_contract_verified,
       entropy_handoff_verified=entropy_handoff_verified,
       control_section_verified=control_section_verified,
+      transonic_interface_placement_verified=(
+        transonic_interface_placement_verified
+      ),
       downstream_field_attempted=True,
     )
   ####
   field_verified = bool(field.local_physical_closure_verified)
+  transonic_interface_placement_consumed = bool(
+    field.transonic_shock_interface_field_placement
+    is transonic_interface_placement
+    and field.transonic_shock_interface_field_placement_consumed
+    and field.transonic_shock_interface_profile_consumed
+  )
   status = (
     MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
     .CONVERGED_RESEARCH_FIELD
@@ -653,11 +788,18 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     field=field,
     entropy_handoff=entropy_handoff,
     control_section=control_section,
+    transonic_interface_placement=transonic_interface_placement,
     reference_total_temperature_K=reference_temperature,
     interface_consumed=interface_consumed,
     perimeter_contract_verified=perimeter_contract_verified,
     entropy_handoff_verified=entropy_handoff_verified,
     control_section_verified=control_section_verified,
+    transonic_interface_placement_verified=(
+      transonic_interface_placement_verified
+    ),
+    transonic_interface_placement_consumed=(
+      transonic_interface_placement_consumed
+    ),
     downstream_field_attempted=True,
     downstream_field_local_closure_verified=field_verified,
     message=(

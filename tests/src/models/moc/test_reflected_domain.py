@@ -949,7 +949,7 @@ def test_global_transonic_mixed_wave_interface_keeps_subsonic_reference_stop_typ
   assert interface.chain_promotion_blocked
 
 
-def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at_missing_transonic_state():
+def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at_free_boundary_residual():
   closure = _global_physical_closure_for_mixed_regime()
   ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
   assert ambient_pressure is not None
@@ -984,6 +984,8 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   assert result.perimeter_contract_verified
   assert result.entropy_handoff_verified
   assert result.control_section_verified
+  assert result.transonic_interface_placement_verified
+  assert result.transonic_interface_placement_consumed
   assert result.downstream_field_attempted
   assert result.request is not None
   assert result.request.perimeter_contract_source == interface.perimeter_request.source
@@ -993,8 +995,10 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   )
   assert result.field is not None
   assert result.field.status.value == (
-    'coupled-euler-transonic-frontier-failure'
+    'coupled-euler-free-boundary-failure'
   )
+  assert result.field.transonic_shock_interface_field_placement_consumed
+  assert result.field.transonic_shock_interface_profile_consumed
   assert result.local_downstream_field_verified is False
   assert result.physical_closure_verified is False
   assert result.centerline_boundary_verified is False

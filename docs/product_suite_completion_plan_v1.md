@@ -3496,6 +3496,32 @@ and refinement residuals at every accepted iterate.  Canonical closure,
 physical shock-cell fitting, provider-bound validation, and release promotion
 remain blocked.
 
+### P2.2d transonic-placement consumption checkpoint — 2026-09-09
+
+The mixed-wave downstream operator now binds the retained solver-owned,
+full-span transonic interface placement before invoking the coupled field.
+Placement is derived from the exact retained global physical field, independently
+audited, and passed through the dedicated
+``SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE`` mode.  The downstream result
+retains placement identity and separately reports whether both the placement
+and its profile were consumed; the mixed-wave perimeter and entropy handoff
+remain distinct exact contracts.
+
+On the current fixture, this advances the field past the previous typed
+``coupled-euler-transonic-frontier-failure`` stop.  The field consumes the
+placement and profile, then returns the typed
+``coupled-euler-free-boundary-failure`` because the ambient pressure/tangency
+residual tolerance is not reached.  No field result is promoted: centerline
+closure, joint interface feedback, refinement, external validation, physical
+shock-cell fitting, Signature/FPA acceptance, and release gates remain open.
+
+The next physics slice is to make the placement and mixed-wave terminal part
+of one joint interface/free-boundary iteration, reducing the retained ambient
+and tangency residuals while independently rederiving jump, entropy,
+conservative/Euler, centerline, geometry, and refinement evidence at every
+accepted iterate.  The field must continue to fail closed when those gates do
+not pass.
+
 ### P2.2d exact mixed-wave downstream-consumption checkpoint — 2026-09-09
 
 The solver-owned mixed-wave terminal now has an explicit opt-in request seam,
