@@ -3398,6 +3398,9 @@ declared contract and claim ceiling.
    every accepted iterate.  Run the fine disjoint refinement ladder and stop
    on instability or missing physics; do not use endpoint holds, extrapolation,
    scalar fallback, or a lower-fidelity substitute.
+   The current entropy-profile consumer is still research-only: it applies a
+   fixed-velocity/fixed-temperature relaxation source and must not be treated
+   as the canonical mixed-wave closure.
 2. **P3 — fit physical shock cells.** Consume only a passing canonical field;
    fit first and continued cells from solver-owned frontier/field geometry,
    report uncertainty and lineage, and compare physical lengths against a
@@ -3652,3 +3655,20 @@ and the consumer cannot promote a shock-cell chain.  The next work must replace
 the relaxation with a physically justified mechanism, run refinement and
 cross-case evidence, bind validation data, and only then revisit canonical
 Signature/FPA promotion.
+
+### P2.2d centerline boundary-evidence checkpoint — 2026-09-09
+
+The coupled Euler/free-boundary research contract now exposes the centerline
+normal-velocity residual separately from the outer free-boundary tangency
+residual.  The solver records one residual magnitude per axial column (the
+signed face-normal value remains in the solver-side measurement), applies a
+request-scoped tolerance, and requires that condition for local research
+convergence.  The independent validator recomputes the wall-face normals and
+centerline residuals from the retained conservative field, verifies the
+reported arrays and maxima, and fails closed on a tampered centerline report.
+
+This closes an evidence seam in the current wall-flux implementation; it does
+not close the canonical mixed-wave physics.  The centerline result remains
+research-only, canonical closure and promotion flags remain false, and the next
+P2.2d slice is still a jointly coupled signed interface/field solve with
+independent centerline, ambient, entropy, Euler, and refinement evidence.

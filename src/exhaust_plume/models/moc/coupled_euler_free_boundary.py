@@ -267,6 +267,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   POSITIVITY_FAILURE = 'coupled-euler-positivity-failure'
   SOLVER_FAILURE = 'coupled-euler-pseudo-time-failure'
   FREE_BOUNDARY_FAILURE = 'coupled-euler-free-boundary-failure'
+  CENTERLINE_FAILURE = 'coupled-euler-centerline-boundary-failure'
   RESIDUAL_FAILURE = 'coupled-euler-residual-failure'
   TRANSONIC_FRONTIER_FAILURE = 'coupled-euler-transonic-frontier-failure'
   INLET_CHARACTERISTIC_FAILURE = 'coupled-euler-inlet-characteristic-failure'
@@ -1498,6 +1499,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   euler_residual_tolerance: float = 5.0e-4
   free_boundary_pressure_tolerance_fraction: float = 0.10
   free_boundary_normal_velocity_tolerance_fraction: float = 0.05
+  centerline_normal_velocity_tolerance_fraction: float = 0.05
   shape_convergence_tolerance: float = 1.0e-3
   shape_relaxation: float = 0.35
   pressure_shape_relaxation: float = 0.20
@@ -1567,6 +1569,10 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'free_boundary_normal_velocity_tolerance_fraction',
         self.free_boundary_normal_velocity_tolerance_fraction,
       ),
+      (
+        'centerline_normal_velocity_tolerance_fraction',
+        self.centerline_normal_velocity_tolerance_fraction,
+      ),
       ('shape_convergence_tolerance', self.shape_convergence_tolerance),
       ('shape_relaxation', self.shape_relaxation),
       ('pressure_shape_relaxation', self.pressure_shape_relaxation),
@@ -1588,6 +1594,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
     if self.free_boundary_normal_velocity_tolerance_fraction >= 1.0:
       raise ValueError(
         'free_boundary_normal_velocity_tolerance_fraction must be less than one'
+      )
+    ####
+    if self.centerline_normal_velocity_tolerance_fraction >= 1.0:
+      raise ValueError(
+        'centerline_normal_velocity_tolerance_fraction must be less than one'
       )
     ####
     for name, minimum in (
@@ -2042,6 +2053,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'free_boundary_normal_velocity_tolerance_fraction': (
         self.free_boundary_normal_velocity_tolerance_fraction
       ),
+      'centerline_normal_velocity_tolerance_fraction': (
+        self.centerline_normal_velocity_tolerance_fraction
+      ),
       'shape_convergence_tolerance': self.shape_convergence_tolerance,
       'shape_relaxation': self.shape_relaxation,
       'pressure_shape_relaxation': self.pressure_shape_relaxation,
@@ -2144,6 +2158,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   euler_residual_tolerance: float = 5.0e-4,
   free_boundary_pressure_tolerance_fraction: float = 0.10,
   free_boundary_normal_velocity_tolerance_fraction: float = 0.05,
+  centerline_normal_velocity_tolerance_fraction: float = 0.05,
   shape_convergence_tolerance: float = 1.0e-3,
   shape_relaxation: float = 0.35,
   pressure_shape_relaxation: float = 0.20,
@@ -2208,6 +2223,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     free_boundary_normal_velocity_tolerance_fraction=(
       free_boundary_normal_velocity_tolerance_fraction
     ),
+    centerline_normal_velocity_tolerance_fraction=(
+      centerline_normal_velocity_tolerance_fraction
+    ),
     shape_convergence_tolerance=shape_convergence_tolerance,
     shape_relaxation=shape_relaxation,
     pressure_shape_relaxation=pressure_shape_relaxation,
@@ -2270,6 +2288,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   shape_residual_history_m: tuple[float, ...] = ()
   free_boundary_pressure_residuals_Pa: tuple[float, ...] = ()
   free_boundary_normal_velocity_residuals_m_s: tuple[float, ...] = ()
+  centerline_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   free_boundary_pressure_profile_consumed: bool = False
   free_boundary_geometry_profile_consumed: bool = False
   free_boundary_ambient_pressure_target_consumed: bool = False
@@ -2283,6 +2302,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   maximum_free_boundary_pressure_residual_Pa: float | None = None
   maximum_free_boundary_normal_velocity_residual_m_s: float | None = None
   maximum_free_boundary_normal_velocity_residual_fraction: float | None = None
+  maximum_centerline_normal_velocity_residual_m_s: float | None = None
+  maximum_centerline_normal_velocity_residual_fraction: float | None = None
   maximum_shape_residual_m: float | None = None
   maximum_entropy_transport_residual: float | None = None
   maximum_entropy_production_fraction: float | None = None
@@ -2290,6 +2311,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   maximum_entropy_closure_total_pressure_residual_Pa: float | None = None
   coupled_euler_field_verified: bool = False
   free_boundary_condition_verified: bool = False
+  centerline_condition_verified: bool = False
   entropy_transport_verified: bool = False
   entropy_closure_profile_consumed: bool = False
   entropy_closure_profile_verified: bool = False
@@ -2381,6 +2403,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'shape_residual_history_m',
       'free_boundary_pressure_residuals_Pa',
       'free_boundary_normal_velocity_residuals_m_s',
+      'centerline_normal_velocity_residuals_m_s',
     ):
       values = tuple(float(value) for value in getattr(self, name))
       if any(not isfinite(value) for value in values):
@@ -2411,6 +2434,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'free_boundary_adjacent_static_pressure_Pa',
       boundary_pressures,
     )
+    if self.request is not None and self.centerline_normal_velocity_residuals_m_s:
+      if len(self.centerline_normal_velocity_residuals_m_s) != (
+        self.request.axial_cell_count
+      ):
+        raise ValueError(
+          'centerline_normal_velocity_residuals_m_s must contain one value '
+          'per axial cell column'
+        )
+      ####
+    ####
     for name in ('free_boundary_points_m', 'cell_centers_m'):
       values = tuple(
         (float(point[0]), float(point[1]))
@@ -2736,6 +2769,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'maximum_free_boundary_pressure_residual_Pa',
       'maximum_free_boundary_normal_velocity_residual_m_s',
       'maximum_free_boundary_normal_velocity_residual_fraction',
+      'maximum_centerline_normal_velocity_residual_m_s',
+      'maximum_centerline_normal_velocity_residual_fraction',
       'maximum_shape_residual_m',
       'maximum_entropy_transport_residual',
       'maximum_entropy_production_fraction',
@@ -2753,6 +2788,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     for name in (
       'coupled_euler_field_verified',
       'free_boundary_condition_verified',
+      'centerline_condition_verified',
       'entropy_transport_verified',
       'entropy_closure_profile_consumed',
       'entropy_closure_profile_verified',
@@ -2851,6 +2887,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       is MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONVERGED_LOCAL_PHYSICAL_CLOSURE
       and self.coupled_euler_field_verified
       and self.free_boundary_condition_verified
+      and self.centerline_condition_verified
       and self.entropy_transport_verified
       and (
         self.request is None
@@ -2908,6 +2945,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'status': self.status.value,
         'converged': self.converged,
         'local_physical_closure_verified': self.local_physical_closure_verified,
+        'centerline_condition_verified': self.centerline_condition_verified,
         'downstream_boundary_closure_verified': (
           self.downstream_boundary_closure_verified
         ),
@@ -2968,6 +3006,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         ),
         'entropy_closure_total_pressure_residuals_Pa': (
           self.entropy_closure_total_pressure_residuals_Pa
+        ),
+        'centerline_normal_velocity_residuals_m_s': (
+          self.centerline_normal_velocity_residuals_m_s
+        ),
+        'maximum_centerline_normal_velocity_residual_m_s': (
+          self.maximum_centerline_normal_velocity_residual_m_s
+        ),
+        'maximum_centerline_normal_velocity_residual_fraction': (
+          self.maximum_centerline_normal_velocity_residual_fraction
         ),
         'maximum_entropy_closure_total_pressure_residual_Pa': (
           self.maximum_entropy_closure_total_pressure_residual_Pa
@@ -3047,6 +3094,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'free_boundary_normal_velocity_residuals_m_s': (
         self.free_boundary_normal_velocity_residuals_m_s
       ),
+      'centerline_normal_velocity_residuals_m_s': (
+        self.centerline_normal_velocity_residuals_m_s
+      ),
       'free_boundary_pressure_profile_consumed': (
         self.free_boundary_pressure_profile_consumed
       ),
@@ -3082,6 +3132,12 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'maximum_free_boundary_normal_velocity_residual_fraction': (
         self.maximum_free_boundary_normal_velocity_residual_fraction
       ),
+      'maximum_centerline_normal_velocity_residual_m_s': (
+        self.maximum_centerline_normal_velocity_residual_m_s
+      ),
+      'maximum_centerline_normal_velocity_residual_fraction': (
+        self.maximum_centerline_normal_velocity_residual_fraction
+      ),
       'maximum_shape_residual_m': self.maximum_shape_residual_m,
       'maximum_entropy_transport_residual': (
         self.maximum_entropy_transport_residual
@@ -3097,6 +3153,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'coupled_euler_field_verified': self.coupled_euler_field_verified,
       'free_boundary_condition_verified': self.free_boundary_condition_verified,
+      'centerline_condition_verified': self.centerline_condition_verified,
       'entropy_transport_verified': self.entropy_transport_verified,
       'entropy_closure_profile_consumed': (
         self.entropy_closure_profile_consumed
@@ -3625,6 +3682,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   euler_residual_tolerance: float = 5.0e-4,
   free_boundary_pressure_tolerance_fraction: float = 0.10,
   free_boundary_normal_velocity_tolerance_fraction: float = 0.05,
+  centerline_normal_velocity_tolerance_fraction: float = 0.05,
   shape_convergence_tolerance: float = 1.0e-3,
   shape_relaxation: float = 0.35,
   pressure_shape_relaxation: float = 0.20,
@@ -3680,6 +3738,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       ),
       free_boundary_normal_velocity_tolerance_fraction=(
         free_boundary_normal_velocity_tolerance_fraction
+      ),
+      centerline_normal_velocity_tolerance_fraction=(
+        centerline_normal_velocity_tolerance_fraction
       ),
       shape_convergence_tolerance=shape_convergence_tolerance,
       shape_relaxation=shape_relaxation,
@@ -4347,12 +4408,13 @@ def _cell_residuals(
   inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode,
   inlet_override_states: tuple[np.ndarray, ...] | None = None,
   entropy_closure_profile: Any | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   axial_count, transverse_count = areas.shape
   residual = np.zeros_like(states)
   wave_sums = np.zeros_like(areas)
   top_pressures = np.zeros(axial_count, dtype=float)
   top_normal_velocities = np.zeros(axial_count, dtype=float)
+  centerline_normal_velocities = np.zeros(axial_count, dtype=float)
   for i in range(axial_count):
     for j in range(transverse_count):
       cell = corners[i, j]
@@ -4370,6 +4432,10 @@ def _cell_residuals(
             gamma,
             gas_constant,
           )
+          _rho, u, v, _pressure, _temperature, _sound_speed = (
+            _primitive_from_conservative(state, gamma, gas_constant)
+          )
+          centerline_normal_velocities[i] = u * normal_x + v * normal_y
         elif edge_index == 0:
           flux, wave = _rusanov_flux(
             state,
@@ -4532,7 +4598,13 @@ def _cell_residuals(
         )
     ####
   ####
-  return residual, wave_sums, top_pressures, top_normal_velocities
+  return (
+    residual,
+    wave_sums,
+    top_pressures,
+    top_normal_velocities,
+    centerline_normal_velocities,
+  )
 ####
 
 
@@ -5506,6 +5578,7 @@ def _result_from_field(
   shape_residual_history: list[float],
   top_pressures: np.ndarray,
   top_normal_velocities: np.ndarray,
+  centerline_normal_velocities: np.ndarray,
   shape_iteration_count: int,
   pseudo_iteration_count: int,
   gamma: float,
@@ -5517,6 +5590,7 @@ def _result_from_field(
   entropy_verified: bool,
   field_verified: bool,
   boundary_verified: bool,
+  centerline_verified: bool,
   inlet_override_states: tuple[np.ndarray, ...] | None = None,
   transonic_shock_geometry: MocTransonicShockGeometryResult | None = None,
   transonic_shock_geometry_audit: MocTransonicShockGeometryAudit | None = None,
@@ -5583,6 +5657,9 @@ def _result_from_field(
   )
   maximum_speed = max(float(np.max(speeds)), 1.0e-12)
   normal_fraction = float(np.max(np.abs(top_normal_velocities))) / maximum_speed
+  centerline_normal_fraction = (
+    float(np.max(np.abs(centerline_normal_velocities))) / maximum_speed
+  )
   pressure_targets = _free_boundary_pressure_targets(request)
   channel_validity = {
     name: bool(maxima[index] <= request.euler_residual_tolerance)
@@ -5645,6 +5722,9 @@ def _result_from_field(
     free_boundary_normal_velocity_residuals_m_s=tuple(
       float(abs(value)) for value in top_normal_velocities
     ),
+    centerline_normal_velocity_residuals_m_s=tuple(
+      float(abs(value)) for value in centerline_normal_velocities
+    ),
     pseudo_iteration_count=pseudo_iteration_count,
     shape_iteration_count=shape_iteration_count,
     maximum_conservative_mass_residual=maxima[0],
@@ -5659,6 +5739,12 @@ def _result_from_field(
       np.max(np.abs(top_normal_velocities))
     ),
     maximum_free_boundary_normal_velocity_residual_fraction=normal_fraction,
+    maximum_centerline_normal_velocity_residual_m_s=float(
+      np.max(np.abs(centerline_normal_velocities))
+    ),
+    maximum_centerline_normal_velocity_residual_fraction=(
+      centerline_normal_fraction
+    ),
     maximum_shape_residual_m=(
       None
       if not shape_residual_history
@@ -5676,6 +5762,7 @@ def _result_from_field(
     ),
     coupled_euler_field_verified=field_verified,
     free_boundary_condition_verified=boundary_verified,
+    centerline_condition_verified=centerline_verified,
     entropy_transport_verified=entropy_verified,
     entropy_closure_profile_consumed=(
       request.entropy_closure_profile is not None
@@ -5755,16 +5842,32 @@ def _solve_pseudo_time(
   gamma: float,
   lower_ordinate: float,
   inlet_override_states: tuple[np.ndarray, ...] | None = None,
-) -> tuple[np.ndarray, list[float], bool, bool, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[
+  np.ndarray,
+  list[float],
+  bool,
+  bool,
+  np.ndarray,
+  np.ndarray,
+  np.ndarray,
+  np.ndarray,
+]:
   residual_history: list[float] = []
   residual = np.zeros_like(states)
   wave_sums = np.zeros_like(areas)
   top_pressures = np.zeros(areas.shape[0], dtype=float)
   top_normal_velocities = np.zeros(areas.shape[0], dtype=float)
+  centerline_normal_velocities = np.zeros(areas.shape[0], dtype=float)
   converged = False
   positivity_failure = False
   for _iteration in range(request.max_pseudo_iterations):
-    residual, wave_sums, top_pressures, top_normal_velocities = _cell_residuals(
+    (
+      residual,
+      wave_sums,
+      top_pressures,
+      top_normal_velocities,
+      centerline_normal_velocities,
+    ) = _cell_residuals(
       states,
       points,
       corners,
@@ -5837,6 +5940,7 @@ def _solve_pseudo_time(
     positivity_failure,
     top_pressures,
     top_normal_velocities,
+    centerline_normal_velocities,
     residual,
   )
 ####
@@ -6400,6 +6504,10 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   areas = np.empty((request.axial_cell_count, request.transverse_cell_count))
   final_top_pressures = np.zeros(request.axial_cell_count, dtype=float)
   final_top_normal_velocities = np.zeros(request.axial_cell_count, dtype=float)
+  final_centerline_normal_velocities = np.zeros(
+    request.axial_cell_count,
+    dtype=float,
+  )
   final_residual = np.zeros(
     (request.axial_cell_count, request.transverse_cell_count, 4),
     dtype=float,
@@ -6412,6 +6520,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   entropy_verified = False
   field_verified = False
   boundary_verified = False
+  centerline_verified = False
   converged = False
   status = MocReflectedDomainCoupledEulerFreeBoundaryStatus.RESIDUAL_FAILURE
   message = 'coupled Euler/free-boundary solve reached its iteration limit'
@@ -6448,6 +6557,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         positivity_failure,
         final_top_pressures,
         final_top_normal_velocities,
+        final_centerline_normal_velocities,
         final_residual,
       ) = _solve_pseudo_time(
         states,
@@ -6549,6 +6659,13 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       and normal_fraction
       <= request.free_boundary_normal_velocity_tolerance_fraction
     )
+    centerline_fraction = (
+      float(np.max(np.abs(final_centerline_normal_velocities))) / maximum_speed
+    )
+    centerline_verified = bool(
+      centerline_fraction
+      <= request.centerline_normal_velocity_tolerance_fraction
+    )
     inlet_states = (
       inlet_override_states
       if inlet_override_states is not None
@@ -6583,6 +6700,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     if (
       field_verified
       and boundary_verified
+      and centerline_verified
       and entropy_verified
       and entropy_closure_profile_verified
       and shape_residual <= request.shape_convergence_tolerance
@@ -6592,7 +6710,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       )
       message = (
         'local coupled Euler/free-boundary residual, pressure, tangency, and '
-        'entropy checks converged; promotion remains blocked'
+        'centerline normal-velocity and entropy checks converged; promotion '
+        'remains blocked'
       )
       converged = True
       break
@@ -6615,6 +6734,9 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     elif not boundary_verified:
       status = MocReflectedDomainCoupledEulerFreeBoundaryStatus.FREE_BOUNDARY_FAILURE
       message = 'free-boundary pressure or tangency tolerance was not reached'
+    elif not centerline_verified:
+      status = MocReflectedDomainCoupledEulerFreeBoundaryStatus.CENTERLINE_FAILURE
+      message = 'centerline normal-velocity tolerance was not reached'
     else:
       status = MocReflectedDomainCoupledEulerFreeBoundaryStatus.SOLVER_FAILURE
     ####
@@ -6641,6 +6763,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     shape_residual_history,
     final_top_pressures,
     final_top_normal_velocities,
+    final_centerline_normal_velocities,
     len(shape_residual_history),
     pseudo_iteration_count,
     gamma,
@@ -6652,6 +6775,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     entropy_verified,
     field_verified,
     boundary_verified,
+    centerline_verified,
     inlet_override_states,
     transonic_shock_geometry,
     transonic_shock_geometry_audit,

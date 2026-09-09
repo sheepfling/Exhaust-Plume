@@ -6415,6 +6415,9 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert result.physical_closure_verified
   assert result.coupled_euler_field_verified
   assert result.free_boundary_condition_verified
+  assert result.centerline_condition_verified
+  assert result.maximum_centerline_normal_velocity_residual_m_s is not None
+  assert result.maximum_centerline_normal_velocity_residual_fraction is not None
   assert result.entropy_transport_verified
   assert result.subsonic_pressure_budget is not None
   assert result.subsonic_pressure_budget.status is (
@@ -6482,6 +6485,8 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert audit.residual_channels_recomputed
   assert audit.residual_report_verified
   assert audit.free_boundary_report_verified
+  assert audit.centerline_report_verified
+  assert audit.centerline_condition_verified
   assert audit.pressure_budget_verified
   assert audit.transonic_shock_state_compatibility_verified
   assert audit.control_section_compatibility_verified
@@ -6489,6 +6494,18 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+  tampered = replace(
+    result,
+    centerline_normal_velocity_residuals_m_s=tuple(
+      value + 1.0 for value in result.centerline_normal_velocity_residuals_m_s
+    ),
+  )
+  tampered_audit = measure_reflected_domain_coupled_euler_free_boundary(tampered)
+  assert tampered_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.CENTERLINE_FAILURE
+  )
+  assert not tampered_audit.centerline_report_verified
+  assert not tampered_audit.local_consistency_verified
 ####
 
 

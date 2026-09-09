@@ -5,6 +5,8 @@ channels.  This module reconstructs the curvilinear mesh, thermodynamic state,
 interior Rusanov face fluxes, specified-pressure material-streamline boundary
 flux, and an entropy inequality from that retained data.  Entropy production is
 retained as diagnostic evidence while entropy loss remains a local failure.  It
+also independently recomputes the centerline wall-face normal-velocity
+residual, separate from the outer free-boundary tangency residual.  It
 intentionally does not promote the field: a passing audit is local evidence only
 until the case ladder, external observations, and contract review are complete.
 """
@@ -181,6 +183,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   RESIDUAL_FAILURE = 'coupled-euler-audit-residual-failure'
   ENTROPY_FAILURE = 'coupled-euler-audit-entropy-failure'
   BOUNDARY_FAILURE = 'coupled-euler-audit-boundary-failure'
+  CENTERLINE_FAILURE = 'coupled-euler-audit-centerline-boundary-failure'
   PRESSURE_BUDGET_FAILURE = 'coupled-euler-audit-pressure-budget-failure'
   PRESSURE_PROFILE_COMPATIBILITY_FAILURE = (
     'coupled-euler-audit-pressure-profile-compatibility-failure'
@@ -239,6 +242,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   maximum_conservative_euler_residual: float | None = None
   maximum_free_boundary_pressure_residual_Pa: float | None = None
   maximum_free_boundary_normal_velocity_residual_fraction: float | None = None
+  maximum_centerline_normal_velocity_residual_fraction: float | None = None
   maximum_entropy_transport_residual: float | None = None
   maximum_entropy_production_fraction: float | None = None
   geometry_verified: bool = False
@@ -247,6 +251,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   residual_channels_recomputed: bool = False
   residual_report_verified: bool = False
   free_boundary_report_verified: bool = False
+  centerline_report_verified: bool = False
+  centerline_condition_verified: bool = False
   free_boundary_geometry_profile_verified: bool = False
   pressure_budget_verified: bool = False
   pressure_profile_compatibility_verified: bool = False
@@ -316,6 +322,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'maximum_conservative_euler_residual',
       'maximum_free_boundary_pressure_residual_Pa',
       'maximum_free_boundary_normal_velocity_residual_fraction',
+      'maximum_centerline_normal_velocity_residual_fraction',
       'control_section_pressure_jump_Pa',
       'control_section_pressure_jump_fraction',
       'maximum_entropy_transport_residual',
@@ -338,6 +345,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_channels_recomputed',
       'residual_report_verified',
       'free_boundary_report_verified',
+      'centerline_report_verified',
+      'centerline_condition_verified',
       'free_boundary_geometry_profile_verified',
       'pressure_profile_compatibility_verified',
       'transonic_transition_verified',
@@ -399,6 +408,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.residual_channels_recomputed
       and self.residual_report_verified
       and self.free_boundary_report_verified
+      and self.centerline_report_verified
+      and self.centerline_condition_verified
       and (
         not (
           self.candidate is not None
@@ -513,6 +524,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'maximum_free_boundary_normal_velocity_residual_fraction': (
         self.maximum_free_boundary_normal_velocity_residual_fraction
       ),
+      'maximum_centerline_normal_velocity_residual_fraction': (
+        self.maximum_centerline_normal_velocity_residual_fraction
+      ),
       'maximum_entropy_transport_residual': (
         self.maximum_entropy_transport_residual
       ),
@@ -528,6 +542,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'residual_channels_recomputed': self.residual_channels_recomputed,
       'residual_report_verified': self.residual_report_verified,
       'free_boundary_report_verified': self.free_boundary_report_verified,
+      'centerline_report_verified': self.centerline_report_verified,
+      'centerline_condition_verified': self.centerline_condition_verified,
       'free_boundary_geometry_profile_verified': (
         self.free_boundary_geometry_profile_verified
       ),
@@ -2697,6 +2713,7 @@ def _audit_field(
   residual = np.zeros_like(states)
   top_pressure = np.zeros(axial_count, dtype=float)
   top_normal_velocity = np.zeros(axial_count, dtype=float)
+  centerline_normal_velocity = np.zeros(axial_count, dtype=float)
   speeds = []
   entropy_values = []
   inlet_entropy = []
@@ -2747,6 +2764,9 @@ def _audit_field(
             length,
             gamma,
             gas_constant,
+          )
+          centerline_normal_velocity[i] = (
+            velocity_u * normal_x + velocity_v * normal_y
           )
         elif edge_index == 0:
           flux, wave = _rusanov(
@@ -2934,6 +2954,7 @@ def _audit_field(
     'reported_channels': original_reported_channels,
     'top_pressure': top_pressure,
     'top_normal_velocity': top_normal_velocity,
+    'centerline_normal_velocity': centerline_normal_velocity,
     'speeds': np.asarray(speeds, dtype=float),
     'entropy_residual': entropy_loss_residual,
     'entropy_production_fraction': entropy_production_fraction,
@@ -3311,10 +3332,17 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   residuals_verified = maxima[4] <= candidate.request.euler_residual_tolerance
   pressure = np.asarray(raw['top_pressure'], dtype=float)
   normal_velocity = np.asarray(raw['top_normal_velocity'], dtype=float)
+  centerline_normal_velocity = np.asarray(
+    raw['centerline_normal_velocity'],
+    dtype=float,
+  )
   pressure_targets = _free_boundary_pressure_targets(candidate.request)
   pressure_residual = float(np.max(np.abs(pressure - pressure_targets)))
   maximum_speed = max(float(np.max(raw['speeds'])), 1.0e-12)
   normal_fraction = float(np.max(np.abs(normal_velocity))) / maximum_speed
+  centerline_fraction = (
+    float(np.max(np.abs(centerline_normal_velocity))) / maximum_speed
+  )
   boundary_report_verified = bool(
     np.allclose(
       np.asarray(candidate.free_boundary_pressure_residuals_Pa),
@@ -3331,6 +3359,37 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     and candidate.maximum_free_boundary_pressure_residual_Pa is not None
     and abs(candidate.maximum_free_boundary_pressure_residual_Pa - pressure_residual)
     <= max(1.0e-8, 3.0e-6 * pressure_residual)
+  )
+  centerline_report_verified = bool(
+    np.asarray(candidate.centerline_normal_velocity_residuals_m_s).shape
+    == centerline_normal_velocity.shape
+    and np.allclose(
+      np.asarray(candidate.centerline_normal_velocity_residuals_m_s),
+      np.abs(centerline_normal_velocity),
+      rtol=3.0e-6,
+      atol=1.0e-8,
+    )
+    and candidate.maximum_centerline_normal_velocity_residual_m_s is not None
+    and abs(
+      candidate.maximum_centerline_normal_velocity_residual_m_s
+      - float(np.max(np.abs(centerline_normal_velocity)))
+    )
+    <= max(
+      1.0e-8,
+      3.0e-6 * float(np.max(np.abs(centerline_normal_velocity))),
+    )
+    and candidate.maximum_centerline_normal_velocity_residual_fraction
+    is not None
+    and abs(
+      candidate.maximum_centerline_normal_velocity_residual_fraction
+      - centerline_fraction
+    )
+    <= max(1.0e-8, 3.0e-6 * centerline_fraction)
+  )
+  centerline_condition_verified = bool(
+    centerline_fraction
+    <= candidate.request.centerline_normal_velocity_tolerance_fraction
+    and candidate.centerline_condition_verified
   )
   promotion_flags_verified = bool(
     candidate.chain_promotion_blocked
@@ -3488,6 +3547,12 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       'independent free-boundary pressure target or tangency residual exceeds '
       'tolerance'
     )
+  elif not centerline_report_verified:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.CENTERLINE_FAILURE
+    message = 'candidate centerline normal-velocity diagnostic arrays do not match the field'
+  elif not centerline_condition_verified:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.CENTERLINE_FAILURE
+    message = 'independent centerline normal-velocity residual exceeds tolerance'
   elif not bool(raw['entropy_verified']):
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
     message = 'independent entropy-proxy transport bounds were not satisfied'
@@ -3511,6 +3576,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     maximum_conservative_euler_residual=maxima[4],
     maximum_free_boundary_pressure_residual_Pa=pressure_residual,
     maximum_free_boundary_normal_velocity_residual_fraction=normal_fraction,
+    maximum_centerline_normal_velocity_residual_fraction=centerline_fraction,
     maximum_entropy_transport_residual=float(raw['entropy_residual']),
     maximum_entropy_production_fraction=float(raw['entropy_production_fraction']),
     maximum_entropy_closure_total_pressure_residual_Pa=(
@@ -3522,6 +3588,8 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     residual_channels_recomputed=True,
     residual_report_verified=report_verified and residuals_verified,
     free_boundary_report_verified=boundary_report_verified,
+    centerline_report_verified=centerline_report_verified,
+    centerline_condition_verified=centerline_condition_verified,
     free_boundary_geometry_profile_verified=(
       free_boundary_geometry_profile_verified
     ),
