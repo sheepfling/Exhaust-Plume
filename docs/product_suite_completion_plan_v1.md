@@ -3328,3 +3328,33 @@ inside the equations, closes ambient and centerline neighbors, and repeats the
 independent jump, boundary-flux, entropy, Euler, and refinement audits.  The
 default full-state and physical-field continuation lanes remain separate and
 unchanged.
+
+### P2.2d compression-budget hard-stop checkpoint — 2026-09-09
+
+The next P2.2d vertical slice is now an explicit typed operator,
+``op.moc.reflected-domain.global-transonic-interface-closure``.  Its request
+binds one exact global physical-closure fingerprint and one exact retained
+frontier fingerprint to a fixed solver-owned station/frame policy.  Its result
+retains the selected interface candidate, an independently rederived
+Rankine--Hugoniot pressure budget, any coupled-field attempt, and the existing
+interface/boundary audit without changing the fidelity lanes.
+
+On the retained mixed-regime target, the operator records the actual pressure
+infeasibility before starting the downstream field: the minimum retained
+upstream static pressure is approximately ``239.5 kPa``, the minimum derived
+normal-compression downstream pressure is approximately ``509.6 kPa``, and the
+requested ambient target is approximately ``212.2 kPa``.  Because an attached
+compression shock cannot lower static pressure, the operator returns the typed
+``global-transonic-closure-compression-target-unreachable`` stop with the best
+in-domain placement and ``downstream_field_attempted=false``.  No endpoint
+hold, extrapolation, oblique-shock fiction, or lower-fidelity fallback is
+introduced.
+
+The focused regression, Ruff, Pyright, compilation, scope-marker, and diff
+checks pass.  This is a correct physical hard stop, not closure evidence.  The
+next physics slice is an expansion/mixed-regime solver-owned interface solve
+that can lower pressure while simultaneously closing the centerline and
+ambient neighbors; the operator must retain this pressure-budget gate when
+that higher-fidelity law is added.  Canonical closure, physical shock-cell
+acceptance, provider-bound Signature/FPA validation, and release promotion
+remain blocked.

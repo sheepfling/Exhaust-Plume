@@ -180,6 +180,11 @@ from exhaust_plume.validation.moc_global_transonic_interface import (
   MocReflectedDomainGlobalTransonicInterfaceAuditStatus,
   measure_reflected_domain_global_transonic_interface,
 )
+from exhaust_plume.validation.moc_global_transonic_closure import (
+  MocReflectedDomainGlobalTransonicClosureRequest,
+  MocReflectedDomainGlobalTransonicClosureStatus,
+  run_reflected_domain_global_transonic_closure,
+)
 from exhaust_plume.validation.moc_transonic_interface import (
   MocTransonicShockInterfaceFieldProfileAuditStatus,
   MocTransonicShockInterfaceFieldPlacementAuditStatus,
@@ -785,6 +790,84 @@ def test_global_coupled_downstream_derives_solver_owned_transonic_placement():
   )
   assert tampered_audit.converged is False
   assert result.global_coupling_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_global_transonic_closure_stops_before_infeasible_compression_target():
+  closure = _global_physical_closure_for_mixed_regime()
+  ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+
+  request = MocReflectedDomainGlobalTransonicClosureRequest(
+    closure=closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+  )
+  result = run_reflected_domain_global_transonic_closure(request)
+
+  assert result.status is (
+    MocReflectedDomainGlobalTransonicClosureStatus
+    .INTERFACE_TARGET_UNREACHABLE
+  )
+  assert result.source_lineage_verified
+  assert result.source_closure_fingerprint == request.source_closure_fingerprint
+  assert result.source_frontier_fingerprint == request.source_frontier_fingerprint
+  assert result.placement is not None
+  assert result.placement.target_pressure_residual_fraction is not None
+  assert result.pressure_budget is not None
+  assert result.pressure_budget.independent_profile_verified
+  assert result.pressure_budget.compression_pressure_increase_verified
+  assert result.pressure_budget.target_below_upstream_pressure_floor
+  assert result.pressure_budget.target_below_compression_pressure_floor
+  assert result.pressure_budget.hard_stop_required
+  assert result.downstream_field_attempted is False
+  assert result.candidate is None
+  assert result.converged is False
+  assert result.physical_closure_verified is False
+  assert result.canonical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert 'no downstream field was attempted' in result.message
+####
+
+
+def test_global_transonic_closure_keeps_centerline_gate_after_pressure_budget():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = MocReflectedDomainGlobalTransonicClosureRequest(
+    closure=closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=510000.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=200,
+    max_shape_iterations=4,
+  )
+  result = run_reflected_domain_global_transonic_closure(request)
+
+  assert result.status is (
+    MocReflectedDomainGlobalTransonicClosureStatus
+    .CENTERLINE_BOUNDARY_FAILURE
+  )
+  assert result.pressure_budget is not None
+  assert result.pressure_budget.compression_floor_passes
+  assert result.pressure_budget.target_below_upstream_pressure_floor is False
+  assert result.downstream_field_attempted
+  assert result.candidate is not None
+  assert result.candidate.converged
+  assert result.joint_interface_consumption_verified
+  assert result.interface_audit is not None
+  assert result.interface_audit.ambient_boundary_verified
+  assert result.interface_audit.centerline_boundary_required
+  assert result.interface_audit.centerline_boundary_verified is False
+  assert result.interface_audit.joint_boundary_residuals_verified is False
+  assert result.converged is False
+  assert result.canonical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
 ####

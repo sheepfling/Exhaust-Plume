@@ -283,6 +283,15 @@ from exhaust_plume.validation.moc_global_transonic_interface import (
   MocReflectedDomainGlobalTransonicInterfaceAudit,
   measure_reflected_domain_global_transonic_interface,
 )
+from exhaust_plume.validation.moc_global_transonic_closure import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_CLOSURE_OPERATOR_ID,
+  MocReflectedDomainGlobalTransonicClosureStatus,
+  MocReflectedDomainGlobalTransonicPressureBudget,
+  MocReflectedDomainGlobalTransonicClosureRequest,
+  MocReflectedDomainGlobalTransonicClosureResult,
+  moc_reflected_domain_global_transonic_frontier_fingerprint,
+  run_reflected_domain_global_transonic_closure,
+)
 from exhaust_plume.validation.moc_global_frontier_target_resolve import (
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID,
   MocReflectedDomainGlobalFrontierTargetResolveStatus,
@@ -916,6 +925,13 @@ __all__ = (
   'MocReflectedDomainGlobalTransonicInterfaceAuditStatus',
   'MocReflectedDomainGlobalTransonicInterfaceAudit',
   'measure_reflected_domain_global_transonic_interface',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_CLOSURE_OPERATOR_ID',
+  'MocReflectedDomainGlobalTransonicClosureStatus',
+  'MocReflectedDomainGlobalTransonicPressureBudget',
+  'MocReflectedDomainGlobalTransonicClosureRequest',
+  'MocReflectedDomainGlobalTransonicClosureResult',
+  'moc_reflected_domain_global_transonic_frontier_fingerprint',
+  'run_reflected_domain_global_transonic_closure',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID',
   'MocReflectedDomainGlobalFrontierTargetResolveStatus',
   'MocReflectedDomainGlobalFrontierTargetResolveCandidate',
