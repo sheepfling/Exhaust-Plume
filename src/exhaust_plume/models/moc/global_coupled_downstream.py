@@ -267,14 +267,17 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
   pressure_residual_fractions: tuple[float, ...] = ()
   normal_velocity_residuals_m_s: tuple[float, ...] = ()
   normal_velocity_residual_fractions: tuple[float, ...] = ()
+  centerline_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   tangent_residuals_rad: tuple[float, ...] = ()
   geometry_verified: bool = False
   state_samples_verified: bool = False
   field_audit_verified: bool = False
   boundary_condition_verified: bool = False
+  centerline_condition_verified: bool = False
   residuals_verified: bool = False
   pressure_tolerance_fraction: float = 0.10
   normal_velocity_tolerance_fraction: float = 0.05
+  centerline_normal_velocity_tolerance_fraction: float = 0.05
   tangent_tolerance_rad: float = 5.0e-2
   message: str = ''
 
@@ -319,6 +322,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
       'pressure_residual_fractions',
       'normal_velocity_residuals_m_s',
       'normal_velocity_residual_fractions',
+      'centerline_normal_velocity_residuals_m_s',
       'tangent_residuals_rad',
     ):
       values = tuple(float(value) for value in getattr(self, name))
@@ -339,6 +343,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
     if sample_count and (
       len(self.normal_velocity_residuals_m_s) != sample_count - 1
       or len(self.normal_velocity_residual_fractions) != sample_count - 1
+      or len(self.centerline_normal_velocity_residuals_m_s) != sample_count - 1
       or len(self.tangent_residuals_rad) != sample_count - 1
     ):
       raise ValueError(
@@ -349,6 +354,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
     for name in (
       'pressure_tolerance_fraction',
       'normal_velocity_tolerance_fraction',
+      'centerline_normal_velocity_tolerance_fraction',
       'tangent_tolerance_rad',
     ):
       value = float(getattr(self, name))
@@ -362,6 +368,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
       'state_samples_verified',
       'field_audit_verified',
       'boundary_condition_verified',
+      'centerline_condition_verified',
       'residuals_verified',
     ):
       if not isinstance(getattr(self, name), bool):
@@ -388,6 +395,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
       and self.state_samples_verified
       and self.field_audit_verified
       and self.boundary_condition_verified
+      and self.centerline_condition_verified
       and self.residuals_verified
     )
   ####
@@ -427,11 +435,15 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
       'normal_velocity_residual_fractions': list(
         self.normal_velocity_residual_fractions
       ),
+      'centerline_normal_velocity_residuals_m_s': list(
+        self.centerline_normal_velocity_residuals_m_s
+      ),
       'tangent_residuals_rad': list(self.tangent_residuals_rad),
       'geometry_verified': self.geometry_verified,
       'state_samples_verified': self.state_samples_verified,
       'field_audit_verified': self.field_audit_verified,
       'boundary_condition_verified': self.boundary_condition_verified,
+      'centerline_condition_verified': self.centerline_condition_verified,
       'residuals_verified': self.residuals_verified,
       'local_trace_verified': self.local_trace_verified,
       'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
@@ -443,6 +455,9 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
       'pressure_tolerance_fraction': self.pressure_tolerance_fraction,
       'normal_velocity_tolerance_fraction': (
         self.normal_velocity_tolerance_fraction
+      ),
+      'centerline_normal_velocity_tolerance_fraction': (
+        self.centerline_normal_velocity_tolerance_fraction
       ),
       'tangent_tolerance_rad': self.tangent_tolerance_rad,
       'message': self.message,
@@ -2946,6 +2961,19 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
     )
   ####
   normal_residuals = tuple(float(value) for value in reported_normal_residuals)
+  reported_centerline_residuals = tuple(
+    field.centerline_normal_velocity_residuals_m_s
+  )
+  if len(reported_centerline_residuals) != axial_count:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled field centerline normal-velocity residuals do not align with '
+      'cell columns',
+    )
+  ####
+  centerline_residuals = tuple(
+    float(value) for value in reported_centerline_residuals
+  )
   normal_fractions: list[float] = []
   tangent_residuals: list[float] = []
   for column, (first, second) in enumerate(zip(samples, samples[1:])):
@@ -2981,6 +3009,9 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
   normal_tolerance = float(
     request.free_boundary_normal_velocity_tolerance_fraction
   )
+  centerline_tolerance = float(
+    request.centerline_normal_velocity_tolerance_fraction
+  )
   tangent_tolerance = 5.0e-2
   audit_verified = bool(
     getattr(audit, 'converged', False)
@@ -2992,6 +3023,14 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
     and all(value <= tangent_tolerance for value in tangent_residuals)
   )
   boundary_condition_verified = bool(field.free_boundary_condition_verified)
+  centerline_condition_verified = bool(
+    field.centerline_condition_verified
+    and getattr(audit, 'centerline_condition_verified', False)
+    and field.maximum_centerline_normal_velocity_residual_fraction is not None
+    and field.maximum_centerline_normal_velocity_residual_fraction
+    <= centerline_tolerance
+  )
+  residuals_verified = bool(residuals_verified and centerline_condition_verified)
   state_samples_verified = bool(
     len(samples) == len(points)
     and all(sample.gamma == gamma for sample in samples)
@@ -3026,14 +3065,17 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
     pressure_residual_fractions=pressure_fractions,
     normal_velocity_residuals_m_s=normal_residuals,
     normal_velocity_residual_fractions=tuple(normal_fractions),
+    centerline_normal_velocity_residuals_m_s=centerline_residuals,
     tangent_residuals_rad=tuple(tangent_residuals),
     geometry_verified=geometry_verified,
     state_samples_verified=state_samples_verified,
     field_audit_verified=audit_verified,
     boundary_condition_verified=boundary_condition_verified,
+    centerline_condition_verified=centerline_condition_verified,
     residuals_verified=residuals_verified,
     pressure_tolerance_fraction=pressure_tolerance,
     normal_velocity_tolerance_fraction=normal_tolerance,
+    centerline_normal_velocity_tolerance_fraction=centerline_tolerance,
     tangent_tolerance_rad=tangent_tolerance,
     message=(
       'solver-owned coupled-Euler boundary trace reconstructed from retained '

@@ -3672,3 +3672,17 @@ not close the canonical mixed-wave physics.  The centerline result remains
 research-only, canonical closure and promotion flags remain false, and the next
 P2.2d slice is still a jointly coupled signed interface/field solve with
 independent centerline, ambient, entropy, Euler, and refinement evidence.
+
+### P2.2d downstream trace centerline-retention checkpoint — 2026-09-09
+
+The global-to-downstream full-state boundary trace now retains the coupled
+field's audited centerline normal-velocity residuals alongside pressure,
+outer-boundary normal velocity, and tangent residuals.  Trace construction
+requires the centerline array to align with every retained cell column and
+requires both the candidate field and its independent audit to verify the
+centerline condition.  A downstream feedback consumer therefore cannot
+silently drop the centerline gate while carrying the outer boundary trace.
+
+This is contract/evidence propagation only.  It does not create global
+feedback, close the mixed-wave interface, or authorize canonical Signature,
+FPA, or production claims.

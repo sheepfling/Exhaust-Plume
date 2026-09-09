@@ -3816,6 +3816,10 @@ def test_global_coupled_downstream_retains_a_separate_full_state_boundary_trace(
   assert trace.sample_count == result.coupled_field.request.axial_cell_count + 1
   assert len(trace.pressure_residuals_Pa) == trace.sample_count
   assert len(trace.normal_velocity_residuals_m_s) == trace.sample_count - 1
+  assert len(trace.centerline_normal_velocity_residuals_m_s) == (
+    trace.sample_count - 1
+  )
+  assert trace.centerline_condition_verified
   assert len(trace.tangent_residuals_rad) == trace.sample_count - 1
   assert any(sample.mach < 1.0 for sample in trace.samples)
   assert trace.downstream_boundary_closure_verified is False
