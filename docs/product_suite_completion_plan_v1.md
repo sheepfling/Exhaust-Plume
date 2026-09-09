@@ -3467,3 +3467,31 @@ refinement ladder, physical shock-cell fit, provider validation, or production
 promotion.  The next slice is to consume the signed law in the joint
 interface/field iteration and independently audit every boundary at each
 iterate.
+
+### P2.2d solver-owned mixed-wave interface checkpoint — 2026-09-09
+
+The exact entropy-characteristic frontier now feeds a separate
+op.moc.reflected-domain.global-transonic-mixed-wave-interface operator.
+It consumes the source field by identity, pressure-matches the signed local
+wave path, derives an explicit solver-owned outer turn, marches a generated
+shock to the symmetry line, refits the retained preterminal shock geometry,
+and independently marches the ambient-pressure boundary.  The terminal is
+retained as a typed subsonic normal-shock seam; no caller-supplied shock points
+or endpoint values are accepted.
+
+The retained target passes the local interface gates: frontier lineage,
+pressure target, angle-law endpoints, shock fit, ambient pressure/tangency,
+and typed subsonic terminal.  This evidence is deliberately narrower than a
+physical closure: the centerline perimeter and global upstream/downstream
+feedback remain false, chain promotion is blocked, and production claims are
+disallowed.  When the optional scalar strict-subsonic reference is run, it
+returns the typed pressure-unreachable result because the terminal total
+pressure is too high to reach the ambient target on that branch; this is kept
+as evidence rather than hidden by a fallback.
+
+The focused transonic regression and static checks pass.  The next physics
+slice is to consume this interface inside the joint field iteration and
+independently rederive shock, entropy, Euler, geometry, centerline, ambient,
+and refinement residuals at every accepted iterate.  Canonical closure,
+physical shock-cell fitting, provider-bound validation, and release promotion
+remain blocked.

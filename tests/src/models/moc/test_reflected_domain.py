@@ -184,7 +184,12 @@ from exhaust_plume.validation.moc_global_transonic_closure import (
   MocReflectedDomainGlobalTransonicClosureRequest,
   MocReflectedDomainGlobalTransonicClosureStatus,
   MocReflectedDomainGlobalTransonicExpansionAttemptStatus,
+  run_reflected_domain_global_transonic_expansion_attempt,
   run_reflected_domain_global_transonic_closure,
+)
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_interface import (
+  MocReflectedDomainGlobalTransonicMixedWaveInterfaceStatus,
+  solve_reflected_domain_global_transonic_mixed_wave_interface,
 )
 from exhaust_plume.validation.moc_transonic_interface import (
   MocTransonicShockInterfaceFieldProfileAuditStatus,
@@ -847,6 +852,18 @@ def test_global_transonic_closure_stops_before_infeasible_compression_target():
   assert result.expansion_attempt.mixed_wave_path.target_pressure_Pa == pytest.approx(
     ambient_pressure,
   )
+  assert result.expansion_attempt.mixed_wave_interface is not None
+  assert result.expansion_attempt.mixed_wave_interface_verified
+  assert result.expansion_attempt.mixed_wave_interface.local_interface_verified
+  assert result.expansion_attempt.mixed_wave_interface.pressure_target_verified
+  assert result.expansion_attempt.mixed_wave_interface.shock_fit_verified
+  assert result.expansion_attempt.mixed_wave_interface.ambient_boundary_verified
+  assert result.expansion_attempt.mixed_wave_interface.terminal_model_verified
+  assert (
+    result.expansion_attempt.mixed_wave_interface.centerline_boundary_verified
+    is False
+  )
+  assert result.expansion_attempt.mixed_wave_interface.chain_promotion_blocked
   assert result.expansion_attempt.continuation_closure is not None
   assert result.expansion_attempt.continuation_closure.converged is False
   assert result.converged is False
@@ -891,6 +908,42 @@ def test_global_transonic_closure_keeps_centerline_gate_after_pressure_budget():
   assert result.canonical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
+
+
+def test_global_transonic_mixed_wave_interface_keeps_subsonic_reference_stop_typed():
+  closure = _global_physical_closure_for_mixed_regime()
+  ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  request = MocReflectedDomainGlobalTransonicClosureRequest(
+    closure=closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+  )
+  attempt = run_reflected_domain_global_transonic_expansion_attempt(request)
+  assert attempt.characteristic_field is not None
+
+  interface = solve_reflected_domain_global_transonic_mixed_wave_interface(
+    attempt.characteristic_field,
+    ambient_pressure,
+    effective_inlet_height_m=0.002,
+    downstream_length_m=0.2,
+  )
+
+  assert interface.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveInterfaceStatus
+    .CONVERGED_RESEARCH_TERMINAL
+  )
+  assert interface.local_interface_verified
+  assert interface.subsonic_reference is not None
+  assert interface.subsonic_reference_verified is False
+  assert interface.subsonic_reference.status.value == (
+    'free-boundary-pressure-unreachable'
+  )
+  assert interface.centerline_boundary_verified is False
+  assert interface.global_coupling_verified is False
+  assert interface.chain_promotion_blocked
+  assert interface.production_claim_allowed is False
 ####
 
 
