@@ -16,6 +16,10 @@ from enum import Enum
 from math import cos, hypot, isfinite, sin
 from typing import Any
 
+from exhaust_plume.models.moc.euler_shock_boundary import (
+  MocEulerShockBoundaryCurveResult,
+  fit_euler_consistent_shock_boundary_from_geometry,
+)
 from exhaust_plume.models.moc.transonic_transition import (
   MocTransonicShockGeometryAudit,
   MocTransonicShockGeometryResult,
@@ -74,6 +78,9 @@ class MocMovingMixedRegimeInterfaceStatus(str, Enum):
   SUBSONIC_FIELD_REQUIRED = (
     'moving-mixed-regime-subsonic-field-required'
   )
+  TWO_SIDED_SHOCK_BOUNDARY_FAILURE = (
+    'moving-mixed-regime-two-sided-shock-boundary-failure'
+  )
 
 
 class MocMovingMixedRegimeInterfaceAuditStatus(str, Enum):
@@ -89,6 +96,9 @@ class MocMovingMixedRegimeInterfaceAuditStatus(str, Enum):
     'moving-mixed-regime-interface-conservative-boundary-lineage-failure'
   )
   COVERAGE_FAILURE = 'moving-mixed-regime-interface-coverage-failure'
+  TWO_SIDED_SHOCK_BOUNDARY_FAILURE = (
+    'moving-mixed-regime-two-sided-shock-boundary-audit-failure'
+  )
   CLAIM_FLAG_FAILURE = 'moving-mixed-regime-interface-claim-flag-failure'
 
 
@@ -245,6 +255,7 @@ class MocMovingMixedRegimeInterfaceRequest:
   position_tolerance_m: float = DEFAULT_POSITION_TOLERANCE_M
   state_tolerance: float = DEFAULT_STATE_TOLERANCE
   normal_tolerance: float = DEFAULT_NORMAL_TOLERANCE
+  two_sided_shock_boundary: MocEulerShockBoundaryCurveResult | None = None
   source: str = 'solver-owned-moving-mixed-regime-interface-request-v1'
 
   def __post_init__(self) -> None:
@@ -267,6 +278,15 @@ class MocMovingMixedRegimeInterfaceRequest:
     ):
       raise TypeError(
         'boundary_samples must contain typed conservative boundary samples'
+      )
+    ####
+    if self.two_sided_shock_boundary is not None and not isinstance(
+      self.two_sided_shock_boundary,
+      MocEulerShockBoundaryCurveResult,
+    ):
+      raise TypeError(
+        'two_sided_shock_boundary must be a '
+        'MocEulerShockBoundaryCurveResult or None'
       )
     ####
     if len({sample.index for sample in samples}) != len(samples):
@@ -373,6 +393,11 @@ class MocMovingMixedRegimeInterfaceRequest:
       'terminal_geometry': self.terminal_geometry.as_report(),
       'interface_points_m': [list(point) for point in self.interface_points_m],
       'boundary_samples': [sample.as_report() for sample in self.boundary_samples],
+      'two_sided_shock_boundary': (
+        None
+        if self.two_sided_shock_boundary is None
+        else self.two_sided_shock_boundary.as_report()
+      ),
       'cross_section_x_m': self.cross_section_x_m,
       'lower_y_m': self.lower_y_m,
       'upper_y_m': self.upper_y_m,
@@ -409,6 +434,9 @@ class MocMovingMixedRegimeInterfaceResult:
   subsonic_boundary_verified: bool = False
   maximum_boundary_mach: float | None = None
   maximum_total_pressure_gain_fraction: float | None = None
+  two_sided_shock_boundary: MocEulerShockBoundaryCurveResult | None = None
+  two_sided_shock_boundary_verified: bool = False
+  maximum_two_sided_jump_residual: float | None = None
   moving_interface_solve_attempted: bool = False
   subsonic_field_required: bool = True
   physical_closure_verified: bool = False
@@ -436,6 +464,19 @@ class MocMovingMixedRegimeInterfaceResult:
     samples = tuple(self.boundary_samples)
     if samples != self.request.boundary_samples:
       raise ValueError('result must retain the exact conservative boundary samples')
+    ####
+    if self.two_sided_shock_boundary is not self.request.two_sided_shock_boundary:
+      raise ValueError(
+        'result must retain the exact optional two-sided shock-boundary handoff'
+      )
+    if self.two_sided_shock_boundary is not None and not isinstance(
+      self.two_sided_shock_boundary,
+      MocEulerShockBoundaryCurveResult,
+    ):
+      raise TypeError(
+        'two_sided_shock_boundary must be a '
+        'MocEulerShockBoundaryCurveResult or None'
+      )
     ####
     missing = tuple(int(index) for index in self.missing_sample_indices)
     if any(
@@ -473,7 +514,17 @@ class MocMovingMixedRegimeInterfaceResult:
       ####
       object.__setattr__(self, name, numeric)
     ####
+    if self.maximum_two_sided_jump_residual is not None:
+      residual = float(self.maximum_two_sided_jump_residual)
+      if not isfinite(residual) or residual < 0.0:
+        raise ValueError(
+          'maximum_two_sided_jump_residual must be finite and nonnegative'
+        )
+      ####
+      object.__setattr__(self, 'maximum_two_sided_jump_residual', residual)
+    ####
     for name in (
+      'two_sided_shock_boundary_verified',
       'terminal_conservative_state_verified',
       'interface_geometry_verified',
       'conservative_boundary_verified',
@@ -522,6 +573,17 @@ class MocMovingMixedRegimeInterfaceResult:
       'boundary_seam_verified': self.boundary_seam_verified,
       'interface_points_m': [list(point) for point in self.interface_points_m],
       'boundary_samples': [sample.as_report() for sample in self.boundary_samples],
+      'two_sided_shock_boundary': (
+        None
+        if self.two_sided_shock_boundary is None
+        else self.two_sided_shock_boundary.as_report()
+      ),
+      'two_sided_shock_boundary_verified': (
+        self.two_sided_shock_boundary_verified
+      ),
+      'maximum_two_sided_jump_residual': (
+        self.maximum_two_sided_jump_residual
+      ),
       'missing_sample_indices': list(self.missing_sample_indices),
       'terminal_conservative_state_residual': (
         self.terminal_conservative_state_residual
@@ -566,10 +628,12 @@ class MocMovingMixedRegimeInterfaceAudit:
   conservative_boundary_rederived: bool = False
   coverage_rederived: bool = False
   subsonic_boundary_rederived: bool = False
+  two_sided_shock_boundary_rederived: bool = False
   claim_flags_verified: bool = False
   terminal_conservative_state_residual: float | None = None
   maximum_boundary_mach: float | None = None
   maximum_total_pressure_gain_fraction: float | None = None
+  maximum_two_sided_jump_residual: float | None = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -588,6 +652,7 @@ class MocMovingMixedRegimeInterfaceAudit:
       'conservative_boundary_rederived',
       'coverage_rederived',
       'subsonic_boundary_rederived',
+      'two_sided_shock_boundary_rederived',
       'claim_flags_verified',
     ):
       if not isinstance(getattr(self, name), bool):
@@ -615,6 +680,15 @@ class MocMovingMixedRegimeInterfaceAudit:
       ####
       object.__setattr__(self, name, numeric)
     ####
+    if self.maximum_two_sided_jump_residual is not None:
+      residual = float(self.maximum_two_sided_jump_residual)
+      if not isfinite(residual) or residual < 0.0:
+        raise ValueError(
+          'maximum_two_sided_jump_residual must be finite and nonnegative'
+        )
+      ####
+      object.__setattr__(self, 'maximum_two_sided_jump_residual', residual)
+    ####
     if not str(self.operator_id):
       raise ValueError('operator_id must be non-empty')
     ####
@@ -631,6 +705,7 @@ class MocMovingMixedRegimeInterfaceAudit:
       and self.conservative_boundary_rederived
       and self.coverage_rederived
       and self.subsonic_boundary_rederived
+      and self.two_sided_shock_boundary_rederived
       and self.claim_flags_verified
     )
   ####
@@ -655,6 +730,9 @@ class MocMovingMixedRegimeInterfaceAudit:
       'conservative_boundary_rederived': self.conservative_boundary_rederived,
       'coverage_rederived': self.coverage_rederived,
       'subsonic_boundary_rederived': self.subsonic_boundary_rederived,
+      'two_sided_shock_boundary_rederived': (
+        self.two_sided_shock_boundary_rederived
+      ),
       'claim_flags_verified': self.claim_flags_verified,
       'terminal_conservative_state_residual': (
         self.terminal_conservative_state_residual
@@ -662,6 +740,9 @@ class MocMovingMixedRegimeInterfaceAudit:
       'maximum_boundary_mach': self.maximum_boundary_mach,
       'maximum_total_pressure_gain_fraction': (
         self.maximum_total_pressure_gain_fraction
+      ),
+      'maximum_two_sided_jump_residual': (
+        self.maximum_two_sided_jump_residual
       ),
       'physical_closure_verified': self.physical_closure_verified,
       'production_claim_allowed': self.production_claim_allowed,
@@ -689,6 +770,8 @@ def _result(
   subsonic_boundary_verified: bool = False,
   maximum_boundary_mach: float | None = None,
   maximum_total_pressure_gain_fraction: float | None = None,
+  two_sided_shock_boundary_verified: bool = False,
+  maximum_two_sided_jump_residual: float | None = None,
   message: str,
 ) -> MocMovingMixedRegimeInterfaceResult:
   return MocMovingMixedRegimeInterfaceResult(
@@ -710,6 +793,9 @@ def _result(
     subsonic_boundary_verified=subsonic_boundary_verified,
     maximum_boundary_mach=maximum_boundary_mach,
     maximum_total_pressure_gain_fraction=maximum_total_pressure_gain_fraction,
+    two_sided_shock_boundary=request.two_sided_shock_boundary,
+    two_sided_shock_boundary_verified=two_sided_shock_boundary_verified,
+    maximum_two_sided_jump_residual=maximum_two_sided_jump_residual,
     message=message,
   )
 
@@ -830,6 +916,162 @@ def _boundary_state_check(
   )
 
 
+def _maximum_sequence_difference(
+  first: tuple[float, ...],
+  second: tuple[float, ...],
+) -> float:
+  if len(first) != len(second):
+    return float('inf')
+  return max(
+    (abs(left - right) for left, right in zip(first, second, strict=True)),
+    default=0.0,
+  )
+
+
+def _two_sided_shock_boundary_check(
+  request: MocMovingMixedRegimeInterfaceRequest,
+) -> tuple[bool, float | None, str]:
+  """Re-derive optional two-sided shock evidence without solving a field."""
+
+  boundary = request.two_sided_shock_boundary
+  if boundary is None:
+    return True, None, 'no optional two-sided shock boundary was supplied'
+  ####
+  if not boundary.converged or not boundary.local_euler_verified:
+    return (
+      False,
+      boundary.maximum_shock_jump_residual,
+      'two-sided shock boundary must pass its local Euler jump gate',
+    )
+  ####
+  if len(boundary.shock_points_m) < 2:
+    return False, None, 'two-sided shock boundary requires at least two samples'
+  ####
+  terminal = request.terminal_geometry.shock_point_m
+  endpoint = boundary.shock_points_m[-1]
+  if max(abs(endpoint[index] - terminal[index]) for index in range(2)) > (
+    request.position_tolerance_m
+  ):
+    return (
+      False,
+      boundary.maximum_shock_jump_residual,
+      'two-sided shock boundary must terminate at the audited terminal point',
+    )
+  ####
+  if any(
+    abs(state.gamma - request.gamma) > request.state_tolerance
+    for state in (*boundary.upstream_states, *boundary.downstream_states)
+  ):
+    return (
+      False,
+      boundary.maximum_shock_jump_residual,
+      'two-sided shock boundary gamma must match the audited terminal geometry',
+    )
+  ####
+  try:
+    rederived = fit_euler_consistent_shock_boundary_from_geometry(
+      boundary.upstream_states,
+      boundary.upstream_static_pressure_Pa,
+      boundary.shock_points_m,
+      position_tolerance_m=request.position_tolerance_m,
+      shock_angle_tolerance_rad=boundary.shock_angle_tolerance_rad,
+      residual_tolerance=boundary.residual_tolerance,
+      allow_zero_strength_endpoints=boundary.zero_strength_endpoints_allowed,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return (
+      False,
+      boundary.maximum_shock_jump_residual,
+      f'two-sided shock boundary independent rederivation raised: {error}',
+    )
+  ####
+  tolerance = max(
+    request.state_tolerance,
+    boundary.residual_tolerance,
+    boundary.shock_angle_tolerance_rad,
+  )
+  state_difference = max(
+    (
+      abs(left.x_m - right.x_m)
+      for left, right in zip(
+        boundary.downstream_states,
+        rederived.downstream_states,
+        strict=True,
+      )
+    ),
+    default=float('inf'),
+  )
+  state_difference = max(
+    state_difference,
+    *(
+      abs(left.y_m - right.y_m)
+      for left, right in zip(
+        boundary.downstream_states,
+        rederived.downstream_states,
+        strict=True,
+      )
+    ),
+    *(
+      abs(left.theta_rad - right.theta_rad)
+      for left, right in zip(
+        boundary.downstream_states,
+        rederived.downstream_states,
+        strict=True,
+      )
+    ),
+    *(
+      abs(left.mach - right.mach)
+      for left, right in zip(
+        boundary.downstream_states,
+        rederived.downstream_states,
+        strict=True,
+      )
+    ),
+  )
+  residual_difference = max(
+    _maximum_sequence_difference(
+      boundary.shock_jump_mass_residuals,
+      rederived.shock_jump_mass_residuals,
+    ),
+    _maximum_sequence_difference(
+      boundary.shock_jump_momentum_residuals,
+      rederived.shock_jump_momentum_residuals,
+    ),
+    _maximum_sequence_difference(
+      boundary.shock_jump_energy_residuals,
+      rederived.shock_jump_energy_residuals,
+    ),
+    _maximum_sequence_difference(
+      boundary.tangent_residuals_rad,
+      rederived.tangent_residuals_rad,
+    ),
+  )
+  maximum_residual = max(
+    boundary.maximum_shock_jump_residual or 0.0,
+    rederived.maximum_shock_jump_residual or 0.0,
+  )
+  if (
+    not rederived.converged
+    or not rederived.local_euler_verified
+    or state_difference > tolerance
+    or residual_difference > tolerance
+    or maximum_residual > tolerance
+  ):
+    return (
+      False,
+      maximum_residual,
+      'two-sided shock boundary did not reproduce the independently '
+      'remeasured downstream states and Euler residuals',
+    )
+  ####
+  return (
+    True,
+    maximum_residual,
+    'two-sided shock boundary jump and terminal geometry were independently '
+    'remeasured; the mixed-regime subsonic field remains open',
+  )
+
+
 def prepare_moc_moving_mixed_regime_interface(
   request: MocMovingMixedRegimeInterfaceRequest,
 ) -> MocMovingMixedRegimeInterfaceResult:
@@ -893,6 +1135,31 @@ def prepare_moc_moving_mixed_regime_interface(
       message=state_message,
     )
   ####
+  (
+    two_sided_verified,
+    maximum_two_sided_jump_residual,
+    two_sided_message,
+  ) = _two_sided_shock_boundary_check(request)
+  if not two_sided_verified:
+    return _result(
+      MocMovingMixedRegimeInterfaceStatus.TWO_SIDED_SHOCK_BOUNDARY_FAILURE,
+      request,
+      geometry_audit,
+      interface_points_m=request.interface_points_m,
+      terminal_conservative_state_residual=terminal_residual,
+      terminal_conservative_state_verified=True,
+      interface_geometry_verified=True,
+      conservative_boundary_verified=True,
+      subsonic_boundary_verified=True,
+      maximum_boundary_mach=maximum_boundary_mach,
+      maximum_total_pressure_gain_fraction=(
+        maximum_total_pressure_gain_fraction
+      ),
+      two_sided_shock_boundary_verified=False,
+      maximum_two_sided_jump_residual=maximum_two_sided_jump_residual,
+      message=two_sided_message,
+    )
+  ####
   supplied_indices = {sample.index for sample in request.boundary_samples}
   missing_indices = tuple(
     index
@@ -915,6 +1182,10 @@ def prepare_moc_moving_mixed_regime_interface(
       maximum_total_pressure_gain_fraction=(
         maximum_total_pressure_gain_fraction
       ),
+      two_sided_shock_boundary_verified=(
+        request.two_sided_shock_boundary is not None
+      ),
+      maximum_two_sided_jump_residual=maximum_two_sided_jump_residual,
       missing_sample_indices=missing_indices,
       message=(
         'the audited terminal conservative state and explicit moving-interface '
@@ -936,10 +1207,19 @@ def prepare_moc_moving_mixed_regime_interface(
     subsonic_boundary_verified=True,
     maximum_boundary_mach=maximum_boundary_mach,
     maximum_total_pressure_gain_fraction=maximum_total_pressure_gain_fraction,
+    two_sided_shock_boundary_verified=(
+      request.two_sided_shock_boundary is not None
+    ),
+    maximum_two_sided_jump_residual=maximum_two_sided_jump_residual,
     message=(
       'explicit conservative boundary coverage and moving-interface geometry '
-      'are admitted; the separate subsonic field solve and physical closure '
-      'remain required'
+      + (
+        'plus independently remeasured two-sided Euler shock evidence are '
+        'admitted; '
+        if request.two_sided_shock_boundary is not None
+        else ''
+      )
+      + 'the separate subsonic field solve and physical closure remain required'
     ),
   )
 
@@ -1032,6 +1312,25 @@ def measure_moc_moving_mixed_regime_interface(
       subsonic_boundary_rederived=False,
     )
   ####
+  two_sided_rederived = bool(
+    candidate.two_sided_shock_boundary is expected.two_sided_shock_boundary
+    and candidate.two_sided_shock_boundary_verified
+    == expected.two_sided_shock_boundary_verified
+    and candidate.maximum_two_sided_jump_residual
+    == expected.maximum_two_sided_jump_residual
+  )
+  if not two_sided_rederived:
+    return _audit_failure(
+      MocMovingMixedRegimeInterfaceAuditStatus.TWO_SIDED_SHOCK_BOUNDARY_FAILURE,
+      candidate,
+      'candidate did not retain the independently rederived two-sided '
+      'shock-boundary evidence',
+      terminal_geometry_rederived=True,
+      interface_geometry_rederived=True,
+      conservative_boundary_rederived=True,
+      subsonic_boundary_rederived=True,
+    )
+  ####
   coverage_rederived = bool(
     candidate.status is expected.status
     and candidate.missing_sample_indices == expected.missing_sample_indices
@@ -1066,6 +1365,7 @@ def measure_moc_moving_mixed_regime_interface(
       conservative_boundary_rederived=True,
       coverage_rederived=True,
       subsonic_boundary_rederived=True,
+      two_sided_shock_boundary_rederived=True,
     )
   ####
   return MocMovingMixedRegimeInterfaceAudit(
@@ -1076,6 +1376,7 @@ def measure_moc_moving_mixed_regime_interface(
     conservative_boundary_rederived=True,
     coverage_rederived=True,
     subsonic_boundary_rederived=True,
+    two_sided_shock_boundary_rederived=True,
     claim_flags_verified=True,
     terminal_conservative_state_residual=(
       expected.terminal_conservative_state_residual
@@ -1083,6 +1384,9 @@ def measure_moc_moving_mixed_regime_interface(
     maximum_boundary_mach=expected.maximum_boundary_mach,
     maximum_total_pressure_gain_fraction=(
       expected.maximum_total_pressure_gain_fraction
+    ),
+    maximum_two_sided_jump_residual=(
+      expected.maximum_two_sided_jump_residual
     ),
     message=(
       'independent remeasurement reproduces the explicit conservative '

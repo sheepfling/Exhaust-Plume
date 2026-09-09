@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import atan2
 from exhaust_plume.models.moc import (
+  CharacteristicState,
   MocMovingMixedRegimeConservativeBoundarySample,
   MocMovingMixedRegimeInterfaceAuditStatus,
   MocMovingMixedRegimeInterfaceRequest,
   MocMovingMixedRegimeInterfaceStatus,
   MocTransonicShockGeometryRequest,
   build_moc_terminal_conservative_boundary_sample,
+  fit_euler_consistent_shock_boundary,
   measure_moc_moving_mixed_regime_interface,
   prepare_moc_moving_mixed_regime_interface,
   reconstruct_moc_transonic_shock_state,
+  solve_attached_compression_to_turn,
   solve_moc_transonic_shock_geometry,
 )
 
@@ -44,6 +48,35 @@ def _terminal_sample(geometry, index: int, y_m: float):
     conservative_state=terminal.conservative_state,
     normal_m=terminal.normal_m,
     source=terminal.source,
+  )
+
+
+def _two_sided_shock_boundary(geometry):
+  points = ((0.0, 0.4), (0.5, 0.2), (1.0, 0.0))
+  tangent_angle = atan2(points[1][1] - points[0][1], points[1][0] - points[0][0])
+  turn = 0.12
+  compression = solve_attached_compression_to_turn(
+    upstream_mach=2.0,
+    gamma=1.4,
+    upstream_pressure_Pa=100_000.0,
+    target_turn_rad=turn,
+  )
+  assert compression.beta_rad is not None
+  upstream_states = tuple(
+    CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=tangent_angle + compression.beta_rad,
+      mach=2.0,
+      gamma=geometry.request.shock_state.gamma,
+    )
+    for point in points
+  )
+  return fit_euler_consistent_shock_boundary(
+    upstream_states,
+    (100_000.0,) * len(points),
+    points,
+    (tangent_angle + compression.beta_rad - turn,) * len(points),
   )
 
 
@@ -153,6 +186,78 @@ def test_moving_interface_rejects_supersonic_boundary_profile():
   audit = measure_moc_moving_mixed_regime_interface(result)
   assert audit.converged
   assert audit.subsonic_boundary_rederived
+
+
+def test_moving_interface_remeasures_optional_two_sided_euler_boundary():
+  geometry = _geometry()
+  boundary = _two_sided_shock_boundary(geometry)
+  assert boundary.local_euler_verified
+  samples = tuple(
+    _terminal_sample(geometry, index, 0.08 * index / 4.0)
+    for index in range(5)
+  )
+  request = MocMovingMixedRegimeInterfaceRequest(
+    terminal_geometry=geometry,
+    interface_points_m=((1.0, 0.0), (1.1, 0.002)),
+    boundary_samples=samples,
+    cross_section_x_m=1.0,
+    lower_y_m=0.0,
+    upper_y_m=0.08,
+    sample_count=5,
+    two_sided_shock_boundary=boundary,
+  )
+
+  result = prepare_moc_moving_mixed_regime_interface(request)
+
+  assert result.status is MocMovingMixedRegimeInterfaceStatus.CONVERGED_BOUNDARY_SEAM
+  assert result.two_sided_shock_boundary is boundary
+  assert result.two_sided_shock_boundary_verified
+  assert result.maximum_two_sided_jump_residual is not None
+  assert result.maximum_two_sided_jump_residual < 1.0e-8
+  audit = measure_moc_moving_mixed_regime_interface(result)
+  assert audit.converged
+  assert audit.two_sided_shock_boundary_rederived
+  assert audit.maximum_two_sided_jump_residual == (
+    result.maximum_two_sided_jump_residual
+  )
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+
+def test_moving_interface_rejects_tampered_two_sided_euler_boundary():
+  geometry = _geometry()
+  boundary = _two_sided_shock_boundary(geometry)
+  samples = tuple(
+    _terminal_sample(geometry, index, 0.08 * index / 4.0)
+    for index in range(5)
+  )
+  tampered_boundary = replace(
+    boundary,
+    downstream_states=(
+      replace(boundary.downstream_states[0], mach=boundary.downstream_states[0].mach + 0.01),
+      *boundary.downstream_states[1:],
+    ),
+  )
+  request = MocMovingMixedRegimeInterfaceRequest(
+    terminal_geometry=geometry,
+    interface_points_m=((1.0, 0.0), (1.1, 0.002)),
+    boundary_samples=samples,
+    cross_section_x_m=1.0,
+    lower_y_m=0.0,
+    upper_y_m=0.08,
+    sample_count=5,
+    two_sided_shock_boundary=tampered_boundary,
+  )
+
+  result = prepare_moc_moving_mixed_regime_interface(request)
+
+  assert result.status is MocMovingMixedRegimeInterfaceStatus.TWO_SIDED_SHOCK_BOUNDARY_FAILURE
+  assert not result.two_sided_shock_boundary_verified
+  assert result.chain_promotion_blocked
+  audit = measure_moc_moving_mixed_regime_interface(result)
+  assert audit.converged
+  assert audit.two_sided_shock_boundary_rederived
 
 
 def test_moving_interface_requires_explicit_geometry_and_does_not_infer_a_trace():

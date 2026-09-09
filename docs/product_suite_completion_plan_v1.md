@@ -4082,3 +4082,29 @@ the coupled solver still does not iterate the moving interface geometry or
 close the two-sided mixed-regime field, so local canonical closure, refinement,
 shock-cell promotion, provider-bound VIS/SIG/RAY/FPA validation, owner
 archives, and release freeze remain blocked.
+
+### P2.2e optional two-sided Euler shock-boundary audit checkpoint — 2026-09-09
+
+The moving-interface request now accepts an optional retained
+``MocEulerShockBoundaryCurveResult``.  When present, the seam requires the
+curve to pass its local Rankine--Hugoniot gate, retain the audited terminal
+point as its exact endpoint, use the same gamma, and survive an independent
+geometry-conditioned rederivation of its downstream states and mass,
+momentum, energy, and tangent residuals.  The result and audit retain the
+two-sided boundary object, its maximum jump residual, and separate
+``two_sided_shock_boundary_verified``/``two_sided_shock_boundary_rederived``
+flags.  Missing two-sided evidence remains valid for the existing boundary
+seam, preserving backward compatibility; supplied but tampered evidence
+returns the typed ``moving-mixed-regime-two-sided-shock-boundary-failure``
+stop.
+
+The focused moving-interface suite passes 6 tests, including positive
+independent remeasurement and a tampered downstream-state case.  The full
+reflected-domain regression passes 158 tests.  This checkpoint proves only
+local two-sided shock-jump lineage at the terminal boundary.  It does not
+iterate the moving interface geometry, solve the coupled subsonic field,
+close centerline/ambient/free-boundary feedback, establish refinement, fit a
+physical shock cell, or authorize Signature/FPA/release claims.  The next
+physics slice remains the solver-owned moving-interface/two-sided field
+iteration that consumes this evidence and rederives the full field residual
+set.
