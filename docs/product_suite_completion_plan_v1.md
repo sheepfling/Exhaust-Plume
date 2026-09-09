@@ -3975,3 +3975,20 @@ solver-owned two-sided profile from that solve.  Routing the current seam into
 ``SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE`` would violate the fidelity
 boundary and is explicitly disallowed.  This checkpoint leaves the
 canonical-field and release gates open.
+
+### Release-path sampling performance checkpoint — 2026-09-09
+
+The repeated physical-cell report path was profiled after the reflected-domain
+regression exposed an expensive nested ``as_report``/state-sampling loop.
+``MocPhysicalPostShockFieldResult`` now caches the default-tolerance cell
+resolution and uses an exact-coordinate source index before falling back to
+the original tolerance scan.  The source index preserves the historical
+first-matching-source precedence, including duplicate boundary/node
+coordinates; custom tolerances still use the uncached resolver.
+
+The physical-cell module passes 48 tests, and the targeted reflected-domain
+feedback regression passes in approximately 70 seconds.  Ruff and the full
+repository Pyright check are clean.  This is a bounded performance
+improvement only: it changes neither the solver fidelity boundary nor the
+promotion gates, and the full reflected-domain and release audits remain
+required before release claims.

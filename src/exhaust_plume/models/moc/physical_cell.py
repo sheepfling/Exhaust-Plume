@@ -12,7 +12,7 @@ existing topological fan.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from math import cos, hypot, isfinite, sin, sqrt
 from typing import TYPE_CHECKING, Any, Callable, Sequence
@@ -605,6 +605,18 @@ class MocPhysicalPostShockFieldResult:
   post_shock_boundary_total_pressure_Pa: tuple[float, ...] = ()
   zero_strength_shock_start_allowed: bool = False
   zero_strength_shock_endpoints_allowed: bool = False
+  _default_cell_samples_cache: Any = field(
+    init=False,
+    default=None,
+    repr=False,
+    compare=False,
+  )
+  _state_sampling_available_cache: bool | None = field(
+    init=False,
+    default=None,
+    repr=False,
+    compare=False,
+  )
 
   def __post_init__(self) -> None:
     if not isinstance(self.zero_strength_shock_start_allowed, bool):
@@ -926,6 +938,10 @@ class MocPhysicalPostShockFieldResult:
     continuation.
     """
 
+    cached = self._state_sampling_available_cache
+    if cached is not None:
+      return cached
+    ####
     if not (
       self.physical_closure_verified
       and self.cells
@@ -937,13 +953,17 @@ class MocPhysicalPostShockFieldResult:
       and len(self.centerline_boundary_total_pressure_Pa) == len(self.centerline_boundary_points_m)
       and all(node.total_pressure_Pa is not None for node in self.nodes)
     ):
+      object.__setattr__(self, '_state_sampling_available_cache', False)
       return False
     ####
     try:
-      return len(self._cell_samples(position_tolerance_m=1.0e-10)) == len(self.cells)
+      available = len(self._cell_samples(position_tolerance_m=1.0e-10)) == len(self.cells)
     except (TypeError, ValueError):
+      object.__setattr__(self, '_state_sampling_available_cache', False)
       return False
     ####
+    object.__setattr__(self, '_state_sampling_available_cache', available)
+    return available
   ####
 
   def _cell_samples(
@@ -962,6 +982,12 @@ class MocPhysicalPostShockFieldResult:
 
     if not isfinite(float(position_tolerance_m)) or position_tolerance_m <= 0.0:
       raise ValueError('position_tolerance_m must be finite and positive')
+    ####
+    default_tolerance = 1.0e-10
+    if position_tolerance_m == default_tolerance:
+      cached = self._default_cell_samples_cache
+      if cached is not None:
+        return cached
     ####
     sources: list[
       tuple[tuple[float, float], CharacteristicState, float | None]
@@ -1012,10 +1038,20 @@ class MocPhysicalPostShockFieldResult:
       )
       for node in self.nodes
     )
+    source_by_point: dict[
+      tuple[float, float], tuple[CharacteristicState, float | None]
+    ] = {}
+    for point, state, pressure in sources:
+      source_by_point.setdefault(point, (state, pressure))
+    ####
 
     def resolve(
       point: tuple[float, float],
     ) -> tuple[CharacteristicState, float | None] | None:
+      exact = source_by_point.get(point)
+      if exact is not None:
+        return exact
+      ####
       for source_point, state, pressure in sources:
         if hypot(point[0] - source_point[0], point[1] - source_point[1]) <= position_tolerance_m:
           return state, pressure
@@ -1045,7 +1081,11 @@ class MocPhysicalPostShockFieldResult:
         )
       )
     ####
-    return tuple(resolved_cells)
+    resolved_result = tuple(resolved_cells)
+    if position_tolerance_m == default_tolerance:
+      object.__setattr__(self, '_default_cell_samples_cache', resolved_result)
+    ####
+    return resolved_result
   ####
 
   def cell_state_samples(
