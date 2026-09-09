@@ -643,6 +643,12 @@ def test_terminal_reflection_patch_trace_profile_records_polarity_and_closes_a_f
     len(patch.outgoing_trace_points_m) - 1,
     patch.outgoing_trace_points_m[-1],
   ) == pytest.approx(0.0)
+  assert profile.baseline_flow_angles_rad == pytest.approx(
+    tuple(state.theta_rad for state in patch.outgoing_trace_states)
+  )
+  assert profile.as_report()['baseline_reference'] == (
+    'piecewise-linear-reflected-trace-flow-angle'
+  )
 
   result = solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch_trace_profile(
     patch,

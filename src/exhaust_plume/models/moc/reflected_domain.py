@@ -1426,6 +1426,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
   message: str = ''
   bracket_scan_sample_count: int = 0
   compression_envelope_skew: float = 0.0
+  use_trace_referenced_profile: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -1537,6 +1538,9 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       )
     ####
     object.__setattr__(self, 'compression_envelope_skew', envelope_skew)
+    if not isinstance(self.use_trace_referenced_profile, bool):
+      raise TypeError('use_trace_referenced_profile must be a bool')
+    ####
     trials = tuple(self.trials)
     if any(
       not isinstance(trial, MocReflectedDomainSolverOwnedFirstCellTrial)
@@ -1719,6 +1723,7 @@ class MocReflectedDomainSolverOwnedFirstCellResult:
       'shooting_iterations': self.shooting_iterations,
       'bracket_scan_sample_count': self.bracket_scan_sample_count,
       'compression_envelope_skew': self.compression_envelope_skew,
+      'use_trace_referenced_profile': self.use_trace_referenced_profile,
       'trial_count': len(self.trials),
       'trials': tuple(trial.as_report() for trial in self.trials),
       'message': self.message,
@@ -1829,6 +1834,7 @@ class MocReflectedDomainGlobalShockRemeshResult:
   target_centerline_indices: tuple[int, ...]
   compression_envelope_skews: tuple[float, ...]
   message: str = ''
+  use_trace_referenced_profile: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalShockRemeshStatus):
@@ -1874,6 +1880,9 @@ class MocReflectedDomainGlobalShockRemeshResult:
       )
     ####
     object.__setattr__(self, 'compression_envelope_skews', skews)
+    if not isinstance(self.use_trace_referenced_profile, bool):
+      raise TypeError('use_trace_referenced_profile must be a bool')
+    ####
     if self.selected_attempt_index is not None and (
       isinstance(self.selected_attempt_index, bool)
       or not isinstance(self.selected_attempt_index, int)
@@ -2017,6 +2026,7 @@ class MocReflectedDomainGlobalShockRemeshResult:
       'outer_source_indices': self.outer_source_indices,
       'target_centerline_indices': self.target_centerline_indices,
       'compression_envelope_skews': self.compression_envelope_skews,
+      'use_trace_referenced_profile': self.use_trace_referenced_profile,
       'attempt_count': len(self.attempts),
       'attempts': tuple(attempt.as_report() for attempt in self.attempts),
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
@@ -2535,7 +2545,17 @@ def solve_reflected_domain_global_euler_shock_boundary(
     )
   ####
 
-  outer_source = source_band.outer_source_states[resolved_outer_index]
+  outer_source = (
+    source_band.outer_seed_state
+    if global_remesh.use_trace_referenced_profile
+    else source_band.outer_source_states[resolved_outer_index]
+  )
+  if outer_source is None:
+    return failure(
+      MocReflectedDomainGlobalEulerShockBoundaryStatus.SOURCE_FRONTIER_FAILURE,
+      'trace-referenced global remesh requires a retained outer seed state',
+    )
+  ####
   first_point = initial_points[0]
   if (
     abs(first_point[0] - outer_source.x_m) > position_tolerance_m
@@ -4061,6 +4081,7 @@ def solve_reflected_domain_solver_owned_first_cell(
   maximum_shooting_iterations: int = 40,
   maximum_bracket_scan_samples: int = 0,
   compression_envelope_skew: float = 0.0,
+  use_trace_referenced_profile: bool = False,
 ) -> MocReflectedDomainSolverOwnedFirstCellResult:
   """Iterate a solver-generated first-cell endpoint without shock geometry.
 
@@ -4087,9 +4108,19 @@ def solve_reflected_domain_solver_owned_first_cell(
   ``compression_envelope_skew`` is held fixed during this scalar shoot.  A
   separate global remesh may sweep it across ``[-1, 1]``; keeping it fixed
   here makes each amplitude bracket a single, auditable family.
+
+  ``use_trace_referenced_profile`` is an explicit research front-seed mode.
+  It starts at the retained reflected trace and targets the first generated
+  centerline state (indices ``0, 0``); it is not the ordinary outer-row to
+  next-centerline source pair and it cannot promote a canonical chain cell.
   """
 
   resolved_target_index: int | None = None
+  resolved_trace_profile = (
+    use_trace_referenced_profile
+    if isinstance(use_trace_referenced_profile, bool)
+    else False
+  )
 
   def failure(
     status: MocReflectedDomainSolverOwnedFirstCellStatus,
@@ -4105,6 +4136,7 @@ def solve_reflected_domain_solver_owned_first_cell(
     trials: Sequence[MocReflectedDomainSolverOwnedFirstCellTrial] = (),
     bracket_scan_sample_count: int = 0,
     envelope_skew: float = 0.0,
+    trace_profile: bool = resolved_trace_profile,
   ) -> MocReflectedDomainSolverOwnedFirstCellResult:
     return MocReflectedDomainSolverOwnedFirstCellResult(
       status=status,
@@ -4137,6 +4169,7 @@ def solve_reflected_domain_solver_owned_first_cell(
       trials=tuple(trials),
       bracket_scan_sample_count=bracket_scan_sample_count,
       compression_envelope_skew=envelope_skew,
+      use_trace_referenced_profile=trace_profile,
       message=message,
     )
   ####
@@ -4145,6 +4178,13 @@ def solve_reflected_domain_solver_owned_first_cell(
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'source_band must be a MocReflectedDomainAlternatingSourceResult',
+    )
+  ####
+  if not isinstance(use_trace_referenced_profile, bool):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'use_trace_referenced_profile must be a bool',
+      trace_profile=False,
     )
   ####
   if (
@@ -4159,7 +4199,8 @@ def solve_reflected_domain_solver_owned_first_cell(
     )
   ####
   resolved_target_index = (
-    outer_source_index + 1
+    0 if resolved_trace_profile
+    else outer_source_index + 1
     if target_centerline_index is None
     else target_centerline_index
   )
@@ -4172,6 +4213,15 @@ def solve_reflected_domain_solver_owned_first_cell(
     return failure(
       MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
       'target_centerline_index must select a generated centerline source state',
+    )
+  ####
+  if resolved_trace_profile and (
+    outer_source_index != 0 or resolved_target_index != 0
+  ):
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.INVALID_INPUT,
+      'use_trace_referenced_profile requires outer_source_index=0 and '
+      'target_centerline_index=0',
     )
   ####
   try:
@@ -4314,7 +4364,19 @@ def solve_reflected_domain_solver_owned_first_cell(
       envelope_skew=resolved_envelope_skew,
     )
   ####
-  source_state = source_band.outer_source_states[outer_source_index]
+  source_state = (
+    source_band.outer_seed_state
+    if resolved_trace_profile
+    else source_band.outer_source_states[outer_source_index]
+  )
+  if source_state is None:
+    return failure(
+      MocReflectedDomainSolverOwnedFirstCellStatus.SOURCE_FIELD_FAILURE,
+      'trace-referenced first-cell mode requires a retained outer seed state',
+      bracket=(lower_amplitude, upper_amplitude),
+      envelope_skew=resolved_envelope_skew,
+    )
+  ####
   target_state = source_band.centerline_source_states[resolved_target_index]
   target_point = (target_state.x_m, target_state.y_m)
   if (
@@ -4339,7 +4401,8 @@ def solve_reflected_domain_solver_owned_first_cell(
         source_band,
         amplitude,
         outer_source_index=outer_source_index,
-        use_outer_seed_attachment=False,
+        use_outer_seed_attachment=resolved_trace_profile,
+        use_trace_referenced_profile=resolved_trace_profile,
         target_centerline_y_m=source_band.target_centerline_y_m,
         target_centerline_flow_angle_rad=(
           source_band.target_centerline_flow_angle_rad
@@ -4604,6 +4667,7 @@ def solve_reflected_domain_global_shock_remesh(
   maximum_shooting_iterations: int = 40,
   maximum_bracket_scan_samples: int = 0,
   maximum_attempts: int = 64,
+  use_trace_referenced_profile: bool = False,
 ) -> MocReflectedDomainGlobalShockRemeshResult:
   """Sweep a bounded global shock-profile remesh over source interfaces.
 
@@ -4614,7 +4678,18 @@ def solve_reflected_domain_global_shock_remesh(
   neighboring trial, and a locally aligned endpoint still cannot become a
   canonical chain cell.  This is the next global-remesh seam, not the final
   reflected Euler/free-boundary solve.
+
+  ``use_trace_referenced_profile`` is an explicit research front-seed mode.
+  When enabled, the sweep is restricted to the retained reflected trace and
+  the first generated centerline state (source indices ``0, 0``); it does not
+  reinterpret that front-seed experiment as an ordinary source-row remesh.
   """
+
+  resolved_trace_profile = (
+    use_trace_referenced_profile
+    if isinstance(use_trace_referenced_profile, bool)
+    else False
+  )
 
   def failure(
     status: MocReflectedDomainGlobalShockRemeshStatus,
@@ -4640,6 +4715,7 @@ def solve_reflected_domain_global_shock_remesh(
       outer_source_indices=tuple(resolved_outer),
       target_centerline_indices=tuple(resolved_target),
       compression_envelope_skews=tuple(resolved_skews),
+      use_trace_referenced_profile=resolved_trace_profile,
       message=message,
     )
   ####
@@ -4648,6 +4724,12 @@ def solve_reflected_domain_global_shock_remesh(
     return failure(
       MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
       'source_band must be a MocReflectedDomainAlternatingSourceResult',
+    )
+  ####
+  if not isinstance(use_trace_referenced_profile, bool):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'use_trace_referenced_profile must be a bool',
     )
   ####
   if not source_band.source_field_verified:
@@ -4693,10 +4775,14 @@ def solve_reflected_domain_global_shock_remesh(
     return resolved
   ####
 
-  resolved_outer = resolve_indices(
-    outer_source_indices,
-    len(source_band.outer_source_states),
-    'outer_source_indices',
+  resolved_outer = (
+    (0,)
+    if use_trace_referenced_profile and outer_source_indices is None
+    else resolve_indices(
+      outer_source_indices,
+      len(source_band.outer_source_states),
+      'outer_source_indices',
+    )
   )
   if resolved_outer is None or not resolved_outer:
     return failure(
@@ -4704,10 +4790,21 @@ def solve_reflected_domain_global_shock_remesh(
       'outer_source_indices must contain unique in-range source indices',
     )
   ####
-  explicit_targets = resolve_indices(
-    target_centerline_indices,
-    len(source_band.centerline_source_states),
-    'target_centerline_indices',
+  if use_trace_referenced_profile and resolved_outer != (0,):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'use_trace_referenced_profile requires outer_source_indices=(0,)',
+      resolved_outer=resolved_outer,
+    )
+  ####
+  explicit_targets = (
+    (0,)
+    if use_trace_referenced_profile and target_centerline_indices is None
+    else resolve_indices(
+      target_centerline_indices,
+      len(source_band.centerline_source_states),
+      'target_centerline_indices',
+    )
   )
   if target_centerline_indices is not None and (
     explicit_targets is None or not explicit_targets
@@ -4715,6 +4812,13 @@ def solve_reflected_domain_global_shock_remesh(
     return failure(
       MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
       'target_centerline_indices must contain unique in-range centerline indices',
+      resolved_outer=resolved_outer,
+    )
+  ####
+  if use_trace_referenced_profile and explicit_targets != (0,):
+    return failure(
+      MocReflectedDomainGlobalShockRemeshStatus.INVALID_INPUT,
+      'use_trace_referenced_profile requires target_centerline_indices=(0,)',
       resolved_outer=resolved_outer,
     )
   ####
@@ -4746,16 +4850,20 @@ def solve_reflected_domain_global_shock_remesh(
     )
   ####
   target_pairs = (
-    tuple(
-      (outer_index, outer_index + 1)
-      for outer_index in resolved_outer
-      if outer_index + 1 < len(source_band.centerline_source_states)
-    )
-    if explicit_targets is None
-    else tuple(
-      (outer_index, target_index)
-      for outer_index in resolved_outer
-      for target_index in explicit_targets
+    ((0, 0),)
+    if use_trace_referenced_profile
+    else (
+      tuple(
+        (outer_index, outer_index + 1)
+        for outer_index in resolved_outer
+        if outer_index + 1 < len(source_band.centerline_source_states)
+      )
+      if explicit_targets is None
+      else tuple(
+        (outer_index, target_index)
+        for outer_index in resolved_outer
+        for target_index in explicit_targets
+      )
     )
   )
   if not target_pairs:
@@ -4801,6 +4909,7 @@ def solve_reflected_domain_global_shock_remesh(
         maximum_shooting_iterations=maximum_shooting_iterations,
         maximum_bracket_scan_samples=maximum_bracket_scan_samples,
         compression_envelope_skew=skew,
+        use_trace_referenced_profile=use_trace_referenced_profile,
       )
       attempts.append(
         MocReflectedDomainGlobalShockRemeshAttempt(

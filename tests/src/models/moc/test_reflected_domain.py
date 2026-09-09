@@ -2194,6 +2194,49 @@ def test_solver_owned_first_cell_can_scan_only_inside_declared_bracket():
 ####
 
 
+def test_solver_owned_first_cell_trace_profile_keeps_front_seed_research_lineage():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  result = solve_reflected_domain_solver_owned_first_cell(
+    source,
+    outer_source_index=0,
+    target_centerline_index=0,
+    compression_amplitude_lower_rad=0.005,
+    compression_amplitude_upper_rad=0.03,
+    sample_count=9,
+    use_trace_referenced_profile=True,
+  )
+
+  assert result.status is (
+    MocReflectedDomainSolverOwnedFirstCellStatus.BOUNDARY_BRACKET_FAILURE
+  )
+  assert result.use_trace_referenced_profile is True
+  assert result.target_centerline_index == 0
+  assert result.selected_physical_field is not None
+  assert result.selected_physical_field.use_trace_referenced_profile is True
+  assert result.selected_physical_field.attachment_source == (
+    'outer-seed-reflection-interface'
+  )
+  assert result.canonical_free_boundary_verified is False
+  assert result.canonical_euler_verified is False
+  assert result.production_claim_allowed is False
+
+  measurement = measure_moc_reflected_domain_solver_owned_first_cell(result)
+
+  assert measurement.converged
+  assert measurement.target_centerline_verified
+  assert measurement.trial_residuals_verified
+  assert measurement.selected_field_verified
+  assert measurement.fidelity_isolation_verified
+####
+
+
 def test_solver_owned_first_cell_planner_preserves_typed_research_stop():
   field, patch = _patch()
   ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
@@ -2335,6 +2378,46 @@ def test_global_reflected_shock_remesh_retains_bounded_profile_sweep_without_clo
     MocReflectedDomainGlobalShockRemeshMeasurementStatus.ATTEMPT_FAILURE
   )
   assert tampered_measurement.attempt_identity_verified is False
+####
+
+
+def test_global_reflected_shock_remesh_can_measure_trace_seed_mode_without_promotion():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  source = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    incoming_handoff=_handoff(field),
+  )
+  result = solve_reflected_domain_global_shock_remesh(
+    source,
+    compression_amplitude_lower_rad=0.005,
+    compression_amplitude_upper_rad=0.03,
+    compression_envelope_skews=(0.0,),
+    sample_count=9,
+    use_trace_referenced_profile=True,
+  )
+
+  assert result.status is MocReflectedDomainGlobalShockRemeshStatus.NO_ENDPOINT_CLOSURE
+  assert result.use_trace_referenced_profile is True
+  assert result.outer_source_indices == (0,)
+  assert result.target_centerline_indices == (0,)
+  assert result.attempt_count == 1
+  assert result.attempts[0].first_cell_result.use_trace_referenced_profile is True
+  assert result.physical_closure_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.canonical_euler_verified is False
+  assert result.production_claim_allowed is False
+
+  measurement = measure_moc_reflected_domain_global_shock_remesh(result)
+
+  assert measurement.converged
+  assert measurement.attempt_identity_verified
+  assert measurement.attempt_shape_verified
+  assert measurement.attempt_residuals_verified
+  assert measurement.no_endpoint_closure_verified
+  assert measurement.fidelity_isolation_verified
 ####
 
 

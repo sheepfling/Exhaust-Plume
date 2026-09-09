@@ -17890,7 +17890,11 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
     target_state = source_band.centerline_source_states[
       result.target_centerline_index
     ]
-    outer_state = source_band.outer_source_states[result.outer_source_index]
+    outer_state = (
+      source_band.outer_seed_state
+      if result.use_trace_referenced_profile
+      else source_band.outer_source_states[result.outer_source_index]
+    )
     target_centerline_verified = bool(
       _caustic_points_match(
         (result.target_centerline_point_m,),
@@ -17899,6 +17903,7 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
       )
       and abs(target_state.y_m - source_band.target_centerline_y_m)
       <= position_tolerance
+      and outer_state is not None
       and target_state.x_m > outer_state.x_m + position_tolerance
     )
   ####
@@ -18032,6 +18037,8 @@ def measure_moc_reflected_domain_solver_owned_first_cell(
           - result.compression_envelope_skew
         )
         <= 1.0e-12
+        and result.selected_physical_field.use_trace_referenced_profile
+        == result.use_trace_referenced_profile
         and source_band is not None
         and result.selected_physical_field.source_band is not None
         and _alternating_source_geometry_fingerprint(
@@ -18258,10 +18265,14 @@ def measure_moc_reflected_domain_global_shock_remesh(
         - attempt.compression_envelope_skew
       )
       <= 1.0e-12
+      and selected_field.use_trace_referenced_profile
+      == first.use_trace_referenced_profile
     )
     attempt_identity_verified = attempt_identity_verified and bool(
       first.outer_source_index == attempt.outer_source_index
       and first.target_centerline_index == attempt.target_centerline_index
+      and first.use_trace_referenced_profile
+      == result.use_trace_referenced_profile
       and abs(
         first.compression_envelope_skew
         - attempt.compression_envelope_skew
@@ -18828,6 +18839,8 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     and result.selected_attempt_index == selected_index
     and result.outer_source_index == selected_attempt.outer_source_index
     and result.target_centerline_index == selected_attempt.target_centerline_index
+    and global_remesh.use_trace_referenced_profile
+    == selected_attempt.first_cell_result.use_trace_referenced_profile
     and global_remesh.attempts[selected_index] is selected_attempt
   )
   if not selected_attempt_verified or selected_attempt is None:
@@ -18925,7 +18938,11 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     points[-1],
     position_tolerance_m=position_tolerance,
   )
-  outer_source = source_band.outer_source_states[outer_index]
+  outer_source = (
+    source_band.outer_seed_state
+    if global_remesh.use_trace_referenced_profile
+    else source_band.outer_source_states[outer_index]
+  )
   source_frontier_verified = bool(
     result.source_frontier_verified
     and source_frontier_state is not None
@@ -18949,6 +18966,7 @@ def measure_moc_reflected_domain_global_euler_shock_boundary(
     and centerline_xs[0] - position_tolerance
     <= points[-1][0]
     <= centerline_xs[-1] + position_tolerance
+    and outer_source is not None
     and _caustic_state_matches(
       sampled_states[0],
       outer_source,

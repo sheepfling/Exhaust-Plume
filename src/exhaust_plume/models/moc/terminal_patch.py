@@ -124,11 +124,11 @@ class MocReflectedTracePolarityResult:
 class MocReflectedTraceCompressionProfile:
   """A bounded, trace-referenced compression turn law.
 
-  The affine endpoint law is used only as a baseline.  A non-negative
-  ``4*s*(1-s)`` envelope supplies a strictly positive interior compression
-  while retaining zero-strength Mach-wave endpoints.  This is an explicit
-  research closure for a continued-chain experiment; it is not the missing
-  canonical expansion/remeshing solution.
+  The retained reflected trace supplies a piecewise-linear baseline in
+  ordinate.  A non-negative ``4*s*(1-s)`` envelope supplies a strictly
+  positive interior compression while retaining zero-strength Mach-wave
+  endpoints.  This is an explicit research closure for a continued-chain
+  experiment; it is not the missing canonical expansion/remeshing solution.
   """
 
   source_trace: tuple[MocChainBoundarySample, ...]
@@ -164,6 +164,13 @@ class MocReflectedTraceCompressionProfile:
       for sample in self.source_trace
     ):
       raise TypeError('source_trace must contain MocChainBoundarySample values')
+    ####
+    for left, right in zip(self.source_trace, self.source_trace[1:]):
+      if right.state.y_m >= left.state.y_m:
+        raise ValueError(
+          'source_trace ordinates must strictly decrease toward the centerline'
+        )
+      ####
     ####
   ####
 
@@ -202,13 +209,40 @@ class MocReflectedTraceCompressionProfile:
       raise ValueError('shock point ordinate lies outside the reflected trace profile')
     ####
     fraction = max(0.0, min(1.0, fraction))
-    baseline = self.target_centerline_flow_angle_rad + (
-      self.source_trace[0].state.theta_rad
-      - self.target_centerline_flow_angle_rad
-    ) * (1.0 - fraction)
+    baseline = self._baseline_flow_angle_at(ordinate)
     envelope = 4.0 * fraction * (1.0 - fraction)
     envelope *= 1.0 + self.envelope_skew * (2.0 * fraction - 1.0)
     return float(baseline + self.compression_amplitude_rad * envelope)
+  ####
+
+  def _baseline_flow_angle_at(self, ordinate: float) -> float:
+    """Interpolate the retained trace baseline at one ordinate."""
+
+    first = self.source_trace[0].state.y_m
+    last = self.source_trace[-1].state.y_m
+    if ordinate >= first:
+      return float(self.baseline_flow_angles_rad[0])
+    ####
+    if ordinate <= last:
+      return float(self.baseline_flow_angles_rad[-1])
+    ####
+    for left_index, (left, right) in enumerate(
+      zip(self.source_trace, self.source_trace[1:])
+    ):
+      left_y = left.state.y_m
+      right_y = right.state.y_m
+      if right_y <= ordinate <= left_y:
+        fraction = (left_y - ordinate) / (left_y - right_y)
+        return float(
+          self.baseline_flow_angles_rad[left_index]
+          + fraction * (
+            self.baseline_flow_angles_rad[left_index + 1]
+            - self.baseline_flow_angles_rad[left_index]
+          )
+        )
+      ####
+    ####
+    raise ValueError('shock point ordinate lies outside the reflected trace baseline')
   ####
 
   def as_report(self) -> dict[str, object]:
@@ -223,6 +257,7 @@ class MocReflectedTraceCompressionProfile:
       'envelope_skew': self.envelope_skew,
       'baseline_flow_angles_rad': list(self.baseline_flow_angles_rad),
       'endpoint_turns_are_zero': True,
+      'baseline_reference': 'piecewise-linear-reflected-trace-flow-angle',
       'interior_turn_envelope': '4*s*(1-s)*(1+skew*(2*s-1))',
       'canonical_expansion_remesh_solved': False,
       'production_claim_allowed': False,
@@ -422,12 +457,7 @@ def build_reflected_trace_compression_profile(
       'reflected trace endpoint flow angle must match the target centerline angle'
     )
   ####
-  baseline = tuple(
-    target_angle + (trace[0].state.theta_rad - target_angle) * (
-      (sample.state.y_m - target_y) / (start_y - target_y)
-    )
-    for sample in trace
-  )
+  baseline = tuple(float(sample.state.theta_rad) for sample in trace)
   return MocReflectedTraceCompressionProfile(
     source_trace=trace,
     target_centerline_y_m=target_y,
