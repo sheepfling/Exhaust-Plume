@@ -1178,6 +1178,7 @@ def assemble_ambient_shock_characteristic_strip(
   tangent_tolerance: float = 1.0e-8,
   allow_zero_strength_start: bool = False,
   allow_zero_strength_endpoints: bool = False,
+  require_centerline_shock_endpoint: bool = True,
 ) -> MocAmbientShockStripResult:
   """Assemble the correctly oriented shock/ambient characteristic strip.
 
@@ -1185,6 +1186,10 @@ def assemble_ambient_shock_characteristic_strip(
   acceptance.  The diagonal condition is that shock ``C+`` rays arrive at the
   corresponding ambient samples.  The final polygon edge is retained as a
   typed terminal characteristic trace; it is not relabeled as a centerline.
+  By default the shock endpoint must lie on ``target_centerline_y_m``.  The
+  explicit open-endpoint mode is for a mixed-regime handoff whose separate
+  scalar subsonic terminal starts downstream of the retained supersonic net;
+  it does not make the strip a closed physical field.
   The optional zero-strength endpoint flags are reserved for a Mach-wave
   bounded continuation; interior shock samples must still carry strict loss.
   """
@@ -1202,6 +1207,9 @@ def assemble_ambient_shock_characteristic_strip(
   ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise TypeError('allow_zero_strength_endpoints must be a bool')
+  ####
+  if not isinstance(require_centerline_shock_endpoint, bool):
+    raise TypeError('require_centerline_shock_endpoint must be a bool')
   ####
   try:
     ambient_pressure = float(ambient_pressure_Pa)
@@ -1321,7 +1329,10 @@ def assemble_ambient_shock_characteristic_strip(
       message='shock and ambient boundaries must share their attachment point',
     )
   ####
-  if abs(shock_points[-1][1] - target_y) > position_tolerance_m:
+  if (
+    require_centerline_shock_endpoint
+    and abs(shock_points[-1][1] - target_y) > position_tolerance_m
+  ):
     return _strip_failure(
       MocAmbientShockStripStatus.GEOMETRY_FAILURE,
       ambient_boundary=ambient,

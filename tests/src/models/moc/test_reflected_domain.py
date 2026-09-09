@@ -948,6 +948,13 @@ def test_global_transonic_mixed_wave_interface_keeps_subsonic_reference_stop_typ
   assert interface.subsonic_reference.status.value == (
     'free-boundary-pressure-unreachable'
   )
+  assert interface.shock_ambient_strip is not None
+  assert interface.shock_ambient_strip_verified
+  assert interface.shock_ambient_strip.converged
+  assert interface.shock_ambient_strip.node_count == 45
+  assert interface.shock_ambient_strip.cell_count == 44
+  assert interface.shock_ambient_strip.physical_closure_verified is False
+  assert interface.shock_ambient_strip.chain_promotion_blocked
   assert interface.centerline_boundary_verified is False
   assert interface.global_coupling_verified is False
   assert interface.chain_promotion_blocked

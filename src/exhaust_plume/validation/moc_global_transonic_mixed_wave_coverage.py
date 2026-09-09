@@ -289,20 +289,20 @@ def assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
     )
   ####
   ambient_boundary = interface.ambient_boundary
-  shock_fit = interface.shock_fit
+  shock_ambient_strip = interface.shock_ambient_strip
   perimeter_request = interface.perimeter_request
   if (
     ambient_boundary is None
     or not interface.ambient_boundary_verified
-    or shock_fit is None
-    or not interface.shock_fit_verified
+    or shock_ambient_strip is None
+    or not interface.shock_ambient_strip_verified
     or perimeter_request is None
   ):
     return _failure(
       MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus
       .INTERFACE_GEOMETRY_REQUIRED,
-      'the exact interface retained no verified shock fit, ambient boundary '
-      'trace, and terminal geometry',
+      'the exact interface retained no verified shock/ambient characteristic '
+      'strip and terminal geometry',
       position_tolerance_m=tolerance,
     )
   ####
@@ -320,8 +320,8 @@ def assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
       placement_sample_count=len(placement.sample_points_m),
     )
   ####
-  shock_points = tuple(sample.point_m for sample in shock_fit.boundary_states)
-  ambient_points = tuple(ambient_boundary.points_m)
+  shock_points = tuple(shock_ambient_strip.shock_boundary_points_m)
+  ambient_points = tuple(shock_ambient_strip.ambient_boundary_points_m)
   if not shock_points or not ambient_points:
     return _failure(
       MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus

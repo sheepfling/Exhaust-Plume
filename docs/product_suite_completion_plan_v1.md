@@ -3544,6 +3544,27 @@ evidence: centerline closure, global feedback, refinement, external
 validation, physical shock-cell fitting, Signature/FPA acceptance, and release
 promotion remain blocked.
 
+### P2.2d open shock/ambient characteristic-net checkpoint — 2026-09-09
+
+The mixed-wave interface now consumes the existing shock/ambient
+characteristic-strip assembler in an explicit open-endpoint mode.  The
+default strip contract still requires a centerline shock endpoint; the new
+mode is used only because this mixed-regime handoff retains a separate scalar
+subsonic normal-shock terminal just downstream of the supersonic net.  The
+assembler verifies the shock-sourced ``C+`` and ambient-sourced ``C-``
+characteristics, connected topology, strict geometry, pressure/tangency
+conditions, and terminal trace without coercing the subsonic state into the
+supersonic MOC state type.
+
+The current target consumes a connected 45-node/44-cell open strip.  It is
+stronger local interface evidence, but ``physical_closure_verified`` remains
+false because the terminal trace, subsonic field, centerline closure, and
+global feedback are still unresolved.  The ambient-strip lane (17 tests),
+transonic regressions, Ruff, and bytecode checks pass.  The next physics slice
+is a solver-owned subsonic/terminal patch that closes this net into the
+downstream field while retaining the same entropy, Euler, geometry, and
+refinement gates.
+
 The next P2.2d slice is therefore to place the solver-owned transonic
 interface inside this downstream field (or to implement a joint interface/
 field iteration that solves for it), then independently rederive the jump,
@@ -3580,10 +3601,10 @@ canonical field or shock-cell fit can consume it.
 
 The downstream handoff now retains a typed geometry audit between the exact
 mixed-wave interface and the solver-owned transonic field placement.  The
-audit consumes the retained shock-fit points, the independently marched
-ambient ``points_m`` trace, and the exact terminal coordinate.  It requires
-both boundaries to span the selected cross-section; it does not extend either
-trace or infer a missing connecting surface.
+audit consumes the retained open shock/ambient characteristic strip and the
+exact terminal coordinate.  It requires both boundaries to span the selected
+cross-section; it does not extend either trace or infer a missing connecting
+surface.
 
 On the current target, the field placement is downstream of the shorter exact
 shock/ambient trace by more than 0.2 m.  The coupled field is still run as a

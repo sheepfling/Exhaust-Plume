@@ -22,6 +22,8 @@ from typing import Any
 
 from exhaust_plume.models.moc.ambient_shock_strip import (
   MocAmbientShockBoundaryMarchResult,
+  MocAmbientShockStripResult,
+  assemble_ambient_shock_characteristic_strip,
   march_post_shock_ambient_boundary,
 )
 from exhaust_plume.models.moc.chain import MocChainBoundarySample
@@ -78,6 +80,9 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceStatus(str, Enum):
   ANGLE_LAW_FAILURE = 'global-transonic-mixed-wave-angle-law-failure'
   SHOCK_FAILURE = 'global-transonic-mixed-wave-shock-failure'
   SHOCK_FIT_FAILURE = 'global-transonic-mixed-wave-shock-fit-failure'
+  SHOCK_AMBIENT_STRIP_FAILURE = (
+    'global-transonic-mixed-wave-shock-ambient-strip-failure'
+  )
   AMBIENT_BOUNDARY_FAILURE = (
     'global-transonic-mixed-wave-ambient-boundary-failure'
   )
@@ -104,6 +109,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult:
   shock: MocFreeBoundaryShockResult | None = None
   shock_fit: MocShockBoundaryFitResult | None = None
   ambient_boundary: MocAmbientShockBoundaryMarchResult | None = None
+  shock_ambient_strip: MocAmbientShockStripResult | None = None
   perimeter_request: MocMixedRegimePerimeterRequest | None = None
   subsonic_reference: MocMixedRegimeFreeBoundaryResult | None = None
   effective_inlet_height_m: float | None = None
@@ -115,6 +121,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult:
   shock_geometry_verified: bool = False
   shock_fit_verified: bool = False
   ambient_boundary_verified: bool = False
+  shock_ambient_strip_verified: bool = False
   terminal_verified: bool = False
   subsonic_reference_verified: bool = False
   centerline_boundary_verified: bool = False
@@ -169,6 +176,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult:
       ('shock', MocFreeBoundaryShockResult),
       ('shock_fit', MocShockBoundaryFitResult),
       ('ambient_boundary', MocAmbientShockBoundaryMarchResult),
+      ('shock_ambient_strip', MocAmbientShockStripResult),
       ('perimeter_request', MocMixedRegimePerimeterRequest),
       ('subsonic_reference', MocMixedRegimeFreeBoundaryResult),
     ):
@@ -196,6 +204,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult:
       'shock_geometry_verified',
       'shock_fit_verified',
       'ambient_boundary_verified',
+      'shock_ambient_strip_verified',
       'terminal_verified',
       'subsonic_reference_verified',
       'centerline_boundary_verified',
@@ -250,6 +259,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult:
       and self.shock_geometry_verified
       and self.shock_fit_verified
       and self.ambient_boundary_verified
+      and self.shock_ambient_strip_verified
       and self.terminal_model_verified
       and self.chain_promotion_blocked
       and not self.centerline_boundary_verified
@@ -271,6 +281,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult:
       'shock_geometry_verified': self.shock_geometry_verified,
       'shock_fit_verified': self.shock_fit_verified,
       'ambient_boundary_verified': self.ambient_boundary_verified,
+      'shock_ambient_strip_verified': self.shock_ambient_strip_verified,
       'terminal_verified': self.terminal_verified,
       'subsonic_reference_verified': self.subsonic_reference_verified,
       'centerline_boundary_verified': self.centerline_boundary_verified,
@@ -308,6 +319,11 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult:
         None
         if self.ambient_boundary is None
         else self.ambient_boundary.as_report()
+      ),
+      'shock_ambient_strip': (
+        None
+        if self.shock_ambient_strip is None
+        else self.shock_ambient_strip.as_report()
       ),
       'perimeter_request': (
         None
@@ -360,6 +376,7 @@ def _failure(
   shock: MocFreeBoundaryShockResult | None = None,
   shock_fit: MocShockBoundaryFitResult | None = None,
   ambient_boundary: MocAmbientShockBoundaryMarchResult | None = None,
+  shock_ambient_strip: MocAmbientShockStripResult | None = None,
   perimeter_request: MocMixedRegimePerimeterRequest | None = None,
   subsonic_reference: MocMixedRegimeFreeBoundaryResult | None = None,
   effective_inlet_height_m: float | None = None,
@@ -371,6 +388,7 @@ def _failure(
   shock_geometry_verified: bool = False,
   shock_fit_verified: bool = False,
   ambient_boundary_verified: bool = False,
+  shock_ambient_strip_verified: bool = False,
   terminal_verified: bool = False,
   subsonic_reference_verified: bool = False,
   message: str,
@@ -387,6 +405,7 @@ def _failure(
     shock=shock,
     shock_fit=shock_fit,
     ambient_boundary=ambient_boundary,
+    shock_ambient_strip=shock_ambient_strip,
     perimeter_request=perimeter_request,
     subsonic_reference=subsonic_reference,
     effective_inlet_height_m=effective_inlet_height_m,
@@ -398,6 +417,7 @@ def _failure(
     shock_geometry_verified=shock_geometry_verified,
     shock_fit_verified=shock_fit_verified,
     ambient_boundary_verified=ambient_boundary_verified,
+    shock_ambient_strip_verified=shock_ambient_strip_verified,
     terminal_verified=terminal_verified,
     subsonic_reference_verified=subsonic_reference_verified,
     message=message,
@@ -923,6 +943,78 @@ def solve_reflected_domain_global_transonic_mixed_wave_interface(
       ),
     )
   ####
+  try:
+    shock_ambient_strip = assemble_ambient_shock_characteristic_strip(
+      shock_fit,
+      ambient_boundary.boundary_samples,
+      target_pressure,
+      target_centerline_y_m=target_y,
+      position_tolerance_m=position_tolerance_m,
+      invariant_tolerance=invariant_tolerance,
+      pressure_tolerance=pressure_tolerance,
+      tangent_tolerance=pressure_tolerance,
+      require_centerline_shock_endpoint=False,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _failure(
+      status_type.SHOCK_AMBIENT_STRIP_FAILURE,
+      source_field=source_field,
+      ambient_pressure_Pa=target_pressure,
+      target_centerline_y_m=target_y,
+      target_centerline_flow_angle_rad=target_angle,
+      frontier=frontier,
+      mixed_wave_path=mixed_wave_path,
+      downstream_flow_angles_rad=angle_samples,
+      shock=shock,
+      shock_fit=shock_fit,
+      ambient_boundary=ambient_boundary,
+      shock_geometry_verified=shock_geometry_verified,
+      shock_fit_verified=shock_fit_verified,
+      ambient_boundary_verified=ambient_boundary_verified,
+      terminal_verified=terminal_verified,
+      source_field_consumed=source_field_consumed,
+      frontier_verified=frontier_verified,
+      pressure_target_verified=pressure_target_verified,
+      angle_law_verified=angle_law_verified,
+      message=f'shock/ambient characteristic strip raised: {error}',
+    )
+  ####
+  shock_ambient_strip_verified = bool(
+    shock_ambient_strip.converged
+    and shock_ambient_strip.topology.connected
+    and shock_ambient_strip.chain_promotion_blocked
+    and not shock_ambient_strip.physical_closure_verified
+    and shock_ambient_strip.terminal_trace_points_m
+  )
+  if not shock_ambient_strip_verified:
+    return _failure(
+      status_type.SHOCK_AMBIENT_STRIP_FAILURE,
+      source_field=source_field,
+      ambient_pressure_Pa=target_pressure,
+      target_centerline_y_m=target_y,
+      target_centerline_flow_angle_rad=target_angle,
+      frontier=frontier,
+      mixed_wave_path=mixed_wave_path,
+      downstream_flow_angles_rad=angle_samples,
+      shock=shock,
+      shock_fit=shock_fit,
+      ambient_boundary=ambient_boundary,
+      shock_ambient_strip=shock_ambient_strip,
+      shock_geometry_verified=shock_geometry_verified,
+      shock_fit_verified=shock_fit_verified,
+      ambient_boundary_verified=ambient_boundary_verified,
+      shock_ambient_strip_verified=shock_ambient_strip_verified,
+      terminal_verified=terminal_verified,
+      source_field_consumed=source_field_consumed,
+      frontier_verified=frontier_verified,
+      pressure_target_verified=pressure_target_verified,
+      angle_law_verified=angle_law_verified,
+      message=(
+        'solver-owned shock/ambient characteristic strip did not pass its '
+        f'open-net gates: {shock_ambient_strip.message}'
+      ),
+    )
+  ####
   assert terminal is not None
   try:
     terminal_values = (
@@ -968,9 +1060,11 @@ def solve_reflected_domain_global_transonic_mixed_wave_interface(
       shock=shock,
       shock_fit=shock_fit,
       ambient_boundary=ambient_boundary,
+      shock_ambient_strip=shock_ambient_strip,
       shock_geometry_verified=shock_geometry_verified,
       shock_fit_verified=shock_fit_verified,
       ambient_boundary_verified=ambient_boundary_verified,
+      shock_ambient_strip_verified=shock_ambient_strip_verified,
       terminal_verified=terminal_verified,
       source_field_consumed=source_field_consumed,
       frontier_verified=frontier_verified,
@@ -1014,6 +1108,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_interface(
     shock=shock,
     shock_fit=shock_fit,
     ambient_boundary=ambient_boundary,
+    shock_ambient_strip=shock_ambient_strip,
     perimeter_request=perimeter_request,
     subsonic_reference=subsonic_reference,
     effective_inlet_height_m=effective_inlet_height_m,
@@ -1025,11 +1120,13 @@ def solve_reflected_domain_global_transonic_mixed_wave_interface(
     shock_geometry_verified=shock_geometry_verified,
     shock_fit_verified=shock_fit_verified,
     ambient_boundary_verified=ambient_boundary_verified,
+    shock_ambient_strip_verified=shock_ambient_strip_verified,
     terminal_verified=terminal_verified,
     subsonic_reference_verified=subsonic_reference_verified,
     message=(
-      'solver-owned pressure-targeted shock/ambient interface reached a '
-      'typed subsonic terminal; centerline and global feedback remain open.'
+      'solver-owned pressure-targeted shock/ambient interface assembled an '
+      'open characteristic strip and reached a typed subsonic terminal; '
+      'centerline and global feedback remain open.'
       + reference_message
     ),
   )
