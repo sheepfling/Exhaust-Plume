@@ -2,10 +2,10 @@
 
 The global reflected closure and the constant-gamma coupled Euler field are
 separate solver lanes.  This module binds them for one explicit research
-candidate and retains the independent coupled-field audit.  The candidate is
-not a canonical global closure: the downstream field does not feed its
-pressure and characteristic response back into the upstream shock solve, so
-``global_coupling_verified`` remains false by construction.
+candidate and retains the independent mixed-regime reference and coupled-field
+audits.  The candidate is not a canonical global closure: the downstream field
+does not feed its pressure and characteristic response back into the upstream
+shock solve, so ``global_coupling_verified`` remains false by construction.
 """
 
 from __future__ import annotations
@@ -47,7 +47,9 @@ from exhaust_plume.models.moc.physical_field_shock_front import (
 )
 from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRequest,
+  MocReflectedDomainMixedRegimeBoundaryResult,
   build_reflected_domain_mixed_regime_boundary_request,
+  solve_reflected_domain_mixed_regime_boundary,
 )
 from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceFieldPlacementRequest,
@@ -1938,7 +1940,14 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
 
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalCoupledDownstreamResult:
-  """A research candidate with explicit upstream and downstream lineage."""
+  """A research candidate with explicit upstream and downstream lineage.
+
+  ``mixed_regime_boundary_reference`` is the solver-owned variable-entropy
+  reference bound to the exact mixed-regime request.  It is retained beside,
+  not substituted for, the coupled Euler candidate: its mapped stream-tube
+  field is not canonical reflected 2-D closure and cannot authorize chain or
+  production promotion.
+  """
 
   status: MocReflectedDomainGlobalCoupledDownstreamStatus
   closure: MocReflectedDomainGlobalPhysicalClosureResult | None
@@ -1946,6 +1955,9 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
   coupled_request: MocReflectedDomainCoupledEulerFreeBoundaryRequest | None
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None
   coupled_field_audit: Any | None
+  mixed_regime_boundary_reference: (
+    MocReflectedDomainMixedRegimeBoundaryResult | None
+  ) = None
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
   transonic_shock_interface_field_placement: (
     MocTransonicShockInterfaceFieldPlacementResult | None
@@ -1987,6 +1999,33 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         'mixed_regime_request must be a '
         'MocReflectedDomainMixedRegimeBoundaryRequest or None'
       )
+    ####
+    if self.mixed_regime_boundary_reference is not None and not isinstance(
+      self.mixed_regime_boundary_reference,
+      MocReflectedDomainMixedRegimeBoundaryResult,
+    ):
+      raise TypeError(
+        'mixed_regime_boundary_reference must be a '
+        'MocReflectedDomainMixedRegimeBoundaryResult or None'
+      )
+    ####
+    if self.mixed_regime_boundary_reference is not None:
+      if self.mixed_regime_request is None:
+        raise ValueError(
+          'mixed_regime_boundary_reference requires a mixed_regime_request'
+        )
+      ####
+      if self.mixed_regime_boundary_reference.request is not self.mixed_regime_request:
+        raise ValueError(
+          'mixed_regime_boundary_reference must retain the exact '
+          'mixed_regime_request object'
+        )
+      ####
+      if self.closure is None or self.mixed_regime_boundary_reference.closure is not self.closure:
+        raise ValueError(
+          'mixed_regime_boundary_reference must retain the exact closure object'
+        )
+      ####
     ####
     if self.coupled_request is not None and not isinstance(
       self.coupled_request,
@@ -2112,6 +2151,16 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       fingerprint is not None
       and self.mixed_regime_request is not None
       and self.mixed_regime_request.closure_fingerprint == fingerprint
+      and (
+        self.mixed_regime_boundary_reference is None
+        or (
+          self.mixed_regime_boundary_reference.request
+          is self.mixed_regime_request
+          and self.mixed_regime_boundary_reference.closure is self.closure
+          and self.mixed_regime_boundary_reference.request.closure_fingerprint
+          == fingerprint
+        )
+      )
       and self.coupled_request is not None
       and self.coupled_request.source_closure_fingerprint == fingerprint
       and (
@@ -2213,6 +2262,17 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
   ####
 
   @property
+  def mixed_regime_reference_verified(self) -> bool:
+    """Whether the bound mixed-regime reference passed its research gates."""
+
+    return bool(
+      self.mixed_regime_boundary_reference is not None
+      and self.mixed_regime_boundary_reference.converged
+      and self.closure_lineage_verified
+    )
+  ####
+
+  @property
   def chain_promotion_blocked(self) -> bool:
     return True
   ####
@@ -2238,6 +2298,7 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         'source_closure_fingerprint': self.source_closure_fingerprint,
         'closure_lineage_verified': self.closure_lineage_verified,
         'local_coupled_field_verified': self.local_coupled_field_verified,
+        'mixed_regime_reference_verified': self.mixed_regime_reference_verified,
         'global_coupling_verified': self.global_coupling_verified,
         'downstream_boundary_closure_verified': (
           self.downstream_boundary_closure_verified
@@ -2256,6 +2317,7 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'closure_lineage_verified': self.closure_lineage_verified,
       'local_coupled_field_verified': self.local_coupled_field_verified,
+      'mixed_regime_reference_verified': self.mixed_regime_reference_verified,
       'global_coupling_verified': self.global_coupling_verified,
       'downstream_boundary_closure_verified': (
         self.downstream_boundary_closure_verified
@@ -2264,6 +2326,11 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         None
         if self.mixed_regime_request is None
         else self.mixed_regime_request.as_report()
+      ),
+      'mixed_regime_boundary_reference': (
+        None
+        if self.mixed_regime_boundary_reference is None
+        else self.mixed_regime_boundary_reference.as_report()
       ),
       'coupled_request': (
         None
@@ -2320,6 +2387,9 @@ def _failure(
   *,
   closure: MocReflectedDomainGlobalPhysicalClosureResult | None = None,
   mixed_regime_request: MocReflectedDomainMixedRegimeBoundaryRequest | None = None,
+  mixed_regime_boundary_reference: (
+    MocReflectedDomainMixedRegimeBoundaryResult | None
+  ) = None,
   coupled_request: MocReflectedDomainCoupledEulerFreeBoundaryRequest | None = None,
   coupled_field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None,
   coupled_field_audit: Any | None = None,
@@ -2341,6 +2411,7 @@ def _failure(
     status=status,
     closure=closure,
     mixed_regime_request=mixed_regime_request,
+    mixed_regime_boundary_reference=mixed_regime_boundary_reference,
     coupled_request=coupled_request,
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
@@ -2649,6 +2720,14 @@ def solve_reflected_domain_global_coupled_downstream(
       )
     ####
   ####
+  # Retain the independently measured mixed-regime reference beside the
+  # coupled-Euler candidate.  This is intentionally not used as a boundary
+  # condition for the coupled solve: the mapped reference is a lower-fidelity
+  # research lane and must not silently become canonical closure.
+  mixed_regime_boundary_reference = (
+    solve_reflected_domain_mixed_regime_boundary(mixed_regime_request)
+  )
+  ####
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
   resolved_transonic_shock_interface_field_placement = (
     transonic_shock_interface_field_placement
@@ -2776,6 +2855,7 @@ def solve_reflected_domain_global_coupled_downstream(
         f'global solver-owned transonic interface placement failed: {error}',
         closure=closure,
         mixed_regime_request=mixed_regime_request,
+        mixed_regime_boundary_reference=mixed_regime_boundary_reference,
         transonic_shock_interface_field_placement=placement_for_failure,
       )
     ####
@@ -2811,6 +2891,7 @@ def solve_reflected_domain_global_coupled_downstream(
         f'global solver-owned physical-field handoff failed: {error}',
         closure=closure,
         mixed_regime_request=mixed_regime_request,
+        mixed_regime_boundary_reference=mixed_regime_boundary_reference,
       )
     ####
   ####
@@ -2881,6 +2962,7 @@ def solve_reflected_domain_global_coupled_downstream(
       f'global coupled downstream solver raised: {error}',
       closure=closure,
       mixed_regime_request=mixed_regime_request,
+      mixed_regime_boundary_reference=mixed_regime_boundary_reference,
       boundary_pressure_profile=boundary_pressure_profile,
       boundary_geometry_profile=boundary_geometry_profile,
       physical_field_handoff=physical_field_handoff,
@@ -2904,6 +2986,7 @@ def solve_reflected_domain_global_coupled_downstream(
       f'global coupled downstream independent audit raised: {error}',
       closure=closure,
       mixed_regime_request=mixed_regime_request,
+      mixed_regime_boundary_reference=mixed_regime_boundary_reference,
       coupled_request=coupled_request,
       coupled_field=coupled_field,
       physical_field_handoff=physical_field_handoff,
@@ -2961,6 +3044,7 @@ def solve_reflected_domain_global_coupled_downstream(
     coupled_request=coupled_request,
     coupled_field=coupled_field,
     coupled_field_audit=coupled_field_audit,
+    mixed_regime_boundary_reference=mixed_regime_boundary_reference,
     physical_field_handoff=physical_field_handoff,
     transonic_shock_interface_field_placement=(
       resolved_transonic_shock_interface_field_placement

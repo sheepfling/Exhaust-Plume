@@ -46,6 +46,14 @@ the independent coupled-field audit checks their exact control-section
 lineage.  This improves traceability without changing the research-only claim
 ceiling.
 
+The global coupled candidate now also retains the independently measured
+solver-owned variable-entropy/mixed-regime boundary reference that is bound to
+the exact global closure request.  The report verifies request and closure
+identity and exposes a separate research-reference status.  This reference is
+not consumed as the coupled-Euler boundary condition and does not change the
+open canonical reflected-field, refinement, physical-length, or external
+validation gates.
+
 The cross-product operator evidence is recorded in
 [`ray_signature_consistency_v1.json`](ray_signature_consistency_v1.json). It
 validates synthetic projected-area summation, ray misses, wavelength-grid

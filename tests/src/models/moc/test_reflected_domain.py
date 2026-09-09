@@ -3157,6 +3157,13 @@ def test_global_coupled_downstream_candidate_keeps_feedback_gate_explicit():
   assert result.converged
   assert result.closure_lineage_verified
   assert result.local_coupled_field_verified
+  assert result.mixed_regime_boundary_reference is not None
+  assert result.mixed_regime_boundary_reference.request is (
+    result.mixed_regime_request
+  )
+  assert result.mixed_regime_boundary_reference.closure is closure
+  assert result.mixed_regime_reference_verified
+  assert result.as_report()['mixed_regime_boundary_reference']['converged']
   assert result.coupled_field is not None
   assert result.coupled_field_audit is not None
   assert result.coupled_field_audit.converged

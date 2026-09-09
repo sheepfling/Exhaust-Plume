@@ -125,6 +125,14 @@ next product can make a stronger claim:
    This closes solver-owned boundary-profile provenance only; it does not
    close the physical free boundary, global feedback, refinement, validation,
    or product-promotion gates.
+   The global coupled candidate now also retains the independently measured
+   solver-owned variable-entropy/mixed-regime reference beside the coupled
+   Euler result.  Its request and closure object are checked for exact
+   identity, and the reference status is serialized in the candidate report.
+   The reference is deliberately not consumed as a coupled boundary
+   condition; it remains a mapped lower-fidelity research result with
+   canonical closure, chain-promotion, production, refinement, and external
+   validation gates closed.
 3. **Production shock-cell fitting.** Fit the first and continued cells only
    from the typed, solver-generated frontier and closed field. Compare the
    resulting physical lengths and uncertainties to accepted observations;
