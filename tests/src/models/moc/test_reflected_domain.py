@@ -3794,6 +3794,14 @@ def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor
   assert run.geometry_profile_lineage_verified
   assert run.geometry_profile_consumption_verified
   assert run.local_coupled_field_verified
+  assert run.boundary_trace_verified
+  assert all(
+    iteration.boundary_trace_verified
+    and iteration.boundary_trace_lineage_verified
+    and iteration.boundary_trace is not None
+    and iteration.boundary_trace.local_trace_verified
+    for iteration in run.iterations
+  )
   assert run.initial_state_lineage_verified
   assert run.response_residuals_verified
   assert run.upstream_feedback_proposal_verified
@@ -3808,6 +3816,7 @@ def test_global_coupled_downstream_feedback_consumes_solver_owned_exact_neighbor
   assert run.global_coupling_verified is False
   assert run.downstream_boundary_closure_verified is False
   assert run.chain_promotion_blocked
+  assert run.as_report()['boundary_trace_verified'] is True
   assert run.production_claim_allowed is False
   assert len(run.iterations) == 2
   assert all(

@@ -3059,6 +3059,20 @@ blocks chain/production promotion.  Global feedback consumption, strict
 cross-case refinement, disjoint physical observations, and the missing V8 /
 alignment/provider archives remain release blockers.
 
+### Coupled-Euler trace consumption in feedback ladder — 2026-09-09
+
+The downstream pressure/geometry feedback ladder now consumes the full-state
+boundary trace as an iteration gate.  Every fresh solve must retain the exact
+closure fingerprint, a locally verified trace, and the trace's explicit
+research-only promotion ceiling before the ladder can report a converged
+research update.  Missing or mismatched trace lineage now fails the feedback
+step rather than allowing the older overlap response alone to stand in for a
+full-state boundary contract.
+
+This strengthens global reconciliation evidence without claiming upstream
+global re-solve, canonical mixed-regime closure, physical shock-cell
+promotion, or production validity.
+
 ### Separate alignment-archive preflight checkpoint — 2026-09-08
 
 Provider-comparison preflight now accepts the separately named

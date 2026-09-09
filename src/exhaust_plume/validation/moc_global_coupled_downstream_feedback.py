@@ -22,6 +22,7 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerInletBoundaryMode,
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
@@ -85,6 +86,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
   result: MocReflectedDomainGlobalCoupledDownstreamResult
   solver_response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
   response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
+  boundary_trace: MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace | None = None
   input_geometry_profile: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile | None
   ) = None
@@ -101,6 +103,8 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
   pressure_profile_lineage_verified: bool = False
   geometry_profile_lineage_verified: bool = False
   response_lineage_verified: bool = False
+  boundary_trace_lineage_verified: bool = False
+  boundary_trace_verified: bool = False
   pressure_profile_consumption_verified: bool = False
   geometry_profile_consumption_verified: bool = False
   initial_state_lineage_verified: bool = True
@@ -138,6 +142,14 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
           f'{name} must be a typed downstream boundary response or None'
         )
       ####
+    ####
+    if self.boundary_trace is not None and not isinstance(
+      self.boundary_trace,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace,
+    ):
+      raise TypeError(
+        'boundary_trace must be a typed coupled-Euler boundary trace or None'
+      )
     ####
     if self.input_geometry_profile is not None and not isinstance(
       self.input_geometry_profile,
@@ -189,6 +201,8 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
       'pressure_profile_lineage_verified',
       'geometry_profile_lineage_verified',
       'response_lineage_verified',
+      'boundary_trace_lineage_verified',
+      'boundary_trace_verified',
       'pressure_profile_consumption_verified',
       'geometry_profile_consumption_verified',
       'initial_state_lineage_verified',
@@ -277,6 +291,15 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         self.response is None or not self.response.production_claim_allowed
       )
       and (
+        self.boundary_trace is None
+        or (
+          not self.boundary_trace.canonical_free_boundary_verified
+          and not self.boundary_trace.downstream_boundary_closure_verified
+          and self.boundary_trace.chain_promotion_blocked
+          and not self.boundary_trace.production_claim_allowed
+        )
+      )
+      and (
         self.upstream_feedback_proposal is None
         or (
           not self.upstream_feedback_proposal.consumed_by_global_solver
@@ -308,6 +331,10 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         self.geometry_profile_lineage_verified
       ),
       'response_lineage_verified': self.response_lineage_verified,
+      'boundary_trace_lineage_verified': (
+        self.boundary_trace_lineage_verified
+      ),
+      'boundary_trace_verified': self.boundary_trace_verified,
       'pressure_profile_consumption_verified': (
         self.pressure_profile_consumption_verified
       ),
@@ -343,6 +370,9 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         None if self.solver_response is None else self.solver_response.as_report()
       ),
       'response': None if self.response is None else self.response.as_report(),
+      'boundary_trace': (
+        None if self.boundary_trace is None else self.boundary_trace.as_report()
+      ),
     }
   ####
 ####
@@ -371,6 +401,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
   response_channels_finite: bool = False
   response_coverage_verified: bool = False
   response_residuals_verified: bool = False
+  boundary_trace_verified: bool = False
   local_coupled_field_verified: bool = False
   initial_state_lineage_verified: bool = False
   pressure_update_convergence_verified: bool = False
@@ -447,6 +478,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'response_channels_finite',
       'response_coverage_verified',
       'response_residuals_verified',
+      'boundary_trace_verified',
       'local_coupled_field_verified',
       'initial_state_lineage_verified',
       'pressure_update_convergence_verified',
@@ -495,6 +527,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       and self.response_channels_finite
       and self.response_coverage_verified
       and self.response_residuals_verified
+      and self.boundary_trace_verified
       and self.local_coupled_field_verified
       and self.initial_state_lineage_verified
       and self.pressure_update_convergence_verified
@@ -556,6 +589,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'response_channels_finite': self.response_channels_finite,
       'response_coverage_verified': self.response_coverage_verified,
       'response_residuals_verified': self.response_residuals_verified,
+      'boundary_trace_verified': self.boundary_trace_verified,
       'upstream_feedback_proposal_verified': (
         self.upstream_feedback_proposal_verified
       ),
@@ -707,6 +741,7 @@ def _status_for_run(
   response_channels_finite: bool,
   response_coverage_verified: bool,
   response_residuals_verified: bool,
+  boundary_trace_verified: bool,
   local_coupled_field_verified: bool,
   initial_state_lineage_verified: bool,
   pressure_update_convergence_verified: bool,
@@ -717,6 +752,13 @@ def _status_for_run(
       MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.SOLVER_FAILURE,
       'the feedback ladder did not retain a locally audited fresh coupled '
       'field for every attempted step',
+    )
+  ####
+  if not boundary_trace_verified:
+    return (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.SOLVER_FAILURE,
+      'the feedback ladder did not retain a locally audited full-state '
+      'coupled-Euler boundary trace for every attempted step',
     )
   ####
   if not initial_state_lineage_verified:
@@ -922,6 +964,18 @@ def run_reflected_domain_global_coupled_downstream_feedback(
       )
     ####
     solver_response = result.downstream_boundary_response
+    boundary_trace = result.downstream_boundary_trace
+    boundary_trace_lineage_verified = bool(
+      result.closure_lineage_verified
+      and boundary_trace is not None
+      and boundary_trace.source_closure_fingerprint
+      == moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    )
+    boundary_trace_verified = bool(
+      boundary_trace_lineage_verified
+      and boundary_trace is not None
+      and boundary_trace.local_trace_verified
+    )
     response = None
     if result.coupled_field is not None:
       try:
@@ -1138,6 +1192,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         result=result,
         solver_response=solver_response,
         response=response,
+        boundary_trace=boundary_trace,
         input_geometry_profile=input_geometry_profile,
         next_pressure_profile=next_profile,
         next_geometry_profile=next_geometry_profile,
@@ -1146,6 +1201,8 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         pressure_profile_lineage_verified=pressure_profile_lineage_verified,
         geometry_profile_lineage_verified=geometry_profile_lineage_verified,
         response_lineage_verified=response_lineage_verified,
+        boundary_trace_lineage_verified=boundary_trace_lineage_verified,
+        boundary_trace_verified=boundary_trace_verified,
         pressure_profile_consumption_verified=(
           pressure_profile_consumption_verified
         ),
@@ -1230,6 +1287,13 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     retained_iterations
     and all(item.response_residuals_verified for item in retained_iterations)
   )
+  boundary_trace_verified = bool(
+    retained_iterations
+    and all(
+      item.boundary_trace_lineage_verified and item.boundary_trace_verified
+      for item in retained_iterations
+    )
+  )
   local_coupled_field_verified = bool(
     retained_iterations
     and all(item.local_coupled_field_verified for item in retained_iterations)
@@ -1251,6 +1315,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     response_channels_finite=response_channels_finite,
     response_coverage_verified=response_coverage_verified,
     response_residuals_verified=response_residuals_verified,
+    boundary_trace_verified=boundary_trace_verified,
     local_coupled_field_verified=local_coupled_field_verified,
     initial_state_lineage_verified=initial_state_lineage_verified,
     pressure_update_convergence_verified=pressure_update_convergence_verified,
@@ -1279,6 +1344,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     response_channels_finite=response_channels_finite,
     response_coverage_verified=response_coverage_verified,
     response_residuals_verified=response_residuals_verified,
+    boundary_trace_verified=boundary_trace_verified,
     local_coupled_field_verified=local_coupled_field_verified,
     initial_state_lineage_verified=initial_state_lineage_verified,
     pressure_update_convergence_verified=pressure_update_convergence_verified,
