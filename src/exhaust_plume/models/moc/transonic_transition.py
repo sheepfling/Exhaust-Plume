@@ -27,6 +27,7 @@ __all__ = (
   'MocTransonicShockGeometryAudit',
   'MocTransonicTransitionResult',
   'MocTransonicTransitionAudit',
+  'reconstruct_moc_transonic_shock_state',
   'measure_moc_transonic_shock_geometry',
   'solve_moc_transonic_shock_geometry',
   'measure_moc_transonic_transition',
@@ -751,6 +752,61 @@ def _normal_shock_state(
   if request.upstream_total_temperature_K is None:
     return None
   ####
+  return reconstruct_moc_transonic_shock_state(
+    upstream_total_pressure_Pa=request.upstream_total_pressure_Pa,
+    upstream_total_temperature_K=request.upstream_total_temperature_K,
+    gamma=request.gamma,
+    gas_constant_J_kgK=request.gas_constant_J_kgK,
+    upstream_mach=upstream_mach,
+    upstream_flow_angle_rad=request.upstream_flow_angle_rad,
+  )
+####
+
+
+def reconstruct_moc_transonic_shock_state(
+  *,
+  upstream_total_pressure_Pa: float,
+  upstream_total_temperature_K: float,
+  gamma: float,
+  gas_constant_J_kgK: float = 287.05,
+  upstream_mach: float,
+  upstream_flow_angle_rad: float = 0.0,
+) -> MocTransonicShockState:
+  """Reconstruct a scalar normal-shock state from an upstream Mach number.
+
+  This is the direct Rankine--Hugoniot counterpart to the pressure-target
+  transition solver.  It is useful when a caller already retains the
+  upstream supersonic state, as a terminal MOC probe does; a target pressure
+  inside the isentropic subsonic interval must not be misclassified as a
+  pressure-target shock.
+  """
+
+  values = (
+    upstream_total_pressure_Pa,
+    upstream_total_temperature_K,
+    gamma,
+    gas_constant_J_kgK,
+    upstream_mach,
+    upstream_flow_angle_rad,
+  )
+  if any(not isfinite(float(value)) for value in values):
+    raise ValueError('normal-shock reconstruction inputs must be finite')
+  ####
+  if upstream_total_pressure_Pa <= 0.0:
+    raise ValueError('upstream_total_pressure_Pa must be positive')
+  ####
+  if upstream_total_temperature_K <= 0.0:
+    raise ValueError('upstream_total_temperature_K must be positive')
+  ####
+  if gamma <= 1.0:
+    raise ValueError('gamma must be greater than one')
+  ####
+  if gas_constant_J_kgK <= 0.0:
+    raise ValueError('gas_constant_J_kgK must be positive')
+  ####
+  if upstream_mach <= 1.0:
+    raise ValueError('upstream_mach must be greater than one')
+  ####
   (
     upstream_static_pressure,
     downstream_static_pressure,
@@ -758,38 +814,38 @@ def _normal_shock_state(
     downstream_total_pressure,
     total_pressure_ratio,
   ) = _normal_shock_values(
-    request.upstream_total_pressure_Pa,
+    upstream_total_pressure_Pa,
     upstream_mach,
-    request.gamma,
+    gamma,
   )
-  beta = 0.5 * (request.gamma - 1.0)
+  beta = 0.5 * (gamma - 1.0)
   upstream_factor = 1.0 + beta * upstream_mach * upstream_mach
   downstream_factor = 1.0 + beta * downstream_mach * downstream_mach
-  upstream_static_temperature = request.upstream_total_temperature_K / upstream_factor
-  downstream_static_temperature = request.upstream_total_temperature_K / downstream_factor
+  upstream_static_temperature = upstream_total_temperature_K / upstream_factor
+  downstream_static_temperature = upstream_total_temperature_K / downstream_factor
   upstream_density = upstream_static_pressure / (
-    request.gas_constant_J_kgK * upstream_static_temperature
+    gas_constant_J_kgK * upstream_static_temperature
   )
   downstream_density = downstream_static_pressure / (
-    request.gas_constant_J_kgK * downstream_static_temperature
+    gas_constant_J_kgK * downstream_static_temperature
   )
   upstream_sound_speed = sqrt(
-    request.gamma
-    * request.gas_constant_J_kgK
+    gamma
+    * gas_constant_J_kgK
     * upstream_static_temperature
   )
   downstream_sound_speed = sqrt(
-    request.gamma
-    * request.gas_constant_J_kgK
+    gamma
+    * gas_constant_J_kgK
     * downstream_static_temperature
   )
   return MocTransonicShockState(
-    upstream_total_pressure_Pa=request.upstream_total_pressure_Pa,
-    upstream_total_temperature_K=request.upstream_total_temperature_K,
+    upstream_total_pressure_Pa=upstream_total_pressure_Pa,
+    upstream_total_temperature_K=upstream_total_temperature_K,
     downstream_total_pressure_Pa=downstream_total_pressure,
     total_pressure_ratio=total_pressure_ratio,
-    gamma=request.gamma,
-    gas_constant_J_kgK=request.gas_constant_J_kgK,
+    gamma=gamma,
+    gas_constant_J_kgK=gas_constant_J_kgK,
     upstream_mach=upstream_mach,
     downstream_mach=downstream_mach,
     upstream_static_pressure_Pa=upstream_static_pressure,
@@ -802,10 +858,10 @@ def _normal_shock_state(
     downstream_sound_speed_m_s=downstream_sound_speed,
     upstream_speed_m_s=upstream_mach * upstream_sound_speed,
     downstream_speed_m_s=downstream_mach * downstream_sound_speed,
-    entropy_increase_JpkgK=request.gas_constant_J_kgK * log(
+    entropy_increase_JpkgK=gas_constant_J_kgK * log(
       1.0 / total_pressure_ratio
     ),
-    upstream_flow_angle_rad=request.upstream_flow_angle_rad,
+    upstream_flow_angle_rad=upstream_flow_angle_rad,
   )
 ####
 

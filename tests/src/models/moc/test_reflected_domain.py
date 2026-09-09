@@ -197,6 +197,13 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_probe imp
   MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeAuditStatus,
   measure_reflected_domain_global_transonic_mixed_wave_terminal_probe,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_handoff import (
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffStatus,
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffAuditStatus,
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffRequest,
+  build_reflected_domain_global_transonic_mixed_wave_terminal_handoff,
+  measure_reflected_domain_global_transonic_mixed_wave_terminal_handoff,
+)
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_coverage import (
   MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus,
   assess_reflected_domain_global_transonic_mixed_wave_interface_coverage,
@@ -1073,6 +1080,113 @@ def test_global_transonic_mixed_wave_terminal_probe_keeps_reference_below_promot
     .TRACE_FAILURE
   )
   assert not tampered_audit.converged
+
+
+def test_global_transonic_mixed_wave_terminal_scalar_handoff_is_exact_and_stays_research_only():
+  closure = _global_physical_closure_for_mixed_regime()
+  ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  attempt = run_reflected_domain_global_transonic_expansion_attempt(
+    MocReflectedDomainGlobalTransonicClosureRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_Pa=ambient_pressure,
+    )
+  )
+  assert attempt.characteristic_field is not None
+  interface = solve_reflected_domain_global_transonic_mixed_wave_interface(
+    attempt.characteristic_field,
+    ambient_pressure,
+    effective_inlet_height_m=0.002,
+    downstream_length_m=0.2,
+  )
+  probe = probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation(
+    interface
+  )
+  handoff = build_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffRequest(
+      probe=probe,
+      upstream_total_temperature_K=1500.0,
+    )
+  )
+
+  assert handoff.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffStatus
+    .VERIFIED_SCALAR_GEOMETRY_HANDOFF
+  )
+  assert handoff.handoff_verified
+  assert handoff.shock_state is not None
+  assert handoff.geometry is not None
+  assert handoff.geometry.geometry_verified
+  assert handoff.geometry_audit is not None
+  assert handoff.geometry_audit.converged
+  assert handoff.terminal_probe_audit is not None
+  assert handoff.terminal_probe_audit.converged
+  assert handoff.physical_closure_verified is False
+  assert handoff.chain_promotion_blocked
+  assert handoff.production_claim_allowed is False
+
+  terminal = probe.terminal_patch_shock_probe.shock.normal_shock_terminal
+  assert terminal is not None
+  assert handoff.geometry.shock_point_m == pytest.approx(terminal.shock_point_m)
+  assert handoff.geometry.shock_normal_angle_rad == pytest.approx(
+    terminal.upstream_state.theta_rad
+  )
+
+  audit = measure_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
+    handoff
+  )
+  assert audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffAuditStatus
+    .VERIFIED
+  )
+  assert audit.converged
+  assert audit.terminal_probe_verified
+  assert audit.shock_state_rederived
+  assert audit.state_lineage_verified
+  assert audit.geometry_rederived
+  assert audit.geometry_binding_verified
+  assert audit.claim_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+  tampered_geometry = replace(
+    handoff.geometry,
+    shock_point_m=(handoff.geometry.shock_point_m[0] + 1.0e-3, 0.0),
+  )
+  tampered = replace(handoff, geometry=tampered_geometry)
+  tampered_audit = (
+    measure_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
+      tampered
+    )
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffAuditStatus
+    .GEOMETRY_FAILURE
+  )
+  assert not tampered_audit.converged
+
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  coupled_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode.SCALAR_NORMAL_SHOCK_BRANCH
+    ),
+    transonic_shock_geometry=handoff.geometry.request,
+  )
+  coupled = solve_reflected_domain_coupled_euler_free_boundary(coupled_request)
+  assert coupled.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus.INLET_SHOCK_BRANCH_FAILURE
+  )
+  assert 'bind to the coupled-field inlet x' in coupled.message
+  assert coupled.chain_promotion_blocked
+  assert coupled.production_claim_allowed is False
 
 
 def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at_free_boundary_residual():

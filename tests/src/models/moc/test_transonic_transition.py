@@ -14,6 +14,7 @@ from exhaust_plume.models.moc import (
   MocTransonicTransitionStatus,
   measure_moc_transonic_shock_geometry,
   measure_moc_transonic_transition,
+  reconstruct_moc_transonic_shock_state,
   solve_moc_transonic_shock_geometry,
   solve_moc_transonic_transition,
 )
@@ -77,6 +78,34 @@ def test_transition_can_emit_a_scalar_supersonic_to_subsonic_state_handoff() -> 
   assert audit.shock_state_mass_flux_residual == pytest.approx(0.0, abs=1.0e-12)
   assert audit.shock_state_momentum_flux_residual == pytest.approx(0.0, abs=1.0e-12)
   assert audit.shock_state_energy_flux_residual == pytest.approx(0.0, abs=1.0e-12)
+####
+
+
+def test_direct_normal_shock_reconstruction_preserves_upstream_mach_when_target_is_isentropic_reachable() -> None:
+  state = reconstruct_moc_transonic_shock_state(
+    upstream_total_pressure_Pa=400_000.0,
+    upstream_total_temperature_K=1200.0,
+    gamma=1.4,
+    upstream_mach=1.6,
+  )
+  pressure_target = MocTransonicTransitionRequest(
+    upstream_total_pressure_Pa=state.upstream_total_pressure_Pa,
+    target_downstream_static_pressure_Pa=state.downstream_static_pressure_Pa,
+    gamma=state.gamma,
+  )
+  pressure_result = solve_moc_transonic_transition(pressure_target)
+
+  assert state.upstream_mach == pytest.approx(1.6)
+  assert state.upstream_supersonic
+  assert state.downstream_subsonic
+  assert state.total_pressure_ratio < 1.0
+  assert pressure_result.status is (
+    MocTransonicTransitionStatus.TARGET_REACHABLE_WITHOUT_SHOCK
+  )
+  assert pressure_result.transition_required is False
+  assert state.physical_closure_verified is False
+  assert state.chain_promotion_blocked
+  assert state.production_claim_allowed is False
 ####
 
 

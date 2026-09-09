@@ -3821,3 +3821,30 @@ trace in regression coverage.  This strengthens evidence for the next physics
 step without changing the release decision: the downstream subsonic field,
 global coupling, physical cell fit, external data, and provider comparisons
 remain open.
+
+### P2.2e scalar terminal thermodynamic handoff checkpoint — 2026-09-09
+
+The audited terminal reference now has an explicit scalar handoff operator,
+``op.moc.reflected-domain.global-transonic-mixed-wave-terminal-transonic-handoff``.
+It supplies only the caller-owned total temperature and gas constant, uses the
+retained upstream Mach number for a direct Rankine--Hugoniot reconstruction,
+and binds the resulting ``MocTransonicShockState`` to the exact retained
+terminal point.  The shock normal is derived from the retained upstream flow
+direction; the retained terminal's perpendicular shock-surface angle is not
+silently reused as a normal vector.
+
+The handoff has an independent retained-state and geometry audit,
+``op.moc.reflected-domain.global-transonic-mixed-wave-terminal-transonic-handoff-audit``.
+It passes on the target fixture and rejects a tampered terminal point.  The
+existing pressure-target transition solver remains correctly separate: the
+terminal post-shock static pressure lies within the isentropic subsonic
+interval, so it must not be forced through the pressure-target shock branch.
+
+Passing the handoff into the scalar coupled-Euler branch still returns the
+typed inlet-location failure: the retained terminal is approximately
+``x=5.25541 m`` while the current coupled control-section inlet begins at
+approximately ``x=5.26625 m``.  The solver therefore does not shift,
+extrapolate, or hold the terminal state.  This closes the missing scalar
+thermodynamic seam only; an interior subsonic field or solver-owned moving
+interface is still required before canonical closure, shock-cell fitting, or
+production promotion.
