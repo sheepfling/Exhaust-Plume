@@ -359,3 +359,10 @@ alignment archive through the intake manifest.  With no archive path supplied,
 it records `alignment_archive.status=not-provided`; a missing or mismatched
 archive remains an explicit release blocker and cannot be replaced by the
 embedded alignment overlay.
+
+Accepted provider-bound comparison evidence now also requires an explicit
+`exhaust-plume.provider-bound-asset-manifest@1` plus an asset root.  The
+preflight verifies the source, provider-output, and operator-manifest files
+against the typed SHA-256 records and rejects missing, tampered, or escaping
+paths.  This is an evidence-integrity gate only; it does not promote a
+comparison or supply the missing provider observations.

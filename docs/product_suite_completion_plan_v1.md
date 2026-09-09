@@ -3014,3 +3014,15 @@ alignment archives, provider-bound VIS/SIG/RAY/FPA observations, canonical
 mixed-regime closure, accepted physical shock-cell lengths, and exact current
 release freeze are still open.  No synthetic archive or embedded overlay is
 being promoted as external evidence.
+
+### Provider-bound asset digest verification checkpoint — 2026-09-08
+
+The provider-comparison preflight now has a strict
+`exhaust-plume.provider-bound-asset-manifest@1` handoff.  When a provider
+submits accepted evidence, the preflight requires a separate asset root and
+manifest, matches every source asset, provider output, and operator-manifest
+digest to the typed evidence envelope, rejects path traversal, and fails closed
+on missing or tampered files.  Diagnostic and blocked handoffs remain usable
+for review without those files, but cannot promote a comparison.  This closes
+an evidence-integrity seam; it does not create the missing V8/alignment data or
+change the external-validation and release blockers.

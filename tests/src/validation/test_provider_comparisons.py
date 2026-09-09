@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -7,13 +8,16 @@ from typing import Any
 import pytest
 
 from scripts.validate_provider_comparisons import (
+  PROVIDER_BOUND_ASSET_MANIFEST_SCHEMA,
   PROVIDER_BOUND_EVIDENCE_SCHEMA,
+  build_provider_comparison_preflight,
   build_comparison_plan,
   build_unimplemented_boundaries,
   execute_visual_feature_probe,
   load_provider_bound_evidence,
   _alignment_archive_summary,
   _provider_bound_evidence_source_label,
+  verify_provider_bound_evidence_assets,
 )
 from exhaust_plume.validation.claims import (
   ComparisonEvidenceStatus,
@@ -282,6 +286,161 @@ def test_provider_bound_evidence_source_label_is_portable() -> None:
     Path('/another/machine/provider-evidence.json')
   ) == 'provider-evidence.json'
   assert _provider_bound_evidence_source_label(None) is None
+####
+
+
+def test_provider_bound_asset_manifest_verifies_every_referenced_digest(tmp_path) -> None:
+  asset_root = tmp_path / 'assets'
+  asset_root.mkdir()
+  source = asset_root / 'source.csv'
+  output = asset_root / 'provider-output.json'
+  operator = asset_root / 'operator-manifest.json'
+  source.write_text('source asset\n', encoding='utf-8')
+  output.write_text('{"radiance": 1}\n', encoding='utf-8')
+  operator.write_text('{"operator": "peak-normalize"}\n', encoding='utf-8')
+
+  def digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+  ####
+
+  evidence = _accepted_spectral_evidence().model_copy(update={
+    'source_asset_sha256': (digest(source),),
+    'provider_output_sha256': (digest(output),),
+    'operator_manifest_sha256': digest(operator),
+  })
+  manifest = tmp_path / 'provider-assets.json'
+  manifest.write_text(
+    json.dumps({
+      'schema_id': PROVIDER_BOUND_ASSET_MANIFEST_SCHEMA,
+      'assets': [
+        {
+          'evidence_id': evidence.evidence_id,
+          'asset_id': evidence.source_asset_ids[0],
+          'asset_kind': 'source',
+          'relative_path': source.name,
+          'sha256': digest(source),
+        },
+        {
+          'evidence_id': evidence.evidence_id,
+          'asset_id': evidence.provider_output_ids[0],
+          'asset_kind': 'provider_output',
+          'relative_path': output.name,
+          'sha256': digest(output),
+        },
+        {
+          'evidence_id': evidence.evidence_id,
+          'asset_id': 'operator-manifest',
+          'asset_kind': 'operator_manifest',
+          'relative_path': operator.name,
+          'sha256': digest(operator),
+        },
+      ],
+    }),
+    encoding='utf-8',
+  )
+
+  result = verify_provider_bound_evidence_assets(
+    {'SIG-MVP-A-064': evidence},
+    asset_root=asset_root,
+    asset_manifest_path=manifest,
+  )
+
+  assert result['status'] == 'verified'
+  assert result['asset_count'] == 3
+  assert result['evidence_count'] == 1
+####
+
+
+def test_provider_bound_asset_manifest_rejects_tampered_file(tmp_path) -> None:
+  asset_root = tmp_path / 'assets'
+  asset_root.mkdir()
+  source = asset_root / 'source.csv'
+  output = asset_root / 'provider-output.json'
+  operator = asset_root / 'operator-manifest.json'
+  source.write_text('source asset\n', encoding='utf-8')
+  output.write_text('{"radiance": 1}\n', encoding='utf-8')
+  operator.write_text('{"operator": "peak-normalize"}\n', encoding='utf-8')
+
+  def digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+  ####
+
+  evidence = _accepted_spectral_evidence().model_copy(update={
+    'source_asset_sha256': (digest(source),),
+    'provider_output_sha256': (digest(output),),
+    'operator_manifest_sha256': digest(operator),
+  })
+  manifest = tmp_path / 'provider-assets.json'
+  manifest.write_text(
+    json.dumps({
+      'schema_id': PROVIDER_BOUND_ASSET_MANIFEST_SCHEMA,
+      'assets': [
+        {
+          'evidence_id': evidence.evidence_id,
+          'asset_id': evidence.source_asset_ids[0],
+          'asset_kind': 'source',
+          'relative_path': source.name,
+          'sha256': digest(source),
+        },
+        {
+          'evidence_id': evidence.evidence_id,
+          'asset_id': evidence.provider_output_ids[0],
+          'asset_kind': 'provider_output',
+          'relative_path': output.name,
+          'sha256': digest(output),
+        },
+        {
+          'evidence_id': evidence.evidence_id,
+          'asset_id': 'operator-manifest',
+          'asset_kind': 'operator_manifest',
+          'relative_path': operator.name,
+          'sha256': digest(operator),
+        },
+      ],
+    }),
+    encoding='utf-8',
+  )
+  output.write_text('{"radiance": 2}\n', encoding='utf-8')
+
+  with pytest.raises(ValueError, match='digest mismatch'):
+    verify_provider_bound_evidence_assets(
+      {'SIG-MVP-A-064': evidence},
+      asset_root=asset_root,
+      asset_manifest_path=manifest,
+    )
+####
+
+
+def test_preflight_fails_closed_for_accepted_evidence_without_asset_manifest(
+  tmp_path,
+  monkeypatch,
+) -> None:
+  evidence = _accepted_spectral_evidence()
+  evidence_path = tmp_path / 'provider-evidence.json'
+  evidence_path.write_text(
+    json.dumps({
+      'schema_id': PROVIDER_BOUND_EVIDENCE_SCHEMA,
+      'evidence': [evidence.model_dump(mode='json')],
+    }),
+    encoding='utf-8',
+  )
+  monkeypatch.setattr(
+    'scripts.validate_provider_comparisons.preflight_corpus',
+    lambda _path: {
+      'status': 'preflight-valid-pending-release-gates',
+      'archive': {},
+      'operator_reconciliation': {'crosswalk_status': 'complete-scoped'},
+    },
+  )
+
+  report = build_provider_comparison_preflight(
+    tmp_path / 'not-used-by-mocked-preflight.zip',
+    provider_bound_evidence_path=evidence_path,
+  )
+
+  assert report['status'] == 'blocked-invalid-provider-evidence'
+  assert report['provider_bound_asset_verification']['status'] == 'blocked'
+  assert 'asset manifest' in report['release_blockers'][0]
 ####
 
 

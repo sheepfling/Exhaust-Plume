@@ -74,6 +74,8 @@ python scripts/validate_provider_comparisons.py \
   --corpus /path/to/plume_validation_data_v8.zip \
   --alignment /path/to/plume_mvp_validation_alignment_v1.zip \
   --provider-bound-evidence /path/to/provider-bound-evidence.json \
+  --provider-asset-root /path/to/provider-assets \
+  --provider-asset-manifest /path/to/provider-asset-manifest.json \
   --output provider-comparison-preflight.json
 ```
 
@@ -83,7 +85,49 @@ The handoff must be a JSON object with `schema_id` set to
 shape, digests, case split, metrics, and claim identity, then the planner also
 requires each record's provider ID to match the provider under comparison. It
 does not dereference or invent the named source/output assets; their owner
-must retain those artifacts for independent audit.
+must retain those artifacts for independent audit.  If any record is marked
+`accepted`, the asset root and the strict
+`exhaust-plume.provider-bound-asset-manifest@1` manifest are required.  The
+preflight then verifies every source asset, provider output, and operator
+manifest file against the digest recorded in the evidence envelope, rejects
+path traversal, and fails closed on missing or tampered files.  Diagnostic or
+blocked handoff records may still be loaded without the asset manifest, but
+they cannot promote a comparison.
+
+The asset manifest is intentionally small and portable; its paths are relative
+to `--provider-asset-root`:
+
+```json
+{
+  "schema_id": "exhaust-plume.provider-bound-asset-manifest@1",
+  "assets": [
+    {
+      "evidence_id": "evidence-064",
+      "asset_id": "source-spectrum",
+      "asset_kind": "source",
+      "relative_path": "source/spectrum.csv",
+      "sha256": "<64 lowercase hexadecimal characters>"
+    },
+    {
+      "evidence_id": "evidence-064",
+      "asset_id": "provider-output",
+      "asset_kind": "provider_output",
+      "relative_path": "provider/output.json",
+      "sha256": "<64 lowercase hexadecimal characters>"
+    },
+    {
+      "evidence_id": "evidence-064",
+      "asset_id": "operator-manifest",
+      "asset_kind": "operator_manifest",
+      "relative_path": "operators/manifest.json",
+      "sha256": "<64 lowercase hexadecimal characters>"
+    }
+  ]
+}
+```
+
+The placeholder digests above are illustrative only; a provider handoff must
+contain the actual bytes and lowercase SHA-256 values.
 
 The committed [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json)
 is the result for the prior recovered attachment. It records all ten gate-eligible

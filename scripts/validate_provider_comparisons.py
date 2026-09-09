@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -69,7 +70,13 @@ RAY_PRODUCT = 'plume.optical.spectral-ray-transfer@1'
 PROVIDER_BOUND_EVIDENCE_SCHEMA = (
   'exhaust-plume.provider-bound-comparison-evidence@1'
 )
+PROVIDER_BOUND_ASSET_MANIFEST_SCHEMA = (
+  'exhaust-plume.provider-bound-asset-manifest@1'
+)
 ALIGNMENT_ARCHIVE_ID = 'mvp-validation-alignment-v1'
+_PROVIDER_ASSET_KINDS = frozenset(
+  {'source', 'provider_output', 'operator_manifest'}
+)
 
 
 def _provider_bound_evidence_source_label(path: Path | None) -> str | None:
@@ -178,6 +185,212 @@ def load_provider_bound_evidence(
     evidence_by_claim[evidence.claim_id] = evidence
   ####
   return evidence_by_claim
+####
+
+
+def _sha256_file(path: Path) -> str:
+  """Return the lowercase SHA-256 digest of one bounded asset file."""
+
+  digest = hashlib.sha256()
+  try:
+    with path.open('rb') as stream:
+      for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+        digest.update(chunk)
+  except OSError as error:
+    raise ValueError(f'could not read provider-bound asset {path}: {error}') from error
+  ####
+  return digest.hexdigest()
+####
+
+
+def _validate_provider_asset_digest(value: object, *, field_name: str) -> str:
+  digest = str(value)
+  if len(digest) != 64 or any(character not in '0123456789abcdef' for character in digest):
+    raise ValueError(f'{field_name} must be a lowercase SHA-256 digest')
+  ####
+  return digest
+####
+
+
+def _load_provider_asset_manifest(path: Path) -> tuple[dict[str, str], ...]:
+  """Load the strict, portable manifest that binds evidence IDs to files."""
+
+  try:
+    payload = json.loads(path.read_text(encoding='utf-8'))
+  except (OSError, json.JSONDecodeError) as error:
+    raise ValueError(f'could not read provider asset manifest from {path}: {error}') from error
+  ####
+  if not isinstance(payload, dict) or set(payload) != {'schema_id', 'assets'}:
+    raise ValueError(
+      'provider asset manifest must contain only schema_id and assets'
+    )
+  ####
+  if payload.get('schema_id') != PROVIDER_BOUND_ASSET_MANIFEST_SCHEMA:
+    raise ValueError('provider asset manifest has an unsupported schema_id')
+  ####
+  assets = payload.get('assets')
+  if not isinstance(assets, list) or not all(isinstance(asset, dict) for asset in assets):
+    raise ValueError('provider asset manifest assets must be a list of objects')
+  ####
+  records: list[dict[str, str]] = []
+  identities: set[tuple[str, str, str]] = set()
+  for index, asset in enumerate(assets):
+    required = {'evidence_id', 'asset_id', 'asset_kind', 'relative_path', 'sha256'}
+    if set(asset) != required:
+      raise ValueError(
+        f'provider asset manifest record {index} must contain only '
+        f'{sorted(required)}'
+      )
+    ####
+    evidence_id = str(asset['evidence_id'])
+    asset_id = str(asset['asset_id'])
+    asset_kind = str(asset['asset_kind'])
+    relative_path = str(asset['relative_path'])
+    if not evidence_id or not asset_id:
+      raise ValueError('provider asset manifest identifiers must be non-empty')
+    ####
+    if asset_kind not in _PROVIDER_ASSET_KINDS:
+      raise ValueError(
+        f'provider asset manifest record {index} has unsupported asset_kind '
+        f'{asset_kind!r}'
+      )
+    ####
+    relative = Path(relative_path)
+    if (
+      not relative_path
+      or relative.is_absolute()
+      or '..' in relative.parts
+      or relative == Path('.')
+    ):
+      raise ValueError(
+        f'provider asset manifest record {index} relative_path must be a '
+        'non-empty relative path without parent traversal'
+      )
+    ####
+    identity = (evidence_id, asset_kind, asset_id)
+    if identity in identities:
+      raise ValueError(
+        f'provider asset manifest contains duplicate binding {identity!r}'
+      )
+    ####
+    identities.add(identity)
+    records.append({
+      'evidence_id': evidence_id,
+      'asset_id': asset_id,
+      'asset_kind': asset_kind,
+      'relative_path': relative_path,
+      'sha256': _validate_provider_asset_digest(
+        asset['sha256'],
+        field_name=f'assets[{index}].sha256',
+      ),
+    })
+  ####
+  return tuple(records)
+####
+
+
+def verify_provider_bound_evidence_assets(
+  evidence_by_claim: Mapping[str, ProviderBoundComparisonEvidence],
+  *,
+  asset_root: Path,
+  asset_manifest_path: Path,
+) -> dict[str, Any]:
+  """Verify every evidence digest against a portable asset manifest.
+
+  The evidence envelope intentionally stores digests rather than machine-local
+  paths.  This verifier is the release-facing bridge: the caller supplies a
+  root directory and a manifest whose paths are relative to that root.  Every
+  source asset, provider output, and operator manifest named by every evidence
+  record must appear exactly once with the expected digest.  No path escapes
+  the supplied root, and no accepted evidence is usable without this check.
+  """
+
+  if not isinstance(asset_root, Path):
+    raise TypeError('asset_root must be a Path')
+  ####
+  records = _load_provider_asset_manifest(asset_manifest_path)
+  expected: dict[tuple[str, str, str], str] = {}
+  for evidence in evidence_by_claim.values():
+    source_pairs = zip(
+      evidence.source_asset_ids,
+      evidence.source_asset_sha256,
+      strict=True,
+    )
+    output_pairs = zip(
+      evidence.provider_output_ids,
+      evidence.provider_output_sha256,
+      strict=True,
+    )
+    for asset_id, digest in source_pairs:
+      expected[(evidence.evidence_id, 'source', asset_id)] = digest
+    ####
+    for asset_id, digest in output_pairs:
+      expected[(evidence.evidence_id, 'provider_output', asset_id)] = digest
+    ####
+    expected[(evidence.evidence_id, 'operator_manifest', 'operator-manifest')] = (
+      evidence.operator_manifest_sha256
+    )
+  ####
+  actual_keys = {
+    (record['evidence_id'], record['asset_kind'], record['asset_id'])
+    for record in records
+  }
+  expected_keys = set(expected)
+  missing = sorted(expected_keys - actual_keys)
+  unexpected = sorted(actual_keys - expected_keys)
+  if missing or unexpected:
+    details = []
+    if missing:
+      details.append(f'missing bindings: {missing!r}')
+    if unexpected:
+      details.append(f'unexpected bindings: {unexpected!r}')
+    raise ValueError('provider asset manifest bindings do not match evidence: ' + '; '.join(details))
+  ####
+  root = asset_root.resolve()
+  verified: list[dict[str, str]] = []
+  for record in records:
+    path = (root / record['relative_path']).resolve()
+    try:
+      path.relative_to(root)
+    except ValueError as error:
+      raise ValueError(
+        f'provider asset manifest path escapes asset_root: {record["relative_path"]!r}'
+      ) from error
+    ####
+    if not path.is_file():
+      raise ValueError(f'provider-bound asset file does not exist: {record["relative_path"]!r}')
+    ####
+    actual_digest = _sha256_file(path)
+    expected_digest = expected[
+      (record['evidence_id'], record['asset_kind'], record['asset_id'])
+    ]
+    if record['sha256'] != expected_digest:
+      raise ValueError(
+        f'provider asset manifest digest disagrees with evidence for '
+        f'{record["evidence_id"]}:{record["asset_kind"]}:{record["asset_id"]}'
+      )
+    ####
+    if actual_digest != expected_digest:
+      raise ValueError(
+        f'provider-bound asset digest mismatch for '
+        f'{record["evidence_id"]}:{record["asset_kind"]}:{record["asset_id"]}'
+      )
+    ####
+    verified.append({
+      'evidence_id': record['evidence_id'],
+      'asset_id': record['asset_id'],
+      'asset_kind': record['asset_kind'],
+      'relative_path': record['relative_path'],
+      'sha256': actual_digest,
+    })
+  ####
+  return {
+    'schema_id': PROVIDER_BOUND_ASSET_MANIFEST_SCHEMA,
+    'status': 'verified',
+    'asset_count': len(verified),
+    'evidence_count': len(evidence_by_claim),
+    'assets': verified,
+  }
 ####
 
 
@@ -872,6 +1085,8 @@ def build_provider_comparison_preflight(
   *,
   alignment_path: Path | None = None,
   provider_bound_evidence_path: Path | None = None,
+  provider_asset_root: Path | None = None,
+  provider_asset_manifest_path: Path | None = None,
 ) -> dict[str, Any]:
   """Validate the archive, probe current providers, and record blocked gates."""
 
@@ -891,6 +1106,13 @@ def build_provider_comparison_preflight(
     'provider_bound_evidence_source': _provider_bound_evidence_source_label(
       provider_bound_evidence_path
     ),
+    'provider_bound_asset_manifest_source': _provider_bound_evidence_source_label(
+      provider_asset_manifest_path
+    ),
+    'provider_bound_asset_verification': {
+      'status': 'not-required',
+      'reason': 'no provider-bound evidence handoff was supplied',
+    },
     'release_ready': False,
   }
   if corpus_report['status'] != 'preflight-valid-pending-release-gates':
@@ -920,6 +1142,81 @@ def build_provider_comparison_preflight(
       })
       return report
     ####
+    accepted_evidence = tuple(
+      evidence
+      for evidence in provider_bound_evidence.values()
+      if evidence.status is ComparisonEvidenceStatus.ACCEPTED
+    )
+    if accepted_evidence and (
+      provider_asset_root is None or provider_asset_manifest_path is None
+    ):
+      report.update({
+        'status': 'blocked-invalid-provider-evidence',
+        'errors': [
+          'accepted provider-bound evidence requires both '
+          '--provider-asset-root and --provider-asset-manifest so every '
+          'source, provider output, and operator manifest digest can be verified',
+        ],
+        'comparisons': [],
+        'release_blockers': [
+          'accepted provider-bound evidence was supplied without a verified asset manifest',
+        ],
+        'provider_bound_asset_verification': {
+          'status': 'blocked',
+          'reason': 'accepted evidence requires content-addressed asset verification',
+        },
+      })
+      return report
+    ####
+    if (provider_asset_root is None) != (provider_asset_manifest_path is None):
+      report.update({
+        'status': 'blocked-invalid-provider-evidence',
+        'errors': [
+          '--provider-asset-root and --provider-asset-manifest must be supplied together',
+        ],
+        'comparisons': [],
+        'release_blockers': [
+          'provider-bound asset verification arguments were incomplete',
+        ],
+      })
+      return report
+    ####
+    if provider_asset_root is not None and provider_asset_manifest_path is not None:
+      try:
+        report['provider_bound_asset_verification'] = (
+          verify_provider_bound_evidence_assets(
+            provider_bound_evidence,
+            asset_root=provider_asset_root,
+            asset_manifest_path=provider_asset_manifest_path,
+          )
+        )
+      except (OSError, TypeError, ValueError) as error:
+        report.update({
+          'status': 'blocked-invalid-provider-evidence',
+          'errors': [str(error)],
+          'comparisons': [],
+          'release_blockers': [
+            'provider-bound asset manifest or digest verification failed',
+          ],
+          'provider_bound_asset_verification': {
+            'status': 'blocked',
+            'reason': str(error),
+          },
+        })
+        return report
+    ####
+  elif provider_asset_root is not None or provider_asset_manifest_path is not None:
+    report.update({
+      'status': 'blocked-invalid-provider-evidence',
+      'errors': [
+        'provider asset verification arguments require --provider-bound-evidence',
+      ],
+      'comparisons': [],
+      'release_blockers': [
+        'provider-bound asset verification was supplied without evidence records',
+      ],
+    })
+    return report
   ####
 
   with ZipFile(path) as archive:
@@ -984,12 +1281,30 @@ def main(argv: list[str] | None = None) -> int:
       f'{PROVIDER_BOUND_EVIDENCE_SCHEMA}'
     ),
   )
+  parser.add_argument(
+    '--provider-asset-root',
+    type=Path,
+    help=(
+      'root directory for files referenced by accepted provider-bound '
+      'evidence; must be supplied with --provider-asset-manifest'
+    ),
+  )
+  parser.add_argument(
+    '--provider-asset-manifest',
+    type=Path,
+    help=(
+      'strict content-addressed asset manifest using '
+      f'{PROVIDER_BOUND_ASSET_MANIFEST_SCHEMA}'
+    ),
+  )
   parser.add_argument('--output', type=Path)
   args = parser.parse_args(argv)
   report = build_provider_comparison_preflight(
     args.corpus,
     alignment_path=args.alignment,
     provider_bound_evidence_path=args.provider_bound_evidence,
+    provider_asset_root=args.provider_asset_root,
+    provider_asset_manifest_path=args.provider_asset_manifest,
   )
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'
   if args.output is not None:
