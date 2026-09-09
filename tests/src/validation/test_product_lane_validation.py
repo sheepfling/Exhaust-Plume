@@ -8,6 +8,7 @@ from scripts.validate_product_lanes import (
   _run_cross_product_consistency,
   _run_curved_optical_lane,
   _run_fpa_boundary,
+  _run_model_visualization_lanes,
   _run_optical_lane,
   _run_signature_lane,
   _run_visual_lane,
@@ -48,6 +49,31 @@ def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> 
     entry['local_geometry_invariants']['status'] == 'passed'
     for entry in report['provider_reports']
   )
+  assert report['external_comparison']['status'] == 'pending'
+
+
+def test_all_five_model_visualization_lanes_are_checked_as_one_bundle_contract() -> None:
+  report = _run_model_visualization_lanes()
+
+  assert report['status'] == 'passed'
+  assert report['bundle_count'] == 5
+  assert report['lanes'] == [
+    'shock-cell-basic-v1',
+    'shock-cell-reduced-order-v1',
+    'straight-integral-v1',
+    'washed-integral-v1',
+    'planar-moc-primitives-v1',
+  ]
+  assert report['common_bundle_shape_passed'] is True
+  assert report['claim_separation_passed'] is True
+  assert report['deterministic_bundle_serialization_passed'] is True
+  assert report['production_claim_allowed'] == {
+    'shock-cell-basic-v1': True,
+    'shock-cell-reduced-order-v1': False,
+    'straight-integral-v1': False,
+    'washed-integral-v1': False,
+    'planar-moc-primitives-v1': False,
+  }
   assert report['external_comparison']['status'] == 'pending'
 ####
 

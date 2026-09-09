@@ -8,6 +8,7 @@ import json
 from math import cos, exp, isclose, isfinite, pi, sin
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 from typing import Any, Callable
 
 
@@ -45,14 +46,39 @@ from exhaust_plume.models.shock_cells import (  # noqa: E402
   ShockCellSolveConfig,
   solve_first_cell_from_exit_state,
 )
+from exhaust_plume.models.integral import (  # noqa: E402
+  IntegralStraightResult,
+  IntegralStraightState,
+)
+from exhaust_plume.models.moc.primitives import CharacteristicState  # noqa: E402
+from exhaust_plume.models.plume.curved_plume_closures import (  # noqa: E402
+  CurvedPlumeResult,
+  CurvedPlumeTermination,
+)
+from exhaust_plume.models.plume.curved_plume_state import (  # noqa: E402
+  CurvedPlumeStation,
+)
+from exhaust_plume.models.shock_train import (  # noqa: E402
+  GeometryFidelity,
+  ShockCellMetrics,
+  ShockTrainCell,
+  ShockTrainResult,
+  ShockTrainStatus,
+)
+from exhaust_plume.contracts.termination import (  # noqa: E402
+  TerminationReason,
+  TerminationReport,
+)
 from exhaust_plume.products import (  # noqa: E402
   LineRadiationProfile,
   LtePopulationClosure,
   LteTransition,
+  MODEL_VISUALIZATION_LANES,
   ModelSignatureSampling,
   ModelVisualizationLane,
   SectionedGrayRadiationProfile,
   evaluate_model_signature,
+  standardize_all_model_visualizations,
   standardize_model_visualization,
 )
 from exhaust_plume.radiation import FarFieldRayIntegration, far_field_from_rays  # noqa: E402
@@ -183,6 +209,250 @@ def _visual_request(frame_id: str) -> VisualSectionedTubeRequest:
 ####
 
 
+def _model_visualization_contract_inputs() -> dict[ModelVisualizationLane, object]:
+  """Build small repository-local inputs for all five visual model lanes.
+
+  These are contract fixtures, not observations.  Keeping them here makes the
+  executable lane report exercise the same five-lane adapter that the product
+  exposes, while the claim metadata continues to distinguish the basic lane
+  from the reduced-order, integral, and research MOC lanes.
+  """
+
+  operating_state = _analytical_state(1.2)
+  basic = solve_first_cell_from_exit_state(
+    operating_state.nozzle_exit,
+    operating_state.ambient,
+    ShockCellSolveConfig(
+      exit=operating_state.nozzle_exit,
+      ambient=operating_state.ambient,
+      expansion_characteristics=2,
+      compression_characteristics=1,
+      pressure_match_rtol=1.0e-4,
+      max_cells=1,
+    ),
+  )
+  ####
+
+  reduced_metrics = tuple(
+    ShockCellMetrics(
+      cell_index=index,
+      start_x_m=float(index - 1) * 2.0,
+      end_x_m=float(index) * 2.0,
+      length_m=2.0,
+      effective_core_diameter_m=2.0 - 0.2 * index,
+      core_mach=2.5 - 0.1 * index,
+      mean_pressure_Pa=100_000.0 - 5_000.0 * index,
+      maximum_pressure_Pa=110_000.0 - 5_000.0 * index,
+      minimum_pressure_Pa=90_000.0 - 5_000.0 * index,
+      pressure_oscillation_ratio=0.5 / index,
+      mean_pressure_residual=0.01,
+      inlet_total_pressure_Pa=100_000.0,
+      outlet_total_pressure_Pa=99_000.0,
+      geometry_fidelity=(
+        GeometryFidelity.RESOLVED_FIRST_CELL
+        if index == 1
+        else GeometryFidelity.SCALED_REDUCED_ORDER
+      ),
+    )
+    for index in (1, 2)
+  )
+  reduced = ShockTrainResult(
+    cells=tuple(ShockTrainCell(metrics=metric) for metric in reduced_metrics),
+    shock_train_end_x_m=4.0,
+    supersonic_core_end_x_m=4.0,
+    thermal_plume_end_x_m=4.0,
+    termination=TerminationReport(
+      reason=TerminationReason.SPATIAL_DOMAIN_LIMIT,
+      is_physical=False,
+      message='repository-local visual contract fixture',
+    ),
+    status=ShockTrainStatus.TRUNCATED,
+    was_domain_truncated=True,
+    calibration_id='repository-local-visual-contract-fixture-v1',
+  )
+  ####
+
+  straight = IntegralStraightResult(
+    states=tuple(
+      IntegralStraightState(
+        x_m=float(index),
+        mass_flow_rate_kg_s=1.0 + index,
+        momentum_flux_N=100.0 + index,
+        total_enthalpy_flux_W=1_000.0 + index,
+        velocity_mps=100.0 - index,
+        temperature_K=300.0 + index,
+        pressure_Pa=100_000.0,
+        density_kgpm3=1.0,
+        radius_m=0.5 + 0.1 * index,
+        species_mass_fractions=(),
+      )
+      for index in range(3)
+    ),
+    termination_reason=TerminationReason.SPATIAL_DOMAIN_LIMIT,
+    termination_x_m=2.0,
+    termination_is_physical=False,
+    conservation_residuals={
+      'momentum_relative': 0.0,
+      'total_enthalpy_relative': 0.0,
+    },
+  )
+  ####
+
+  curved = CurvedPlumeResult(
+    stations=tuple(
+      CurvedPlumeStation(
+        arc_length_m=float(index),
+        position_m=(float(index), 0.1 * index * index, 0.0),
+        mass_flow_kgps=10.0,
+        momentum_flux_N=(1_000.0, 0.0, 0.0),
+        momentum_derivative_Npm=(0.0, 0.0, 0.0),
+        velocity_mps=(100.0, 5.0, 0.0),
+        total_energy_flow_W=1.0e6,
+        exhaust_mass_flow_kgps=1.0,
+        exhaust_mass_fraction=0.5,
+        temperature_K=1_000.0 - index,
+        pressure_Pa=100_000.0,
+        density_kgpm3=1.0,
+        specific_heat_JpkgK=1_000.0,
+        gas_constant_JpkgK=287.0,
+        area_m2=1.0,
+        radius_m=0.5 + 0.1 * index,
+        ambient_velocity_mps=(0.0, 0.0, 0.0),
+        ambient_temperature_K=300.0,
+        ambient_density_kgpm3=1.0,
+        relative_velocity_mps=(100.0, 5.0, 0.0),
+        entrainment_kgpspm=0.1,
+        curvature_per_m=0.01,
+        slenderness_ratio=0.1,
+      )
+      for index in range(3)
+    ),
+    termination=CurvedPlumeTermination.DOMAIN_LIMIT,
+    solver_message='repository-local visual contract fixture',
+    function_evaluations=3,
+  )
+  ####
+
+  class _ContractMocField:
+    cells = (
+      SimpleNamespace(
+        vertices_xr_m=((0.5, 0.0), (1.0, 0.4), (1.5, 0.0)),
+      ),
+      SimpleNamespace(
+        vertices_xr_m=((1.0, 0.0), (1.5, 0.0), (2.0, 0.2)),
+      ),
+    )
+    shock_boundary_points_m = ((0.5, 0.4), (1.0, 0.3), (1.5, 0.0))
+    ambient_boundary_points_m = ((1.5, 0.0), (1.75, 0.15), (2.0, 0.0))
+    centerline_boundary_points_m = (
+      (0.5, 0.0),
+      (1.0, 0.0),
+      (1.5, 0.0),
+      (2.0, 0.0),
+    )
+    centerline_boundary_states = tuple(
+      CharacteristicState(
+        x_m=x,
+        y_m=0.0,
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=1.4,
+      )
+      for x in (0.5, 1.0, 1.5, 2.0)
+    )
+    centerline_boundary_total_pressure_Pa = (
+      200_000.0,
+      190_000.0,
+      180_000.0,
+      170_000.0,
+    )
+    physical_closure_verified = True
+    state_sampling_available = True
+
+    @staticmethod
+    def state_at(point: tuple[float, float]) -> CharacteristicState:
+      return CharacteristicState(
+        x_m=float(point[0]),
+        y_m=float(point[1]),
+        theta_rad=0.0,
+        mach=2.0,
+        gamma=1.4,
+      )
+
+    @staticmethod
+    def total_pressure_at(_point: tuple[float, float]) -> float:
+      return 180_000.0
+    ####
+
+  moc = SimpleNamespace(
+    status='converged-global-physical-closure',
+    field=_ContractMocField(),
+    physical_closure_verified=True,
+    state_sampling_available=True,
+    production_claim_allowed=False,
+  )
+  return {
+    ModelVisualizationLane.BASIC_SHOCK_CELL: basic,
+    ModelVisualizationLane.REDUCED_ORDER_SHOCK_TRAIN: reduced,
+    ModelVisualizationLane.STRAIGHT_INTEGRAL: straight,
+    ModelVisualizationLane.CURVED_INTEGRAL: curved,
+    ModelVisualizationLane.PLANAR_MOC: moc,
+  }
+####
+
+
+def _run_model_visualization_lanes() -> dict[str, Any]:
+  """Exercise the common renderer-neutral bundle for every visual lane."""
+
+  bundles = standardize_all_model_visualizations(
+    _model_visualization_contract_inputs(),
+    frame_id='source-local',
+    section_count=12,
+  )
+  expected_lanes = tuple(lane.value for lane in MODEL_VISUALIZATION_LANES)
+  actual_lanes = tuple(bundle.lane.value for bundle in bundles)
+  shape_passed = bool(
+    actual_lanes == expected_lanes
+    and all(len(bundle.sectioned_tube.sections) >= 2 for bundle in bundles)
+    and all(bundle.sectioned_tube.frame_id == 'source-local' for bundle in bundles)
+  )
+  claim_separation_passed = bool(
+    bundles[0].claims.production_claim_allowed
+    and all(not bundle.claims.production_claim_allowed for bundle in bundles[1:])
+  )
+  serialization_passed = all(
+    isinstance(bundle.model_dump(), dict)
+    and bool(canonical_digest(bundle.model_dump()))
+    for bundle in bundles
+  )
+  passed = shape_passed and claim_separation_passed and serialization_passed
+  return {
+    'lane_id': 'standardized-visualization-all-five-v1',
+    'status': 'passed' if passed else 'failed',
+    'lanes': list(actual_lanes),
+    'bundle_count': len(bundles),
+    'common_bundle_shape_passed': shape_passed,
+    'claim_separation_passed': claim_separation_passed,
+    'deterministic_bundle_serialization_passed': serialization_passed,
+    'production_claim_allowed': {
+      bundle.lane.value: bundle.claims.production_claim_allowed
+      for bundle in bundles
+    },
+    'external_comparison': {
+      'status': 'pending',
+      'reason': (
+        'These are repository-local contract fixtures; provider-bound visual '
+        'observations remain a separate release gate.'
+      ),
+    },
+    'claim_ceiling': (
+      'Common renderer-neutral visualization contract only; reduced-order '
+      'and planar-MOC bundles retain their declared non-production ceilings.'
+    ),
+  }
+####
+
+
 def _run_visual_lane() -> dict[str, Any]:
   pose = Pose(
     frame_id='world',
@@ -260,22 +530,25 @@ def _run_visual_lane() -> dict[str, Any]:
       },
     })
   ####
+  standardized_lanes = _run_model_visualization_lanes()
   all_conformant = all(report['contract_conformance'] for report in provider_reports)
   all_deterministic = all(report['deterministic_serialization'] for report in provider_reports)
   all_geometry_invariants = all(
     report['local_geometry_invariants']['status'] == 'passed'
     for report in provider_reports
   )
+  standardized_lanes_passed = standardized_lanes['status'] == 'passed'
   return {
     'lane_id': 'shock-cell-basic-v1',
     'product_id': VISUAL_SECTIONED_TUBE_V1.capability.wire_id,
     'provider_ids': [report['provider_id'] for report in provider_reports],
     'status': 'passed' if all(
-      (all_conformant, all_deterministic, all_geometry_invariants)
+      (all_conformant, all_deterministic, all_geometry_invariants, standardized_lanes_passed)
     ) else 'failed',
     'contract_conformance': all_conformant,
     'deterministic_serialization': all_deterministic,
     'local_geometry_invariants': 'passed' if all_geometry_invariants else 'failed',
+    'standardized_model_lanes': standardized_lanes,
     'provider_reports': provider_reports,
     'cases': case_summaries,
     'external_comparison': {

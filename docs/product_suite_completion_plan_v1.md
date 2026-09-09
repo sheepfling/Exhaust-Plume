@@ -2925,3 +2925,20 @@ or provider outputs are external blockers to record and request, not inputs to
 replace with synthetic observations.  Approximate lanes remain useful for
 Visualization and engineering exploration, but they never inherit the
 canonical solver's unresolved claims.
+
+### Five-lane executable Visualization checkpoint — 2026-09-08
+
+The product-lane validator now exercises the complete standardized
+Visualization adapter, not only the basic straight provider.  Its local
+contract fixture produces one common bundle for
+`shock-cell-basic-v1`, `shock-cell-reduced-order-v1`, `straight-integral-v1`,
+`washed-integral-v1`, and `planar-moc-primitives-v1`, checks the common section
+shape and deterministic serialization, and verifies that only the basic lane
+retains its existing local production flag.  Reduced-order, integral, and
+planar-MOC bundles remain explicitly non-production.
+
+The focused validation passes (`8 passed`), and the complete product-lane
+validator returns `local_status=passed` while retaining
+`release_ready=false`.  These fixtures establish local adapter coverage only;
+provider-bound visual observations, canonical planar-MOC closure, and the
+remaining Signature/ray/FPA external gates are unchanged.

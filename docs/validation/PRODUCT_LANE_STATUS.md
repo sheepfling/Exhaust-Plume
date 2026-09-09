@@ -322,12 +322,14 @@ python3 scripts/validate_provider_comparisons.py \
   --output provider-comparison-preflight.json
 ```
 
-This command currently passes the VIS provider/conformance cases, SIG table
+This command currently passes the VIS provider/conformance cases and the
+complete five-lane renderer-neutral Visualization bundle check, SIG table
 interpolation and explicit LTE line-source cases, the synthetic
 ray-to-signature operator checks, the deterministic FPA detector/ADC boundary,
 and source-bound FPA view projection checks. Its report intentionally remains
 `release_ready: false` until external measurement-operator comparisons and
-product-specific gate acceptance are complete.
+product-specific gate acceptance are complete. The five-lane bundle check uses
+repository-local contract fixtures; it is not external validation evidence.
 
 The missing external archive is a release blocker, not a reason to weaken the
 fidelity boundaries or synthesize replacement measurements.
