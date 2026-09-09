@@ -3946,3 +3946,9 @@ evidence.  The next implementation slice is to feed this contract from the
 verified terminal handoff and implement the actual moving-interface/subsonic
 field iteration.  No existing variable-entropy, quasi-1D, planar-potential,
 or endpoint-profile result may be substituted for that solver.
+
+The verified terminal handoff now has an explicit bridge into this request:
+it retains the exact scalar geometry and one conservative downstream sample,
+then returns ``interface_geometry_required`` because no moving trace has been
+solved.  This bridge is intentionally a typed stop, not a fallback inlet
+profile and not a field-completion claim.

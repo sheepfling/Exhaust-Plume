@@ -28,6 +28,7 @@ __all__ = (
   'MocMovingMixedRegimeInterfaceStatus',
   'MocMovingMixedRegimeInterfaceAuditStatus',
   'MocMovingMixedRegimeConservativeBoundarySample',
+  'build_moc_terminal_conservative_boundary_sample',
   'MocMovingMixedRegimeInterfaceRequest',
   'MocMovingMixedRegimeInterfaceResult',
   'MocMovingMixedRegimeInterfaceAudit',
@@ -198,6 +199,32 @@ class MocMovingMixedRegimeConservativeBoundarySample:
       'source': self.source,
     }
   ####
+
+
+def build_moc_terminal_conservative_boundary_sample(
+  geometry: MocTransonicShockGeometryResult,
+  *,
+  index: int = 0,
+  source: str = 'solver-owned-terminal-rankine-hugoniot-boundary-state-v1',
+) -> MocMovingMixedRegimeConservativeBoundarySample:
+  """Convert only the audited scalar downstream state into one boundary sample.
+
+  This helper deliberately creates one exact terminal sample.  It does not
+  extend the state to another ordinate or create a moving-interface trace.
+  """
+
+  if not isinstance(geometry, MocTransonicShockGeometryResult):
+    raise TypeError('geometry must be a MocTransonicShockGeometryResult')
+  ####
+  if not geometry.geometry_verified:
+    raise ValueError('geometry must be verified before its terminal state is consumed')
+  ####
+  return MocMovingMixedRegimeConservativeBoundarySample(
+    index=index,
+    point_m=geometry.shock_point_m,
+    conservative_state=_terminal_downstream_conservative_state(geometry),
+    source=source,
+  )
 
 
 @dataclass(frozen=True, slots=True)

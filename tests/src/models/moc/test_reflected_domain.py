@@ -56,6 +56,7 @@ from exhaust_plume.models.moc import (
   MocTransonicShockInterfaceFieldPlacementStatus,
   MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceSample,
+  MocMovingMixedRegimeInterfaceStatus,
   MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileStatus,
   MocPhysicalFieldEulerReconciliationRequest,
@@ -115,6 +116,7 @@ from exhaust_plume.models.moc import (
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_coupled_euler_free_boundary,
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
+  prepare_moc_moving_mixed_regime_interface,
   assess_reflected_domain_coupled_euler_subsonic_pressure_budget,
   assess_reflected_domain_coupled_euler_pressure_profile_compatibility,
   assess_reflected_domain_coupled_euler_transonic_transition,
@@ -208,6 +210,7 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_field imp
   MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAuditStatus,
   MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageRequest,
   MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageStatus,
+  build_reflected_domain_global_transonic_mixed_wave_moving_interface_request_from_terminal_handoff,
   assess_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage,
   measure_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage,
 )
@@ -1157,6 +1160,29 @@ def test_global_transonic_mixed_wave_terminal_scalar_handoff_is_exact_and_stays_
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+
+  moving_request = (
+    build_reflected_domain_global_transonic_mixed_wave_moving_interface_request_from_terminal_handoff(
+      handoff,
+      upper_y_m=handoff.geometry.shock_point_m[1] + 0.05,
+      sample_count=9,
+    )
+  )
+  assert moving_request.terminal_geometry is handoff.geometry
+  assert moving_request.interface_points_m == (handoff.geometry.shock_point_m,)
+  assert moving_request.boundary_samples[0].point_m == (
+    handoff.geometry.shock_point_m
+  )
+  moving_result = prepare_moc_moving_mixed_regime_interface(moving_request)
+  assert moving_result.status is (
+    MocMovingMixedRegimeInterfaceStatus.INTERFACE_GEOMETRY_REQUIRED
+  )
+  assert moving_result.terminal_conservative_state_verified is False
+  assert moving_result.subsonic_field_required
+  assert moving_result.moving_interface_solve_attempted is False
+  assert moving_result.physical_closure_verified is False
+  assert moving_result.chain_promotion_blocked
+  assert moving_result.production_claim_allowed is False
 
   tampered_geometry = replace(
     handoff.geometry,

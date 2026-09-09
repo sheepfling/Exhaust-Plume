@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from math import cos, sin
-
 from exhaust_plume.models.moc import (
   MocMovingMixedRegimeConservativeBoundarySample,
   MocMovingMixedRegimeInterfaceAuditStatus,
   MocMovingMixedRegimeInterfaceRequest,
   MocMovingMixedRegimeInterfaceStatus,
   MocTransonicShockGeometryRequest,
+  build_moc_terminal_conservative_boundary_sample,
   measure_moc_moving_mixed_regime_interface,
   prepare_moc_moving_mixed_regime_interface,
   reconstruct_moc_transonic_shock_state,
@@ -35,20 +34,16 @@ def _geometry():
 
 
 def _terminal_sample(geometry, index: int, y_m: float):
-  state = geometry.request.shock_state
-  density = state.downstream_density_kg_m3
-  speed = state.downstream_speed_m_s
-  pressure = state.downstream_static_pressure_Pa
-  conservative = (
-    density,
-    density * speed * cos(state.upstream_flow_angle_rad),
-    density * speed * sin(state.upstream_flow_angle_rad),
-    pressure / (state.gamma - 1.0) + 0.5 * density * speed**2,
+  terminal = build_moc_terminal_conservative_boundary_sample(
+    geometry,
+    index=index,
   )
   return MocMovingMixedRegimeConservativeBoundarySample(
-    index=index,
-    point_m=(1.0, y_m),
-    conservative_state=conservative,
+    index=terminal.index,
+    point_m=(terminal.point_m[0], y_m),
+    conservative_state=terminal.conservative_state,
+    normal_m=terminal.normal_m,
+    source=terminal.source,
   )
 
 

@@ -14,6 +14,10 @@ from dataclasses import dataclass
 from enum import Enum
 from math import isfinite
 from exhaust_plume.models.moc.primitives import CharacteristicState
+from exhaust_plume.models.moc.moving_mixed_regime_interface import (
+  MocMovingMixedRegimeInterfaceRequest,
+  build_moc_terminal_conservative_boundary_sample,
+)
 from exhaust_plume.models.moc.terminal_patch import (
   MocTerminalReflectionPatchResult,
 )
@@ -32,6 +36,7 @@ __all__ = (
   'MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageResult',
   'MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAuditStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAudit',
+  'build_reflected_domain_global_transonic_mixed_wave_moving_interface_request_from_terminal_handoff',
   'assess_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage',
   'measure_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage',
 )
@@ -169,6 +174,60 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageRequest:
       'sample_points_m': list(self.sample_points()),
       'source': self.source,
     }
+  ####
+
+
+def build_reflected_domain_global_transonic_mixed_wave_moving_interface_request_from_terminal_handoff(
+  handoff: MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffResult,
+  *,
+  upper_y_m: float,
+  sample_count: int = DEFAULT_SAMPLE_COUNT,
+  gas_constant_J_kgK: float | None = None,
+  source: str = 'solver-owned-terminal-handoff-moving-interface-request-v1',
+) -> MocMovingMixedRegimeInterfaceRequest:
+  """Build the next solver request from the exact audited scalar handoff.
+
+  Only the terminal point/state is materialized here.  The singleton
+  interface geometry intentionally leaves the downstream moving trace
+  unsolved, so the next solver returns a typed geometry/field requirement
+  instead of extending the open reflection patch.
+  """
+
+  if not isinstance(
+    handoff,
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffResult,
+  ):
+    raise TypeError('handoff must be a typed terminal-handoff result')
+  ####
+  handoff_audit = measure_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
+    handoff
+  )
+  if not handoff.handoff_verified or not handoff_audit.converged:
+    raise ValueError(
+      'moving-interface request requires an independently verified scalar '
+      'terminal handoff'
+    )
+  ####
+  geometry = handoff.geometry
+  assert geometry is not None
+  terminal_sample = build_moc_terminal_conservative_boundary_sample(geometry)
+  terminal_x, terminal_y = geometry.shock_point_m
+  shock_state = geometry.request.shock_state
+  return MocMovingMixedRegimeInterfaceRequest(
+    terminal_geometry=geometry,
+    interface_points_m=(geometry.shock_point_m,),
+    boundary_samples=(terminal_sample,),
+    cross_section_x_m=terminal_x,
+    lower_y_m=terminal_y,
+    upper_y_m=upper_y_m,
+    sample_count=sample_count,
+    gas_constant_J_kgK=(
+      shock_state.gas_constant_J_kgK
+      if gas_constant_J_kgK is None
+      else gas_constant_J_kgK
+    ),
+    source=source,
+  )
   ####
 
 
