@@ -31,6 +31,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalPhysicalClosureStatus,
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
@@ -107,6 +108,7 @@ from exhaust_plume.models.moc import (
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
+  build_reflected_domain_global_coupled_downstream_boundary_trace,
   build_reflected_domain_global_frontier_reconciliation_request,
   moc_reflected_domain_global_frontier_proposal_fingerprint,
   reconcile_reflected_domain_global_frontier,
@@ -3292,6 +3294,44 @@ def test_global_coupled_downstream_candidate_keeps_feedback_gate_explicit():
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
+
+
+def test_global_coupled_downstream_retains_a_separate_full_state_boundary_trace():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  assert result.converged
+  trace = result.downstream_boundary_trace
+  assert trace is not None
+  assert trace.status is (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus
+    .CONVERGED_LOCAL_TRACE
+  )
+  assert trace.local_trace_verified
+  assert trace.sample_count == result.coupled_field.request.axial_cell_count + 1
+  assert len(trace.pressure_residuals_Pa) == trace.sample_count
+  assert len(trace.normal_velocity_residuals_m_s) == trace.sample_count - 1
+  assert len(trace.tangent_residuals_rad) == trace.sample_count - 1
+  assert any(sample.mach < 1.0 for sample in trace.samples)
+  assert trace.downstream_boundary_closure_verified is False
+  assert trace.canonical_free_boundary_verified is False
+  assert trace.chain_promotion_blocked
+  assert trace.production_claim_allowed is False
+  assert result.as_report()['downstream_boundary_trace']['local_trace_verified'] is True
+
+  rebuilt = build_reflected_domain_global_coupled_downstream_boundary_trace(
+    result
+  )
+  assert rebuilt == trace
 ####
 
 

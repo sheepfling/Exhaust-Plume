@@ -3041,6 +3041,24 @@ ceiling and keeping `release_ready=false`.  This is a current local evidence
 refresh, not a replacement for the missing archive or provider-bound
 measurements.
 
+### Coupled-Euler boundary-trace contract checkpoint — 2026-09-09
+
+The global-to-coupled downstream candidate now retains an explicit full-state
+boundary trace reconstructed from its audited coupled-Euler top row.  Each
+trace sample carries conservative state, density, velocity, static and total
+pressure, temperature, Mach, entropy proxy, flow angle, and exact boundary
+coordinates; pressure, normal-velocity, and geometric-tangent residuals are
+retained on their aligned node/segment grids.  The trace is a separate
+contract from the supersonic MOC frontier because the coupled field may be
+subsonic, so it cannot be silently cast into `CharacteristicState` samples.
+
+The trace is locally independently checkable and is useful input for the
+future global feedback operator, Visualization, and Signature sampling.  It
+still reports canonical free-boundary and downstream closure as false and
+blocks chain/production promotion.  Global feedback consumption, strict
+cross-case refinement, disjoint physical observations, and the missing V8 /
+alignment/provider archives remain release blockers.
+
 ### Separate alignment-archive preflight checkpoint — 2026-09-08
 
 Provider-comparison preflight now accepts the separately named

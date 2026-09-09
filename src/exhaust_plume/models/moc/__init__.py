@@ -432,6 +432,9 @@ from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamStatus,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample,
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
@@ -448,6 +451,7 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
+  build_reflected_domain_global_coupled_downstream_boundary_trace,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
 )
@@ -1244,6 +1248,9 @@ __all__ = (
   'build_reflected_domain_mixed_regime_boundary_request',
   'solve_reflected_domain_mixed_regime_boundary',
   'MocReflectedDomainGlobalCoupledDownstreamStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace',
   'MocReflectedDomainGlobalPhysicalFieldHandoff',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile',
@@ -1260,6 +1267,7 @@ __all__ = (
   'build_reflected_domain_global_coupled_downstream_feedback_pressure_profile',
   'build_reflected_domain_global_coupled_downstream_feedback_geometry_profile',
   'build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal',
+  'build_reflected_domain_global_coupled_downstream_boundary_trace',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'solve_reflected_domain_global_coupled_downstream',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_RECONCILIATION_MODEL',

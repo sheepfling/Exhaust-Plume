@@ -10,9 +10,9 @@ shock solve, so ``global_coupling_verified`` remains false by construction.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
-from math import atan2, isfinite
+from math import atan2, cos, hypot, isfinite, sin, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.chain import (
@@ -59,6 +59,9 @@ from exhaust_plume.models.moc.transonic_interface import (
 
 __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample',
+  'MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace',
   'MocReflectedDomainGlobalPhysicalFieldHandoff',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile',
@@ -72,6 +75,7 @@ __all__ = (
   'build_reflected_domain_global_coupled_downstream_feedback_pressure_profile',
   'build_reflected_domain_global_coupled_downstream_feedback_geometry_profile',
   'build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal',
+  'build_reflected_domain_global_coupled_downstream_boundary_trace',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'MocReflectedDomainGlobalCoupledDownstreamResult',
   'build_reflected_domain_global_solver_owned_transonic_interface_placement',
@@ -91,6 +95,9 @@ GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_PRESSURE_PROFILE_MODEL = (
 )
 GLOBAL_COUPLED_DOWNSTREAM_UPSTREAM_FEEDBACK_PROPOSAL_MODEL = (
   'research-global-coupled-downstream-upstream-feedback-proposal-v1'
+)
+GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_TRACE_MODEL = (
+  'research-global-coupled-euler-free-boundary-trace-v1'
 )
 
 
@@ -136,6 +143,311 @@ class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus(
   INVALID_INPUT = 'invalid_input'
   COVERAGE_FAILURE = 'upstream-feedback-coverage-failure'
   RESPONSE_FAILURE = 'upstream-feedback-response-failure'
+####
+
+
+class MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus(str, Enum):
+  """Outcome of reconstructing a physical trace on the coupled boundary."""
+
+  CONVERGED_LOCAL_TRACE = 'converged-local-coupled-boundary-trace'
+  INVALID_INPUT = 'invalid_input'
+  LINEAGE_FAILURE = 'coupled-boundary-trace-lineage-failure'
+  FIELD_NOT_READY = 'coupled-boundary-trace-field-not-ready'
+  TRACE_RESIDUAL_FAILURE = 'coupled-boundary-trace-residual-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample:
+  """A full-state sample reconstructed at one free-boundary node.
+
+  The coupled Euler mesh stores conservative states at cell centers.  The
+  trace uses the adjacent top-row conservative state at the two endpoints and
+  their conservative average at interior nodes.  That reconstruction is
+  explicit in the model name and is never presented as a canonical wall
+  state or as a supersonic MOC ``CharacteristicState``.
+  """
+
+  point_m: tuple[float, float]
+  conservative_state: tuple[float, float, float, float]
+  density_kg_m3: float
+  velocity_u_m_s: float
+  velocity_v_m_s: float
+  static_pressure_Pa: float
+  temperature_K: float
+  mach: float
+  total_pressure_Pa: float
+  entropy_proxy: float
+  flow_angle_rad: float
+  gamma: float
+
+  def __post_init__(self) -> None:
+    point = (float(self.point_m[0]), float(self.point_m[1]))
+    if any(not isfinite(value) for value in point):
+      raise ValueError('point_m must contain finite coordinates')
+    ####
+    conservative_state = tuple(float(value) for value in self.conservative_state)
+    if len(conservative_state) != 4 or any(
+      not isfinite(value) for value in conservative_state
+    ):
+      raise ValueError('conservative_state must contain four finite values')
+    ####
+    for name in (
+      'density_kg_m3',
+      'static_pressure_Pa',
+      'temperature_K',
+      'total_pressure_Pa',
+      'entropy_proxy',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    for name in (
+      'velocity_u_m_s',
+      'velocity_v_m_s',
+      'mach',
+      'flow_angle_rad',
+      'gamma',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value):
+        raise ValueError(f'{name} must be finite')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    if self.mach < 0.0:
+      raise ValueError('mach must be nonnegative')
+    ####
+    if self.gamma <= 1.0:
+      raise ValueError('gamma must be greater than one')
+    ####
+    object.__setattr__(self, 'point_m', point)
+    object.__setattr__(self, 'conservative_state', conservative_state)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'point_m': list(self.point_m),
+      'conservative_state': list(self.conservative_state),
+      'density_kg_m3': self.density_kg_m3,
+      'velocity_u_m_s': self.velocity_u_m_s,
+      'velocity_v_m_s': self.velocity_v_m_s,
+      'static_pressure_Pa': self.static_pressure_Pa,
+      'temperature_K': self.temperature_K,
+      'mach': self.mach,
+      'total_pressure_Pa': self.total_pressure_Pa,
+      'entropy_proxy': self.entropy_proxy,
+      'flow_angle_rad': self.flow_angle_rad,
+      'gamma': self.gamma,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
+  """Explicit local evidence for the coupled-Euler free-boundary seam.
+
+  This trace is deliberately separate from
+  ``MocReflectedDomainDownstreamBoundaryResult``.  The latter is a supersonic
+  MOC frontier made of ``CharacteristicState`` values; the coupled field can
+  be subsonic and therefore needs a full primitive/conservative-state trace.
+  Keeping these contracts separate prevents a local Euler boundary sample
+  from being silently promoted into a canonical MOC boundary.
+  """
+
+  status: MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus
+  model: str
+  source_closure_fingerprint: str | None
+  samples: tuple[MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample, ...] = ()
+  pressure_residuals_Pa: tuple[float, ...] = ()
+  pressure_residual_fractions: tuple[float, ...] = ()
+  normal_velocity_residuals_m_s: tuple[float, ...] = ()
+  normal_velocity_residual_fractions: tuple[float, ...] = ()
+  tangent_residuals_rad: tuple[float, ...] = ()
+  geometry_verified: bool = False
+  state_samples_verified: bool = False
+  field_audit_verified: bool = False
+  boundary_condition_verified: bool = False
+  residuals_verified: bool = False
+  pressure_tolerance_fraction: float = 0.10
+  normal_velocity_tolerance_fraction: float = 0.05
+  tangent_tolerance_rad: float = 5.0e-2
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus'
+      )
+    ####
+    model = str(self.model)
+    if not model:
+      raise ValueError('model must be a non-empty string')
+    ####
+    if self.source_closure_fingerprint is not None:
+      fingerprint = str(self.source_closure_fingerprint)
+      if not fingerprint:
+        raise ValueError('source_closure_fingerprint must be non-empty when supplied')
+      ####
+      object.__setattr__(self, 'source_closure_fingerprint', fingerprint)
+    ####
+    samples = tuple(self.samples)
+    if any(
+      not isinstance(
+        sample,
+        MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample,
+      )
+      for sample in samples
+    ):
+      raise TypeError(
+        'samples must contain '
+        'MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample values'
+      )
+    ####
+    object.__setattr__(self, 'samples', samples)
+    ####
+    for name in (
+      'pressure_residuals_Pa',
+      'pressure_residual_fractions',
+      'normal_velocity_residuals_m_s',
+      'normal_velocity_residual_fractions',
+      'tangent_residuals_rad',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
+      object.__setattr__(self, name, values)
+    ####
+    sample_count = len(samples)
+    if sample_count and (
+      len(self.pressure_residuals_Pa) != sample_count
+      or len(self.pressure_residual_fractions) != sample_count
+    ):
+      raise ValueError(
+        'pressure residual channels must align with boundary samples'
+      )
+    ####
+    if sample_count and (
+      len(self.normal_velocity_residuals_m_s) != sample_count - 1
+      or len(self.normal_velocity_residual_fractions) != sample_count - 1
+      or len(self.tangent_residuals_rad) != sample_count - 1
+    ):
+      raise ValueError(
+        'normal-velocity and tangent residual channels must align with '
+        'boundary segments'
+      )
+    ####
+    for name in (
+      'pressure_tolerance_fraction',
+      'normal_velocity_tolerance_fraction',
+      'tangent_tolerance_rad',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    for name in (
+      'geometry_verified',
+      'state_samples_verified',
+      'field_audit_verified',
+      'boundary_condition_verified',
+      'residuals_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    object.__setattr__(self, 'model', model)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def sample_count(self) -> int:
+    return len(self.samples)
+  ####
+
+  @property
+  def local_trace_verified(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus
+      .CONVERGED_LOCAL_TRACE
+      and self.sample_count >= 2
+      and self.geometry_verified
+      and self.state_samples_verified
+      and self.field_audit_verified
+      and self.boundary_condition_verified
+      and self.residuals_verified
+    )
+  ####
+
+  @property
+  def canonical_free_boundary_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def downstream_boundary_closure_verified(self) -> bool:
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'status': self.status.value,
+      'model': self.model,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
+      'sample_count': self.sample_count,
+      'samples': [sample.as_report() for sample in self.samples],
+      'pressure_residuals_Pa': list(self.pressure_residuals_Pa),
+      'pressure_residual_fractions': list(self.pressure_residual_fractions),
+      'normal_velocity_residuals_m_s': list(
+        self.normal_velocity_residuals_m_s
+      ),
+      'normal_velocity_residual_fractions': list(
+        self.normal_velocity_residual_fractions
+      ),
+      'tangent_residuals_rad': list(self.tangent_residuals_rad),
+      'geometry_verified': self.geometry_verified,
+      'state_samples_verified': self.state_samples_verified,
+      'field_audit_verified': self.field_audit_verified,
+      'boundary_condition_verified': self.boundary_condition_verified,
+      'residuals_verified': self.residuals_verified,
+      'local_trace_verified': self.local_trace_verified,
+      'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'pressure_tolerance_fraction': self.pressure_tolerance_fraction,
+      'normal_velocity_tolerance_fraction': (
+        self.normal_velocity_tolerance_fraction
+      ),
+      'tangent_tolerance_rad': self.tangent_tolerance_rad,
+      'message': self.message,
+    }
+  ####
 ####
 
 
@@ -1971,6 +2283,9 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
   downstream_boundary_response: (
     MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
   ) = None
+  downstream_boundary_trace: (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace | None
+  ) = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -2127,6 +2442,15 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       raise TypeError(
         'downstream_boundary_response must be a '
         'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse or None'
+      )
+    ####
+    if self.downstream_boundary_trace is not None and not isinstance(
+      self.downstream_boundary_trace,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace,
+    ):
+      raise TypeError(
+        'downstream_boundary_trace must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace or None'
       )
     ####
     object.__setattr__(self, 'message', str(self.message))
@@ -2372,12 +2696,351 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
         if self.downstream_boundary_response is None
         else self.downstream_boundary_response.as_report()
       ),
+      'downstream_boundary_trace': (
+        None
+        if self.downstream_boundary_trace is None
+        else self.downstream_boundary_trace.as_report()
+      ),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
   ####
+####
+
+
+def build_reflected_domain_global_coupled_downstream_boundary_trace(
+  candidate: MocReflectedDomainGlobalCoupledDownstreamResult,
+) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
+  """Build an explicit full-state trace from an audited coupled field.
+
+  The result is a local boundary contract for visualization, signature
+  sampling, and the future global feedback operator.  It is not converted
+  into the supersonic ``MocReflectedDomainDownstreamBoundaryResult`` because
+  the coupled field may contain subsonic states.  No extrapolation or
+  endpoint hold is used: the trace is built only from the retained top-row
+  cell states and the retained free-boundary nodes.
+  """
+
+  def failure(
+    status: MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus,
+    message: str,
+  ) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
+    return MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace(
+      status=status,
+      model=GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_TRACE_MODEL,
+      source_closure_fingerprint=(
+        None
+        if not isinstance(candidate, MocReflectedDomainGlobalCoupledDownstreamResult)
+        else candidate.source_closure_fingerprint
+      ),
+      message=message,
+    )
+  ####
+
+  if not isinstance(candidate, MocReflectedDomainGlobalCoupledDownstreamResult):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.INVALID_INPUT,
+      'candidate must be a '
+      'MocReflectedDomainGlobalCoupledDownstreamResult',
+    )
+  ####
+  fingerprint = candidate.source_closure_fingerprint
+  if fingerprint is None or not candidate.closure_lineage_verified:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.LINEAGE_FAILURE,
+      'coupled boundary trace requires the exact retained global closure '
+      'lineage; no cross-field trace was reconstructed',
+    )
+  ####
+  field = candidate.coupled_field
+  audit = candidate.coupled_field_audit
+  if (
+    field is None
+    or field.request is None
+    or audit is None
+    or not candidate.local_coupled_field_verified
+  ):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled boundary trace requires a locally converged coupled field and '
+      'its independent audit',
+    )
+  ####
+
+  request = field.request
+  axial_count = int(request.axial_cell_count)
+  transverse_count = int(request.transverse_cell_count)
+  points = tuple(field.free_boundary_points_m)
+  states = tuple(field.conservative_states_by_cell)
+  expected_state_count = axial_count * transverse_count
+  if (
+    axial_count < 1
+    or transverse_count < 1
+    or len(points) != axial_count + 1
+    or len(states) != expected_state_count
+  ):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled field retained no rectangular top-row state/node alignment '
+      'for boundary trace reconstruction',
+    )
+  ####
+  if any(
+    second[0] <= first[0]
+    for first, second in zip(points, points[1:])
+  ):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled boundary nodes must be strictly ordered in x before trace '
+      'reconstruction',
+    )
+  ####
+
+  control_samples = request.mixed_regime_request.control_section.samples
+  if not control_samples:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled boundary trace requires at least one retained control-section '
+      'thermodynamic sample',
+    )
+  ####
+  gamma = float(control_samples[0].gamma)
+  gas_constant = float(request.gas_constant_J_kgK)
+  if not isfinite(gamma) or gamma <= 1.0 or not isfinite(gas_constant) or gas_constant <= 0.0:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled boundary trace received invalid gas properties',
+    )
+  ####
+
+  top_states = tuple(
+    states[column * transverse_count + transverse_count - 1]
+    for column in range(axial_count)
+  )
+
+  def averaged_state(left: tuple[float, ...], right: tuple[float, ...]) -> tuple[float, ...]:
+    return tuple(0.5 * (float(first) + float(second)) for first, second in zip(left, right, strict=True))
+  ####
+
+  node_states = tuple(
+    top_states[0]
+    if node_index == 0
+    else top_states[-1]
+    if node_index == axial_count
+    else averaged_state(top_states[node_index - 1], top_states[node_index])
+    for node_index in range(axial_count + 1)
+  )
+
+  def build_sample(
+    point: tuple[float, float],
+    conservative_state: tuple[float, ...],
+  ) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample:
+    if len(conservative_state) != 4:
+      raise ValueError('coupled top-row state must contain four values')
+    ####
+    density = float(conservative_state[0])
+    if density <= 0.0 or not isfinite(density):
+      raise ValueError('coupled top-row density must be positive')
+    ####
+    velocity_u = float(conservative_state[1]) / density
+    velocity_v = float(conservative_state[2]) / density
+    kinetic = 0.5 * density * (velocity_u * velocity_u + velocity_v * velocity_v)
+    static_pressure = (gamma - 1.0) * (
+      float(conservative_state[3]) - kinetic
+    )
+    if static_pressure <= 0.0 or not isfinite(static_pressure):
+      raise ValueError('coupled top-row pressure must be positive')
+    ####
+    temperature = static_pressure / (density * gas_constant)
+    sound_speed = sqrt(gamma * static_pressure / density)
+    speed = hypot(velocity_u, velocity_v)
+    mach = speed / sound_speed
+    pressure_factor = 1.0 + 0.5 * (gamma - 1.0) * mach * mach
+    total_pressure = static_pressure * pressure_factor ** (
+      gamma / (gamma - 1.0)
+    )
+    entropy_proxy = static_pressure / density ** gamma
+    return MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample(
+      point_m=point,
+      conservative_state=tuple(float(value) for value in conservative_state),
+      density_kg_m3=density,
+      velocity_u_m_s=velocity_u,
+      velocity_v_m_s=velocity_v,
+      static_pressure_Pa=static_pressure,
+      temperature_K=temperature,
+      mach=mach,
+      total_pressure_Pa=total_pressure,
+      entropy_proxy=entropy_proxy,
+      flow_angle_rad=atan2(velocity_v, velocity_u),
+      gamma=gamma,
+    )
+  ####
+
+  try:
+    samples = tuple(
+      build_sample(point, state)
+      for point, state in zip(points, node_states, strict=True)
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      f'coupled boundary state reconstruction failed: {error}',
+    )
+  ####
+
+  pressure_targets = request.free_boundary_pressure_profile_Pa
+  if pressure_targets is None:
+    pressure_targets = tuple(
+      float(request.mixed_regime_request.ambient_pressure_Pa)
+      for _ in range(axial_count)
+    )
+  if len(pressure_targets) != axial_count:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled boundary pressure targets do not align with cell columns',
+    )
+  ####
+  node_targets = tuple(
+    float(pressure_targets[0])
+    if node_index == 0
+    else float(pressure_targets[-1])
+    if node_index == axial_count
+    else 0.5
+    * (float(pressure_targets[node_index - 1]) + float(pressure_targets[node_index]))
+    for node_index in range(axial_count + 1)
+  )
+  reported_pressure_residuals = tuple(field.free_boundary_pressure_residuals_Pa)
+  if len(reported_pressure_residuals) != axial_count:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled field pressure residuals do not align with cell columns',
+    )
+  ####
+  pressure_residuals = tuple(
+    float(reported_pressure_residuals[0])
+    if node_index == 0
+    else float(reported_pressure_residuals[-1])
+    if node_index == axial_count
+    else 0.5
+    * (
+      float(reported_pressure_residuals[node_index - 1])
+      + float(reported_pressure_residuals[node_index])
+    )
+    for node_index in range(axial_count + 1)
+  )
+  pressure_fractions = tuple(
+    residual / max(abs(target), 1.0)
+    for residual, target in zip(pressure_residuals, node_targets, strict=True)
+  )
+  ####
+
+  reported_normal_residuals = tuple(
+    field.free_boundary_normal_velocity_residuals_m_s
+  )
+  if len(reported_normal_residuals) != axial_count:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled field normal-velocity residuals do not align with cell columns',
+    )
+  ####
+  normal_residuals = tuple(float(value) for value in reported_normal_residuals)
+  normal_fractions: list[float] = []
+  tangent_residuals: list[float] = []
+  for column, (first, second) in enumerate(zip(samples, samples[1:])):
+    dx = second.point_m[0] - first.point_m[0]
+    dy = second.point_m[1] - first.point_m[1]
+    segment_length = hypot(dx, dy)
+    if segment_length <= 0.0:
+      return failure(
+        MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+        'coupled boundary contains a zero-length segment',
+      )
+    ####
+    segment_speed = hypot(
+      0.5 * (first.velocity_u_m_s + second.velocity_u_m_s),
+      0.5 * (first.velocity_v_m_s + second.velocity_v_m_s),
+    )
+    normal_fractions.append(
+      normal_residuals[column] / max(segment_speed, 1.0e-12)
+    )
+    tangent_angle = atan2(dy, dx)
+    flow_angle = atan2(
+      sin(first.flow_angle_rad) + sin(second.flow_angle_rad),
+      cos(first.flow_angle_rad) + cos(second.flow_angle_rad),
+    )
+    tangent_residuals.append(
+      abs(atan2(sin(flow_angle - tangent_angle), cos(flow_angle - tangent_angle)))
+    )
+  ####
+
+  pressure_tolerance = float(
+    request.free_boundary_pressure_tolerance_fraction
+  )
+  normal_tolerance = float(
+    request.free_boundary_normal_velocity_tolerance_fraction
+  )
+  tangent_tolerance = 5.0e-2
+  audit_verified = bool(
+    getattr(audit, 'converged', False)
+    and getattr(audit, 'local_consistency_verified', False)
+  )
+  residuals_verified = bool(
+    all(value <= pressure_tolerance for value in pressure_fractions)
+    and all(value <= normal_tolerance for value in normal_fractions)
+    and all(value <= tangent_tolerance for value in tangent_residuals)
+  )
+  boundary_condition_verified = bool(field.free_boundary_condition_verified)
+  state_samples_verified = bool(
+    len(samples) == len(points)
+    and all(sample.gamma == gamma for sample in samples)
+  )
+  geometry_verified = bool(
+    len(points) >= 2
+    and all(
+      second[0] > first[0]
+      for first, second in zip(points, points[1:])
+    )
+  )
+  local_verified = bool(
+    audit_verified
+    and boundary_condition_verified
+    and state_samples_verified
+    and geometry_verified
+    and residuals_verified
+  )
+  status = (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus
+    .CONVERGED_LOCAL_TRACE
+    if local_verified
+    else MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus
+    .TRACE_RESIDUAL_FAILURE
+  )
+  return MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace(
+    status=status,
+    model=GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_TRACE_MODEL,
+    source_closure_fingerprint=fingerprint,
+    samples=samples,
+    pressure_residuals_Pa=pressure_residuals,
+    pressure_residual_fractions=pressure_fractions,
+    normal_velocity_residuals_m_s=normal_residuals,
+    normal_velocity_residual_fractions=tuple(normal_fractions),
+    tangent_residuals_rad=tuple(tangent_residuals),
+    geometry_verified=geometry_verified,
+    state_samples_verified=state_samples_verified,
+    field_audit_verified=audit_verified,
+    boundary_condition_verified=boundary_condition_verified,
+    residuals_verified=residuals_verified,
+    pressure_tolerance_fraction=pressure_tolerance,
+    normal_velocity_tolerance_fraction=normal_tolerance,
+    tangent_tolerance_rad=tangent_tolerance,
+    message=(
+      'solver-owned coupled-Euler boundary trace reconstructed from retained '
+      'top-row states; canonical global feedback, mixed-regime closure, '
+      'refinement, external validation, and production promotion remain open'
+    ),
+  )
 ####
 
 
@@ -2407,7 +3070,7 @@ def _failure(
     MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
   ) = None,
 ) -> MocReflectedDomainGlobalCoupledDownstreamResult:
-  return MocReflectedDomainGlobalCoupledDownstreamResult(
+  candidate = MocReflectedDomainGlobalCoupledDownstreamResult(
     status=status,
     closure=closure,
     mixed_regime_request=mixed_regime_request,
@@ -2423,6 +3086,12 @@ def _failure(
     boundary_geometry_profile=boundary_geometry_profile,
     downstream_boundary_response=downstream_boundary_response,
     message=message,
+  )
+  return replace(
+    candidate,
+    downstream_boundary_trace=(
+      build_reflected_domain_global_coupled_downstream_boundary_trace(candidate)
+    ),
   )
 ####
 
@@ -3037,7 +3706,7 @@ def solve_reflected_domain_global_coupled_downstream(
       'lower-fidelity fallback was attempted'
     )
   ####
-  return MocReflectedDomainGlobalCoupledDownstreamResult(
+  candidate = MocReflectedDomainGlobalCoupledDownstreamResult(
     status=status,
     closure=closure,
     mixed_regime_request=mixed_regime_request,
@@ -3053,5 +3722,11 @@ def solve_reflected_domain_global_coupled_downstream(
     boundary_geometry_profile=boundary_geometry_profile,
     downstream_boundary_response=downstream_boundary_response,
     message=message,
+  )
+  return replace(
+    candidate,
+    downstream_boundary_trace=(
+      build_reflected_domain_global_coupled_downstream_boundary_trace(candidate)
+    ),
   )
 ####
