@@ -3215,3 +3215,46 @@ previous checkpoint.  `release_ready` remains false because the canonical
 mixed-regime field, accepted physical shock-cell observations, provider-bound
 VIS/SIG/RAY/FPA evidence, alignment archive, and release freeze are still
 open.  This is provenance repair, not a promotion or release decision.
+
+### Canonical transonic-closure seam audit checkpoint — 2026-09-09
+
+The current physics implementation was re-audited at the seam that still
+blocks canonical planar-MOC closure.  The repository now has four useful,
+typed research components: scalar shock-state compatibility, bounded
+characteristic transport, resolved-frontier intersection, and field-bound
+normal-shock interface profiles.  Each component preserves state/pressure
+lineage and independently reports its local residuals.  These components are
+valid prerequisites for the next solver, but they do not solve the missing
+global operation.
+
+The missing operation is a fresh solver-owned mixed-regime solve that chooses
+the interior transonic interface while simultaneously satisfying the upstream
+field, downstream conservative state, free-boundary geometry/tangency,
+centerline reflection, ambient attachment, entropy inequality, and Euler
+residuals.  The existing coupled-Euler lane can consume a cross-section
+profile or a solver-owned field placement, but those are inlet handoffs and
+remain research-only; the scalar compatibility diagnostics intentionally
+return a typed failure when the retained global frontier does not contain the
+required upstream state.  No low-fidelity fallback or synthetic placement is
+permitted.
+
+The next physics work package is therefore **P2.2d — solver-owned interior
+transonic/free-boundary closure**:
+
+1. Define one request/result carrying the exact source-closure and frontier
+   fingerprints, an interior interface candidate, and a bounded station/frame
+   policy.
+2. Solve the upstream/downstream fields and interface geometry together;
+   consume only retained states, never an endpoint hold, extrapolated
+   pressure, or caller-injected geometry.
+3. Independently rederive interface Rankine--Hugoniot state, free-boundary
+   pressure/tangency, centerline and ambient fluxes, entropy, and cell-Euler
+   residuals from the returned field.
+4. Run the new operator on the existing fine disjoint ladder and require
+   stable interface location, residuals, and solver-owned axial length before
+   allowing P3 physical-cell fitting to consume it.
+
+Until that package passes, the current attachment/profile/feedback evidence
+continues to support Visualization and engineering diagnostics only. It may
+not authorize physical shock-cell promotion, Signature/FPA validation claims,
+or a release tag.
