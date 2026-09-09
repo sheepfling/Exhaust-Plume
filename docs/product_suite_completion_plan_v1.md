@@ -2987,3 +2987,13 @@ present in the current checkout.  The report therefore records
 ceiling and keeping `release_ready=false`.  This is a current local evidence
 refresh, not a replacement for the missing archive or provider-bound
 measurements.
+
+### Separate alignment-archive preflight checkpoint — 2026-09-08
+
+Provider-comparison preflight now accepts the separately named
+`plume_mvp_validation_alignment_v1.zip` through `--alignment` and verifies it
+against the content-addressed intake manifest.  Its report distinguishes
+`verified`, `missing`, and `not-provided` states and retains the release blocker
+until the archive is actually present and verified.  The embedded alignment
+overlay remains a scoped repository reference only; it cannot satisfy this
+gate or promote a VIS, Signature, ray, or FPA comparison.

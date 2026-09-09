@@ -12,6 +12,7 @@ from scripts.validate_provider_comparisons import (
   build_unimplemented_boundaries,
   execute_visual_feature_probe,
   load_provider_bound_evidence,
+  _alignment_archive_summary,
   _provider_bound_evidence_source_label,
 )
 from exhaust_plume.validation.claims import (
@@ -281,6 +282,26 @@ def test_provider_bound_evidence_source_label_is_portable() -> None:
     Path('/another/machine/provider-evidence.json')
   ) == 'provider-evidence.json'
   assert _provider_bound_evidence_source_label(None) is None
+####
+
+
+def test_alignment_archive_intake_is_explicit_when_not_supplied() -> None:
+  result = _alignment_archive_summary(None)
+
+  assert result['archive_id'] == 'mvp-validation-alignment-v1'
+  assert result['filename'] == 'plume_mvp_validation_alignment_v1.zip'
+  assert result['status'] == 'not-provided'
+  assert result['actual_sha256'] is None
+  assert result['errors'] == ['alignment archive path was not supplied']
+####
+
+
+def test_alignment_archive_intake_reports_missing_path(tmp_path) -> None:
+  result = _alignment_archive_summary(tmp_path / 'alignment.zip')
+
+  assert result['status'] == 'missing'
+  assert result['actual_sha256'] is None
+  assert result['errors'] == ['archive file does not exist']
 ####
 
 

@@ -353,3 +353,9 @@ The exact pushed candidate also passes the complete repository regression:
 `1183 passed, 18 warnings` in 20:12.  The warnings are pre-existing legacy
 compatibility and projected-area numerical warnings; they do not change the
 remaining external-validation or canonical-closure gates.
+
+The provider-comparison preflight now accepts and verifies the separately named
+alignment archive through the intake manifest.  With no archive path supplied,
+it records `alignment_archive.status=not-provided`; a missing or mismatched
+archive remains an explicit release blocker and cannot be replaced by the
+embedded alignment overlay.

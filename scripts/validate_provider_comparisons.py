@@ -23,6 +23,7 @@ try:
     _read_json,
     preflight_corpus,
   )
+  from scripts.verify_validation_corpus import load_manifest, verify_archive
   from scripts.validate_product_lanes import (
     _run_fpa_boundary,
     _run_optical_lane,
@@ -44,6 +45,7 @@ try:
   from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus
+  from verify_validation_corpus import load_manifest, verify_archive
   from validate_product_lanes import _run_fpa_boundary, _run_optical_lane, _run_signature_lane, _run_visual_lane
   from exhaust_plume.validation.spectral_comparisons import (
     INTRINSIC_SPECTRAL_RADIANT_INTENSITY_UNITS,
@@ -67,6 +69,7 @@ RAY_PRODUCT = 'plume.optical.spectral-ray-transfer@1'
 PROVIDER_BOUND_EVIDENCE_SCHEMA = (
   'exhaust-plume.provider-bound-comparison-evidence@1'
 )
+ALIGNMENT_ARCHIVE_ID = 'mvp-validation-alignment-v1'
 
 
 def _provider_bound_evidence_source_label(path: Path | None) -> str | None:
@@ -80,6 +83,40 @@ def _provider_bound_evidence_source_label(path: Path | None) -> str | None:
   """
 
   return None if path is None else Path(path).name
+####
+
+
+def _alignment_archive_summary(path: Path | None) -> dict[str, Any]:
+  """Verify the separately named alignment archive when one is supplied."""
+
+  manifest = load_manifest()
+  spec = next(
+    item for item in manifest['archives']
+    if item['archive_id'] == ALIGNMENT_ARCHIVE_ID
+  )
+  if path is None:
+    return {
+      'archive_id': spec['archive_id'],
+      'filename': spec['filename'],
+      'expected_sha256': spec['sha256'],
+      'actual_sha256': None,
+      'status': 'not-provided',
+      'member_count': 0,
+      'unsafe_members': [],
+      'duplicate_members': [],
+      'errors': ['alignment archive path was not supplied'],
+    }
+  ####
+  check = verify_archive(spec, path)
+  summary = {
+    key: value
+    for key, value in asdict(check).items()
+    if key != 'path'
+  }
+  for key in ('unsafe_members', 'duplicate_members', 'errors'):
+    summary[key] = list(summary[key])
+  ####
+  return summary
 ####
 
 
@@ -833,6 +870,7 @@ def build_unimplemented_boundaries(providers: Mapping[str, Any]) -> list[dict[st
 def build_provider_comparison_preflight(
   path: Path,
   *,
+  alignment_path: Path | None = None,
   provider_bound_evidence_path: Path | None = None,
 ) -> dict[str, Any]:
   """Validate the archive, probe current providers, and record blocked gates."""
@@ -842,9 +880,11 @@ def build_provider_comparison_preflight(
     key: value for key, value in corpus_report.get('archive', {}).items()
     if key != 'path'
   }
+  alignment_summary = _alignment_archive_summary(alignment_path)
   report: dict[str, Any] = {
     'report_id': 'exhaust-plume-provider-comparison-preflight-v1',
     'archive': archive_summary,
+    'alignment_archive': alignment_summary,
     'corpus_status': corpus_report['status'],
     'operator_reconciliation': corpus_report.get('operator_reconciliation', {}),
     'provider_bound_evidence_schema': PROVIDER_BOUND_EVIDENCE_SCHEMA,
@@ -917,9 +957,13 @@ def build_provider_comparison_preflight(
       *([
         'provider-specific external comparisons remain unaccepted because provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings are still missing'
       ] if unaccepted_comparisons else []),
-      'separately named MVP alignment archive is not yet verified',
+      'separately named MVP alignment archive is not yet verified'
+      if alignment_summary['status'] != 'verified' else None,
     ],
   })
+  report['release_blockers'] = [
+    item for item in report['release_blockers'] if item is not None
+  ]
   return report
 ####
 
@@ -927,6 +971,11 @@ def build_provider_comparison_preflight(
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument('--corpus', required=True, type=Path)
+  parser.add_argument(
+    '--alignment',
+    type=Path,
+    help='optional path to plume_mvp_validation_alignment_v1.zip',
+  )
   parser.add_argument(
     '--provider-bound-evidence',
     type=Path,
@@ -939,6 +988,7 @@ def main(argv: list[str] | None = None) -> int:
   args = parser.parse_args(argv)
   report = build_provider_comparison_preflight(
     args.corpus,
+    alignment_path=args.alignment,
     provider_bound_evidence_path=args.provider_bound_evidence,
   )
   serialized = json.dumps(report, indent=2, sort_keys=True) + '\n'

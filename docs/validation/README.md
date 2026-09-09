@@ -63,6 +63,7 @@ After the archive preflight, record provider-specific comparability with:
 ```bash
 python scripts/validate_provider_comparisons.py \
   --corpus /path/to/plume_validation_data_v8.zip \
+  --alignment /path/to/plume_mvp_validation_alignment_v1.zip \
   --output provider-comparison-preflight.json
 ```
 
@@ -71,6 +72,7 @@ When a provider owner supplies a typed evidence handoff, pass it explicitly:
 ```bash
 python scripts/validate_provider_comparisons.py \
   --corpus /path/to/plume_validation_data_v8.zip \
+  --alignment /path/to/plume_mvp_validation_alignment_v1.zip \
   --provider-bound-evidence /path/to/provider-bound-evidence.json \
   --output provider-comparison-preflight.json
 ```
