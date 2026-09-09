@@ -3957,3 +3957,21 @@ The owner validation archives were rechecked in the current temporary
 attachment/workspace paths and are still absent; no archive or synthetic
 provider observation was added.  The external-validation and release-freeze
 blockers therefore remain unchanged.
+
+### Coupled-Euler consumer prerequisite checkpoint — 2026-09-09
+
+The existing coupled-Euler interior-profile consumer was inspected against the
+new seam.  It requires an independently audited vertical profile with aligned
+upstream and downstream samples, a complete inlet span, a separate
+mixed-regime control request, and an explicit interior cross-section.  The
+current terminal bridge supplies only the exact scalar downstream
+Rankine--Hugoniot state and a singleton interface seed, so it cannot be
+converted into that profile without inventing the missing upstream field or
+interpolating the open patch.
+
+The next physical implementation must therefore either solve the moving
+interface and both-side conservative field directly, or produce a complete
+solver-owned two-sided profile from that solve.  Routing the current seam into
+``SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE`` would violate the fidelity
+boundary and is explicitly disallowed.  This checkpoint leaves the
+canonical-field and release gates open.
