@@ -3203,3 +3203,15 @@ retains the moving-frame extension evidence.  The composition test and six
 feedback regressions pass; canonical global closure, physical shock-cell
 acceptance, provider-bound validation, and production promotion remain
 blocked.
+
+### Current candidate evidence refresh checkpoint — 2026-09-09
+
+The tracked lane-release manifest has been regenerated from the current clean
+candidate `e5b2483` after the geometry-conditioned feedback slice.  The local
+product report remains passing for the standardized Visualization bundle,
+mission-time composition, Signature engineering paths, and deterministic FPA
+boundary; the manifest now records the actual candidate HEAD instead of the
+previous checkpoint.  `release_ready` remains false because the canonical
+mixed-regime field, accepted physical shock-cell observations, provider-bound
+VIS/SIG/RAY/FPA evidence, alignment archive, and release freeze are still
+open.  This is provenance repair, not a promotion or release decision.
