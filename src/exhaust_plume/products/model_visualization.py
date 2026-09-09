@@ -2397,6 +2397,11 @@ def _moc_visualization(
     target_path = _path3(
       'moc-global-frontier-pressure-target',
       (
+        'frontier pressure target geometry consumed by the research global '
+        'source march; downstream ambient geometry remains solver-owned and '
+        'canonical closure remains open'
+        if bool(getattr(result, 'target_geometry_consumed', False))
+        else
         'frontier pressure target geometry shown as a reference packet; '
         'the global solver owns the consumed boundary geometry'
       ),
@@ -3359,6 +3364,12 @@ def _moc_visualization(
     diagnostics['global_frontier_boundary_condition_geometry_solver_owned'] = bool(
       getattr(result, 'solver_owned_geometry_verified', False)
     )
+    diagnostics['global_frontier_boundary_condition_target_geometry_consumed'] = bool(
+      getattr(result, 'target_geometry_consumed', False)
+    )
+    diagnostics['global_frontier_boundary_condition_geometry_conditioning_verified'] = bool(
+      getattr(result, 'geometry_conditioning_verified', False)
+    )
     diagnostics['global_frontier_boundary_condition_target_match_verified'] = bool(
       getattr(result, 'target_match_verified', False)
     )
@@ -4219,11 +4230,19 @@ def _moc_visualization(
     ####
   ####
   if global_frontier_boundary_condition:
-    warnings.append(
-      'the global frontier pressure profile was consumed by a fresh exact '
-      'ambient march while boundary geometry remained solver-owned; canonical '
-      'global closure and production use remain blocked'
-    )
+    if bool(getattr(result, 'target_geometry_consumed', False)):
+      warnings.append(
+        'the global frontier pressure profile and declared target geometry '
+        'were consumed by a fresh exact source march; downstream ambient '
+        'geometry remains solver-owned, and canonical global closure and '
+        'production use remain blocked'
+      )
+    else:
+      warnings.append(
+        'the global frontier pressure profile was consumed by a fresh exact '
+        'ambient march while boundary geometry remained solver-owned; canonical '
+        'global closure and production use remain blocked'
+      )
   ####
   if global_frontier_boundary_condition_refinement:
     warnings.append(
@@ -4321,6 +4340,11 @@ def _moc_visualization(
     )
   elif global_frontier_boundary_condition:
     claim_note = (
+      'global frontier pressure profile and declared target geometry consumed '
+      'by a fresh exact global source march; downstream ambient geometry '
+      'remains solver-owned and research-only gates retained'
+      if bool(getattr(result, 'target_geometry_consumed', False))
+      else
       'global frontier pressure profile consumed by a fresh exact global '
       'ambient march; solver-owned geometry and research-only gates retained'
     )

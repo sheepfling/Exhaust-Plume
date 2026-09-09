@@ -1,10 +1,12 @@
-"""Solver-owned global pressure-boundary consumption evidence.
+"""Global pressure-boundary consumption evidence.
 
 The target-guided resolver measures a downstream packet against a family of
 global candidates.  This module is the next, narrower seam: it passes the
-packet's pressure profile into the exact global ambient march, while the
-marching solver still owns the boundary ordinates and tangents.  The result
-is a fresh research closure, not a fixed-point proof or a production cell.
+packet's pressure profile into the exact global ambient march and can opt in
+to consuming the packet's declared boundary ordinates and tangents as a
+joint research condition for the fresh source march.  The default path
+keeps the consumed boundary geometry solver-owned.  Either path is a fresh
+research closure, not a fixed-point proof or a production cell.
 """
 
 from __future__ import annotations
@@ -238,6 +240,8 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
   target_coverage_verified: bool = False
   target_boundary_condition_consumed: bool = False
   solver_owned_geometry_verified: bool = False
+  target_geometry_consumed: bool = False
+  geometry_conditioning_verified: bool = False
   target_match_verified: bool = False
   fidelity_isolation_verified: bool = False
   global_coupling_verified: bool = False
@@ -333,6 +337,8 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
       'target_coverage_verified',
       'target_boundary_condition_consumed',
       'solver_owned_geometry_verified',
+      'target_geometry_consumed',
+      'geometry_conditioning_verified',
       'target_match_verified',
       'fidelity_isolation_verified',
       'global_coupling_verified',
@@ -368,7 +374,7 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
       and self.target_composition_verified
       and self.target_coverage_verified
       and self.target_boundary_condition_consumed
-      and self.solver_owned_geometry_verified
+      and self.geometry_conditioning_verified
       and self.target_match_verified
       and self.fidelity_isolation_verified
       and self.conditioned_closure is not None
@@ -395,6 +401,8 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
       'target_coverage_verified': self.target_coverage_verified,
       'target_boundary_condition_consumed': self.target_boundary_condition_consumed,
       'solver_owned_geometry_verified': self.solver_owned_geometry_verified,
+      'target_geometry_consumed': self.target_geometry_consumed,
+      'geometry_conditioning_verified': self.geometry_conditioning_verified,
       'target_match_verified': self.target_match_verified,
       'target_residual_magnitude': self.target_residual_magnitude,
       'coordinate_residuals_m': self.coordinate_residuals_m,
@@ -440,6 +448,13 @@ class MocReflectedDomainGlobalFrontierBoundaryConditionResult:
         else self.conditioned_closure.as_report()
       ),
       'claim_status': (
+        'research-only-global-pressure-boundary-condition; pressure and '
+        'declared target geometry were consumed by the exact global source '
+        'march while the downstream ambient boundary remained solver-owned, '
+        'but fixed-point coupling, refinement, validation, and production '
+        'gates remain open'
+        if self.target_geometry_consumed
+        else
         'research-only-global-pressure-boundary-condition; pressure was '
         'consumed by the exact ambient march while geometry remained solver '
         'owned, but fixed-point coupling, refinement, validation, and '
@@ -491,6 +506,8 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
   sample_count: int | None = None,
   base_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   target_composition_seam_pressure_tolerance_fraction: float = 0.25,
+  consume_target_geometry: bool = False,
+  ambient_pressure_target_geometry_tolerance_rad: float = 1.0e-6,
 ) -> MocReflectedDomainGlobalFrontierBoundaryConditionResult:
   """Consume one exact frontier pressure packet in a fresh global solve.
 
@@ -498,7 +515,12 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
   the downstream packet is only an explicitly bounded overlay.  The overlay
   is measured separately, while the composed pressure frame is the only
   target passed to the fresh ambient march.  Boundary ordinates and tangents
-  remain solver-owned and are never injected from either target.
+  remain solver-owned and are never injected from either target by default.
+  When ``consume_target_geometry`` is enabled, the declared target ordinates
+  and tangents are consumed by the fresh global source march as an explicit
+  joint research condition; the downstream ambient boundary remains
+  solver-owned, and an unreachable geometry target fails closed without
+  falling back to the pressure-only path.
   """
 
   if not isinstance(
@@ -526,8 +548,12 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     seam_pressure_tolerance = float(
       target_composition_seam_pressure_tolerance_fraction
     )
+    geometry_tolerance = float(ambient_pressure_target_geometry_tolerance_rad)
   except (TypeError, ValueError) as error:
     raise ValueError('boundary-condition tolerances must be numeric') from error
+  ####
+  if not isinstance(consume_target_geometry, bool):
+    raise ValueError('consume_target_geometry must be a bool')
   ####
   if not all(
     isfinite(value) and value > 0.0
@@ -536,6 +562,7 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       tangent_tolerance,
       pressure_tolerance,
       shock_tolerance,
+      geometry_tolerance,
     )
   ):
     raise ValueError('boundary-condition tolerances must be finite and positive')
@@ -547,6 +574,11 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     raise ValueError(
       'target_composition_seam_pressure_tolerance_fraction must be finite '
       'and nonnegative'
+    )
+  ####
+  if not isfinite(geometry_tolerance) or geometry_tolerance <= 0.0:
+    raise ValueError(
+      'ambient_pressure_target_geometry_tolerance_rad must be finite and positive'
     )
   ####
   if (
@@ -592,7 +624,13 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     'target_composition_seam_pressure_tolerance_fraction': (
       seam_pressure_tolerance
     ),
-    'geometry_policy': 'solver-owned-global-march-no-target-geometry-injection-v1',
+    'consume_target_geometry': consume_target_geometry,
+    'ambient_pressure_target_geometry_tolerance_rad': geometry_tolerance,
+    'geometry_policy': (
+      'declared-target-geometry-consumed-by-global-source-march-v1'
+      if consume_target_geometry
+      else 'solver-owned-global-march-no-target-geometry-injection-v1'
+    ),
   }
   if not request.lineage_verified or request.source_closure_fingerprint != source_fingerprint:
     return _result(
@@ -800,6 +838,8 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       branch=ShockBranch.WEAK,
       shock_angle_tolerance_rad=shock_tolerance,
       maximum_boundary_iterations=maximum_boundary_iterations,
+      consume_ambient_pressure_target_geometry=consume_target_geometry,
+      ambient_pressure_target_geometry_tolerance_rad=geometry_tolerance,
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _result(
@@ -859,8 +899,17 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
   )
   geometry_solver_owned = bool(
     target_consumed
+    and not consume_target_geometry
     and march is not None
     and not march.ambient_pressure_target_geometry_consumed
+  )
+  target_geometry_consumed = bool(
+    target_consumed
+    and consume_target_geometry
+    and conditioned.source_pressure_target_geometry_consumed
+  )
+  geometry_conditioning_verified = bool(
+    target_consumed and (geometry_solver_owned or target_geometry_consumed)
   )
   (
     coordinate_residuals,
@@ -879,7 +928,7 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
   )
   fidelity_isolation = bool(
     target_consumed
-    and geometry_solver_owned
+    and geometry_conditioning_verified
     and residuals_finite
     and not conditioned.production_claim_allowed
     and not conditioned.downstream_boundary_closure_verified
@@ -913,6 +962,11 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       .CONVERGED_RESEARCH_BOUNDARY_CONDITION
     )
     message = (
+      'downstream pressure and declared target geometry were consumed by a '
+      'fresh exact global source march; the downstream ambient boundary '
+      'remained solver-owned and canonical fixed-point closure remains open'
+      if target_geometry_consumed
+      else
       'downstream pressure was consumed by a fresh exact global ambient '
       'march; the ambient geometry remained solver-owned and canonical '
       'fixed-point closure remains open'
@@ -936,6 +990,8 @@ def run_reflected_domain_global_frontier_boundary_conditioned_resolve(
     target_coverage_verified=coverage_verified,
     target_boundary_condition_consumed=target_consumed,
     solver_owned_geometry_verified=geometry_solver_owned,
+    target_geometry_consumed=target_geometry_consumed,
+    geometry_conditioning_verified=geometry_conditioning_verified,
     target_match_verified=match_verified,
     fidelity_isolation_verified=fidelity_isolation,
   )

@@ -3166,3 +3166,23 @@ failure.  This refresh strengthens the local package evidence only.  The
 provider-bound comparison, missing V8/alignment assets, canonical physical
 closure, accepted physical shock-cell observations, and release-freeze
 provenance gates remain open, so `release_ready` stays false.
+
+### Global frontier geometry-consumption checkpoint — 2026-09-09
+
+The global frontier boundary-condition resolver now exposes an explicit
+research-only `consume_target_geometry` mode.  The default pressure-only
+consumer retains the prior solver-owned geometry contract.  The opt-in path
+passes the declared coordinates and flow tangents into the fresh global
+source march, verifies that the exact source closure retained that geometry
+consumption, and fails closed if the target cannot satisfy the characteristic
+and pressure seams.  The downstream ambient boundary remains solver-owned;
+this is not a canonical two-dimensional free-boundary solve.
+
+The result and standardized Visualization adapter now distinguish
+`solver_owned_geometry_verified`, `target_geometry_consumed`, and the shared
+`geometry_conditioning_verified` gate.  The focused frontier boundary/
+refinement/cross-case regression passes (`6 passed`), with Pyright, Ruff, and
+compilation checks passing.  This strengthens the target geometry seam while
+leaving global coupling, canonical closure, physical shock-cell acceptance,
+provider-bound validation, release-freeze provenance, and `release_ready`
+blocked.

@@ -9124,6 +9124,8 @@ def test_global_frontier_boundary_condition_consumes_pressure_with_solver_owned_
   assert result.target_coverage_verified
   assert result.target_boundary_condition_consumed
   assert result.solver_owned_geometry_verified
+  assert result.target_geometry_consumed is False
+  assert result.geometry_conditioning_verified
   assert result.target_match_verified
   assert result.fidelity_isolation_verified
   assert result.conditioned_closure is not source_closure
@@ -9135,6 +9137,61 @@ def test_global_frontier_boundary_condition_consumes_pressure_with_solver_owned_
   assert result.target.boundary_points_m == points
   assert result.as_report()['target_boundary_condition_consumed'] is True
   assert result.as_report()['solver_owned_geometry_verified'] is True
+  assert result.as_report()['target_geometry_consumed'] is False
+  assert result.as_report()['geometry_conditioning_verified'] is True
+####
+
+
+def test_global_frontier_boundary_condition_can_consume_declared_geometry(
+  _global_frontier_reconciliation_request,
+):
+  source_closure = _global_physical_closure_for_mixed_regime()
+  request = _identity_frontier_request_for_closure(
+    source_closure,
+    _global_frontier_reconciliation_request,
+    consumer_id='test-global-frontier-boundary-condition-geometry-v1',
+  )
+
+  result = run_reflected_domain_global_frontier_boundary_conditioned_resolve(
+    request,
+    source_closure,
+    consume_target_geometry=True,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalFrontierBoundaryConditionStatus
+    .CONVERGED_RESEARCH_BOUNDARY_CONDITION
+  )
+  assert result.converged_research_resolve
+  assert result.target_boundary_condition_consumed
+  assert result.solver_owned_geometry_verified is False
+  assert result.target_geometry_consumed
+  assert result.geometry_conditioning_verified
+  assert result.target_match_verified
+  assert result.fidelity_isolation_verified
+  assert result.conditioned_closure is not None
+  assert result.conditioned_closure.source_pressure_target_geometry_consumed
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.configuration['consume_target_geometry'] is True
+  assert result.configuration['geometry_policy'] == (
+    'declared-target-geometry-consumed-by-global-source-march-v1'
+  )
+  report = result.as_report()
+  assert report['target_geometry_consumed'] is True
+  assert report['geometry_conditioning_verified'] is True
+  assert 'declared target geometry' in report['claim_status']
+  visualization = standardize_model_visualization(result)
+  assert visualization.model_id == 'planar-moc-global-frontier-boundary-condition'
+  assert visualization.diagnostics[
+    'global_frontier_boundary_condition_target_geometry_consumed'
+  ] is True
+  assert visualization.diagnostics[
+    'global_frontier_boundary_condition_geometry_conditioning_verified'
+  ] is True
+  assert visualization.claims.production_claim_allowed is False
 ####
 
 
