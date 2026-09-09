@@ -312,6 +312,14 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_downstream import 
   MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
   solve_reflected_domain_global_transonic_mixed_wave_downstream,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_entropy_closure import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_ENTROPY_CLOSURE_OPERATOR_ID,
+  MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus,
+  MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+  MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult,
+  build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile,
+  audit_reflected_domain_global_transonic_mixed_wave_entropy_closure,
+)
 from exhaust_plume.validation.moc_global_frontier_target_resolve import (
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID,
   MocReflectedDomainGlobalFrontierTargetResolveStatus,
@@ -963,9 +971,15 @@ __all__ = (
   'MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverage',
   'assess_reflected_domain_global_transonic_mixed_wave_interface_coverage',
   'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_DOWNSTREAM_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_ENTROPY_CLOSURE_OPERATOR_ID',
   'MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult',
+  'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus',
+  'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile',
+  'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult',
   'solve_reflected_domain_global_transonic_mixed_wave_downstream',
+  'build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile',
+  'audit_reflected_domain_global_transonic_mixed_wave_entropy_closure',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID',
   'MocReflectedDomainGlobalFrontierTargetResolveStatus',
   'MocReflectedDomainGlobalFrontierTargetResolveCandidate',

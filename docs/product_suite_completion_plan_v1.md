@@ -3616,3 +3616,26 @@ focused regression, static checks, and bytecode checks pass.  A complete
 post-change lane rerun remains a release-freeze task.  Canonical mixed-regime
 closure, physical shock-cell fitting, provider-bound validation, and release
 promotion remain blocked.
+
+### P2.2d explicit entropy-profile contract checkpoint — 2026-09-09
+
+The mixed-wave downstream pressure-budget stop now has a typed
+``op.moc.reflected-domain.global-transonic-mixed-wave-entropy-closure``
+contract.  A candidate mechanism must provide every downstream station, a
+non-increasing total-pressure-loss profile, the static-pressure target at each
+station, the exact global-closure/perimeter lineage, and at least the measured
+additional-loss budget.  The builder does not invent a spatial loss law from a
+single scalar budget, regrid stations, or turn a pressure target into a field
+solution.
+
+The retained target accepts an explicitly declared profile at the exact
+coupled-field cell centers and reports
+``mixed-wave-entropy-profile-ready-for-joint-interface-field-solver``.  The
+audit also records that the current coupled-Euler solver has no equation-level
+consumer for total-pressure/entropy evolution, so no field solve is attempted,
+``physical_closure_verified`` remains false, and chain/production promotion
+remain blocked.  A tampered perimeter lineage is rejected.  This is the
+contract seam for the next implementation slice: add the actual joint
+interface/field entropy-producing equations, then independently rederive
+conservative/Euler, entropy, centerline, ambient, geometry, and refinement
+residuals at every iterate.

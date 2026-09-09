@@ -199,6 +199,11 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_downstream import 
   MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus,
   solve_reflected_domain_global_transonic_mixed_wave_downstream,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_entropy_closure import (
+  MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus,
+  audit_reflected_domain_global_transonic_mixed_wave_entropy_closure,
+  build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile,
+)
 from exhaust_plume.validation.moc_transonic_interface import (
   MocTransonicShockInterfaceFieldProfileAuditStatus,
   MocTransonicShockInterfaceFieldPlacementAuditStatus,
@@ -1040,6 +1045,101 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   assert result.as_report()['interface_placement_coverage_verified'] is False
   assert result.as_report()['interface_placement_coverage']['converged'] is False
   assert interface.production_claim_allowed is False
+
+  assert result.field is not None
+  assert result.subsonic_pressure_budget is not None
+  ambient = interface.ambient_pressure_Pa
+  assert ambient is not None
+  x_stations = tuple(
+    0.5 * (first + second)
+    for first, second in zip(
+      result.field.x_stations_m,
+      result.field.x_stations_m[1:],
+    )
+  )
+  reference_total_pressure = (
+    result.subsonic_pressure_budget.reference_total_pressure_Pa
+  )
+  minimum_loss = (
+    result.subsonic_pressure_budget.minimum_additional_total_pressure_loss_fraction
+  )
+  terminal_total_pressure = reference_total_pressure * (1.0 - minimum_loss)
+  total_pressure_profile = tuple(
+    reference_total_pressure
+    + (terminal_total_pressure - reference_total_pressure)
+    * index
+    / (len(x_stations) - 1)
+    for index in range(len(x_stations))
+  )
+  entropy_profile = (
+    build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
+      result,
+      x_stations_m=x_stations,
+      total_pressure_Pa=total_pressure_profile,
+      target_static_pressure_Pa=tuple(ambient for _ in x_stations),
+    )
+  )
+  entropy_audit = audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+    result,
+    entropy_profile,
+  )
+  assert entropy_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+    .PROFILE_READY_FOR_JOINT_SOLVER
+  )
+  assert entropy_audit.profile_ready_for_joint_solver
+  assert entropy_audit.pressure_budget_verified
+  assert entropy_audit.coordinate_profile_verified
+  assert entropy_audit.joint_field_consumer_available is False
+  assert entropy_audit.joint_field_consumed is False
+  assert entropy_audit.physical_closure_verified is False
+  assert entropy_audit.chain_promotion_blocked
+  assert entropy_audit.production_claim_allowed is False
+
+  tampered_profile = replace(
+    entropy_profile,
+    source_perimeter_contract_source='caller-invented-contract',
+  )
+  tampered_audit = (
+    audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+      result,
+      tampered_profile,
+    )
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+    .LINEAGE_FAILURE
+  )
+  assert not tampered_audit.profile_ready_for_joint_solver
+
+  insufficient_total_pressure = reference_total_pressure * (
+    1.0 - 0.5 * minimum_loss
+  )
+  insufficient_profile = (
+    build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
+      result,
+      x_stations_m=x_stations,
+      total_pressure_Pa=tuple(
+        reference_total_pressure
+        + (insufficient_total_pressure - reference_total_pressure)
+        * index
+        / (len(x_stations) - 1)
+        for index in range(len(x_stations))
+      ),
+      target_static_pressure_Pa=tuple(ambient for _ in x_stations),
+    )
+  )
+  insufficient_audit = (
+    audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+      result,
+      insufficient_profile,
+    )
+  )
+  assert insufficient_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+    .LOSS_BUDGET_FAILURE
+  )
+  assert not insufficient_audit.profile_ready_for_joint_solver
 ####
 
 
