@@ -3952,3 +3952,8 @@ it retains the exact scalar geometry and one conservative downstream sample,
 then returns ``interface_geometry_required`` because no moving trace has been
 solved.  This bridge is intentionally a typed stop, not a fallback inlet
 profile and not a field-completion claim.
+
+The owner validation archives were rechecked in the current temporary
+attachment/workspace paths and are still absent; no archive or synthetic
+provider observation was added.  The external-validation and release-freeze
+blockers therefore remain unchanged.
