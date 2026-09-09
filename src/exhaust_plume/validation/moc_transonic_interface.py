@@ -1314,11 +1314,23 @@ def _independent_placement_geometry(
     if second - first > request.position_tolerance_m
     and 0.5 * (first + second) > endpoint_x + request.position_tolerance_m
   )
+  minimum_x = request.minimum_cross_section_x_m
+  if minimum_x is not None:
+    candidates = tuple(
+      candidate
+      for candidate in candidates
+      if candidate >= minimum_x - request.position_tolerance_m
+    )
   if not candidates:
-    raise ValueError('field retained no post-shock cross-section candidates')
+    raise ValueError(
+      'field retained no post-shock cross-section candidates after the '
+      + ('solver-owned downstream anchor' if minimum_x is not None else 'shock endpoint')
+    )
   ####
-  target_x = endpoint_x + request.post_shock_fraction * (
-    max(candidates) - endpoint_x
+  target_x = (
+    minimum_x
+    if minimum_x is not None
+    else endpoint_x + request.post_shock_fraction * (max(candidates) - endpoint_x)
   )
   ordered = tuple(
     sorted(candidates, key=lambda candidate: (abs(candidate - target_x), candidate))

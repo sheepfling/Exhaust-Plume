@@ -760,6 +760,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
         closure,
         sample_count=transonic_placement_sample_count,
         post_shock_fraction=placement_fraction,
+        minimum_cross_section_x_m=control_section.points_m[0][0],
         target_downstream_static_pressure_Pa=None,
       )
     )

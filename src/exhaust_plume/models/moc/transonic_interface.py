@@ -882,7 +882,9 @@ class MocTransonicShockInterfaceFieldPlacementRequest:
 
   The placement rule is deliberately mesh-bound.  It starts after the
   retained shock endpoint, chooses the retained cell-strip midpoint nearest a
-  prescribed downstream fraction, and samples only inside the closed field.
+  prescribed downstream fraction, or the nearest retained midpoint at or
+  downstream of an explicit solver-owned anchor when one is supplied, and
+  samples only inside the closed field.
   When a downstream static-pressure target is supplied, every retained
   candidate is evaluated against the derived normal-shock profile and an
   unreachable target returns a typed stop with the best candidate retained.
@@ -893,6 +895,7 @@ class MocTransonicShockInterfaceFieldPlacementRequest:
   field: MocPhysicalPostShockFieldResult
   sample_count: int = 10
   post_shock_fraction: float = 0.25
+  minimum_cross_section_x_m: float | None = None
   boundary_margin_fraction: float = 0.10
   interface_normal_angle_rad: float = 0.0
   profile_id: str = 'solver-owned-physical-field-transonic-profile-v1'
@@ -932,6 +935,16 @@ class MocTransonicShockInterfaceFieldPlacementRequest:
     ####
     if self.post_shock_fraction <= 0.0 or self.post_shock_fraction >= 1.0:
       raise ValueError('post_shock_fraction must be strictly between zero and one')
+    ####
+    if self.minimum_cross_section_x_m is not None:
+      minimum_x = _finite(
+        'minimum_cross_section_x_m',
+        self.minimum_cross_section_x_m,
+      )
+      if minimum_x <= 0.0:
+        raise ValueError('minimum_cross_section_x_m must be positive when supplied')
+      ####
+      object.__setattr__(self, 'minimum_cross_section_x_m', minimum_x)
     ####
     if self.boundary_margin_fraction >= 0.5:
       raise ValueError('boundary_margin_fraction must be less than one half')
@@ -995,6 +1008,7 @@ class MocTransonicShockInterfaceFieldPlacementRequest:
       'field_state_sampling_available': self.field.state_sampling_available,
       'sample_count': self.sample_count,
       'post_shock_fraction': self.post_shock_fraction,
+      'minimum_cross_section_x_m': self.minimum_cross_section_x_m,
       'boundary_margin_fraction': self.boundary_margin_fraction,
       'interface_normal_angle_rad': self.interface_normal_angle_rad,
       'profile_id': self.profile_id,
@@ -2321,15 +2335,28 @@ def _field_cross_section_candidates(
     if second - first > request.position_tolerance_m
     and 0.5 * (first + second) > endpoint_x + request.position_tolerance_m
   )
+  minimum_x = request.minimum_cross_section_x_m
+  if minimum_x is not None:
+    candidates = tuple(
+      candidate
+      for candidate in candidates
+      if candidate >= minimum_x - request.position_tolerance_m
+    )
   if not candidates:
     raise ValueError(
       'physical field has no retained interior cross-section after the '
-      'shock endpoint'
+      + (
+        'solver-owned downstream anchor'
+        if minimum_x is not None
+        else 'shock endpoint'
+      )
     )
   ####
   maximum_x = max(candidates)
-  target_x = endpoint_x + request.post_shock_fraction * (
-    maximum_x - endpoint_x
+  target_x = (
+    minimum_x
+    if minimum_x is not None
+    else endpoint_x + request.post_shock_fraction * (maximum_x - endpoint_x)
   )
   return tuple(
     sorted(candidates, key=lambda candidate: (abs(candidate - target_x), candidate))

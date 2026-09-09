@@ -3143,6 +3143,7 @@ def build_reflected_domain_global_solver_owned_transonic_interface_placement(
   *,
   sample_count: int = 10,
   post_shock_fraction: float = 0.25,
+  minimum_cross_section_x_m: float | None = None,
   target_downstream_static_pressure_Pa: float | None = None,
   target_pressure_tolerance_fraction: float = 0.02,
 ) -> MocTransonicShockInterfaceFieldPlacementResult:
@@ -3151,7 +3152,10 @@ def build_reflected_domain_global_solver_owned_transonic_interface_placement(
   This is a solver-owned placement rule, not a caller geometry override.  It
   deliberately retains the complete field span so the coupled solver can
   independently verify that the selected interface covers the exact global
-  field.  The resulting placement remains a research-only handoff.
+  field.  When ``minimum_cross_section_x_m`` is supplied, only retained field
+  cross-sections at or downstream of that solver-owned anchor are eligible;
+  no field extension is performed.  The resulting placement remains a
+  research-only handoff.
   """
 
   if not isinstance(
@@ -3179,6 +3183,7 @@ def build_reflected_domain_global_solver_owned_transonic_interface_placement(
       field=closure.global_euler.physical_field.field,
       sample_count=sample_count,
       post_shock_fraction=post_shock_fraction,
+      minimum_cross_section_x_m=minimum_cross_section_x_m,
       boundary_margin_fraction=0.0,
       profile_id=(
         'global-closure-solver-owned-physical-field-placement-v1'

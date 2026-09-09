@@ -1017,7 +1017,16 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   )
   assert result.interface_placement_coverage.joint_interface_coverage_verified is False
   assert result.interface_placement_coverage.downstream_gap_m is not None
-  assert result.interface_placement_coverage.downstream_gap_m > 0.2
+  assert result.interface_placement_coverage.downstream_gap_m > 0.02
+  assert result.interface_placement_coverage.downstream_gap_m < 0.05
+  assert result.control_section is not None
+  assert result.transonic_interface_placement.cross_section_x_m is not None
+  assert result.transonic_interface_placement.request.minimum_cross_section_x_m == pytest.approx(
+    result.control_section.points_m[0][0]
+  )
+  assert result.transonic_interface_placement.cross_section_x_m > (
+    result.control_section.points_m[0][0]
+  )
   assert assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
     interface,
     result.transonic_interface_placement,

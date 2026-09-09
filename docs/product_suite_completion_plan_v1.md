@@ -3770,3 +3770,22 @@ cell evidence, external validation, Signature/FPA acceptance, or a production
 claim.  The next physics gate is to replace the bounded source controller with
 an accepted solver-owned interface/entropy mechanism and close the missing
 characteristic-to-field coverage without extrapolation.
+
+### P2.2d control-section-anchored placement checkpoint — 2026-09-09
+
+The downstream handoff now passes the exact solver-owned control-section
+abscissa into the retained global physical field placement rule.  Placement
+selection remains mesh-bound and independently audited, but it discards
+retained sections upstream of that anchor and chooses the nearest available
+section downstream.  It therefore no longer targets an arbitrary 25% field
+fraction when the mixed-regime solver has already declared a downstream
+control section.
+
+On the target fixture this moves the selected section from approximately
+``x=5.49573 m`` to ``x=5.28131 m`` (downstream of the ``x=5.27135 m`` control
+section).  The exact shock/ambient strip still ends earlier, leaving a typed
+coverage gap of approximately ``0.03025 m``; no boundary extension,
+extrapolation, or promotion was introduced.  The coupled field remains
+``additional-entropy-required`` and research-only.  Focused placement and
+mixed-wave regressions, Ruff, Pyright, bytecode, and diff checks pass; the
+full reflected-domain lane remains the next verification step for this slice.
