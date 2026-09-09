@@ -39,6 +39,10 @@ from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
+from exhaust_plume.validation.moc_global_transonic_interface import (
+  MocReflectedDomainGlobalTransonicInterfaceAudit,
+  measure_reflected_domain_global_transonic_interface,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_OPERATOR_ID',
@@ -70,6 +74,9 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus(str, Enum):
   SOLVER_FAILURE = 'global-coupled-downstream-feedback-solver-failure'
   PROFILE_FAILURE = 'global-coupled-downstream-feedback-profile-failure'
   RESPONSE_FAILURE = 'global-coupled-downstream-feedback-response-failure'
+  TRANSONIC_INTERFACE_FAILURE = (
+    'global-coupled-downstream-feedback-transonic-interface-failure'
+  )
   ITERATION_LIMIT = 'global-coupled-downstream-feedback-iteration-limit'
   FIDELITY_FAILURE = 'global-coupled-downstream-feedback-fidelity-failure'
 ####
@@ -98,6 +105,9 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
   ) = None
   upstream_feedback_proposal: (
     MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal | None
+  ) = None
+  transonic_interface_audit: (
+    MocReflectedDomainGlobalTransonicInterfaceAudit | None
   ) = None
   maximum_pressure_update_Pa: float | None = None
   pressure_profile_lineage_verified: bool = False
@@ -187,6 +197,15 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         'or None'
       )
     ####
+    if self.transonic_interface_audit is not None and not isinstance(
+      self.transonic_interface_audit,
+      MocReflectedDomainGlobalTransonicInterfaceAudit,
+    ):
+      raise TypeError(
+        'transonic_interface_audit must be a typed global transonic '
+        'interface audit or None'
+      )
+    ####
     if self.maximum_pressure_update_Pa is not None:
       update = float(self.maximum_pressure_update_Pa)
       if not isfinite(update) or update < 0.0:
@@ -261,6 +280,16 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
       and proposal.ready_for_global_resolve
       and proposal.source_response_status
       == (self.response.status.value if self.response is not None else '')
+    )
+  ####
+
+  @property
+  def transonic_interface_audit_verified(self) -> bool:
+    """Whether an attached transonic seam audit passed independently."""
+
+    return bool(
+      self.transonic_interface_audit is None
+      or self.transonic_interface_audit.converged
     )
   ####
 
@@ -348,6 +377,14 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
       'upstream_feedback_proposal_verified': (
         self.upstream_feedback_proposal_verified
       ),
+      'transonic_interface_audit_verified': (
+        self.transonic_interface_audit_verified
+      ),
+      'transonic_interface_audit': (
+        None
+        if self.transonic_interface_audit is None
+        else self.transonic_interface_audit.as_report()
+      ),
       'maximum_pressure_update_Pa': self.maximum_pressure_update_Pa,
       'next_pressure_profile': (
         None
@@ -390,6 +427,8 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
   pressure_correction_fraction: float
   configuration: dict[str, Any]
   configuration_fingerprint: str
+  transonic_interface_audit_required: bool = False
+  transonic_interface_audit_verified: bool = True
   fresh_solver_invocation_verified: bool = False
   closure_lineage_verified: bool = False
   pressure_profile_lineage_verified: bool = False
@@ -483,6 +522,8 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'initial_state_lineage_verified',
       'pressure_update_convergence_verified',
       'fidelity_isolation_verified',
+      'transonic_interface_audit_required',
+      'transonic_interface_audit_verified',
       'global_coupling_verified',
       'downstream_boundary_closure_verified',
       'chain_promotion_blocked',
@@ -532,6 +573,7 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       and self.initial_state_lineage_verified
       and self.pressure_update_convergence_verified
       and self.fidelity_isolation_verified
+      and self.transonic_interface_audit_verified
     )
   ####
 
@@ -596,6 +638,12 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'upstream_feedback_proposal_count': len(self.upstream_feedback_proposals),
       'local_coupled_field_verified': self.local_coupled_field_verified,
       'initial_state_lineage_verified': self.initial_state_lineage_verified,
+      'transonic_interface_audit_required': (
+        self.transonic_interface_audit_required
+      ),
+      'transonic_interface_audit_verified': (
+        self.transonic_interface_audit_verified
+      ),
       'pressure_update_convergence_verified': (
         self.pressure_update_convergence_verified
       ),
@@ -746,7 +794,16 @@ def _status_for_run(
   initial_state_lineage_verified: bool,
   pressure_update_convergence_verified: bool,
   fidelity_isolation_verified: bool,
+  transonic_interface_audit_verified: bool,
 ) -> tuple[MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus, str]:
+  if not transonic_interface_audit_verified:
+    return (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus
+      .TRANSONIC_INTERFACE_FAILURE,
+      'the solver-owned transonic interface placement or inlet seam failed '
+      'its independent audit; no lower-fidelity fallback was attempted',
+    )
+  ####
   if not fresh_solver_invocation_verified or not local_coupled_field_verified:
     return (
       MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.SOLVER_FAILURE,
@@ -877,6 +934,10 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   if not isfinite(position_tolerance) or position_tolerance <= 0.0:
     raise ValueError('position_tolerance_m must be finite and positive')
   ####
+  transonic_interface_audit_required = inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  )
   configuration = {
     'closure_fingerprint': moc_reflected_domain_global_physical_closure_fingerprint(
       closure
@@ -898,6 +959,11 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     'max_pseudo_iterations': int(max_pseudo_iterations),
     'max_shape_iterations': int(max_shape_iterations),
     'inlet_boundary_mode': inlet_boundary_mode.value,
+    'transonic_interface_audit_policy': (
+      'independent-global-transonic-interface-seam-required-v1'
+      if transonic_interface_audit_required
+      else 'not-applicable-for-selected-inlet-mode-v1'
+    ),
     'geometry_feedback_frame_policy': (
       'solver-owned-first-ordinate-anchor-v1'
     ),
@@ -962,6 +1028,27 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         closure,
         f'fresh global/coupled downstream feedback solve raised: {error}',
       )
+    ####
+    transonic_interface_audit = None
+    iteration_transonic_interface_audit_verified = True
+    if transonic_interface_audit_required:
+      try:
+        transonic_interface_audit = (
+          measure_reflected_domain_global_transonic_interface(result)
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+        transonic_interface_audit = None
+      ####
+      iteration_transonic_interface_audit_verified = bool(
+        transonic_interface_audit is not None
+        and transonic_interface_audit.converged
+      )
+      if not iteration_transonic_interface_audit_verified:
+        stop_reason = (
+          'solver-owned transonic interface placement or inlet seam failed '
+          'its independent audit; no lower-fidelity fallback was attempted'
+        )
+      ####
     ####
     solver_response = result.downstream_boundary_response
     boundary_trace = result.downstream_boundary_trace
@@ -1197,6 +1284,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         next_pressure_profile=next_profile,
         next_geometry_profile=next_geometry_profile,
         upstream_feedback_proposal=upstream_feedback_proposal,
+        transonic_interface_audit=transonic_interface_audit,
         maximum_pressure_update_Pa=maximum_pressure_update,
         pressure_profile_lineage_verified=pressure_profile_lineage_verified,
         geometry_profile_lineage_verified=geometry_profile_lineage_verified,
@@ -1217,6 +1305,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         'fresh coupled field did not pass its local solver and independent '
         'audit; no lower-fidelity fallback was attempted'
       )
+      break
+    ####
+    if not iteration_transonic_interface_audit_verified:
       break
     ####
     if next_profile is None:
@@ -1298,6 +1389,16 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     retained_iterations
     and all(item.local_coupled_field_verified for item in retained_iterations)
   )
+  transonic_interface_audit_verified = bool(
+    not transonic_interface_audit_required
+    or (
+      retained_iterations
+      and all(
+        item.transonic_interface_audit_verified
+        for item in retained_iterations
+      )
+    )
+  )
   fidelity_isolation_verified = bool(
     retained_iterations
     and all(item.fidelity_isolation_verified for item in retained_iterations)
@@ -1320,6 +1421,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     initial_state_lineage_verified=initial_state_lineage_verified,
     pressure_update_convergence_verified=pressure_update_convergence_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
+    transonic_interface_audit_verified=transonic_interface_audit_verified,
   )
   if stop_reason is not None:
     message = f'{message}; {stop_reason}'
@@ -1333,6 +1435,8 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     pressure_correction_fraction=fraction,
     configuration=configuration,
     configuration_fingerprint=configuration_fingerprint,
+    transonic_interface_audit_required=transonic_interface_audit_required,
+    transonic_interface_audit_verified=transonic_interface_audit_verified,
     fresh_solver_invocation_verified=fresh_solver_invocation_verified,
     closure_lineage_verified=closure_lineage_verified,
     pressure_profile_lineage_verified=pressure_profile_lineage_verified,

@@ -818,6 +818,42 @@ def test_global_coupled_downstream_rejects_non_full_span_transonic_placement():
 ####
 
 
+def test_global_coupled_downstream_feedback_audits_solver_owned_transonic_seam():
+  closure = _global_physical_closure_for_mixed_regime()
+
+  run = run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+    ),
+  )
+
+  assert run.transonic_interface_audit_required
+  assert run.transonic_interface_audit_verified
+  assert run.configuration['transonic_interface_audit_policy'] == (
+    'independent-global-transonic-interface-seam-required-v1'
+  )
+  assert run.iterations
+  assert all(
+    item.transonic_interface_audit is not None
+    and item.transonic_interface_audit.converged
+    and item.transonic_interface_audit.inlet_state_seam_verified
+    for item in run.iterations
+  )
+  assert run.global_coupling_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+####
+
+
 def test_global_physical_field_continuation_preserves_oblique_post_shock_regime():
   closure = _global_physical_closure_for_mixed_regime()
   assert closure.global_euler is not None

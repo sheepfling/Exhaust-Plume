@@ -1288,6 +1288,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     downstream_response_verified = bool(
       downstream.fresh_solver_invocation_verified
       and downstream.upstream_feedback_proposal_verified
+      and downstream.transonic_interface_audit_verified
       and downstream.fidelity_isolation_verified
       and downstream.upstream_feedback_proposals
     )

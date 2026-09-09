@@ -3280,3 +3280,24 @@ claim canonical mixed-regime closure, global feedback, refinement, physical
 shock-cell acceptance, or production validity.  The next P2.2d slice is to
 consume this seam in a joint interface/field iteration and independently
 rederive the interface jump plus centerline/ambient boundary residuals.
+
+### P2.2d feedback-gate checkpoint — 2026-09-09
+
+The seam audit is now consumed by the existing downstream/global feedback
+ladder whenever the explicit
+`SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE` lane is selected.  Each fresh
+coupled result retains its typed interface audit; the feedback run reports a
+dedicated transonic-interface failure when placement, field lineage, mesh
+anchoring, or independently reconstructed inlet states do not pass.  The
+outer boundary-condition feedback path requires the aggregate audit before it
+accepts a downstream proposal, while the default full-state and physical-field
+continuation lanes remain unchanged.
+
+The new explicit-interface feedback regression passes, and the pre-existing
+global/downstream and boundary-feedback regression passes (`10 passed`).  The
+audit remains research-only and promotion-blocked; canonical mixed-regime
+closure, global upstream feedback, centerline/ambient residual closure,
+refinement, physical shock-cell acceptance, provider evidence, and release
+freeze remain open.  The next P2.2d slice is to replace the one-way handoff
+with a joint interface/field iteration and independently rederive the
+interface jump plus centerline/ambient residuals at each iterate.
