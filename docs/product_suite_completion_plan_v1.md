@@ -3379,3 +3379,84 @@ promotion remains blocked.  The next physics slice is a true shock/expansion
 mixed-wave interface law with the same independent centerline, ambient,
 entropy, Euler, and refinement audits; this checkpoint is evidence-plumbing
 and a bounded research continuation, not canonical closure.
+
+### Long-running execution board — 2026-09-09
+
+This is the active order of work for completing the suite.  The dedicated
+branch remains the integration candidate; ``main`` is not the working branch.
+The latest committed candidate was clean and published; this board is a
+documentation-only change awaiting its own commit.  Each item below is a
+separate vertical slice with its contract, focused tests, evidence note, and
+static checks.  A later item may consume an earlier item only through its
+declared contract and claim ceiling.
+
+1. **P2.2d — close the canonical mixed-regime physics seam.** Consume the
+   solver-owned signed shock/expansion interface law inside a joint iteration
+   of the interface, upstream/downstream fields, centerline reflection, and ambient
+   boundary together.  Independently rederive Rankine--Hugoniot, entropy,
+   conservative/Euler, geometry/tangency, and pressure/velocity residuals at
+   every accepted iterate.  Run the fine disjoint refinement ladder and stop
+   on instability or missing physics; do not use endpoint holds, extrapolation,
+   scalar fallback, or a lower-fidelity substitute.
+2. **P3 — fit physical shock cells.** Consume only a passing canonical field;
+   fit first and continued cells from solver-owned frontier/field geometry,
+   report uncertainty and lineage, and compare physical lengths against a
+   disjoint accepted validation set.  Diagnostic pressure-extrema spacing is
+   not sufficient for promotion.
+3. **P1/P4 — bind validation and measurement spaces.** Intake the owner-
+   supplied V8/alignment archives and provider outputs, verify provenance and
+   digests, define units/frames/operators, and assign disjoint calibration and
+   validation cases.  Run each Visualization, Signature/ray, and FPA
+   comparison in its own measurement space; missing data stays blocked or
+   masked.
+4. **Signature — complete the source-bound optical product.** Preserve the
+   exact mission-time state/cursor and source lineage, then validate chemistry,
+   spectral source, atmosphere, ray transfer, angular heatmaps, and time
+   series against accepted operators.  Tables, gray paths, LTE line sources,
+   or unresolved MOC fields remain engineering/research outputs until their
+   provider gates pass.
+5. **FPA — complete the downstream detector product.** Consume a validated
+   ray result through camera geometry, spectral response, exposure, detector
+   response, expected electrons, ADC, metadata, and invalid-ray semantics;
+   then compare in camera/detector measurement space.  Do not infer an FPA
+   provider from a deterministic image alone.
+6. **Visualization — finish the evidence surface.** Keep all five model
+   bundles standardized and separate; expose slices, stations, paths,
+   shock/expansion regions, physical channels, masks, uncertainty, provenance,
+   and mission-time views without inventing missing values.  Add provider and
+   observation overlays only when their source/operator records exist.
+7. **Release — freeze and publish.** Reconcile contracts and merge conflicts
+   in the dedicated integration branch, run the full test/static/public-API
+   matrix, rebuild the package and installed-wheel smoke, refresh manifests
+   and documentation, and require ``release_ready=true``.  Only then merge
+   toward ``main`` and create a release tag.
+
+Current gate summary: local Visualization, mission-time, Signature
+engineering, and deterministic FPA boundary checks pass.  Canonical
+mixed-regime closure, physical shock-cell fitting, owner-supplied validation
+assets, provider-bound comparisons, and release freeze remain open.  The
+active next slice is the joint P2.2d interface/field iteration; no product
+claim or release tag is promoted by this board.
+
+### P2.2d signed mixed-wave law checkpoint — 2026-09-09
+
+The research MOC lane now has a typed signed local wave law.  Positive turns
+use the existing attached Rankine--Hugoniot compression primitive and require
+static-pressure increase plus total-pressure loss.  Negative turns use the
+finite Prandtl--Meyer inversion with the ``C-`` invariant
+``theta + nu`` and constant total pressure, requiring static-pressure decrease.
+Zero-strength samples remain explicit Mach-wave limits.  A path wrapper accepts
+only explicit, downstream-ordered source states, pressures, and target angles,
+retains per-sample regime/residual/pressure evidence, and stops at the first
+failure without mutating the source into a marching solution.
+
+The exact-source transonic expansion attempt now retains a separate
+solver-owned centerline-angle mixed-wave probe built from the verified entropy
+frontier.  The hard-stop regression passes with that probe converged, while the
+existing continuation still returns ``global-transonic-expansion-required``.
+The new law and probe remain research-only: they do not close the global
+free-boundary, centerline/ambient neighbors, conservative Euler residuals,
+refinement ladder, physical shock-cell fit, provider validation, or production
+promotion.  The next slice is to consume the signed law in the joint
+interface/field iteration and independently audit every boundary at each
+iterate.

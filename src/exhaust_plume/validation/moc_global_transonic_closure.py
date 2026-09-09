@@ -56,6 +56,10 @@ from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
+from exhaust_plume.models.moc.mixed_wave import (
+  MocMixedWavePathResult,
+  solve_mixed_wave_path,
+)
 from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceFieldPlacementResult,
   MocTransonicShockInterfaceFieldPlacementStatus,
@@ -138,6 +142,23 @@ def _finite_nonnegative(name: str, value: Any) -> float:
     raise ValueError(f'{name} must be finite and nonnegative')
   ####
   return numeric
+####
+
+
+def _static_pressure_from_total_pressure(
+  *,
+  total_pressure_Pa: float,
+  mach: float,
+  gamma: float,
+) -> float:
+  """Recover static pressure for the local mixed-wave source probe."""
+
+  factor = 1.0 + 0.5 * (gamma - 1.0) * mach**2
+  pressure = total_pressure_Pa / factor**(gamma / (gamma - 1.0))
+  if not isfinite(pressure) or pressure <= 0.0:
+    raise ValueError('source total pressure did not yield a finite positive static pressure')
+  ####
+  return pressure
 ####
 
 
@@ -391,6 +412,8 @@ class MocReflectedDomainGlobalTransonicExpansionAttempt:
     MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult
     | None
   ) = None
+  mixed_wave_path: MocMixedWavePathResult | None = None
+  mixed_wave_path_verified: bool = False
   outer_flow_angle_bracket: tuple[float, float] | None = None
   minimum_upstream_static_pressure_Pa: float | None = None
   target_pressure_Pa: float | None = None
@@ -446,6 +469,12 @@ class MocReflectedDomainGlobalTransonicExpansionAttempt:
     ):
       raise TypeError('continuation_closure must be typed or None')
     ####
+    if self.mixed_wave_path is not None and not isinstance(
+      self.mixed_wave_path,
+      MocMixedWavePathResult,
+    ):
+      raise TypeError('mixed_wave_path must be typed or None')
+    ####
     if self.outer_flow_angle_bracket is not None:
       bracket = tuple(float(value) for value in self.outer_flow_angle_bracket)
       if len(bracket) != 2 or not all(isfinite(value) for value in bracket):
@@ -474,6 +503,7 @@ class MocReflectedDomainGlobalTransonicExpansionAttempt:
       'pressure_lowering_required',
       'source_field_consumed',
       'local_entropy_band_verified',
+      'mixed_wave_path_verified',
       'mixed_regime_closure_verified',
       'canonical_closure_verified',
       'chain_promotion_blocked',
@@ -491,6 +521,13 @@ class MocReflectedDomainGlobalTransonicExpansionAttempt:
     ####
     if self.production_claim_allowed:
       raise ValueError('this expansion attempt cannot allow production claims')
+    ####
+    if self.mixed_wave_path_verified and (
+      self.mixed_wave_path is None or not self.mixed_wave_path.converged
+    ):
+      raise ValueError(
+        'mixed_wave_path_verified requires a converged mixed-wave path'
+      )
     ####
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -531,6 +568,7 @@ class MocReflectedDomainGlobalTransonicExpansionAttempt:
       'source_frontier_fingerprint': self.source_frontier_fingerprint,
       'source_field_consumed': self.source_field_consumed,
       'local_entropy_band_verified': self.local_entropy_band_verified,
+      'mixed_wave_path_verified': self.mixed_wave_path_verified,
       'mixed_regime_closure_verified': self.mixed_regime_closure_verified,
       'canonical_closure_verified': self.canonical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -559,6 +597,11 @@ class MocReflectedDomainGlobalTransonicExpansionAttempt:
         None
         if self.continuation_closure is None
         else self.continuation_closure.as_report()
+      ),
+      'mixed_wave_path': (
+        None
+        if self.mixed_wave_path is None
+        else self.mixed_wave_path.as_report()
       ),
       'claim_status': (
         'exact-source-research-band-only; expansion/free-boundary closure, '
@@ -1225,6 +1268,27 @@ def run_reflected_domain_global_transonic_expansion_attempt(
       **common,
     )
   ####
+  mixed_wave_path: MocMixedWavePathResult | None = None
+  mixed_wave_path_verified = False
+  try:
+    boundary_pressures = tuple(
+      _static_pressure_from_total_pressure(
+        total_pressure_Pa=sample.total_pressure_Pa,
+        mach=sample.state.mach,
+        gamma=sample.state.gamma,
+      )
+      for sample in characteristic_field.continuation_boundary
+    )
+    mixed_wave_path = solve_mixed_wave_path(
+      boundary_states,
+      boundary_pressures,
+      tuple(0.0 for _ in boundary_states),
+    )
+    mixed_wave_path_verified = mixed_wave_path.converged
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    mixed_wave_path = None
+    mixed_wave_path_verified = False
+  ####
   angle_bracket = (
     min(state.theta_rad for state in boundary_states) - 0.2,
     max(state.theta_rad for state in boundary_states) + 0.2,
@@ -1257,6 +1321,8 @@ def run_reflected_domain_global_transonic_expansion_attempt(
       terminal_wedge=terminal_wedge,
       entropy_trial=entropy_trial,
       characteristic_field=characteristic_field,
+      mixed_wave_path=mixed_wave_path,
+      mixed_wave_path_verified=mixed_wave_path_verified,
       outer_flow_angle_bracket=angle_bracket,
       message=f'exact-source mixed-regime continuation raised: {error}',
       **common,
@@ -1269,6 +1335,8 @@ def run_reflected_domain_global_transonic_expansion_attempt(
       entropy_trial=entropy_trial,
       characteristic_field=characteristic_field,
       continuation_closure=continuation_closure,
+      mixed_wave_path=mixed_wave_path,
+      mixed_wave_path_verified=mixed_wave_path_verified,
       outer_flow_angle_bracket=angle_bracket,
       local_entropy_band_verified=True,
       mixed_regime_closure_verified=False,
@@ -1290,6 +1358,8 @@ def run_reflected_domain_global_transonic_expansion_attempt(
     entropy_trial=entropy_trial,
     characteristic_field=characteristic_field,
     continuation_closure=continuation_closure,
+    mixed_wave_path=mixed_wave_path,
+    mixed_wave_path_verified=mixed_wave_path_verified,
     outer_flow_angle_bracket=angle_bracket,
     local_entropy_band_verified=True,
     message=(

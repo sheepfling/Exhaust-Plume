@@ -39,6 +39,15 @@ from exhaust_plume.models.moc.compression import (
   solve_attached_shock_to_centerline,
   solve_normal_shock_terminal,
 )
+from exhaust_plume.models.moc.mixed_wave import (
+  MocMixedWaveRegime,
+  MocMixedWaveStatus,
+  MocMixedWaveSampleResult,
+  MocMixedWavePathStatus,
+  MocMixedWavePathResult,
+  solve_mixed_wave_sample,
+  solve_mixed_wave_path,
+)
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryStatus,
   MocEulerShockBoundaryOrientation,
@@ -1151,6 +1160,11 @@ __all__ = (
   'plan_caustic_remesh_downstream_field_invariant_chain',
   'MocShockToCenterlineResult',
   'MocTurnCompressionResult',
+  'MocMixedWaveRegime',
+  'MocMixedWaveStatus',
+  'MocMixedWaveSampleResult',
+  'MocMixedWavePathStatus',
+  'MocMixedWavePathResult',
   'MocFreeBoundaryResult',
   'MocFreeBoundaryPointResult',
   'MocReflectedBoundaryResult',
@@ -1382,6 +1396,8 @@ __all__ = (
   'solve_underexpanded_expansion_fan',
   'solve_attached_compression_to_pressure',
   'solve_attached_compression_to_turn',
+  'solve_mixed_wave_sample',
+  'solve_mixed_wave_path',
   'solve_attached_subsonic_compression_to_turn',
   'solve_attached_shock_to_centerline',
   'solve_overexpanded_lip_shock',

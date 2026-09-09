@@ -840,6 +840,9 @@ def test_global_transonic_closure_stops_before_infeasible_compression_target():
   assert result.expansion_attempt.mixed_regime_closure_verified is False
   assert result.expansion_attempt.characteristic_field is not None
   assert result.expansion_attempt.characteristic_field.converged
+  assert result.expansion_attempt.mixed_wave_path is not None
+  assert result.expansion_attempt.mixed_wave_path_verified
+  assert result.expansion_attempt.mixed_wave_path.converged
   assert result.expansion_attempt.continuation_closure is not None
   assert result.expansion_attempt.continuation_closure.converged is False
   assert result.converged is False
