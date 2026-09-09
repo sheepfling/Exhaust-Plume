@@ -3871,3 +3871,38 @@ contract, not a downstream field solve.  The next implementation slice must
 solve a moving mixed-regime interface/subsonic field from conservative
 boundary data and repeat the jump, boundary, entropy, Euler, and refinement
 audits before any physical shock-cell or Signature/FPA claim can consume it.
+
+### P2.2e terminal-to-field seam decision checkpoint — 2026-09-09
+
+The next implementation boundary has been audited against the actual coupled
+Euler request and solver, rather than inferred from the scalar handoff.  The
+retained terminal normal shock is approximately at ``x=5.25541 m``; the
+reflected patch carries a short supersonic outgoing trace and does not cover a
+complete downstream cross-section.  The coupled-Euler consumer, by design,
+requires a complete inlet-bound profile or a full-span solver-owned placement.
+It therefore correctly rejects the scalar terminal when the existing control
+section begins downstream, and a zero-offset section would be invalid because
+it would relabel the uncovered supersonic patch as subsonic data.
+
+The existing variable-entropy and quasi-one-dimensional references remain
+useful diagnostic lanes but are not eligible to close this seam.  They may not
+be wrapped, renamed, or used as an inlet-profile fallback.  The next P2.2e
+implementation must introduce a separately named solver-owned moving
+mixed-regime interface/subsonic-field request and result that consumes
+conservative boundary data and retains the interface geometry explicitly.  Its
+minimum independent evidence is:
+
+- exact terminal Rankine--Hugoniot jump and interface lineage;
+- no extrapolation beyond the retained supersonic patch, with explicit
+  unavailable/masked coverage where the interface is not solved;
+- centerline and ambient/free-boundary residuals in the same field solve;
+- entropy transport/production and conservative mass, momentum, and energy
+  residuals rederived by an independent audit; and
+- a strictly increasing mesh/iteration refinement ladder with a stable
+  interface and field, still blocked from chain promotion until external
+  physical comparison is accepted.
+
+Until that operator exists and passes those gates, the correct status remains
+``subsonic_field_required`` and ``release_ready=false``.  No scalar endpoint
+hold, profile extension, pressure/geometry profile substitution, or mapped
+variable-entropy result may be counted as canonical closure.
