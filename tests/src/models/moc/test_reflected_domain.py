@@ -203,6 +203,7 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_entropy_closure im
   MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus,
   audit_reflected_domain_global_transonic_mixed_wave_entropy_closure,
   build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile,
+  solve_reflected_domain_global_transonic_mixed_wave_entropy_closure,
 )
 from exhaust_plume.validation.moc_transonic_interface import (
   MocTransonicShockInterfaceFieldProfileAuditStatus,
@@ -1095,6 +1096,39 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   assert entropy_audit.physical_closure_verified is False
   assert entropy_audit.chain_promotion_blocked
   assert entropy_audit.production_claim_allowed is False
+
+  consumed_entropy_audit = (
+    solve_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+      result,
+      entropy_profile,
+    )
+  )
+  assert consumed_entropy_audit.status in (
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+    .JOINT_FIELD_RESEARCH_RESULT,
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+    .JOINT_FIELD_FAILURE,
+  )
+  assert consumed_entropy_audit.joint_field_consumer_available
+  assert consumed_entropy_audit.joint_field_consumed
+  assert consumed_entropy_audit.joint_field_result is not None
+  assert consumed_entropy_audit.joint_field_audit is not None
+  assert consumed_entropy_audit.joint_field_result.request is not None
+  assert (
+    consumed_entropy_audit.joint_field_result.request.entropy_closure_profile
+    is entropy_profile
+  )
+  assert consumed_entropy_audit.joint_field_result.entropy_closure_profile_consumed
+  assert consumed_entropy_audit.joint_field_result.chain_promotion_blocked
+  assert consumed_entropy_audit.production_claim_allowed is False
+  assert consumed_entropy_audit.physical_closure_verified is False
+  if consumed_entropy_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+    .JOINT_FIELD_RESEARCH_RESULT
+  ):
+    assert consumed_entropy_audit.joint_field_research_verified
+  else:
+    assert not consumed_entropy_audit.joint_field_research_verified
 
   tampered_profile = replace(
     entropy_profile,

@@ -1,24 +1,30 @@
 """Typed entropy/mixing closure contract for the mixed-wave research lane.
 
-The mixed-wave downstream field currently exposes a real pressure-budget
-deficit: its subsonic branch cannot reach the retained ambient target without
-additional total-pressure loss.  This module makes the missing physics an
-explicit input contract.  A profile must carry its exact upstream lineage,
-an ordered total-pressure loss law, and the static-pressure targets that a
-future joint interface/field solver is expected to consume.
+The mixed-wave downstream field exposes a real pressure-budget deficit: its
+subsonic branch cannot reach the retained ambient target without additional
+total-pressure loss.  This module makes the missing physics an explicit input
+contract and now provides a bounded research consumer for it.  A profile must
+carry its exact upstream lineage, an ordered total-pressure loss law, and the
+static-pressure targets that the coupled field consumes.
 
-The current coupled-Euler solver has no equation-level consumer for that
-profile.  The audit therefore stops at ``PROFILE_READY_FOR_JOINT_SOLVER``;
-it never treats a declared loss as if it had been applied, and it never
-promotes the existing downstream field or a shock-cell chain.
+The consumer is deliberately a fixed-velocity/fixed-temperature relaxation
+source.  It is useful for exercising the joint field, residual, and audit
+seams, but it is not a physical mixing closure and cannot promote a downstream
+field or a shock-cell chain.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
 from typing import Any
+
+from exhaust_plume.models.moc.coupled_euler_free_boundary import (
+  MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  solve_reflected_domain_coupled_euler_free_boundary,
+)
 
 from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
@@ -28,6 +34,10 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_downstream import 
   MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
   MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus,
 )
+from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
+  MocReflectedDomainCoupledEulerFreeBoundaryAudit,
+  measure_reflected_domain_coupled_euler_free_boundary,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_ENTROPY_CLOSURE_OPERATOR_ID',
@@ -36,6 +46,7 @@ __all__ = (
   'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult',
   'build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile',
   'audit_reflected_domain_global_transonic_mixed_wave_entropy_closure',
+  'solve_reflected_domain_global_transonic_mixed_wave_entropy_closure',
 )
 
 
@@ -66,6 +77,10 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus(
   JOINT_FIELD_CONSUMER_REQUIRED = (
     'mixed-wave-entropy-closure-joint-field-consumer-required'
   )
+  JOINT_FIELD_RESEARCH_RESULT = (
+    'mixed-wave-entropy-closure-joint-field-research-result'
+  )
+  JOINT_FIELD_FAILURE = 'mixed-wave-entropy-closure-joint-field-failure'
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +102,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
   reference_total_pressure_Pa: float
   additional_total_pressure_loss_fraction: float
   minimum_required_total_pressure_loss_fraction: float
+  relaxation_fraction: float = 0.25
   mechanism_id: str = DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE
   source: str = DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE
 
@@ -181,6 +197,13 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
       minimum_loss,
     )
 
+    relaxation_fraction = float(self.relaxation_fraction)
+    if not isfinite(relaxation_fraction) or not 0.0 < relaxation_fraction <= 1.0:
+      raise ValueError(
+        'relaxation_fraction must be finite and in the (0, 1] interval'
+      )
+    object.__setattr__(self, 'relaxation_fraction', relaxation_fraction)
+
     mechanism_id = str(self.mechanism_id)
     source = str(self.source)
     if not mechanism_id or not source:
@@ -214,6 +237,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
       'minimum_required_total_pressure_loss_fraction': (
         self.minimum_required_total_pressure_loss_fraction
       ),
+      'relaxation_fraction': self.relaxation_fraction,
       'budget_satisfied': self.budget_satisfied,
       'claim_status': (
         'research-only-declared-entropy-loss-profile; it is not a field '
@@ -236,6 +260,8 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
   pressure_budget_verified: bool = False
   joint_field_consumer_available: bool = False
   joint_field_consumed: bool = False
+  joint_field_result: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None
+  joint_field_audit: MocReflectedDomainCoupledEulerFreeBoundaryAudit | None = None
   local_closure_verified: bool = False
   centerline_boundary_verified: bool = False
   global_coupling_verified: bool = False
@@ -265,6 +291,22 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
         'profile must be a '
         'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile or None'
       )
+    if self.joint_field_result is not None and not isinstance(
+      self.joint_field_result,
+      MocReflectedDomainCoupledEulerFreeBoundaryResult,
+    ):
+      raise TypeError(
+        'joint_field_result must be a '
+        'MocReflectedDomainCoupledEulerFreeBoundaryResult or None'
+      )
+    if self.joint_field_audit is not None and not isinstance(
+      self.joint_field_audit,
+      MocReflectedDomainCoupledEulerFreeBoundaryAudit,
+    ):
+      raise TypeError(
+        'joint_field_audit must be a '
+        'MocReflectedDomainCoupledEulerFreeBoundaryAudit or None'
+      )
     ####
     fingerprint = str(self.source_closure_fingerprint)
     if self.downstream is not None and self.profile is not None and not fingerprint:
@@ -293,9 +335,13 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
       raise ValueError('entropy-closure research evidence must block promotion')
     if self.production_claim_allowed:
       raise ValueError('entropy-closure research evidence cannot allow production')
-    if self.local_closure_verified or self.joint_field_consumed:
+    if self.joint_field_consumed and self.joint_field_result is None:
       raise ValueError(
-        'the current entropy-closure slice cannot claim a consumed joint field'
+        'joint_field_consumed requires a retained coupled-field result'
+      )
+    if self.local_closure_verified and not self.joint_field_consumed:
+      raise ValueError(
+        'local_closure_verified requires a consumed joint field'
       )
     object.__setattr__(self, 'message', str(self.message))
 
@@ -320,9 +366,27 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
 
   @property
   def physical_closure_verified(self) -> bool:
-    """The profile audit is never a physical field closure."""
+    """The research consumer is never a canonical physical closure."""
 
     return False
+
+  @property
+  def joint_field_research_verified(self) -> bool:
+    """Whether the consumed field passed its local independent audit."""
+
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+      .JOINT_FIELD_RESEARCH_RESULT
+      and self.joint_field_consumer_available
+      and self.joint_field_consumed
+      and self.joint_field_result is not None
+      and self.joint_field_audit is not None
+      and self.joint_field_audit.local_consistency_verified
+      and self.local_closure_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -330,6 +394,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
       'status': self.status.value,
       'profile_ready_for_joint_solver': self.profile_ready_for_joint_solver,
       'physical_closure_verified': self.physical_closure_verified,
+      'joint_field_research_verified': self.joint_field_research_verified,
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'profile_lineage_verified': self.profile_lineage_verified,
       'coordinate_profile_verified': self.coordinate_profile_verified,
@@ -337,6 +402,16 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
       'pressure_budget_verified': self.pressure_budget_verified,
       'joint_field_consumer_available': self.joint_field_consumer_available,
       'joint_field_consumed': self.joint_field_consumed,
+      'joint_field_result': (
+        None
+        if self.joint_field_result is None
+        else self.joint_field_result.as_report()
+      ),
+      'joint_field_audit': (
+        None
+        if self.joint_field_audit is None
+        else self.joint_field_audit.as_report()
+      ),
       'local_closure_verified': self.local_closure_verified,
       'centerline_boundary_verified': self.centerline_boundary_verified,
       'global_coupling_verified': self.global_coupling_verified,
@@ -347,9 +422,9 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
       ),
       'profile': None if self.profile is None else self.profile.as_report(),
       'claim_status': (
-        'research-only-entropy-profile-preflight; a joint interface/field '
-        'equation consumer, independent residual audits, refinement, and '
-        'external validation remain required'
+        'research-only-entropy-profile-and-relaxation-consumer; the '
+        'relaxation is not a physical mixing closure, and canonical '
+        'promotion, refinement, and external validation remain required'
       ),
       'message': self.message,
     }
@@ -410,12 +485,155 @@ def _downstream_context(
   )
 
 
+def solve_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+  downstream: MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
+  profile: MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+) -> MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
+  """Consume one audited loss profile in the bounded coupled field.
+
+  The solver receives the exact downstream request retained by ``downstream``
+  with two explicit, aligned inputs: the ambient static-pressure profile for
+  the free boundary and the entropy-profile relaxation source.  The returned
+  result retains both the candidate field and a separate validator result.
+  Even when both local checks pass, this function remains research-only because
+  the relaxation law is not an independently validated physical mixing model.
+  """
+
+  preflight = audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+    downstream,
+    profile,
+  )
+  if not preflight.profile_ready_for_joint_solver:
+    return replace(
+      preflight,
+      joint_field_consumer_available=True,
+      message=(
+        f'{preflight.message}; joint-field consumer was not run because the '
+        'explicit entropy profile did not pass its preflight contract'
+      ),
+    )
+  ####
+  field = downstream.field
+  if field is None or field.request is None:
+    return replace(
+      preflight,
+      status=(
+        MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+        .JOINT_FIELD_FAILURE
+      ),
+      joint_field_consumer_available=True,
+      message=(
+        'the audited downstream seam retained no coupled-field request for '
+        'the entropy-profile consumer'
+      ),
+    )
+  ####
+  coupled_request = field.request
+  if not isinstance(
+    coupled_request,
+    MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  ):
+    return replace(
+      preflight,
+      status=(
+        MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+        .JOINT_FIELD_FAILURE
+      ),
+      joint_field_consumer_available=True,
+      message='retained downstream field request is not a typed coupled-Euler request',
+    )
+  ####
+  try:
+    consumed_request = replace(
+      coupled_request,
+      entropy_closure_profile=profile,
+      free_boundary_pressure_profile_Pa=profile.target_static_pressure_Pa,
+      free_boundary_pressure_profile_x_stations_m=profile.x_stations_m,
+      free_boundary_pressure_profile_source=(
+        f'{profile.source}:static-target'
+      ),
+    )
+  except (ArithmeticError, TypeError, ValueError) as error:
+    return replace(
+      preflight,
+      status=(
+        MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+        .JOINT_FIELD_FAILURE
+      ),
+      joint_field_consumer_available=True,
+      message=f'entropy-profile coupled request construction failed: {error}',
+    )
+  ####
+  try:
+    candidate = solve_reflected_domain_coupled_euler_free_boundary(
+      consumed_request
+    )
+    independent_audit = measure_reflected_domain_coupled_euler_free_boundary(
+      candidate
+    )
+  except (ArithmeticError, FloatingPointError, RuntimeError, TypeError, ValueError) as error:
+    return replace(
+      preflight,
+      status=(
+        MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+        .JOINT_FIELD_FAILURE
+      ),
+      joint_field_consumer_available=True,
+      message=f'entropy-profile coupled field or audit failed: {error}',
+    )
+  ####
+  consumed = bool(
+    candidate.request is consumed_request
+    and candidate.entropy_closure_profile_consumed
+    and candidate.request.entropy_closure_profile is profile
+  )
+  local_verified = bool(
+    consumed
+    and candidate.local_physical_closure_verified
+    and candidate.entropy_closure_profile_verified
+    and independent_audit.local_consistency_verified
+  )
+  status = (
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+    .JOINT_FIELD_RESEARCH_RESULT
+    if local_verified
+    else MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus
+    .JOINT_FIELD_FAILURE
+  )
+  message = (
+    'the coupled field consumed the exact entropy profile and its independent '
+    'local audit passed; the relaxation law remains research-only and all '
+    'canonical, chain, and production gates remain blocked'
+    if local_verified
+    else (
+      'the coupled field consumed the exact entropy profile, but its local '
+      'solver or independent audit did not pass every required check; '
+      f'solver={candidate.status.value}, audit={independent_audit.status.value}'
+    )
+  )
+  return replace(
+    preflight,
+    status=status,
+    joint_field_consumer_available=True,
+    joint_field_consumed=consumed,
+    joint_field_result=candidate,
+    joint_field_audit=independent_audit,
+    local_closure_verified=local_verified,
+    centerline_boundary_verified=False,
+    global_coupling_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=message,
+  )
+
+
 def build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
   downstream: MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
   *,
   x_stations_m: tuple[float, ...],
   total_pressure_Pa: tuple[float, ...],
   target_static_pressure_Pa: tuple[float, ...],
+  relaxation_fraction: float = 0.25,
   mechanism_id: str = DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE,
   source: str = DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE,
 ) -> MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
@@ -465,6 +683,7 @@ def build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
     reference_total_pressure_Pa=reference_pressure,
     additional_total_pressure_loss_fraction=loss_fraction,
     minimum_required_total_pressure_loss_fraction=minimum_loss,
+    relaxation_fraction=relaxation_fraction,
     mechanism_id=mechanism_id,
     source=source,
   )

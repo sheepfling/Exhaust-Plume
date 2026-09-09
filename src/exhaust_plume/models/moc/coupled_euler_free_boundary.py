@@ -112,6 +112,146 @@ _CHANNEL_NAMES = (
 )
 
 
+def _entropy_closure_profile_fields(
+  profile: Any,
+  mixed_regime_request: Any,
+  axial_cell_count: int,
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], float]:
+  """Validate the structural entropy-profile contract without a validation import.
+
+  The validation lane owns the concrete profile type.  The coupled solver
+  consumes its structural contract here so the model layer does not import
+  the validation layer and create a circular dependency.
+  """
+
+  required_attributes = (
+    'source_closure_fingerprint',
+    'source_perimeter_contract_source',
+    'x_stations_m',
+    'total_pressure_Pa',
+    'target_static_pressure_Pa',
+    'reference_total_pressure_Pa',
+    'additional_total_pressure_loss_fraction',
+    'minimum_required_total_pressure_loss_fraction',
+    'relaxation_fraction',
+    'as_report',
+  )
+  if any(not hasattr(profile, name) for name in required_attributes):
+    raise TypeError(
+      'entropy_closure_profile must expose the typed total-pressure loss '
+      'profile contract'
+    )
+  ####
+  if not callable(profile.as_report):
+    raise TypeError('entropy_closure_profile.as_report must be callable')
+  ####
+  if str(profile.source_closure_fingerprint) != str(
+    mixed_regime_request.closure_fingerprint
+  ):
+    raise ValueError(
+      'entropy_closure_profile must retain the exact mixed-regime closure '
+      'fingerprint'
+    )
+  ####
+  expected_contract_source = mixed_regime_request.perimeter_contract_source
+  if expected_contract_source is None:
+    raise ValueError(
+      'mixed-regime request must retain a perimeter contract source before '
+      'an entropy profile can be consumed'
+    )
+  if str(profile.source_perimeter_contract_source) != str(
+    expected_contract_source
+  ):
+    raise ValueError(
+      'entropy_closure_profile must retain the exact perimeter contract source'
+    )
+  ####
+  x_stations = tuple(float(value) for value in profile.x_stations_m)
+  total_pressure = tuple(float(value) for value in profile.total_pressure_Pa)
+  static_pressure = tuple(
+    float(value) for value in profile.target_static_pressure_Pa
+  )
+  if not (
+    len(x_stations)
+    == len(total_pressure)
+    == len(static_pressure)
+    == axial_cell_count
+  ):
+    raise ValueError(
+      'entropy_closure_profile must contain one aligned station per axial '
+      'cell column'
+    )
+  ####
+  if any(not isfinite(value) for value in x_stations):
+    raise ValueError('entropy_closure_profile stations must be finite')
+  if any(
+    second <= first
+    for first, second in zip(x_stations, x_stations[1:])
+  ):
+    raise ValueError(
+      'entropy_closure_profile stations must be strictly downstream ordered'
+    )
+  if any(
+    not isfinite(value) or value <= 0.0
+    for value in (*total_pressure, *static_pressure)
+  ):
+    raise ValueError(
+      'entropy_closure_profile pressures must be finite and positive'
+    )
+  if any(
+    second > first * (1.0 + 1.0e-10)
+    for first, second in zip(total_pressure, total_pressure[1:])
+  ):
+    raise ValueError(
+      'entropy_closure_profile total pressure must be non-increasing'
+    )
+  ####
+  ambient_pressure = float(mixed_regime_request.ambient_pressure_Pa)
+  if any(
+    abs(value - ambient_pressure) > 1.0e-8 * max(ambient_pressure, 1.0)
+    for value in static_pressure
+  ):
+    raise ValueError(
+      'entropy_closure_profile static targets must equal the exact ambient '
+      'pressure carried by the mixed-regime request'
+    )
+  ####
+  reference_pressure = float(profile.reference_total_pressure_Pa)
+  if abs(reference_pressure - total_pressure[0]) > 1.0e-10 * max(
+    reference_pressure,
+    total_pressure[0],
+    1.0,
+  ):
+    raise ValueError(
+      'entropy_closure_profile reference pressure must match its first sample'
+    )
+  ####
+  loss_fraction = float(profile.additional_total_pressure_loss_fraction)
+  minimum_loss = float(profile.minimum_required_total_pressure_loss_fraction)
+  measured_loss = 1.0 - total_pressure[-1] / total_pressure[0]
+  if not 0.0 <= loss_fraction < 1.0 or not 0.0 <= minimum_loss < 1.0:
+    raise ValueError(
+      'entropy_closure_profile loss fractions must lie in the [0, 1) interval'
+    )
+  if abs(measured_loss - loss_fraction) > 1.0e-9:
+    raise ValueError(
+      'entropy_closure_profile loss fraction must match its endpoints'
+    )
+  if loss_fraction + 1.0e-10 < minimum_loss:
+    raise ValueError(
+      'entropy_closure_profile does not supply the retained minimum loss budget'
+    )
+  ####
+  relaxation_fraction = float(profile.relaxation_fraction)
+  if not isfinite(relaxation_fraction) or not 0.0 < relaxation_fraction <= 1.0:
+    raise ValueError(
+      'entropy_closure_profile relaxation_fraction must lie in the (0, 1] '
+      'interval'
+    )
+  ####
+  return x_stations, total_pressure, static_pressure, relaxation_fraction
+
+
 class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   """Outcome for the bounded coupled Euler/free-boundary solve."""
 
@@ -1379,6 +1519,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None
+  # Optional explicit entropy/mixing closure law.  The concrete profile lives
+  # in the validation lane; the solver consumes its structural contract.
+  entropy_closure_profile: Any | None = None
   # Optional solver-owned pressure targets for the free-boundary cell columns.
   # These are a downstream handoff seam, not a promotion or validation claim.
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None
@@ -1636,6 +1779,30 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'MocTransonicShockGeometryRequest or None'
       )
     ####
+    if self.entropy_closure_profile is not None:
+      _profile_x, _profile_total, profile_static, _profile_relaxation = (
+        _entropy_closure_profile_fields(
+          self.entropy_closure_profile,
+          self.mixed_regime_request,
+          self.axial_cell_count,
+        )
+      )
+      if self.free_boundary_pressure_profile_Pa is None:
+        raise ValueError(
+          'entropy_closure_profile requires an explicit aligned '
+          'free-boundary static-pressure profile'
+        )
+      if tuple(self.free_boundary_pressure_profile_Pa) != profile_static:
+        raise ValueError(
+          'free-boundary static-pressure profile must exactly match the '
+          'entropy_closure_profile target pressure'
+        )
+      if tuple(self.free_boundary_pressure_profile_x_stations_m or ()) != _profile_x:
+        raise ValueError(
+          'free-boundary pressure stations must exactly match the '
+          'entropy_closure_profile stations'
+        )
+    ####
     if self.transonic_shock_interface is not None and not isinstance(
       self.transonic_shock_interface,
       MocTransonicShockInterfaceResult,
@@ -1679,6 +1846,13 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       raise TypeError(
         'physical_field_shock_front_condition must be a '
         'MocPhysicalFieldShockFrontConditionResult or None'
+      )
+    ####
+    if self.entropy_closure_profile is not None:
+      _entropy_closure_profile_fields(
+        self.entropy_closure_profile,
+        self.mixed_regime_request,
+        self.axial_cell_count,
       )
     ####
     if (
@@ -1924,6 +2098,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         if self.physical_field_shock_front_condition is None
         else self.physical_field_shock_front_condition.as_report()
       ),
+      'entropy_closure_profile': (
+        None
+        if self.entropy_closure_profile is None
+        else self.entropy_closure_profile.as_report()
+      ),
       'free_boundary_flux_model': COUPLED_EULER_FREE_BOUNDARY_FLUX_MODEL,
       'claim_status': (
         'constant-gamma-coupled-euler-free-boundary-research-lane; '
@@ -1986,6 +2165,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  entropy_closure_profile: Any | None = None,
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_source: str | None = None,
@@ -2043,6 +2223,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     ),
     physical_field_continuation_profile=physical_field_continuation_profile,
     physical_field_shock_front_condition=physical_field_shock_front_condition,
+    entropy_closure_profile=entropy_closure_profile,
     free_boundary_pressure_profile_Pa=free_boundary_pressure_profile_Pa,
     free_boundary_pressure_profile_x_stations_m=(
       free_boundary_pressure_profile_x_stations_m
@@ -2105,9 +2286,13 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   maximum_shape_residual_m: float | None = None
   maximum_entropy_transport_residual: float | None = None
   maximum_entropy_production_fraction: float | None = None
+  entropy_closure_total_pressure_residuals_Pa: tuple[float, ...] = ()
+  maximum_entropy_closure_total_pressure_residual_Pa: float | None = None
   coupled_euler_field_verified: bool = False
   free_boundary_condition_verified: bool = False
   entropy_transport_verified: bool = False
+  entropy_closure_profile_consumed: bool = False
+  entropy_closure_profile_verified: bool = False
   conservative_euler_residuals_measured: bool = False
   conservative_euler_residuals_verified: bool = False
   residual_channel_coverage: MappingProxyType = field(
@@ -2191,6 +2376,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'total_pressure_by_cell_Pa',
       'entropy_proxy_by_cell',
       'entropy_production_fraction_by_cell',
+      'entropy_closure_total_pressure_residuals_Pa',
       'residual_history',
       'shape_residual_history_m',
       'free_boundary_pressure_residuals_Pa',
@@ -2314,6 +2500,21 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       if any(value < 0.0 for value in self.entropy_production_fraction_by_cell):
         raise ValueError(
           'entropy_production_fraction_by_cell must be nonnegative'
+        )
+      ####
+    ####
+    if self.entropy_closure_total_pressure_residuals_Pa:
+      if len(self.entropy_closure_total_pressure_residuals_Pa) != len(states):
+        raise ValueError(
+          'entropy_closure_total_pressure_residuals_Pa must match '
+          'conservative state count'
+        )
+      ####
+      if any(
+        value < 0.0 for value in self.entropy_closure_total_pressure_residuals_Pa
+      ):
+        raise ValueError(
+          'entropy_closure_total_pressure_residuals_Pa must be nonnegative'
         )
       ####
     ####
@@ -2538,6 +2739,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'maximum_shape_residual_m',
       'maximum_entropy_transport_residual',
       'maximum_entropy_production_fraction',
+      'maximum_entropy_closure_total_pressure_residual_Pa',
     ):
       value = getattr(self, name)
       if value is not None:
@@ -2552,6 +2754,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'coupled_euler_field_verified',
       'free_boundary_condition_verified',
       'entropy_transport_verified',
+      'entropy_closure_profile_consumed',
+      'entropy_closure_profile_verified',
       'conservative_euler_residuals_measured',
       'conservative_euler_residuals_verified',
       'canonical_free_boundary_verified',
@@ -2648,6 +2852,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       and self.coupled_euler_field_verified
       and self.free_boundary_condition_verified
       and self.entropy_transport_verified
+      and (
+        self.request is None
+        or self.request.entropy_closure_profile is None
+        or (
+          self.entropy_closure_profile_consumed
+          and self.entropy_closure_profile_verified
+        )
+      )
       and self.conservative_euler_residuals_measured
       and self.conservative_euler_residuals_verified
     )
@@ -2747,6 +2959,18 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         ),
         'free_boundary_ambient_pressure_target_consumed': (
           self.free_boundary_ambient_pressure_target_consumed
+        ),
+        'entropy_closure_profile_consumed': (
+          self.entropy_closure_profile_consumed
+        ),
+        'entropy_closure_profile_verified': (
+          self.entropy_closure_profile_verified
+        ),
+        'entropy_closure_total_pressure_residuals_Pa': (
+          self.entropy_closure_total_pressure_residuals_Pa
+        ),
+        'maximum_entropy_closure_total_pressure_residual_Pa': (
+          self.maximum_entropy_closure_total_pressure_residual_Pa
         ),
         'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
         'initial_state_source': self.initial_state_source,
@@ -2865,9 +3089,21 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'maximum_entropy_production_fraction': (
         self.maximum_entropy_production_fraction
       ),
+      'entropy_closure_total_pressure_residuals_Pa': (
+        self.entropy_closure_total_pressure_residuals_Pa
+      ),
+      'maximum_entropy_closure_total_pressure_residual_Pa': (
+        self.maximum_entropy_closure_total_pressure_residual_Pa
+      ),
       'coupled_euler_field_verified': self.coupled_euler_field_verified,
       'free_boundary_condition_verified': self.free_boundary_condition_verified,
       'entropy_transport_verified': self.entropy_transport_verified,
+      'entropy_closure_profile_consumed': (
+        self.entropy_closure_profile_consumed
+      ),
+      'entropy_closure_profile_verified': (
+        self.entropy_closure_profile_verified
+      ),
       'conservative_euler_residuals_measured': (
         self.conservative_euler_residuals_measured
       ),
@@ -3410,6 +3646,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  entropy_closure_profile: Any | None = None,
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_source: str | None = None,
@@ -3459,6 +3696,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       ),
       physical_field_continuation_profile=physical_field_continuation_profile,
       physical_field_shock_front_condition=physical_field_shock_front_condition,
+      entropy_closure_profile=entropy_closure_profile,
       free_boundary_pressure_profile_Pa=free_boundary_pressure_profile_Pa,
       free_boundary_pressure_profile_x_stations_m=(
         free_boundary_pressure_profile_x_stations_m
@@ -3919,6 +4157,124 @@ def _specified_pressure_wall_flux(
 ####
 
 
+def _total_pressure_from_state(
+  state: np.ndarray,
+  gamma: float,
+  gas_constant: float,
+) -> float:
+  """Return the calorically-perfect-gas total pressure of one state."""
+
+  _rho, u, v, pressure, _temperature, sound_speed = _primitive_from_conservative(
+    state,
+    gamma,
+    gas_constant,
+  )
+  mach = sqrt(u * u + v * v) / sound_speed
+  return float(
+    pressure
+    * (1.0 + 0.5 * (gamma - 1.0) * mach * mach)
+    ** (gamma / (gamma - 1.0))
+  )
+####
+
+
+def _entropy_closure_relaxation_state(
+  state: np.ndarray,
+  target_total_pressure: float,
+  gamma: float,
+  gas_constant: float,
+) -> np.ndarray:
+  """Return the explicit fixed-velocity/fixed-temperature loss target.
+
+  The target is a declared research relaxation law: it preserves the current
+  velocity and static temperature while lowering density and pressure until
+  the requested total pressure is reached.  It is intentionally not claimed
+  as a physical mixing closure until the independent Euler and provider gates
+  accept it.
+  """
+
+  density, velocity_u, velocity_v, pressure, temperature, sound_speed = (
+    _primitive_from_conservative(state, gamma, gas_constant)
+  )
+  speed = sqrt(velocity_u * velocity_u + velocity_v * velocity_v)
+  mach = speed / sound_speed
+  pressure_ratio = (
+    1.0 + 0.5 * (gamma - 1.0) * mach * mach
+  ) ** (gamma / (gamma - 1.0))
+  current_total_pressure = pressure * pressure_ratio
+  if target_total_pressure >= current_total_pressure:
+    return state.copy()
+  target_static_pressure = target_total_pressure / pressure_ratio
+  target_density = target_static_pressure / (gas_constant * temperature)
+  if not isfinite(target_density) or target_density <= 0.0:
+    raise FloatingPointError(
+      'entropy closure relaxation produced a non-positive target density'
+    )
+  ####
+  # ``density`` is intentionally read above so the source law cannot silently
+  # operate on a state that was not thermodynamically reconstructed.
+  _ = density
+  return _conservative_from_primitive(
+    target_density,
+    velocity_u,
+    velocity_v,
+    target_static_pressure,
+    gamma,
+  )
+####
+
+
+def _entropy_closure_diagnostics(
+  states: np.ndarray,
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  centers: np.ndarray,
+  gamma: float,
+  gas_constant: float,
+) -> tuple[tuple[float, ...], bool]:
+  """Measure total-pressure residuals against the consumed loss profile."""
+
+  profile = request.entropy_closure_profile
+  if profile is None:
+    return (), True
+  ####
+  x_stations, target_total_pressure, _static_pressure, _relaxation_fraction = (
+    _entropy_closure_profile_fields(
+      profile,
+      request.mixed_regime_request,
+      request.axial_cell_count,
+    )
+  )
+  residuals: list[float] = []
+  relative_residuals: list[float] = []
+  for i in range(request.axial_cell_count):
+    station = float(centers[i, 0, 0])
+    if abs(station - x_stations[i]) > 1.0e-9 * max(abs(x_stations[i]), 1.0):
+      raise ValueError(
+        'entropy closure profile stations do not match the exact coupled '
+        'cell-center frame'
+      )
+    ####
+    for j in range(request.transverse_cell_count):
+      actual = _total_pressure_from_state(
+        states[i, j],
+        gamma,
+        gas_constant,
+      )
+      target = target_total_pressure[i]
+      residuals.append(abs(actual - target))
+      relative_residuals.append(abs(actual - target) / max(target, 1.0))
+  ####
+  return (
+    tuple(residuals),
+    bool(
+      relative_residuals
+      and max(relative_residuals)
+      <= request.free_boundary_pressure_tolerance_fraction
+    ),
+  )
+####
+
+
 def _ambient_ghost_state(
   state: np.ndarray,
   ambient_pressure: float,
@@ -3990,6 +4346,7 @@ def _cell_residuals(
   gas_constant: float,
   inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode,
   inlet_override_states: tuple[np.ndarray, ...] | None = None,
+  entropy_closure_profile: Any | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   axial_count, transverse_count = areas.shape
   residual = np.zeros_like(states)
@@ -4145,6 +4502,34 @@ def _cell_residuals(
         residual[i, j] += flux
         wave_sums[i, j] += wave * face_length
       ####
+    ####
+  ####
+  if entropy_closure_profile is not None:
+    target_total_pressure = tuple(
+      float(value) for value in entropy_closure_profile.total_pressure_Pa
+    )
+    if len(target_total_pressure) != axial_count:
+      raise ValueError(
+        'validated entropy closure profile does not match the axial mesh'
+      )
+    ####
+    relaxation_fraction = float(entropy_closure_profile.relaxation_fraction)
+    if not 0.0 < relaxation_fraction <= 1.0:
+      raise ValueError('entropy closure relaxation fraction is out of bounds')
+    ####
+    for i in range(axial_count):
+      for j in range(transverse_count):
+        target_state = _entropy_closure_relaxation_state(
+          states[i, j],
+          target_total_pressure[i],
+          gamma,
+          gas_constant,
+        )
+        residual[i, j] += (
+          relaxation_fraction
+          * wave_sums[i, j]
+          * (states[i, j] - target_state)
+        )
     ####
   ####
   return residual, wave_sums, top_pressures, top_normal_velocities
@@ -5127,6 +5512,8 @@ def _result_from_field(
   gas_constant: float,
   entropy_residual: float | None,
   entropy_production_fraction: float | None,
+  entropy_closure_total_pressure_residuals: tuple[float, ...],
+  entropy_closure_profile_verified: bool,
   entropy_verified: bool,
   field_verified: bool,
   boundary_verified: bool,
@@ -5279,9 +5666,21 @@ def _result_from_field(
     ),
     maximum_entropy_transport_residual=entropy_residual,
     maximum_entropy_production_fraction=entropy_production_fraction,
+    entropy_closure_total_pressure_residuals_Pa=(
+      entropy_closure_total_pressure_residuals
+    ),
+    maximum_entropy_closure_total_pressure_residual_Pa=(
+      None
+      if not entropy_closure_total_pressure_residuals
+      else max(entropy_closure_total_pressure_residuals)
+    ),
     coupled_euler_field_verified=field_verified,
     free_boundary_condition_verified=boundary_verified,
     entropy_transport_verified=entropy_verified,
+    entropy_closure_profile_consumed=(
+      request.entropy_closure_profile is not None
+    ),
+    entropy_closure_profile_verified=entropy_closure_profile_verified,
     conservative_euler_residuals_measured=True,
     conservative_euler_residuals_verified=all(channel_validity.values()),
     residual_channel_coverage=MappingProxyType(channel_coverage),
@@ -5380,6 +5779,7 @@ def _solve_pseudo_time(
       request.gas_constant_J_kgK,
       request.inlet_boundary_mode,
       inlet_override_states,
+      request.entropy_closure_profile,
     )
     normalised = _normalise_residuals(
       states,
@@ -6007,6 +6407,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   pseudo_iteration_count = 0
   entropy_residual = None
   entropy_production_fraction = None
+  entropy_closure_total_pressure_residuals: tuple[float, ...] = ()
+  entropy_closure_profile_verified = request.entropy_closure_profile is None
   entropy_verified = False
   field_verified = False
   boundary_verified = False
@@ -6168,7 +6570,23 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       gamma,
       request.gas_constant_J_kgK,
     )
-    if field_verified and boundary_verified and entropy_verified and shape_residual <= request.shape_convergence_tolerance:
+    (
+      entropy_closure_total_pressure_residuals,
+      entropy_closure_profile_verified,
+    ) = _entropy_closure_diagnostics(
+      states,
+      request,
+      centers,
+      gamma,
+      request.gas_constant_J_kgK,
+    )
+    if (
+      field_verified
+      and boundary_verified
+      and entropy_verified
+      and entropy_closure_profile_verified
+      and shape_residual <= request.shape_convergence_tolerance
+    ):
       status = (
         MocReflectedDomainCoupledEulerFreeBoundaryStatus.CONVERGED_LOCAL_PHYSICAL_CLOSURE
       )
@@ -6229,6 +6647,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     request.gas_constant_J_kgK,
     entropy_residual,
     entropy_production_fraction,
+    entropy_closure_total_pressure_residuals,
+    entropy_closure_profile_verified,
     entropy_verified,
     field_verified,
     boundary_verified,

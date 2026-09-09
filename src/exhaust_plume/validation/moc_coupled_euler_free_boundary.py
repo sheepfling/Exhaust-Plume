@@ -266,6 +266,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   entropy_report_verified: bool = False
   entropy_production_map_verified: bool = False
   entropy_transport_verified: bool = False
+  maximum_entropy_closure_total_pressure_residual_Pa: float | None = None
+  entropy_closure_profile_consumed: bool = False
+  entropy_closure_profile_verified: bool = False
   promotion_flags_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
@@ -317,6 +320,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'control_section_pressure_jump_fraction',
       'maximum_entropy_transport_residual',
       'maximum_entropy_production_fraction',
+      'maximum_entropy_closure_total_pressure_residual_Pa',
     ):
       value = getattr(self, name)
       if value is not None:
@@ -350,6 +354,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'entropy_report_verified',
       'entropy_production_map_verified',
       'entropy_transport_verified',
+      'entropy_closure_profile_consumed',
+      'entropy_closure_profile_verified',
       'promotion_flags_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
@@ -462,6 +468,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       and self.entropy_report_verified
       and self.entropy_production_map_verified
       and self.entropy_transport_verified
+      and (
+        self.candidate is None
+        or self.candidate.request is None
+        or self.candidate.request.entropy_closure_profile is None
+        or (
+          self.entropy_closure_profile_consumed
+          and self.entropy_closure_profile_verified
+        )
+      )
       and self.promotion_flags_verified
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
@@ -503,6 +518,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       ),
       'maximum_entropy_production_fraction': (
         self.maximum_entropy_production_fraction
+      ),
+      'maximum_entropy_closure_total_pressure_residual_Pa': (
+        self.maximum_entropy_closure_total_pressure_residual_Pa
       ),
       'geometry_verified': self.geometry_verified,
       'state_samples_verified': self.state_samples_verified,
@@ -549,6 +567,12 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'entropy_report_verified': self.entropy_report_verified,
       'entropy_production_map_verified': self.entropy_production_map_verified,
       'entropy_transport_verified': self.entropy_transport_verified,
+      'entropy_closure_profile_consumed': (
+        self.entropy_closure_profile_consumed
+      ),
+      'entropy_closure_profile_verified': (
+        self.entropy_closure_profile_verified
+      ),
       'promotion_flags_verified': self.promotion_flags_verified,
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -627,6 +651,126 @@ def _primitive(
     raise FloatingPointError('audited temperature is not positive')
   ####
   return density, velocity_u, velocity_v, pressure, temperature, sound_speed
+####
+
+
+def _entropy_closure_relaxation_state(
+  state: np.ndarray,
+  target_total_pressure: float,
+  gamma: float,
+  gas_constant: float,
+) -> np.ndarray:
+  """Reconstruct the model's declared fixed-velocity loss target."""
+
+  density, velocity_u, velocity_v, pressure, temperature, sound_speed = (
+    _primitive(state, gamma, gas_constant)
+  )
+  speed = sqrt(velocity_u * velocity_u + velocity_v * velocity_v)
+  mach = speed / sound_speed
+  pressure_ratio = (
+    1.0 + 0.5 * (gamma - 1.0) * mach * mach
+  ) ** (gamma / (gamma - 1.0))
+  current_total_pressure = pressure * pressure_ratio
+  if target_total_pressure >= current_total_pressure:
+    return state.copy()
+  ####
+  target_static_pressure = target_total_pressure / pressure_ratio
+  target_density = target_static_pressure / (gas_constant * temperature)
+  if not isfinite(target_density) or target_density <= 0.0:
+    raise FloatingPointError(
+      'audited entropy closure relaxation produced a non-positive density'
+    )
+  ####
+  _ = density
+  return np.array(
+    (
+      target_density,
+      target_density * velocity_u,
+      target_density * velocity_v,
+      target_static_pressure / (gamma - 1.0)
+      + 0.5
+      * target_density
+      * (velocity_u * velocity_u + velocity_v * velocity_v),
+    ),
+    dtype=float,
+  )
+
+
+def _total_pressure_from_state(
+  state: np.ndarray,
+  gamma: float,
+  gas_constant: float,
+) -> float:
+  """Return total pressure for one audited conservative state."""
+
+  _density, velocity_u, velocity_v, pressure, _temperature, sound_speed = (
+    _primitive(state, gamma, gas_constant)
+  )
+  mach = sqrt(velocity_u * velocity_u + velocity_v * velocity_v) / sound_speed
+  return float(
+    pressure
+    * (1.0 + 0.5 * (gamma - 1.0) * mach * mach)
+    ** (gamma / (gamma - 1.0))
+  )
+
+
+def _audit_entropy_closure_profile(
+  candidate: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  states: np.ndarray,
+  gamma: float,
+  gas_constant: float,
+) -> tuple[bool, float | None]:
+  """Independently reproduce the retained entropy-profile residuals."""
+
+  request = candidate.request
+  if request is None or request.entropy_closure_profile is None:
+    return True, None
+  ####
+  profile = request.entropy_closure_profile
+  target_total_pressure = tuple(
+    float(value) for value in profile.total_pressure_Pa
+  )
+  if len(target_total_pressure) != request.axial_cell_count:
+    return False, None
+  ####
+  centers = np.asarray(candidate.cell_centers_m, dtype=float)
+  if centers.shape != (request.axial_cell_count * request.transverse_cell_count, 2):
+    return False, None
+  ####
+  expected_residuals: list[float] = []
+  for index, state in enumerate(states.reshape((-1, 4))):
+    axial_index = index // request.transverse_cell_count
+    expected_station = float(profile.x_stations_m[axial_index])
+    if abs(float(centers[index, 0]) - expected_station) > 1.0e-9 * max(
+      abs(expected_station),
+      1.0,
+    ):
+      return False, None
+    ####
+    actual = _total_pressure_from_state(state, gamma, gas_constant)
+    expected_residuals.append(
+      abs(actual - target_total_pressure[axial_index])
+    )
+  ####
+  reported = np.asarray(
+    candidate.entropy_closure_total_pressure_residuals_Pa,
+    dtype=float,
+  )
+  expected = np.asarray(expected_residuals, dtype=float)
+  maximum = float(np.max(expected)) if len(expected) else None
+  verified = bool(
+    candidate.entropy_closure_profile_consumed
+    and candidate.entropy_closure_profile_verified
+    and reported.shape == expected.shape
+    and np.allclose(reported, expected, rtol=3.0e-6, atol=1.0e-8)
+    and candidate.maximum_entropy_closure_total_pressure_residual_Pa is not None
+    and maximum is not None
+    and abs(
+      candidate.maximum_entropy_closure_total_pressure_residual_Pa - maximum
+    )
+    <= max(1.0e-8, 3.0e-6 * maximum)
+  )
+  return verified, maximum
 ####
 
 
@@ -2483,6 +2627,24 @@ def _audit_field(
     else geometry_override_states
   )
   gas_constant = request.gas_constant_J_kgK
+  entropy_profile = request.entropy_closure_profile
+  entropy_target_total_pressure: tuple[float, ...] | None = None
+  entropy_relaxation_fraction = 0.0
+  if entropy_profile is not None:
+    entropy_target_total_pressure = tuple(
+      float(value) for value in entropy_profile.total_pressure_Pa
+    )
+    if len(entropy_target_total_pressure) != axial_count:
+      raise ValueError(
+        'audited entropy closure profile does not match the axial mesh'
+      )
+    ####
+    entropy_relaxation_fraction = float(entropy_profile.relaxation_fraction)
+    if not 0.0 < entropy_relaxation_fraction <= 1.0:
+      raise ValueError(
+        'audited entropy closure relaxation fraction is out of bounds'
+      )
+  ####
   points = np.empty((axial_count + 1, transverse_count + 1, 2), dtype=float)
   eta = np.linspace(0.0, 1.0, transverse_count + 1)
   points[:, :, 0] = np.asarray(candidate.x_stations_m)[:, None]
@@ -2571,6 +2733,7 @@ def _audit_field(
       speeds.append(sqrt(velocity_u * velocity_u + velocity_v * velocity_v))
       entropy_values.append(pressure / density ** gamma)
       perimeter = 0.0
+      wave_sum = 0.0
       for edge_index in range(4):
         first = cell[edge_index]
         second = cell[(edge_index + 1) % 4]
@@ -2699,6 +2862,20 @@ def _audit_field(
           )
         ####
         residual[i, j] += flux
+        wave_sum += wave * length
+      ####
+      if entropy_target_total_pressure is not None:
+        target_state = _entropy_closure_relaxation_state(
+          state,
+          entropy_target_total_pressure[i],
+          gamma,
+          gas_constant,
+        )
+        residual[i, j] += (
+          entropy_relaxation_fraction
+          * wave_sum
+          * (state - target_state)
+        )
       ####
       mass_scale = max(density * sound_speed * perimeter, 1.0e-12)
       momentum_scale = max(
@@ -3109,6 +3286,27 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       atol=1.0e-10,
     )
   )
+  entropy_closure_profile_consumed = bool(
+    candidate.request.entropy_closure_profile is None
+    or candidate.entropy_closure_profile_consumed
+  )
+  audited_states = np.asarray(
+    candidate.conservative_states_by_cell,
+    dtype=float,
+  ).reshape((candidate.request.axial_cell_count, candidate.request.transverse_cell_count, 4))
+  audited_gamma = float(candidate.request.mixed_regime_request.control_section.samples[0].gamma)
+  try:
+    entropy_closure_profile_verified, maximum_entropy_closure_residual = (
+      _audit_entropy_closure_profile(
+        candidate,
+        audited_states,
+        audited_gamma,
+        candidate.request.gas_constant_J_kgK,
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError):
+    entropy_closure_profile_verified = False
+    maximum_entropy_closure_residual = None
   maxima = tuple(float(np.max(recomputed[..., index])) for index in range(_CHANNEL_COUNT))
   residuals_verified = maxima[4] <= candidate.request.euler_residual_tolerance
   pressure = np.asarray(raw['top_pressure'], dtype=float)
@@ -3267,6 +3465,12 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not entropy_production_map_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
     message = 'candidate per-cell entropy-production map does not match the field'
+  elif not entropy_closure_profile_consumed:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
+    message = 'candidate did not retain consumption of the entropy closure profile'
+  elif not entropy_closure_profile_verified:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
+    message = 'candidate entropy closure profile residuals do not match the field'
   elif not boundary_report_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
     message = 'candidate free-boundary diagnostic arrays do not match the field'
@@ -3309,6 +3513,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     maximum_free_boundary_normal_velocity_residual_fraction=normal_fraction,
     maximum_entropy_transport_residual=float(raw['entropy_residual']),
     maximum_entropy_production_fraction=float(raw['entropy_production_fraction']),
+    maximum_entropy_closure_total_pressure_residual_Pa=(
+      maximum_entropy_closure_residual
+    ),
     geometry_verified=bool(raw['geometry_verified']),
     state_samples_verified=bool(raw['state_samples_verified']),
     thermodynamics_verified=bool(raw['thermodynamics_verified']),
@@ -3352,6 +3559,8 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     entropy_report_verified=entropy_report_verified,
     entropy_production_map_verified=entropy_production_map_verified,
     entropy_transport_verified=bool(raw['entropy_verified']),
+    entropy_closure_profile_consumed=entropy_closure_profile_consumed,
+    entropy_closure_profile_verified=entropy_closure_profile_verified,
     promotion_flags_verified=promotion_flags_verified,
     chain_promotion_blocked=True,
     production_claim_allowed=False,

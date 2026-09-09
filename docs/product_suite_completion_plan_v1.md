@@ -3631,11 +3631,24 @@ solution.
 The retained target accepts an explicitly declared profile at the exact
 coupled-field cell centers and reports
 ``mixed-wave-entropy-profile-ready-for-joint-interface-field-solver``.  The
-audit also records that the current coupled-Euler solver has no equation-level
-consumer for total-pressure/entropy evolution, so no field solve is attempted,
+audit also records that a profile-only audit is not a field solve,
 ``physical_closure_verified`` remains false, and chain/production promotion
-remain blocked.  A tampered perimeter lineage is rejected.  This is the
-contract seam for the next implementation slice: add the actual joint
-interface/field entropy-producing equations, then independently rederive
-conservative/Euler, entropy, centerline, ambient, geometry, and refinement
-residuals at every iterate.
+remain blocked.  A tampered perimeter lineage is rejected.
+
+### P2.2d research entropy-consumer checkpoint — 2026-09-09
+
+The next seam is now executable in the research lane.  The coupled Euler
+solver consumes the exact profile through an explicit fixed-velocity,
+fixed-temperature relaxation source, while retaining the ambient static
+pressure profile as a separate free-boundary target.  The field result reports
+per-cell total-pressure residuals and the independent coupled-field validator
+reconstructs the same source contribution before comparing conservative
+residuals.  The consumer test proves that the profile is actually carried by
+the fresh request and retained in the field result.
+
+This is intentionally not a physical mixing closure: ``physical_closure_verified``
+and production claims remain false, centerline/global coupling is still open,
+and the consumer cannot promote a shock-cell chain.  The next work must replace
+the relaxation with a physically justified mechanism, run refinement and
+cross-case evidence, bind validation data, and only then revisit canonical
+Signature/FPA promotion.

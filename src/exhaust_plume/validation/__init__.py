@@ -319,6 +319,7 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_entropy_closure im
   MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult,
   build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile,
   audit_reflected_domain_global_transonic_mixed_wave_entropy_closure,
+  solve_reflected_domain_global_transonic_mixed_wave_entropy_closure,
 )
 from exhaust_plume.validation.moc_global_frontier_target_resolve import (
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID,
@@ -980,6 +981,7 @@ __all__ = (
   'solve_reflected_domain_global_transonic_mixed_wave_downstream',
   'build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile',
   'audit_reflected_domain_global_transonic_mixed_wave_entropy_closure',
+  'solve_reflected_domain_global_transonic_mixed_wave_entropy_closure',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID',
   'MocReflectedDomainGlobalFrontierTargetResolveStatus',
   'MocReflectedDomainGlobalFrontierTargetResolveCandidate',
