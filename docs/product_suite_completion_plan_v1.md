@@ -3553,3 +3553,25 @@ planar-MOC closure, physical shock-cell fitting, owner-supplied validation
 archives and provider comparisons for Visualization/Signature/ray/FPA,
 release-manifest refresh, package smoke, and only then merge toward ``main``
 and tag.
+
+### P2.2d additional-entropy requirement checkpoint — 2026-09-09
+
+The mixed-wave downstream result now distinguishes a typed
+``mixed-wave-downstream-additional-entropy-required`` stop from an ordinary
+coupled-field failure.  When the exact perimeter, entropy handoff, and
+solver-owned full-span transonic placement are consumed but the field returns
+an ambient free-boundary failure below the isentropic subsonic pressure
+bounds, the result retains the exact pressure-budget object and exposes the
+minimum additional total-pressure loss fraction.  The result remains
+research-only, promotion-blocked, and production-disallowed; no loss,
+geometry, endpoint, or lower-fidelity substitute is invented.
+
+On the retained target, increasing the field budget to 1,500 pseudo-time
+iterations and 60 shape iterations leaves approximately 233 kPa of maximum
+ambient pressure residual and a 0.074 normal-velocity residual fraction.  The
+independent budget still requires approximately 47.5% additional total-
+pressure loss.  This confirms that the open seam is physical closure physics,
+not an iteration-limit classification.  The focused regression passes.  The
+next P2.2d slice must add and audit the actual joint mixed-wave/interface,
+entropy-producing, centerline, and ambient closure mechanism before any
+canonical field or shock-cell fit can consume it.

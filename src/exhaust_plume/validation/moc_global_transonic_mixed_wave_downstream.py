@@ -17,7 +17,10 @@ from typing import Any
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
+  MocReflectedDomainCoupledEulerSubsonicPressureBudget,
+  MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
   solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request,
 )
 from exhaust_plume.models.moc.global_physical_closure import (
@@ -79,6 +82,9 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus(str, Enum):
   HANDOFF_FAILURE = 'mixed-wave-downstream-entropy-handoff-failure'
   CONTROL_SECTION_FAILURE = 'mixed-wave-downstream-control-section-failure'
   FIELD_FAILURE = 'mixed-wave-downstream-coupled-field-failure'
+  ADDITIONAL_ENTROPY_REQUIRED = (
+    'mixed-wave-downstream-additional-entropy-required'
+  )
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +100,9 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
   control_section: MocMixedRegimeControlSection | None = None
   transonic_interface_placement: (
     MocTransonicShockInterfaceFieldPlacementResult | None
+  ) = None
+  subsonic_pressure_budget: (
+    MocReflectedDomainCoupledEulerSubsonicPressureBudget | None
   ) = None
   reference_total_temperature_K: float | None = None
   interface_consumed: bool = False
@@ -130,6 +139,10 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       (
         'transonic_interface_placement',
         MocTransonicShockInterfaceFieldPlacementResult,
+      ),
+      (
+        'subsonic_pressure_budget',
+        MocReflectedDomainCoupledEulerSubsonicPressureBudget,
       ),
     ):
       value = getattr(self, name)
@@ -209,6 +222,30 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
   ####
 
   @property
+  def additional_entropy_required(self) -> bool:
+    """Whether the retained field exposed an unreachable subsonic budget.
+
+    This is a typed physics requirement, not a convergence or promotion gate.
+    It records that the current control-section total pressure cannot reach the
+    requested ambient pressure on an isentropic subsonic branch.  A future
+    joint solver must supply and independently verify the missing
+    entropy-producing mechanism; this result never invents that loss.
+    """
+
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
+      .ADDITIONAL_ENTROPY_REQUIRED
+      and self.subsonic_pressure_budget is not None
+      and self.subsonic_pressure_budget.status
+      is MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus
+      .BELOW_ISENTROPIC_SUBSONIC_BOUNDS
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+  ####
+
+  @property
   def physical_closure_verified(self) -> bool:
     """The local downstream solve is not a globally coupled closure."""
 
@@ -227,6 +264,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       'model': MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_DOWNSTREAM_OPERATOR_ID,
       'status': self.status.value,
       'local_downstream_field_verified': self.local_downstream_field_verified,
+      'additional_entropy_required': self.additional_entropy_required,
       'physical_closure_verified': self.physical_closure_verified,
       'downstream_boundary_closure_verified': (
         self.downstream_boundary_closure_verified
@@ -270,6 +308,11 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
         if self.transonic_interface_placement is None
         else self.transonic_interface_placement.as_report()
       ),
+      'subsonic_pressure_budget': (
+        None
+        if self.subsonic_pressure_budget is None
+        else self.subsonic_pressure_budget.as_report()
+      ),
       'field': None if self.field is None else self.field.as_report(),
       'claim_status': (
         'research-only downstream coupled-Euler field driven by an explicit '
@@ -294,6 +337,9 @@ def _failure(
   transonic_interface_placement: (
     MocTransonicShockInterfaceFieldPlacementResult | None
   ) = None,
+  subsonic_pressure_budget: (
+    MocReflectedDomainCoupledEulerSubsonicPressureBudget | None
+  ) = None,
   reference_total_temperature_K: float | None = None,
   interface_consumed: bool = False,
   perimeter_contract_verified: bool = False,
@@ -313,6 +359,7 @@ def _failure(
     entropy_handoff=entropy_handoff,
     control_section=control_section,
     transonic_interface_placement=transonic_interface_placement,
+    subsonic_pressure_budget=subsonic_pressure_budget,
     reference_total_temperature_K=reference_total_temperature_K,
     interface_consumed=interface_consumed,
     perimeter_contract_verified=perimeter_contract_verified,
@@ -768,18 +815,57 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     )
   ####
   field_verified = bool(field.local_physical_closure_verified)
+  subsonic_pressure_budget = field.subsonic_pressure_budget
   transonic_interface_placement_consumed = bool(
     field.transonic_shock_interface_field_placement
     is transonic_interface_placement
     and field.transonic_shock_interface_field_placement_consumed
     and field.transonic_shock_interface_profile_consumed
   )
+  additional_entropy_required = bool(
+    not field_verified
+    and field.status
+    is MocReflectedDomainCoupledEulerFreeBoundaryStatus.FREE_BOUNDARY_FAILURE
+    and subsonic_pressure_budget is not None
+    and subsonic_pressure_budget.status
+    is MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus
+    .BELOW_ISENTROPIC_SUBSONIC_BOUNDS
+  )
   status = (
     MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
     .CONVERGED_RESEARCH_FIELD
     if field_verified
-    else MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.FIELD_FAILURE
+    else (
+      MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
+      .ADDITIONAL_ENTROPY_REQUIRED
+      if additional_entropy_required
+      else MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.FIELD_FAILURE
+    )
   )
+  if additional_entropy_required:
+    assert subsonic_pressure_budget is not None
+    message = (
+      'the exact mixed-wave terminal and solver-owned transonic placement '
+      'entered the coupled Euler field, but the retained subsonic branch '
+      'cannot reach ambient without additional entropy-producing physics: '
+      f"the pressure budget requires at least "
+      f"{subsonic_pressure_budget.minimum_additional_total_pressure_loss_fraction:.6g} "
+      'additional total-pressure loss; the field remains unclosed and no '
+      'loss, geometry, or lower-fidelity fallback was invented'
+    )
+  else:
+    message = (
+      'exact mixed-wave terminal, entropy handoff, and solver-owned control '
+      'section were consumed by the coupled Euler field; local downstream '
+      'closure passed while centerline/global coupling and promotion remain '
+      'blocked'
+      if field_verified
+      else (
+        'the exact mixed-wave terminal entered the coupled Euler field, but '
+        'the local downstream field gate did not pass: '
+        f'{field.message}'
+      )
+    )
   return MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult(
     status=status,
     closure=closure,
@@ -800,18 +886,8 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     transonic_interface_placement_consumed=(
       transonic_interface_placement_consumed
     ),
+    subsonic_pressure_budget=subsonic_pressure_budget,
     downstream_field_attempted=True,
     downstream_field_local_closure_verified=field_verified,
-    message=(
-      'exact mixed-wave terminal, entropy handoff, and solver-owned control '
-      'section were consumed by the coupled Euler field; local downstream '
-      'closure passed while centerline/global coupling and promotion remain '
-      'blocked'
-      if field_verified
-      else (
-        'the exact mixed-wave terminal entered the coupled Euler field, but '
-        'the local downstream field gate did not pass: '
-        f'{field.message}'
-      )
-    ),
+    message=message,
   )

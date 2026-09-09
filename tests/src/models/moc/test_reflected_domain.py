@@ -978,8 +978,10 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   )
 
   assert result.status is (
-    MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.FIELD_FAILURE
+    MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
+    .ADDITIONAL_ENTROPY_REQUIRED
   )
+  assert result.additional_entropy_required
   assert result.interface_consumed
   assert result.perimeter_contract_verified
   assert result.entropy_handoff_verified
@@ -999,6 +1001,12 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   )
   assert result.field.transonic_shock_interface_field_placement_consumed
   assert result.field.transonic_shock_interface_profile_consumed
+  assert result.subsonic_pressure_budget is result.field.subsonic_pressure_budget
+  assert result.subsonic_pressure_budget is not None
+  assert result.subsonic_pressure_budget.status.value == (
+    'below-isentropic-subsonic-pressure-bounds'
+  )
+  assert result.subsonic_pressure_budget.minimum_additional_total_pressure_loss_fraction > 0.47
   assert result.local_downstream_field_verified is False
   assert result.physical_closure_verified is False
   assert result.centerline_boundary_verified is False
