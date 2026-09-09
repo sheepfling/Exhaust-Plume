@@ -341,3 +341,10 @@ timeline/heat-map/query outputs, and FPA exposure, detector/ADC, and selected
 pixel outputs.  This local composition check passes, while external trajectory,
 observer, atmospheric, and detector comparisons remain pending; it does not
 change the report's `release_ready: false` status.
+
+The committed report and lane-release manifest were refreshed from the current
+checkout.  The manifest now records the mission-time gate and the explicit
+`visual.standardized_model_lanes` evidence source used for the washed-integral
+matrix lane.  Because the Version 8 archive is not present in this checkout,
+the current report records `external_corpus.status=not-provided`; no synthetic
+data is used as a substitute, and external validation remains blocked.

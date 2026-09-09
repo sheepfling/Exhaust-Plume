@@ -21,6 +21,8 @@ MATRIX_PATH = REPO_ROOT / 'docs' / 'solver_fidelity_matrix_v1.json'
 PRODUCT_REPORT_PATH = REPO_ROOT / 'docs' / 'validation' / 'product_lane_validation_v1.json'
 RELEASE_FREEZE_PATH = REPO_ROOT / 'docs' / 'validation' / 'release_freeze_v1.json'
 PROVIDER_PREFLIGHT_PATH = REPO_ROOT / 'docs' / 'validation' / 'provider_comparison_preflight_v1.json'
+MISSION_TIME_LANE_ID = 'mission-time-product-composition-v1'
+MISSION_TIME_SCHEDULE_S = (0.0, 5.0, 10.0)
 
 
 def _git_head_commit() -> str | None:
@@ -131,10 +133,46 @@ def _external_status(product_report: dict[str, Any] | None) -> str:
 ####
 
 
+def _mission_time_composition_status(
+  product_report: dict[str, Any],
+) -> tuple[dict[str, Any] | None, bool]:
+  """Validate the committed three-product mission-time composition record."""
+
+  record = product_report.get('lanes', {}).get('mission_time')
+  if not isinstance(record, dict):
+    return None, False
+  ####
+  if record.get('lane_id') != MISSION_TIME_LANE_ID:
+    return record, False
+  ####
+  if tuple(record.get('mission_times_s', ())) != MISSION_TIME_SCHEDULE_S:
+    return record, False
+  ####
+  if record.get('status') != 'passed':
+    return record, False
+  ####
+  visualization = record.get('visualization')
+  signature = record.get('signature')
+  focal_plane_array = record.get('focal_plane_array')
+  if not all(isinstance(value, dict) for value in (
+      visualization,
+      signature,
+      focal_plane_array,
+  )):
+    return record, False
+  ####
+  return record, all(
+    value.get('status') == 'passed'
+    for value in (visualization, signature, focal_plane_array)
+  )
+####
+
+
 def _lane_record(
   lane: dict[str, Any],
   *,
   product_report: dict[str, Any] | None,
+  product_evidence_source: str | None = None,
 ) -> dict[str, Any]:
   lane_id = str(lane['lane_id'])
   local_status, local_release_ready = _local_release_status(
@@ -155,6 +193,7 @@ def _lane_record(
       'low_fidelity_promotion_detected': False,
     },
     'product_report_status': product_status,
+    'product_evidence_source': product_evidence_source,
     'external_validation_status': _external_status(product_report),
     'local_release_status': local_status,
     'local_release_ready': local_release_ready,
@@ -168,6 +207,49 @@ def _lane_record(
 ####
 
 
+def _product_report_for_lane(
+  product_lanes: dict[str, dict[str, Any]],
+  product_key: str | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+  """Resolve direct evidence or an explicitly scoped visual-bundle record."""
+
+  if product_key is None:
+    return None, None
+  ####
+  direct = product_lanes.get(product_key)
+  if direct is not None:
+    return direct, f'committed-product-report.lanes.{product_key}'
+  ####
+  if product_key != 'washed_integral':
+    return None, None
+  ####
+  visual = product_lanes.get('visual')
+  if visual is None:
+    return None, None
+  ####
+  standardized = visual.get('standardized_model_lanes')
+  if not isinstance(standardized, dict):
+    return None, None
+  ####
+  standardized_lanes = standardized.get('lanes', [])
+  if (
+    standardized.get('status') != 'passed'
+    or 'washed-integral-v1' not in standardized_lanes
+  ):
+    return None, None
+  ####
+  return {
+    'status': 'passed',
+    'external_comparison': standardized.get('external_comparison'),
+    'claim_ceiling': (
+      'Common renderer-neutral visualization evidence for the washed-integral '
+      'lane; the source lane retains its declared engineering-approximate '
+      'claim ceiling.'
+    ),
+  }, 'committed-product-report.lanes.visual.standardized_model_lanes'
+####
+
+
 def build_lane_release_manifest() -> dict[str, Any]:
   """Build a deterministic release record from committed lane evidence."""
 
@@ -176,6 +258,7 @@ def build_lane_release_manifest() -> dict[str, Any]:
   release_freeze = _read_json(RELEASE_FREEZE_PATH)
   provider_preflight = _read_json(PROVIDER_PREFLIGHT_PATH)
   product_lanes = _product_report_lanes(product_report)
+  mission_time, mission_time_passed = _mission_time_composition_status(product_report)
   matrix_lanes = matrix.get('lanes')
   if not isinstance(matrix_lanes, list):
     raise ValueError('solver fidelity matrix must contain a lanes list')
@@ -195,9 +278,14 @@ def build_lane_release_manifest() -> dict[str, Any]:
       raise ValueError('every solver matrix lane must be an object with lane_id')
     ####
     product_key = report_key_by_lane.get(str(lane['lane_id']))
+    product_report_for_lane, evidence_source = _product_report_for_lane(
+      product_lanes,
+      product_key,
+    )
     lane_records.append(_lane_record(
       lane,
-      product_report=product_lanes.get(product_key) if product_key is not None else None,
+      product_report=product_report_for_lane,
+      product_evidence_source=evidence_source,
     ))
   ####
   violations = [
@@ -248,6 +336,12 @@ def build_lane_release_manifest() -> dict[str, Any]:
   if provider_preflight.get('release_ready') is not True:
     blockers.append('provider comparison preflight is not externally accepted')
   ####
+  if not mission_time_passed:
+    blockers.append(
+      'mission-time product composition is missing or failed in the committed '
+      'local product-lane evidence'
+    )
+  ####
   release_provenance_ready = bool(
     freeze_matches_candidate_head and candidate_worktree_clean is True
   )
@@ -280,17 +374,20 @@ def build_lane_release_manifest() -> dict[str, Any]:
       'all_active_lanes_have_local_release_evidence': not active_local_failures,
       'low_fidelity_promotion_detected': bool(violations),
       'fpa_provider_guard_passed': fpa_provider_guard,
+      'mission_time_composition_passed': mission_time_passed,
       'provider_preflight_release_ready': provider_preflight.get('release_ready') is True,
       'release_freeze_matches_candidate_head': freeze_matches_candidate_head,
       'candidate_worktree_clean': candidate_worktree_clean is True,
     },
     'lanes': lane_records,
+    'mission_time_composition': mission_time,
     'umbrella_release': {
       'release_ready': (
         not blockers
         and not violations
         and not active_local_failures
         and fpa_provider_guard
+        and mission_time_passed
         and release_provenance_ready
       ),
       'blockers': blockers,

@@ -1,32 +1,6 @@
 {
   "external_corpus": {
-    "archive": {
-      "actual_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
-      "expected_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
-      "member_count": 138,
-      "status": "verified"
-    },
-    "content_counts": {
-      "alignment_mappings": 78,
-      "alignment_summary_rows": 20,
-      "benchmark_definitions": 17,
-      "indexed_products": 60,
-      "source_records": 19
-    },
-    "gate_statuses": {
-      "outside_corpus": 4,
-      "partial_evidence": 3,
-      "ready": 3,
-      "synthetic_only": 1
-    },
-    "operator_crosswalk_status": "pending",
-    "release_blockers": [
-      "provider-specific VIS/SIG/RAY comparisons are recorded but not accepted",
-      "separately named MVP alignment archive is not yet verified"
-    ],
-    "semantic_crosswalk_status": "complete-scoped",
-    "status": "preflight-valid-pending-release-gates",
-    "unreviewed_external_operator_count": 0
+    "status": "not-provided"
   },
   "external_status": "comparison-pending",
   "lanes": {
@@ -175,7 +149,63 @@
         "expected_electrons": 1.0,
         "row_index": 0
       },
-      "visualization_source_content_sha256": "e818f7d2c0bef7e9beb8d521ddf70232c3487d7a4e91f7447e2876bff55dc81a"
+      "visualization_source_content_sha256": "b45a89b97b524826657b08eb8ff79ddd7325dc1c1386eb2bdb71741d2ccbd2c9"
+    },
+    "mission_time": {
+      "claim_ceiling": "Prescribed mission-time composition with exact source lineage only; no solved transient, trajectory, chemistry, detector-noise, or external product claim.",
+      "external_comparison": {
+        "reason": "The mission schedule and callbacks are repository-local fixtures; provider-bound trajectory, observer, detector, and atmospheric measurements remain a separate release gate.",
+        "status": "pending"
+      },
+      "focal_plane_array": {
+        "camera_id": "mission-camera-v1",
+        "midpoint_exposure_s": 1.5,
+        "operator_ids": [
+          "op.sensor.fpa-pixel-detector",
+          "op.sensor.fpa-digitization"
+        ],
+        "selected_pixel_valid": true,
+        "source_snapshot_ids": [
+          "2809d554d134c00d127c1aa7",
+          "81ca73a776e29b097aabcafb",
+          "3022aba4e9f7d1ec21f84baa"
+        ],
+        "status": "passed",
+        "timeline_times_s": [
+          0.0,
+          5.0,
+          10.0
+        ]
+      },
+      "lane_id": "mission-time-product-composition-v1",
+      "mission_times_s": [
+        0.0,
+        5.0,
+        10.0
+      ],
+      "signature": {
+        "heatmap_time_s": 5.0,
+        "heatmap_valid_direction_count": 2,
+        "query_source_result_id": "3451904d81eb00e6d96db771",
+        "result_ids": [
+          "beb5a19799c35c89eb604a12",
+          "3451904d81eb00e6d96db771",
+          "293d9dc0de2c46988f2af3c3"
+        ],
+        "status": "passed",
+        "timeline_schema": "plume.signature.angular-timeline@1"
+      },
+      "status": "passed",
+      "visualization": {
+        "model_lane": "shock-cell-basic-v1",
+        "sample_count": 3,
+        "snapshot_times_s": [
+          0.0,
+          5.0,
+          10.0
+        ],
+        "status": "passed"
+      }
     },
     "optical": {
       "analytic_slab_and_chord_passed": true,
@@ -299,7 +329,7 @@
         "status": "passed",
         "wavelengths_m": [
           4.5e-06,
-          5.0e-06,
+          5e-06,
           5.5e-06
         ]
       },
@@ -661,32 +691,33 @@
           "provider_id": "plume.shock-cell-analytical"
         }
       ],
-      "status": "passed"
-    },
-    "washed_integral": {
-      "claim_ceiling": "Engineering-approximate curved sectioned-tube visualization only; no physical signature, ray-transfer, detector, or FPA claim.",
-      "contract_conformance": true,
-      "external_comparison": {
-        "reason": "The curved visual provider has local lifecycle and contract evidence, but no provider-bound curved-flow benchmark or measurement-operator comparison.",
-        "status": "pending"
+      "standardized_model_lanes": {
+        "bundle_count": 5,
+        "claim_ceiling": "Common renderer-neutral visualization contract only; reduced-order and planar-MOC bundles retain their declared non-production ceilings.",
+        "claim_separation_passed": true,
+        "common_bundle_shape_passed": true,
+        "deterministic_bundle_serialization_passed": true,
+        "external_comparison": {
+          "reason": "These are repository-local contract fixtures; provider-bound visual observations remain a separate release gate.",
+          "status": "pending"
+        },
+        "lane_id": "standardized-visualization-all-five-v1",
+        "lanes": [
+          "shock-cell-basic-v1",
+          "shock-cell-reduced-order-v1",
+          "straight-integral-v1",
+          "washed-integral-v1",
+          "planar-moc-primitives-v1"
+        ],
+        "production_claim_allowed": {
+          "planar-moc-primitives-v1": false,
+          "shock-cell-basic-v1": true,
+          "shock-cell-reduced-order-v1": false,
+          "straight-integral-v1": false,
+          "washed-integral-v1": false
+        },
+        "status": "passed"
       },
-      "lane_id": "washed-integral-v1",
-      "local_geometry_invariants": {
-        "provider_id": "plume.visual.curved-integral",
-        "status": "passed",
-        "checks": [
-          "strictly increasing curved centerline stations",
-          "section-count bound",
-          "engineering-approximate geometry claim",
-          "appearance-only radiation claim",
-          "steady snapshot lifecycle"
-        ]
-      },
-      "product_id": "plume.visual.sectioned-tube@1",
-      "provider_ids": [
-        "plume.visual.curved-integral"
-      ],
-      "radiation_claim": "appearance_only",
       "status": "passed"
     }
   },

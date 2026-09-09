@@ -12,7 +12,10 @@ def test_lane_release_manifest_separates_local_release_from_external_acceptance(
 
   assert report['checks']['low_fidelity_promotion_detected'] is False
   assert report['checks']['fpa_provider_guard_passed'] is True
+  assert report['checks']['mission_time_composition_passed'] is True
   assert report['umbrella_release']['release_ready'] is False
+  assert report['mission_time_composition']['lane_id'] == 'mission-time-product-composition-v1'
+  assert report['mission_time_composition']['mission_times_s'] == [0.0, 5.0, 10.0]
 
   assert lanes['shock-cell-basic-v1']['local_release_status'] == 'scoped-local-release'
   assert lanes['shock-cell-basic-v1']['external_validation_status'] == 'pending'
@@ -29,6 +32,9 @@ def test_lane_release_manifest_separates_local_release_from_external_acceptance(
   assert lanes['planar-moc-primitives-v1']['local_release_ready'] is False
   assert lanes['shock-cell-reduced-order-v1']['local_release_ready'] is False
   assert lanes['washed-integral-v1']['local_release_status'] == 'scoped-local-release'
+  assert lanes['washed-integral-v1']['product_evidence_source'] == (
+    'committed-product-report.lanes.visual.standardized_model_lanes'
+  )
 ####
 
 

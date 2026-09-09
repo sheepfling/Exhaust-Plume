@@ -2961,3 +2961,20 @@ prescribed composition with exact source lineage: it does not claim a solved
 transient, trajectory, chemistry, detector-noise process, or external product
 comparison.  Provider-bound observer, atmospheric, detector, and trajectory
 measurements remain release gates.
+
+### Current local evidence and release-manifest binding checkpoint — 2026-09-08
+
+The committed local product report and lane-release manifest were refreshed
+from the current checkout.  The report now includes the prescribed mission-
+time composition record, and the manifest checks that Visualization,
+Signature, and FPA all pass at the exact 0, 5, and 10 second schedule.  It
+also records when a matrix lane is evidenced by the standardized five-lane
+Visualization bundle rather than by a separate provider report; the washed
+integral lane is currently resolved through that explicit source.
+
+The refresh was run without `--corpus` because the Version 8 archive is not
+present in the current checkout.  The report therefore records
+`external_corpus.status=not-provided`, while preserving the external claim
+ceiling and keeping `release_ready=false`.  This is a current local evidence
+refresh, not a replacement for the missing archive or provider-bound
+measurements.

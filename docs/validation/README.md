@@ -127,7 +127,11 @@ The reproducible local lane run is preserved in
 [`product_lane_validation_v1.json`](product_lane_validation_v1.json). It shows
 independent VIS and SIG contract/operator acceptance, the analytic optical
 boundary, the synthetic ray-to-signature check, and the downstream FPA adapter
-status. Its `release_ready` flag remains false.
+status. It also records the prescribed mission-time composition across
+Visualization, Signature, and FPA, with exact source lineage at each sample.
+When the archive is not supplied, the current report records that absence
+explicitly rather than treating local fixtures as external validation. Its
+`release_ready` flag remains false.
 
 The fidelity-scoped release decision is preserved in
 [`lane_release_manifest_v1.json`](lane_release_manifest_v1.json). It records
