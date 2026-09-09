@@ -761,6 +761,11 @@ def _build_downstream_boundary_result(
   ####
   boundary = field.ambient_boundary
   ambient_march = physical.ambient_march
+  source_band = global_remesh.source_band
+  source_geometry_consumed = bool(
+    source_band is not None
+    and source_band.ambient_pressure_target_geometry_consumed
+  )
   points = tuple(boundary.points_m)
   states = tuple(boundary.states)
   total_pressure = tuple(boundary.total_pressure_Pa)
@@ -794,9 +799,12 @@ def _build_downstream_boundary_result(
       else ambient_march.ambient_pressure_target_consumed
     ),
     ambient_pressure_target_geometry_consumed=(
-      False
-      if ambient_march is None
-      else ambient_march.ambient_pressure_target_geometry_consumed
+      source_geometry_consumed
+      or (
+        False
+        if ambient_march is None
+        else ambient_march.ambient_pressure_target_geometry_consumed
+      )
     ),
     solver_owned=True,
     boundary_condition_verified=False,
@@ -1109,7 +1117,6 @@ class MocReflectedDomainGlobalPhysicalClosureResult:
         self.source_pressure_target_source is None
         or (
           self.source_pressure_target_consumed
-          and not self.source_pressure_target_geometry_consumed
         )
       )
       and self.variable_entropy_transport_verified
@@ -1417,7 +1424,9 @@ def _closure_result(
   ):
     source_pressure_target_source = source_band.ambient_pressure_target.source_id
     source_pressure_target_consumed = bool(source_band.source_field_verified)
-    source_pressure_target_geometry_consumed = False
+    source_pressure_target_geometry_consumed = bool(
+      source_band.ambient_pressure_target_geometry_consumed
+    )
   ####
   return MocReflectedDomainGlobalPhysicalClosureResult(
     status=status,
@@ -1468,6 +1477,8 @@ def solve_reflected_domain_global_physical_closure(
   maximum_shooting_iterations: int = 40,
   maximum_bracket_scan_samples: int = 0,
   maximum_attempts: int = 64,
+  consume_ambient_pressure_target_geometry: bool = False,
+  ambient_pressure_target_geometry_tolerance_rad: float = 1.0e-6,
 ) -> MocReflectedDomainGlobalPhysicalClosureResult:
   """Solve and independently audit one globally coupled physical closure.
 
@@ -1480,9 +1491,25 @@ def solve_reflected_domain_global_physical_closure(
   remesh mode.  It keeps the retained reflected trace in the closure lineage,
   but it does not satisfy or bypass the canonical free-boundary, Euler,
   refinement, or external-validation gates.
+
+  ``consume_ambient_pressure_target_geometry`` enables the joint research
+  boundary seam.  The fresh source march must consume the declared target
+  coordinates and tangents in addition to pressure; an unreachable target
+  returns a typed failure rather than falling back to the pressure-only lane.
+  This does not alter the canonical or production claim ceiling.
   """
 
   status_type = MocReflectedDomainGlobalPhysicalClosureStatus
+  if not isinstance(consume_ambient_pressure_target_geometry, bool):
+    return _closure_result(
+      status_type.INVALID_INPUT,
+      source_band
+      if isinstance(source_band, MocReflectedDomainAlternatingSourceResult)
+      else None,
+      None,
+      None,
+      message='consume_ambient_pressure_target_geometry must be a bool',
+    )
   if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
     return _closure_result(
       status_type.INVALID_INPUT,
@@ -1569,6 +1596,12 @@ def solve_reflected_domain_global_physical_closure(
         pressure_tolerance=source_band.pressure_tolerance,
         maximum_iterations=maximum_boundary_iterations,
         incoming_handoff=source_band.incoming_handoff,
+        consume_ambient_pressure_target_geometry=(
+          consume_ambient_pressure_target_geometry
+        ),
+        ambient_pressure_target_geometry_tolerance_rad=(
+          ambient_pressure_target_geometry_tolerance_rad
+        ),
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return _closure_result(

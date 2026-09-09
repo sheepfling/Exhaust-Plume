@@ -1864,6 +1864,121 @@ def test_reflected_domain_alternating_source_consumes_bounded_pressure_target():
 ####
 
 
+def test_reflected_domain_alternating_source_consumes_joint_geometry_target():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  scalar = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  assert scalar.converged
+  assert scalar.ambient_boundary is not None
+  assert scalar.outer_seed_state is not None
+  assert scalar.outer_seed_total_pressure_Pa is not None
+  seed_static_pressure = scalar.outer_seed_total_pressure_Pa / (
+    1.0 + 0.5 * (scalar.outer_seed_state.gamma - 1.0)
+    * scalar.outer_seed_state.mach**2
+  ) ** (scalar.outer_seed_state.gamma / (scalar.outer_seed_state.gamma - 1.0))
+  target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=(
+      scalar.outer_seed_state.x_m,
+      *(point[0] for point in scalar.ambient_boundary.points_m),
+    ),
+    static_pressure_Pa=(
+      seed_static_pressure,
+      *scalar.ambient_boundary.static_pressure_Pa,
+    ),
+    source_id='test-solver-owned-joint-geometry-profile',
+    boundary_points_m=(
+      (scalar.outer_seed_state.x_m, scalar.outer_seed_state.y_m),
+      *scalar.ambient_boundary.points_m,
+    ),
+    tangent_rad=(
+      scalar.outer_seed_state.theta_rad,
+      *(state.theta_rad for state in scalar.ambient_boundary.states),
+    ),
+  )
+
+  joint = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    ambient_pressure_target=target,
+    consume_ambient_pressure_target_geometry=True,
+    ambient_pressure_target_geometry_tolerance_rad=1.0e-6,
+  )
+
+  assert joint.status is MocReflectedDomainAlternatingSourceStatus.CONVERGED, joint.message
+  assert joint.source_field_verified
+  assert joint.ambient_pressure_target is target
+  assert joint.ambient_pressure_target_geometry_consumed
+  assert all(
+    result.geometry_residual is not None
+    and result.geometry_residual <= 1.0e-6
+    and result.tangent_residual is not None
+    and result.tangent_residual <= 1.0e-6
+    for result in joint.point_results
+  )
+  assert joint.as_report()['ambient_pressure_target_geometry_consumed'] is True
+  assert joint.physical_closure_verified is False
+  assert joint.chain_promotion_blocked
+  assert joint.production_claim_allowed is False
+####
+
+
+def test_reflected_domain_alternating_source_joint_geometry_target_fails_closed():
+  field, patch = _patch()
+  ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  scalar = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+  )
+  assert scalar.converged
+  assert scalar.ambient_boundary is not None
+  assert scalar.outer_seed_state is not None
+  assert scalar.outer_seed_total_pressure_Pa is not None
+  seed_static_pressure = scalar.outer_seed_total_pressure_Pa / (
+    1.0 + 0.5 * (scalar.outer_seed_state.gamma - 1.0)
+    * scalar.outer_seed_state.mach**2
+  ) ** (scalar.outer_seed_state.gamma / (scalar.outer_seed_state.gamma - 1.0))
+  target = MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=(
+      scalar.outer_seed_state.x_m,
+      *(point[0] for point in scalar.ambient_boundary.points_m),
+    ),
+    static_pressure_Pa=(
+      seed_static_pressure,
+      *scalar.ambient_boundary.static_pressure_Pa,
+    ),
+    source_id='test-unreachable-joint-geometry-profile',
+    boundary_points_m=(
+      (scalar.outer_seed_state.x_m, scalar.outer_seed_state.y_m + 0.25),
+      *tuple((point[0], point[1] + 0.25) for point in scalar.ambient_boundary.points_m),
+    ),
+    tangent_rad=(
+      scalar.outer_seed_state.theta_rad,
+      *(state.theta_rad for state in scalar.ambient_boundary.states),
+    ),
+  )
+
+  joint = solve_reflected_domain_alternating_source(
+    patch,
+    ambient_pressure,
+    ambient_pressure_target=target,
+    consume_ambient_pressure_target_geometry=True,
+    ambient_pressure_target_geometry_tolerance_rad=1.0e-6,
+  )
+
+  assert joint.status is MocReflectedDomainAlternatingSourceStatus.GEOMETRY_TARGET_FAILURE
+  assert joint.source_field_verified is False
+  assert joint.ambient_pressure_target_geometry_consumed is False
+  assert 'geometry' in joint.message.lower()
+  assert joint.chain_promotion_blocked
+  assert joint.production_claim_allowed is False
+####
+
+
 def test_reflected_domain_alternating_source_rejects_uncovered_pressure_target():
   field, patch = _patch()
   ambient_pressure = field.ambient_boundary.ambient_pressure_Pa

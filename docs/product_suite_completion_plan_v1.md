@@ -3080,6 +3080,25 @@ for review without those files, but cannot promote a comparison.  This closes
 an evidence-integrity seam; it does not create the missing V8/alignment data or
 change the external-validation and release blockers.
 
+### P2.2 joint-boundary consumption checkpoint — 2026-09-08
+
+The reflected alternating source now has an explicit, opt-in joint boundary
+consumer.  When a downstream target includes pressure, coordinates, and flow
+tangents, the solver intersects the declared curve with the incoming C+
+characteristic, checks the outgoing boundary characteristic, and records the
+coordinate, pressure, and tangent residuals.  An unreachable target returns
+`GEOMETRY_TARGET_FAILURE`; it is not projected onto the existing pressure-only
+march.  The global physical-closure entry point exposes the same opt-in seam
+and carries whether the geometry was actually consumed into its lineage report.
+
+The pressure-only path remains unchanged for existing research callers.  The
+new joint path is still research-only: it does not replace the compression
+envelope with a canonical mixed-regime law, does not authorize chain-cell
+fitting, and does not set any production flag.  Focused validation passes
+(`15` alternating-source tests, including exact-consumption and hard-stop
+cases); the canonical reflected/free-boundary equations, independent
+refinement, external comparisons, and release gates remain open.
+
 ### Candidate release-manifest rebinding checkpoint — 2026-09-08 (`3ba857f`)
 
 The committed lane-release manifest has been rebound to the current integrity

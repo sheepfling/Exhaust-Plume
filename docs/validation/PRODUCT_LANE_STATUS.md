@@ -374,3 +374,16 @@ preflight verifies the source, provider-output, and operator-manifest files
 against the typed SHA-256 records and rejects missing, tampered, or escaping
 paths.  This is an evidence-integrity gate only; it does not promote a
 comparison or supply the missing provider observations.
+
+## P2.2 joint-boundary solver checkpoint — 2026-09-08
+
+The reflected-domain source march now exposes an opt-in solver-owned geometry
+target mode.  It consumes the declared ambient target coordinates and flow
+tangents only when the incoming C+ characteristic, boundary characteristic,
+and pressure profile all close within tolerance; otherwise it returns a typed
+geometry failure.  The default pressure-only consumer remains unchanged.
+
+The focused alternating-source regression passes (`15` tests).  This is local
+research evidence for the next closure seam, not canonical mixed-regime
+validation: the compression-envelope law, production shock-cell fit gate,
+provider-bound comparisons, and release manifest remain blocked.

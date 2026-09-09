@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import isfinite, tan
+from math import atan2, cos, isfinite, sin, tan
 from typing import TYPE_CHECKING, Sequence
 
 if TYPE_CHECKING:
@@ -51,6 +51,8 @@ from exhaust_plume.models.moc.primitives import (
   MocPrimitiveStatus,
   centerline_characteristic_point,
   inverse_prandtl_meyer_angle_rad,
+  prandtl_meyer_angle_rad,
+  supersonic_mach_from_stagnation_pressure_ratio,
 )
 from exhaust_plume.models.moc.source_strip import (
   MocSourceCharacteristicStripResult,
@@ -177,6 +179,7 @@ class MocReflectedDomainAlternatingSourceStatus(str, Enum):
   ANCHOR_FAILURE = 'alternating_source_reflection_anchor_failure'
   CENTERLINE_FAILURE = 'alternating_source_centerline_failure'
   BOUNDARY_FAILURE = 'alternating_source_ambient_boundary_failure'
+  GEOMETRY_TARGET_FAILURE = 'alternating_source_ambient_geometry_target_failure'
   FIELD_FAILURE = 'alternating_source_field_failure'
 ####
 
@@ -495,6 +498,7 @@ class MocReflectedDomainAlternatingSourceResult:
   pressure_tolerance: float = 1.0e-8
   incoming_handoff: tuple[MocChainBoundarySample, ...] = ()
   ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
+  ambient_pressure_target_geometry_consumed: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainAlternatingSourceStatus):
@@ -629,6 +633,7 @@ class MocReflectedDomainAlternatingSourceResult:
     for name in (
       'reflection_anchor_verified',
       'alternating_seam_verified',
+      'ambient_pressure_target_geometry_consumed',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -985,6 +990,9 @@ class MocReflectedDomainAlternatingSourceResult:
         None
         if self.ambient_pressure_target is None
         else self.ambient_pressure_target.as_report()
+      ),
+      'ambient_pressure_target_geometry_consumed': (
+        self.ambient_pressure_target_geometry_consumed
       ),
       'ambient_boundary': (
         None
@@ -1739,6 +1747,375 @@ def _static_pressure_from_total_pressure(
   return float(total_pressure_Pa) / (
     1.0 + 0.5 * (state.gamma - 1.0) * state.mach * state.mach
   ) ** (state.gamma / (state.gamma - 1.0))
+####
+
+
+@dataclass(frozen=True, slots=True)
+class _GeometryTargetBoundaryEvaluation:
+  """One trial of the solver-owned ambient geometry target."""
+
+  state: CharacteristicState
+  point_m: tuple[float, float]
+  target_pressure_Pa: float
+  characteristic_residual_m: float
+  boundary_residual_m: float
+  target_tangent_residual_rad: float
+  state_tangent_residual_rad: float
+  signed_characteristic_residual_m: float
+####
+
+
+def _wrapped_angle_residual(first: float, second: float) -> float:
+  """Return the smallest absolute residual between two angles."""
+
+  return abs(atan2(sin(first - second), cos(first - second)))
+####
+
+
+def _interpolate_target_geometry(
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> tuple[tuple[float, float], float] | None:
+  """Interpolate a declared geometry/tangent target without extrapolation."""
+
+  if not target.boundary_points_m or not target.tangent_rad:
+    return None
+  ####
+  if len(target.boundary_points_m) != target.sample_count or (
+    len(target.tangent_rad) != target.sample_count
+  ):
+    return None
+  ####
+  x_value = float(x_m)
+  tolerance = float(position_tolerance_m)
+  if (
+    x_value < target.x_stations_m[0] - tolerance
+    or x_value > target.x_stations_m[-1] + tolerance
+  ):
+    return None
+  ####
+  for index, (first, second) in enumerate(
+    zip(target.x_stations_m, target.x_stations_m[1:])
+  ):
+    if abs(x_value - first) <= tolerance:
+      return target.boundary_points_m[index], target.tangent_rad[index]
+    ####
+    if x_value <= second + tolerance:
+      span = second - first
+      fraction = min(max((x_value - first) / span, 0.0), 1.0)
+      first_point = target.boundary_points_m[index]
+      second_point = target.boundary_points_m[index + 1]
+      return (
+        (
+          first_point[0] + fraction * (second_point[0] - first_point[0]),
+          first_point[1] + fraction * (second_point[1] - first_point[1]),
+        ),
+        target.tangent_rad[index]
+        + fraction * (
+          target.tangent_rad[index + 1] - target.tangent_rad[index]
+        ),
+      )
+    ####
+  ####
+  return target.boundary_points_m[-1], target.tangent_rad[-1]
+####
+
+
+def _solve_geometry_targeted_boundary_point(
+  incoming: CharacteristicState,
+  previous_boundary: CharacteristicState,
+  *,
+  total_pressure_Pa: float,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  position_tolerance_m: float,
+  pressure_tolerance: float,
+  tangent_tolerance_rad: float,
+  maximum_iterations: int,
+) -> MocFreeBoundaryPointResult:
+  """Solve one C+ boundary point against a declared geometry target.
+
+  The target supplies a bounded curve and pressure profile.  The point is
+  accepted only when the target curve intersects the incoming C+ ray and its
+  segment tangent also satisfies the outgoing boundary characteristic.  A
+  target that merely looks plausible is not silently projected onto the
+  existing pressure-only march.
+  """
+
+  if not isfinite(total_pressure_Pa) or total_pressure_Pa <= 0.0:
+    raise ValueError('total_pressure_Pa must be finite and positive')
+  ####
+  lower_x = max(incoming.x_m, previous_boundary.x_m) + position_tolerance_m
+  upper_x = target.x_stations_m[-1]
+  if upper_x <= lower_x:
+    return MocFreeBoundaryPointResult(
+      status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+      family=CharacteristicFamily.PLUS,
+      state=None,
+      point_m=None,
+      pressure_residual=None,
+      tangent_residual=None,
+      geometry_residual=None,
+      iterations=0,
+      message=(
+        'ambient geometry target does not retain a downstream interval for '
+        'the next reflected C+ boundary point'
+      ),
+    )
+  ####
+
+  def evaluate(x_m: float) -> _GeometryTargetBoundaryEvaluation | None:
+    geometry = _interpolate_target_geometry(
+      target,
+      x_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if geometry is None:
+      return None
+    ####
+    point, target_tangent = geometry
+    if abs(point[0] - x_m) > position_tolerance_m:
+      return None
+    ####
+    target_pressure = target.pressure_at_x(
+      x_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if target_pressure is None or target_pressure <= 0.0:
+      return None
+    ####
+    inverse = supersonic_mach_from_stagnation_pressure_ratio(
+      total_pressure_Pa / target_pressure,
+      incoming.gamma,
+    )
+    if not inverse.converged or inverse.value is None:
+      return None
+    ####
+    boundary_mach = float(inverse.value)
+    boundary_theta = incoming.k_plus + prandtl_meyer_angle_rad(
+      boundary_mach,
+      incoming.gamma,
+    )
+    state = CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=boundary_theta,
+      mach=boundary_mach,
+      gamma=incoming.gamma,
+    )
+    incoming_angle = 0.5 * (
+      incoming.theta_rad + incoming.mu_rad
+      + state.theta_rad + state.mu_rad
+    )
+    boundary_angle = 0.5 * (
+      previous_boundary.theta_rad + state.theta_rad
+    )
+    incoming_direction = (cos(incoming_angle), sin(incoming_angle))
+    boundary_direction = (cos(boundary_angle), sin(boundary_angle))
+    incoming_delta = (
+      point[0] - incoming.x_m,
+      point[1] - incoming.y_m,
+    )
+    boundary_delta = (
+      point[0] - previous_boundary.x_m,
+      point[1] - previous_boundary.y_m,
+    )
+    signed_characteristic_residual = (
+      incoming_delta[0] * incoming_direction[1]
+      - incoming_delta[1] * incoming_direction[0]
+    )
+    boundary_residual = abs(
+      boundary_delta[0] * boundary_direction[1]
+      - boundary_delta[1] * boundary_direction[0]
+    )
+    segment_angle = atan2(boundary_delta[1], boundary_delta[0])
+    return _GeometryTargetBoundaryEvaluation(
+      state=state,
+      point_m=point,
+      target_pressure_Pa=target_pressure,
+      characteristic_residual_m=abs(signed_characteristic_residual),
+      boundary_residual_m=boundary_residual,
+      target_tangent_residual_rad=_wrapped_angle_residual(
+        state.theta_rad,
+        target_tangent,
+      ),
+      state_tangent_residual_rad=_wrapped_angle_residual(
+        segment_angle,
+        boundary_angle,
+      ),
+      signed_characteristic_residual_m=signed_characteristic_residual,
+    )
+  ####
+
+  def as_result(
+    evaluation: _GeometryTargetBoundaryEvaluation,
+    *,
+    iterations: int,
+    success: bool,
+    message: str,
+  ) -> MocFreeBoundaryPointResult:
+    pressure_residual = (
+      _static_pressure_from_total_pressure(
+        evaluation.state,
+        total_pressure_Pa,
+      ) - evaluation.target_pressure_Pa
+    ) / evaluation.target_pressure_Pa
+    geometry_residual = max(
+      evaluation.characteristic_residual_m,
+      evaluation.boundary_residual_m,
+    )
+    tangent_residual = max(
+      evaluation.target_tangent_residual_rad,
+      evaluation.state_tangent_residual_rad,
+    )
+    status = (
+      MocPrimitiveStatus.CONVERGED
+      if success
+      else MocPrimitiveStatus.GEOMETRY_FAILURE
+    )
+    return MocFreeBoundaryPointResult(
+      status=status,
+      family=CharacteristicFamily.PLUS,
+      state=evaluation.state,
+      point_m=evaluation.point_m,
+      pressure_residual=pressure_residual,
+      tangent_residual=tangent_residual,
+      geometry_residual=geometry_residual,
+      iterations=iterations,
+      message=message,
+    )
+  ####
+
+  def accepted(evaluation: _GeometryTargetBoundaryEvaluation) -> bool:
+    pressure_residual = abs(
+      (
+        _static_pressure_from_total_pressure(
+          evaluation.state,
+          total_pressure_Pa,
+        )
+        - evaluation.target_pressure_Pa
+      )
+      / evaluation.target_pressure_Pa
+    )
+    return bool(
+      pressure_residual <= pressure_tolerance
+      and evaluation.characteristic_residual_m <= position_tolerance_m
+      and evaluation.boundary_residual_m <= position_tolerance_m
+      and evaluation.target_tangent_residual_rad <= tangent_tolerance_rad
+      and evaluation.state_tangent_residual_rad <= tangent_tolerance_rad
+    )
+  ####
+
+  scan_count = max(8, min(64, maximum_iterations * 4))
+  previous_x: float | None = None
+  previous_evaluation: _GeometryTargetBoundaryEvaluation | None = None
+  best: _GeometryTargetBoundaryEvaluation | None = None
+  best_score = float('inf')
+  for scan_index in range(scan_count + 1):
+    x_value = lower_x + (upper_x - lower_x) * scan_index / scan_count
+    evaluation = evaluate(x_value)
+    if evaluation is None:
+      continue
+    ####
+    score = max(
+      abs(
+        (
+          _static_pressure_from_total_pressure(
+            evaluation.state,
+            total_pressure_Pa,
+          )
+          - evaluation.target_pressure_Pa
+        )
+        / evaluation.target_pressure_Pa
+      ),
+      evaluation.characteristic_residual_m,
+      evaluation.boundary_residual_m,
+      evaluation.target_tangent_residual_rad,
+      evaluation.state_tangent_residual_rad,
+    )
+    if score < best_score:
+      best = evaluation
+      best_score = score
+    ####
+    if accepted(evaluation):
+      return as_result(
+        evaluation,
+        iterations=scan_index + 1,
+        success=True,
+        message='solver-owned ambient geometry target was consumed exactly',
+      )
+    ####
+    if (
+      previous_evaluation is not None
+      and previous_x is not None
+      and previous_evaluation.signed_characteristic_residual_m
+      * evaluation.signed_characteristic_residual_m
+      <= 0.0
+    ):
+      bracket_lower = previous_x
+      bracket_upper = x_value
+      bracket_evaluation = previous_evaluation
+      for iteration in range(1, maximum_iterations + 1):
+        midpoint = 0.5 * (bracket_lower + bracket_upper)
+        midpoint_evaluation = evaluate(midpoint)
+        if midpoint_evaluation is None:
+          break
+        ####
+        if accepted(midpoint_evaluation):
+          return as_result(
+            midpoint_evaluation,
+            iterations=scan_count + iteration,
+            success=True,
+            message='solver-owned ambient geometry target was consumed exactly',
+          )
+        ####
+        if (
+          abs(midpoint_evaluation.signed_characteristic_residual_m)
+          < best_score
+        ):
+          best = midpoint_evaluation
+          best_score = abs(midpoint_evaluation.signed_characteristic_residual_m)
+        ####
+        if (
+          bracket_evaluation.signed_characteristic_residual_m
+          * midpoint_evaluation.signed_characteristic_residual_m
+          <= 0.0
+        ):
+          bracket_upper = midpoint
+        else:
+          bracket_lower = midpoint
+          bracket_evaluation = midpoint_evaluation
+      ####
+    ####
+    previous_x = x_value
+    previous_evaluation = evaluation
+  ####
+  if best is None:
+    return MocFreeBoundaryPointResult(
+      status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+      family=CharacteristicFamily.PLUS,
+      state=None,
+      point_m=None,
+      pressure_residual=None,
+      tangent_residual=None,
+      geometry_residual=None,
+      iterations=scan_count,
+      message=(
+        'ambient geometry target could not be sampled on the downstream '
+        'solver interval; no extrapolation was attempted'
+      ),
+    )
+  ####
+  return as_result(
+    best,
+    iterations=scan_count,
+    success=False,
+    message=(
+      'ambient geometry target was covered but did not satisfy the incoming '
+      'C+ characteristic and boundary tangent residuals'
+    ),
+  )
 ####
 
 
@@ -2804,6 +3181,8 @@ def solve_reflected_domain_alternating_source(
   pressure_tolerance: float = 1.0e-8,
   maximum_iterations: int = 16,
   incoming_handoff: Sequence[MocChainBoundarySample] = (),
+  consume_ambient_pressure_target_geometry: bool = False,
+  ambient_pressure_target_geometry_tolerance_rad: float = 1.0e-6,
 ) -> MocReflectedDomainAlternatingSourceResult:
   """March a bounded alternating reflected-domain source band.
 
@@ -2824,7 +3203,12 @@ def solve_reflected_domain_alternating_source(
   ``ambient_pressure_target`` optionally replaces the scalar pressure only at
   the solver-owned outer stations.  Its pressure is interpolated between
   declared ``x`` stations without endpoint extrapolation; its boundary points
-  and tangent metadata are intentionally ignored.  The scalar ambient value
+  and tangent metadata are intentionally ignored unless
+  ``consume_ambient_pressure_target_geometry`` is enabled.  In that explicit
+  joint mode, the declared curve is intersected with the incoming C+
+  characteristic and its tangent is independently checked.  A target that
+  cannot satisfy both seams returns a typed geometry failure; it is never
+  projected onto the pressure-only solution.  The scalar ambient value
   remains the required pressure at the retained seed anchor so existing
   source-band callers keep the same attachment contract.
   """
@@ -2952,6 +3336,7 @@ def solve_reflected_domain_alternating_source(
   alternating_seam_verified = False
 
   resolved_seed = outer_seed_state
+  geometry_target_consumed = False
 
   def failure(
     status: MocReflectedDomainAlternatingSourceStatus,
@@ -2995,6 +3380,7 @@ def solve_reflected_domain_alternating_source(
       invariant_tolerance=resolved_invariant_tolerance,
       pressure_tolerance=resolved_pressure_tolerance,
       incoming_handoff=resolved_incoming_handoff,
+      ambient_pressure_target_geometry_consumed=geometry_target_consumed,
     )
   ####
 
@@ -3014,6 +3400,40 @@ def solve_reflected_domain_alternating_source(
     return failure(
       MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
       'ambient_pressure_target must be a MocPhysicalFieldEulerBoundaryPressureTarget or None',
+    )
+  ####
+  if not isinstance(consume_ambient_pressure_target_geometry, bool):
+    return failure(
+      MocReflectedDomainAlternatingSourceStatus.INVALID_INPUT,
+      'consume_ambient_pressure_target_geometry must be a bool',
+    )
+  ####
+  try:
+    resolved_geometry_tolerance_rad = float(
+      ambient_pressure_target_geometry_tolerance_rad
+    )
+  except (TypeError, ValueError) as error:
+    raise ValueError(
+      'ambient_pressure_target_geometry_tolerance_rad must be numeric'
+    ) from error
+  ####
+  if (
+    not isfinite(resolved_geometry_tolerance_rad)
+    or resolved_geometry_tolerance_rad <= 0.0
+  ):
+    raise ValueError(
+      'ambient_pressure_target_geometry_tolerance_rad must be finite and positive'
+    )
+  ####
+  if consume_ambient_pressure_target_geometry and (
+    resolved_ambient_pressure_target is None
+    or not resolved_ambient_pressure_target.boundary_points_m
+    or not resolved_ambient_pressure_target.tangent_rad
+  ):
+    return failure(
+      MocReflectedDomainAlternatingSourceStatus.GEOMETRY_TARGET_FAILURE,
+      'joint ambient geometry consumption requires a pressure target with '
+      'declared boundary points and tangents',
     )
   ####
   if (
@@ -3352,7 +3772,18 @@ def solve_reflected_domain_alternating_source(
     centerline_pressures.append(resolved_centerline_pressures[index])
 
     boundary_result = (
-      solve_profiled_boundary_point(
+      _solve_geometry_targeted_boundary_point(
+        axis_state,
+        previous_outer,
+        total_pressure_Pa=resolved_centerline_pressures[index],
+        target=resolved_ambient_pressure_target,
+        position_tolerance_m=resolved_position_tolerance,
+        pressure_tolerance=resolved_pressure_tolerance,
+        tangent_tolerance_rad=resolved_geometry_tolerance_rad,
+        maximum_iterations=maximum_iterations,
+      )
+      if consume_ambient_pressure_target_geometry
+      else solve_profiled_boundary_point(
         axis_state,
         previous_outer,
         resolved_centerline_pressures[index],
@@ -3371,8 +3802,13 @@ def solve_reflected_domain_alternating_source(
     )
     point_results.append(boundary_result)
     if not boundary_result.converged or boundary_result.state is None or boundary_result.point_m is None:
+      failure_status = (
+        MocReflectedDomainAlternatingSourceStatus.GEOMETRY_TARGET_FAILURE
+        if consume_ambient_pressure_target_geometry
+        else MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE
+      )
       return failure(
-        MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE,
+        failure_status,
         f'alternating ambient boundary sample {index} failed: {boundary_result.message}',
       )
     ####
@@ -3502,6 +3938,18 @@ def solve_reflected_domain_alternating_source(
       'alternating source band did not retain every solved C-/C+ neighboring seam',
     )
   ####
+  geometry_target_consumed = bool(
+    consume_ambient_pressure_target_geometry
+    and resolved_ambient_pressure_target is not None
+    and all(
+      result.converged
+      and result.geometry_residual is not None
+      and result.tangent_residual is not None
+      and result.geometry_residual <= resolved_position_tolerance
+      and result.tangent_residual <= resolved_geometry_tolerance_rad
+      for result in point_results
+    )
+  )
   return MocReflectedDomainAlternatingSourceResult(
     status=MocReflectedDomainAlternatingSourceStatus.CONVERGED,
     reflection_patch=patch,
@@ -3533,6 +3981,7 @@ def solve_reflected_domain_alternating_source(
     invariant_tolerance=resolved_invariant_tolerance,
     pressure_tolerance=resolved_pressure_tolerance,
     incoming_handoff=resolved_incoming_handoff,
+    ambient_pressure_target_geometry_consumed=geometry_target_consumed,
   )
 ####
 
