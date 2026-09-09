@@ -3293,11 +3293,38 @@ outer boundary-condition feedback path requires the aggregate audit before it
 accepts a downstream proposal, while the default full-state and physical-field
 continuation lanes remain unchanged.
 
-The new explicit-interface feedback regression passes, and the pre-existing
-global/downstream and boundary-feedback regression passes (`10 passed`).  The
-audit remains research-only and promotion-blocked; canonical mixed-regime
-closure, global upstream feedback, centerline/ambient residual closure,
-refinement, physical shock-cell acceptance, provider evidence, and release
-freeze remain open.  The next P2.2d slice is to replace the one-way handoff
-with a joint interface/field iteration and independently rederive the
-interface jump plus centerline/ambient residuals at each iterate.
+The combined focused explicit-interface/global-downstream/boundary-feedback
+selection passes (`11 passed`) and now exercises the typed ambient-boundary
+residual stop.  The audit remains research-only and promotion-blocked;
+canonical mixed-regime closure, global upstream feedback, centerline/ambient
+residual closure, refinement, physical shock-cell acceptance, provider
+evidence, and release freeze remain open.  The next P2.2d slice is to replace
+the one-way handoff with a joint interface/field iteration and independently
+rederive the interface jump plus centerline/ambient residuals at each iterate.
+
+### P2.2d independent boundary-residual checkpoint — 2026-09-09
+
+The global transonic-interface audit now independently rederives the retained
+normal-shock profile build and the downstream coupled field's outer-edge
+pressure/tangency residuals.  It also distinguishes the solver-owned
+placement profile from the request's mutually exclusive explicit-profile
+field, so the coupled-Euler audit no longer reports a false interface-profile
+geometry failure on this handoff.
+
+On the actual target fixture, the interface seam and Rankine--Hugoniot
+rederivation pass, but the returned field still misses the ambient boundary:
+the maximum pressure residual is approximately ``371.3 kPa`` (about ``1.75``
+of the ambient pressure) and the normal-velocity residual fraction is about
+``0.748``, against declared tolerances of ``0.10`` and ``0.05``.  The result
+therefore returns the typed
+``global-transonic-interface-ambient-boundary-residual-failure`` status, and
+the explicit feedback runner fails closed on that evidence.  Centerline
+reflection remains unclosed as well; no canonical field, physical shock-cell
+fit, Signature/FPA validation claim, or release promotion is implied.
+
+The next P2.2d implementation slice is a joint solver-owned
+interface/field/free-boundary iteration that consumes the interface candidate
+inside the equations, closes ambient and centerline neighbors, and repeats the
+independent jump, boundary-flux, entropy, Euler, and refinement audits.  The
+default full-state and physical-field continuation lanes remain separate and
+unchanged.

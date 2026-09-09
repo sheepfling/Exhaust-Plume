@@ -32,6 +32,9 @@ from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceFieldPlacementResult,
   MocTransonicShockInterfaceProfile,
 )
+from exhaust_plume.validation.moc_transonic_interface import (
+  measure_moc_transonic_shock_interface_profile_build,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_INTERFACE_AUDIT_OPERATOR_ID',
@@ -58,6 +61,12 @@ class MocReflectedDomainGlobalTransonicInterfaceAuditStatus(str, Enum):
   COUPLED_FIELD_REQUIRED = 'global-transonic-interface-coupled-field-required'
   LINEAGE_FAILURE = 'global-transonic-interface-lineage-failure'
   FRAME_FAILURE = 'global-transonic-interface-frame-failure'
+  INTERFACE_JUMP_FAILURE = (
+    'global-transonic-interface-rankine-hugoniot-jump-failure'
+  )
+  AMBIENT_BOUNDARY_FAILURE = (
+    'global-transonic-interface-ambient-boundary-residual-failure'
+  )
   INLET_SEAM_FAILURE = 'global-transonic-interface-inlet-seam-failure'
 ####
 
@@ -83,6 +92,17 @@ class MocReflectedDomainGlobalTransonicInterfaceAudit:
   inlet_state_count: int = 0
   maximum_inlet_state_residual: float | None = None
   inlet_state_seam_verified: bool = False
+  interface_jump_audit_status: str | None = None
+  maximum_interface_state_residual: float | None = None
+  maximum_interface_pressure_residual: float | None = None
+  maximum_interface_total_pressure_residual: float | None = None
+  interface_jump_verified: bool = False
+  ambient_boundary_pressure_residual_Pa: float | None = None
+  ambient_boundary_pressure_residual_fraction: float | None = None
+  ambient_boundary_normal_velocity_residual_fraction: float | None = None
+  ambient_boundary_verified: bool = False
+  centerline_boundary_required: bool = True
+  centerline_boundary_verified: bool = False
   canonical_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
@@ -128,14 +148,31 @@ class MocReflectedDomainGlobalTransonicInterfaceAudit:
         raise ValueError(f'{name} must be a nonnegative integer')
       ####
     ####
-    if self.maximum_inlet_state_residual is not None:
-      residual = float(self.maximum_inlet_state_residual)
-      if not isfinite(residual) or residual < 0.0:
-        raise ValueError(
-          'maximum_inlet_state_residual must be finite and nonnegative'
-        )
+    for name in (
+      'maximum_inlet_state_residual',
+      'maximum_interface_state_residual',
+      'maximum_interface_pressure_residual',
+      'maximum_interface_total_pressure_residual',
+      'ambient_boundary_pressure_residual_Pa',
+      'ambient_boundary_pressure_residual_fraction',
+      'ambient_boundary_normal_velocity_residual_fraction',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
       ####
-      object.__setattr__(self, 'maximum_inlet_state_residual', residual)
+      residual = float(value)
+      if not isfinite(residual) or residual < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative')
+      ####
+      object.__setattr__(self, name, residual)
+    ####
+    if self.interface_jump_audit_status is not None:
+      object.__setattr__(
+        self,
+        'interface_jump_audit_status',
+        str(self.interface_jump_audit_status),
+      )
     ####
     for name in (
       'placement_lineage_verified',
@@ -145,6 +182,10 @@ class MocReflectedDomainGlobalTransonicInterfaceAudit:
       'placement_consumed_verified',
       'interface_frame_verified',
       'inlet_state_seam_verified',
+      'interface_jump_verified',
+      'ambient_boundary_verified',
+      'centerline_boundary_required',
+      'centerline_boundary_verified',
       'canonical_closure_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
@@ -182,6 +223,8 @@ class MocReflectedDomainGlobalTransonicInterfaceAudit:
       and self.interface_frame_verified
       and self.expected_inlet_state_count == self.inlet_state_count
       and self.inlet_state_seam_verified
+      and self.interface_jump_verified
+      and self.ambient_boundary_verified
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
@@ -192,6 +235,20 @@ class MocReflectedDomainGlobalTransonicInterfaceAudit:
     """An interface handoff is not a globally closed physical field."""
 
     return False
+  ####
+
+  @property
+  def joint_boundary_residuals_verified(self) -> bool:
+    """Whether ambient and centerline boundaries are both independently closed."""
+
+    return bool(
+      self.interface_jump_verified
+      and self.ambient_boundary_verified
+      and (
+        not self.centerline_boundary_required
+        or self.centerline_boundary_verified
+      )
+    )
   ####
 
   def as_report(self) -> dict[str, Any]:
@@ -211,6 +268,32 @@ class MocReflectedDomainGlobalTransonicInterfaceAudit:
       'inlet_state_count': self.inlet_state_count,
       'maximum_inlet_state_residual': self.maximum_inlet_state_residual,
       'inlet_state_seam_verified': self.inlet_state_seam_verified,
+      'interface_jump_audit_status': self.interface_jump_audit_status,
+      'maximum_interface_state_residual': (
+        self.maximum_interface_state_residual
+      ),
+      'maximum_interface_pressure_residual': (
+        self.maximum_interface_pressure_residual
+      ),
+      'maximum_interface_total_pressure_residual': (
+        self.maximum_interface_total_pressure_residual
+      ),
+      'interface_jump_verified': self.interface_jump_verified,
+      'ambient_boundary_pressure_residual_Pa': (
+        self.ambient_boundary_pressure_residual_Pa
+      ),
+      'ambient_boundary_pressure_residual_fraction': (
+        self.ambient_boundary_pressure_residual_fraction
+      ),
+      'ambient_boundary_normal_velocity_residual_fraction': (
+        self.ambient_boundary_normal_velocity_residual_fraction
+      ),
+      'ambient_boundary_verified': self.ambient_boundary_verified,
+      'centerline_boundary_required': self.centerline_boundary_required,
+      'centerline_boundary_verified': self.centerline_boundary_verified,
+      'joint_boundary_residuals_verified': (
+        self.joint_boundary_residuals_verified
+      ),
       'physical_closure_verified': self.physical_closure_verified,
       'canonical_closure_verified': self.canonical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -326,6 +409,119 @@ def _profile_inlet_states(
 ####
 
 
+def _independent_ambient_boundary_residuals(
+  candidate: MocReflectedDomainGlobalCoupledDownstreamResult,
+) -> tuple[bool, float | None, float | None, float | None]:
+  """Recompute pressure and tangency residuals on the coupled outer edge."""
+
+  request = candidate.coupled_request
+  field = candidate.coupled_field
+  if request is None or field is None:
+    return False, None, None, None
+  ####
+  transverse_count = int(request.transverse_cell_count)
+  axial_count = int(request.axial_cell_count)
+  if transverse_count < 1 or axial_count < 1:
+    return False, None, None, None
+  ####
+  target_pressures = (
+    tuple(request.free_boundary_pressure_profile_Pa)
+    if request.free_boundary_pressure_profile_Pa is not None
+    else (float(request.mixed_regime_request.ambient_pressure_Pa),) * axial_count
+  )
+  if len(target_pressures) != axial_count:
+    return False, None, None, None
+  ####
+  expected_cell_count = axial_count * transverse_count
+  if (
+    len(field.conservative_states_by_cell) != expected_cell_count
+    or len(field.cell_vertices_by_cell_m) != expected_cell_count
+  ):
+    return False, None, None, None
+  ####
+  pressure_residuals: list[float] = []
+  pressure_fraction_residuals: list[float] = []
+  normal_velocity_residuals: list[float] = []
+  speeds: list[float] = []
+  gamma = float(
+    request.mixed_regime_request.control_section.samples[0].gamma
+  )
+  for axial_index in range(axial_count):
+    cell_index = axial_index * transverse_count + transverse_count - 1
+    state = np.asarray(field.conservative_states_by_cell[cell_index], dtype=float)
+    polygon = np.asarray(field.cell_vertices_by_cell_m[cell_index], dtype=float)
+    if state.shape != (4,) or polygon.shape != (4, 2):
+      return False, None, None, None
+    ####
+    density = float(state[0])
+    if not isfinite(density) or density <= 0.0:
+      return False, None, None, None
+    ####
+    velocity_u = float(state[1]) / density
+    velocity_v = float(state[2]) / density
+    pressure = (gamma - 1.0) * (
+      float(state[3])
+      - 0.5 * density * (velocity_u * velocity_u + velocity_v * velocity_v)
+    )
+    if not isfinite(pressure) or pressure <= 0.0:
+      return False, None, None, None
+    ####
+    first = polygon[2]
+    second = polygon[3]
+    delta_x = float(second[0] - first[0])
+    delta_y = float(second[1] - first[1])
+    face_length = float(np.hypot(delta_x, delta_y))
+    if not isfinite(face_length) or face_length <= 0.0:
+      return False, None, None, None
+    ####
+    normal_x = delta_y / face_length
+    normal_y = -delta_x / face_length
+    normal_velocity = velocity_u * normal_x + velocity_v * normal_y
+    speed = float(np.hypot(velocity_u, velocity_v))
+    target_pressure = float(target_pressures[axial_index])
+    if not isfinite(target_pressure) or target_pressure <= 0.0:
+      return False, None, None, None
+    ####
+    pressure_residual = abs(pressure - target_pressure)
+    pressure_fraction = pressure_residual / max(abs(target_pressure), 1.0e-12)
+    if not all(
+      isfinite(value)
+      for value in (normal_velocity, speed, pressure_residual, pressure_fraction)
+    ):
+      return False, None, None, None
+    ####
+    pressure_residuals.append(pressure_residual)
+    pressure_fraction_residuals.append(pressure_fraction)
+    normal_velocity_residuals.append(abs(normal_velocity))
+    speeds.append(speed)
+  ####
+  maximum_pressure_residual = max(pressure_residuals, default=float('inf'))
+  maximum_pressure_fraction = max(
+    pressure_fraction_residuals,
+    default=float('inf'),
+  )
+  maximum_speed = max(max(speeds, default=0.0), 1.0e-12)
+  maximum_normal_fraction = max(normal_velocity_residuals, default=float('inf')) / (
+    maximum_speed
+  )
+  verified = bool(
+    isfinite(maximum_pressure_residual)
+    and isfinite(maximum_pressure_fraction)
+    and isfinite(maximum_normal_fraction)
+    and maximum_pressure_fraction
+    <= request.free_boundary_pressure_tolerance_fraction
+    and maximum_normal_fraction
+    <= request.free_boundary_normal_velocity_tolerance_fraction
+  )
+  return (
+    verified,
+    maximum_pressure_residual,
+    maximum_pressure_fraction,
+    maximum_normal_fraction,
+  )
+####
+
+
 def measure_reflected_domain_global_transonic_interface(
   candidate: MocReflectedDomainGlobalCoupledDownstreamResult,
 ) -> MocReflectedDomainGlobalTransonicInterfaceAudit:
@@ -374,6 +570,7 @@ def measure_reflected_domain_global_transonic_interface(
     physical_field = candidate.closure.global_euler.physical_field
     if physical_field is not None:
       exact_field = physical_field.field
+    ####
   ####
   placement_lineage_verified = bool(
     exact_field is not None
@@ -451,6 +648,66 @@ def measure_reflected_domain_global_transonic_interface(
       placement_consumed_verified=False,
     )
   ####
+  profile_result = placement.profile_result
+  profile_build = (
+    None if profile_result is None else profile_result.profile_build
+  )
+  if profile_build is None:
+    return _failure(
+      MocReflectedDomainGlobalTransonicInterfaceAuditStatus.INTERFACE_JUMP_FAILURE,
+      candidate,
+      'interface placement retained no normal-shock profile build to rederive',
+      placement_lineage_verified=True,
+      placement_geometry_verified=True,
+      coupled_request_verified=True,
+      coupled_field_present=True,
+      placement_consumed_verified=True,
+    )
+  ####
+  try:
+    interface_jump_audit = measure_moc_transonic_shock_interface_profile_build(
+      profile_build
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _failure(
+      MocReflectedDomainGlobalTransonicInterfaceAuditStatus.INTERFACE_JUMP_FAILURE,
+      candidate,
+      f'interface Rankine--Hugoniot rederivation raised: {error}',
+      placement_lineage_verified=True,
+      placement_geometry_verified=True,
+      coupled_request_verified=True,
+      coupled_field_present=True,
+      placement_consumed_verified=True,
+    )
+  ####
+  interface_jump_verified = bool(interface_jump_audit.converged)
+  interface_jump_kwargs = {
+    'interface_jump_audit_status': interface_jump_audit.status.value,
+    'maximum_interface_state_residual': (
+      interface_jump_audit.maximum_state_residual
+    ),
+    'maximum_interface_pressure_residual': (
+      interface_jump_audit.maximum_pressure_residual
+    ),
+    'maximum_interface_total_pressure_residual': (
+      interface_jump_audit.maximum_total_pressure_residual
+    ),
+    'interface_jump_verified': interface_jump_verified,
+  }
+  if not interface_jump_verified:
+    return _failure(
+      MocReflectedDomainGlobalTransonicInterfaceAuditStatus.INTERFACE_JUMP_FAILURE,
+      candidate,
+      'retained interface profile failed independent Rankine--Hugoniot '
+      'state and pressure rederivation',
+      placement_lineage_verified=True,
+      placement_geometry_verified=True,
+      coupled_request_verified=True,
+      coupled_field_present=True,
+      placement_consumed_verified=True,
+      **interface_jump_kwargs,
+    )
+  ####
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(profile.cross_section_x_m), 1.0))
   control_x = float(request.mixed_regime_request.control_section.points_m[0][0])
   interface_frame_verified = bool(
@@ -474,6 +731,7 @@ def measure_reflected_domain_global_transonic_interface(
       coupled_field_present=True,
       placement_consumed_verified=True,
       interface_frame_verified=False,
+      **interface_jump_kwargs,
     )
   ####
   expected_states = _profile_inlet_states(
@@ -521,6 +779,44 @@ def measure_reflected_domain_global_transonic_interface(
       inlet_state_count=actual_count,
       maximum_inlet_state_residual=maximum_residual,
       inlet_state_seam_verified=False,
+      **interface_jump_kwargs,
+    )
+  ####
+  (
+    ambient_boundary_verified,
+    ambient_pressure_residual_Pa,
+    ambient_pressure_residual_fraction,
+    ambient_normal_velocity_residual_fraction,
+  ) = _independent_ambient_boundary_residuals(candidate)
+  ambient_kwargs = {
+    'ambient_boundary_pressure_residual_Pa': ambient_pressure_residual_Pa,
+    'ambient_boundary_pressure_residual_fraction': (
+      ambient_pressure_residual_fraction
+    ),
+    'ambient_boundary_normal_velocity_residual_fraction': (
+      ambient_normal_velocity_residual_fraction
+    ),
+    'ambient_boundary_verified': ambient_boundary_verified,
+  }
+  if not ambient_boundary_verified:
+    return _failure(
+      MocReflectedDomainGlobalTransonicInterfaceAuditStatus
+      .AMBIENT_BOUNDARY_FAILURE,
+      candidate,
+      'coupled field outer-boundary pressure or tangency residual did not '
+      'pass its declared tolerance',
+      placement_lineage_verified=True,
+      placement_geometry_verified=True,
+      coupled_request_verified=True,
+      coupled_field_present=True,
+      placement_consumed_verified=True,
+      interface_frame_verified=True,
+      expected_inlet_state_count=expected_count,
+      inlet_state_count=actual_count,
+      maximum_inlet_state_residual=maximum_residual,
+      inlet_state_seam_verified=True,
+      **interface_jump_kwargs,
+      **ambient_kwargs,
     )
   ####
   return MocReflectedDomainGlobalTransonicInterfaceAudit(
@@ -541,10 +837,16 @@ def measure_reflected_domain_global_transonic_interface(
     inlet_state_count=actual_count,
     maximum_inlet_state_residual=maximum_residual,
     inlet_state_seam_verified=True,
+    **interface_jump_kwargs,
+    **ambient_kwargs,
+    centerline_boundary_required=True,
+    centerline_boundary_verified=False,
     message=(
       'solver-owned transonic interface placement, downstream mesh frame, '
-      'and consumed inlet states passed independent seam checks; global '
-      'mixed-regime closure remains open'
+      'consumed inlet states, interface Rankine--Hugoniot rederivation, and '
+      'outer-boundary pressure/tangency residuals passed; the downstream '
+      'candidate retains no global centerline reflection closure, so mixed-'
+      'regime closure remains open'
     ),
   )
 ####

@@ -740,14 +740,22 @@ def test_global_coupled_downstream_derives_solver_owned_transonic_placement():
   )
   assert result.coupled_field is not None
   assert result.coupled_field.transonic_shock_interface_field_placement_consumed
+  assert result.coupled_field_audit is not None
+  assert result.coupled_field_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
+  )
+  assert result.coupled_field_audit.transonic_shock_interface_profile_verified
   assert result.closure_lineage_verified
   interface_audit = measure_reflected_domain_global_transonic_interface(result)
   assert interface_audit.status is (
     MocReflectedDomainGlobalTransonicInterfaceAuditStatus
-    .CONVERGED_LOCAL_INTERFACE_HANDOFF
+    .AMBIENT_BOUNDARY_FAILURE
   )
-  assert interface_audit.converged
+  assert interface_audit.converged is False
   assert interface_audit.inlet_state_seam_verified
+  assert interface_audit.interface_jump_verified
+  assert interface_audit.ambient_boundary_verified is False
+  assert interface_audit.joint_boundary_residuals_verified is False
   assert interface_audit.canonical_closure_verified is False
 
   tampered_states = list(
@@ -837,15 +845,21 @@ def test_global_coupled_downstream_feedback_audits_solver_owned_transonic_seam()
   )
 
   assert run.transonic_interface_audit_required
-  assert run.transonic_interface_audit_verified
+  assert run.transonic_interface_audit_verified is False
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus
+    .TRANSONIC_INTERFACE_FAILURE
+  )
   assert run.configuration['transonic_interface_audit_policy'] == (
     'independent-global-transonic-interface-seam-required-v1'
   )
   assert run.iterations
   assert all(
     item.transonic_interface_audit is not None
-    and item.transonic_interface_audit.converged
+    and item.transonic_interface_audit.converged is False
     and item.transonic_interface_audit.inlet_state_seam_verified
+    and item.transonic_interface_audit.interface_jump_verified
+    and item.transonic_interface_audit.ambient_boundary_verified is False
     for item in run.iterations
   )
   assert run.global_coupling_verified is False
@@ -3388,6 +3402,7 @@ def test_global_coupled_downstream_candidate_keeps_feedback_gate_explicit():
   assert result.as_chain_termination_decision().reason is (
     MocChainTerminationReason.FIDELITY_NOT_ALLOWED
   )
+####
 
 
 def test_global_coupled_downstream_retains_a_separate_full_state_boundary_trace():
@@ -9024,6 +9039,7 @@ def test_global_coupled_boundary_condition_feedback_binds_first_cell_fit_to_fine
       source='owner-indexed-regression-fixture',
       provenance='test-only exact indexed fixture; not a product observation',
     )
+  ####
 
   external_policy = MocShockCellExternalPromotionPolicy(
     maximum_rmse_m=tuple(

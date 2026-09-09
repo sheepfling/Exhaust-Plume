@@ -1793,6 +1793,13 @@ def _audit_transonic_shock_interface_profile(
     return False, None
   ####
   expected = request.transonic_shock_interface_profile
+  if request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
+  ):
+    placement = request.transonic_shock_interface_field_placement
+    expected = None if placement is None else placement.profile
+  ####
   if expected is None:
     return candidate.transonic_shock_interface_profile is None and not (
       candidate.transonic_shock_interface_profile_consumed
