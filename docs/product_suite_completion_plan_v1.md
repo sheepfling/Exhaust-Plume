@@ -2481,7 +2481,7 @@ and the final release gates remain open.
 
 The long-running goal remains active on the dedicated integration branch.  The
   current candidate is a local research checkpoint; it is not a release
-  candidate.  The current pushed checkpoint is `2661343` on
+  candidate.  The current pushed checkpoint is `768b964` on
 `work/washed-integral-visual`; `main` remains untouched.  Work proceeds in the
 following order,
 with each item stopping closed when its evidence is absent:
@@ -2997,3 +2997,20 @@ against the content-addressed intake manifest.  Its report distinguishes
 until the archive is actually present and verified.  The embedded alignment
 overlay remains a scoped repository reference only; it cannot satisfy this
 gate or promote a VIS, Signature, ray, or FPA comparison.
+
+### Current alignment-preflight candidate checkpoint — 2026-09-08 (`768b964`)
+
+The provider-comparison preflight now binds the separately named alignment
+archive to the validation intake manifest.  Commit `9550f46` added the
+content-addressed archive check and the explicit `not-provided`/`missing`
+states; `768b964` refreshed the lane-release manifest against that candidate.
+The focused validation slice passes (`20 passed`), with Ruff, Pyright, and
+documentation checks also passing.  The earlier complete regression remains
+the recorded baseline (`1183 passed, 18 warnings` at `6588209`); it has not
+been re-run after this narrow preflight change.
+
+The manifest correctly remains `release_ready=false`: the raw V8 and
+alignment archives, provider-bound VIS/SIG/RAY/FPA observations, canonical
+mixed-regime closure, accepted physical shock-cell lengths, and exact current
+release freeze are still open.  No synthetic archive or embedded overlay is
+being promoted as external evidence.
