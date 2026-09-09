@@ -4062,3 +4062,23 @@ physical tranche remains the solver-owned moving-interface/two-sided field
 solve, followed by mesh/refinement evidence and provider-bound VIS/SIG/RAY/FPA
 validation.  Owner archives, external comparisons, canonical field closure,
 and the exact release freeze remain open.
+
+### P2.2e mixed-wave downstream moving-seam routing checkpoint — 2026-09-09
+
+The mixed-wave downstream operator now accepts an optional
+``MocMovingMixedRegimeInterfaceResult`` through a distinct solver-owned inlet
+path.  It independently remeasures the conservative seam, requires complete
+coverage with a transverse sample count that matches the coupled field, and
+requires the retained section to begin strictly downstream of the
+solver-owned control section.  The legacy transonic-placement/profile path
+remains separate; its interface-coverage evidence is not reused for the
+moving seam.
+
+The downstream result now retains separate moving-interface verification and
+consumption flags, and the field handoff is preserved in reports.  Complete
+and incomplete moving-seam routing tests pass, including the typed pre-field
+stop for missing coverage.  This is a routing and exact-consumption slice:
+the coupled solver still does not iterate the moving interface geometry or
+close the two-sided mixed-regime field, so local canonical closure, refinement,
+shock-cell promotion, provider-bound VIS/SIG/RAY/FPA validation, owner
+archives, and release freeze remain blocked.

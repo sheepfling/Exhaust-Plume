@@ -535,7 +535,7 @@ def _global_physical_closure_for_mixed_regime(sample_count: int = 9):
 ####
 
 
-def _moving_interface_for_coupled_field():
+def _moving_interface_for_coupled_field(*, include_inputs: bool = False):
   closure = _global_physical_closure_for_mixed_regime()
   ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
   assert ambient_pressure is not None
@@ -599,6 +599,8 @@ def _moving_interface_for_coupled_field():
     sample_count=sample_count,
   )
   moving_result = prepare_moc_moving_mixed_regime_interface(moving_request)
+  if include_inputs:
+    return closure, interface, mixed_request, moving_result
   return mixed_request, moving_result
 
 
@@ -1800,6 +1802,74 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
     .CONSERVATIVE_SOURCE_REQUIRED
   )
 ####
+
+
+def test_global_transonic_mixed_wave_downstream_consumes_exact_moving_interface_seam():
+  closure, interface, _mixed_request, moving_result = (
+    _moving_interface_for_coupled_field(include_inputs=True)
+  )
+  moving_request = moving_result.request
+  result = solve_reflected_domain_global_transonic_mixed_wave_downstream(
+    closure,
+    interface,
+    reference_total_temperature_K=1500.0,
+    control_section_x_offset_m=0.001,
+    control_section_height_m=(moving_request.upper_y_m - moving_request.lower_y_m),
+    axial_cell_count=4,
+    transverse_cell_count=moving_request.sample_count,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    moving_mixed_regime_interface=moving_result,
+  )
+
+  assert result.moving_mixed_regime_interface is moving_result
+  assert result.moving_interface_verified
+  assert result.transonic_interface_placement is None
+  assert result.interface_placement_coverage is None
+  assert result.field is not None
+  assert result.field.moving_mixed_regime_interface is moving_result
+  assert result.field.moving_mixed_regime_interface_consumed
+  assert result.moving_interface_consumed
+  assert result.transonic_interface_placement_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_report()['moving_interface_verified'] is True
+  assert result.as_report()['moving_interface_consumed'] is True
+
+
+def test_global_transonic_mixed_wave_downstream_rejects_incomplete_moving_interface_seam():
+  closure, interface, _mixed_request, complete_result = (
+    _moving_interface_for_coupled_field(include_inputs=True)
+  )
+  incomplete_result = prepare_moc_moving_mixed_regime_interface(
+    replace(
+      complete_result.request,
+      boundary_samples=complete_result.boundary_samples[:-1],
+    )
+  )
+  moving_request = incomplete_result.request
+  result = solve_reflected_domain_global_transonic_mixed_wave_downstream(
+    closure,
+    interface,
+    reference_total_temperature_K=1500.0,
+    control_section_x_offset_m=0.001,
+    control_section_height_m=(moving_request.upper_y_m - moving_request.lower_y_m),
+    axial_cell_count=4,
+    transverse_cell_count=moving_request.sample_count,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    moving_mixed_regime_interface=incomplete_result,
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE
+  )
+  assert result.moving_mixed_regime_interface is incomplete_result
+  assert result.moving_interface_verified is False
+  assert result.field is None
+  assert not result.downstream_field_attempted
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
 
 
 def test_global_coupled_downstream_rejects_non_full_span_transonic_placement():

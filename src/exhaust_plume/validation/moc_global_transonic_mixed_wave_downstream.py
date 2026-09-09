@@ -38,6 +38,10 @@ from exhaust_plume.models.moc.mixed_regime_entropy import (
   MocMixedRegimeEntropyHandoffResult,
   build_mixed_regime_entropy_handoff,
 )
+from exhaust_plume.models.moc.moving_mixed_regime_interface import (
+  MocMovingMixedRegimeInterfaceResult,
+  measure_moc_moving_mixed_regime_interface,
+)
 from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRequest,
   build_reflected_domain_mixed_regime_boundary_request_from_perimeter,
@@ -114,6 +118,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
   interface_placement_coverage: (
     MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverage | None
   ) = None
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None
   reference_total_temperature_K: float | None = None
   interface_consumed: bool = False
   perimeter_contract_verified: bool = False
@@ -122,6 +127,8 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
   transonic_interface_placement_verified: bool = False
   transonic_interface_placement_consumed: bool = False
   interface_placement_coverage_verified: bool = False
+  moving_interface_verified: bool = False
+  moving_interface_consumed: bool = False
   downstream_field_attempted: bool = False
   downstream_field_local_closure_verified: bool = False
   centerline_boundary_verified: bool = False
@@ -159,6 +166,10 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
         'interface_placement_coverage',
         MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverage,
       ),
+      (
+        'moving_mixed_regime_interface',
+        MocMovingMixedRegimeInterfaceResult,
+      ),
     ):
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected_type):
@@ -182,6 +193,8 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       'transonic_interface_placement_verified',
       'transonic_interface_placement_consumed',
       'interface_placement_coverage_verified',
+      'moving_interface_verified',
+      'moving_interface_consumed',
       'downstream_field_attempted',
       'downstream_field_local_closure_verified',
       'centerline_boundary_verified',
@@ -216,6 +229,17 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
   def local_downstream_field_verified(self) -> bool:
     """Whether the exact local seam reached the field solver's local gate."""
 
+    placement_path_verified = bool(
+      self.transonic_interface_placement_verified
+      and self.transonic_interface_placement_consumed
+      and self.interface_placement_coverage_verified
+    )
+    moving_path_verified = bool(
+      self.moving_interface_verified
+      and self.moving_interface_consumed
+      and self.moving_mixed_regime_interface is not None
+      and self.moving_mixed_regime_interface.boundary_seam_verified
+    )
     return bool(
       self.status
       is MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
@@ -224,9 +248,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       and self.perimeter_contract_verified
       and self.entropy_handoff_verified
       and self.control_section_verified
-      and self.transonic_interface_placement_verified
-      and self.transonic_interface_placement_consumed
-      and self.interface_placement_coverage_verified
+      and (placement_path_verified or moving_path_verified)
       and self.downstream_field_attempted
       and self.downstream_field_local_closure_verified
       and self.field is not None
@@ -338,6 +360,13 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
         if self.interface_placement_coverage is None
         else self.interface_placement_coverage.as_report()
       ),
+      'moving_mixed_regime_interface': (
+        None
+        if self.moving_mixed_regime_interface is None
+        else self.moving_mixed_regime_interface.as_report()
+      ),
+      'moving_interface_verified': self.moving_interface_verified,
+      'moving_interface_consumed': self.moving_interface_consumed,
       'field': None if self.field is None else self.field.as_report(),
       'claim_status': (
         'research-only downstream coupled-Euler field driven by an explicit '
@@ -368,6 +397,7 @@ def _failure(
   interface_placement_coverage: (
     MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverage | None
   ) = None,
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None,
   reference_total_temperature_K: float | None = None,
   interface_consumed: bool = False,
   perimeter_contract_verified: bool = False,
@@ -376,6 +406,8 @@ def _failure(
   transonic_interface_placement_verified: bool = False,
   transonic_interface_placement_consumed: bool = False,
   interface_placement_coverage_verified: bool = False,
+  moving_interface_verified: bool = False,
+  moving_interface_consumed: bool = False,
   downstream_field_attempted: bool = False,
   downstream_field_local_closure_verified: bool = False,
 ) -> MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
@@ -390,6 +422,7 @@ def _failure(
     transonic_interface_placement=transonic_interface_placement,
     subsonic_pressure_budget=subsonic_pressure_budget,
     interface_placement_coverage=interface_placement_coverage,
+    moving_mixed_regime_interface=moving_mixed_regime_interface,
     reference_total_temperature_K=reference_total_temperature_K,
     interface_consumed=interface_consumed,
     perimeter_contract_verified=perimeter_contract_verified,
@@ -404,6 +437,8 @@ def _failure(
     interface_placement_coverage_verified=(
       interface_placement_coverage_verified
     ),
+    moving_interface_verified=moving_interface_verified,
+    moving_interface_consumed=moving_interface_consumed,
     downstream_field_attempted=downstream_field_attempted,
     downstream_field_local_closure_verified=(
       downstream_field_local_closure_verified
@@ -490,6 +525,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
   transonic_placement_post_shock_fraction: float = (
     DEFAULT_TRANSONIC_PLACEMENT_POST_SHOCK_FRACTION
   ),
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None,
 ) -> MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
   """Consume one verified local interface inside the coupled Euler field.
 
@@ -516,6 +552,17 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INVALID_INPUT,
       'interface must be a typed global transonic mixed-wave interface result',
       closure=closure,
+    )
+  ####
+  if moving_mixed_regime_interface is not None and not isinstance(
+    moving_mixed_regime_interface,
+    MocMovingMixedRegimeInterfaceResult,
+  ):
+    return _failure(
+      MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INVALID_INPUT,
+      'moving_mixed_regime_interface must be a typed moving-interface result',
+      closure=closure,
+      interface=interface,
     )
   ####
   if not closure.converged or not closure.physical_closure_verified:
@@ -754,71 +801,123 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       control_section_verified=control_section_verified,
     )
   ####
-  try:
-    transonic_interface_placement = (
-      build_reflected_domain_global_solver_owned_transonic_interface_placement(
-        closure,
-        sample_count=transonic_placement_sample_count,
-        post_shock_fraction=placement_fraction,
-        minimum_cross_section_x_m=control_section.points_m[0][0],
-        target_downstream_static_pressure_Pa=None,
+  moving_interface_verified = False
+  transonic_interface_placement = None
+  transonic_interface_placement_verified = False
+  interface_placement_coverage = None
+  interface_placement_coverage_verified = False
+  if moving_mixed_regime_interface is not None:
+    try:
+      moving_interface_audit = measure_moc_moving_mixed_regime_interface(
+        moving_mixed_regime_interface
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _failure(
+        MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE,
+        f'moving mixed-regime interface audit raised: {error}',
+        closure=closure,
+        interface=interface,
+        request=request,
+        entropy_handoff=entropy_handoff,
+        control_section=control_section,
+        moving_mixed_regime_interface=moving_mixed_regime_interface,
+        interface_consumed=interface_consumed,
+        perimeter_contract_verified=perimeter_contract_verified,
+        entropy_handoff_verified=entropy_handoff_verified,
+        control_section_verified=control_section_verified,
+      )
+    ####
+    moving_interface_verified = bool(
+      moving_mixed_regime_interface.boundary_seam_verified
+      and moving_interface_audit.converged
+      and moving_mixed_regime_interface.request.sample_count
+      == transverse_cell_count
+      and moving_mixed_regime_interface.request.cross_section_x_m
+      > control_section.points_m[0][0]
+    )
+    if not moving_interface_verified:
+      return _failure(
+        MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE,
+        'moving mixed-regime interface must pass its independent seam audit, '
+        'match the coupled transverse sample count, and begin strictly '
+        'downstream of the solver-owned control section',
+        closure=closure,
+        interface=interface,
+        request=request,
+        entropy_handoff=entropy_handoff,
+        control_section=control_section,
+        moving_mixed_regime_interface=moving_mixed_regime_interface,
+        interface_consumed=interface_consumed,
+        perimeter_contract_verified=perimeter_contract_verified,
+        entropy_handoff_verified=entropy_handoff_verified,
+        control_section_verified=control_section_verified,
+      )
+  else:
+    try:
+      transonic_interface_placement = (
+        build_reflected_domain_global_solver_owned_transonic_interface_placement(
+          closure,
+          sample_count=transonic_placement_sample_count,
+          post_shock_fraction=placement_fraction,
+          minimum_cross_section_x_m=control_section.points_m[0][0],
+          target_downstream_static_pressure_Pa=None,
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _failure(
+        MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE,
+        f'solver-owned transonic interface placement raised: {error}',
+        closure=closure,
+        interface=interface,
+        request=request,
+        entropy_handoff=entropy_handoff,
+        control_section=control_section,
+        interface_consumed=interface_consumed,
+        perimeter_contract_verified=perimeter_contract_verified,
+        entropy_handoff_verified=entropy_handoff_verified,
+        control_section_verified=control_section_verified,
+      )
+    ####
+    exact_field = None
+    if closure.global_euler is not None:
+      physical = closure.global_euler.physical_field
+      if physical is not None:
+        exact_field = physical.field
+      ####
+    ####
+    transonic_interface_placement_verified = bool(
+      transonic_interface_placement.converged
+      and exact_field is not None
+      and transonic_interface_placement.request.field is exact_field
+      and transonic_interface_placement.field is exact_field
+      and transonic_interface_placement.profile is not None
+    )
+    if not transonic_interface_placement_verified:
+      return _failure(
+        MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE,
+        'solver-owned transonic interface placement did not pass its exact '
+        f'field/profile lineage gate: {transonic_interface_placement.message}',
+        closure=closure,
+        interface=interface,
+        request=request,
+        entropy_handoff=entropy_handoff,
+        control_section=control_section,
+        transonic_interface_placement=transonic_interface_placement,
+        interface_consumed=interface_consumed,
+        perimeter_contract_verified=perimeter_contract_verified,
+        entropy_handoff_verified=entropy_handoff_verified,
+        control_section_verified=control_section_verified,
+      )
+    ####
+    interface_placement_coverage = (
+      assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
+        interface,
+        transonic_interface_placement,
       )
     )
-  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
-    return _failure(
-      MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE,
-      f'solver-owned transonic interface placement raised: {error}',
-      closure=closure,
-      interface=interface,
-      request=request,
-      entropy_handoff=entropy_handoff,
-      control_section=control_section,
-      interface_consumed=interface_consumed,
-      perimeter_contract_verified=perimeter_contract_verified,
-      entropy_handoff_verified=entropy_handoff_verified,
-      control_section_verified=control_section_verified,
+    interface_placement_coverage_verified = bool(
+      interface_placement_coverage.joint_interface_coverage_verified
     )
-  ####
-  exact_field = None
-  if closure.global_euler is not None:
-    physical = closure.global_euler.physical_field
-    if physical is not None:
-      exact_field = physical.field
-    ####
-  ####
-  transonic_interface_placement_verified = bool(
-    transonic_interface_placement.converged
-    and exact_field is not None
-    and transonic_interface_placement.request.field is exact_field
-    and transonic_interface_placement.field is exact_field
-    and transonic_interface_placement.profile is not None
-  )
-  if not transonic_interface_placement_verified:
-    return _failure(
-      MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INTERFACE_FAILURE,
-      'solver-owned transonic interface placement did not pass its exact '
-      f'field/profile lineage gate: {transonic_interface_placement.message}',
-      closure=closure,
-      interface=interface,
-      request=request,
-      entropy_handoff=entropy_handoff,
-      control_section=control_section,
-      transonic_interface_placement=transonic_interface_placement,
-      interface_consumed=interface_consumed,
-      perimeter_contract_verified=perimeter_contract_verified,
-      entropy_handoff_verified=entropy_handoff_verified,
-      control_section_verified=control_section_verified,
-    )
-  ####
-  interface_placement_coverage = (
-    assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
-      interface,
-      transonic_interface_placement,
-    )
-  )
-  interface_placement_coverage_verified = bool(
-    interface_placement_coverage.joint_interface_coverage_verified
-  )
   try:
     field = solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request(
       request,
@@ -829,11 +928,17 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       max_shape_iterations=max_shape_iterations,
       inlet_boundary_mode=(
         MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+        if moving_mixed_regime_interface is not None
+        else MocReflectedDomainCoupledEulerInletBoundaryMode
         .SOLVER_OWNED_INTERIOR_SHOCK_INTERFACE_PROFILE
       ),
       transonic_shock_interface_field_placement=(
-        transonic_interface_placement
+        None
+        if moving_mixed_regime_interface is not None
+        else transonic_interface_placement
       ),
+      moving_mixed_regime_interface=moving_mixed_regime_interface,
       outlet_static_pressure_Pa=float(ambient_pressure),
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -847,6 +952,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       control_section=control_section,
       transonic_interface_placement=transonic_interface_placement,
       interface_placement_coverage=interface_placement_coverage,
+      moving_mixed_regime_interface=moving_mixed_regime_interface,
       reference_total_temperature_K=reference_temperature,
       interface_consumed=interface_consumed,
       perimeter_contract_verified=perimeter_contract_verified,
@@ -858,6 +964,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       interface_placement_coverage_verified=(
         interface_placement_coverage_verified
       ),
+      moving_interface_verified=moving_interface_verified,
       downstream_field_attempted=True,
     )
   ####
@@ -868,6 +975,20 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     is transonic_interface_placement
     and field.transonic_shock_interface_field_placement_consumed
     and field.transonic_shock_interface_profile_consumed
+  )
+  moving_interface_consumed = bool(
+    moving_mixed_regime_interface is not None
+    and field.moving_mixed_regime_interface is moving_mixed_regime_interface
+    and field.moving_mixed_regime_interface_consumed
+  )
+  field_path_verified = bool(
+    moving_interface_verified and moving_interface_consumed
+    if moving_mixed_regime_interface is not None
+    else (
+      transonic_interface_placement_verified
+      and transonic_interface_placement_consumed
+      and interface_placement_coverage_verified
+    )
   )
   additional_entropy_required = bool(
     not field_verified
@@ -881,11 +1002,15 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
   status = (
     MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
     .CONVERGED_RESEARCH_FIELD
-    if field_verified and interface_placement_coverage_verified
+    if field_verified and field_path_verified
     else (
       MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
       .INTERFACE_COVERAGE_REQUIRED
-      if field_verified and not interface_placement_coverage_verified
+      if (
+        field_verified
+        and moving_mixed_regime_interface is None
+        and not interface_placement_coverage_verified
+      )
       else (
       MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus
       .ADDITIONAL_ENTROPY_REQUIRED
@@ -895,7 +1020,11 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     )
   )
   coverage_message = ''
-  if not interface_placement_coverage_verified:
+  if (
+    moving_mixed_regime_interface is None
+    and not interface_placement_coverage_verified
+  ):
+    assert interface_placement_coverage is not None
     coverage_message = (
       ' The joint interface-coverage audit remains open: '
       f'{interface_placement_coverage.message}; no boundary extension or '
@@ -904,8 +1033,13 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
   if additional_entropy_required:
     assert subsonic_pressure_budget is not None
     message = (
-      'the exact mixed-wave terminal and solver-owned transonic placement '
-      'entered the coupled Euler field, but the retained subsonic branch '
+      'the exact mixed-wave terminal and solver-owned '
+      + (
+        'moving-interface conservative section '
+        if moving_mixed_regime_interface is not None
+        else 'transonic placement '
+      )
+      + 'entered the coupled Euler field, but the retained subsonic branch '
       'cannot reach ambient without additional entropy-producing physics: '
       f"the pressure budget requires at least "
       f"{subsonic_pressure_budget.minimum_additional_total_pressure_loss_fraction:.6g} "
@@ -926,7 +1060,11 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
         f'{field.message}.{coverage_message}'
       )
     )
-    if field_verified and not interface_placement_coverage_verified:
+    if (
+      field_verified
+      and moving_mixed_regime_interface is None
+      and not interface_placement_coverage_verified
+    ):
       message = (
         'the coupled Euler field passed its local residual gate, but the '
         'exact mixed-wave shock and ambient traces do not cover the selected '
@@ -941,6 +1079,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     entropy_handoff=entropy_handoff,
     control_section=control_section,
     transonic_interface_placement=transonic_interface_placement,
+    moving_mixed_regime_interface=moving_mixed_regime_interface,
     reference_total_temperature_K=reference_temperature,
     interface_consumed=interface_consumed,
     perimeter_contract_verified=perimeter_contract_verified,
@@ -956,6 +1095,8 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     interface_placement_coverage_verified=(
       interface_placement_coverage_verified
     ),
+    moving_interface_verified=moving_interface_verified,
+    moving_interface_consumed=moving_interface_consumed,
     subsonic_pressure_budget=subsonic_pressure_budget,
     downstream_field_attempted=True,
     downstream_field_local_closure_verified=field_verified,
