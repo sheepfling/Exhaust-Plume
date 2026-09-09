@@ -719,7 +719,11 @@ def _ambient_entrainment_profile_fields(
   profile: Any,
   ambient_pressure: float,
   axial_cell_count: int,
-) -> tuple[float, float, float, tuple[float, ...]] | None:
+) -> tuple[
+  tuple[float, ...],
+  tuple[tuple[float, float], ...],
+  tuple[float, ...],
+] | None:
   """Independently validate the conservative ambient source inputs."""
 
   if str(getattr(profile, 'mechanism_id', '')) != (
@@ -727,14 +731,32 @@ def _ambient_entrainment_profile_fields(
   ):
     return None
   ####
-  temperature = float(profile.ambient_temperature_K)
-  velocity = tuple(float(value) for value in profile.ambient_velocity_m_s)
+  temperature_profile = getattr(profile, 'ambient_temperature_K_by_station', None)
+  if temperature_profile is None:
+    temperature = float(profile.ambient_temperature_K)
+    temperatures = tuple(temperature for _ in range(axial_cell_count))
+  else:
+    temperatures = tuple(float(value) for value in temperature_profile)
+  velocity_profile = getattr(profile, 'ambient_velocity_m_s_by_station', None)
+  if velocity_profile is None:
+    velocity = tuple(float(value) for value in profile.ambient_velocity_m_s)
+    velocities = tuple(velocity for _ in range(axial_cell_count))
+  else:
+    velocities = tuple(
+      tuple(float(component) for component in value)
+      for value in velocity_profile
+    )
   fractions = tuple(
     float(value) for value in profile.entrainment_fraction_by_station
   )
-  if not isfinite(temperature) or temperature <= 0.0:
+  if len(temperatures) != axial_cell_count or any(
+    not isfinite(value) or value <= 0.0 for value in temperatures
+  ):
     raise ValueError('audited ambient entrainment temperature is invalid')
-  if len(velocity) != 2 or any(not isfinite(value) for value in velocity):
+  if len(velocities) != axial_cell_count or any(
+    len(value) != 2 or any(not isfinite(component) for component in value)
+    for value in velocities
+  ):
     raise ValueError('audited ambient entrainment velocity is invalid')
   if len(fractions) != axial_cell_count:
     raise ValueError('audited ambient entrainment fractions are not aligned')
@@ -745,7 +767,7 @@ def _ambient_entrainment_profile_fields(
   ambient_pressure = float(ambient_pressure)
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     raise ValueError('audited ambient entrainment pressure is invalid')
-  return temperature, velocity[0], velocity[1], fractions
+  return temperatures, velocities, fractions
 
 
 def _entropy_closure_source_state(
@@ -755,7 +777,11 @@ def _entropy_closure_source_state(
   ambient_pressure: float,
   gamma: float,
   gas_constant: float,
-  ambient_entrainment_fields: tuple[float, float, float, tuple[float, ...]] | None,
+  ambient_entrainment_fields: tuple[
+    tuple[float, ...],
+    tuple[tuple[float, float], ...],
+    tuple[float, ...],
+  ] | None,
 ) -> np.ndarray:
   """Reconstruct the model's exact entropy/mixing source target."""
 
@@ -767,9 +793,11 @@ def _entropy_closure_source_state(
       gas_constant,
     )
   ####
-  ambient_temperature, ambient_u, ambient_v, fractions = (
+  ambient_temperatures, ambient_velocities, fractions = (
     ambient_entrainment_fields
   )
+  ambient_temperature = ambient_temperatures[station_index]
+  ambient_u, ambient_v = ambient_velocities[station_index]
   ambient_density = ambient_pressure / (gas_constant * ambient_temperature)
   ambient_state = np.array(
     (

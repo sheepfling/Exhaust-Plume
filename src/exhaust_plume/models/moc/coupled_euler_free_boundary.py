@@ -259,7 +259,11 @@ def _ambient_entrainment_profile_fields(
   profile: Any,
   ambient_pressure: float,
   axial_cell_count: int,
-) -> tuple[float, float, float, tuple[float, ...]] | None:
+) -> tuple[
+  tuple[float, ...],
+  tuple[tuple[float, float], ...],
+  tuple[float, ...],
+] | None:
   """Validate and return the explicit conservative ambient source inputs."""
 
   if str(getattr(profile, 'mechanism_id', '')) != (
@@ -278,15 +282,47 @@ def _ambient_entrainment_profile_fields(
       'and station-wise fraction fields'
     )
   ####
-  temperature = float(profile.ambient_temperature_K)
-  if not isfinite(temperature) or temperature <= 0.0:
-    raise ValueError(
-      'ambient entrainment temperature must be finite and strictly positive'
-    )
+  temperature_profile = getattr(profile, 'ambient_temperature_K_by_station', None)
+  if temperature_profile is None:
+    temperature = float(profile.ambient_temperature_K)
+    if not isfinite(temperature) or temperature <= 0.0:
+      raise ValueError(
+        'ambient entrainment temperature must be finite and strictly positive'
+      )
+    temperatures = tuple(temperature for _ in range(axial_cell_count))
+  else:
+    temperatures = tuple(float(value) for value in temperature_profile)
+    if len(temperatures) != axial_cell_count:
+      raise ValueError(
+        'ambient entrainment temperature profile must align with the axial '
+        'cell columns'
+      )
+    if any(not isfinite(value) or value <= 0.0 for value in temperatures):
+      raise ValueError(
+        'ambient entrainment temperatures must be finite and strictly positive'
+      )
   ####
-  velocity = tuple(float(value) for value in profile.ambient_velocity_m_s)
-  if len(velocity) != 2 or any(not isfinite(value) for value in velocity):
-    raise ValueError('ambient entrainment velocity must contain two finite values')
+  velocity_profile = getattr(profile, 'ambient_velocity_m_s_by_station', None)
+  if velocity_profile is None:
+    velocity = tuple(float(value) for value in profile.ambient_velocity_m_s)
+    if len(velocity) != 2 or any(not isfinite(value) for value in velocity):
+      raise ValueError(
+        'ambient entrainment velocity must contain two finite values'
+      )
+    velocities = tuple(velocity for _ in range(axial_cell_count))
+  else:
+    velocities = tuple(
+      tuple(float(component) for component in value)
+      for value in velocity_profile
+    )
+    if len(velocities) != axial_cell_count or any(
+      len(value) != 2 or any(not isfinite(component) for component in value)
+      for value in velocities
+    ):
+      raise ValueError(
+        'ambient entrainment velocity profile must contain one finite '
+        'two-component value per axial cell column'
+      )
   ####
   fractions = tuple(
     float(value) for value in profile.entrainment_fraction_by_station
@@ -304,7 +340,7 @@ def _ambient_entrainment_profile_fields(
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     raise ValueError('ambient entrainment requires a positive ambient pressure')
   ####
-  return temperature, velocity[0], velocity[1], fractions
+  return temperatures, velocities, fractions
 
 
 class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
@@ -4351,7 +4387,11 @@ def _entropy_closure_source_state(
   ambient_pressure: float,
   gamma: float,
   gas_constant: float,
-  ambient_entrainment_fields: tuple[float, float, float, tuple[float, ...]] | None,
+  ambient_entrainment_fields: tuple[
+    tuple[float, ...],
+    tuple[tuple[float, float], ...],
+    tuple[float, ...],
+  ] | None,
 ) -> np.ndarray:
   """Return the conservative source target for one axial station.
 
@@ -4370,10 +4410,12 @@ def _entropy_closure_source_state(
       gas_constant,
     )
   ####
-  ambient_temperature, ambient_u, ambient_v, fractions = (
+  ambient_temperatures, ambient_velocities, fractions = (
     ambient_entrainment_fields
   )
   fraction = fractions[station_index]
+  ambient_temperature = ambient_temperatures[station_index]
+  ambient_u, ambient_v = ambient_velocities[station_index]
   ambient_density = ambient_pressure / (gas_constant * ambient_temperature)
   ambient_state = _conservative_from_primitive(
     ambient_density,

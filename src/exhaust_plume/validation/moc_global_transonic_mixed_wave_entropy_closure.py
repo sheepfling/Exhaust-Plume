@@ -119,6 +119,8 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
   ambient_temperature_K: float | None = None
   ambient_velocity_m_s: tuple[float, float] | None = None
   entrainment_fraction_by_station: tuple[float, ...] = ()
+  ambient_temperature_K_by_station: tuple[float, ...] | None = None
+  ambient_velocity_m_s_by_station: tuple[tuple[float, float], ...] | None = None
 
   def __post_init__(self) -> None:
     closure_fingerprint = str(self.source_closure_fingerprint)
@@ -227,28 +229,79 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
     ####
     ambient_temperature = self.ambient_temperature_K
     ambient_velocity = self.ambient_velocity_m_s
+    ambient_temperature_by_station = self.ambient_temperature_K_by_station
+    ambient_velocity_by_station = self.ambient_velocity_m_s_by_station
     entrainment = tuple(
       float(value) for value in self.entrainment_fraction_by_station
     )
     if mechanism_id == CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID:
-      if ambient_temperature is None:
+      if (ambient_temperature is None) == (ambient_temperature_by_station is None):
         raise ValueError(
-          'conservative ambient entrainment requires an explicit ambient '
-          'temperature'
+          'conservative ambient entrainment requires exactly one of scalar '
+          'or station-resolved ambient temperatures'
         )
-      ambient_temperature = float(ambient_temperature)
-      if not isfinite(ambient_temperature) or ambient_temperature <= 0.0:
+      if (ambient_velocity is None) == (ambient_velocity_by_station is None):
         raise ValueError(
-          'ambient_temperature_K must be finite and strictly positive'
+          'conservative ambient entrainment requires exactly one of scalar '
+          'or station-resolved ambient velocities'
         )
-      if ambient_velocity is None or len(ambient_velocity) != 2:
-        raise ValueError(
-          'conservative ambient entrainment requires a two-component '
-          'ambient velocity'
+      if ambient_temperature_by_station is not None:
+        ambient_temperature_by_station = tuple(
+          float(value) for value in ambient_temperature_by_station
         )
-      ambient_velocity = tuple(float(value) for value in ambient_velocity)
-      if any(not isfinite(value) for value in ambient_velocity):
-        raise ValueError('ambient_velocity_m_s must contain finite values')
+        if len(ambient_temperature_by_station) != len(x_stations):
+          raise ValueError(
+            'ambient_temperature_K_by_station must align with x_stations_m'
+          )
+        if any(
+          not isfinite(value) or value <= 0.0
+          for value in ambient_temperature_by_station
+        ):
+          raise ValueError(
+            'ambient_temperature_K_by_station must contain finite positive '
+            'values'
+          )
+        object.__setattr__(
+          self,
+          'ambient_temperature_K_by_station',
+          ambient_temperature_by_station,
+        )
+      else:
+        ambient_temperature = float(ambient_temperature)
+        if not isfinite(ambient_temperature) or ambient_temperature <= 0.0:
+          raise ValueError(
+            'ambient_temperature_K must be finite and strictly positive'
+          )
+      if ambient_velocity_by_station is not None:
+        ambient_velocity_by_station = tuple(
+          tuple(float(component) for component in value)
+          for value in ambient_velocity_by_station
+        )
+        if len(ambient_velocity_by_station) != len(x_stations):
+          raise ValueError(
+            'ambient_velocity_m_s_by_station must align with x_stations_m'
+          )
+        if any(
+          len(value) != 2 or any(not isfinite(component) for component in value)
+          for value in ambient_velocity_by_station
+        ):
+          raise ValueError(
+            'ambient_velocity_m_s_by_station must contain finite two-component '
+            'values'
+          )
+        object.__setattr__(
+          self,
+          'ambient_velocity_m_s_by_station',
+          ambient_velocity_by_station,
+        )
+      else:
+        ambient_velocity = tuple(float(value) for value in ambient_velocity)
+        if len(ambient_velocity) != 2 or any(
+          not isfinite(value) for value in ambient_velocity
+        ):
+          raise ValueError(
+            'ambient_velocity_m_s must contain two finite values'
+          )
       if len(entrainment) != len(x_stations):
         raise ValueError(
           'entrainment_fraction_by_station must align with x_stations_m'
@@ -268,15 +321,33 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
       object.__setattr__(self, 'ambient_temperature_K', ambient_temperature)
       object.__setattr__(self, 'ambient_velocity_m_s', ambient_velocity)
     else:
-      if ambient_temperature is not None or ambient_velocity is not None or entrainment:
+      if (
+        ambient_temperature is not None
+        or ambient_velocity is not None
+        or ambient_temperature_by_station is not None
+        or ambient_velocity_by_station is not None
+        or entrainment
+      ):
         raise ValueError(
           'ambient entrainment inputs require the conservative ambient '
           'entrainment mechanism id'
         )
       ambient_temperature = None
       ambient_velocity = None
+      ambient_temperature_by_station = None
+      ambient_velocity_by_station = None
       entrainment = ()
     object.__setattr__(self, 'entrainment_fraction_by_station', entrainment)
+    object.__setattr__(
+      self,
+      'ambient_temperature_K_by_station',
+      ambient_temperature_by_station,
+    )
+    object.__setattr__(
+      self,
+      'ambient_velocity_m_s_by_station',
+      ambient_velocity_by_station,
+    )
 
   @property
   def budget_satisfied(self) -> bool:
@@ -308,6 +379,8 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
       'ambient_temperature_K': self.ambient_temperature_K,
       'ambient_velocity_m_s': self.ambient_velocity_m_s,
       'entrainment_fraction_by_station': self.entrainment_fraction_by_station,
+      'ambient_temperature_K_by_station': self.ambient_temperature_K_by_station,
+      'ambient_velocity_m_s_by_station': self.ambient_velocity_m_s_by_station,
       'budget_satisfied': self.budget_satisfied,
       'claim_status': (
         'research-only declared entropy/mixing source; it is not a field '
@@ -709,6 +782,8 @@ def build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
   ambient_temperature_K: float | None = None,
   ambient_velocity_m_s: tuple[float, float] | None = None,
   entrainment_fraction_by_station: tuple[float, ...] = (),
+  ambient_temperature_K_by_station: tuple[float, ...] | None = None,
+  ambient_velocity_m_s_by_station: tuple[tuple[float, float], ...] | None = None,
 ) -> MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
   """Bind an explicit loss law to the exact mixed-wave downstream seam.
 
@@ -762,6 +837,8 @@ def build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
     ambient_temperature_K=ambient_temperature_K,
     ambient_velocity_m_s=ambient_velocity_m_s,
     entrainment_fraction_by_station=entrainment_fraction_by_station,
+    ambient_temperature_K_by_station=ambient_temperature_K_by_station,
+    ambient_velocity_m_s_by_station=ambient_velocity_m_s_by_station,
   )
 
 
@@ -771,9 +848,11 @@ def build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profi
   x_stations_m: tuple[float, ...],
   total_pressure_Pa: tuple[float, ...],
   target_static_pressure_Pa: tuple[float, ...],
-  ambient_temperature_K: float,
-  ambient_velocity_m_s: tuple[float, float] = (0.0, 0.0),
+  ambient_temperature_K: float | None = None,
+  ambient_velocity_m_s: tuple[float, float] | None = None,
   entrainment_fraction_by_station: tuple[float, ...],
+  ambient_temperature_K_by_station: tuple[float, ...] | None = None,
+  ambient_velocity_m_s_by_station: tuple[tuple[float, float], ...] | None = None,
   relaxation_fraction: float = 0.25,
   source: str = DEFAULT_AMBIENT_ENTRAINMENT_PROFILE_SOURCE,
 ) -> MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
@@ -797,6 +876,8 @@ def build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profi
     ambient_temperature_K=ambient_temperature_K,
     ambient_velocity_m_s=ambient_velocity_m_s,
     entrainment_fraction_by_station=entrainment_fraction_by_station,
+    ambient_temperature_K_by_station=ambient_temperature_K_by_station,
+    ambient_velocity_m_s_by_station=ambient_velocity_m_s_by_station,
   )
 
 

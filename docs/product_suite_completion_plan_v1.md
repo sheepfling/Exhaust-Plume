@@ -3731,3 +3731,19 @@ assets, and offline wheel/install smoke pass at the same source state.  The
 release manifest still records ``release_ready=false`` and the candidate is
 not frozen for release; these checks establish compatibility and source-term
 auditability only.
+
+### P2.2d station-resolved ambient source checkpoint — 2026-09-09
+
+The conservative ambient-entrainment profile now accepts either one explicit
+ambient temperature/velocity pair or station-aligned temperature and velocity
+profiles.  The coupled solver and independent audit normalize both forms to
+the same axial source frame; no altitude, atmospheric composition, or missing
+station value is inferred.  This makes spatially varying ambient conditions
+available to the research closure while preserving exact source provenance.
+
+The scalar compatibility path and the station-resolved preflight path pass in
+the mixed-wave regression; the focused coupled-Euler/MOC subset passes (14
+tests), with Pyright, public-contract assets, Ruff, bytecode, and documentation
+checks green.  The source remains research-only: no global feedback, canonical
+free-boundary closure, physical cell fit, external validation, or product
+promotion is implied.

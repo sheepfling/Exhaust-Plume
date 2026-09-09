@@ -1204,6 +1204,33 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   assert ambient_preflight.profile_ready_for_joint_solver
   assert ambient_preflight.profile is ambient_profile
 
+  station_resolved_profile = (
+    build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile(
+      result,
+      x_stations_m=x_stations,
+      total_pressure_Pa=total_pressure_profile,
+      target_static_pressure_Pa=tuple(ambient for _ in x_stations),
+      ambient_temperature_K_by_station=tuple(
+        300.0 + 2.0 * index for index in range(len(x_stations))
+      ),
+      ambient_velocity_m_s_by_station=tuple(
+        (0.5 * index, -0.1 * index) for index in range(len(x_stations))
+      ),
+      entrainment_fraction_by_station=tuple(0.02 for _ in x_stations),
+    )
+  )
+  assert station_resolved_profile.ambient_temperature_K is None
+  assert station_resolved_profile.ambient_velocity_m_s is None
+  assert station_resolved_profile.ambient_temperature_K_by_station is not None
+  assert station_resolved_profile.ambient_velocity_m_s_by_station is not None
+  station_resolved_preflight = (
+    audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+      result,
+      station_resolved_profile,
+    )
+  )
+  assert station_resolved_preflight.profile_ready_for_joint_solver
+
   assert result.field is not None
   assert result.field.request is not None
   ambient_request = replace(
