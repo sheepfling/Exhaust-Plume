@@ -3906,3 +3906,21 @@ Until that operator exists and passes those gates, the correct status remains
 ``subsonic_field_required`` and ``release_ready=false``.  No scalar endpoint
 hold, profile extension, pressure/geometry profile substitution, or mapped
 variable-entropy result may be counted as canonical closure.
+
+### Integration ancestry checkpoint — 2026-09-09
+
+The dedicated candidate branch ``work/washed-integral-visual`` is based on the
+reconciled local mainline and already contains the checked-in integration
+slices from ``main``, ``integration/full-suite``,
+``feature/post-a1-implementation``, and ``work/validation-and-completion``.
+The fetched remote PR refs ``github/pr/5-head``, ``github/pr/6-head``, and
+``github/pr/7-head`` are also ancestors of the candidate.  No additional
+merge or conflict resolution is required for those refs at this boundary;
+the candidate is clean and pushed.
+
+This is an ancestry/provenance result, not a release decision.  The branch
+still must remain separate from ``main`` while the canonical mixed-regime
+field, physical shock-cell observations, provider-bound VIS/SIG/RAY/FPA
+comparisons, owner validation archives, and exact release freeze remain open.
+Future work should continue as reviewable vertical slices on this branch and
+must preserve the current claim ceiling.
