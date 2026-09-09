@@ -4012,3 +4012,14 @@ the full repository Pyright check, and the
 documentation check are clean.  This is a bounded performance improvement
 only: it changes neither the solver fidelity boundary nor the promotion
 gates, and the release audit remains required before release claims.
+
+### Package/build gate checkpoint — 2026-09-09
+
+The committed candidate also passes the offline package/build gate via
+``python3 scripts/check_build.py --offline`` (exit code 0).  The check builds
+the wheel and runs the installed smoke path; the emitted expansion-fan and
+legacy-name messages are the repository's existing warning/deprecation output,
+not build failures.  This closes the local packaging checkpoint only.  It does
+not supply the missing owner validation archives, provider-bound
+VIS/SIG/RAY/FPA comparisons, canonical coupled mixed-regime field, or exact
+release freeze, so no release tag or production-readiness claim is authorized.
