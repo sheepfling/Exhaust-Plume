@@ -2852,6 +2852,24 @@ canonical reflected/free-boundary physics, physical shock-cell acceptance,
 provider-bound VIS/SIG/RAY/FPA validation, missing validation archives, or the
 release freeze; the current claim ceiling remains research-only.
 
+### Current-candidate packaging and lane-audit checkpoint — 2026-09-08 (`8e23dc1`)
+
+The current committed candidate passes the local packaging and lane-audit
+surfaces: ``python3 scripts/check_build.py --offline`` built a fresh wheel,
+installed it into a clean temporary environment, and completed the installed
+smoke; ``python3 scripts/validate_product_lanes.py`` returned
+``local_status=passed``; and ``python3 scripts/validate_lane_releases.py``
+reported no low-fidelity promotion violation.  The complete repository
+regression remains ``1181 passed, 18 warnings``.
+
+The lane audit still reports ``release_ready=false`` for the correct reasons:
+the current release-freeze artifact is historical rather than bound to this
+candidate, provider comparisons are not externally accepted, the reduced-
+order lane has no accepted disjoint physical calibration/validation split,
+and the planar-MOC/physical-length gates remain open.  The wheel smoke and
+local lane checks therefore establish package integrity and scoped local
+release evidence only; they do not authorize a product claim or release tag.
+
 ### Full product-suite release map — 2026-09-08
 
 This is the go-forward definition of completion for the long-running goal.  A
