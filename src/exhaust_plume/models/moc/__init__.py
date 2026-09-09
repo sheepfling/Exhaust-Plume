@@ -47,6 +47,7 @@ from exhaust_plume.models.moc.mixed_wave import (
   MocMixedWavePathResult,
   solve_mixed_wave_sample,
   solve_mixed_wave_path,
+  solve_mixed_wave_pressure_target_path,
 )
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryStatus,
@@ -1398,6 +1399,7 @@ __all__ = (
   'solve_attached_compression_to_turn',
   'solve_mixed_wave_sample',
   'solve_mixed_wave_path',
+  'solve_mixed_wave_pressure_target_path',
   'solve_attached_subsonic_compression_to_turn',
   'solve_attached_shock_to_centerline',
   'solve_overexpanded_lip_shock',

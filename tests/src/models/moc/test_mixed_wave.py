@@ -9,6 +9,7 @@ from exhaust_plume.models.moc import (
   MocMixedWaveRegime,
   MocMixedWaveStatus,
   solve_mixed_wave_path,
+  solve_mixed_wave_pressure_target_path,
   solve_mixed_wave_sample,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
@@ -149,4 +150,59 @@ def test_path_rejects_non_downstream_source_geometry() -> None:
   assert result.status is MocMixedWavePathStatus.INVALID_INPUT
   assert not result.path_geometry_verified
   assert not result.converged
+####
+
+
+def test_pressure_target_path_derives_expansion_angles_and_matches_pressure() -> None:
+  result = solve_mixed_wave_pressure_target_path(
+    (_state(x_m=0.5), _state(x_m=1.0)),
+    (100000.0, 100000.0),
+    80000.0,
+  )
+
+  assert result.converged
+  assert result.target_pressure_verified
+  assert result.target_pressure_Pa == pytest.approx(80000.0)
+  assert result.maximum_static_pressure_residual_fraction is not None
+  assert result.maximum_static_pressure_residual_fraction <= 1.0e-10
+  assert all(
+    sample.regime is MocMixedWaveRegime.ISENTROPIC_EXPANSION
+    for sample in result.samples
+  )
+  assert all(
+    sample.downstream_pressure_Pa == pytest.approx(80000.0, rel=1.0e-10)
+    for sample in result.samples
+  )
+####
+
+
+def test_pressure_target_path_selects_shock_and_expansion_per_source() -> None:
+  result = solve_mixed_wave_pressure_target_path(
+    (_state(x_m=0.5), _state(x_m=1.0)),
+    (100000.0, 120000.0),
+    110000.0,
+  )
+
+  assert result.converged
+  assert [sample.regime for sample in result.samples] == [
+    MocMixedWaveRegime.COMPRESSION_SHOCK,
+    MocMixedWaveRegime.ISENTROPIC_EXPANSION,
+  ]
+  assert all(
+    sample.downstream_pressure_Pa == pytest.approx(110000.0, rel=1.0e-10)
+    for sample in result.samples
+  )
+####
+
+
+def test_pressure_target_path_rejects_unattached_increase_without_fallback() -> None:
+  result = solve_mixed_wave_pressure_target_path(
+    (_state(x_m=0.5),),
+    (100000.0,),
+    500000.0,
+  )
+
+  assert result.status is MocMixedWavePathStatus.SAMPLE_FAILURE
+  assert result.target_pressure_verified is False
+  assert result.samples == ()
 ####

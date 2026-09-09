@@ -3451,8 +3451,15 @@ retains per-sample regime/residual/pressure evidence, and stops at the first
 failure without mutating the source into a marching solution.
 
 The exact-source transonic expansion attempt now retains a separate
-solver-owned centerline-angle mixed-wave probe built from the verified entropy
-frontier.  The hard-stop regression passes with that probe converged, while the
+solver-owned pressure-target mixed-wave path built from the verified entropy
+frontier.  Each source state derives its target Mach/angle from the retained
+total pressure and the requested ambient pressure, selecting an attached shock
+when the target is above a local source and an isentropic expansion when it is
+below.  The path independently checks the resulting static-pressure residual.
+On the retained target, all three local source states are below ambient, so
+the local path converges with attached-compression samples even though the
+upstream global compression budget still requires an expansion-capable global
+solve.  The hard-stop regression passes with that path converged, while the
 existing continuation still returns ``global-transonic-expansion-required``.
 The new law and probe remain research-only: they do not close the global
 free-boundary, centerline/ambient neighbors, conservative Euler residuals,

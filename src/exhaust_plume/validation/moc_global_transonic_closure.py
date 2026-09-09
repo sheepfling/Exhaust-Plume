@@ -58,7 +58,7 @@ from exhaust_plume.models.moc.global_physical_closure import (
 )
 from exhaust_plume.models.moc.mixed_wave import (
   MocMixedWavePathResult,
-  solve_mixed_wave_path,
+  solve_mixed_wave_pressure_target_path,
 )
 from exhaust_plume.models.moc.transonic_interface import (
   MocTransonicShockInterfaceFieldPlacementResult,
@@ -1279,10 +1279,10 @@ def run_reflected_domain_global_transonic_expansion_attempt(
       )
       for sample in characteristic_field.continuation_boundary
     )
-    mixed_wave_path = solve_mixed_wave_path(
+    mixed_wave_path = solve_mixed_wave_pressure_target_path(
       boundary_states,
       boundary_pressures,
-      tuple(0.0 for _ in boundary_states),
+      request.ambient_pressure_Pa,
     )
     mixed_wave_path_verified = mixed_wave_path.converged
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):

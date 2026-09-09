@@ -9,19 +9,22 @@ from a successful sample.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import isfinite
 from typing import Any, Sequence
 
 from exhaust_plume.models.moc.compression import (
   MocTurnCompressionResult,
+  solve_attached_compression_to_pressure,
   solve_attached_compression_to_turn,
 )
 from exhaust_plume.models.moc.primitives import (
   CharacteristicFamily,
   CharacteristicState,
   inverse_prandtl_meyer_angle_rad,
+  prandtl_meyer_angle_rad,
+  supersonic_mach_from_stagnation_pressure_ratio,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 
@@ -33,6 +36,7 @@ __all__ = (
   'MocMixedWavePathResult',
   'solve_mixed_wave_sample',
   'solve_mixed_wave_path',
+  'solve_mixed_wave_pressure_target_path',
 )
 
 
@@ -326,6 +330,9 @@ class MocMixedWavePathResult:
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
   message: str = ''
+  target_pressure_Pa: float | None = None
+  maximum_static_pressure_residual_fraction: float | None = None
+  target_pressure_verified: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocMixedWavePathStatus):
@@ -363,6 +370,37 @@ class MocMixedWavePathResult:
     if self.production_claim_allowed:
       raise ValueError('mixed-wave paths cannot allow production claims')
     ####
+    if self.target_pressure_Pa is not None:
+      target_pressure = float(self.target_pressure_Pa)
+      if not isfinite(target_pressure) or target_pressure <= 0.0:
+        raise ValueError('target_pressure_Pa must be finite and positive')
+      ####
+      object.__setattr__(self, 'target_pressure_Pa', target_pressure)
+    ####
+    if self.maximum_static_pressure_residual_fraction is not None:
+      residual = float(self.maximum_static_pressure_residual_fraction)
+      if not isfinite(residual) or residual < 0.0:
+        raise ValueError(
+          'maximum_static_pressure_residual_fraction must be finite and nonnegative'
+        )
+      ####
+      object.__setattr__(
+        self,
+        'maximum_static_pressure_residual_fraction',
+        residual,
+      )
+    ####
+    if not isinstance(self.target_pressure_verified, bool):
+      raise TypeError('target_pressure_verified must be a bool')
+    ####
+    if self.target_pressure_verified and (
+      self.target_pressure_Pa is None
+      or self.maximum_static_pressure_residual_fraction is None
+    ):
+      raise ValueError(
+        'target_pressure_verified requires target pressure and residual evidence'
+      )
+    ####
     for name in (
       'maximum_compatibility_residual',
       'minimum_total_pressure_ratio',
@@ -391,6 +429,9 @@ class MocMixedWavePathResult:
       self.status is MocMixedWavePathStatus.CONVERGED
       and self.path_geometry_verified
       and self.source_pressure_lineage_verified
+      and (
+        self.target_pressure_Pa is None or self.target_pressure_verified
+      )
       and all(sample.converged for sample in self.samples)
     )
   ####
@@ -407,6 +448,11 @@ class MocMixedWavePathResult:
       'regime_counts': dict(self.regime_counts),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
+      'target_pressure_Pa': self.target_pressure_Pa,
+      'maximum_static_pressure_residual_fraction': (
+        self.maximum_static_pressure_residual_fraction
+      ),
+      'target_pressure_verified': self.target_pressure_verified,
       'samples': tuple(sample.as_report() for sample in self.samples),
       'message': self.message,
     }
@@ -553,7 +599,6 @@ def solve_mixed_wave_sample(
   )
   signed_turn = target_angle - upstream.theta_rad
   point = (upstream.x_m, upstream.y_m)
-  ####
   if abs(signed_turn) <= turn_tolerance:
     return MocMixedWaveSampleResult(
       status=MocMixedWaveStatus.CONVERGED,
@@ -644,7 +689,11 @@ def solve_mixed_wave_sample(
       pressure_ratio=compression.pressure_ratio,
       total_pressure_ratio=compression.total_pressure_ratio,
       beta_rad=compression.beta_rad,
-      turn_residual=compression.turn_residual,
+      turn_residual=(
+        None
+        if compression.turn_residual is None
+        else abs(compression.turn_residual)
+      ),
       shock_result=compression,
       message=(
         ''
@@ -864,6 +913,7 @@ def solve_mixed_wave_path(
         source_pressure_lineage_verified=source_pressure_lineage_verified,
         message=f'mixed-wave path sample {index} failed: {sample.message}',
       )
+    ####
   ####
   return _build_path_result(
     status=MocMixedWavePathStatus.CONVERGED,
@@ -876,6 +926,223 @@ def solve_mixed_wave_path(
 ####
 
 
+def solve_mixed_wave_pressure_target_path(
+  upstream_states: Sequence[CharacteristicState],
+  upstream_pressures_Pa: Sequence[float],
+  target_pressure_Pa: float,
+  *,
+  branch: ShockBranch = ShockBranch.WEAK,
+  pressure_tolerance_fraction: float = 1.0e-10,
+  turn_tolerance_rad: float = 1.0e-12,
+  residual_tolerance: float = 1.0e-10,
+  position_tolerance_m: float = 1.0e-12,
+) -> MocMixedWavePathResult:
+  """Solve a local mixed-wave path to one explicit static-pressure target.
+
+  For each source state, a target above the source pressure selects an
+  attached compression shock; a target below it derives the target Mach number
+  from the retained source total pressure and selects an isentropic ``C-``
+  expansion.  The resulting local wave samples are checked against the
+  requested pressure; no global boundary shape is inferred.
+  """
+
+  try:
+    states = tuple(upstream_states)
+    pressures = tuple(float(value) for value in upstream_pressures_Pa)
+    target_pressure = float(target_pressure_Pa)
+    pressure_tolerance = float(pressure_tolerance_fraction)
+  except (TypeError, ValueError):
+    return MocMixedWavePathResult(
+      status=MocMixedWavePathStatus.INVALID_INPUT,
+      samples=(),
+      path_points_m=(),
+      path_geometry_verified=False,
+      source_pressure_lineage_verified=False,
+      maximum_compatibility_residual=None,
+      minimum_total_pressure_ratio=None,
+      regime_counts=(),
+      target_pressure_Pa=None,
+      message='pressure-target path inputs must be finite sequences',
+    )
+  ####
+  if (
+    not states
+    or len(states) != len(pressures)
+    or not isfinite(target_pressure)
+    or target_pressure <= 0.0
+    or not isfinite(pressure_tolerance)
+    or pressure_tolerance <= 0.0
+    or not isinstance(branch, ShockBranch)
+  ):
+    return MocMixedWavePathResult(
+      status=MocMixedWavePathStatus.INVALID_INPUT,
+      samples=(),
+      path_points_m=(),
+      path_geometry_verified=False,
+      source_pressure_lineage_verified=False,
+      maximum_compatibility_residual=None,
+      minimum_total_pressure_ratio=None,
+      regime_counts=(),
+      target_pressure_Pa=target_pressure,
+      message=(
+        'pressure-target path requires non-empty equal-length inputs, a '
+        'positive target/tolerance, and a ShockBranch'
+      ),
+    )
+  ####
+  if any(not isinstance(state, CharacteristicState) for state in states):
+    return MocMixedWavePathResult(
+      status=MocMixedWavePathStatus.INVALID_INPUT,
+      samples=(),
+      path_points_m=(),
+      path_geometry_verified=False,
+      source_pressure_lineage_verified=False,
+      maximum_compatibility_residual=None,
+      minimum_total_pressure_ratio=None,
+      regime_counts=(),
+      target_pressure_Pa=target_pressure,
+      message='upstream_states must contain CharacteristicState values',
+    )
+  ####
+  target_angles: list[float] = []
+  for index, (state, pressure) in enumerate(zip(states, pressures)):
+    if not isfinite(pressure) or pressure <= 0.0:
+      return MocMixedWavePathResult(
+        status=MocMixedWavePathStatus.INVALID_INPUT,
+        samples=(),
+        path_points_m=(),
+        path_geometry_verified=False,
+        source_pressure_lineage_verified=False,
+        maximum_compatibility_residual=None,
+        minimum_total_pressure_ratio=None,
+        regime_counts=(),
+        target_pressure_Pa=target_pressure,
+        message=f'source pressure {index} must be finite and positive',
+      )
+    ####
+    if target_pressure >= pressure * (1.0 - pressure_tolerance):
+      if target_pressure <= pressure * (1.0 + pressure_tolerance):
+        target_angles.append(state.theta_rad)
+        continue
+      ####
+      try:
+        compression = solve_attached_compression_to_pressure(
+          upstream_mach=state.mach,
+          gamma=state.gamma,
+          upstream_pressure_Pa=pressure,
+          target_pressure_Pa=target_pressure,
+          branch=branch,
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        return MocMixedWavePathResult(
+          status=MocMixedWavePathStatus.SAMPLE_FAILURE,
+          samples=(),
+          path_points_m=(),
+          path_geometry_verified=False,
+          source_pressure_lineage_verified=True,
+          maximum_compatibility_residual=None,
+          minimum_total_pressure_ratio=None,
+          regime_counts=(),
+          target_pressure_Pa=target_pressure,
+          message=f'source {index} compression target raised: {error}',
+        )
+      ####
+      if not compression.converged or compression.theta_rad is None:
+        return MocMixedWavePathResult(
+          status=MocMixedWavePathStatus.SAMPLE_FAILURE,
+          samples=(),
+          path_points_m=(),
+          path_geometry_verified=False,
+          source_pressure_lineage_verified=True,
+          maximum_compatibility_residual=None,
+          minimum_total_pressure_ratio=None,
+          regime_counts=(),
+          target_pressure_Pa=target_pressure,
+          message=(
+            f'source {index} attached compression could not reach the target '
+            f'pressure: {compression.message}'
+          ),
+        )
+      ####
+      target_angles.append(state.theta_rad + compression.theta_rad)
+      continue
+    ####
+    total_pressure = _total_pressure(
+      static_pressure_Pa=pressure,
+      mach=state.mach,
+      gamma=state.gamma,
+    )
+    try:
+      inverse = supersonic_mach_from_stagnation_pressure_ratio(
+        total_pressure / target_pressure,
+        state.gamma,
+      )
+      if not inverse.converged or inverse.value is None:
+        raise ValueError(inverse.message)
+      ####
+      target_nu = prandtl_meyer_angle_rad(inverse.value, state.gamma)
+      target_angles.append(
+        state.theta_rad - (target_nu - state.nu_rad)
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return MocMixedWavePathResult(
+        status=MocMixedWavePathStatus.INVALID_INPUT,
+        samples=(),
+        path_points_m=(),
+        path_geometry_verified=False,
+        source_pressure_lineage_verified=True,
+        maximum_compatibility_residual=None,
+        minimum_total_pressure_ratio=None,
+        regime_counts=(),
+        target_pressure_Pa=target_pressure,
+        message=f'source {index} pressure target inversion failed: {error}',
+      )
+    ####
+  ####
+  path = solve_mixed_wave_path(
+    states,
+    pressures,
+    target_angles,
+    branch=branch,
+    turn_tolerance_rad=turn_tolerance_rad,
+    residual_tolerance=residual_tolerance,
+    position_tolerance_m=position_tolerance_m,
+  )
+  residuals = [
+    abs(sample.downstream_pressure_Pa - target_pressure) / target_pressure
+    for sample in path.samples
+    if sample.downstream_pressure_Pa is not None
+  ]
+  maximum_residual = max(residuals) if residuals else None
+  target_verified = bool(
+    path.status is MocMixedWavePathStatus.CONVERGED
+    and len(residuals) == len(path.samples)
+    and maximum_residual is not None
+    and maximum_residual <= pressure_tolerance
+  )
+  status = path.status
+  if status is MocMixedWavePathStatus.CONVERGED and not target_verified:
+    status = MocMixedWavePathStatus.SAMPLE_FAILURE
+  ####
+  return replace(
+    path,
+    status=status,
+    target_pressure_Pa=target_pressure,
+    maximum_static_pressure_residual_fraction=maximum_residual,
+    target_pressure_verified=target_verified,
+    message=(
+      'local mixed-wave path matched the explicit static-pressure target; '
+      'global interface and boundary closure remain open'
+      if target_verified
+      else (
+        path.message
+        or 'local mixed-wave path did not match the explicit static-pressure target'
+      )
+    ),
+  )
+####
+
+
 def _build_path_result(
   *,
   status: MocMixedWavePathStatus,
@@ -884,6 +1151,9 @@ def _build_path_result(
   path_geometry_verified: bool,
   source_pressure_lineage_verified: bool,
   message: str,
+  target_pressure_Pa: float | None = None,
+  maximum_static_pressure_residual_fraction: float | None = None,
+  target_pressure_verified: bool = False,
 ) -> MocMixedWavePathResult:
   residuals = [
     sample.compatibility_residual
@@ -911,6 +1181,11 @@ def _build_path_result(
     maximum_compatibility_residual=max(residuals) if residuals else None,
     minimum_total_pressure_ratio=min(ratios) if ratios else None,
     regime_counts=tuple(sorted(counts.items())),
+    target_pressure_Pa=target_pressure_Pa,
+    maximum_static_pressure_residual_fraction=(
+      maximum_static_pressure_residual_fraction
+    ),
+    target_pressure_verified=target_pressure_verified,
     message=message,
   )
 ####
