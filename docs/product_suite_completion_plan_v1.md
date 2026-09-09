@@ -2962,6 +2962,15 @@ transient, trajectory, chemistry, detector-noise process, or external product
 comparison.  Provider-bound observer, atmospheric, detector, and trajectory
 measurements remain release gates.
 
+### Full regression refresh after mission-time release binding — 2026-09-08 (`4bcc9ff`)
+
+The exact pushed candidate passes the complete repository regression:
+`1183 passed, 18 warnings` in 20:12.  The warnings are the existing legacy
+compatibility and projected-area numerical warnings; no test failed.  This
+refresh validates the release-manifest and current-evidence changes across the
+full repository, but it does not close the external provider, alignment, or
+canonical physical-closure blockers recorded above.
+
 ### Current local evidence and release-manifest binding checkpoint — 2026-09-08
 
 The committed local product report and lane-release manifest were refreshed

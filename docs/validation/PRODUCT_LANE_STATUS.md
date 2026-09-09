@@ -348,3 +348,8 @@ checkout.  The manifest now records the mission-time gate and the explicit
 matrix lane.  Because the Version 8 archive is not present in this checkout,
 the current report records `external_corpus.status=not-provided`; no synthetic
 data is used as a substitute, and external validation remains blocked.
+
+The exact pushed candidate also passes the complete repository regression:
+`1183 passed, 18 warnings` in 20:12.  The warnings are pre-existing legacy
+compatibility and projected-area numerical warnings; they do not change the
+remaining external-validation or canonical-closure gates.
