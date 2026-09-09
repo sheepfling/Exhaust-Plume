@@ -191,6 +191,12 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_interface import (
   MocReflectedDomainGlobalTransonicMixedWaveInterfaceStatus,
   solve_reflected_domain_global_transonic_mixed_wave_interface,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_probe import (
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeStatus,
+  probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation,
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeAuditStatus,
+  measure_reflected_domain_global_transonic_mixed_wave_terminal_probe,
+)
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_coverage import (
   MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus,
   assess_reflected_domain_global_transonic_mixed_wave_interface_coverage,
@@ -968,6 +974,105 @@ def test_global_transonic_mixed_wave_interface_keeps_subsonic_reference_stop_typ
   assert interface.centerline_boundary_verified is False
   assert interface.global_coupling_verified is False
   assert interface.chain_promotion_blocked
+
+
+def test_global_transonic_mixed_wave_terminal_probe_keeps_reference_below_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+  ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  attempt = run_reflected_domain_global_transonic_expansion_attempt(
+    MocReflectedDomainGlobalTransonicClosureRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_Pa=ambient_pressure,
+    )
+  )
+  assert attempt.characteristic_field is not None
+  interface = solve_reflected_domain_global_transonic_mixed_wave_interface(
+    attempt.characteristic_field,
+    ambient_pressure,
+    effective_inlet_height_m=0.002,
+    downstream_length_m=0.2,
+  )
+
+  probe = probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation(
+    interface
+  )
+
+  assert probe.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeStatus
+    .CONVERGED_TERMINAL_REFERENCE
+  )
+  assert probe.converged
+  assert probe.reflection_patch_verified
+  assert probe.shock_probe_verified
+  assert probe.terminal_reference_verified
+  assert probe.reflection_patch is not None
+  assert probe.terminal_patch_shock_probe is not None
+  assert probe.terminal_patch_shock_probe.physical_terminal_verified
+  terminal = probe.terminal_patch_shock_probe.shock.normal_shock_terminal
+  assert terminal is not None
+  assert terminal.shock_point_m is not None
+  assert terminal.shock_point_m[0] > (
+    interface.shock_ambient_strip.terminal_trace_points_m[-1][0]
+  )
+  assert terminal.subsonic
+  assert probe.physical_closure_verified is False
+  assert probe.chain_promotion_blocked
+  assert probe.production_claim_allowed is False
+
+  report = probe.as_report()
+  assert report['terminal_reference_verified'] is True
+  assert report['physical_closure_verified'] is False
+  assert report['chain_promotion_blocked'] is True
+  assert report['production_claim_allowed'] is False
+
+  audit = measure_reflected_domain_global_transonic_mixed_wave_terminal_probe(
+    probe
+  )
+  assert audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeAuditStatus.VERIFIED
+  )
+  assert audit.converged
+  assert audit.interface_verified
+  assert audit.input_trace_verified
+  assert audit.output_trace_verified
+  assert audit.patch_geometry_verified
+  assert audit.shock_path_geometry_verified
+  assert audit.shock_state_lineage_verified
+  assert audit.shock_pressure_lineage_verified
+  assert audit.terminal_reference_verified
+  assert audit.claim_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  audit_report = audit.as_report()
+  assert audit_report['converged'] is True
+  assert audit_report['physical_closure_verified'] is False
+
+  assert probe.reflection_patch is not None
+  tampered_state = replace(
+    probe.reflection_patch.outgoing_trace_states[0],
+    mach=probe.reflection_patch.outgoing_trace_states[0].mach + 0.01,
+  )
+  tampered_patch = replace(
+    probe.reflection_patch,
+    outgoing_trace_states=(
+      tampered_state,
+      *probe.reflection_patch.outgoing_trace_states[1:],
+    ),
+  )
+  tampered_probe = replace(probe, reflection_patch=tampered_patch)
+  tampered_audit = (
+    measure_reflected_domain_global_transonic_mixed_wave_terminal_probe(
+      tampered_probe
+    )
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeAuditStatus
+    .TRACE_FAILURE
+  )
+  assert not tampered_audit.converged
 
 
 def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at_free_boundary_residual():

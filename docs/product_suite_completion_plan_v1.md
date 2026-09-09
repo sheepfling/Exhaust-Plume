@@ -3789,3 +3789,35 @@ extrapolation, or promotion was introduced.  The coupled field remains
 ``additional-entropy-required`` and research-only.  Focused placement and
 mixed-wave regressions, Ruff, Pyright, bytecode, and diff checks pass; the
 full reflected-domain lane remains the next verification step for this slice.
+
+### P2.2e bounded terminal-reflection probe checkpoint — 2026-09-09
+
+The open global mixed-wave interface now has a separate
+``op.moc.reflected-domain.global-transonic-mixed-wave-terminal-probe``
+operator.  It consumes only a locally verified shock/ambient strip, reflects
+its retained terminal ``C+`` trace to the centerline, and passes the outgoing
+``C-`` trace to the existing in-domain next-shock solver.  The operator keeps
+the trace tolerance explicit (the target fixture currently requires
+``1e-5 m`` at its retained mesh resolution), carries the exact reflection and
+shock-probe reports, and exposes a typed subsonic normal-shock reference at
+approximately ``x=5.25541 m`` with downstream Mach approximately ``0.73365``.
+
+This is a bounded continuation reference, not a missing-field fill: it does
+not extrapolate outside the reflection patch, derive a global feedback law,
+solve the downstream subsonic field, or authorize a first/continued physical
+shock-cell fit.  ``physical_closure_verified`` remains false,
+``chain_promotion_blocked`` remains true, and production claims remain false.
+The focused reflected-domain regression passes with this evidence attached;
+the next gate is an independently audited subsonic field and refinement
+comparison that can consume the terminal reference without reusing the
+reduced-order reference as canonical physics.
+
+The same checkpoint now has an independent retained-output audit,
+``op.moc.reflected-domain.global-transonic-mixed-wave-terminal-probe-audit``.
+It remeasures the open-strip trace identity, reflected ``C-`` geometry,
+in-domain shock sampling, state/pressure lineage, subsonic terminal position,
+and the hard non-promotion flags.  The audit also rejects a tampered retained
+trace in regression coverage.  This strengthens evidence for the next physics
+step without changing the release decision: the downstream subsonic field,
+global coupling, physical cell fit, external data, and provider comparisons
+remain open.
