@@ -301,6 +301,11 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_interface import (
   MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult,
   solve_reflected_domain_global_transonic_mixed_wave_interface,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_coverage import (
+  MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus,
+  MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverage,
+  assess_reflected_domain_global_transonic_mixed_wave_interface_coverage,
+)
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_downstream import (
   MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_DOWNSTREAM_OPERATOR_ID,
   MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus,
@@ -954,6 +959,9 @@ __all__ = (
   'MocReflectedDomainGlobalTransonicMixedWaveInterfaceStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult',
   'solve_reflected_domain_global_transonic_mixed_wave_interface',
+  'MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus',
+  'MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverage',
+  'assess_reflected_domain_global_transonic_mixed_wave_interface_coverage',
   'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_DOWNSTREAM_OPERATOR_ID',
   'MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult',

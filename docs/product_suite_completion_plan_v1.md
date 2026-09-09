@@ -3575,3 +3575,23 @@ not an iteration-limit classification.  The focused regression passes.  The
 next P2.2d slice must add and audit the actual joint mixed-wave/interface,
 entropy-producing, centerline, and ambient closure mechanism before any
 canonical field or shock-cell fit can consume it.
+
+### P2.2d interface-coverage checkpoint — 2026-09-09
+
+The downstream handoff now retains a typed geometry audit between the exact
+mixed-wave interface and the solver-owned transonic field placement.  The
+audit consumes the retained shock-fit points, the independently marched
+ambient ``points_m`` trace, and the exact terminal coordinate.  It requires
+both boundaries to span the selected cross-section; it does not extend either
+trace or infer a missing connecting surface.
+
+On the current target, the field placement is downstream of the shorter exact
+shock/ambient trace by more than 0.2 m.  The coupled field is still run as a
+bounded research diagnostic so its pressure and velocity residuals remain
+available, but any future local field convergence will be classified as
+``interface-coverage-required`` until this geometric seam is actually solved.
+The baseline full 1,207-test lane passed before this audit; the post-change
+focused regression, static checks, and bytecode checks pass.  A complete
+post-change lane rerun remains a release-freeze task.  Canonical mixed-regime
+closure, physical shock-cell fitting, provider-bound validation, and release
+promotion remain blocked.

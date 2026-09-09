@@ -191,6 +191,10 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_interface import (
   MocReflectedDomainGlobalTransonicMixedWaveInterfaceStatus,
   solve_reflected_domain_global_transonic_mixed_wave_interface,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_coverage import (
+  MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus,
+  assess_reflected_domain_global_transonic_mixed_wave_interface_coverage,
+)
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_downstream import (
   MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus,
   solve_reflected_domain_global_transonic_mixed_wave_downstream,
@@ -988,6 +992,19 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   assert result.control_section_verified
   assert result.transonic_interface_placement_verified
   assert result.transonic_interface_placement_consumed
+  assert result.transonic_interface_placement is not None
+  assert result.interface_placement_coverage is not None
+  assert result.interface_placement_coverage.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus
+    .PLACEMENT_OUTSIDE_INTERFACE
+  )
+  assert result.interface_placement_coverage.joint_interface_coverage_verified is False
+  assert result.interface_placement_coverage.downstream_gap_m is not None
+  assert result.interface_placement_coverage.downstream_gap_m > 0.2
+  assert assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
+    interface,
+    result.transonic_interface_placement,
+  ) == result.interface_placement_coverage
   assert result.downstream_field_attempted
   assert result.request is not None
   assert result.request.perimeter_contract_source == interface.perimeter_request.source
@@ -1013,6 +1030,8 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   assert result.global_coupling_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+  assert result.as_report()['interface_placement_coverage_verified'] is False
+  assert result.as_report()['interface_placement_coverage']['converged'] is False
   assert interface.production_claim_allowed is False
 ####
 
