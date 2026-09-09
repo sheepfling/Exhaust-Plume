@@ -204,6 +204,13 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_handoff i
   build_reflected_domain_global_transonic_mixed_wave_terminal_handoff,
   measure_reflected_domain_global_transonic_mixed_wave_terminal_handoff,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_field import (
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAuditStatus,
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageRequest,
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageStatus,
+  assess_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage,
+  measure_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage,
+)
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_coverage import (
   MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus,
   assess_reflected_domain_global_transonic_mixed_wave_interface_coverage,
@@ -1187,6 +1194,95 @@ def test_global_transonic_mixed_wave_terminal_scalar_handoff_is_exact_and_stays_
   assert 'bind to the coupled-field inlet x' in coupled.message
   assert coupled.chain_promotion_blocked
   assert coupled.production_claim_allowed is False
+
+
+def test_global_transonic_mixed_wave_terminal_field_coverage_stops_at_missing_ordinate():
+  closure = _global_physical_closure_for_mixed_regime()
+  ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  attempt = run_reflected_domain_global_transonic_expansion_attempt(
+    MocReflectedDomainGlobalTransonicClosureRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_Pa=ambient_pressure,
+    )
+  )
+  assert attempt.characteristic_field is not None
+  interface = solve_reflected_domain_global_transonic_mixed_wave_interface(
+    attempt.characteristic_field,
+    ambient_pressure,
+    effective_inlet_height_m=0.002,
+    downstream_length_m=0.2,
+  )
+  probe = probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation(
+    interface
+  )
+  handoff = build_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffRequest(
+      probe=probe,
+      upstream_total_temperature_K=1500.0,
+    )
+  )
+  assert handoff.geometry is not None
+  terminal_x, terminal_y = handoff.geometry.shock_point_m
+  request = MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageRequest(
+    handoff=handoff,
+    cross_section_x_m=terminal_x,
+    lower_y_m=terminal_y,
+    upper_y_m=terminal_y + 0.05,
+    sample_count=9,
+  )
+
+  result = assess_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage(
+    request
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageStatus
+    .SUBSONIC_FIELD_REQUIRED
+  )
+  assert result.terminal_binding_verified
+  assert result.patch is probe.reflection_patch
+  assert result.first_missing_sample_index is not None
+  assert result.covered_sample_count < request.sample_count
+  assert result.complete_cross_section_coverage is False
+  assert result.subsonic_field_required
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+  audit = measure_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage(
+    result
+  )
+  assert audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAuditStatus
+    .VERIFIED
+  )
+  assert audit.converged
+  assert audit.handoff_verified
+  assert audit.terminal_binding_rederived
+  assert audit.samples_rederived
+  assert audit.missing_sample_lineage_verified
+  assert audit.claim_flags_verified
+  assert audit.physical_closure_verified is False
+  assert audit.production_claim_allowed is False
+
+  tampered_samples = (
+    replace(
+      result.samples[0],
+      point_m=(result.samples[0].point_m[0] + 1.0e-3, result.samples[0].point_m[1]),
+    ),
+    *result.samples[1:],
+  )
+  tampered = replace(result, samples=tampered_samples)
+  tampered_audit = measure_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage(
+    tampered
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAuditStatus
+    .SAMPLE_LINEAGE_FAILURE
+  )
+  assert not tampered_audit.converged
 
 
 def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at_free_boundary_residual():

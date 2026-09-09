@@ -3848,3 +3848,26 @@ extrapolate, or hold the terminal state.  This closes the missing scalar
 thermodynamic seam only; an interior subsonic field or solver-owned moving
 interface is still required before canonical closure, shock-cell fitting, or
 production promotion.
+
+### P2.2e open-terminal cross-section coverage checkpoint — 2026-09-09
+
+The next seam is now explicit as
+``op.moc.reflected-domain.global-transonic-mixed-wave-terminal-field-coverage``.
+Given a caller-declared cross-section, the operator independently re-audits
+the scalar terminal handoff and samples only the retained terminal reflection
+patch.  It records each covered state/total-pressure/static-pressure sample
+and the first missing ordinate; it never holds the terminal scalar state over
+the section, extends the patch, or converts a supersonic patch sample into a
+subsonic field.
+
+The target fixture correctly returns the typed
+``global-transonic-mixed-wave-subsonic-field-cross-section-required`` outcome:
+the terminal point is bound to the requested section, but the retained patch
+does not cover the requested 0.05 m span.  The independent coverage audit
+reproduces the missing-sample lineage and preserves
+``subsonic_field_required=true``, ``physical_closure_verified=false``, and
+the non-promotion flags.  This is evidence accounting and a solver input
+contract, not a downstream field solve.  The next implementation slice must
+solve a moving mixed-regime interface/subsonic field from conservative
+boundary data and repeat the jump, boundary, entropy, Euler, and refinement
+audits before any physical shock-cell or Signature/FPA claim can consume it.
