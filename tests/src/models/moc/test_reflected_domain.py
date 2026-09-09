@@ -201,11 +201,13 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_downstream import 
 )
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_entropy_closure import (
   CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID,
+  MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus,
   MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus,
   audit_reflected_domain_global_transonic_mixed_wave_entropy_closure,
   build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile,
   build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile,
   solve_reflected_domain_global_transonic_mixed_wave_entropy_closure,
+  solve_reflected_domain_global_transonic_mixed_wave_joint_field,
 )
 from exhaust_plume.validation.moc_transonic_interface import (
   MocTransonicShockInterfaceFieldProfileAuditStatus,
@@ -1258,6 +1260,45 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   assert ambient_independent_audit.entropy_closure_profile_consumed
   assert ambient_independent_audit.chain_promotion_blocked
   assert ambient_independent_audit.production_claim_allowed is False
+
+  joint = solve_reflected_domain_global_transonic_mixed_wave_joint_field(
+    result,
+    station_resolved_profile,
+    maximum_iterations=2,
+    entrainment_step=0.15,
+  )
+  assert joint.status in (
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.ITERATION_LIMIT,
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+    .INTERFACE_COVERAGE_REQUIRED,
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+    .CONVERGED_RESEARCH_ITERATION,
+  )
+  assert joint.joint_field_consumed
+  assert joint.profile_lineage_verified
+  assert joint.interface_placement_lineage_verified
+  assert not joint.interface_placement_coverage_verified
+  assert joint.independent_iteration_audits_verified
+  assert joint.iterations
+  assert len(joint.iterations) == 2
+  assert joint.iterations[0].source_update_applied
+  assert not joint.iterations[-1].source_update_applied
+  assert all(item.exact_profile_consumed for item in joint.iterations)
+  assert all(item.audit.candidate is item.field for item in joint.iterations)
+  assert joint.physical_closure_verified is False
+  assert joint.global_coupling_verified is False
+  assert joint.chain_promotion_blocked
+  assert joint.production_claim_allowed is False
+
+  legacy_joint = solve_reflected_domain_global_transonic_mixed_wave_joint_field(
+    result,
+    entropy_profile,
+    maximum_iterations=1,
+  )
+  assert legacy_joint.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+    .CONSERVATIVE_SOURCE_REQUIRED
+  )
 ####
 
 

@@ -44,19 +44,27 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_ENTROPY_CLOSURE_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_JOINT_FIELD_OPERATOR_ID',
   'CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID',
   'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile',
   'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult',
+  'MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus',
+  'MocReflectedDomainGlobalTransonicMixedWaveJointFieldIteration',
+  'MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult',
   'build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile',
   'build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile',
   'audit_reflected_domain_global_transonic_mixed_wave_entropy_closure',
   'solve_reflected_domain_global_transonic_mixed_wave_entropy_closure',
+  'solve_reflected_domain_global_transonic_mixed_wave_joint_field',
 )
 
 
 MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_ENTROPY_CLOSURE_OPERATOR_ID = (
   'op.moc.reflected-domain.global-transonic-mixed-wave-entropy-closure'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_JOINT_FIELD_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-transonic-mixed-wave-joint-interface-field'
 )
 DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE = (
   'solver-owned-mixed-wave-entropy-loss-profile-v1'
@@ -573,6 +581,685 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult:
     }
 
 
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult:
+  """Research-only result for the coupled source/interface iteration."""
+
+  status: MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+  downstream: MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult | None
+  initial_profile: (
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile | None
+  )
+  iterations: tuple[
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldIteration, ...
+  ] = ()
+  requested_iterations: int = 0
+  source_closure_fingerprint: str = ''
+  profile_lineage_verified: bool = False
+  interface_placement_lineage_verified: bool = False
+  interface_placement_coverage_verified: bool = False
+  independent_iteration_audits_verified: bool = False
+  joint_field_consumed: bool = False
+  local_joint_boundary_verified: bool = False
+  physical_closure_verified: bool = False
+  global_coupling_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus,
+    ):
+      raise TypeError('status must be a typed joint-field status')
+    if self.downstream is not None and not isinstance(
+      self.downstream,
+      MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
+    ):
+      raise TypeError('downstream must be a typed downstream result or None')
+    if self.initial_profile is not None and not isinstance(
+      self.initial_profile,
+      MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+    ):
+      raise TypeError('initial_profile must be a typed entropy profile or None')
+    iterations = tuple(self.iterations)
+    if any(
+      not isinstance(
+        item,
+        MocReflectedDomainGlobalTransonicMixedWaveJointFieldIteration,
+      )
+      for item in iterations
+    ):
+      raise TypeError('iterations must contain typed joint-field iterations')
+    if tuple(item.iteration_index for item in iterations) != tuple(
+      range(len(iterations))
+    ):
+      raise ValueError('iterations must have contiguous zero-based indices')
+    if (
+      isinstance(self.requested_iterations, bool)
+      or not isinstance(self.requested_iterations, int)
+      or self.requested_iterations < 0
+    ):
+      raise ValueError('requested_iterations must be a nonnegative integer')
+    if len(iterations) > self.requested_iterations:
+      raise ValueError('iterations cannot exceed requested_iterations')
+    object.__setattr__(self, 'iterations', iterations)
+    object.__setattr__(
+      self,
+      'source_closure_fingerprint',
+      str(self.source_closure_fingerprint),
+    )
+    for name in (
+      'profile_lineage_verified',
+      'interface_placement_lineage_verified',
+      'interface_placement_coverage_verified',
+      'independent_iteration_audits_verified',
+      'joint_field_consumed',
+      'local_joint_boundary_verified',
+      'physical_closure_verified',
+      'global_coupling_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.physical_closure_verified:
+      raise ValueError('joint research evidence cannot claim physical closure')
+    if self.global_coupling_verified:
+      raise ValueError('joint research evidence cannot claim global coupling')
+    if not self.chain_promotion_blocked:
+      raise ValueError('joint research evidence must block chain promotion')
+    if self.production_claim_allowed:
+      raise ValueError('joint research evidence cannot allow production claims')
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+      .CONVERGED_RESEARCH_ITERATION
+    )
+
+  @property
+  def final_profile(
+    self,
+  ) -> MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile | None:
+    return None if not self.iterations else self.iterations[-1].profile
+
+  @property
+  def joint_field_research_verified(self) -> bool:
+    """Whether every local and interface-coverage gate passed."""
+
+    return bool(
+      self.converged
+      and self.joint_field_consumed
+      and self.profile_lineage_verified
+      and self.interface_placement_lineage_verified
+      and self.interface_placement_coverage_verified
+      and self.independent_iteration_audits_verified
+      and self.local_joint_boundary_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_JOINT_FIELD_OPERATOR_ID,
+      'status': self.status.value,
+      'converged': self.converged,
+      'joint_field_research_verified': self.joint_field_research_verified,
+      'physical_closure_verified': self.physical_closure_verified,
+      'global_coupling_verified': self.global_coupling_verified,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
+      'profile_lineage_verified': self.profile_lineage_verified,
+      'interface_placement_lineage_verified': (
+        self.interface_placement_lineage_verified
+      ),
+      'interface_placement_coverage_verified': (
+        self.interface_placement_coverage_verified
+      ),
+      'independent_iteration_audits_verified': (
+        self.independent_iteration_audits_verified
+      ),
+      'joint_field_consumed': self.joint_field_consumed,
+      'local_joint_boundary_verified': self.local_joint_boundary_verified,
+      'requested_iterations': self.requested_iterations,
+      'iteration_count': len(self.iterations),
+      'initial_profile': (
+        None
+        if self.initial_profile is None
+        else self.initial_profile.as_report()
+      ),
+      'final_profile': (
+        None if self.final_profile is None else self.final_profile.as_report()
+      ),
+      'iterations': tuple(item.as_report() for item in self.iterations),
+      'downstream': (
+        None if self.downstream is None else self.downstream.as_report()
+      ),
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'claim_status': (
+        'research-only conservative ambient source/interface/free-boundary '
+        'iteration; canonical closure, external validation, shock-cell '
+        'promotion, and production claims remain blocked'
+      ),
+      'message': self.message,
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class _JointFieldMetrics:
+  pressure_residual_fraction_by_station: tuple[float, ...]
+  total_pressure_residual_fraction_by_station: tuple[float, ...]
+  signed_update_error_by_station: tuple[float, ...]
+  maximum_pressure_residual_fraction: float | None
+  maximum_total_pressure_residual_fraction: float | None
+  maximum_normal_velocity_residual_fraction: float | None
+  maximum_centerline_normal_velocity_residual_fraction: float | None
+  maximum_euler_residual: float | None
+  objective: float | None
+
+
+def _joint_field_metrics(
+  field: MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  profile: MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+) -> _JointFieldMetrics:
+  """Measure boundary and total-pressure errors for one source update."""
+
+  targets = tuple(float(value) for value in profile.target_static_pressure_Pa)
+  actual_boundary = tuple(
+    float(value) for value in field.free_boundary_adjacent_static_pressure_Pa
+  )
+  if len(actual_boundary) != len(targets):
+    return _JointFieldMetrics((), (), (), None, None, None, None, None, None)
+  ####
+  boundary_signed = tuple(
+    (actual - target) / max(abs(target), 1.0)
+    for actual, target in zip(actual_boundary, targets, strict=True)
+  )
+  boundary_residual = tuple(abs(value) for value in boundary_signed)
+  ####
+  total_pressure = ()
+  request = field.request
+  if request is not None:
+    expected_count = request.axial_cell_count * request.transverse_cell_count
+    retained = tuple(float(value) for value in field.total_pressure_by_cell_Pa)
+    if len(retained) == expected_count:
+      column_means = tuple(
+        sum(
+          retained[index * request.transverse_cell_count + transverse]
+          for transverse in range(request.transverse_cell_count)
+        )
+        / request.transverse_cell_count
+        for index in range(request.axial_cell_count)
+      )
+      if len(column_means) == len(targets):
+        total_signed = tuple(
+          (actual - profile_total) / max(abs(profile_total), 1.0)
+          for actual, profile_total in zip(
+            column_means,
+            profile.total_pressure_Pa,
+            strict=True,
+          )
+        )
+        total_pressure = tuple(abs(value) for value in total_signed)
+      else:
+        total_signed = ()
+    else:
+      total_signed = ()
+  else:
+    total_signed = ()
+  ####
+  if total_signed:
+    signed_update = tuple(
+      0.5 * (boundary + total)
+      for boundary, total in zip(boundary_signed, total_signed, strict=True)
+    )
+  else:
+    signed_update = boundary_signed
+  ####
+  normal = field.maximum_free_boundary_normal_velocity_residual_fraction
+  centerline = field.maximum_centerline_normal_velocity_residual_fraction
+  euler = field.maximum_conservative_euler_residual
+  objective_values = [*boundary_residual]
+  if normal is not None:
+    objective_values.append(float(normal))
+  if centerline is not None:
+    objective_values.append(float(centerline))
+  return _JointFieldMetrics(
+    boundary_residual,
+    total_pressure,
+    signed_update,
+    None if not boundary_residual else max(boundary_residual),
+    None if not total_pressure else max(total_pressure),
+    None if normal is None else float(normal),
+    None if centerline is None else float(centerline),
+    None if euler is None else float(euler),
+    None if not objective_values else max(objective_values),
+  )
+
+
+def _joint_next_profile(
+  profile: MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+  signed_update_error_by_station: tuple[float, ...],
+  step: float,
+) -> tuple[
+  MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+  bool,
+]:
+  """Apply one bounded residual-directed conservative-source update."""
+
+  current = tuple(float(value) for value in profile.entrainment_fraction_by_station)
+  if len(current) != len(signed_update_error_by_station):
+    return profile, False
+  updated = tuple(
+    min(
+      1.0,
+      max(0.0, fraction + step * max(-1.0, min(1.0, error))),
+    )
+    for fraction, error in zip(
+      current,
+      signed_update_error_by_station,
+      strict=True,
+    )
+  )
+  if updated == current or not any(value > 0.0 for value in updated):
+    return profile, False
+  return replace(profile, entrainment_fraction_by_station=updated), True
+
+
+def _joint_interface_lineage_verified(
+  downstream: MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
+) -> bool:
+  placement = downstream.transonic_interface_placement
+  field = downstream.field
+  request = None if field is None else field.request
+  return bool(
+    placement is not None
+    and downstream.transonic_interface_placement_verified
+    and downstream.transonic_interface_placement_consumed
+    and field is not None
+    and request is not None
+    and request.transonic_shock_interface_field_placement is placement
+    and field.transonic_shock_interface_field_placement is placement
+    and field.transonic_shock_interface_field_placement_consumed
+    and field.transonic_shock_interface_profile_consumed
+  )
+
+
+def _joint_result(
+  status: MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus,
+  message: str,
+  *,
+  downstream: MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult | None,
+  initial_profile: MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile | None,
+  requested_iterations: int,
+  iterations: tuple[
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldIteration, ...
+  ] = (),
+  source_closure_fingerprint: str = '',
+  profile_lineage_verified: bool = False,
+  interface_placement_lineage_verified: bool = False,
+  interface_placement_coverage_verified: bool = False,
+) -> MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult:
+  return MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult(
+    status=status,
+    downstream=downstream,
+    initial_profile=initial_profile,
+    iterations=iterations,
+    requested_iterations=requested_iterations,
+    source_closure_fingerprint=source_closure_fingerprint,
+    profile_lineage_verified=profile_lineage_verified,
+    interface_placement_lineage_verified=interface_placement_lineage_verified,
+    interface_placement_coverage_verified=interface_placement_coverage_verified,
+    independent_iteration_audits_verified=bool(
+      iterations
+      and all(item.independently_audited for item in iterations)
+    ),
+    joint_field_consumed=bool(
+      iterations and all(item.exact_profile_consumed for item in iterations)
+    ),
+    local_joint_boundary_verified=(
+      status
+      is MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+      .CONVERGED_RESEARCH_ITERATION
+    ),
+    physical_closure_verified=False,
+    global_coupling_verified=False,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    message=message,
+  )
+
+
+def solve_reflected_domain_global_transonic_mixed_wave_joint_field(
+  downstream: MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
+  profile: MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+  *,
+  maximum_iterations: int = 4,
+  entrainment_step: float = 0.20,
+) -> MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult:
+  """Run a bounded, source-controlled joint research iteration.
+
+  The existing coupled field owns the Euler/free-boundary solve.  This outer
+  operator updates only the explicitly supplied conservative ambient
+  entrainment fractions from signed station residuals, then independently
+  audits every resulting field.  It does not infer ambient conditions,
+  rewrite the total-pressure loss profile, move the transonic interface, or
+  promote a locally converged field into canonical physics.
+  """
+
+  if not isinstance(
+    downstream,
+    MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
+  ):
+    return _joint_result(
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.INVALID_INPUT,
+      'downstream must be a typed mixed-wave downstream result',
+      downstream=None,
+      initial_profile=(
+        profile
+        if isinstance(
+          profile,
+          MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+        )
+        else None
+      ),
+      requested_iterations=0,
+    )
+  if not isinstance(
+    profile,
+    MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+  ):
+    return _joint_result(
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.INVALID_INPUT,
+      'profile must be a typed entropy closure profile',
+      downstream=downstream,
+      initial_profile=None,
+      requested_iterations=0,
+    )
+  if (
+    isinstance(maximum_iterations, bool)
+    or not isinstance(maximum_iterations, int)
+    or maximum_iterations < 1
+  ):
+    return _joint_result(
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.INVALID_INPUT,
+      'maximum_iterations must be a positive integer',
+      downstream=downstream,
+      initial_profile=profile,
+      requested_iterations=0,
+    )
+  step = float(entrainment_step)
+  if not isfinite(step) or not 0.0 < step <= 1.0:
+    return _joint_result(
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.INVALID_INPUT,
+      'entrainment_step must be finite and lie in the (0, 1] interval',
+      downstream=downstream,
+      initial_profile=profile,
+      requested_iterations=maximum_iterations,
+    )
+  if profile.mechanism_id != CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID:
+    return _joint_result(
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+      .CONSERVATIVE_SOURCE_REQUIRED,
+      'joint interface/free-boundary iteration requires the explicit '
+      'conservative ambient-entrainment mechanism',
+      downstream=downstream,
+      initial_profile=profile,
+      requested_iterations=maximum_iterations,
+    )
+  ####
+  try:
+    preflight = audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+      downstream,
+      profile,
+    )
+  except (ArithmeticError, TypeError, ValueError) as error:
+    return _joint_result(
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.LINEAGE_FAILURE,
+      f'joint-field profile preflight failed: {error}',
+      downstream=downstream,
+      initial_profile=profile,
+      requested_iterations=maximum_iterations,
+    )
+  if not preflight.profile_ready_for_joint_solver:
+    status = (
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.LINEAGE_FAILURE
+      if preflight.status
+      is MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus.LINEAGE_FAILURE
+      else MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+      .DOWNSTREAM_SEAM_REQUIRED
+    )
+    return _joint_result(
+      status,
+      f'joint-field profile preflight did not pass: {preflight.message}',
+      downstream=downstream,
+      initial_profile=profile,
+      requested_iterations=maximum_iterations,
+      source_closure_fingerprint=preflight.source_closure_fingerprint,
+      profile_lineage_verified=preflight.profile_lineage_verified,
+    )
+  ####
+  field = downstream.field
+  if field is None or not isinstance(
+    field.request,
+    MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  ):
+    return _joint_result(
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+      .DOWNSTREAM_SEAM_REQUIRED,
+      'downstream result retained no typed coupled-Euler request for joint '
+      'consumption',
+      downstream=downstream,
+      initial_profile=profile,
+      requested_iterations=maximum_iterations,
+      source_closure_fingerprint=preflight.source_closure_fingerprint,
+      profile_lineage_verified=preflight.profile_lineage_verified,
+    )
+  ####
+  placement_lineage_verified = _joint_interface_lineage_verified(downstream)
+  if not placement_lineage_verified:
+    return _joint_result(
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.LINEAGE_FAILURE,
+      'joint-field iteration requires the exact solver-owned transonic '
+      'placement to remain bound through the downstream field request',
+      downstream=downstream,
+      initial_profile=profile,
+      requested_iterations=maximum_iterations,
+      source_closure_fingerprint=preflight.source_closure_fingerprint,
+      profile_lineage_verified=preflight.profile_lineage_verified,
+      interface_placement_coverage_verified=(
+        downstream.interface_placement_coverage_verified
+      ),
+    )
+  ####
+  current_profile = profile
+  current_step = step
+  retained: list[MocReflectedDomainGlobalTransonicMixedWaveJointFieldIteration] = []
+  for iteration_index in range(maximum_iterations):
+    current_preflight = audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+      downstream,
+      current_profile,
+    )
+    if not current_preflight.profile_ready_for_joint_solver:
+      return _joint_result(
+        MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.LINEAGE_FAILURE,
+        f'joint-field profile update failed preflight: '
+        f'{current_preflight.message}',
+        downstream=downstream,
+        initial_profile=profile,
+        requested_iterations=maximum_iterations,
+        iterations=tuple(retained),
+        source_closure_fingerprint=preflight.source_closure_fingerprint,
+        profile_lineage_verified=preflight.profile_lineage_verified,
+        interface_placement_lineage_verified=placement_lineage_verified,
+        interface_placement_coverage_verified=(
+          downstream.interface_placement_coverage_verified
+        ),
+      )
+    ####
+    try:
+      consumed_request = replace(
+        field.request,
+        entropy_closure_profile=current_profile,
+        free_boundary_pressure_profile_Pa=(
+          current_profile.target_static_pressure_Pa
+        ),
+        free_boundary_pressure_profile_x_stations_m=current_profile.x_stations_m,
+        free_boundary_pressure_profile_source=(
+          f'{current_profile.source}:joint-static-target'
+        ),
+      )
+      candidate = solve_reflected_domain_coupled_euler_free_boundary(
+        consumed_request
+      )
+      independent_audit = measure_reflected_domain_coupled_euler_free_boundary(
+        candidate
+      )
+    except (ArithmeticError, FloatingPointError, RuntimeError, TypeError, ValueError) as error:
+      return _joint_result(
+        MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.FIELD_FAILURE,
+        f'joint-field iteration {iteration_index} failed: {error}',
+        downstream=downstream,
+        initial_profile=profile,
+        requested_iterations=maximum_iterations,
+        iterations=tuple(retained),
+        source_closure_fingerprint=preflight.source_closure_fingerprint,
+        profile_lineage_verified=preflight.profile_lineage_verified,
+        interface_placement_lineage_verified=placement_lineage_verified,
+        interface_placement_coverage_verified=(
+          downstream.interface_placement_coverage_verified
+        ),
+      )
+    ####
+    metrics = _joint_field_metrics(candidate, current_profile)
+    exact_consumption = bool(
+      candidate.request is consumed_request
+      and candidate.request.entropy_closure_profile is current_profile
+      and candidate.transonic_shock_interface_field_placement
+      is downstream.transonic_interface_placement
+      and candidate.transonic_shock_interface_field_placement_consumed
+    )
+    next_profile = current_profile
+    update_applied = False
+    if (
+      metrics.signed_update_error_by_station
+      and iteration_index + 1 < maximum_iterations
+    ):
+      next_profile, update_applied = _joint_next_profile(
+        current_profile,
+        metrics.signed_update_error_by_station,
+        current_step,
+      )
+    step_record = MocReflectedDomainGlobalTransonicMixedWaveJointFieldIteration(
+      iteration_index=iteration_index,
+      profile=current_profile,
+      field=candidate,
+      audit=independent_audit,
+      pressure_residual_fraction_by_station=(
+        metrics.pressure_residual_fraction_by_station
+      ),
+      total_pressure_residual_fraction_by_station=(
+        metrics.total_pressure_residual_fraction_by_station
+      ),
+      maximum_pressure_residual_fraction=(
+        metrics.maximum_pressure_residual_fraction
+      ),
+      maximum_total_pressure_residual_fraction=(
+        metrics.maximum_total_pressure_residual_fraction
+      ),
+      maximum_normal_velocity_residual_fraction=(
+        metrics.maximum_normal_velocity_residual_fraction
+      ),
+      maximum_centerline_normal_velocity_residual_fraction=(
+        metrics.maximum_centerline_normal_velocity_residual_fraction
+      ),
+      maximum_euler_residual=metrics.maximum_euler_residual,
+      objective=metrics.objective,
+      source_update_applied=update_applied and exact_consumption,
+      source_update_step=current_step if update_applied else 0.0,
+      message=(
+        'exact conservative source and transonic placement were consumed; '
+        'independent field audit retained'
+        if exact_consumption
+        else 'field result did not retain the exact joint request lineage'
+      ),
+    )
+    retained.append(step_record)
+    local_ready = bool(
+      exact_consumption
+      and candidate.local_physical_closure_verified
+      and independent_audit.local_consistency_verified
+      and metrics.maximum_pressure_residual_fraction is not None
+      and metrics.maximum_pressure_residual_fraction
+      <= candidate.request.free_boundary_pressure_tolerance_fraction
+      and metrics.maximum_normal_velocity_residual_fraction is not None
+      and metrics.maximum_normal_velocity_residual_fraction
+      <= candidate.request.free_boundary_normal_velocity_tolerance_fraction
+      and metrics.maximum_centerline_normal_velocity_residual_fraction
+      is not None
+      and metrics.maximum_centerline_normal_velocity_residual_fraction
+      <= candidate.request.centerline_normal_velocity_tolerance_fraction
+    )
+    if local_ready:
+      if downstream.interface_placement_coverage_verified:
+        return _joint_result(
+          MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+          .CONVERGED_RESEARCH_ITERATION,
+          'joint conservative source/interface/free-boundary research '
+          'iteration passed its local residual and independent-audit gates; '
+          'canonical closure and promotion remain blocked',
+          downstream=downstream,
+          initial_profile=profile,
+          requested_iterations=maximum_iterations,
+          iterations=tuple(retained),
+          source_closure_fingerprint=preflight.source_closure_fingerprint,
+          profile_lineage_verified=preflight.profile_lineage_verified,
+          interface_placement_lineage_verified=placement_lineage_verified,
+          interface_placement_coverage_verified=True,
+        )
+      return _joint_result(
+        MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+        .INTERFACE_COVERAGE_REQUIRED,
+        'joint field locally passed, but the exact transonic placement does '
+        'not span the mixed-wave interface; no boundary extension or '
+        'promotion was inferred',
+        downstream=downstream,
+        initial_profile=profile,
+        requested_iterations=maximum_iterations,
+        iterations=tuple(retained),
+        source_closure_fingerprint=preflight.source_closure_fingerprint,
+        profile_lineage_verified=preflight.profile_lineage_verified,
+        interface_placement_lineage_verified=placement_lineage_verified,
+        interface_placement_coverage_verified=False,
+      )
+    ####
+    if not update_applied:
+      break
+    current_profile = next_profile
+    current_step *= 0.75
+  ####
+  return _joint_result(
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus.ITERATION_LIMIT,
+    'joint conservative source/interface/free-boundary iteration stopped '
+    'before all local residual gates passed; retained fields and audits are '
+    'research evidence only',
+    downstream=downstream,
+    initial_profile=profile,
+    requested_iterations=maximum_iterations,
+    iterations=tuple(retained),
+    source_closure_fingerprint=preflight.source_closure_fingerprint,
+    profile_lineage_verified=preflight.profile_lineage_verified,
+    interface_placement_lineage_verified=placement_lineage_verified,
+    interface_placement_coverage_verified=(
+      downstream.interface_placement_coverage_verified
+    ),
+  )
+
+
 def _failure(
   status: MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus,
   message: str,
@@ -1043,3 +1730,174 @@ def audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
       'was attempted and no closure or promotion claim is made'
     ),
   )
+
+
+class MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus(str, Enum):
+  """Outcome of the bounded interface/source/free-boundary iteration."""
+
+  CONVERGED_RESEARCH_ITERATION = (
+    'converged-research-global-transonic-mixed-wave-joint-interface-field'
+  )
+  INVALID_INPUT = 'invalid_input'
+  CONSERVATIVE_SOURCE_REQUIRED = (
+    'mixed-wave-joint-field-conservative-ambient-source-required'
+  )
+  DOWNSTREAM_SEAM_REQUIRED = 'mixed-wave-joint-field-downstream-seam-required'
+  LINEAGE_FAILURE = 'mixed-wave-joint-field-lineage-failure'
+  FIELD_FAILURE = 'mixed-wave-joint-field-solver-failure'
+  INTERFACE_COVERAGE_REQUIRED = (
+    'mixed-wave-joint-field-interface-coverage-required'
+  )
+  ITERATION_LIMIT = 'mixed-wave-joint-field-iteration-limit'
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalTransonicMixedWaveJointFieldIteration:
+  """One independently audited source/interface/free-boundary iteration."""
+
+  iteration_index: int
+  profile: MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile
+  field: MocReflectedDomainCoupledEulerFreeBoundaryResult
+  audit: MocReflectedDomainCoupledEulerFreeBoundaryAudit
+  pressure_residual_fraction_by_station: tuple[float, ...] = ()
+  total_pressure_residual_fraction_by_station: tuple[float, ...] = ()
+  maximum_pressure_residual_fraction: float | None = None
+  maximum_total_pressure_residual_fraction: float | None = None
+  maximum_normal_velocity_residual_fraction: float | None = None
+  maximum_centerline_normal_velocity_residual_fraction: float | None = None
+  maximum_euler_residual: float | None = None
+  objective: float | None = None
+  source_update_applied: bool = False
+  source_update_step: float = 0.0
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if (
+      isinstance(self.iteration_index, bool)
+      or not isinstance(self.iteration_index, int)
+      or self.iteration_index < 0
+    ):
+      raise ValueError('iteration_index must be a nonnegative integer')
+    if not isinstance(
+      self.profile,
+      MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile,
+    ):
+      raise TypeError('profile must be a typed entropy closure profile')
+    if not isinstance(
+      self.field,
+      MocReflectedDomainCoupledEulerFreeBoundaryResult,
+    ):
+      raise TypeError('field must be a typed coupled-Euler result')
+    if not isinstance(
+      self.audit,
+      MocReflectedDomainCoupledEulerFreeBoundaryAudit,
+    ):
+      raise TypeError('audit must be a typed coupled-Euler audit')
+    for name in (
+      'pressure_residual_fraction_by_station',
+      'total_pressure_residual_fraction_by_station',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      object.__setattr__(self, name, values)
+    if len(self.pressure_residual_fraction_by_station) not in (
+      0,
+      len(self.profile.x_stations_m),
+    ):
+      raise ValueError(
+        'pressure residuals must be empty or aligned with the profile stations'
+      )
+    if len(self.total_pressure_residual_fraction_by_station) not in (
+      0,
+      len(self.profile.x_stations_m),
+    ):
+      raise ValueError(
+        'total-pressure residuals must be empty or aligned with the profile '
+        'stations'
+      )
+    for name in (
+      'maximum_pressure_residual_fraction',
+      'maximum_total_pressure_residual_fraction',
+      'maximum_normal_velocity_residual_fraction',
+      'maximum_centerline_normal_velocity_residual_fraction',
+      'maximum_euler_residual',
+      'objective',
+    ):
+      value = getattr(self, name)
+      if value is not None:
+        numeric = float(value)
+        if not isfinite(numeric) or numeric < 0.0:
+          raise ValueError(f'{name} must be finite and nonnegative')
+        object.__setattr__(self, name, numeric)
+    step = float(self.source_update_step)
+    if not isfinite(step) or step < 0.0:
+      raise ValueError('source_update_step must be finite and nonnegative')
+    object.__setattr__(self, 'source_update_step', step)
+    if not isinstance(self.source_update_applied, bool):
+      raise TypeError('source_update_applied must be a bool')
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def exact_profile_consumed(self) -> bool:
+    """Whether the field request retained this exact source profile."""
+
+    request = self.field.request
+    return bool(
+      request is not None
+      and request.entropy_closure_profile is self.profile
+      and request.free_boundary_pressure_profile_Pa
+      == self.profile.target_static_pressure_Pa
+      and request.free_boundary_pressure_profile_x_stations_m
+      == self.profile.x_stations_m
+      and self.field.entropy_closure_profile_consumed
+      and self.audit.candidate is self.field
+    )
+
+  @property
+  def independently_audited(self) -> bool:
+    """Whether the independent operator remeasured this iteration."""
+
+    return bool(
+      self.exact_profile_consumed
+      and self.audit.residual_channels_recomputed
+      and self.audit.residual_report_verified
+      and self.audit.free_boundary_report_verified
+      and self.audit.centerline_report_verified
+      and self.audit.promotion_flags_verified
+      and self.field.chain_promotion_blocked
+      and not self.field.production_claim_allowed
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'iteration_index': self.iteration_index,
+      'profile': self.profile.as_report(),
+      'field': self.field.as_report(),
+      'audit': self.audit.as_report(),
+      'pressure_residual_fraction_by_station': (
+        self.pressure_residual_fraction_by_station
+      ),
+      'total_pressure_residual_fraction_by_station': (
+        self.total_pressure_residual_fraction_by_station
+      ),
+      'maximum_pressure_residual_fraction': (
+        self.maximum_pressure_residual_fraction
+      ),
+      'maximum_total_pressure_residual_fraction': (
+        self.maximum_total_pressure_residual_fraction
+      ),
+      'maximum_normal_velocity_residual_fraction': (
+        self.maximum_normal_velocity_residual_fraction
+      ),
+      'maximum_centerline_normal_velocity_residual_fraction': (
+        self.maximum_centerline_normal_velocity_residual_fraction
+      ),
+      'maximum_euler_residual': self.maximum_euler_residual,
+      'objective': self.objective,
+      'source_update_applied': self.source_update_applied,
+      'source_update_step': self.source_update_step,
+      'exact_profile_consumed': self.exact_profile_consumed,
+      'independently_audited': self.independently_audited,
+      'message': self.message,
+    }

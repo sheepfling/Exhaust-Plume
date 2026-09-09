@@ -3747,3 +3747,26 @@ tests), with Pyright, public-contract assets, Ruff, bytecode, and documentation
 checks green.  The source remains research-only: no global feedback, canonical
 free-boundary closure, physical cell fit, external validation, or product
 promotion is implied.
+
+### P2.2d joint interface/free-boundary iteration checkpoint — 2026-09-09
+
+The mixed-wave entropy-closure lane now exposes a bounded joint research
+operator, ``op.moc.reflected-domain.global-transonic-mixed-wave-joint-interface-field``.
+It consumes the exact solver-owned transonic placement and station-resolved
+conservative ambient state, runs the coupled Euler/free-boundary field, and
+updates only the explicit station-wise entrainment fractions from signed
+boundary and column total-pressure residuals.  Every iterate retains its
+profile, field, source lineage, and independent coupled-Euler audit.  The
+declared total-pressure loss profile is not rewritten, ambient conditions are
+not inferred, and the transonic placement is not extended across a missing
+interface span.
+
+The target mixed-wave fixture executes two field iterations with one explicit
+source update between them and independently remeasures both fields; the
+complete reflected-domain regression passes with 151 tests.  The current
+result remains blocked at the known interface-coverage
+gap and is not canonical physical closure, global feedback, physical shock-
+cell evidence, external validation, Signature/FPA acceptance, or a production
+claim.  The next physics gate is to replace the bounded source controller with
+an accepted solver-owned interface/entropy mechanism and close the missing
+characteristic-to-field coverage without extrapolation.
