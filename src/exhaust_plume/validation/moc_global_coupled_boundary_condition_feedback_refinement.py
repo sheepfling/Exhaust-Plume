@@ -30,7 +30,9 @@ from exhaust_plume.models.moc.global_physical_closure import (
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback import (
+  MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit,
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
+  audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point,
   run_reflected_domain_global_coupled_boundary_condition_feedback,
 )
 from exhaust_plume.validation.moc_conservative_boundary_flux_audit import (
@@ -101,6 +103,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus(
   )
   BOUNDARY_FLUX_EVIDENCE_REQUIRED = (
     'global-coupled-boundary-condition-feedback-refinement-boundary-flux-evidence-required'
+  )
+  TERMINAL_FIXED_POINT_FAILURE = (
+    'global-coupled-boundary-condition-feedback-refinement-terminal-fixed-point-failure'
   )
   FIDELITY_FAILURE = (
     'global-coupled-boundary-condition-feedback-refinement-fidelity-failure'
@@ -345,6 +350,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
   resolution: tuple[int, int, int]
   run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun
   response_signature: tuple[float, float, float, float, float]
+  terminal_fixed_point_audit: (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit
+    | None
+  ) = None
   boundary_flux_audits: tuple[
     MocReflectedDomainCoupledEulerBoundaryFluxAudit, ...
   ] = ()
@@ -381,6 +390,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     if len(signature) != 5 or any(not isfinite(value) for value in signature):
       raise ValueError(
         'response_signature must contain five finite response magnitudes'
+      )
+    ####
+    if self.terminal_fixed_point_audit is not None and not isinstance(
+      self.terminal_fixed_point_audit,
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit,
+    ):
+      raise TypeError(
+        'terminal_fixed_point_audit must contain a typed terminal fixed-point '
+        'audit or None'
       )
     ####
     audits = tuple(self.boundary_flux_audits)
@@ -426,6 +444,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
   def local_research_verified(self) -> bool:
     return bool(
       self.run.research_feedback_completed
+      and self.terminal_fixed_point_verified
       and self.source_lineage_verified
       and self.fresh_solver_invocations_verified
       and self.target_lineage_verified
@@ -436,6 +455,14 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     )
   ####
 
+  @property
+  def terminal_fixed_point_verified(self) -> bool:
+    return bool(
+      self.terminal_fixed_point_audit is not None
+      and self.terminal_fixed_point_audit.terminal_fixed_point_verified
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'case_id': self.case_id,
@@ -443,6 +470,12 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'resolution': self.resolution,
       'response_signature': self.response_signature,
+      'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
+      'terminal_fixed_point_audit': (
+        None
+        if self.terminal_fixed_point_audit is None
+        else self.terminal_fixed_point_audit.as_report()
+      ),
       'boundary_flux_audits': tuple(
         audit.as_report() for audit in self.boundary_flux_audits
       ),
@@ -487,6 +520,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
   residuals_finite: bool = False
   geometry_profile_injection_blocked: bool = False
   fidelity_isolation_verified: bool = False
+  terminal_fixed_point_verified: bool = False
   response_stability_verified: bool = False
   frame_extension_stability_verified: bool = False
   conservative_boundary_fluxes_verified: bool = False
@@ -540,6 +574,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       'residuals_finite',
       'geometry_profile_injection_blocked',
       'fidelity_isolation_verified',
+      'terminal_fixed_point_verified',
       'response_stability_verified',
       'frame_extension_stability_verified',
       'conservative_boundary_fluxes_verified',
@@ -598,6 +633,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       and self.residuals_finite
       and self.geometry_profile_injection_blocked
       and self.fidelity_isolation_verified
+      and self.terminal_fixed_point_verified
       and self.response_stability_verified
       and self.frame_extension_stability_verified
       and self.conservative_boundary_fluxes_verified
@@ -631,6 +667,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
           self.geometry_profile_injection_blocked
         ),
         'fidelity_isolation_verified': self.fidelity_isolation_verified,
+        'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
         'response_stability_verified': self.response_stability_verified,
         'frame_extension_stability_verified': (
           self.frame_extension_stability_verified
@@ -841,6 +878,9 @@ def _measurement(
     cases and all(case.geometry_profile_injection_blocked for case in cases)
   )
   fidelity = bool(cases and all(case.fidelity_isolation_verified for case in cases))
+  terminal_fixed_point = bool(
+    cases and all(case.terminal_fixed_point_verified for case in cases)
+  )
   response_stable, frame_stable, maximum_response, maximum_frame = (
     _adjacent_stability(
       cases,
@@ -860,6 +900,7 @@ def _measurement(
     and residuals
     and geometry
     and fidelity
+    and terminal_fixed_point
     and response_stable
     and frame_stable
     and fluxes
@@ -885,14 +926,24 @@ def _measurement(
       'strict disjoint ladder'
     )
   elif not all(case.local_research_verified for case in cases):
-    status = (
-      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
-      .FEEDBACK_FAILURE
-    )
-    message = (
-      'one or more fresh boundary-feedback cases did not complete every '
-      'research-only solver gate'
-    )
+    if not terminal_fixed_point:
+      status = (
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
+        .TERMINAL_FIXED_POINT_FAILURE
+      )
+      message = (
+        'one or more fresh boundary-feedback cases did not pass the terminal '
+        'final-closure response audit'
+      )
+    else:
+      status = (
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
+        .FEEDBACK_FAILURE
+      )
+      message = (
+        'one or more fresh boundary-feedback cases did not complete every '
+        'research-only solver gate'
+      )
   elif not response_stable or not frame_stable:
     status = (
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
@@ -936,6 +987,7 @@ def _measurement(
     residuals_finite=residuals,
     geometry_profile_injection_blocked=geometry,
     fidelity_isolation_verified=fidelity,
+    terminal_fixed_point_verified=terminal_fixed_point,
     response_stability_verified=response_stable,
     frame_extension_stability_verified=frame_stable,
     conservative_boundary_fluxes_verified=fluxes,
@@ -1033,6 +1085,11 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
       downstream_options=options,
       maximum_frame_extension_m=maximum_frame_extension_m,
     )
+    terminal_fixed_point_audit = (
+      audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
+        feedback
+      )
+    )
     source_lineage = bool(
       feedback.source_closure is requested.source_closure
       and feedback.source_lineage_verified
@@ -1061,6 +1118,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
         resolution=requested.resolution,
         run=feedback,
         response_signature=_response_signature(feedback),
+        terminal_fixed_point_audit=terminal_fixed_point_audit,
         boundary_flux_audits=boundary_flux_audits,
         source_lineage_verified=source_lineage,
         fresh_solver_invocations_verified=bool(

@@ -8336,6 +8336,7 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_retain
   assert run.measurement.residuals_finite
   assert run.measurement.geometry_profile_injection_blocked
   assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.terminal_fixed_point_verified
   assert run.measurement.response_stability_verified
   assert run.measurement.frame_extension_stability_verified is False
   assert run.measurement.conservative_boundary_fluxes_verified
@@ -8395,6 +8396,7 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_conver
   assert run.measurement.residuals_finite
   assert run.measurement.geometry_profile_injection_blocked
   assert run.measurement.fidelity_isolation_verified
+  assert run.measurement.terminal_fixed_point_verified
   assert run.measurement.response_stability_verified
   assert run.measurement.frame_extension_stability_verified
   assert run.measurement.conservative_boundary_fluxes_verified
@@ -8403,6 +8405,11 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_conver
   assert run.measurement.maximum_relative_frame_extension_change is not None
   assert run.measurement.maximum_relative_frame_extension_change < 0.75
   assert all(case.local_research_verified for case in run.cases)
+  assert all(
+    case.terminal_fixed_point_audit is not None
+    and case.terminal_fixed_point_audit.terminal_fixed_point_verified
+    for case in run.cases
+  )
   assert all(
     all(audit.converged for audit in case.boundary_flux_audits)
     for case in run.cases
