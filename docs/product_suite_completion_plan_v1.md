@@ -3035,3 +3035,15 @@ deterministic, while the umbrella release remains blocked by the missing
 provider-bound assets, canonical physical-field closure, accepted physical
 shock-cell observations, and exact release freeze.  Rebinding provenance does
 not turn a local manifest into external validation evidence.
+
+### Fresh candidate quality checkpoint — 2026-09-08 (`63ab69c`)
+
+The exact pushed candidate completed the fresh local quality matrix: `1188
+passed, 18 warnings` in `20:07`; Ruff, Pyright, documentation checks, the
+12-lane partition (`138` test modules), and deterministic public-contract
+asset checks all passed.  The offline wheel build and installed smoke also
+passed, retaining the known expansion-fan diagnostic warnings and no test
+failure.  This refresh strengthens the local package evidence only.  The
+provider-bound comparison, missing V8/alignment assets, canonical physical
+closure, accepted physical shock-cell observations, and release-freeze
+provenance gates remain open, so `release_ready` stays false.
