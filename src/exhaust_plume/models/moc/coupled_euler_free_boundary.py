@@ -56,6 +56,10 @@ from exhaust_plume.models.moc.field_continuation import (
 from exhaust_plume.models.moc.physical_field_shock_front import (
   MocPhysicalFieldShockFrontConditionResult,
 )
+from exhaust_plume.models.moc.moving_mixed_regime_interface import (
+  MocMovingMixedRegimeInterfaceResult,
+  measure_moc_moving_mixed_regime_interface,
+)
 
 __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
@@ -376,6 +380,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   INLET_PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE = (
     'coupled-euler-inlet-physical-field-shock-front-condition-failure'
   )
+  INLET_MOVING_MIXED_REGIME_FIELD_FAILURE = (
+    'coupled-euler-inlet-moving-mixed-regime-field-failure'
+  )
 ####
 
 
@@ -401,6 +408,9 @@ class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
   )
   SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY = (
     'solver-owned-physical-field-ambient-pressure-free-boundary'
+  )
+  SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD = (
+    'solver-owned-moving-mixed-regime-subsonic-field'
   )
 ####
 
@@ -1612,6 +1622,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None
   # Optional explicit entropy/mixing closure law.  The concrete profile lives
   # in the validation lane; the solver consumes its structural contract.
   entropy_closure_profile: Any | None = None
@@ -1955,6 +1966,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'MocPhysicalFieldShockFrontConditionResult or None'
       )
     ####
+    if self.moving_mixed_regime_interface is not None and not isinstance(
+      self.moving_mixed_regime_interface,
+      MocMovingMixedRegimeInterfaceResult,
+    ):
+      raise TypeError(
+        'moving_mixed_regime_interface must be a '
+        'MocMovingMixedRegimeInterfaceResult or None'
+      )
+    ####
     if self.entropy_closure_profile is not None:
       _entropy_closure_profile_fields(
         self.entropy_closure_profile,
@@ -2004,6 +2024,53 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'transonic_shock_interface_field_placement, and other inlet modes '
       'must not supply it'
       )
+    ####
+    moving_mixed_regime_mode = (
+      self.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+    )
+    if moving_mixed_regime_mode != (
+      self.moving_mixed_regime_interface is not None
+    ):
+      raise ValueError(
+        'solver-owned moving mixed-regime subsonic-field mode requires '
+        'moving_mixed_regime_interface, and other inlet modes must not supply it'
+      )
+    ####
+    if moving_mixed_regime_mode:
+      handoff = self.moving_mixed_regime_interface
+      assert handoff is not None
+      if handoff.request.sample_count != self.transverse_cell_count:
+        raise ValueError(
+          'moving mixed-regime field mode requires the retained boundary '
+          'sample count to equal the coupled transverse cell count; no '
+          'interpolation or remapping is accepted'
+        )
+      if any(
+        value is not None
+        for value in (
+          self.transonic_shock_geometry,
+          self.transonic_shock_interface,
+          self.transonic_shock_interface_profile,
+          self.transonic_shock_interface_field_placement,
+          self.physical_field_continuation_profile,
+          self.physical_field_shock_front_condition,
+          self.entropy_closure_profile,
+          self.free_boundary_pressure_profile_Pa,
+          self.free_boundary_pressure_profile_x_stations_m,
+          self.free_boundary_pressure_profile_source,
+          self.free_boundary_geometry_profile_y_m,
+          self.free_boundary_geometry_profile_x_stations_m,
+          self.free_boundary_geometry_profile_source,
+          self.free_boundary_geometry_profile_lower_ordinate_m,
+        )
+      ):
+        raise ValueError(
+          'moving mixed-regime field mode accepts only its exact conservative '
+          'boundary seam and solver-owned ambient free-boundary targets; '
+          'other handoffs would change the retained coordinate or entropy frame'
+        )
     ####
     continuation_mode = self.inlet_boundary_mode in (
       MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -2208,6 +2275,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         if self.physical_field_shock_front_condition is None
         else self.physical_field_shock_front_condition.as_report()
       ),
+      'moving_mixed_regime_interface': (
+        None
+        if self.moving_mixed_regime_interface is None
+        else self.moving_mixed_regime_interface.as_report()
+      ),
       'entropy_closure_profile': (
         None
         if self.entropy_closure_profile is None
@@ -2276,6 +2348,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None,
   entropy_closure_profile: Any | None = None,
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
@@ -2337,6 +2410,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     ),
     physical_field_continuation_profile=physical_field_continuation_profile,
     physical_field_shock_front_condition=physical_field_shock_front_condition,
+    moving_mixed_regime_interface=moving_mixed_regime_interface,
     entropy_closure_profile=entropy_closure_profile,
     free_boundary_pressure_profile_Pa=free_boundary_pressure_profile_Pa,
     free_boundary_pressure_profile_x_stations_m=(
@@ -2451,6 +2525,8 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None
   physical_field_shock_front_condition_consumed: bool = False
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None
+  moving_mixed_regime_interface_consumed: bool = False
   inlet_boundary_states_consumed: bool = False
   initial_state_source: str | None = None
   initial_state_field_bound: bool = False
@@ -2747,6 +2823,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'MocPhysicalFieldShockFrontConditionResult or None'
       )
     ####
+    if self.moving_mixed_regime_interface is not None and not isinstance(
+      self.moving_mixed_regime_interface,
+      MocMovingMixedRegimeInterfaceResult,
+    ):
+      raise TypeError(
+        'moving_mixed_regime_interface must be a '
+        'MocMovingMixedRegimeInterfaceResult or None'
+      )
+    ####
     if self.transonic_frontier_compatibility is not None and not isinstance(
       self.transonic_frontier_compatibility,
       MocReflectedDomainCoupledEulerTransonicFrontierCompatibility,
@@ -2856,6 +2941,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'retained physical-field shock-front condition must match the request mode'
       )
     ####
+    if self.request is not None and (
+      self.request.moving_mixed_regime_interface is None
+    ) != (
+      self.moving_mixed_regime_interface is None
+    ):
+      raise ValueError(
+        'retained moving mixed-regime interface must match the request mode'
+      )
+    ####
     for name in (
       'maximum_conservative_mass_residual',
       'maximum_conservative_streamwise_momentum_residual',
@@ -2930,6 +3024,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
     ):
       raise TypeError(
         'physical_field_shock_front_condition_consumed must be a bool'
+      )
+    ####
+    if not isinstance(self.moving_mixed_regime_interface_consumed, bool):
+      raise TypeError(
+        'moving_mixed_regime_interface_consumed must be a bool'
       )
     ####
     if not isinstance(self.inlet_boundary_states_consumed, bool):
@@ -3336,6 +3435,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'physical_field_shock_front_condition_consumed': (
         self.physical_field_shock_front_condition_consumed
       ),
+      'moving_mixed_regime_interface': (
+        None
+        if self.moving_mixed_regime_interface is None
+        else self.moving_mixed_regime_interface.as_report()
+      ),
+      'moving_mixed_regime_interface_consumed': (
+        self.moving_mixed_regime_interface_consumed
+      ),
       'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
       'initial_state_source': self.initial_state_source,
       'initial_state_field_bound': self.initial_state_field_bound,
@@ -3703,6 +3810,7 @@ def _failure(
   transonic_shock_interface_field_placement = None
   physical_field_continuation_profile = None
   physical_field_shock_front_condition = None
+  moving_mixed_regime_interface = None
   if request is not None and request.transonic_shock_geometry is not None:
     transonic_shock_geometry = solve_moc_transonic_shock_geometry(
       request.transonic_shock_geometry
@@ -3735,6 +3843,9 @@ def _failure(
       request.physical_field_shock_front_condition
     )
   ####
+  if request is not None and request.moving_mixed_regime_interface is not None:
+    moving_mixed_regime_interface = request.moving_mixed_regime_interface
+  ####
   return MocReflectedDomainCoupledEulerFreeBoundaryResult(
     status=status,
     request=request,
@@ -3761,6 +3872,7 @@ def _failure(
     ),
     physical_field_continuation_profile=physical_field_continuation_profile,
     physical_field_shock_front_condition=physical_field_shock_front_condition,
+    moving_mixed_regime_interface=moving_mixed_regime_interface,
   )
 ####
 
@@ -3800,6 +3912,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None,
   entropy_closure_profile: Any | None = None,
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
@@ -3853,6 +3966,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       ),
       physical_field_continuation_profile=physical_field_continuation_profile,
       physical_field_shock_front_condition=physical_field_shock_front_condition,
+      moving_mixed_regime_interface=moving_mixed_regime_interface,
       entropy_closure_profile=entropy_closure_profile,
       free_boundary_pressure_profile_Pa=free_boundary_pressure_profile_Pa,
       free_boundary_pressure_profile_x_stations_m=(
@@ -5418,6 +5532,115 @@ def _prepare_transonic_interface_profile_inlet(
 ####
 
 
+def _prepare_moving_mixed_regime_inlet(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  *,
+  x_start: float,
+  lower_ordinate: float,
+  inlet_height: float,
+) -> tuple[
+  tuple[np.ndarray, ...],
+  MocMovingMixedRegimeInterfaceResult,
+]:
+  """Consume an exact moving-interface conservative section.
+
+  The retained samples are consumed by index as the coupled inlet faces.  The
+  coupled field does not interpolate, extend, or translate this handoff; a
+  missing sample or frame mismatch is a typed inlet stop.
+  """
+
+  moving_interface = request.moving_mixed_regime_interface
+  if moving_interface is None:
+    raise RuntimeError(
+      'moving mixed-regime field mode requires a retained moving-interface '
+      'result'
+    )
+  ####
+  try:
+    interface_audit = measure_moc_moving_mixed_regime_interface(
+      moving_interface
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    raise RuntimeError(
+      'moving mixed-regime interface failed its independent seam audit'
+    ) from error
+  ####
+  if (
+    not moving_interface.boundary_seam_verified
+    or not interface_audit.converged
+    or not moving_interface.complete_cross_section_coverage
+  ):
+    raise RuntimeError(
+      'moving mixed-regime field mode requires an independently verified, '
+      'complete conservative cross-section; no extrapolation or fallback was used'
+    )
+  ####
+  handoff = moving_interface.request
+  x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+  y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
+  if abs(handoff.cross_section_x_m - x_start) > x_tolerance:
+    raise RuntimeError(
+      'moving mixed-regime cross-section does not match the coupled-field inlet'
+    )
+  ####
+  if (
+    abs(handoff.lower_y_m - lower_ordinate) > y_tolerance
+    or abs(handoff.upper_y_m - (lower_ordinate + inlet_height)) > y_tolerance
+  ):
+    raise RuntimeError(
+      'moving mixed-regime cross-section ordinates do not match the '
+      'coupled-field inlet frame'
+    )
+  ####
+  if abs(handoff.gas_constant_J_kgK - request.gas_constant_J_kgK) > 1.0e-10:
+    raise RuntimeError(
+      'moving mixed-regime gas constant does not match the coupled field'
+    )
+  ####
+  if abs(handoff.gamma - request.mixed_regime_request.control_section.samples[0].gamma) > 1.0e-10:
+    raise RuntimeError(
+      'moving mixed-regime gamma does not match the coupled field'
+    )
+  ####
+  samples_by_index = {sample.index: sample for sample in moving_interface.boundary_samples}
+  expected_indices = tuple(range(request.transverse_cell_count))
+  if tuple(sorted(samples_by_index)) != expected_indices:
+    raise RuntimeError(
+      'moving mixed-regime conservative boundary coverage is not complete '
+      'for every coupled inlet face'
+    )
+  ####
+  inlet_states: list[np.ndarray] = []
+  for index in expected_indices:
+    sample = samples_by_index[index]
+    state = np.asarray(sample.conservative_state, dtype=float)
+    try:
+      _density, velocity_u, velocity_v, _pressure, _temperature, _sound_speed = (
+        _primitive_from_conservative(
+          state,
+          request.mixed_regime_request.control_section.samples[0].gamma,
+          request.gas_constant_J_kgK,
+        )
+      )
+    except (FloatingPointError, ValueError) as error:
+      raise RuntimeError(
+        f'moving mixed-regime inlet sample {index} is not thermodynamically '
+        'admissible'
+      ) from error
+    ####
+    normal_flux = velocity_u * sample.normal_m[0] + velocity_v * sample.normal_m[1]
+    if not isfinite(normal_flux) or normal_flux <= 0.0:
+      raise RuntimeError(
+        f'moving mixed-regime inlet sample {index} does not enter the '
+        'downstream field along its retained normal'
+      )
+    ####
+    inlet_states.append(state.copy())
+  ####
+  return tuple(inlet_states), moving_interface
+####
+
+
 def _prepare_physical_field_continuation_inlet(
   request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   *,
@@ -5762,6 +5985,7 @@ def _result_from_field(
   physical_field_shock_front_condition: (
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None,
   initial_state_source: str | None = None,
   initial_state_field_bound: bool = False,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryResult:
@@ -5968,6 +6192,10 @@ def _result_from_field(
     physical_field_shock_front_condition_consumed=(
       physical_field_shock_front_condition is not None
     ),
+    moving_mixed_regime_interface=moving_mixed_regime_interface,
+    moving_mixed_regime_interface_consumed=(
+      moving_mixed_regime_interface is not None
+    ),
     initial_state_source=initial_state_source,
     initial_state_field_bound=initial_state_field_bound,
     free_boundary_pressure_profile_consumed=(
@@ -6141,6 +6369,29 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       str(error),
       request,
     )
+  ####
+  moving_mixed_regime_mode = (
+    request.inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+  )
+  if moving_mixed_regime_mode:
+    moving_interface = request.moving_mixed_regime_interface
+    assert moving_interface is not None
+    interface_request = moving_interface.request
+    x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
+    if interface_request.cross_section_x_m <= x_start + x_tolerance:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_MOVING_MIXED_REGIME_FIELD_FAILURE,
+        'moving mixed-regime cross-section must start strictly downstream of '
+        'the upstream control section',
+        request,
+      )
+    ####
+    x_start = interface_request.cross_section_x_m
+    lower_ordinate = interface_request.lower_y_m
+    inlet_height = interface_request.upper_y_m - lower_ordinate
   ####
   solver_owned_placement = (
     request.transonic_shock_interface_field_placement
@@ -6372,6 +6623,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
   physical_field_continuation_result: (
     MocPhysicalFieldContinuationProfileResult | None
   ) = None
+  moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None
   initial_state_source: str | None = None
   initial_state_field_bound = False
   if (
@@ -6460,6 +6712,24 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       return _failure(
         MocReflectedDomainCoupledEulerFreeBoundaryStatus
         .INLET_PHYSICAL_FIELD_CONTINUATION_FAILURE,
+        str(error),
+        request,
+      )
+    ####
+  elif moving_mixed_regime_mode:
+    try:
+      inlet_override_states, moving_mixed_regime_interface = (
+        _prepare_moving_mixed_regime_inlet(
+          request,
+          x_start=x_start,
+          lower_ordinate=lower_ordinate,
+          inlet_height=inlet_height,
+        )
+      )
+    except RuntimeError as error:
+      return _failure(
+        MocReflectedDomainCoupledEulerFreeBoundaryStatus
+        .INLET_MOVING_MIXED_REGIME_FIELD_FAILURE,
         str(error),
         request,
       )
@@ -6637,6 +6907,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       .SOLVER_OWNED_PHYSICAL_FIELD_PRESSURE_FREE_BOUNDARY,
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD,
     )
     else request.mixed_regime_request.initial_outlet_height_m
   )
@@ -6941,6 +7213,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     solver_owned_placement,
     physical_field_continuation_result,
     request.physical_field_shock_front_condition,
+    moving_mixed_regime_interface,
     initial_state_source=initial_state_source,
     initial_state_field_bound=initial_state_field_bound,
   )

@@ -4035,3 +4035,30 @@ mixed-regime field and physical shock-cell fit are open, the alignment archive
 is not verified, and the committed release-freeze record still names an older
 candidate.  This is current release-provenance evidence, not a release
 freeze or tag authorization.
+
+### P2.2e exact moving-interface coupled-field consumer checkpoint — 2026-09-09
+
+The coupled Euler research lane now has a dedicated
+``solver-owned-moving-mixed-regime-subsonic-field`` inlet mode.  It consumes
+only a ``MocMovingMixedRegimeInterfaceResult`` that passes its independent
+seam audit, retains the exact declared section frame, and maps conservative
+samples to coupled inlet faces by declared index.  The request rejects
+profile, entropy, scalar-shock, continuation, and spatial regridding
+substitutes in this mode; missing coverage returns the typed
+``inlet-moving-mixed-regime-field-failure`` stop before field iteration.
+
+The independent coupled-field audit now remeasures the moving-interface seam
+and reconciles the retained inlet conservative states.  Scalar transonic
+frontier compatibility remains a diagnostic in this mode rather than a hidden
+replacement for the explicit conservative inlet.  The result still carries
+``chain_promotion_blocked=true`` and ``production_claim_allowed=false``;
+this is an exact inlet-consumption tranche, not a canonical moving-interface
+solution, a completed subsonic closure, or an external-validation result.
+
+The focused complete/incomplete consumer tests pass (2 tests), the existing
+moving-interface suite passes (4 tests), the reflected-domain regression
+passes (154 tests), and Ruff plus Python compilation are clean.  The next
+physical tranche remains the solver-owned moving-interface/two-sided field
+solve, followed by mesh/refinement evidence and provider-bound VIS/SIG/RAY/FPA
+validation.  Owner archives, external comparisons, canonical field closure,
+and the exact release freeze remain open.

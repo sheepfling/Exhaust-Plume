@@ -56,6 +56,10 @@ from exhaust_plume.models.moc.field_continuation import (
 from exhaust_plume.models.moc.physical_field_shock_front import (
   MocPhysicalFieldShockFrontConditionResult,
 )
+from exhaust_plume.models.moc.moving_mixed_regime_interface import (
+  MocMovingMixedRegimeInterfaceResult,
+  measure_moc_moving_mixed_regime_interface,
+)
 from exhaust_plume.validation.moc_transonic_interface import (
   measure_moc_transonic_shock_interface,
   measure_moc_transonic_shock_interface_profile,
@@ -99,6 +103,30 @@ def _effective_field_inlet_geometry(
   control_x = float(control.points_m[0][0])
   control_lower = float(control.points_m[0][1])
   control_height = float(control.points_m[-1][1] - control_lower)
+  if request.inlet_boundary_mode is (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+  ):
+    moving_interface = request.moving_mixed_regime_interface
+    if not isinstance(moving_interface, MocMovingMixedRegimeInterfaceResult):
+      raise ValueError(
+        'moving mixed-regime field mode requires a retained moving-interface result'
+      )
+    ####
+    handoff = moving_interface.request
+    x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(control_x), 1.0))
+    if handoff.cross_section_x_m <= control_x + x_tolerance:
+      raise ValueError(
+        'moving mixed-regime cross-section must start strictly downstream of '
+        'the upstream control section'
+      )
+    ####
+    return (
+      handoff.cross_section_x_m,
+      handoff.lower_y_m,
+      handoff.upper_y_m - handoff.lower_y_m,
+    )
+  ####
   if request.inlet_boundary_mode is not (
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .AUDITED_INTERIOR_SHOCK_INTERFACE_PROFILE
@@ -222,6 +250,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   INLET_CHARACTERISTIC_FAILURE = (
     'coupled-euler-audit-inlet-characteristic-failure'
   )
+  MOVING_MIXED_REGIME_INTERFACE_FAILURE = (
+    'coupled-euler-audit-moving-mixed-regime-interface-failure'
+  )
   FLAG_FAILURE = 'coupled-euler-audit-promotion-flag-failure'
 ####
 
@@ -269,6 +300,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   physical_field_inlet_seam_verified: bool = False
   physical_field_shock_front_condition_verified: bool = False
   physical_field_neighbor_profiles_verified: bool = False
+  moving_mixed_regime_interface_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -362,6 +394,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'physical_field_inlet_seam_verified',
       'physical_field_shock_front_condition_verified',
       'physical_field_neighbor_profiles_verified',
+      'moving_mixed_regime_interface_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -478,6 +511,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
         )
         or self.physical_field_neighbor_profiles_verified
       )
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.inlet_boundary_mode
+          is MocReflectedDomainCoupledEulerInletBoundaryMode
+          .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+        )
+        or self.moving_mixed_regime_interface_verified
+      )
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
@@ -575,6 +618,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       ),
       'physical_field_neighbor_profiles_verified': (
         self.physical_field_neighbor_profiles_verified
+      ),
+      'moving_mixed_regime_interface_verified': (
+        self.moving_mixed_regime_interface_verified
       ),
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
@@ -2666,6 +2712,61 @@ def _audit_field(
       'total pressure, Mach number, and gamma'
     )
   ####
+  moving_mixed_regime_interface_verified = True
+  moving_mixed_regime_inlet_states: tuple[np.ndarray, ...] | None = None
+  moving_mixed_regime_mode = (
+    request.inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+  )
+  if moving_mixed_regime_mode:
+    moving_interface = request.moving_mixed_regime_interface
+    if not isinstance(moving_interface, MocMovingMixedRegimeInterfaceResult):
+      raise ValueError(
+        'moving mixed-regime field mode requires a retained moving-interface result'
+      )
+    ####
+    try:
+      moving_interface_audit = measure_moc_moving_mixed_regime_interface(
+        moving_interface
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      raise ValueError(
+        'moving mixed-regime interface failed its independent seam audit'
+      ) from error
+    ####
+    moving_mixed_regime_interface_verified = bool(
+      moving_interface.boundary_seam_verified
+      and moving_interface_audit.converged
+      and moving_interface.complete_cross_section_coverage
+    )
+    if not moving_mixed_regime_interface_verified:
+      raise ValueError(
+        'moving mixed-regime field mode requires an independently verified '
+        'complete conservative cross-section'
+      )
+    ####
+    moving_samples = {
+      sample.index: sample for sample in moving_interface.boundary_samples
+    }
+    if tuple(sorted(moving_samples)) != tuple(range(transverse_count)):
+      raise ValueError(
+        'moving mixed-regime boundary samples do not cover every coupled '
+        'inlet face without remapping'
+      )
+    ####
+    moving_mixed_regime_inlet_states = tuple(
+      np.asarray(moving_samples[index].conservative_state, dtype=float).copy()
+      for index in range(transverse_count)
+    )
+    for index, state in enumerate(moving_mixed_regime_inlet_states):
+      _primitive(
+        state,
+        gamma,
+        request.gas_constant_J_kgK,
+      )
+      ####
+  ####
   transonic_shock_geometry_verified, geometry_override_states = (
     _audit_transonic_shock_geometry(candidate)
   )
@@ -2675,12 +2776,19 @@ def _audit_field(
       'branch re-derivation'
     )
   ####
-  transonic_frontier_compatibility_verified = (
-    _audit_transonic_frontier_compatibility(candidate)
-  )
-  transonic_shock_state_compatibility_verified = (
-    _audit_transonic_shock_state_compatibility(candidate)
-  )
+  if moving_mixed_regime_mode:
+    # The exact moving-interface seam replaces the scalar frontier as the
+    # field's inlet.  Retain the scalar diagnostics on the candidate, but do
+    # not make a scalar shock-state comparison a hidden gate on this mode.
+    transonic_frontier_compatibility_verified = True
+    transonic_shock_state_compatibility_verified = True
+  else:
+    transonic_frontier_compatibility_verified = (
+      _audit_transonic_frontier_compatibility(candidate)
+    )
+    transonic_shock_state_compatibility_verified = (
+      _audit_transonic_shock_state_compatibility(candidate)
+    )
   if not transonic_frontier_compatibility_verified:
     raise ValueError(
       'audited scalar/global-frontier transonic compatibility does not match '
@@ -2730,6 +2838,7 @@ def _audit_field(
       interface_override_states,
       interface_profile_override_states,
       continuation_override_states,
+      moving_mixed_regime_inlet_states,
     )
   ) > 1:
     raise ValueError(
@@ -2745,6 +2854,8 @@ def _audit_field(
     else interface_override_states
     if interface_override_states is not None
     else geometry_override_states
+    if geometry_override_states is not None
+    else moving_mixed_regime_inlet_states
   )
   gas_constant = request.gas_constant_J_kgK
   entropy_profile = request.entropy_closure_profile
@@ -3093,6 +3204,10 @@ def _audit_field(
     'physical_field_shock_front_condition_verified': (
       physical_field_shock_front_condition_verified
     ),
+    'moving_mixed_regime_interface_verified': (
+      moving_mixed_regime_interface_verified
+    ),
+    'moving_mixed_regime_inlet_states': moving_mixed_regime_inlet_states,
   }
 ####
 
@@ -3153,6 +3268,17 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     return _failure(
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
       .PHYSICAL_FIELD_SHOCK_FRONT_CONDITION_FAILURE,
+      candidate,
+      candidate.message,
+    )
+  ####
+  if candidate.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_MOVING_MIXED_REGIME_FIELD_FAILURE
+  ):
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .MOVING_MIXED_REGIME_INTERFACE_FAILURE,
       candidate,
       candidate.message,
     )
@@ -3258,7 +3384,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       promotion_flags_verified=True,
     )
   ####
-  if not _audit_transonic_frontier_compatibility(candidate):
+  moving_mixed_regime_mode = bool(
+    candidate.request is not None
+    and candidate.request.inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+  )
+  if not moving_mixed_regime_mode and not _audit_transonic_frontier_compatibility(
+    candidate
+  ):
     return _failure(
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
       .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE,
@@ -3349,6 +3483,32 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   physical_field_continuation_profile_verified = bool(
     raw['physical_field_continuation_profile_verified']
   )
+  moving_mixed_regime_interface_verified = bool(
+    raw['moving_mixed_regime_interface_verified']
+  )
+  if moving_mixed_regime_mode:
+    expected_moving_inlet = raw['moving_mixed_regime_inlet_states']
+    reported_moving_inlet = np.asarray(
+      candidate.inlet_boundary_conservative_states_by_face,
+      dtype=float,
+    )
+    expected_moving_array = np.asarray(
+      () if expected_moving_inlet is None else expected_moving_inlet,
+      dtype=float,
+    )
+    moving_mixed_regime_interface_verified = bool(
+      moving_mixed_regime_interface_verified
+      and candidate.moving_mixed_regime_interface is not None
+      and candidate.moving_mixed_regime_interface_consumed
+      and candidate.inlet_boundary_states_consumed
+      and reported_moving_inlet.shape == expected_moving_array.shape
+      and np.allclose(
+        reported_moving_inlet,
+        expected_moving_array,
+        rtol=3.0e-6,
+        atol=1.0e-10,
+      )
+    )
   physical_field_inlet_seam_verified = True
   if candidate.request.physical_field_continuation_profile is not None:
     expected_inlet = raw['physical_field_continuation_inlet_states']
@@ -3541,6 +3701,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       'candidate solver-owned physical-field ambient-neighbor pressure or '
       'geometry profile does not match the retained source path'
     )
+  elif not moving_mixed_regime_interface_verified:
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .MOVING_MIXED_REGIME_INTERFACE_FAILURE
+    )
+    message = (
+      'candidate consumed moving mixed-regime inlet states do not reproduce '
+      'the independently audited exact conservative boundary seam'
+    )
   elif not report_verified or not residuals_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.RESIDUAL_FAILURE
     message = 'independent conservative residuals disagree or exceed tolerance'
@@ -3559,7 +3728,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   elif not transonic_transition_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.TRANSONIC_TRANSITION_FAILURE
     message = 'candidate scalar transonic transition evidence does not match the control section'
-  elif not transonic_frontier_compatibility_verified:
+  elif not moving_mixed_regime_mode and not transonic_frontier_compatibility_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
       .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
@@ -3568,7 +3737,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       'candidate scalar/global-frontier transonic compatibility evidence does '
       'not match the retained global shock frontier'
     )
-  elif not transonic_shock_state_compatibility_verified:
+  elif not moving_mixed_regime_mode and not transonic_shock_state_compatibility_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
       .TRANSONIC_FRONTIER_COMPATIBILITY_FAILURE
@@ -3731,6 +3900,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     ),
     physical_field_neighbor_profiles_verified=(
       physical_field_neighbor_profiles_verified
+    ),
+    moving_mixed_regime_interface_verified=(
+      moving_mixed_regime_interface_verified
     ),
     control_section_compatibility_verified=(
       control_section_compatibility_verified

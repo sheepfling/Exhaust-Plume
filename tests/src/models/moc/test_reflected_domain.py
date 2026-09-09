@@ -57,6 +57,9 @@ from exhaust_plume.models.moc import (
   MocTransonicShockInterfaceProfile,
   MocTransonicShockInterfaceSample,
   MocMovingMixedRegimeInterfaceStatus,
+  MocMovingMixedRegimeInterfaceRequest,
+  build_moc_terminal_conservative_boundary_sample,
+  solve_moc_transonic_shock_geometry,
   MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileStatus,
   MocPhysicalFieldEulerReconciliationRequest,
@@ -530,6 +533,73 @@ def _global_physical_closure_for_mixed_regime(sample_count: int = 9):
     shock_angle_tolerance_rad=0.02,
   )
 ####
+
+
+def _moving_interface_for_coupled_field():
+  closure = _global_physical_closure_for_mixed_regime()
+  ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  attempt = run_reflected_domain_global_transonic_expansion_attempt(
+    MocReflectedDomainGlobalTransonicClosureRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_Pa=ambient_pressure,
+    )
+  )
+  assert attempt.characteristic_field is not None
+  interface = solve_reflected_domain_global_transonic_mixed_wave_interface(
+    attempt.characteristic_field,
+    ambient_pressure,
+    effective_inlet_height_m=0.002,
+    downstream_length_m=0.2,
+  )
+  probe = probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation(
+    interface
+  )
+  handoff = build_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffRequest(
+      probe=probe,
+      upstream_total_temperature_K=1500.0,
+    )
+  )
+  assert handoff.geometry is not None
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  cross_section_x = mixed_request.control_section.points_m[0][0] + 0.01
+  relocated_geometry_request = replace(
+    handoff.geometry.request,
+    shock_point_m=(cross_section_x, handoff.geometry.shock_point_m[1]),
+  )
+  geometry = solve_moc_transonic_shock_geometry(relocated_geometry_request)
+  assert geometry.geometry_verified
+  sample_count = 4
+  lower_y = geometry.shock_point_m[1]
+  upper_y = lower_y + 0.05
+  terminal = build_moc_terminal_conservative_boundary_sample(geometry)
+  samples = tuple(
+    replace(
+      terminal,
+      index=index,
+      point_m=(
+        cross_section_x,
+        lower_y + (upper_y - lower_y) * index / (sample_count - 1),
+      ),
+    )
+    for index in range(sample_count)
+  )
+  moving_request = MocMovingMixedRegimeInterfaceRequest(
+    terminal_geometry=geometry,
+    interface_points_m=(
+      geometry.shock_point_m,
+      (cross_section_x + 0.01, upper_y),
+    ),
+    boundary_samples=samples,
+    cross_section_x_m=cross_section_x,
+    lower_y_m=lower_y,
+    upper_y_m=upper_y,
+    sample_count=sample_count,
+  )
+  moving_result = prepare_moc_moving_mixed_regime_interface(moving_request)
+  return mixed_request, moving_result
 
 
 def test_global_physical_field_binds_an_audited_profile_to_the_coupled_lane():
@@ -1220,6 +1290,86 @@ def test_global_transonic_mixed_wave_terminal_scalar_handoff_is_exact_and_stays_
   assert 'bind to the coupled-field inlet x' in coupled.message
   assert coupled.chain_promotion_blocked
   assert coupled.production_claim_allowed is False
+
+
+def test_coupled_field_consumes_complete_moving_mixed_regime_inlet_by_exact_index():
+  mixed_request, moving_result = _moving_interface_for_coupled_field()
+  assert moving_result.status is MocMovingMixedRegimeInterfaceStatus.CONVERGED_BOUNDARY_SEAM
+  assert moving_result.boundary_seam_verified
+
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=4,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    outlet_static_pressure_Pa=mixed_request.ambient_pressure_Pa,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+    ),
+    moving_mixed_regime_interface=moving_result,
+  )
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+
+  assert result.status is not (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_MOVING_MIXED_REGIME_FIELD_FAILURE
+  )
+  assert result.conservative_states_by_cell
+  assert result.moving_mixed_regime_interface is moving_result
+  assert result.moving_mixed_regime_interface_consumed
+  assert result.inlet_boundary_states_consumed
+  assert result.production_claim_allowed is False
+  assert result.chain_promotion_blocked
+
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+  assert audit.moving_mixed_regime_interface_verified
+  assert audit.production_claim_allowed is False
+  assert audit.chain_promotion_blocked
+
+
+def test_coupled_field_stops_when_moving_mixed_regime_inlet_coverage_is_incomplete():
+  mixed_request, complete_result = _moving_interface_for_coupled_field()
+  # Rebuild through the seam contract so the incomplete result remains an
+  # independently auditable field-required handoff rather than a loose tuple.
+  incomplete_result = prepare_moc_moving_mixed_regime_interface(
+    replace(
+      complete_result.request,
+      boundary_samples=complete_result.boundary_samples[:-1],
+    )
+  )
+  assert incomplete_result.status is MocMovingMixedRegimeInterfaceStatus.SUBSONIC_FIELD_REQUIRED
+
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=4,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+    ),
+    moving_mixed_regime_interface=incomplete_result,
+  )
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+
+  assert result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_MOVING_MIXED_REGIME_FIELD_FAILURE
+  )
+  assert not result.conservative_states_by_cell
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+  assert audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .MOVING_MIXED_REGIME_INTERFACE_FAILURE
+  )
+  assert not audit.converged
 
 
 def test_global_transonic_mixed_wave_terminal_field_coverage_stops_at_missing_ordinate():
