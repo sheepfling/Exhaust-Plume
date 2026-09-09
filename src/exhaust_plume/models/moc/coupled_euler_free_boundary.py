@@ -103,6 +103,9 @@ PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE = (
 PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE = (
   'solver-owned-exact-physical-field-samples-v1'
 )
+CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID = (
+  'solver-owned-conservative-ambient-entrainment-v1'
+)
 _CHANNEL_NAMES = (
   'mass',
   'streamwise_momentum',
@@ -250,6 +253,58 @@ def _entropy_closure_profile_fields(
     )
   ####
   return x_stations, total_pressure, static_pressure, relaxation_fraction
+
+
+def _ambient_entrainment_profile_fields(
+  profile: Any,
+  ambient_pressure: float,
+  axial_cell_count: int,
+) -> tuple[float, float, float, tuple[float, ...]] | None:
+  """Validate and return the explicit conservative ambient source inputs."""
+
+  if str(getattr(profile, 'mechanism_id', '')) != (
+    CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID
+  ):
+    return None
+  ####
+  required_attributes = (
+    'ambient_temperature_K',
+    'ambient_velocity_m_s',
+    'entrainment_fraction_by_station',
+  )
+  if any(not hasattr(profile, name) for name in required_attributes):
+    raise TypeError(
+      'conservative ambient entrainment requires its explicit ambient-state '
+      'and station-wise fraction fields'
+    )
+  ####
+  temperature = float(profile.ambient_temperature_K)
+  if not isfinite(temperature) or temperature <= 0.0:
+    raise ValueError(
+      'ambient entrainment temperature must be finite and strictly positive'
+    )
+  ####
+  velocity = tuple(float(value) for value in profile.ambient_velocity_m_s)
+  if len(velocity) != 2 or any(not isfinite(value) for value in velocity):
+    raise ValueError('ambient entrainment velocity must contain two finite values')
+  ####
+  fractions = tuple(
+    float(value) for value in profile.entrainment_fraction_by_station
+  )
+  if len(fractions) != axial_cell_count:
+    raise ValueError(
+      'ambient entrainment fractions must align with the axial cell columns'
+    )
+  if any(
+    not isfinite(value) or not 0.0 <= value <= 1.0 for value in fractions
+  ):
+    raise ValueError('ambient entrainment fractions must lie in [0, 1]')
+  ####
+  ambient_pressure = float(ambient_pressure)
+  if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+    raise ValueError('ambient entrainment requires a positive ambient pressure')
+  ####
+  return temperature, velocity[0], velocity[1], fractions
 
 
 class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
@@ -1797,6 +1852,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           self.mixed_regime_request,
           self.axial_cell_count,
         )
+      )
+      _ambient_entrainment_profile_fields(
+        self.entropy_closure_profile,
+        self.mixed_regime_request.ambient_pressure_Pa,
+        self.axial_cell_count,
       )
       if self.free_boundary_pressure_profile_Pa is None:
         raise ValueError(
@@ -4282,6 +4342,49 @@ def _entropy_closure_relaxation_state(
     target_static_pressure,
     gamma,
   )
+
+
+def _entropy_closure_source_state(
+  state: np.ndarray,
+  profile: Any,
+  station_index: int,
+  ambient_pressure: float,
+  gamma: float,
+  gas_constant: float,
+  ambient_entrainment_fields: tuple[float, float, float, tuple[float, ...]] | None,
+) -> np.ndarray:
+  """Return the conservative source target for one axial station.
+
+  The ambient-entrainment branch is a conservative convex mixture of the
+  current state and an explicitly supplied ambient state.  This preserves
+  positivity under the source update and exchanges mass, momentum, and total
+  energy together.  The legacy branch remains available as the explicitly
+  named fixed-velocity/fixed-temperature research relaxation.
+  """
+
+  if ambient_entrainment_fields is None:
+    return _entropy_closure_relaxation_state(
+      state,
+      float(profile.total_pressure_Pa[station_index]),
+      gamma,
+      gas_constant,
+    )
+  ####
+  ambient_temperature, ambient_u, ambient_v, fractions = (
+    ambient_entrainment_fields
+  )
+  fraction = fractions[station_index]
+  ambient_density = ambient_pressure / (gas_constant * ambient_temperature)
+  ambient_state = _conservative_from_primitive(
+    ambient_density,
+    ambient_u,
+    ambient_v,
+    ambient_pressure,
+    gamma,
+  )
+  mixed_state = (1.0 - fraction) * state + fraction * ambient_state
+  _primitive_from_conservative(mixed_state, gamma, gas_constant)
+  return mixed_state
 ####
 
 
@@ -4583,13 +4686,25 @@ def _cell_residuals(
     if not 0.0 < relaxation_fraction <= 1.0:
       raise ValueError('entropy closure relaxation fraction is out of bounds')
     ####
+    ambient_entrainment_fields = _ambient_entrainment_profile_fields(
+      entropy_closure_profile,
+      ambient_pressure,
+      axial_count,
+    )
+  else:
+    ambient_entrainment_fields = None
+  ####
+  if entropy_closure_profile is not None:
     for i in range(axial_count):
       for j in range(transverse_count):
-        target_state = _entropy_closure_relaxation_state(
+        target_state = _entropy_closure_source_state(
           states[i, j],
-          target_total_pressure[i],
+          entropy_closure_profile,
+          i,
+          ambient_pressure,
           gamma,
           gas_constant,
+          ambient_entrainment_fields,
         )
         residual[i, j] += (
           relaxation_fraction

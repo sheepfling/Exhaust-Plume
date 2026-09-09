@@ -200,8 +200,10 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_downstream import 
   solve_reflected_domain_global_transonic_mixed_wave_downstream,
 )
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_entropy_closure import (
+  CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID,
   MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus,
   audit_reflected_domain_global_transonic_mixed_wave_entropy_closure,
+  build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile,
   build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile,
   solve_reflected_domain_global_transonic_mixed_wave_entropy_closure,
 )
@@ -1174,6 +1176,61 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
     .LOSS_BUDGET_FAILURE
   )
   assert not insufficient_audit.profile_ready_for_joint_solver
+
+  ambient_profile = (
+    build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile(
+      result,
+      x_stations_m=x_stations,
+      total_pressure_Pa=total_pressure_profile,
+      target_static_pressure_Pa=tuple(ambient for _ in x_stations),
+      ambient_temperature_K=300.0,
+      ambient_velocity_m_s=(0.0, 0.0),
+      entrainment_fraction_by_station=tuple(0.02 for _ in x_stations),
+    )
+  )
+  assert (
+    ambient_profile.mechanism_id
+    == CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID
+  )
+  assert ambient_profile.entrainment_fraction_by_station == tuple(
+    0.02 for _ in x_stations
+  )
+  ambient_preflight = (
+    audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+      result,
+      ambient_profile,
+    )
+  )
+  assert ambient_preflight.profile_ready_for_joint_solver
+  assert ambient_preflight.profile is ambient_profile
+
+  assert result.field is not None
+  assert result.field.request is not None
+  ambient_request = replace(
+    result.field.request,
+    entropy_closure_profile=ambient_profile,
+    free_boundary_pressure_profile_Pa=ambient_profile.target_static_pressure_Pa,
+    free_boundary_pressure_profile_x_stations_m=ambient_profile.x_stations_m,
+    free_boundary_pressure_profile_source=(
+      f'{ambient_profile.source}:static-target'
+    ),
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+  )
+  ambient_candidate = solve_reflected_domain_coupled_euler_free_boundary(
+    ambient_request
+  )
+  assert ambient_candidate.request is ambient_request
+  assert ambient_candidate.entropy_closure_profile_consumed
+  assert ambient_candidate.request.entropy_closure_profile is ambient_profile
+  ambient_independent_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    ambient_candidate
+  )
+  assert ambient_independent_audit.candidate is ambient_candidate
+  assert ambient_independent_audit.residual_channels_recomputed
+  assert ambient_independent_audit.entropy_closure_profile_consumed
+  assert ambient_independent_audit.chain_promotion_blocked
+  assert ambient_independent_audit.production_claim_allowed is False
 ####
 
 

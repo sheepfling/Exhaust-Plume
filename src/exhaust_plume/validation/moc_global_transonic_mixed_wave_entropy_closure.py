@@ -1,4 +1,4 @@
-"""Typed entropy/mixing closure contract for the mixed-wave research lane.
+"""Typed entropy/mixing closure contracts for the mixed-wave research lane.
 
 The mixed-wave downstream field exposes a real pressure-budget deficit: its
 subsonic branch cannot reach the retained ambient target without additional
@@ -7,10 +7,13 @@ contract and now provides a bounded research consumer for it.  A profile must
 carry its exact upstream lineage, an ordered total-pressure loss law, and the
 static-pressure targets that the coupled field consumes.
 
-The consumer is deliberately a fixed-velocity/fixed-temperature relaxation
-source.  It is useful for exercising the joint field, residual, and audit
-seams, but it is not a physical mixing closure and cannot promote a downstream
-field or a shock-cell chain.
+The original consumer is deliberately a fixed-velocity/fixed-temperature
+relaxation source.  It remains available as a research baseline.  This module
+also exposes an explicit conservative ambient-entrainment source contract:
+the source state is a convex conservative mixture with a caller-supplied
+ambient thermodynamic state and station-wise entrainment fraction.  That
+mechanism is still research-only until the coupled free-boundary equations,
+refinement ladder, and provider validation accept it.
 """
 
 from __future__ import annotations
@@ -41,10 +44,12 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_ENTROPY_CLOSURE_OPERATOR_ID',
+  'CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID',
   'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile',
   'MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureResult',
   'build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile',
+  'build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile',
   'audit_reflected_domain_global_transonic_mixed_wave_entropy_closure',
   'solve_reflected_domain_global_transonic_mixed_wave_entropy_closure',
 )
@@ -55,6 +60,12 @@ MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_ENTROPY_CLOSURE_OPERATOR_ID = (
 )
 DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE = (
   'solver-owned-mixed-wave-entropy-loss-profile-v1'
+)
+CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID = (
+  'solver-owned-conservative-ambient-entrainment-v1'
+)
+DEFAULT_AMBIENT_ENTRAINMENT_PROFILE_SOURCE = (
+  'solver-owned-conservative-ambient-entrainment-profile-v1'
 )
 
 
@@ -105,6 +116,9 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
   relaxation_fraction: float = 0.25
   mechanism_id: str = DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE
   source: str = DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE
+  ambient_temperature_K: float | None = None
+  ambient_velocity_m_s: tuple[float, float] | None = None
+  entrainment_fraction_by_station: tuple[float, ...] = ()
 
   def __post_init__(self) -> None:
     closure_fingerprint = str(self.source_closure_fingerprint)
@@ -210,6 +224,59 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
       raise ValueError('mechanism_id and source must be non-empty')
     object.__setattr__(self, 'mechanism_id', mechanism_id)
     object.__setattr__(self, 'source', source)
+    ####
+    ambient_temperature = self.ambient_temperature_K
+    ambient_velocity = self.ambient_velocity_m_s
+    entrainment = tuple(
+      float(value) for value in self.entrainment_fraction_by_station
+    )
+    if mechanism_id == CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID:
+      if ambient_temperature is None:
+        raise ValueError(
+          'conservative ambient entrainment requires an explicit ambient '
+          'temperature'
+        )
+      ambient_temperature = float(ambient_temperature)
+      if not isfinite(ambient_temperature) or ambient_temperature <= 0.0:
+        raise ValueError(
+          'ambient_temperature_K must be finite and strictly positive'
+        )
+      if ambient_velocity is None or len(ambient_velocity) != 2:
+        raise ValueError(
+          'conservative ambient entrainment requires a two-component '
+          'ambient velocity'
+        )
+      ambient_velocity = tuple(float(value) for value in ambient_velocity)
+      if any(not isfinite(value) for value in ambient_velocity):
+        raise ValueError('ambient_velocity_m_s must contain finite values')
+      if len(entrainment) != len(x_stations):
+        raise ValueError(
+          'entrainment_fraction_by_station must align with x_stations_m'
+        )
+      if any(
+        not isfinite(value) or not 0.0 <= value <= 1.0
+        for value in entrainment
+      ):
+        raise ValueError(
+          'entrainment_fraction_by_station must contain values in [0, 1]'
+        )
+      if not any(value > 0.0 for value in entrainment):
+        raise ValueError(
+          'conservative ambient entrainment requires a nonzero entrainment '
+          'fraction at at least one station'
+        )
+      object.__setattr__(self, 'ambient_temperature_K', ambient_temperature)
+      object.__setattr__(self, 'ambient_velocity_m_s', ambient_velocity)
+    else:
+      if ambient_temperature is not None or ambient_velocity is not None or entrainment:
+        raise ValueError(
+          'ambient entrainment inputs require the conservative ambient '
+          'entrainment mechanism id'
+        )
+      ambient_temperature = None
+      ambient_velocity = None
+      entrainment = ()
+    object.__setattr__(self, 'entrainment_fraction_by_station', entrainment)
 
   @property
   def budget_satisfied(self) -> bool:
@@ -238,9 +305,12 @@ class MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
         self.minimum_required_total_pressure_loss_fraction
       ),
       'relaxation_fraction': self.relaxation_fraction,
+      'ambient_temperature_K': self.ambient_temperature_K,
+      'ambient_velocity_m_s': self.ambient_velocity_m_s,
+      'entrainment_fraction_by_station': self.entrainment_fraction_by_station,
       'budget_satisfied': self.budget_satisfied,
       'claim_status': (
-        'research-only-declared-entropy-loss-profile; it is not a field '
+        'research-only declared entropy/mixing source; it is not a field '
         'solution, validation result, or production closure'
       ),
     }
@@ -636,6 +706,9 @@ def build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
   relaxation_fraction: float = 0.25,
   mechanism_id: str = DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE,
   source: str = DEFAULT_ENTROPY_CLOSURE_PROFILE_SOURCE,
+  ambient_temperature_K: float | None = None,
+  ambient_velocity_m_s: tuple[float, float] | None = None,
+  entrainment_fraction_by_station: tuple[float, ...] = (),
 ) -> MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
   """Bind an explicit loss law to the exact mixed-wave downstream seam.
 
@@ -686,6 +759,44 @@ def build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
     relaxation_fraction=relaxation_fraction,
     mechanism_id=mechanism_id,
     source=source,
+    ambient_temperature_K=ambient_temperature_K,
+    ambient_velocity_m_s=ambient_velocity_m_s,
+    entrainment_fraction_by_station=entrainment_fraction_by_station,
+  )
+
+
+def build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile(
+  downstream: MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult,
+  *,
+  x_stations_m: tuple[float, ...],
+  total_pressure_Pa: tuple[float, ...],
+  target_static_pressure_Pa: tuple[float, ...],
+  ambient_temperature_K: float,
+  ambient_velocity_m_s: tuple[float, float] = (0.0, 0.0),
+  entrainment_fraction_by_station: tuple[float, ...],
+  relaxation_fraction: float = 0.25,
+  source: str = DEFAULT_AMBIENT_ENTRAINMENT_PROFILE_SOURCE,
+) -> MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureProfile:
+  """Bind a conservative ambient-entrainment source to the exact seam.
+
+  ``total_pressure_Pa`` remains an explicit downstream acceptance target.  It
+  is not converted into a source term.  The source itself mixes each local
+  conservative state toward the explicitly supplied ambient state using the
+  station-wise entrainment fraction, so the pressure-loss mechanism is not
+  the former fixed-velocity/fixed-temperature target reconstruction.
+  """
+
+  return build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile(
+    downstream,
+    x_stations_m=x_stations_m,
+    total_pressure_Pa=total_pressure_Pa,
+    target_static_pressure_Pa=target_static_pressure_Pa,
+    relaxation_fraction=relaxation_fraction,
+    mechanism_id=CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID,
+    source=source,
+    ambient_temperature_K=ambient_temperature_K,
+    ambient_velocity_m_s=ambient_velocity_m_s,
+    entrainment_fraction_by_station=entrainment_fraction_by_station,
   )
 
 

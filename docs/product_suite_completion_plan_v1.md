@@ -3703,3 +3703,24 @@ fits, provider-bound VIS/SIG/RAY/FPA measurement evidence, the separate
 alignment archive, and a release freeze refreshed to the final candidate
 commit.  The wheel/build evidence therefore closes a package gate only; it
 does not authorize a merge toward ``main`` or a release tag.
+
+### P2.2d conservative ambient-entrainment source checkpoint — 2026-09-09
+
+The mixed-wave research consumer now has a separately identified
+``solver-owned-conservative-ambient-entrainment-v1`` mechanism.  Its profile
+requires explicit ambient temperature and velocity plus one station-aligned
+entrainment fraction per downstream cell column.  The coupled solver forms a
+conservative convex mixture of the current cell state and that explicit
+ambient state, so density, momentum, and total energy are exchanged together;
+the independent coupled-Euler audit reconstructs the same source before
+rechecking the residual channels.
+
+The former fixed-velocity/fixed-temperature relaxation remains available as a
+named research baseline and is not silently replaced for existing callers.
+The new source is still research-only: its total-pressure profile is an
+explicit acceptance target rather than a source derivation, no upstream/global
+feedback is solved, and canonical closure, refinement, physical shock-cell
+fitting, external validation, Signature/FPA acceptance, and release promotion
+remain blocked.  The focused mixed-wave regression and the broader coupled-
+Euler/MOC subset pass (1 and 14 tests respectively); Pyright, Ruff, bytecode,
+documentation, and diff checks pass.

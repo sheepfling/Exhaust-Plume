@@ -85,6 +85,9 @@ _PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE = (
 _PHYSICAL_FIELD_AMBIENT_NEIGHBOR_GEOMETRY_PROFILE_SOURCE = (
   'solver-owned-physical-field-ambient-neighbor-geometry-profile-v1'
 )
+_CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID = (
+  'solver-owned-conservative-ambient-entrainment-v1'
+)
 
 
 def _effective_field_inlet_geometry(
@@ -710,6 +713,79 @@ def _entropy_closure_relaxation_state(
     ),
     dtype=float,
   )
+
+
+def _ambient_entrainment_profile_fields(
+  profile: Any,
+  ambient_pressure: float,
+  axial_cell_count: int,
+) -> tuple[float, float, float, tuple[float, ...]] | None:
+  """Independently validate the conservative ambient source inputs."""
+
+  if str(getattr(profile, 'mechanism_id', '')) != (
+    _CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID
+  ):
+    return None
+  ####
+  temperature = float(profile.ambient_temperature_K)
+  velocity = tuple(float(value) for value in profile.ambient_velocity_m_s)
+  fractions = tuple(
+    float(value) for value in profile.entrainment_fraction_by_station
+  )
+  if not isfinite(temperature) or temperature <= 0.0:
+    raise ValueError('audited ambient entrainment temperature is invalid')
+  if len(velocity) != 2 or any(not isfinite(value) for value in velocity):
+    raise ValueError('audited ambient entrainment velocity is invalid')
+  if len(fractions) != axial_cell_count:
+    raise ValueError('audited ambient entrainment fractions are not aligned')
+  if any(
+    not isfinite(value) or not 0.0 <= value <= 1.0 for value in fractions
+  ):
+    raise ValueError('audited ambient entrainment fractions are out of bounds')
+  ambient_pressure = float(ambient_pressure)
+  if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
+    raise ValueError('audited ambient entrainment pressure is invalid')
+  return temperature, velocity[0], velocity[1], fractions
+
+
+def _entropy_closure_source_state(
+  state: np.ndarray,
+  profile: Any,
+  station_index: int,
+  ambient_pressure: float,
+  gamma: float,
+  gas_constant: float,
+  ambient_entrainment_fields: tuple[float, float, float, tuple[float, ...]] | None,
+) -> np.ndarray:
+  """Reconstruct the model's exact entropy/mixing source target."""
+
+  if ambient_entrainment_fields is None:
+    return _entropy_closure_relaxation_state(
+      state,
+      float(profile.total_pressure_Pa[station_index]),
+      gamma,
+      gas_constant,
+    )
+  ####
+  ambient_temperature, ambient_u, ambient_v, fractions = (
+    ambient_entrainment_fields
+  )
+  ambient_density = ambient_pressure / (gas_constant * ambient_temperature)
+  ambient_state = np.array(
+    (
+      ambient_density,
+      ambient_density * ambient_u,
+      ambient_density * ambient_v,
+      ambient_pressure / (gamma - 1.0)
+      + 0.5 * ambient_density * (ambient_u * ambient_u + ambient_v * ambient_v),
+    ),
+    dtype=float,
+  )
+  mixed_state = (1.0 - fractions[station_index]) * state + (
+    fractions[station_index] * ambient_state
+  )
+  _primitive(mixed_state, gamma, gas_constant)
+  return mixed_state
 
 
 def _total_pressure_from_state(
@@ -2646,6 +2722,7 @@ def _audit_field(
   entropy_profile = request.entropy_closure_profile
   entropy_target_total_pressure: tuple[float, ...] | None = None
   entropy_relaxation_fraction = 0.0
+  ambient_entrainment_fields = None
   if entropy_profile is not None:
     entropy_target_total_pressure = tuple(
       float(value) for value in entropy_profile.total_pressure_Pa
@@ -2660,6 +2737,11 @@ def _audit_field(
       raise ValueError(
         'audited entropy closure relaxation fraction is out of bounds'
       )
+    ambient_entrainment_fields = _ambient_entrainment_profile_fields(
+      entropy_profile,
+      mixed.ambient_pressure_Pa,
+      axial_count,
+    )
   ####
   points = np.empty((axial_count + 1, transverse_count + 1, 2), dtype=float)
   eta = np.linspace(0.0, 1.0, transverse_count + 1)
@@ -2885,11 +2967,14 @@ def _audit_field(
         wave_sum += wave * length
       ####
       if entropy_target_total_pressure is not None:
-        target_state = _entropy_closure_relaxation_state(
+        target_state = _entropy_closure_source_state(
           state,
-          entropy_target_total_pressure[i],
+          entropy_profile,
+          i,
+          mixed.ambient_pressure_Pa,
           gamma,
           gas_constant,
+          ambient_entrainment_fields,
         )
         residual[i, j] += (
           entropy_relaxation_fraction
