@@ -408,6 +408,8 @@ def compose_moc_physical_field_euler_boundary_pressure_target(
   The resulting target is explicitly marked as an overlay and retains both
   source IDs.  It remains a fixed-front research input; it is not a global
   geometry update or a free-boundary solve.
+  When the overlay is pressure-only, complete geometry and tangent metadata
+  from the base target are retained; partial metadata is never synthesized.
   """
 
   if not isinstance(base_target, MocPhysicalFieldEulerBoundaryPressureTarget):
@@ -507,12 +509,19 @@ def compose_moc_physical_field_euler_boundary_pressure_target(
   ####
   boundary_points: tuple[tuple[float, float], ...] = ()
   tangent: tuple[float, ...] = ()
-  if base_target.boundary_points_m and overlay_target.boundary_points_m:
+  base_has_geometry = bool(
+    base_target.boundary_points_m and base_target.tangent_rad
+  )
+  overlay_has_geometry = bool(
+    overlay_target.boundary_points_m and overlay_target.tangent_rad
+  )
+  if base_has_geometry:
     composed_points: list[tuple[float, float]] = []
     for station in stations:
       active = (
         overlay_target
-        if overlay_min - tolerance <= station <= overlay_max + tolerance
+        if overlay_has_geometry
+        and overlay_min - tolerance <= station <= overlay_max + tolerance
         else base_target
       )
       composed_points.append(
@@ -525,17 +534,19 @@ def compose_moc_physical_field_euler_boundary_pressure_target(
     ####
     boundary_points = tuple(composed_points)
   ####
-  if base_target.tangent_rad and overlay_target.tangent_rad:
+  if base_has_geometry:
     tangent = tuple(
       _interpolate_target_scalar(
         (
           overlay_target.x_stations_m
-          if overlay_min - tolerance <= station <= overlay_max + tolerance
+          if overlay_has_geometry
+          and overlay_min - tolerance <= station <= overlay_max + tolerance
           else base_target.x_stations_m
         ),
         (
           overlay_target.tangent_rad
-          if overlay_min - tolerance <= station <= overlay_max + tolerance
+          if overlay_has_geometry
+          and overlay_min - tolerance <= station <= overlay_max + tolerance
           else base_target.tangent_rad
         ),
         station,

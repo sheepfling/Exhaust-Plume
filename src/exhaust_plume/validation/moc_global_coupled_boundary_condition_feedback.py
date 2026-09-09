@@ -11,6 +11,9 @@ This module deliberately remains below canonical mixed-regime closure.  It
 records the pressure, tangent, entropy, and conservative residual channels and
 keeps the production and chain-promotion gates closed when the moving
 solver-owned frame cannot be covered.
+This module also records the optional declared target-geometry mode for the
+fresh global source march; the downstream ambient boundary remains
+solver-owned and the mode stays below canonical mixed-regime closure.
 """
 
 from __future__ import annotations
@@ -339,6 +342,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
   target_consumption_verified: bool = False
   target_coverage_verified: bool = False
   target_match_verified: bool = False
+  target_geometry_consumed: bool = False
+  geometry_conditioning_verified: bool = False
   coordinate_residuals_verified: bool = False
   tangent_residuals_verified: bool = False
   pressure_residuals_verified: bool = False
@@ -442,6 +447,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
       'target_consumption_verified',
       'target_coverage_verified',
       'target_match_verified',
+      'target_geometry_consumed',
+      'geometry_conditioning_verified',
       'coordinate_residuals_verified',
       'tangent_residuals_verified',
       'pressure_residuals_verified',
@@ -474,6 +481,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
       and self.target_consumption_verified
       and self.target_coverage_verified
       and self.target_match_verified
+      and self.geometry_conditioning_verified
       and self.coordinate_residuals_verified
       and self.tangent_residuals_verified
       and self.pressure_residuals_verified
@@ -504,6 +512,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
       'target_consumption_verified': self.target_consumption_verified,
       'target_coverage_verified': self.target_coverage_verified,
       'target_match_verified': self.target_match_verified,
+      'target_geometry_consumed': self.target_geometry_consumed,
+      'geometry_conditioning_verified': self.geometry_conditioning_verified,
       'coordinate_residuals_verified': self.coordinate_residuals_verified,
       'tangent_residuals_verified': self.tangent_residuals_verified,
       'pressure_residuals_verified': self.pressure_residuals_verified,
@@ -579,6 +589,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   target_consumption_verified: bool = False
   target_coverage_verified: bool = False
   target_match_verified: bool = False
+  target_geometry_consumed: bool = False
+  geometry_conditioning_verified: bool = False
   coordinate_residuals_verified: bool = False
   tangent_residuals_verified: bool = False
   pressure_residuals_verified: bool = False
@@ -649,6 +661,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'target_consumption_verified',
       'target_coverage_verified',
       'target_match_verified',
+      'target_geometry_consumed',
+      'geometry_conditioning_verified',
       'coordinate_residuals_verified',
       'tangent_residuals_verified',
       'pressure_residuals_verified',
@@ -701,6 +715,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       and self.target_consumption_verified
       and self.target_coverage_verified
       and self.target_match_verified
+      and self.geometry_conditioning_verified
       and self.coordinate_residuals_verified
       and self.tangent_residuals_verified
       and self.pressure_residuals_verified
@@ -751,6 +766,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'target_consumption_verified': self.target_consumption_verified,
       'target_coverage_verified': self.target_coverage_verified,
       'target_match_verified': self.target_match_verified,
+      'target_geometry_consumed': self.target_geometry_consumed,
+      'geometry_conditioning_verified': self.geometry_conditioning_verified,
       'coordinate_residuals_verified': self.coordinate_residuals_verified,
       'tangent_residuals_verified': self.tangent_residuals_verified,
       'pressure_residuals_verified': self.pressure_residuals_verified,
@@ -809,6 +826,8 @@ def _run_result(
     target_consumption_verified=all_steps('target_consumption_verified'),
     target_coverage_verified=all_steps('target_coverage_verified'),
     target_match_verified=all_steps('target_match_verified'),
+    target_geometry_consumed=all_steps('target_geometry_consumed'),
+    geometry_conditioning_verified=all_steps('geometry_conditioning_verified'),
     coordinate_residuals_verified=all_steps('coordinate_residuals_verified'),
     tangent_residuals_verified=all_steps('tangent_residuals_verified'),
     pressure_residuals_verified=all_steps('pressure_residuals_verified'),
@@ -1099,6 +1118,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   boundary, the response is composed as a bounded pressure overlay, and the
   global boundary consumer owns the new geometry.  Any moving-frame coverage
   failure is retained as a typed stop.
+  ``boundary_condition_options`` may opt into declared target-geometry
+  consumption; the result records that mode separately from the downstream
+  solver-owned ambient boundary.
   """
 
   if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
@@ -1162,6 +1184,14 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     'boundary_condition_options',
     reserved=('request', 'source_closure', 'base_target'),
   )
+  consume_target_geometry = resolved_boundary_options.get(
+    'consume_target_geometry',
+    False,
+  )
+  if not isinstance(consume_target_geometry, bool):
+    raise ValueError(
+      'boundary_condition_options.consume_target_geometry must be a bool'
+    )
   configuration: dict[str, Any] = {
     'source_closure_fingerprint': (
       moc_reflected_domain_global_physical_closure_fingerprint(closure)
@@ -1175,6 +1205,11 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     'boundary_condition_options': resolved_boundary_options,
     'feedback_policy': (
       'downstream-response-explicit-pressure-overlay-fresh-global-ambient-march-v1'
+    ),
+    'geometry_conditioning_policy': (
+      'declared-target-geometry-consumed-by-global-source-march-v1'
+      if consume_target_geometry
+      else 'solver-owned-global-march-no-target-geometry-injection-v1'
     ),
     'solver_owned_handoff_refresh_policy': (
       'refresh-exact-physical-field-handoff-after-each-fresh-upstream-closure-v1'
@@ -1553,6 +1588,12 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     )
     target_coverage_verified = bool(boundary_condition.target_coverage_verified)
     target_match_verified = bool(boundary_condition.target_match_verified)
+    target_geometry_consumed = bool(
+      boundary_condition.target_geometry_consumed
+    )
+    geometry_conditioning_verified = bool(
+      boundary_condition.geometry_conditioning_verified
+    )
     fidelity_isolation_verified = bool(
       downstream.fidelity_isolation_verified
       and boundary_condition.fidelity_isolation_verified
@@ -1583,6 +1624,8 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       target_consumption_verified=target_consumption_verified,
       target_coverage_verified=target_coverage_verified,
       target_match_verified=target_match_verified,
+      target_geometry_consumed=target_geometry_consumed,
+      geometry_conditioning_verified=geometry_conditioning_verified,
       coordinate_residuals_verified=coordinate_verified,
       tangent_residuals_verified=tangent_verified,
       pressure_residuals_verified=pressure_verified,

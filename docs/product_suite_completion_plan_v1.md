@@ -3186,3 +3186,20 @@ compilation checks passing.  This strengthens the target geometry seam while
 leaving global coupling, canonical closure, physical shock-cell acceptance,
 provider-bound validation, release-freeze provenance, and `release_ready`
 blocked.
+
+### Geometry-conditioned global feedback checkpoint — 2026-09-09
+
+The explicit-overlay target composer now retains complete base geometry and
+tangent metadata when the downstream overlay is intentionally pressure-only;
+partial metadata is not synthesized.  This allows the joint research mode
+to carry the solver-owned base frame into the fresh global source march
+without treating a pressure response as a geometry profile.
+
+The downstream/global feedback runner now exposes and reports
+target_geometry_consumed and geometry_conditioning_verified as first-class
+iteration and run gates.  On the retained mixed-regime target, the
+geometry-conditioned feedback run completes its bounded research step and
+retains the moving-frame extension evidence.  The composition test and six
+feedback regressions pass; canonical global closure, physical shock-cell
+acceptance, provider-bound validation, and production promotion remain
+blocked.

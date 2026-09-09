@@ -3246,6 +3246,12 @@ def _moc_visualization(
       'global_coupled_boundary_condition_feedback_target_coverage_verified'
     ] = bool(getattr(result, 'target_coverage_verified', False))
     diagnostics[
+      'global_coupled_boundary_condition_feedback_target_geometry_consumed'
+    ] = bool(getattr(result, 'target_geometry_consumed', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_geometry_conditioning_verified'
+    ] = bool(getattr(result, 'geometry_conditioning_verified', False))
+    diagnostics[
       'global_coupled_boundary_condition_feedback_pressure_residuals_verified'
     ] = bool(getattr(result, 'pressure_residuals_verified', False))
     diagnostics[
@@ -4259,12 +4265,20 @@ def _moc_visualization(
     )
   ####
   if global_coupled_boundary_condition_feedback:
-    warnings.append(
-      'downstream/global boundary-condition feedback is bounded research '
-      'evidence; solver-owned frame negotiation and moving-frame coverage, '
-      'canonical mixed-regime closure, '
-      'refinement, validation, and production promotion remain unresolved'
-    )
+    if bool(getattr(result, 'target_geometry_consumed', False)):
+      warnings.append(
+        'downstream/global feedback consumed declared target geometry in the '
+        'fresh source march while the downstream ambient boundary remained '
+        'solver-owned; canonical closure, refinement, validation, and '
+        'production promotion remain unresolved'
+      )
+    else:
+      warnings.append(
+        'downstream/global boundary-condition feedback is bounded research '
+        'evidence; solver-owned frame negotiation and moving-frame coverage, '
+        'canonical mixed-regime closure, '
+        'refinement, validation, and production promotion remain unresolved'
+      )
   ####
   if global_frontier_target_refinement:
     warnings.append(
@@ -4360,6 +4374,11 @@ def _moc_visualization(
     )
   elif global_coupled_boundary_condition_feedback:
     claim_note = (
+      'bounded downstream/global feedback consumed declared target geometry in '
+      'the fresh source march; downstream ambient geometry and canonical '
+      'closure remain open'
+      if bool(getattr(result, 'target_geometry_consumed', False))
+      else
       'bounded downstream/global pressure-frame feedback research evidence; '
       'solver-owned geometry and canonical closure remain open'
     )

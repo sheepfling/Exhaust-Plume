@@ -1168,6 +1168,24 @@ def test_physical_field_euler_reconciliation_composes_explicit_bounded_target_ov
   assert composed.boundary_points_m == base.boundary_points_m
   assert composed.tangent_rad == pytest.approx(base.tangent_rad)
 
+  pressure_only_overlay = replace(
+    overlay,
+    boundary_points_m=(),
+    tangent_rad=(),
+  )
+  pressure_only_composed = (
+    compose_moc_physical_field_euler_boundary_pressure_target(
+      base,
+      pressure_only_overlay,
+      source_id='test-global-frontier-pressure-target-pressure-only-composed',
+    )
+  )
+  assert pressure_only_composed.static_pressure_Pa == pytest.approx(
+    composed.static_pressure_Pa
+  )
+  assert pressure_only_composed.boundary_points_m == base.boundary_points_m
+  assert pressure_only_composed.tangent_rad == pytest.approx(base.tangent_rad)
+
   candidate = solve_moc_physical_field_euler_reconciliation(
     MocPhysicalFieldEulerReconciliationRequest(
       shock_front_condition=condition,
@@ -8519,6 +8537,68 @@ def test_global_coupled_boundary_condition_feedback_consumes_moving_frame_extens
   )
   assert replayed_terminal_audit.terminal_fixed_point_verified
   assert replayed_terminal_audit.terminal_feedback is not None
+####
+
+
+def test_global_coupled_boundary_condition_feedback_consumes_target_geometry():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+
+  run = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+      'inlet_boundary_mode': (
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+      ),
+      'physical_field_continuation_profile': handoff.continuation_profile,
+      'physical_field_shock_front_condition': handoff.shock_front_condition,
+    },
+    boundary_condition_options={'consume_target_geometry': True},
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+    .COMPLETED_RESEARCH_BOUNDARY_FEEDBACK
+  )
+  assert run.research_feedback_completed
+  assert run.target_geometry_consumed
+  assert run.geometry_conditioning_verified
+  assert run.fidelity_isolation_verified
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  iteration = run.iterations[0]
+  assert iteration.target_geometry_consumed
+  assert iteration.geometry_conditioning_verified
+  assert iteration.boundary_condition is not None
+  assert iteration.boundary_condition.target_geometry_consumed
+  assert iteration.boundary_condition.solver_owned_geometry_verified is False
+  assert run.configuration['geometry_conditioning_policy'] == (
+    'declared-target-geometry-consumed-by-global-source-march-v1'
+  )
+  report = run.as_report()
+  assert report['target_geometry_consumed'] is True
+  assert report['geometry_conditioning_verified'] is True
+  visualization = standardize_model_visualization(run)
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_target_geometry_consumed'
+  ] is True
+  assert visualization.diagnostics[
+    'global_coupled_boundary_condition_feedback_geometry_conditioning_verified'
+  ] is True
+  assert visualization.claims.production_claim_allowed is False
 ####
 
 
