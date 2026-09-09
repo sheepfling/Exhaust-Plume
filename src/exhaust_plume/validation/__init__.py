@@ -277,6 +277,12 @@ from exhaust_plume.validation.moc_global_coupled_downstream_feedback import (
   MocReflectedDomainGlobalCoupledDownstreamFeedbackRun,
   run_reflected_domain_global_coupled_downstream_feedback,
 )
+from exhaust_plume.validation.moc_global_transonic_interface import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_INTERFACE_AUDIT_OPERATOR_ID,
+  MocReflectedDomainGlobalTransonicInterfaceAuditStatus,
+  MocReflectedDomainGlobalTransonicInterfaceAudit,
+  measure_reflected_domain_global_transonic_interface,
+)
 from exhaust_plume.validation.moc_global_frontier_target_resolve import (
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID,
   MocReflectedDomainGlobalFrontierTargetResolveStatus,
@@ -906,6 +912,10 @@ __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration',
   'MocReflectedDomainGlobalCoupledDownstreamFeedbackRun',
   'run_reflected_domain_global_coupled_downstream_feedback',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_INTERFACE_AUDIT_OPERATOR_ID',
+  'MocReflectedDomainGlobalTransonicInterfaceAuditStatus',
+  'MocReflectedDomainGlobalTransonicInterfaceAudit',
+  'measure_reflected_domain_global_transonic_interface',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_RESOLVE_OPERATOR_ID',
   'MocReflectedDomainGlobalFrontierTargetResolveStatus',
   'MocReflectedDomainGlobalFrontierTargetResolveCandidate',

@@ -3258,3 +3258,25 @@ Until that package passes, the current attachment/profile/feedback evidence
 continues to support Visualization and engineering diagnostics only. It may
 not authorize physical shock-cell promotion, Signature/FPA validation claims,
 or a release tag.
+
+### P2.2d interface-consumption audit checkpoint — 2026-09-09
+
+The first P2.2d vertical slice is now implemented as
+``op.moc.reflected-domain.global-transonic-interface-audit``.  It audits the
+existing solver-owned interior-interface candidate without changing its claim
+ceiling.  The audit requires exact global-closure and placement lineage,
+full-span placement evidence, the exact coupled-Euler request/placement
+identity, downstream mesh anchoring at the retained interface cross-section,
+and exact profile consumption.  It independently reconstructs every
+downstream inlet conservative state from the retained subsonic interface
+profile and reports the maximum component-wise seam residual.
+
+The compatible research fixture passes the new audit and a tampered inlet
+state is rejected with a typed inlet-seam failure.  The adjacent transonic /
+global-coupled regression passes (`21 passed`), the attachment suite passes
+(`13 passed`), and configured Pyright, Ruff, compilation, and diff checks pass.
+The audit intentionally reports local interface handoff only; it does not
+claim canonical mixed-regime closure, global feedback, refinement, physical
+shock-cell acceptance, or production validity.  The next P2.2d slice is to
+consume this seam in a joint interface/field iteration and independently
+rederive the interface jump plus centerline/ambient boundary residuals.

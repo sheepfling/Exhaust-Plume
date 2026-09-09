@@ -176,6 +176,10 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus,
   measure_reflected_domain_coupled_euler_free_boundary,
 )
+from exhaust_plume.validation.moc_global_transonic_interface import (
+  MocReflectedDomainGlobalTransonicInterfaceAuditStatus,
+  measure_reflected_domain_global_transonic_interface,
+)
 from exhaust_plume.validation.moc_transonic_interface import (
   MocTransonicShockInterfaceFieldProfileAuditStatus,
   MocTransonicShockInterfaceFieldPlacementAuditStatus,
@@ -737,6 +741,41 @@ def test_global_coupled_downstream_derives_solver_owned_transonic_placement():
   assert result.coupled_field is not None
   assert result.coupled_field.transonic_shock_interface_field_placement_consumed
   assert result.closure_lineage_verified
+  interface_audit = measure_reflected_domain_global_transonic_interface(result)
+  assert interface_audit.status is (
+    MocReflectedDomainGlobalTransonicInterfaceAuditStatus
+    .CONVERGED_LOCAL_INTERFACE_HANDOFF
+  )
+  assert interface_audit.converged
+  assert interface_audit.inlet_state_seam_verified
+  assert interface_audit.canonical_closure_verified is False
+
+  tampered_states = list(
+    result.coupled_field.inlet_boundary_conservative_states_by_face
+  )
+  tampered_face = list(tampered_states[0])
+  tampered_face[0] += 1.0
+  tampered_states[0] = tuple(tampered_face)
+  tampered_field = replace(
+    result.coupled_field,
+    inlet_boundary_conservative_states_by_face=tuple(tampered_states),
+  )
+  tampered_field_audit = replace(
+    result.coupled_field_audit,
+    candidate=tampered_field,
+  )
+  tampered_result = replace(
+    result,
+    coupled_field=tampered_field,
+    coupled_field_audit=tampered_field_audit,
+  )
+  tampered_audit = measure_reflected_domain_global_transonic_interface(
+    tampered_result
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainGlobalTransonicInterfaceAuditStatus.INLET_SEAM_FAILURE
+  )
+  assert tampered_audit.converged is False
   assert result.global_coupling_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
