@@ -27,6 +27,26 @@ from typing import Any
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerInletBoundaryMode,
 )
+from exhaust_plume.models.moc.euler_entropy_carry import (
+  MocEulerAmbientFirstWedgeEntropyCarryResult,
+  MocEulerAmbientFirstWedgeEntropyCarryStatus,
+  solve_euler_ambient_first_wedge_entropy_carry,
+)
+from exhaust_plume.models.moc.euler_entropy_characteristic_continuation_closure import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult,
+  solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure,
+)
+from exhaust_plume.models.moc.euler_entropy_characteristic_field import (
+  MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+  solve_euler_ambient_first_wedge_entropy_characteristic_field,
+)
+from exhaust_plume.models.moc.euler_physical_field import (
+  MocEulerAmbientPhysicalFieldResult,
+)
+from exhaust_plume.models.moc.euler_terminal_wedge import (
+  MocEulerAmbientFirstWedgeCharacteristicResult,
+  solve_euler_ambient_first_wedge_characteristic_remesh,
+)
 from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamResult,
   build_reflected_domain_global_solver_owned_transonic_interface_placement,
@@ -54,8 +74,11 @@ __all__ = (
   'MocReflectedDomainGlobalTransonicClosureStatus',
   'MocReflectedDomainGlobalTransonicPressureBudget',
   'MocReflectedDomainGlobalTransonicClosureRequest',
+  'MocReflectedDomainGlobalTransonicExpansionAttemptStatus',
+  'MocReflectedDomainGlobalTransonicExpansionAttempt',
   'MocReflectedDomainGlobalTransonicClosureResult',
   'moc_reflected_domain_global_transonic_frontier_fingerprint',
+  'run_reflected_domain_global_transonic_expansion_attempt',
   'run_reflected_domain_global_transonic_closure',
 )
 
@@ -325,6 +348,229 @@ class MocReflectedDomainGlobalTransonicClosureRequest:
 ####
 
 
+class MocReflectedDomainGlobalTransonicExpansionAttemptStatus(str, Enum):
+  """Outcome of the exact-source pressure-lowering continuation attempt."""
+
+  CONVERGED_RESEARCH_MIXED_REGIME_BAND = (
+    'converged-research-global-transonic-mixed-regime-band'
+  )
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_CLOSURE_FAILURE = 'global-transonic-expansion-source-failure'
+  SOURCE_FIELD_FAILURE = 'global-transonic-expansion-source-field-failure'
+  TERMINAL_WEDGE_FAILURE = 'global-transonic-expansion-terminal-wedge-failure'
+  ENTROPY_CARRY_FAILURE = 'global-transonic-expansion-entropy-carry-failure'
+  CHARACTERISTIC_FIELD_FAILURE = (
+    'global-transonic-expansion-characteristic-field-failure'
+  )
+  CONTINUATION_FAILURE = 'global-transonic-expansion-continuation-failure'
+  EXPANSION_REQUIRED = 'global-transonic-expansion-required'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalTransonicExpansionAttempt:
+  """Exact-source mixed-regime continuation evidence below promotion.
+
+  This result deliberately stops short of a global expansion/free-boundary
+  solve.  It carries the retained global physical field through the existing
+  solver-owned terminal wedge, entropy-carry, and characteristic-band lanes,
+  then records where the compression-only continuation path fails.  No
+  pressure, state, geometry, or endpoint is synthesized when that path cannot
+  satisfy the target.
+  """
+
+  status: MocReflectedDomainGlobalTransonicExpansionAttemptStatus
+  request: MocReflectedDomainGlobalTransonicClosureRequest | None
+  source_field: MocEulerAmbientPhysicalFieldResult | None = None
+  terminal_wedge: MocEulerAmbientFirstWedgeCharacteristicResult | None = None
+  entropy_trial: MocEulerAmbientFirstWedgeEntropyCarryResult | None = None
+  characteristic_field: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult | None
+  ) = None
+  continuation_closure: (
+    MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult
+    | None
+  ) = None
+  outer_flow_angle_bracket: tuple[float, float] | None = None
+  minimum_upstream_static_pressure_Pa: float | None = None
+  target_pressure_Pa: float | None = None
+  pressure_lowering_required: bool = False
+  source_field_consumed: bool = False
+  local_entropy_band_verified: bool = False
+  mixed_regime_closure_verified: bool = False
+  canonical_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalTransonicExpansionAttemptStatus,
+    ):
+      raise TypeError('status must be a typed expansion-attempt status')
+    ####
+    if self.request is not None and not isinstance(
+      self.request,
+      MocReflectedDomainGlobalTransonicClosureRequest,
+    ):
+      raise TypeError('request must be a typed transonic closure request or None')
+    ####
+    if self.source_field is not None and not isinstance(
+      self.source_field,
+      MocEulerAmbientPhysicalFieldResult,
+    ):
+      raise TypeError('source_field must be a typed Euler physical field or None')
+    ####
+    if self.terminal_wedge is not None and not isinstance(
+      self.terminal_wedge,
+      MocEulerAmbientFirstWedgeCharacteristicResult,
+    ):
+      raise TypeError('terminal_wedge must be typed or None')
+    ####
+    if self.entropy_trial is not None and not isinstance(
+      self.entropy_trial,
+      MocEulerAmbientFirstWedgeEntropyCarryResult,
+    ):
+      raise TypeError('entropy_trial must be typed or None')
+    ####
+    if self.characteristic_field is not None and not isinstance(
+      self.characteristic_field,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicFieldResult,
+    ):
+      raise TypeError('characteristic_field must be typed or None')
+    ####
+    if self.continuation_closure is not None and not isinstance(
+      self.continuation_closure,
+      MocEulerAmbientFirstWedgeEntropyCharacteristicContinuationClosureResult,
+    ):
+      raise TypeError('continuation_closure must be typed or None')
+    ####
+    if self.outer_flow_angle_bracket is not None:
+      bracket = tuple(float(value) for value in self.outer_flow_angle_bracket)
+      if len(bracket) != 2 or not all(isfinite(value) for value in bracket):
+        raise ValueError('outer_flow_angle_bracket must contain two finite values')
+      ####
+      if bracket[0] >= bracket[1]:
+        raise ValueError('outer_flow_angle_bracket must be ordered')
+      ####
+      object.__setattr__(self, 'outer_flow_angle_bracket', bracket)
+    ####
+    for name in (
+      'minimum_upstream_static_pressure_Pa',
+      'target_pressure_Pa',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      ####
+      numeric = float(value)
+      if not isfinite(numeric) or numeric <= 0.0:
+        raise ValueError(f'{name} must be finite and positive when supplied')
+      ####
+      object.__setattr__(self, name, numeric)
+    ####
+    for name in (
+      'pressure_lowering_required',
+      'source_field_consumed',
+      'local_entropy_band_verified',
+      'mixed_regime_closure_verified',
+      'canonical_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    if self.canonical_closure_verified:
+      raise ValueError('this expansion attempt cannot claim canonical closure')
+    ####
+    if not self.chain_promotion_blocked:
+      raise ValueError('this expansion attempt must block chain promotion')
+    ####
+    if self.production_claim_allowed:
+      raise ValueError('this expansion attempt cannot allow production claims')
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def source_closure_fingerprint(self) -> str | None:
+    return (
+      None
+      if self.request is None
+      else self.request.source_closure_fingerprint
+    )
+  ####
+
+  @property
+  def source_frontier_fingerprint(self) -> str | None:
+    return None if self.request is None else self.request.source_frontier_fingerprint
+  ####
+
+  @property
+  def local_band_converged(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalTransonicExpansionAttemptStatus
+      .CONVERGED_RESEARCH_MIXED_REGIME_BAND
+      and self.source_field_consumed
+      and self.local_entropy_band_verified
+      and not self.mixed_regime_closure_verified
+      and self.chain_promotion_blocked
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': 'op.moc.reflected-domain.global-transonic-expansion-attempt',
+      'status': self.status.value,
+      'local_band_converged': self.local_band_converged,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
+      'source_frontier_fingerprint': self.source_frontier_fingerprint,
+      'source_field_consumed': self.source_field_consumed,
+      'local_entropy_band_verified': self.local_entropy_band_verified,
+      'mixed_regime_closure_verified': self.mixed_regime_closure_verified,
+      'canonical_closure_verified': self.canonical_closure_verified,
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'outer_flow_angle_bracket': self.outer_flow_angle_bracket,
+      'minimum_upstream_static_pressure_Pa': (
+        self.minimum_upstream_static_pressure_Pa
+      ),
+      'target_pressure_Pa': self.target_pressure_Pa,
+      'pressure_lowering_required': self.pressure_lowering_required,
+      'source_field': (
+        None if self.source_field is None else self.source_field.as_report()
+      ),
+      'terminal_wedge': (
+        None if self.terminal_wedge is None else self.terminal_wedge.as_report()
+      ),
+      'entropy_trial': (
+        None if self.entropy_trial is None else self.entropy_trial.as_report()
+      ),
+      'characteristic_field': (
+        None
+        if self.characteristic_field is None
+        else self.characteristic_field.as_report()
+      ),
+      'continuation_closure': (
+        None
+        if self.continuation_closure is None
+        else self.continuation_closure.as_report()
+      ),
+      'claim_status': (
+        'exact-source-research-band-only; expansion/free-boundary closure, '
+        'stable refinement, physical shock-cell acceptance, external '
+        'validation, and production promotion remain open'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalTransonicPressureBudget:
   """Independent pressure feasibility evidence for the retained interface."""
@@ -441,6 +687,7 @@ class MocReflectedDomainGlobalTransonicClosureResult:
   request: MocReflectedDomainGlobalTransonicClosureRequest | None
   placement: MocTransonicShockInterfaceFieldPlacementResult | None = None
   pressure_budget: MocReflectedDomainGlobalTransonicPressureBudget | None = None
+  expansion_attempt: MocReflectedDomainGlobalTransonicExpansionAttempt | None = None
   interface_profile_build_audit: MocTransonicShockInterfaceProfileBuildAudit | None = None
   candidate: MocReflectedDomainGlobalCoupledDownstreamResult | None = None
   interface_audit: MocReflectedDomainGlobalTransonicInterfaceAudit | None = None
@@ -474,6 +721,12 @@ class MocReflectedDomainGlobalTransonicClosureResult:
       MocReflectedDomainGlobalTransonicPressureBudget,
     ):
       raise TypeError('pressure_budget must be a typed pressure budget or None')
+    ####
+    if self.expansion_attempt is not None and not isinstance(
+      self.expansion_attempt,
+      MocReflectedDomainGlobalTransonicExpansionAttempt,
+    ):
+      raise TypeError('expansion_attempt must be typed or None')
     ####
     if self.interface_profile_build_audit is not None and not isinstance(
       self.interface_profile_build_audit,
@@ -597,6 +850,11 @@ class MocReflectedDomainGlobalTransonicClosureResult:
         if self.pressure_budget is None
         else self.pressure_budget.as_report()
       ),
+      'expansion_attempt': (
+        None
+        if self.expansion_attempt is None
+        else self.expansion_attempt.as_report()
+      ),
       'interface_profile_build_audit': (
         None
         if self.interface_profile_build_audit is None
@@ -627,6 +885,7 @@ def _result(
   *,
   placement: MocTransonicShockInterfaceFieldPlacementResult | None = None,
   pressure_budget: MocReflectedDomainGlobalTransonicPressureBudget | None = None,
+  expansion_attempt: MocReflectedDomainGlobalTransonicExpansionAttempt | None = None,
   interface_profile_build_audit: MocTransonicShockInterfaceProfileBuildAudit | None = None,
   candidate: MocReflectedDomainGlobalCoupledDownstreamResult | None = None,
   interface_audit: MocReflectedDomainGlobalTransonicInterfaceAudit | None = None,
@@ -641,6 +900,7 @@ def _result(
     request=request,
     placement=placement,
     pressure_budget=pressure_budget,
+    expansion_attempt=expansion_attempt,
     interface_profile_build_audit=interface_profile_build_audit,
     candidate=candidate,
     interface_audit=interface_audit,
@@ -738,6 +998,306 @@ def _joint_interface_consumption_verified(
     and coupled_field.transonic_shock_interface_field_placement is placement
     and coupled_field.transonic_shock_interface_field_placement_consumed
     and coupled_field.transonic_shock_interface_profile_consumed
+  )
+####
+
+
+def run_reflected_domain_global_transonic_expansion_attempt(
+  request: MocReflectedDomainGlobalTransonicClosureRequest,
+  *,
+  pressure_floor_Pa: float | None = None,
+) -> MocReflectedDomainGlobalTransonicExpansionAttempt:
+  """Carry the exact global field into the bounded mixed-regime research lane.
+
+  The existing entropy-characteristic continuation is the highest-fidelity
+  pressure-lowering path currently available to this gate.  It is consumed
+  only from the exact retained global Euler field.  If the continuation still
+  asks the compression-only boundary marcher to handle a negative turn, the
+  result is a typed ``EXPANSION_REQUIRED`` stop; no endpoint or pressure is
+  invented and the global closure remains open.
+  """
+
+  status_type = MocReflectedDomainGlobalTransonicExpansionAttemptStatus
+  if not isinstance(
+    request,
+    MocReflectedDomainGlobalTransonicClosureRequest,
+  ):
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.INVALID_INPUT,
+      request=None,
+      message=(
+        'request must be a MocReflectedDomainGlobalTransonicClosureRequest'
+      ),
+    )
+  ####
+  closure = request.closure
+  source_lineage_verified = bool(
+    request.source_frontier_fingerprint is not None
+    and closure.converged
+    and closure.physical_closure_verified
+    and closure.source_frontier_verified
+  )
+  if not source_lineage_verified:
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.SOURCE_CLOSURE_FAILURE,
+      request=request,
+      message=(
+        'exact-source expansion attempt requires a locally verified global '
+        'physical closure and frontier fingerprint'
+      ),
+    )
+  ####
+  global_euler = closure.global_euler
+  physical = None if global_euler is None else global_euler.physical_field
+  source_field = None if physical is None else physical
+  exact_field = None if physical is None else physical.field
+  if (
+    physical is None
+    or exact_field is None
+    or not physical.converged
+    or not physical.physical_closure_verified
+    or not physical.state_sampling_available
+  ):
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.SOURCE_FIELD_FAILURE,
+      request=request,
+      source_field=source_field,
+      message=(
+        'exact-source expansion attempt requires the retained global Euler '
+        'physical field with a bounded state sampler'
+      ),
+    )
+  ####
+  curve = None if global_euler is None else global_euler.shock_boundary
+  upstream_static = () if curve is None else tuple(curve.upstream_static_pressure_Pa)
+  if pressure_floor_Pa is not None:
+    try:
+      supplied_floor = float(pressure_floor_Pa)
+    except (TypeError, ValueError):
+      supplied_floor = float('nan')
+    ####
+    if not isfinite(supplied_floor) or supplied_floor <= 0.0:
+      return MocReflectedDomainGlobalTransonicExpansionAttempt(
+        status=status_type.INVALID_INPUT,
+        request=request,
+        source_field=source_field,
+        source_field_consumed=physical is closure.global_euler.physical_field,
+        message='pressure_floor_Pa must be finite and positive when supplied',
+      )
+    ####
+  elif not upstream_static or any(
+    not isfinite(float(value)) or float(value) <= 0.0
+    for value in upstream_static
+  ):
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.SOURCE_FIELD_FAILURE,
+      request=request,
+      source_field=source_field,
+      source_field_consumed=physical is closure.global_euler.physical_field,
+      message=(
+        'exact-source expansion attempt requires finite upstream static '
+        'pressure samples on the retained shock curve'
+      ),
+    )
+  ####
+  minimum_upstream = (
+    float(pressure_floor_Pa)
+    if pressure_floor_Pa is not None
+    else min(float(value) for value in upstream_static)
+  )
+  pressure_tolerance = max(
+    1.0e-9,
+    1.0e-12 * max(minimum_upstream, request.ambient_pressure_Pa),
+  )
+  pressure_lowering_required = bool(
+    request.ambient_pressure_Pa < minimum_upstream - pressure_tolerance
+  )
+  common = {
+    'request': request,
+    'source_field': source_field,
+    'minimum_upstream_static_pressure_Pa': minimum_upstream,
+    'target_pressure_Pa': request.ambient_pressure_Pa,
+    'pressure_lowering_required': pressure_lowering_required,
+    'source_field_consumed': physical is closure.global_euler.physical_field,
+  }
+  try:
+    terminal_wedge = solve_euler_ambient_first_wedge_characteristic_remesh(
+      physical,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.TERMINAL_WEDGE_FAILURE,
+      message=f'exact-source terminal wedge solve raised: {error}',
+      **common,
+    )
+  ####
+  if not (
+    terminal_wedge.converged
+    and terminal_wedge.characteristic_geometry_verified
+    and terminal_wedge.variable_entropy_compatibility_verified
+  ):
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.TERMINAL_WEDGE_FAILURE,
+      terminal_wedge=terminal_wedge,
+      message=(
+        'exact-source terminal wedge did not pass its local characteristic '
+        f'gates: {terminal_wedge.message}'
+      ),
+      **common,
+    )
+  ####
+  try:
+    entropy_trial = solve_euler_ambient_first_wedge_entropy_carry(
+      terminal_wedge,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.ENTROPY_CARRY_FAILURE,
+      terminal_wedge=terminal_wedge,
+      message=f'exact-source entropy carry solve raised: {error}',
+      **common,
+    )
+  ####
+  if not (
+    entropy_trial.status
+    is MocEulerAmbientFirstWedgeEntropyCarryStatus.CONVERGED_LOCAL_ENTROPY_CARRY
+    and entropy_trial.pressure_lineage_verified
+    and entropy_trial.variable_entropy_compatibility_verified
+    and entropy_trial.cell_euler_residual_verified
+  ):
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.ENTROPY_CARRY_FAILURE,
+      terminal_wedge=terminal_wedge,
+      entropy_trial=entropy_trial,
+      message=(
+        'exact-source entropy carry did not pass its independent pressure, '
+        f'characteristic, and local Euler gates: {entropy_trial.message}'
+      ),
+      **common,
+    )
+  ####
+  try:
+    characteristic_field = (
+      solve_euler_ambient_first_wedge_entropy_characteristic_field(
+        entropy_trial,
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.CHARACTERISTIC_FIELD_FAILURE,
+      terminal_wedge=terminal_wedge,
+      entropy_trial=entropy_trial,
+      message=f'exact-source characteristic field solve raised: {error}',
+      **common,
+    )
+  ####
+  local_entropy_band_verified = bool(
+    characteristic_field.converged
+    and characteristic_field.local_consistency_verified
+    and characteristic_field.state_sampling_available
+    and characteristic_field.continuation_boundary_verified
+    and characteristic_field.pressure_lineage_verified
+    and characteristic_field.cell_euler_residuals_verified
+  )
+  if not local_entropy_band_verified:
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.CHARACTERISTIC_FIELD_FAILURE,
+      terminal_wedge=terminal_wedge,
+      entropy_trial=entropy_trial,
+      characteristic_field=characteristic_field,
+      message=(
+        'exact-source entropy-characteristic band did not pass its bounded '
+        f'local gates: {characteristic_field.message}'
+      ),
+      **common,
+    )
+  ####
+  boundary_states = tuple(
+    sample.state for sample in characteristic_field.continuation_boundary
+  )
+  if not boundary_states:
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.CHARACTERISTIC_FIELD_FAILURE,
+      terminal_wedge=terminal_wedge,
+      entropy_trial=entropy_trial,
+      characteristic_field=characteristic_field,
+      message='exact-source entropy-characteristic band retained no frontier states',
+      **common,
+    )
+  ####
+  angle_bracket = (
+    min(state.theta_rad for state in boundary_states) - 0.2,
+    max(state.theta_rad for state in boundary_states) + 0.2,
+  )
+  try:
+    continuation_closure = (
+      solve_euler_ambient_first_wedge_entropy_characteristic_continuation_closure(
+        characteristic_field,
+        characteristic_field.continuation_boundary,
+        request.ambient_pressure_Pa,
+        angle_bracket[0],
+        angle_bracket[1],
+        cycle_count=4,
+        subdivision_side_count=32,
+        target_centerline_y_m=0.0,
+        target_centerline_flow_angle_rad=0.0,
+        sample_count=request.sample_count,
+        allow_zero_strength_attachment=True,
+        allow_zero_strength_endpoints=True,
+        use_outgoing_frontier_bridge=True,
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=(
+        status_type.EXPANSION_REQUIRED
+        if pressure_lowering_required
+        else status_type.CONTINUATION_FAILURE
+      ),
+      terminal_wedge=terminal_wedge,
+      entropy_trial=entropy_trial,
+      characteristic_field=characteristic_field,
+      outer_flow_angle_bracket=angle_bracket,
+      message=f'exact-source mixed-regime continuation raised: {error}',
+      **common,
+    )
+  ####
+  if continuation_closure.local_closure_verified:
+    return MocReflectedDomainGlobalTransonicExpansionAttempt(
+      status=status_type.CONVERGED_RESEARCH_MIXED_REGIME_BAND,
+      terminal_wedge=terminal_wedge,
+      entropy_trial=entropy_trial,
+      characteristic_field=characteristic_field,
+      continuation_closure=continuation_closure,
+      outer_flow_angle_bracket=angle_bracket,
+      local_entropy_band_verified=True,
+      mixed_regime_closure_verified=False,
+      message=(
+        'exact-source mixed-regime continuation formed a bounded local band; '
+        'global expansion/free-boundary closure and production promotion '
+        'remain blocked'
+      ),
+      **common,
+    )
+  ####
+  return MocReflectedDomainGlobalTransonicExpansionAttempt(
+    status=(
+      status_type.EXPANSION_REQUIRED
+      if pressure_lowering_required
+      else status_type.CONTINUATION_FAILURE
+    ),
+    terminal_wedge=terminal_wedge,
+    entropy_trial=entropy_trial,
+    characteristic_field=characteristic_field,
+    continuation_closure=continuation_closure,
+    outer_flow_angle_bracket=angle_bracket,
+    local_entropy_band_verified=True,
+    message=(
+      'the exact-source entropy-characteristic band is locally verified, but '
+      'the retained continuation/free-boundary path did not close: '
+      f'{continuation_closure.message}'
+    ),
+    **common,
   )
 ####
 
@@ -878,12 +1438,17 @@ def run_reflected_domain_global_transonic_closure(
     )
     or pressure_budget.hard_stop_required
   ):
+    expansion_attempt = run_reflected_domain_global_transonic_expansion_attempt(
+      request,
+      pressure_floor_Pa=pressure_budget.minimum_upstream_static_pressure_Pa,
+    )
     return _result(
       MocReflectedDomainGlobalTransonicClosureStatus.INTERFACE_TARGET_UNREACHABLE,
       request,
       placement=placement,
       pressure_budget=pressure_budget,
       interface_profile_build_audit=profile_audit,
+      expansion_attempt=expansion_attempt,
       source_lineage_verified=True,
       placement_lineage_verified=placement_lineage_verified,
       message=(

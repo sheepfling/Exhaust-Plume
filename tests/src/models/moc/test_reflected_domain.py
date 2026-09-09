@@ -183,6 +183,7 @@ from exhaust_plume.validation.moc_global_transonic_interface import (
 from exhaust_plume.validation.moc_global_transonic_closure import (
   MocReflectedDomainGlobalTransonicClosureRequest,
   MocReflectedDomainGlobalTransonicClosureStatus,
+  MocReflectedDomainGlobalTransonicExpansionAttemptStatus,
   run_reflected_domain_global_transonic_closure,
 )
 from exhaust_plume.validation.moc_transonic_interface import (
@@ -828,6 +829,19 @@ def test_global_transonic_closure_stops_before_infeasible_compression_target():
   assert result.pressure_budget.hard_stop_required
   assert result.downstream_field_attempted is False
   assert result.candidate is None
+  assert result.expansion_attempt is not None
+  assert result.expansion_attempt.status is (
+    MocReflectedDomainGlobalTransonicExpansionAttemptStatus
+    .EXPANSION_REQUIRED
+  )
+  assert result.expansion_attempt.source_field_consumed
+  assert result.expansion_attempt.pressure_lowering_required
+  assert result.expansion_attempt.local_entropy_band_verified
+  assert result.expansion_attempt.mixed_regime_closure_verified is False
+  assert result.expansion_attempt.characteristic_field is not None
+  assert result.expansion_attempt.characteristic_field.converged
+  assert result.expansion_attempt.continuation_closure is not None
+  assert result.expansion_attempt.continuation_closure.converged is False
   assert result.converged is False
   assert result.physical_closure_verified is False
   assert result.canonical_closure_verified is False

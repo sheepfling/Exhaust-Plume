@@ -3358,3 +3358,24 @@ ambient neighbors; the operator must retain this pressure-budget gate when
 that higher-fidelity law is added.  Canonical closure, physical shock-cell
 acceptance, provider-bound Signature/FPA validation, and release promotion
 remain blocked.
+
+### P2.2d exact-source mixed-regime continuation checkpoint — 2026-09-09
+
+The transonic gate now carries a separate solver-owned expansion/mixed-regime
+attempt on the exact retained global Euler field.  The attempt consumes the
+field by identity, builds the terminal characteristic wedge, solves the local
+entropy-carry trial, and independently verifies the bounded
+entropy-characteristic band before trying continuation.  It never imports the
+variable-entropy scalar reference or a caller-provided endpoint into the
+global lane.
+
+On the retained target, the local band passes, but the continuation remesh
+reaches the existing compression-only free-boundary path at a negative-turn
+sample.  The result therefore returns the typed
+``global-transonic-expansion-required`` stop with the exact source and frontier
+fingerprints, rather than converting the failed continuation into a pressure
+or geometry value.  ``mixed_regime_closure_verified`` remains false and chain
+promotion remains blocked.  The next physics slice is a true shock/expansion
+mixed-wave interface law with the same independent centerline, ambient,
+entropy, Euler, and refinement audits; this checkpoint is evidence-plumbing
+and a bounded research continuation, not canonical closure.
