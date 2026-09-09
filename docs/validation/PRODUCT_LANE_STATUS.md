@@ -333,3 +333,11 @@ repository-local contract fixtures; it is not external validation evidence.
 
 The missing external archive is a release blocker, not a reason to weaken the
 fidelity boundaries or synthesize replacement measurements.
+
+The lane validator also checks the mission-time product-composition seam across
+the three products at prescribed 0, 5, and 10 second states.  It verifies exact
+source snapshot and pose lineage for Visualization, Signature angular
+timeline/heat-map/query outputs, and FPA exposure, detector/ADC, and selected
+pixel outputs.  This local composition check passes, while external trajectory,
+observer, atmospheric, and detector comparisons remain pending; it does not
+change the report's `release_ready: false` status.

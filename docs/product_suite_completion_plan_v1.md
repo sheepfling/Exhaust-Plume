@@ -2942,3 +2942,22 @@ validator returns `local_status=passed` while retaining
 `release_ready=false`.  These fixtures establish local adapter coverage only;
 provider-bound visual observations, canonical planar-MOC closure, and the
 remaining Signature/ray/FPA external gates are unchanged.
+
+### Mission-time executable product-composition checkpoint — 2026-09-08
+
+The product-lane validator now exercises the prescribed mission-time seam
+across all three products.  A repository-local three-state schedule at 0, 5,
+and 10 seconds is advanced without inferred temporal evolution and is checked
+for exact source snapshot, pose, and lineage preservation.  The Visualization
+lane emits one snapshot per mission state; the Signature lane produces an
+exact angular timeline, heat map, and point query; and the FPA lane produces
+an exact exposure timeline, deterministic detector/ADC outputs, and a selected
+pixel projection.
+
+The focused mission-time and adjacent product regression slice passes
+(`54 passed`), and the complete product-lane validator reports
+`local_status=passed`.  The report keeps the mission-time claim ceiling at
+prescribed composition with exact source lineage: it does not claim a solved
+transient, trajectory, chemistry, detector-noise process, or external product
+comparison.  Provider-bound observer, atmospheric, detector, and trajectory
+measurements remain release gates.

@@ -73,11 +73,19 @@ from exhaust_plume.products import (  # noqa: E402
   LineRadiationProfile,
   LtePopulationClosure,
   LteTransition,
+  GrayRadiationProfile,
+  MissionFpaEvaluator,
+  MissionSignatureEvaluator,
+  MissionState,
+  MissionTimeline,
+  MissionVisualizationEvaluator,
   MODEL_VISUALIZATION_LANES,
   ModelSignatureSampling,
   ModelVisualizationLane,
   SectionedGrayRadiationProfile,
+  SIGNATURE_ANGULAR_TIMELINE_SCHEMA,
   evaluate_model_signature,
+  build_signature_angular_heatmap,
   standardize_all_model_visualizations,
   standardize_model_visualization,
 )
@@ -556,6 +564,256 @@ def _run_visual_lane() -> dict[str, Any]:
       'reason': 'The current visual contract exposes geometry/display channels, while the recovered CJ gate requires explicit pressure/velocity/Mach feature operators.'
     },
     'claim_ceiling': 'Engineering-approximate straight visual geometry and named display features only.',
+  }
+####
+
+
+def _run_mission_time_product_lane() -> dict[str, Any]:
+  """Exercise prescribed-time composition across Visual, Signature, and FPA."""
+
+  def mission_pose(time_s: float) -> Pose:
+    return Pose(
+      frame_id='world',
+      translation_m=(10.0 * time_s, 2.0 * time_s, 100.0 * time_s),
+      rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
+    )
+  ####
+
+  timeline = MissionTimeline(tuple(
+    MissionState(
+      time_s=time_s,
+      source_pose=mission_pose(time_s),
+      geopotential_altitude_m=100.0 * time_s,
+      throttle_fraction=1.0 - 0.05 * time_s,
+      remaining_propellant_mass_kg=100.0 - 5.0 * time_s,
+      operating_point_id=f'mission-{time_s:g}',
+      dynamic_state={'engine_mode': 'boost' if time_s < 5.0 else 'sustain'},
+      ambient_state={'atmosphere_model': 'declared-standard'},
+    )
+    for time_s in (0.0, 5.0, 10.0)
+  ))
+  mission_times_s = tuple(state.time_s for state in timeline.states)
+  ####
+
+  basic_result = _model_visualization_contract_inputs()[
+    ModelVisualizationLane.BASIC_SHOCK_CELL
+  ]
+  visualization = standardize_model_visualization(
+    basic_result,
+    lane=ModelVisualizationLane.BASIC_SHOCK_CELL,
+    frame_id='source-local',
+    section_count=12,
+  )
+  visual_evaluator = MissionVisualizationEvaluator(
+    timeline=timeline,
+    visualization_at=lambda _state: visualization,
+    request=VisualSectionedTubeRequest(
+      output_frame_id=visualization.frame_id,
+      sampling=VisualSampling(maximum_section_count=8),
+    ),
+  )
+  visual_samples = tuple(
+    visual_evaluator.sample_at(time_s) for time_s in mission_times_s
+  )
+  visual_passed = bool(
+    tuple(sample.state.time_s for sample in visual_samples) == mission_times_s
+    and all(
+      sample.visual_product.metadata.snapshot.time_s == sample.state.time_s
+      and sample.visual_product.metadata.snapshot.source_pose == sample.state.source_pose
+      and sample.visual_product.metadata.provenance.metadata[
+        'mission_timeline_schema'
+      ] == 'plume.mission-timeline@1'
+      for sample in visual_samples
+    )
+  )
+  ####
+
+  def optical_profile_for_state(state: MissionState) -> GrayRadiationProfile:
+    throttle = state.throttle_fraction or 0.0
+    return GrayRadiationProfile(
+      wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+      source_function_w_sr_m=(2.0 * throttle, 3.0 * throttle, 4.0 * throttle),
+      absorption_coefficient_per_m=(0.5, 1.0, 1.5),
+      profile_id=f'mission-gray-{state.time_s:g}',
+    )
+  ####
+
+  signature_evaluator = MissionSignatureEvaluator(
+    timeline=timeline,
+    visualization_at=lambda _state: visualization,
+    optical_profile_at=optical_profile_for_state,
+    sampling=ModelSignatureSampling(
+      source_to_observer_directions=(
+        (1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+      ),
+      transverse_sample_count=5,
+    ),
+  )
+  signature_timeline = signature_evaluator.evaluate_timeline(mission_times_s)
+  signature_heatmap = build_signature_angular_heatmap(
+    signature_timeline,
+    time_s=5.0,
+    wavelength_index=1,
+  )
+  signature_query = signature_evaluator.query_at(
+    time_s=5.0,
+    direction_index=0,
+    wavelength_index=1,
+  )
+  signature_passed = bool(
+    signature_timeline.times_s == mission_times_s
+    and signature_heatmap.time_s == 5.0
+    and signature_heatmap.valid_direction_count == 2
+    and signature_query.source_result_id
+    == signature_timeline.sample_at(5.0).result.metadata.result_id
+    and signature_timeline.sample_at(0.0).result.spectral_radiant_intensity
+    != signature_timeline.sample_at(5.0).result.spectral_radiant_intensity
+    and all(
+      sample.result.metadata.snapshot.time_s == sample.time_s
+      for sample in signature_timeline.samples
+    )
+  )
+  ####
+
+  def ray_transfer_for_state(
+    state: MissionState,
+  ) -> tuple[tuple[float, ...], Any]:
+    definition = _gray_definition()
+    session = GrayRayTransferProvider().create_session(definition=definition)
+    try:
+      snapshot = session.create_snapshot(
+        time_s=state.time_s,
+        source_pose=state.source_pose,
+        dynamic_state=state.snapshot_dynamic_state(),
+        ambient_state=state.snapshot_ambient_state(),
+      )
+      result = snapshot.evaluate(
+        SPECTRAL_RAY_TRANSFER_V1,
+        SpectralRayTransferRequest(
+          ray_frame_id='sensor',
+          ray_origins_m=((-2.0, 0.0, 0.0), (-2.0, 2.0, 0.0)),
+          ray_directions=((1.0, 0.0, 0.0), (1.0, 0.0, 0.0)),
+          ray_t_min_m=(0.0, 0.0),
+          ray_t_max_m=(10.0, 10.0),
+          wavelengths_m=definition.wavelengths_m,
+        ),
+      )
+    finally:
+      session.close()
+    ####
+    return definition.wavelengths_m, result
+  ####
+
+  def fpa_geometry(_state: MissionState) -> FpaPixelGeometry:
+    return FpaPixelGeometry(
+      width_px=2,
+      height_px=1,
+      ray_pixel_indices_row_col=((0, 0), (0, 1)),
+      ray_collection_weights_m2_sr=(1.0e-6, 2.0e-6),
+      camera_optics=FpaCameraOptics(
+        camera_id='mission-camera-v1',
+        focal_length_m=0.05,
+        pixel_pitch_m=(5.0e-6, 5.0e-6),
+        principal_point_px=(0.5, 0.0),
+        aperture_area_m2=1.0e-4,
+      ),
+    )
+  ####
+
+  def fpa_detector(_state: MissionState) -> DetectorResponse:
+    return DetectorResponse(
+      wavelengths_m=(1.0e-6, 2.0e-6, 3.0e-6),
+      quantum_efficiency=(0.5, 0.6, 0.7),
+      optical_throughput=(0.8, 0.9, 1.0),
+      response_id='mission-detector-v1',
+    )
+  ####
+
+  digitization_policy = FpaDigitizationPolicy(
+    electrons_per_count=1.0e12,
+    bit_depth=16,
+    policy_id='mission-adc-v1',
+  )
+  fpa_evaluator = MissionFpaEvaluator(
+    timeline=timeline,
+    ray_transfer_at=ray_transfer_for_state,
+    geometry_at=fpa_geometry,
+    detector_at=fpa_detector,
+    exposure_s_at=lambda state: 1.0 + state.time_s / 10.0,
+    digitization_policy_at=lambda _state: digitization_policy,
+  )
+  fpa_timeline = fpa_evaluator.evaluate_timeline(mission_times_s)
+  fpa_initial = fpa_timeline.sample_at(0.0)
+  fpa_midpoint = fpa_timeline.sample_at(5.0)
+  fpa_projection = fpa_timeline.project_at(5.0)
+  fpa_passed = bool(
+    fpa_timeline.times_s == mission_times_s
+    and fpa_initial.ray_transfer.metadata.snapshot.time_s == 0.0
+    and fpa_midpoint.ray_transfer.metadata.snapshot.time_s == 5.0
+    and fpa_midpoint.ray_transfer.metadata.snapshot.source_pose
+    == fpa_midpoint.state.source_pose
+    and fpa_midpoint.exposure_s == 1.5
+    and fpa_midpoint.image.expected_electrons[0][0]
+    > fpa_initial.image.expected_electrons[0][0]
+    and fpa_midpoint.digitized_available
+    and fpa_midpoint.inputs.operator_ids == (
+      FPA_PIXEL_DETECTOR_OPERATOR_ID,
+      FPA_DIGITIZATION_OPERATOR_ID,
+    )
+    and fpa_projection.selected_pixel.valid
+  )
+  ####
+
+  passed = visual_passed and signature_passed and fpa_passed
+  return {
+    'lane_id': 'mission-time-product-composition-v1',
+    'status': 'passed' if passed else 'failed',
+    'mission_times_s': list(mission_times_s),
+    'visualization': {
+      'status': 'passed' if visual_passed else 'failed',
+      'sample_count': len(visual_samples),
+      'snapshot_times_s': [
+        sample.visual_product.metadata.snapshot.time_s
+        for sample in visual_samples
+      ],
+      'model_lane': visualization.lane_id,
+    },
+    'signature': {
+      'status': 'passed' if signature_passed else 'failed',
+      'timeline_schema': SIGNATURE_ANGULAR_TIMELINE_SCHEMA,
+      'heatmap_time_s': signature_heatmap.time_s,
+      'heatmap_valid_direction_count': signature_heatmap.valid_direction_count,
+      'query_source_result_id': signature_query.source_result_id,
+      'result_ids': [
+        sample.result.metadata.result_id
+        for sample in signature_timeline.samples
+      ],
+    },
+    'focal_plane_array': {
+      'status': 'passed' if fpa_passed else 'failed',
+      'timeline_times_s': list(fpa_timeline.times_s),
+      'operator_ids': list(fpa_midpoint.inputs.operator_ids),
+      'camera_id': fpa_midpoint.geometry.camera_optics.camera_id,
+      'midpoint_exposure_s': fpa_midpoint.exposure_s,
+      'selected_pixel_valid': fpa_projection.selected_pixel.valid,
+      'source_snapshot_ids': [
+        sample.source.snapshot_id for sample in fpa_timeline.samples
+      ],
+    },
+    'external_comparison': {
+      'status': 'pending',
+      'reason': (
+        'The mission schedule and callbacks are repository-local fixtures; '
+        'provider-bound trajectory, observer, detector, and atmospheric '
+        'measurements remain a separate release gate.'
+      ),
+    },
+    'claim_ceiling': (
+      'Prescribed mission-time composition with exact source lineage only; '
+      'no solved transient, trajectory, chemistry, detector-noise, or '
+      'external product claim.'
+    ),
   }
 ####
 
@@ -1561,7 +1819,14 @@ def main(argv: list[str] | None = None) -> int:
   curved_optical = _run_check('curved-optical-transfer-v1', _run_curved_optical_lane)
   cross_product = _run_check('ray-to-signature-consistency-v1', _run_cross_product_consistency)
   fpa = _run_check('focal-plane-array-v1', _run_fpa_boundary)
-  local_passed = all(result['status'] in {'passed', 'boundary-validated-downstream'} for result in (visual, signature, optical, cross_product, fpa))
+  mission_time = _run_check(
+    'mission-time-product-composition-v1',
+    _run_mission_time_product_lane,
+  )
+  local_passed = all(
+    result['status'] in {'passed', 'boundary-validated-downstream'}
+    for result in (visual, signature, optical, cross_product, fpa, mission_time)
+  )
   report = {
     'report_id': 'exhaust-plume-product-lane-validation-v1',
     'local_status': 'passed' if local_passed else 'failed',
@@ -1573,6 +1838,7 @@ def main(argv: list[str] | None = None) -> int:
       'curved_optical': curved_optical,
       'cross_product': cross_product,
       'focal_plane_array': fpa,
+      'mission_time': mission_time,
     },
     'external_corpus': _external_summary(args.corpus),
     'release_ready': False,

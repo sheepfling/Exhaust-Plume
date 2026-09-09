@@ -8,6 +8,7 @@ from scripts.validate_product_lanes import (
   _run_cross_product_consistency,
   _run_curved_optical_lane,
   _run_fpa_boundary,
+  _run_mission_time_product_lane,
   _run_model_visualization_lanes,
   _run_optical_lane,
   _run_signature_lane,
@@ -74,6 +75,22 @@ def test_all_five_model_visualization_lanes_are_checked_as_one_bundle_contract()
     'washed-integral-v1': False,
     'planar-moc-primitives-v1': False,
   }
+  assert report['external_comparison']['status'] == 'pending'
+
+
+def test_mission_time_validator_binds_visual_signature_and_fpa_products() -> None:
+  report = _run_mission_time_product_lane()
+
+  assert report['status'] == 'passed'
+  assert report['mission_times_s'] == [0.0, 5.0, 10.0]
+  assert report['visualization']['status'] == 'passed'
+  assert report['visualization']['snapshot_times_s'] == [0.0, 5.0, 10.0]
+  assert report['signature']['status'] == 'passed'
+  assert report['signature']['heatmap_time_s'] == 5.0
+  assert report['signature']['heatmap_valid_direction_count'] == 2
+  assert report['focal_plane_array']['status'] == 'passed'
+  assert report['focal_plane_array']['midpoint_exposure_s'] == 1.5
+  assert report['focal_plane_array']['selected_pixel_valid'] is True
   assert report['external_comparison']['status'] == 'pending'
 ####
 
