@@ -4,6 +4,7 @@
     "candidate_worktree_clean": true,
     "fpa_provider_guard_passed": true,
     "low_fidelity_promotion_detected": false,
+    "mission_time_composition_passed": true,
     "provider_preflight_release_ready": false,
     "release_freeze_matches_candidate_head": false
   },
@@ -20,6 +21,7 @@
       "local_release_ready": false,
       "local_release_status": "not-released-validation-pending",
       "matrix_status": "experimental",
+      "product_evidence_source": null,
       "product_report_status": null,
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
@@ -45,6 +47,7 @@
       "local_release_ready": true,
       "local_release_status": "scoped-local-release",
       "matrix_status": "active",
+      "product_evidence_source": "committed-product-report.lanes.visual",
       "product_report_status": "passed",
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
@@ -71,6 +74,7 @@
       "local_release_ready": true,
       "local_release_status": "scoped-local-release",
       "matrix_status": "active",
+      "product_evidence_source": "committed-product-report.lanes.signature",
       "product_report_status": "passed",
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
@@ -96,6 +100,7 @@
       "local_release_ready": false,
       "local_release_status": "not-released-validation-pending",
       "matrix_status": "experimental",
+      "product_evidence_source": null,
       "product_report_status": null,
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
@@ -117,6 +122,7 @@
       "local_release_ready": true,
       "local_release_status": "scoped-local-release",
       "matrix_status": "active-validation-pending",
+      "product_evidence_source": "committed-product-report.lanes.visual.standardized_model_lanes",
       "product_report_status": "passed",
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
@@ -141,6 +147,7 @@
       "local_release_ready": true,
       "local_release_status": "scoped-local-release",
       "matrix_status": "active",
+      "product_evidence_source": "committed-product-report.lanes.optical",
       "product_report_status": "passed",
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
@@ -165,6 +172,7 @@
       "local_release_ready": false,
       "local_release_status": "not-released-validation-pending",
       "matrix_status": "experimental",
+      "product_evidence_source": "committed-product-report.lanes.curved_optical",
       "product_report_status": "diagnostic-only",
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
@@ -184,6 +192,7 @@
       "local_release_ready": true,
       "local_release_status": "scoped-downstream-boundary",
       "matrix_status": "validated-downstream",
+      "product_evidence_source": "committed-product-report.lanes.focal_plane_array",
       "product_report_status": "boundary-validated-downstream",
       "promotion_guard": {
         "advertised_disjoint_from_forbidden": true,
@@ -192,6 +201,62 @@
       "provider_ids": []
     }
   ],
+  "mission_time_composition": {
+    "claim_ceiling": "Prescribed mission-time composition with exact source lineage only; no solved transient, trajectory, chemistry, detector-noise, or external product claim.",
+    "external_comparison": {
+      "reason": "The mission schedule and callbacks are repository-local fixtures; provider-bound trajectory, observer, detector, and atmospheric measurements remain a separate release gate.",
+      "status": "pending"
+    },
+    "focal_plane_array": {
+      "camera_id": "mission-camera-v1",
+      "midpoint_exposure_s": 1.5,
+      "operator_ids": [
+        "op.sensor.fpa-pixel-detector",
+        "op.sensor.fpa-digitization"
+      ],
+      "selected_pixel_valid": true,
+      "source_snapshot_ids": [
+        "2809d554d134c00d127c1aa7",
+        "81ca73a776e29b097aabcafb",
+        "3022aba4e9f7d1ec21f84baa"
+      ],
+      "status": "passed",
+      "timeline_times_s": [
+        0.0,
+        5.0,
+        10.0
+      ]
+    },
+    "lane_id": "mission-time-product-composition-v1",
+    "mission_times_s": [
+      0.0,
+      5.0,
+      10.0
+    ],
+    "signature": {
+      "heatmap_time_s": 5.0,
+      "heatmap_valid_direction_count": 2,
+      "query_source_result_id": "3451904d81eb00e6d96db771",
+      "result_ids": [
+        "beb5a19799c35c89eb604a12",
+        "3451904d81eb00e6d96db771",
+        "293d9dc0de2c46988f2af3c3"
+      ],
+      "status": "passed",
+      "timeline_schema": "plume.signature.angular-timeline@1"
+    },
+    "status": "passed",
+    "visualization": {
+      "model_lane": "shock-cell-basic-v1",
+      "sample_count": 3,
+      "snapshot_times_s": [
+        0.0,
+        5.0,
+        10.0
+      ],
+      "status": "passed"
+    }
+  },
   "release_policy": {
     "external_validation_required_for_product_claim": true,
     "fpa_is_downstream_adapter_only_until_provider_validation": true,
@@ -199,7 +264,7 @@
     "low_fidelity_promotion_forbidden": true
   },
   "release_provenance": {
-    "candidate_head_commit": "ab17e671952378051c06ddc4b6972ed3e62fb5f8",
+    "candidate_head_commit": "adf26746097eca9a475d3c950a14eba123d454e6",
     "candidate_head_matches_recorded_freeze": false,
     "candidate_head_matches_validated_code_commit": false,
     "candidate_worktree_clean": true,
