@@ -2820,14 +2820,37 @@ diff checks.  The trace-seeded candidate remains a no-endpoint-root research
 result; the high-level global closure returns a typed Euler/source-frontier
 failure when the positively compressed endpoint remains outside the first
 retained centerline edge.  This is useful failure evidence, not canonical
-closure.  The full repository regression must be refreshed from ``f4e0e76``
-before release-freeze evidence is current.
+closure.  The full repository regression was refreshed after this checkpoint
+by ``f167d69``; the compatibility result is recorded below.
 
 This checkpoint therefore leaves the claim ceiling unchanged:
 ``canonical_free_boundary_verified=false``,
 ``canonical_euler_verified=false``,
 ``external_validation_verified=false``, physical shock-cell observations are
 still absent, and ``production_claim_allowed=false``.
+
+### Trace-baseline compatibility checkpoint — 2026-09-08 (`f167d69`)
+
+The retained-trace baseline is now explicitly opt-in.  Existing terminal
+reflection and geometry-owned research chains retain the established affine
+endpoint law by default, while the new global trace-seeded research lane
+passes ``use_interpolated_trace_baseline=true`` and records the
+piecewise-linear retained-trace baseline in its profile report.  This keeps
+the two fidelity lanes segregated instead of silently changing an established
+research result while adding the new experiment.
+
+The focused compatibility regressions pass, including the deterministic
+geometry-owned chain and validation-report tests that previously detected the
+behavioral drift.  The exact pushed candidate also passes the complete
+repository regression: ``1181 passed, 18 warnings`` in ``1213.24s``
+(``20:13``).  The warnings are the existing legacy-API deprecations and
+projected-area numerical warnings; no new failure or promotion violation was
+introduced.  The branch is pushed and remains clean at this checkpoint.
+
+This is release evidence for regression stability only.  It does not close
+canonical reflected/free-boundary physics, physical shock-cell acceptance,
+provider-bound VIS/SIG/RAY/FPA validation, missing validation archives, or the
+release freeze; the current claim ceiling remains research-only.
 
 ### Full product-suite release map — 2026-09-08
 
@@ -2838,7 +2861,7 @@ are also accepted.
 
 | Gate | Must be true | Current state | Unlocks |
 | --- | --- | --- | --- |
-| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `f4e0e76` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
+| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `f167d69` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
 | Visualization | All five model lanes emit the common bundle, views, slices, paths, regions, masks, diagnostics, and provenance; supplied provider overlays use the declared operator | Local standardized gallery is complete; provider comparison is pending | Visualization product claim |
 | Mission-time composition | State/cursor advancement preserves source, pose, atmosphere, chemistry, optics, ray, Signature, and FPA lineage without inferred time evolution | Local timeline and exact Signature/FPA point/timeline seams are present | Time-resolved product demonstrations |
 | Solver fidelity | Basic, reduced-order, straight/washed, and planar-MOC lanes remain independently configured and promotion-guarded | Local separation passes; planar-MOC is still research-only | Controlled use of each fidelity |
