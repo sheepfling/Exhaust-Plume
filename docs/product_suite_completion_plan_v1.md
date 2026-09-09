@@ -1117,6 +1117,26 @@ research-only planar-MOC progression through bounded frontier placement.
 The release manifest still reports `release_ready=false`.  No release tag or
 production claim is authorized while any item below remains open.
 
+### Current checkpoint — 2026-09-08
+
+The latest pushed candidate is commit `5dff695` on
+`work/washed-integral-visual`.  This slice retains the independently measured
+solver-owned variable-entropy/mixed-regime reference on every global coupled
+downstream candidate, checks exact request and closure identity, and reports
+its research status without feeding the mapped reference into the coupled
+Euler boundary condition.  The canonical reflected-field, global-feedback,
+physical shock-length, provider-validation, and production gates remain
+unchanged and closed.
+
+Verification for this checkpoint is: 149 reflected-domain/MOC tests passed in
+the combined targeted run, 3 report-contract tests passed, Ruff and Pyright
+passed, and the checkout is clean and pushed.  The release audit is still
+`release_ready=false`; the remaining blockers are missing provider-bound
+measurement outputs and accepted operators, the absent disjoint reduced-order
+calibration/validation split, the unverified alignment archive, open
+canonical planar-MOC and physical shock-length closure, and a stale release
+freeze that must be regenerated only after the final candidate is settled.
+
 ### Candidate evidence checkpoint — 2026-09-05
 
 The earlier `57d23d501f75b96eca90ebb72beac1fa2daa83c6` checkpoint is
