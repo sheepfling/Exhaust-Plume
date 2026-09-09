@@ -3495,3 +3495,35 @@ independently rederive shock, entropy, Euler, geometry, centerline, ambient,
 and refinement residuals at every accepted iterate.  Canonical closure,
 physical shock-cell fitting, provider-bound validation, and release promotion
 remain blocked.
+
+### P2.2d exact mixed-wave downstream-consumption checkpoint — 2026-09-09
+
+The solver-owned mixed-wave terminal now has an explicit opt-in request seam,
+``build_reflected_domain_mixed_regime_boundary_request_from_perimeter``.  The
+legacy mixed-regime builder remains bound to the global-Euler terminal seam;
+the new builder requires the exact perimeter source, an exact entropy
+handoff, an anchored control section, and the retained global-closure
+fingerprint before a coupled field can consume the request.
+
+The new
+``op.moc.reflected-domain.global-transonic-mixed-wave-downstream-field``
+operator consumes that request in the coupled constant-γ Euler/free-boundary
+solver and retains the field result, mesh contract, entropy handoff, and
+control-section provenance.  On the current target fixture, the field reaches
+the existing typed ``coupled-euler-transonic-frontier-failure`` stop because
+the retained global frontier does not contain the scalar upstream state needed
+to place the transonic interface.  No field iteration or lower-fidelity
+fallback is attempted.  This is a useful source-to-consumer stop, not closure
+evidence: centerline closure, global feedback, refinement, external
+validation, physical shock-cell fitting, Signature/FPA acceptance, and release
+promotion remain blocked.
+
+The next P2.2d slice is therefore to place the solver-owned transonic
+interface inside this downstream field (or to implement a joint interface/
+field iteration that solves for it), then independently rederive the jump,
+entropy, conservative/Euler, ambient, centerline, geometry, and refinement
+residuals at each accepted iterate.  The full-suite order remains: canonical
+planar-MOC closure, physical shock-cell fitting, owner-supplied validation
+archives and provider comparisons for Visualization/Signature/ray/FPA,
+release-manifest refresh, package smoke, and only then merge toward ``main``
+and tag.

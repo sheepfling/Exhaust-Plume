@@ -48,6 +48,7 @@ __all__ = (
   'MocReflectedDomainMixedRegimeBoundaryRequest',
   'MocReflectedDomainMixedRegimeBoundaryResult',
   'build_reflected_domain_mixed_regime_boundary_request',
+  'build_reflected_domain_mixed_regime_boundary_request_from_perimeter',
   'solve_reflected_domain_mixed_regime_boundary',
 )
 
@@ -309,6 +310,7 @@ class MocReflectedDomainMixedRegimeBoundaryRequest:
   control_section_sample_count: int
   axial_station_count: int = 7
   source: str = MIXED_REGIME_BOUNDARY_MODEL
+  perimeter_contract_source: str | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -388,30 +390,81 @@ class MocReflectedDomainMixedRegimeBoundaryRequest:
         )
       ####
     ####
-    expected_request, expected_handoff = _derive_perimeter_inputs(
-      self.closure,
-    )
-    if self.perimeter_request != expected_request:
-      raise ValueError(
-        'perimeter_request is not the solver-derived global Euler terminal seam'
+    contract_source = self.perimeter_contract_source
+    if contract_source is None:
+      expected_request, expected_handoff = _derive_perimeter_inputs(
+        self.closure,
       )
+      if self.perimeter_request != expected_request:
+        raise ValueError(
+          'perimeter_request is not the solver-derived global Euler terminal seam'
+        )
+      ####
+      if self.entropy_handoff != expected_handoff:
+        raise ValueError(
+          'entropy_handoff is not the solver-derived global Euler pressure lineage'
+        )
+      ####
+      expected_section = _build_control_section(
+        expected_request,
+        expected_handoff,
+        x_offset_m=self.control_section_x_offset_m,
+        height_m=self.control_section_height_m,
+        sample_count=self.control_section_sample_count,
+      )
+      if self.control_section != expected_section:
+        raise ValueError(
+          'control_section was altered or is not bound to the entropy handoff'
+        )
+    else:
+      contract_source = str(contract_source)
+      if not contract_source:
+        raise ValueError('perimeter_contract_source must be non-empty')
+      ####
+      if self.perimeter_request.source != contract_source:
+        raise ValueError(
+          'perimeter_contract_source must match the exact perimeter source'
+        )
+      ####
+      terminal_point = self.perimeter_request.terminal_point_m
+      section_points = self.control_section.points_m
+      if len(section_points) != self.control_section_sample_count:
+        raise ValueError(
+          'solver-owned perimeter control section sample count does not match '
+          'the request'
+        )
+      ####
+      coordinate_tolerance = max(
+        1.0e-10,
+        1.0e-8 * max(abs(terminal_point[0]), abs(terminal_point[1]), 1.0),
+      )
+      if (
+        abs(section_points[0][0] - terminal_point[0] - self.control_section_x_offset_m)
+        > coordinate_tolerance
+        or abs(section_points[0][1] - terminal_point[1]) > coordinate_tolerance
+      ):
+        raise ValueError(
+          'solver-owned perimeter control section is not anchored to the '
+          'terminal point and declared axial offset'
+        )
+      ####
+      if (
+        abs(section_points[-1][1] - section_points[0][1] - self.control_section_height_m)
+        > coordinate_tolerance
+      ):
+        raise ValueError(
+          'solver-owned perimeter control section height does not match the '
+          'declared control-section height'
+        )
+      ####
+      if not self.control_section.source.startswith(contract_source):
+        raise ValueError(
+          'solver-owned perimeter control section does not retain the exact '
+          'perimeter contract source'
+        )
+      ####
+      object.__setattr__(self, 'perimeter_contract_source', contract_source)
     ####
-    if self.entropy_handoff != expected_handoff:
-      raise ValueError(
-        'entropy_handoff is not the solver-derived global Euler pressure lineage'
-      )
-    ####
-    expected_section = _build_control_section(
-      expected_request,
-      expected_handoff,
-      x_offset_m=self.control_section_x_offset_m,
-      height_m=self.control_section_height_m,
-      sample_count=self.control_section_sample_count,
-    )
-    if self.control_section != expected_section:
-      raise ValueError(
-        'control_section was altered or is not bound to the entropy handoff'
-      )
     ####
     source = str(self.source)
     if not source:
@@ -426,6 +479,7 @@ class MocReflectedDomainMixedRegimeBoundaryRequest:
     return {
       'model': MIXED_REGIME_BOUNDARY_MODEL,
       'source': self.source,
+      'perimeter_contract_source': self.perimeter_contract_source,
       'closure_fingerprint': self.closure_fingerprint,
       'upstream_handoff_sample_count': len(self.upstream_handoff),
       'perimeter_request': self.perimeter_request.as_report(),
@@ -803,6 +857,195 @@ def build_reflected_domain_mixed_regime_boundary_request(
     control_section_height_m=float(control_section_height_m),
     control_section_sample_count=control_section_sample_count,
     axial_station_count=axial_station_count,
+  )
+####
+
+
+def build_reflected_domain_mixed_regime_boundary_request_from_perimeter(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  perimeter_request: MocMixedRegimePerimeterRequest,
+  control_section: MocMixedRegimeControlSection,
+  *,
+  perimeter_contract_source: str,
+  ambient_pressure_Pa: float | None = None,
+  downstream_length_m: float = 0.2,
+  initial_outlet_height_m: float | None = None,
+  control_section_x_offset_m: float = 0.02,
+  control_section_height_m: float = 0.05,
+  control_section_sample_count: int | None = None,
+  axial_station_count: int = 7,
+  entropy_handoff: MocMixedRegimeEntropyHandoffResult | None = None,
+  source: str = (
+    'solver-owned-global-transonic-mixed-wave-interface-research-request'
+  ),
+) -> MocReflectedDomainMixedRegimeBoundaryRequest:
+  """Bind an explicit solver-owned perimeter to the coupled research seam.
+
+  The ordinary builder above remains intentionally bound to the canonical
+  global-Euler terminal seam.  This variant is an explicit research escape
+  hatch for a downstream solver that has produced a different, typed terminal
+  perimeter.  The perimeter source, entropy handoff, control-section geometry,
+  and closure fingerprint remain exact and auditable; no perimeter is inferred
+  here and the resulting request cannot authorize production claims.
+  """
+
+  if not isinstance(
+    closure,
+    MocReflectedDomainGlobalPhysicalClosureResult,
+  ):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if not closure.converged or not closure.physical_closure_verified:
+    raise ValueError(
+      'mixed-regime perimeter request requires a locally physically verified '
+      'global reflected closure'
+    )
+  ####
+  if not isinstance(perimeter_request, MocMixedRegimePerimeterRequest):
+    raise TypeError(
+      'perimeter_request must be a MocMixedRegimePerimeterRequest'
+    )
+  ####
+  if not isinstance(control_section, MocMixedRegimeControlSection):
+    raise TypeError(
+      'control_section must be a MocMixedRegimeControlSection'
+    )
+  ####
+  contract_source = str(perimeter_contract_source)
+  if not contract_source:
+    raise ValueError('perimeter_contract_source must be non-empty')
+  ####
+  if perimeter_request.source != contract_source:
+    raise ValueError(
+      'perimeter_contract_source must match the exact perimeter request source'
+    )
+  ####
+  if not control_section.source.startswith(contract_source):
+    raise ValueError(
+      'control_section must retain the exact perimeter contract source'
+    )
+  ####
+  resolved_handoff = entropy_handoff
+  if resolved_handoff is None:
+    resolved_handoff = build_mixed_regime_entropy_handoff(perimeter_request)
+  elif not isinstance(
+    resolved_handoff,
+    MocMixedRegimeEntropyHandoffResult,
+  ):
+    raise TypeError(
+      'entropy_handoff must be a MocMixedRegimeEntropyHandoffResult or None'
+    )
+  ####
+  if not resolved_handoff.converged:
+    raise ValueError(
+      'solver-owned perimeter entropy handoff did not converge: '
+      f'{resolved_handoff.message}'
+    )
+  ####
+  if resolved_handoff.request != perimeter_request:
+    raise ValueError(
+      'entropy_handoff must retain the exact solver-owned perimeter request'
+    )
+  ####
+  resolved_ambient = ambient_pressure_Pa
+  if resolved_ambient is None:
+    if closure.source_band is None or closure.source_band.ambient_pressure_Pa is None:
+      raise ValueError('closure does not retain an ambient pressure')
+    ####
+    resolved_ambient = closure.source_band.ambient_pressure_Pa
+  ####
+  resolved_sample_count = (
+    len(control_section.samples)
+    if control_section_sample_count is None
+    else control_section_sample_count
+  )
+  if (
+    isinstance(resolved_sample_count, bool)
+    or not isinstance(resolved_sample_count, int)
+    or resolved_sample_count < 3
+  ):
+    raise ValueError('control_section_sample_count must be at least three')
+  ####
+  if len(control_section.samples) != resolved_sample_count:
+    raise ValueError(
+      'control_section_sample_count must match the supplied control section'
+    )
+  ####
+  if (
+    isinstance(axial_station_count, bool)
+    or not isinstance(axial_station_count, int)
+    or axial_station_count < 5
+  ):
+    raise ValueError('axial_station_count must be at least five')
+  ####
+  resolved_height = (
+    control_section_height_m
+    if initial_outlet_height_m is None
+    else initial_outlet_height_m
+  )
+  for name, value in (
+    ('ambient_pressure_Pa', resolved_ambient),
+    ('downstream_length_m', downstream_length_m),
+    ('initial_outlet_height_m', resolved_height),
+    ('control_section_x_offset_m', control_section_x_offset_m),
+    ('control_section_height_m', control_section_height_m),
+  ):
+    if not isfinite(float(value)) or float(value) <= 0.0:
+      raise ValueError(f'{name} must be finite and positive')
+  ####
+  source_name = str(source)
+  if not source_name:
+    raise ValueError('source must be non-empty')
+  ####
+  terminal_point = perimeter_request.terminal_point_m
+  first_point = control_section.points_m[0]
+  last_point = control_section.points_m[-1]
+  coordinate_tolerance = max(
+    1.0e-10,
+    1.0e-8 * max(abs(terminal_point[0]), abs(terminal_point[1]), 1.0),
+  )
+  if (
+    abs(first_point[0] - terminal_point[0] - float(control_section_x_offset_m))
+    > coordinate_tolerance
+    or abs(first_point[1] - terminal_point[1]) > coordinate_tolerance
+  ):
+    raise ValueError(
+      'control_section must begin at the terminal point plus the declared '
+      'axial offset'
+    )
+  ####
+  if (
+    abs(
+      last_point[1]
+      - first_point[1]
+      - float(control_section_height_m)
+    )
+    > coordinate_tolerance
+  ):
+    raise ValueError(
+      'control_section ordinate span must match the declared section height'
+    )
+  ####
+  return MocReflectedDomainMixedRegimeBoundaryRequest(
+    closure_fingerprint=moc_reflected_domain_global_physical_closure_fingerprint(
+      closure
+    ),
+    closure=closure,
+    upstream_handoff=closure.incoming_handoff,
+    perimeter_request=perimeter_request,
+    entropy_handoff=resolved_handoff,
+    control_section=control_section,
+    ambient_pressure_Pa=float(resolved_ambient),
+    downstream_length_m=float(downstream_length_m),
+    initial_outlet_height_m=float(resolved_height),
+    control_section_x_offset_m=float(control_section_x_offset_m),
+    control_section_height_m=float(control_section_height_m),
+    control_section_sample_count=resolved_sample_count,
+    axial_station_count=axial_station_count,
+    source=source_name,
+    perimeter_contract_source=contract_source,
   )
 ####
 

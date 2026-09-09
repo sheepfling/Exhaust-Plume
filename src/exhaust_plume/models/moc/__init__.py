@@ -438,6 +438,7 @@ from exhaust_plume.models.moc.reflected_domain_mixed_regime import (
   MocReflectedDomainMixedRegimeBoundaryRequest,
   MocReflectedDomainMixedRegimeBoundaryResult,
   build_reflected_domain_mixed_regime_boundary_request,
+  build_reflected_domain_mixed_regime_boundary_request_from_perimeter,
   solve_reflected_domain_mixed_regime_boundary,
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
@@ -1261,6 +1262,7 @@ __all__ = (
   'MocReflectedDomainMixedRegimeBoundaryRequest',
   'MocReflectedDomainMixedRegimeBoundaryResult',
   'build_reflected_domain_mixed_regime_boundary_request',
+  'build_reflected_domain_mixed_regime_boundary_request_from_perimeter',
   'solve_reflected_domain_mixed_regime_boundary',
   'MocReflectedDomainGlobalCoupledDownstreamStatus',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus',
