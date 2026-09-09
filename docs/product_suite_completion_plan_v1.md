@@ -3987,8 +3987,9 @@ first-matching-source precedence, including duplicate boundary/node
 coordinates; custom tolerances still use the uncached resolver.
 
 The physical-cell module passes 48 tests, and the targeted reflected-domain
-feedback regression passes in approximately 70 seconds.  Ruff and the full
-repository Pyright check are clean.  This is a bounded performance
-improvement only: it changes neither the solver fidelity boundary nor the
-promotion gates, and the full reflected-domain and release audits remain
-required before release claims.
+feedback regression passes in approximately 70 seconds.  The complete
+repository regression then passed with ``1214 passed, 18 warnings`` in
+approximately 12m40s.  Ruff, the full repository Pyright check, and the
+documentation check are clean.  This is a bounded performance improvement
+only: it changes neither the solver fidelity boundary nor the promotion
+gates, and the release audit remains required before release claims.
