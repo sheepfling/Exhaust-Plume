@@ -4023,3 +4023,15 @@ not build failures.  This closes the local packaging checkpoint only.  It does
 not supply the missing owner validation archives, provider-bound
 VIS/SIG/RAY/FPA comparisons, canonical coupled mixed-regime field, or exact
 release freeze, so no release tag or production-readiness claim is authorized.
+
+### Candidate release-manifest refresh — 2026-09-09
+
+The release manifest was regenerated from candidate ``c48df13``.  The
+worktree is clean; all active lanes have local evidence; the low-fidelity
+promotion guard, mission-time composition, and deterministic FPA downstream
+guard pass.  The manifest correctly remains ``release_ready=false`` because
+provider comparison preflight is not externally accepted, the canonical
+mixed-regime field and physical shock-cell fit are open, the alignment archive
+is not verified, and the committed release-freeze record still names an older
+candidate.  This is current release-provenance evidence, not a release
+freeze or tag authorization.
