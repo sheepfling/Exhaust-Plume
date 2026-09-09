@@ -2797,6 +2797,38 @@ The exact pushed candidate also passes the full repository regression:
 ``1179 passed, 18 warnings``.  The warnings are pre-existing legacy-API and
 projected-area numerical warnings; they do not alter the release blockers.
 
+### Trace-referenced global remesh research-lane checkpoint — 2026-09-08 (`f4e0e76`)
+
+The reflected-trace compression profile now uses the retained outgoing trace
+as a piecewise-linear flow-angle baseline in ordinate.  It no longer silently
+replaces the measured interior angles with an affine first-angle surrogate;
+the positive ``4*s*(1-s)`` envelope remains an explicit research boundary
+condition with zero-strength endpoints.
+
+The solver-owned first-cell and global shock-remesh APIs now expose an opt-in
+``use_trace_referenced_profile`` lane.  That lane is deliberately restricted
+to the exact retained outer seed and first generated centerline state
+(``outer_source_index=0``, ``target_centerline_index=0``), records the mode in
+typed results and reports, and is independently remeasured for source,
+profile, attempt, endpoint, and fidelity lineage.  It does not reinterpret a
+trace-seeded front as an ordinary outer-row remesh and cannot promote a chain
+cell.
+
+The new local evidence passes the 48-test physical-cell suite and 19 targeted
+reflected-domain/global-closure tests, plus Ruff, Pyright, compilation, and
+diff checks.  The trace-seeded candidate remains a no-endpoint-root research
+result; the high-level global closure returns a typed Euler/source-frontier
+failure when the positively compressed endpoint remains outside the first
+retained centerline edge.  This is useful failure evidence, not canonical
+closure.  The full repository regression must be refreshed from ``f4e0e76``
+before release-freeze evidence is current.
+
+This checkpoint therefore leaves the claim ceiling unchanged:
+``canonical_free_boundary_verified=false``,
+``canonical_euler_verified=false``,
+``external_validation_verified=false``, physical shock-cell observations are
+still absent, and ``production_claim_allowed=false``.
+
 ### Full product-suite release map — 2026-09-08
 
 This is the go-forward definition of completion for the long-running goal.  A
@@ -2806,7 +2838,7 @@ are also accepted.
 
 | Gate | Must be true | Current state | Unlocks |
 | --- | --- | --- | --- |
-| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `2661343` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
+| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `f4e0e76` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
 | Visualization | All five model lanes emit the common bundle, views, slices, paths, regions, masks, diagnostics, and provenance; supplied provider overlays use the declared operator | Local standardized gallery is complete; provider comparison is pending | Visualization product claim |
 | Mission-time composition | State/cursor advancement preserves source, pose, atmosphere, chemistry, optics, ray, Signature, and FPA lineage without inferred time evolution | Local timeline and exact Signature/FPA point/timeline seams are present | Time-resolved product demonstrations |
 | Solver fidelity | Basic, reduced-order, straight/washed, and planar-MOC lanes remain independently configured and promotion-guarded | Local separation passes; planar-MOC is still research-only | Controlled use of each fidelity |
