@@ -3924,3 +3924,25 @@ field, physical shock-cell observations, provider-bound VIS/SIG/RAY/FPA
 comparisons, owner validation archives, and exact release freeze remain open.
 Future work should continue as reviewable vertical slices on this branch and
 must preserve the current claim ceiling.
+
+### P2.2e conservative moving-interface boundary seam — 2026-09-09
+
+The next solver-owned contract is now present in
+``models/moc/moving_mixed_regime_interface.py``.  It accepts an explicitly
+audited scalar terminal geometry, an explicit downstream-moving interface
+polyline, and typed conservative boundary states on a declared cross-section.
+It rederives the scalar geometry audit, checks the terminal downstream
+Rankine--Hugoniot conservative state, requires the declared ordinate grid, and
+retains missing sample indices instead of interpolating or extending the
+open supersonic patch.  Its result and independent audit force
+``subsonic_field_required=true``, ``moving_interface_solve_attempted=false``,
+``physical_closure_verified=false``, and ``production_claim_allowed=false``.
+
+Focused seam tests pass (3 tests), as do the three existing terminal
+mixed-wave tests (3 tests).  A full reflected-domain file run reached 145
+passing tests before being stopped in a pre-existing, very expensive
+``as_report``/physical-cell sampling case; that interrupted run is not release
+evidence.  The next implementation slice is to feed this contract from the
+verified terminal handoff and implement the actual moving-interface/subsonic
+field iteration.  No existing variable-entropy, quasi-1D, planar-potential,
+or endpoint-profile result may be substituted for that solver.
