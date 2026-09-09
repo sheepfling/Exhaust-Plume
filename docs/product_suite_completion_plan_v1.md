@@ -2480,8 +2480,8 @@ and the final release gates remain open.
 ### Active execution board — 2026-09-08
 
 The long-running goal remains active on the dedicated integration branch.  The
-current candidate is a local research checkpoint; it is not a release
-  candidate.  The current pushed checkpoint is `0b109e0` on
+  current candidate is a local research checkpoint; it is not a release
+  candidate.  The current pushed checkpoint is `2661343` on
 `work/washed-integral-visual`; `main` remains untouched.  Work proceeds in the
 following order,
 with each item stopping closed when its evidence is absent:
@@ -2518,8 +2518,8 @@ with each item stopping closed when its evidence is absent:
 
 The immediate implementation target is item 4.  P2.2a and P2.2b are complete
 for the current research target, and the fine P2.2c ladder now passes the
-declared local stability and conservative-flux gates; the coarse ladder remains
-an explicit stability failure.  P3 now has a first-cell fit and an exact
+declared local stability, conservative-flux, and terminal final-closure audit
+gates; the coarse ladder remains an explicit stability failure.  P3 now has a first-cell fit and an exact
 highest-resolution carried-field continuation handoff, both research-only.
 The continued-chain adapter now retains and independently fits the downstream
 research fields from one accepted chain.  The continued-chain refinement
@@ -2775,6 +2775,25 @@ This closes a missing end-of-loop evidence seam only; it does not establish
 canonical reflected/mixed-regime closure, physical shock-cell acceptance,
 provider-bound product validation, or release readiness.
 
+### P2.2c per-case terminal closure gate — 2026-09-08 (`2661343`)
+
+The cross-case refinement runner now independently applies the terminal
+fixed-point audit to every retained resolution case.  Each case stores the
+typed audit and reports its final-closure fingerprint, refreshed solver-owned
+handoff lineage, covered response channels, explicit offset tolerances, and
+fidelity-isolation result.  The aggregate measurement now requires every case
+to pass this terminal audit before it can be locally research-verified or
+reported as a stable refinement; a failed audit has its own typed
+``TERMINAL_FIXED_POINT_FAILURE`` status rather than being hidden behind a
+generic stability result.
+
+The focused cross-case regression passes for both the coarse stability-stop
+and the fine research-converged ladder (``2 passed``); Ruff, Pyright,
+documentation lint, and diff checks are green.  This strengthens the local
+P2.2c evidence boundary but does not change the claim ceiling:
+``global_coupling_verified=false``, canonical closure remains open, physical
+shock-cell observations remain absent, and production claims stay blocked.
+
 ### Full product-suite release map — 2026-09-08
 
 This is the go-forward definition of completion for the long-running goal.  A
@@ -2784,7 +2803,7 @@ are also accepted.
 
 | Gate | Must be true | Current state | Unlocks |
 | --- | --- | --- | --- |
-| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `0b109e0` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
+| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `2661343` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
 | Visualization | All five model lanes emit the common bundle, views, slices, paths, regions, masks, diagnostics, and provenance; supplied provider overlays use the declared operator | Local standardized gallery is complete; provider comparison is pending | Visualization product claim |
 | Mission-time composition | State/cursor advancement preserves source, pose, atmosphere, chemistry, optics, ray, Signature, and FPA lineage without inferred time evolution | Local timeline and exact Signature/FPA point/timeline seams are present | Time-resolved product demonstrations |
 | Solver fidelity | Basic, reduced-order, straight/washed, and planar-MOC lanes remain independently configured and promotion-guarded | Local separation passes; planar-MOC is still research-only | Controlled use of each fidelity |
