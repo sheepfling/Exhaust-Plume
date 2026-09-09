@@ -4132,3 +4132,29 @@ centerline/ambient/free-boundary feedback, or authorize canonical, Signature,
 FPA, provider-validation, or release claims.  The next physics slice remains
 the actual moving-interface/two-sided field iteration with mesh/refinement
 evidence and independent residual closure.
+
+### P2.2e open two-sided companion-field handoff checkpoint — 2026-09-09
+
+The moving-interface seam now optionally accepts an exact caller-supplied
+``MocChainBoundarySample`` companion boundary alongside the independently
+audited two-sided Euler shock curve.  When the pressure/state lineage and
+mixed-characteristic orientation are valid, the seam independently assembles
+and retains a typed one-layer open Euler characteristic strip.  The request,
+result, and audit preserve the exact companion samples, the open-field
+result, and a separate ``two_sided_companion_field_verified`` /
+``two_sided_companion_field_rederived`` evidence pair.  A malformed or
+pressure-tampered companion boundary stops with the typed
+``moving-mixed-regime-two-sided-companion-field-failure`` outcome; the failed
+diagnostic is not promoted as a usable field handoff.
+
+The focused moving-interface suite passes 9 tests, including positive open
+strip assembly, independent remeasurement, tamper rejection, and the missing
+shock-boundary guard.  The complete reflected-domain regression passes 160
+tests; Ruff and Python compilation are clean.  This is stronger two-sided
+open-field evidence, not a closed subsonic/free-boundary solution: the strip
+still has no moving shock/interface iteration, centerline/ambient/entropy
+feedback, downstream closure, mesh/refinement evidence, physical shock-cell
+fit, Signature/FPA promotion, provider comparison, owner archive, or release
+freeze.  The next physics tranche remains solver-owned two-sided field
+iteration followed by residual/refinement closure and the product-lane
+validation gates.

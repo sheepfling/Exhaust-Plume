@@ -16,6 +16,11 @@ from enum import Enum
 from math import cos, hypot, isfinite, sin
 from typing import Any
 
+from exhaust_plume.models.moc.chain import MocChainBoundarySample
+from exhaust_plume.models.moc.euler_characteristic_field import (
+  MocEulerCompanionFieldResult,
+  assemble_euler_consistent_companion_characteristic_strip,
+)
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryCurveResult,
   fit_euler_consistent_shock_boundary_from_geometry,
@@ -81,6 +86,9 @@ class MocMovingMixedRegimeInterfaceStatus(str, Enum):
   TWO_SIDED_SHOCK_BOUNDARY_FAILURE = (
     'moving-mixed-regime-two-sided-shock-boundary-failure'
   )
+  TWO_SIDED_COMPANION_FIELD_FAILURE = (
+    'moving-mixed-regime-two-sided-companion-field-failure'
+  )
 
 
 class MocMovingMixedRegimeInterfaceAuditStatus(str, Enum):
@@ -98,6 +106,9 @@ class MocMovingMixedRegimeInterfaceAuditStatus(str, Enum):
   COVERAGE_FAILURE = 'moving-mixed-regime-interface-coverage-failure'
   TWO_SIDED_SHOCK_BOUNDARY_FAILURE = (
     'moving-mixed-regime-two-sided-shock-boundary-audit-failure'
+  )
+  TWO_SIDED_COMPANION_FIELD_FAILURE = (
+    'moving-mixed-regime-two-sided-companion-field-audit-failure'
   )
   CLAIM_FLAG_FAILURE = 'moving-mixed-regime-interface-claim-flag-failure'
 
@@ -256,6 +267,7 @@ class MocMovingMixedRegimeInterfaceRequest:
   state_tolerance: float = DEFAULT_STATE_TOLERANCE
   normal_tolerance: float = DEFAULT_NORMAL_TOLERANCE
   two_sided_shock_boundary: MocEulerShockBoundaryCurveResult | None = None
+  two_sided_companion_boundary: tuple[MocChainBoundarySample, ...] = ()
   source: str = 'solver-owned-moving-mixed-regime-interface-request-v1'
 
   def __post_init__(self) -> None:
@@ -289,11 +301,26 @@ class MocMovingMixedRegimeInterfaceRequest:
         'MocEulerShockBoundaryCurveResult or None'
       )
     ####
+    companion_boundary = tuple(self.two_sided_companion_boundary)
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in companion_boundary
+    ):
+      raise TypeError(
+        'two_sided_companion_boundary must contain MocChainBoundarySample values'
+      )
+    ####
+    if companion_boundary and self.two_sided_shock_boundary is None:
+      raise ValueError(
+        'two_sided_companion_boundary requires a two_sided_shock_boundary'
+      )
+    ####
     if len({sample.index for sample in samples}) != len(samples):
       raise ValueError('boundary_samples indices must be unique')
     ####
     object.__setattr__(self, 'interface_points_m', interface_points)
     object.__setattr__(self, 'boundary_samples', samples)
+    object.__setattr__(self, 'two_sided_companion_boundary', companion_boundary)
     for name in (
       'cross_section_x_m',
       'lower_y_m',
@@ -398,6 +425,9 @@ class MocMovingMixedRegimeInterfaceRequest:
         if self.two_sided_shock_boundary is None
         else self.two_sided_shock_boundary.as_report()
       ),
+      'two_sided_companion_boundary': [
+        sample.as_report() for sample in self.two_sided_companion_boundary
+      ],
       'cross_section_x_m': self.cross_section_x_m,
       'lower_y_m': self.lower_y_m,
       'upper_y_m': self.upper_y_m,
@@ -437,6 +467,9 @@ class MocMovingMixedRegimeInterfaceResult:
   two_sided_shock_boundary: MocEulerShockBoundaryCurveResult | None = None
   two_sided_shock_boundary_verified: bool = False
   maximum_two_sided_jump_residual: float | None = None
+  two_sided_companion_boundary: tuple[MocChainBoundarySample, ...] = ()
+  two_sided_companion_field: MocEulerCompanionFieldResult | None = None
+  two_sided_companion_field_verified: bool = False
   moving_interface_solve_attempted: bool = False
   subsonic_field_required: bool = True
   physical_closure_verified: bool = False
@@ -478,6 +511,44 @@ class MocMovingMixedRegimeInterfaceResult:
         'MocEulerShockBoundaryCurveResult or None'
       )
     ####
+    companion_boundary = tuple(self.two_sided_companion_boundary)
+    if companion_boundary != self.request.two_sided_companion_boundary:
+      raise ValueError(
+        'result must retain the exact optional two-sided companion boundary'
+      )
+    if any(
+      not isinstance(sample, MocChainBoundarySample)
+      for sample in companion_boundary
+    ):
+      raise TypeError(
+        'two_sided_companion_boundary must contain MocChainBoundarySample values'
+      )
+    ####
+    if self.two_sided_companion_field is not None and not isinstance(
+      self.two_sided_companion_field,
+      MocEulerCompanionFieldResult,
+    ):
+      raise TypeError(
+        'two_sided_companion_field must be a '
+        'MocEulerCompanionFieldResult or None'
+      )
+    if self.two_sided_companion_field is not None and (
+      not companion_boundary
+      or self.two_sided_shock_boundary is None
+      or self.two_sided_companion_field.shock_boundary
+      is not self.two_sided_shock_boundary
+      or tuple(
+        self.two_sided_companion_field.companion_boundary_states
+      ) != tuple(sample.state for sample in companion_boundary)
+      or tuple(
+        self.two_sided_companion_field.companion_boundary_total_pressure_Pa
+      ) != tuple(sample.total_pressure_Pa for sample in companion_boundary)
+    ):
+      raise ValueError(
+        'two_sided_companion_field must retain the exact supplied shock and '
+        'companion boundary lineage'
+      )
+    ####
     missing = tuple(int(index) for index in self.missing_sample_indices)
     if any(
       isinstance(index, bool)
@@ -492,6 +563,7 @@ class MocMovingMixedRegimeInterfaceResult:
     object.__setattr__(self, 'interface_points_m', points)
     object.__setattr__(self, 'boundary_samples', samples)
     object.__setattr__(self, 'missing_sample_indices', missing)
+    object.__setattr__(self, 'two_sided_companion_boundary', companion_boundary)
     if self.terminal_conservative_state_residual is not None:
       residual = float(self.terminal_conservative_state_residual)
       if not isfinite(residual) or residual < 0.0:
@@ -525,6 +597,7 @@ class MocMovingMixedRegimeInterfaceResult:
     ####
     for name in (
       'two_sided_shock_boundary_verified',
+      'two_sided_companion_field_verified',
       'terminal_conservative_state_verified',
       'interface_geometry_verified',
       'conservative_boundary_verified',
@@ -549,6 +622,17 @@ class MocMovingMixedRegimeInterfaceResult:
       raise ValueError('moving-interface seam cannot close or promote a field')
     if self.production_claim_allowed:
       raise ValueError('moving-interface seam cannot allow production claims')
+    if self.two_sided_companion_field_verified and (
+      self.two_sided_companion_field is None
+      or not self.two_sided_companion_field.converged
+      or self.two_sided_companion_field.physical_closure_verified
+      or not self.two_sided_companion_field.chain_promotion_blocked
+      or self.two_sided_companion_field.production_claim_allowed
+    ):
+      raise ValueError(
+        'two_sided_companion_field_verified requires a converged open, '
+        'non-promotable companion field'
+      )
     ####
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -583,6 +667,17 @@ class MocMovingMixedRegimeInterfaceResult:
       ),
       'maximum_two_sided_jump_residual': (
         self.maximum_two_sided_jump_residual
+      ),
+      'two_sided_companion_boundary': [
+        sample.as_report() for sample in self.two_sided_companion_boundary
+      ],
+      'two_sided_companion_field': (
+        None
+        if self.two_sided_companion_field is None
+        else self.two_sided_companion_field.as_report()
+      ),
+      'two_sided_companion_field_verified': (
+        self.two_sided_companion_field_verified
       ),
       'missing_sample_indices': list(self.missing_sample_indices),
       'terminal_conservative_state_residual': (
@@ -629,6 +724,7 @@ class MocMovingMixedRegimeInterfaceAudit:
   coverage_rederived: bool = False
   subsonic_boundary_rederived: bool = False
   two_sided_shock_boundary_rederived: bool = False
+  two_sided_companion_field_rederived: bool = False
   claim_flags_verified: bool = False
   terminal_conservative_state_residual: float | None = None
   maximum_boundary_mach: float | None = None
@@ -653,6 +749,7 @@ class MocMovingMixedRegimeInterfaceAudit:
       'coverage_rederived',
       'subsonic_boundary_rederived',
       'two_sided_shock_boundary_rederived',
+      'two_sided_companion_field_rederived',
       'claim_flags_verified',
     ):
       if not isinstance(getattr(self, name), bool):
@@ -706,6 +803,7 @@ class MocMovingMixedRegimeInterfaceAudit:
       and self.coverage_rederived
       and self.subsonic_boundary_rederived
       and self.two_sided_shock_boundary_rederived
+      and self.two_sided_companion_field_rederived
       and self.claim_flags_verified
     )
   ####
@@ -732,6 +830,9 @@ class MocMovingMixedRegimeInterfaceAudit:
       'subsonic_boundary_rederived': self.subsonic_boundary_rederived,
       'two_sided_shock_boundary_rederived': (
         self.two_sided_shock_boundary_rederived
+      ),
+      'two_sided_companion_field_rederived': (
+        self.two_sided_companion_field_rederived
       ),
       'claim_flags_verified': self.claim_flags_verified,
       'terminal_conservative_state_residual': (
@@ -772,6 +873,8 @@ def _result(
   maximum_total_pressure_gain_fraction: float | None = None,
   two_sided_shock_boundary_verified: bool = False,
   maximum_two_sided_jump_residual: float | None = None,
+  two_sided_companion_field: MocEulerCompanionFieldResult | None = None,
+  two_sided_companion_field_verified: bool = False,
   message: str,
 ) -> MocMovingMixedRegimeInterfaceResult:
   return MocMovingMixedRegimeInterfaceResult(
@@ -796,6 +899,9 @@ def _result(
     two_sided_shock_boundary=request.two_sided_shock_boundary,
     two_sided_shock_boundary_verified=two_sided_shock_boundary_verified,
     maximum_two_sided_jump_residual=maximum_two_sided_jump_residual,
+    two_sided_companion_boundary=request.two_sided_companion_boundary,
+    two_sided_companion_field=two_sided_companion_field,
+    two_sided_companion_field_verified=two_sided_companion_field_verified,
     message=message,
   )
 
@@ -1072,6 +1178,59 @@ def _two_sided_shock_boundary_check(
   )
 
 
+def _two_sided_companion_field_check(
+  request: MocMovingMixedRegimeInterfaceRequest,
+) -> tuple[bool, MocEulerCompanionFieldResult | None, str]:
+  """Assemble an explicit open characteristic strip when supplied."""
+
+  companion = request.two_sided_companion_boundary
+  if not companion:
+    return True, None, 'no optional two-sided companion boundary was supplied'
+  ####
+  shock_boundary = request.two_sided_shock_boundary
+  if shock_boundary is None:
+    return (
+      False,
+      None,
+      'two-sided companion boundary requires a two-sided shock boundary',
+    )
+  ####
+  try:
+    field = assemble_euler_consistent_companion_characteristic_strip(
+      shock_boundary,
+      companion,
+      position_tolerance_m=request.position_tolerance_m,
+      invariant_tolerance=request.state_tolerance,
+      pressure_tolerance=request.state_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return False, None, f'two-sided companion field assembly raised: {error}'
+  ####
+  if not field.converged:
+    return False, field, (
+      'two-sided companion field did not converge as an open Euler '
+      f'characteristic strip: {field.message}'
+    )
+  ####
+  if (
+    field.physical_closure_verified
+    or not field.chain_promotion_blocked
+    or field.production_claim_allowed
+  ):
+    return (
+      False,
+      field,
+      'two-sided companion field weakened its open-field non-promotion flags',
+    )
+  ####
+  return (
+    True,
+    field,
+    'two-sided shock and explicit companion boundaries formed an open '
+    'Euler characteristic strip; subsonic/free-boundary closure remains open',
+  )
+
+
 def prepare_moc_moving_mixed_regime_interface(
   request: MocMovingMixedRegimeInterfaceRequest,
 ) -> MocMovingMixedRegimeInterfaceResult:
@@ -1160,6 +1319,37 @@ def prepare_moc_moving_mixed_regime_interface(
       message=two_sided_message,
     )
   ####
+  (
+    companion_field_verified,
+    companion_field,
+    companion_field_message,
+  ) = _two_sided_companion_field_check(request)
+  if not companion_field_verified:
+    return _result(
+      MocMovingMixedRegimeInterfaceStatus.TWO_SIDED_COMPANION_FIELD_FAILURE,
+      request,
+      geometry_audit,
+      interface_points_m=request.interface_points_m,
+      terminal_conservative_state_residual=terminal_residual,
+      terminal_conservative_state_verified=True,
+      interface_geometry_verified=True,
+      conservative_boundary_verified=True,
+      subsonic_boundary_verified=True,
+      maximum_boundary_mach=maximum_boundary_mach,
+      maximum_total_pressure_gain_fraction=(
+        maximum_total_pressure_gain_fraction
+      ),
+      two_sided_shock_boundary_verified=(
+        request.two_sided_shock_boundary is not None
+      ),
+      maximum_two_sided_jump_residual=maximum_two_sided_jump_residual,
+      two_sided_companion_field=(
+        companion_field if companion_field is not None and companion_field.converged else None
+      ),
+      two_sided_companion_field_verified=False,
+      message=companion_field_message,
+    )
+  ####
   supplied_indices = {sample.index for sample in request.boundary_samples}
   missing_indices = tuple(
     index
@@ -1186,6 +1376,8 @@ def prepare_moc_moving_mixed_regime_interface(
         request.two_sided_shock_boundary is not None
       ),
       maximum_two_sided_jump_residual=maximum_two_sided_jump_residual,
+      two_sided_companion_field=companion_field,
+      two_sided_companion_field_verified=companion_field is not None,
       missing_sample_indices=missing_indices,
       message=(
         'the audited terminal conservative state and explicit moving-interface '
@@ -1211,12 +1403,19 @@ def prepare_moc_moving_mixed_regime_interface(
       request.two_sided_shock_boundary is not None
     ),
     maximum_two_sided_jump_residual=maximum_two_sided_jump_residual,
+    two_sided_companion_field=companion_field,
+    two_sided_companion_field_verified=companion_field is not None,
     message=(
       'explicit conservative boundary coverage and moving-interface geometry '
       + (
         'plus independently remeasured two-sided Euler shock evidence are '
         'admitted; '
         if request.two_sided_shock_boundary is not None
+        else ''
+      )
+      + (
+        'an open two-sided characteristic strip is retained; '
+        if companion_field is not None
         else ''
       )
       + 'the separate subsonic field solve and physical closure remain required'
@@ -1331,6 +1530,57 @@ def measure_moc_moving_mixed_regime_interface(
       subsonic_boundary_rederived=True,
     )
   ####
+  if candidate.request.two_sided_companion_boundary:
+    (
+      companion_field_reverified,
+      companion_field_rederived,
+      companion_field_message,
+    ) = _two_sided_companion_field_check(candidate.request)
+    companion_field_rederived_ok = bool(
+      candidate.two_sided_companion_field_verified
+      == companion_field_reverified
+      and (
+        candidate.two_sided_companion_field is None
+        if not companion_field_reverified
+        else (
+          candidate.two_sided_companion_field is not None
+          and companion_field_rederived is not None
+          and candidate.two_sided_companion_field.as_report()
+          == companion_field_rederived.as_report()
+        )
+      )
+    )
+    if not companion_field_rederived_ok:
+      return _audit_failure(
+        MocMovingMixedRegimeInterfaceAuditStatus.TWO_SIDED_COMPANION_FIELD_FAILURE,
+        candidate,
+        'candidate did not retain the independently reassembled two-sided '
+        f'companion field: {companion_field_message}',
+        terminal_geometry_rederived=True,
+        interface_geometry_rederived=True,
+        conservative_boundary_rederived=True,
+        coverage_rederived=False,
+        subsonic_boundary_rederived=True,
+        two_sided_shock_boundary_rederived=True,
+        two_sided_companion_field_rederived=False,
+      )
+  else:
+    companion_field_rederived_ok = bool(
+      candidate.two_sided_companion_field is None
+      and not candidate.two_sided_companion_field_verified
+    )
+  if not companion_field_rederived_ok:
+    return _audit_failure(
+      MocMovingMixedRegimeInterfaceAuditStatus.TWO_SIDED_COMPANION_FIELD_FAILURE,
+      candidate,
+      'candidate retained an unexpected two-sided companion field handoff',
+      terminal_geometry_rederived=True,
+      interface_geometry_rederived=True,
+      conservative_boundary_rederived=True,
+      subsonic_boundary_rederived=True,
+      two_sided_shock_boundary_rederived=True,
+    )
+  ####
   coverage_rederived = bool(
     candidate.status is expected.status
     and candidate.missing_sample_indices == expected.missing_sample_indices
@@ -1366,6 +1616,7 @@ def measure_moc_moving_mixed_regime_interface(
       coverage_rederived=True,
       subsonic_boundary_rederived=True,
       two_sided_shock_boundary_rederived=True,
+      two_sided_companion_field_rederived=True,
     )
   ####
   return MocMovingMixedRegimeInterfaceAudit(
@@ -1377,6 +1628,7 @@ def measure_moc_moving_mixed_regime_interface(
     coverage_rederived=True,
     subsonic_boundary_rederived=True,
     two_sided_shock_boundary_rederived=True,
+    two_sided_companion_field_rederived=True,
     claim_flags_verified=True,
     terminal_conservative_state_residual=(
       expected.terminal_conservative_state_residual

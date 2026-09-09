@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import atan2
+
+import pytest
+
 from exhaust_plume.models.moc import (
   CharacteristicState,
   MocMovingMixedRegimeConservativeBoundarySample,
@@ -14,6 +17,7 @@ from exhaust_plume.models.moc import (
   measure_moc_moving_mixed_regime_interface,
   prepare_moc_moving_mixed_regime_interface,
   reconstruct_moc_transonic_shock_state,
+  solve_euler_ambient_companion_boundary_reference,
   solve_attached_compression_to_turn,
   solve_moc_transonic_shock_geometry,
 )
@@ -223,6 +227,107 @@ def test_moving_interface_remeasures_optional_two_sided_euler_boundary():
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+
+
+def test_moving_interface_retains_and_remeasures_open_two_sided_companion_field():
+  geometry = _geometry()
+  boundary = _two_sided_shock_boundary(geometry)
+  companion = solve_euler_ambient_companion_boundary_reference(
+    boundary,
+    100_000.0,
+    separation_m=0.5,
+  )
+  assert companion.converged
+  samples = tuple(
+    _terminal_sample(geometry, index, 0.08 * index / 4.0)
+    for index in range(5)
+  )
+  request = MocMovingMixedRegimeInterfaceRequest(
+    terminal_geometry=geometry,
+    interface_points_m=((1.0, 0.0), (1.1, 0.002)),
+    boundary_samples=samples,
+    cross_section_x_m=1.0,
+    lower_y_m=0.0,
+    upper_y_m=0.08,
+    sample_count=5,
+    two_sided_shock_boundary=boundary,
+    two_sided_companion_boundary=companion.samples,
+  )
+
+  result = prepare_moc_moving_mixed_regime_interface(request)
+
+  assert result.status is MocMovingMixedRegimeInterfaceStatus.CONVERGED_BOUNDARY_SEAM
+  assert result.two_sided_companion_field is not None
+  assert result.two_sided_companion_field.converged
+  assert result.two_sided_companion_field_verified
+  audit = measure_moc_moving_mixed_regime_interface(result)
+  assert audit.converged
+  assert audit.two_sided_companion_field_rederived
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+
+def test_moving_interface_rejects_tampered_two_sided_companion_field():
+  geometry = _geometry()
+  boundary = _two_sided_shock_boundary(geometry)
+  companion = solve_euler_ambient_companion_boundary_reference(
+    boundary,
+    100_000.0,
+    separation_m=0.5,
+  )
+  assert companion.converged
+  tampered_sample = replace(
+    companion.samples[1],
+    total_pressure_Pa=companion.samples[1].total_pressure_Pa + 1.0,
+  )
+  request = MocMovingMixedRegimeInterfaceRequest(
+    terminal_geometry=geometry,
+    interface_points_m=((1.0, 0.0), (1.1, 0.002)),
+    boundary_samples=tuple(
+      _terminal_sample(geometry, index, 0.08 * index / 4.0)
+      for index in range(5)
+    ),
+    cross_section_x_m=1.0,
+    lower_y_m=0.0,
+    upper_y_m=0.08,
+    sample_count=5,
+    two_sided_shock_boundary=boundary,
+    two_sided_companion_boundary=(
+      companion.samples[0],
+      tampered_sample,
+      *companion.samples[2:],
+    ),
+  )
+
+  result = prepare_moc_moving_mixed_regime_interface(request)
+
+  assert result.status is MocMovingMixedRegimeInterfaceStatus.TWO_SIDED_COMPANION_FIELD_FAILURE
+  assert not result.two_sided_companion_field_verified
+  assert result.chain_promotion_blocked
+  assert not result.production_claim_allowed
+  audit = measure_moc_moving_mixed_regime_interface(result)
+  assert audit.converged
+  assert audit.two_sided_companion_field_rederived
+
+
+def test_moving_interface_requires_shock_boundary_for_companion_field():
+  geometry = _geometry()
+  companion = solve_euler_ambient_companion_boundary_reference(
+    _two_sided_shock_boundary(geometry),
+    100_000.0,
+  )
+  with pytest.raises(ValueError, match='two_sided_companion_boundary'):
+    MocMovingMixedRegimeInterfaceRequest(
+      terminal_geometry=geometry,
+      interface_points_m=((1.0, 0.0), (1.1, 0.002)),
+      boundary_samples=(_terminal_sample(geometry, 0, 0.0),),
+      cross_section_x_m=1.0,
+      lower_y_m=0.0,
+      upper_y_m=0.08,
+      sample_count=5,
+      two_sided_companion_boundary=companion.samples,
+    )
 
 
 def test_moving_interface_rejects_tampered_two_sided_euler_boundary():
