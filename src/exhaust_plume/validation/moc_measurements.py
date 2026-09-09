@@ -17578,6 +17578,9 @@ def measure_moc_reflected_domain_alternating_physical_field(
               source_band.target_centerline_flow_angle_rad
             ),
             envelope_skew=result.compression_envelope_skew,
+            use_interpolated_trace_baseline=(
+              result.use_trace_referenced_profile
+            ),
           )
           envelope_verified = _caustic_state_matches(
             source_state,

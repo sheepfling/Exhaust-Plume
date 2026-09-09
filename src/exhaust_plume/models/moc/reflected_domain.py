@@ -3877,6 +3877,7 @@ def solve_reflected_domain_alternating_physical_field(
         target_centerline_y_m=target_y,
         target_centerline_flow_angle_rad=target_theta,
         envelope_skew=resolved_envelope_skew,
+        use_interpolated_trace_baseline=resolved_trace_profile,
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return failure(

@@ -631,6 +631,11 @@ def test_terminal_reflection_patch_trace_profile_records_polarity_and_closes_a_f
     patch.outgoing_trace_samples,
     1.0e-2,
   )
+  trace_profile = build_reflected_trace_compression_profile(
+    patch.outgoing_trace_samples,
+    1.0e-2,
+    use_interpolated_trace_baseline=True,
+  )
   middle_index = len(patch.outgoing_trace_points_m) // 2
   middle_point = patch.outgoing_trace_points_m[middle_index]
   assert profile.flow_angle_at(middle_index, middle_point) > (
@@ -643,10 +648,10 @@ def test_terminal_reflection_patch_trace_profile_records_polarity_and_closes_a_f
     len(patch.outgoing_trace_points_m) - 1,
     patch.outgoing_trace_points_m[-1],
   ) == pytest.approx(0.0)
-  assert profile.baseline_flow_angles_rad == pytest.approx(
+  assert trace_profile.baseline_flow_angles_rad == pytest.approx(
     tuple(state.theta_rad for state in patch.outgoing_trace_states)
   )
-  assert profile.as_report()['baseline_reference'] == (
+  assert trace_profile.as_report()['baseline_reference'] == (
     'piecewise-linear-reflected-trace-flow-angle'
   )
 
