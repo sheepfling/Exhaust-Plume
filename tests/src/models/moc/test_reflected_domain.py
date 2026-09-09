@@ -212,6 +212,7 @@ from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MocReflectedDomainGlobalCoupledDownstreamCrossCase,
   MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus,
   MocReflectedDomainGlobalCoupledDownstreamRefinementStatus,
+  measure_reflected_domain_global_coupled_downstream_refinement,
   measure_reflected_domain_global_coupled_downstream_cross_case_refinement,
   run_reflected_domain_global_coupled_downstream_cross_case_refinement,
   run_reflected_domain_global_coupled_downstream_refinement,
@@ -4621,6 +4622,7 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
   assert run.measurement.mesh_growth_verified
   assert run.measurement.case_audits_verified
   assert run.measurement.response_lineage_verified
+  assert run.measurement.boundary_trace_verified
   assert run.measurement.response_channels_finite
   assert run.measurement.overlap_coverage_verified
   assert run.measurement.overlap_residuals_verified
@@ -4651,6 +4653,31 @@ def test_global_coupled_downstream_response_refinement_keeps_feedback_gate_open(
     <= case.response.coordinate_tolerance_m
     for case in run.cases
   )
+  assert all(
+    case.boundary_trace is not None
+    and case.boundary_trace_lineage_verified
+    and case.boundary_trace_local_verified
+    and case.boundary_trace_verified
+    and case.boundary_trace.local_trace_verified
+    for case in run.cases
+  )
+  trace_omitted_measurement = (
+    measure_reflected_domain_global_coupled_downstream_refinement(
+      tuple(
+        replace(
+          case,
+          boundary_trace=None,
+          boundary_trace_lineage_verified=False,
+          boundary_trace_verified=False,
+        )
+        for case in run.cases
+      )
+    )
+  )
+  assert trace_omitted_measurement.status is (
+    MocReflectedDomainGlobalCoupledDownstreamRefinementStatus.CASE_FAILURE
+  )
+  assert trace_omitted_measurement.boundary_trace_verified is False
 ####
 
 
@@ -4856,6 +4883,7 @@ def test_global_coupled_downstream_cross_case_runner_keeps_closure_ladders_separ
     ((6, 3), (8, 4)),
   )
   assert run.measurement.distinct_closure_fingerprints_verified
+  assert run.measurement.boundary_trace_verified
   assert run.downstream_boundary_closure_verified is False
   assert run.as_report()['checks']['downstream_boundary_closure_verified'] is False
   assert run.as_report()['measurement']['external_validation_verified'] is False

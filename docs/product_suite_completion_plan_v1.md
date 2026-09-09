@@ -3073,6 +3073,21 @@ This strengthens global reconciliation evidence without claiming upstream
 global re-solve, canonical mixed-regime closure, physical shock-cell
 promotion, or production validity.
 
+### Coupled-Euler trace consumption in refinement ladders — 2026-09-09
+
+The resolution and cross-case refinement operators now retain the same
+full-state coupled-Euler boundary trace as the feedback ladder.  A refinement
+case must carry exact closure lineage, a locally verified trace, and the
+trace's research-only promotion ceiling before its response ladder can report
+convergence.  The cross-case aggregate also exposes and gates on that trace
+evidence for every named closure, so a locally converged overlap response
+cannot hide a missing full-state boundary contract.
+
+The focused refinement/feedback slice passes (`4 passed`), with Ruff,
+Pyright, and compilation checks passing.  This is still local research
+evidence: canonical global closure, physical shock-cell acceptance,
+provider-bound observations, and release tagging remain separate gates.
+
 ### Separate alignment-archive preflight checkpoint — 2026-09-08
 
 Provider-comparison preflight now accepts the separately named

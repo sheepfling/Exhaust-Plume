@@ -21,6 +21,7 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerInletBoundaryMode,
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
+  MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
   MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
   MocReflectedDomainGlobalCoupledDownstreamResult,
@@ -106,10 +107,13 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
   result: MocReflectedDomainGlobalCoupledDownstreamResult
   solver_response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
   response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse | None
+  boundary_trace: MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace | None = None
   upstream_feedback_proposal: (
     MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal | None
   ) = None
   response_lineage_verified: bool = False
+  boundary_trace_lineage_verified: bool = False
+  boundary_trace_verified: bool = False
   boundary_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
   target_lineage_verified: bool = False
   target_profiles_consumed_verified: bool = False
@@ -149,6 +153,15 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
         )
       ####
     ####
+    if self.boundary_trace is not None and not isinstance(
+      self.boundary_trace,
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace,
+    ):
+      raise TypeError(
+        'boundary_trace must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace or None'
+      )
+    ####
     if self.upstream_feedback_proposal is not None and not isinstance(
       self.upstream_feedback_proposal,
       MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
@@ -158,8 +171,13 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
         'or None'
       )
     ####
-    if not isinstance(self.response_lineage_verified, bool):
-      raise TypeError('response_lineage_verified must be a bool')
+    for name in (
+      'response_lineage_verified',
+      'boundary_trace_lineage_verified',
+      'boundary_trace_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
     ####
     if self.boundary_target is not None and not isinstance(
       self.boundary_target,
@@ -196,6 +214,14 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
   ####
 
   @property
+  def boundary_trace_local_verified(self) -> bool:
+    return bool(
+      self.boundary_trace is not None
+      and self.boundary_trace.local_trace_verified
+    )
+  ####
+
+  @property
   def upstream_feedback_proposal_verified(self) -> bool:
     proposal = self.upstream_feedback_proposal
     return bool(
@@ -214,6 +240,15 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
       and self.result.chain_promotion_blocked
       and not self.result.production_claim_allowed
       and (self.response is None or not self.response.production_claim_allowed)
+      and (
+        self.boundary_trace is None
+        or (
+          not self.boundary_trace.canonical_free_boundary_verified
+          and not self.boundary_trace.downstream_boundary_closure_verified
+          and self.boundary_trace.chain_promotion_blocked
+          and not self.boundary_trace.production_claim_allowed
+        )
+      )
       and (
         self.upstream_feedback_proposal is None
         or (
@@ -258,6 +293,9 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
       'solver_status': self.result.status.value,
       'local_coupled_field_verified': self.local_coupled_field_verified,
       'response_lineage_verified': self.response_lineage_verified,
+      'boundary_trace_lineage_verified': self.boundary_trace_lineage_verified,
+      'boundary_trace_local_verified': self.boundary_trace_local_verified,
+      'boundary_trace_verified': self.boundary_trace_verified,
       'response_coverage_verified': self.response_coverage_verified,
       'response_residuals_verified': self.response_residuals_verified,
       'upstream_feedback_proposal_verified': (
@@ -284,6 +322,11 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
         None if self.solver_response is None else self.solver_response.as_report()
       ),
       'response': None if self.response is None else self.response.as_report(),
+      'boundary_trace': (
+        None
+        if self.boundary_trace is None
+        else self.boundary_trace.as_report()
+      ),
       'result': self.result.as_report(),
     }
   ####
@@ -306,6 +349,7 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
   mesh_growth_verified: bool = False
   case_audits_verified: bool = False
   response_lineage_verified: bool = False
+  boundary_trace_verified: bool = False
   response_channels_finite: bool = False
   overlap_coverage_verified: bool = False
   overlap_residuals_verified: bool = False
@@ -420,6 +464,7 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       'mesh_growth_verified',
       'case_audits_verified',
       'response_lineage_verified',
+      'boundary_trace_verified',
       'response_channels_finite',
       'overlap_coverage_verified',
       'overlap_residuals_verified',
@@ -463,6 +508,7 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       and self.mesh_growth_verified
       and self.case_audits_verified
       and self.response_lineage_verified
+      and self.boundary_trace_verified
       and self.response_channels_finite
       and self.overlap_coverage_verified
       and self.overlap_residuals_verified
@@ -498,6 +544,7 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementMeasurement:
       'mesh_growth_verified': self.mesh_growth_verified,
       'case_audits_verified': self.case_audits_verified,
       'response_lineage_verified': self.response_lineage_verified,
+      'boundary_trace_verified': self.boundary_trace_verified,
       'response_channels_finite': self.response_channels_finite,
       'overlap_coverage_verified': self.overlap_coverage_verified,
       'overlap_residuals_verified': self.overlap_residuals_verified,
@@ -542,6 +589,7 @@ def _measurement_status(
   mesh_growth_verified: bool,
   case_audits_verified: bool,
   response_lineage_verified: bool,
+  boundary_trace_verified: bool,
   response_channels_finite: bool,
   overlap_coverage_verified: bool,
   overlap_residuals_verified: bool,
@@ -582,6 +630,13 @@ def _measurement_status(
     return (
       MocReflectedDomainGlobalCoupledDownstreamRefinementStatus.CASE_FAILURE,
       'at least one fresh coupled-Euler case did not pass its local audit',
+    )
+  ####
+  if not boundary_trace_verified:
+    return (
+      MocReflectedDomainGlobalCoupledDownstreamRefinementStatus.CASE_FAILURE,
+      'at least one fresh coupled-Euler case did not retain a locally '
+      'verified full-state boundary trace with exact closure lineage',
     )
   ####
   if not (
@@ -674,6 +729,15 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
   response_lineage_verified = all(
     case.response_lineage_verified for case in retained_cases
   )
+  boundary_trace_verified = all(
+    case.boundary_trace is not None
+    and case.boundary_trace_lineage_verified
+    and case.boundary_trace_verified
+    and case.boundary_trace.source_closure_fingerprint
+    == case.result.source_closure_fingerprint
+    and case.boundary_trace_local_verified
+    for case in retained_cases
+  )
   overlap_coverage_verified = all(
     case.response_coverage_verified for case in retained_cases
   )
@@ -749,6 +813,7 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
     mesh_growth_verified=mesh_growth_verified,
     case_audits_verified=case_audits_verified,
     response_lineage_verified=response_lineage_verified,
+    boundary_trace_verified=boundary_trace_verified,
     response_channels_finite=response_channels_finite,
     overlap_coverage_verified=overlap_coverage_verified,
     overlap_residuals_verified=overlap_residuals_verified,
@@ -777,6 +842,7 @@ def measure_reflected_domain_global_coupled_downstream_refinement(
     mesh_growth_verified=mesh_growth_verified,
     case_audits_verified=case_audits_verified,
     response_lineage_verified=response_lineage_verified,
+    boundary_trace_verified=boundary_trace_verified,
     response_channels_finite=response_channels_finite,
     overlap_coverage_verified=overlap_coverage_verified,
     overlap_residuals_verified=overlap_residuals_verified,
@@ -1244,6 +1310,18 @@ def run_reflected_domain_global_coupled_downstream_refinement(
         response = None
       ####
     ####
+    boundary_trace = result.downstream_boundary_trace
+    boundary_trace_lineage_verified = bool(
+      result.closure_lineage_verified
+      and boundary_trace is not None
+      and boundary_trace.source_closure_fingerprint
+      == moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    )
+    boundary_trace_verified = bool(
+      boundary_trace_lineage_verified
+      and boundary_trace is not None
+      and boundary_trace.local_trace_verified
+    )
     upstream_feedback_proposal = None
     if response is not None:
       try:
@@ -1280,8 +1358,11 @@ def run_reflected_domain_global_coupled_downstream_refinement(
         result=result,
         solver_response=solver_response,
         response=response,
+        boundary_trace=boundary_trace,
         upstream_feedback_proposal=upstream_feedback_proposal,
         response_lineage_verified=response_lineage_verified,
+        boundary_trace_lineage_verified=boundary_trace_lineage_verified,
+        boundary_trace_verified=boundary_trace_verified,
         boundary_target=boundary_pressure_target,
         target_lineage_verified=target_lineage_verified,
         target_profiles_consumed_verified=target_profiles_consumed_verified,
@@ -1469,6 +1550,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
   resolution_ladders_verified: bool = False
   target_bindings_verified: bool = False
   case_runs_verified: bool = False
+  boundary_trace_verified: bool = False
   local_coupled_field_verified: bool = False
   fidelity_isolation_verified: bool = False
   global_coupling_verified: bool = False
@@ -1561,6 +1643,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
       'resolution_ladders_verified',
       'target_bindings_verified',
       'case_runs_verified',
+      'boundary_trace_verified',
       'local_coupled_field_verified',
       'fidelity_isolation_verified',
       'global_coupling_verified',
@@ -1610,6 +1693,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
       and self.resolution_ladders_verified
       and self.target_bindings_verified
       and self.case_runs_verified
+      and self.boundary_trace_verified
       and self.local_coupled_field_verified
       and self.fidelity_isolation_verified
       and self.external_validation_required
@@ -1629,6 +1713,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
       'closure_fingerprints': self.closure_fingerprints,
       'requested_resolutions': self.requested_resolutions,
       'run_statuses': self.run_statuses,
+      'boundary_trace_verified': self.boundary_trace_verified,
       'cases': tuple(case.as_report() for case in self.cases),
       'runs': tuple(run.as_report() for run in self.runs),
       'checks': {
@@ -1640,6 +1725,7 @@ class MocReflectedDomainGlobalCoupledDownstreamCrossCaseMeasurement:
         'resolution_ladders_verified': self.resolution_ladders_verified,
         'target_bindings_verified': self.target_bindings_verified,
         'case_runs_verified': self.case_runs_verified,
+        'boundary_trace_verified': self.boundary_trace_verified,
         'local_coupled_field_verified': self.local_coupled_field_verified,
         'fidelity_isolation_verified': self.fidelity_isolation_verified,
         'global_coupling_verified': self.global_coupling_verified,
@@ -1805,6 +1891,9 @@ def measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
     run.converged and run.measurement.converged
     for run in run_values
   )
+  boundary_trace_verified = all(
+    run.measurement.boundary_trace_verified for run in run_values
+  )
   local_coupled_field_verified = all(
     run.measurement.local_coupled_field_verified for run in run_values
   )
@@ -1848,6 +1937,14 @@ def measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
     message = (
       'one or more named cases did not retain its exact target binding or '
       'target-bound profile consumption across the nested ladder'
+    )
+  elif not boundary_trace_verified:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamCrossCaseStatus.CASE_FAILURE
+    )
+    message = (
+      'one or more named global/coupled downstream case ladders did not '
+      'retain a locally verified full-state boundary trace'
     )
   elif not case_runs_verified or not local_coupled_field_verified:
     status = (
@@ -1893,6 +1990,7 @@ def measure_reflected_domain_global_coupled_downstream_cross_case_refinement(
     resolution_ladders_verified=resolution_ladders_verified,
     target_bindings_verified=target_bindings_verified,
     case_runs_verified=case_runs_verified,
+    boundary_trace_verified=boundary_trace_verified,
     local_coupled_field_verified=local_coupled_field_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
     message=message,
