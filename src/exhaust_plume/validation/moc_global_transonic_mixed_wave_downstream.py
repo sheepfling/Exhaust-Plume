@@ -928,6 +928,13 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       max_shape_iterations=max_shape_iterations,
       inlet_boundary_mode=(
         MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+        if (
+          moving_mixed_regime_interface is not None
+          and moving_mixed_regime_interface.two_sided_shock_boundary is not None
+          and moving_mixed_regime_interface.two_sided_shock_boundary_verified
+        )
+        else MocReflectedDomainCoupledEulerInletBoundaryMode
         .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
         if moving_mixed_regime_interface is not None
         else MocReflectedDomainCoupledEulerInletBoundaryMode

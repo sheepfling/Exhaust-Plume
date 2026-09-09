@@ -4108,3 +4108,27 @@ physical shock cell, or authorize Signature/FPA/release claims.  The next
 physics slice remains the solver-owned moving-interface/two-sided field
 iteration that consumes this evidence and rederives the full field residual
 set.
+
+### P2.2e two-sided moving-field consumer admission checkpoint — 2026-09-09
+
+The coupled-Euler research lane now exposes a distinct
+``solver-owned-moving-mixed-regime-two-sided-field`` inlet mode.  It accepts
+the conservative moving-interface seam only when the optional two-sided Euler
+shock-boundary handoff is present and independently audited.  The downstream
+operator routes a verified handoff into this mode; a one-sided seam is rejected
+at request construction, and a tampered or unconsumed handoff has a typed
+``coupled-euler-audit-moving-mixed-regime-two-sided-boundary-failure`` stop.
+The result and independent audit retain separate two-sided-consumption and
+verification flags, while preserving the existing one-sided moving-field
+mode for backward-compatible research cases.
+
+The focused two-sided consumer regression passes 3 tests, the complete
+reflected-domain model regression passes 160 tests, Ruff is clean, and the
+full Pyright check reports zero errors, warnings, or informations.  This is an
+admission/lineage checkpoint only: the coupled field currently consumes the
+verified two-sided handoff as a solver-owned prerequisite but does not yet
+iterate the shock curve, use it in a converged two-sided update, close the
+centerline/ambient/free-boundary feedback, or authorize canonical, Signature,
+FPA, provider-validation, or release claims.  The next physics slice remains
+the actual moving-interface/two-sided field iteration with mesh/refinement
+evidence and independent residual closure.

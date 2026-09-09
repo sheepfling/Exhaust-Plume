@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from math import cos, sin
+from math import atan2, cos, sin
 
 import numpy as np
 import pytest
@@ -59,6 +59,7 @@ from exhaust_plume.models.moc import (
   MocMovingMixedRegimeInterfaceStatus,
   MocMovingMixedRegimeInterfaceRequest,
   build_moc_terminal_conservative_boundary_sample,
+  fit_euler_consistent_shock_boundary,
   solve_moc_transonic_shock_geometry,
   MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileStatus,
@@ -95,6 +96,7 @@ from exhaust_plume.models.moc import (
   plan_reflected_domain_remesh_shock_chain,
   plan_reflected_domain_remesh_shock_chain_sequence,
   solve_marched_attached_shock_field,
+  solve_attached_compression_to_turn,
   solve_marched_attached_shock_with_ambient_centerline_physical_field,
   solve_reflected_domain_remesh,
   solve_reflected_domain_alternating_source,
@@ -535,7 +537,11 @@ def _global_physical_closure_for_mixed_regime(sample_count: int = 9):
 ####
 
 
-def _moving_interface_for_coupled_field(*, include_inputs: bool = False):
+def _moving_interface_for_coupled_field(
+  *,
+  include_inputs: bool = False,
+  include_two_sided_boundary: bool = False,
+):
   closure = _global_physical_closure_for_mixed_regime()
   ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
   assert ambient_pressure is not None
@@ -586,6 +592,42 @@ def _moving_interface_for_coupled_field(*, include_inputs: bool = False):
     )
     for index in range(sample_count)
   )
+  two_sided_boundary = None
+  if include_two_sided_boundary:
+    points = (
+      (cross_section_x - 0.2, lower_y + 0.08),
+      (cross_section_x - 0.1, lower_y + 0.04),
+      geometry.shock_point_m,
+    )
+    tangent_angle = atan2(
+      points[1][1] - points[0][1],
+      points[1][0] - points[0][0],
+    )
+    turn = 0.12
+    compression = solve_attached_compression_to_turn(
+      upstream_mach=2.0,
+      gamma=geometry.request.shock_state.gamma,
+      upstream_pressure_Pa=100_000.0,
+      target_turn_rad=turn,
+    )
+    assert compression.beta_rad is not None
+    upstream_states = tuple(
+      CharacteristicState(
+        x_m=point[0],
+        y_m=point[1],
+        theta_rad=tangent_angle + compression.beta_rad,
+        mach=2.0,
+        gamma=geometry.request.shock_state.gamma,
+      )
+      for point in points
+    )
+    two_sided_boundary = fit_euler_consistent_shock_boundary(
+      upstream_states,
+      (100_000.0,) * len(points),
+      points,
+      (tangent_angle + compression.beta_rad - turn,) * len(points),
+    )
+    assert two_sided_boundary.local_euler_verified
   moving_request = MocMovingMixedRegimeInterfaceRequest(
     terminal_geometry=geometry,
     interface_points_m=(
@@ -597,6 +639,7 @@ def _moving_interface_for_coupled_field(*, include_inputs: bool = False):
     lower_y_m=lower_y,
     upper_y_m=upper_y,
     sample_count=sample_count,
+    two_sided_shock_boundary=two_sided_boundary,
   )
   moving_result = prepare_moc_moving_mixed_regime_interface(moving_request)
   if include_inputs:
@@ -1330,6 +1373,66 @@ def test_coupled_field_consumes_complete_moving_mixed_regime_inlet_by_exact_inde
   assert audit.moving_mixed_regime_interface_verified
   assert audit.production_claim_allowed is False
   assert audit.chain_promotion_blocked
+
+
+def test_coupled_field_consumes_two_sided_moving_interface_as_distinct_research_mode():
+  mixed_request, moving_result = _moving_interface_for_coupled_field(
+    include_two_sided_boundary=True,
+  )
+  assert moving_result.two_sided_shock_boundary is not None
+  assert moving_result.two_sided_shock_boundary_verified
+
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=4,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    outlet_static_pressure_Pa=mixed_request.ambient_pressure_Pa,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+    ),
+    moving_mixed_regime_interface=moving_result,
+  )
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+
+  assert result.status is not (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .INLET_MOVING_MIXED_REGIME_FIELD_FAILURE
+  )
+  assert result.conservative_states_by_cell
+  assert result.two_sided_shock_boundary_consumed
+  assert result.moving_mixed_regime_interface_consumed
+  assert result.production_claim_allowed is False
+  assert result.chain_promotion_blocked
+
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+  assert audit.two_sided_shock_boundary_verified
+  assert audit.moving_mixed_regime_interface_verified
+  assert audit.production_claim_allowed is False
+  assert audit.chain_promotion_blocked
+
+
+def test_coupled_field_two_sided_mode_rejects_one_sided_moving_seam():
+  mixed_request, moving_result = _moving_interface_for_coupled_field()
+
+  with pytest.raises(ValueError, match='two-sided shock-boundary'):
+    build_reflected_domain_coupled_euler_free_boundary_request(
+      mixed_request,
+      reference_total_temperature_K=1500.0,
+      axial_cell_count=4,
+      transverse_cell_count=4,
+      max_pseudo_iterations=20,
+      max_shape_iterations=1,
+      outlet_static_pressure_Pa=mixed_request.ambient_pressure_Pa,
+      inlet_boundary_mode=(
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+      ),
+      moving_mixed_regime_interface=moving_result,
+    )
 
 
 def test_coupled_field_stops_when_moving_mixed_regime_inlet_coverage_is_incomplete():

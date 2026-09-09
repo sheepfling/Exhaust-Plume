@@ -412,6 +412,9 @@ class MocReflectedDomainCoupledEulerInletBoundaryMode(str, Enum):
   SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD = (
     'solver-owned-moving-mixed-regime-subsonic-field'
   )
+  SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD = (
+    'solver-owned-moving-mixed-regime-two-sided-field'
+  )
 ####
 
 
@@ -2025,10 +2028,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'must not supply it'
       )
     ####
-    moving_mixed_regime_mode = (
+    moving_mixed_regime_mode = self.inlet_boundary_mode in (
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD,
+    )
+    two_sided_moving_regime_mode = (
       self.inlet_boundary_mode
       is MocReflectedDomainCoupledEulerInletBoundaryMode
-      .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
     )
     if moving_mixed_regime_mode != (
       self.moving_mixed_regime_interface is not None
@@ -2070,6 +2079,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'moving mixed-regime field mode accepts only its exact conservative '
           'boundary seam and solver-owned ambient free-boundary targets; '
           'other handoffs would change the retained coordinate or entropy frame'
+        )
+      if two_sided_moving_regime_mode and (
+        handoff.two_sided_shock_boundary is None
+        or not handoff.two_sided_shock_boundary_verified
+      ):
+        raise ValueError(
+          'solver-owned moving mixed-regime two-sided mode requires the '
+          'independently audited two-sided shock-boundary handoff'
         )
     ####
     continuation_mode = self.inlet_boundary_mode in (
@@ -2527,6 +2544,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   physical_field_shock_front_condition_consumed: bool = False
   moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None
   moving_mixed_regime_interface_consumed: bool = False
+  two_sided_shock_boundary_consumed: bool = False
   inlet_boundary_states_consumed: bool = False
   initial_state_source: str | None = None
   initial_state_field_bound: bool = False
@@ -3031,6 +3049,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'moving_mixed_regime_interface_consumed must be a bool'
       )
     ####
+    if not isinstance(self.two_sided_shock_boundary_consumed, bool):
+      raise TypeError(
+        'two_sided_shock_boundary_consumed must be a bool'
+      )
+    ####
     if not isinstance(self.inlet_boundary_states_consumed, bool):
       raise TypeError('inlet_boundary_states_consumed must be a bool')
     ####
@@ -3442,6 +3465,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'moving_mixed_regime_interface_consumed': (
         self.moving_mixed_regime_interface_consumed
+      ),
+      'two_sided_shock_boundary_consumed': (
+        self.two_sided_shock_boundary_consumed
       ),
       'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
       'initial_state_source': self.initial_state_source,
@@ -5575,6 +5601,20 @@ def _prepare_moving_mixed_regime_inlet(
       'complete conservative cross-section; no extrapolation or fallback was used'
     )
   ####
+  if (
+    request.inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+    and (
+      moving_interface.two_sided_shock_boundary is None
+      or not moving_interface.two_sided_shock_boundary_verified
+    )
+  ):
+    raise RuntimeError(
+      'two-sided moving mixed-regime field mode requires the independently '
+      'audited two-sided shock-boundary handoff'
+    )
+  ####
   handoff = moving_interface.request
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
   y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
@@ -6196,6 +6236,14 @@ def _result_from_field(
     moving_mixed_regime_interface_consumed=(
       moving_mixed_regime_interface is not None
     ),
+    two_sided_shock_boundary_consumed=bool(
+      request.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+      and moving_mixed_regime_interface is not None
+      and moving_mixed_regime_interface.two_sided_shock_boundary is not None
+      and moving_mixed_regime_interface.two_sided_shock_boundary_verified
+    ),
     initial_state_source=initial_state_source,
     initial_state_field_bound=initial_state_field_bound,
     free_boundary_pressure_profile_consumed=(
@@ -6370,10 +6418,11 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       request,
     )
   ####
-  moving_mixed_regime_mode = (
-    request.inlet_boundary_mode
-    is MocReflectedDomainCoupledEulerInletBoundaryMode
-    .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+  moving_mixed_regime_mode = request.inlet_boundary_mode in (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD,
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD,
   )
   if moving_mixed_regime_mode:
     moving_interface = request.moving_mixed_regime_interface
@@ -6909,6 +6958,8 @@ def solve_reflected_domain_coupled_euler_free_boundary(
       .SOLVER_OWNED_PHYSICAL_FIELD_AMBIENT_PRESSURE_FREE_BOUNDARY,
       MocReflectedDomainCoupledEulerInletBoundaryMode
       .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD,
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD,
     )
     else request.mixed_regime_request.initial_outlet_height_m
   )
