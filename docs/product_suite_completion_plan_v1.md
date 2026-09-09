@@ -3958,6 +3958,23 @@ attachment/workspace paths and are still absent; no archive or synthetic
 provider observation was added.  The external-validation and release-freeze
 blockers therefore remain unchanged.
 
+### P2.2e conservative subsonic-boundary admission checkpoint — 2026-09-09
+
+The moving-interface seam now independently checks the supplied conservative
+cross-section states before admitting complete coverage.  Each retained state
+must reconstruct a strictly subsonic Mach number, and its total pressure may
+not exceed the audited terminal downstream total pressure within the declared
+state tolerance.  The result retains the maximum boundary Mach and maximum
+total-pressure gain fraction; a supplied supersonic or total-pressure-gaining
+profile returns a typed ``subsonic_boundary_required``/boundary failure rather
+than being passed to a downstream field solver.
+
+The focused moving-interface suite passes 4 tests, including the independent
+audit of a tampered supersonic sample.  This closes only the conservative
+boundary-admission gate.  It does not solve the moving interface, fill missing
+ordinates, close the subsonic field, or change the canonical physical and
+production claim ceilings.
+
 ### Coupled-Euler consumer prerequisite checkpoint — 2026-09-09
 
 The existing coupled-Euler interior-profile consumer was inspected against the

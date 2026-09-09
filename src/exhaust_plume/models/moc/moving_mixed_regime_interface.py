@@ -68,6 +68,9 @@ class MocMovingMixedRegimeInterfaceStatus(str, Enum):
   CONSERVATIVE_STATE_FAILURE = (
     'moving-mixed-regime-interface-conservative-state-failure'
   )
+  SUBSONIC_BOUNDARY_REQUIRED = (
+    'moving-mixed-regime-interface-subsonic-boundary-required'
+  )
   SUBSONIC_FIELD_REQUIRED = (
     'moving-mixed-regime-subsonic-field-required'
   )
@@ -403,6 +406,9 @@ class MocMovingMixedRegimeInterfaceResult:
   interface_geometry_verified: bool = False
   conservative_boundary_verified: bool = False
   complete_cross_section_coverage: bool = False
+  subsonic_boundary_verified: bool = False
+  maximum_boundary_mach: float | None = None
+  maximum_total_pressure_gain_fraction: float | None = None
   moving_interface_solve_attempted: bool = False
   subsonic_field_required: bool = True
   physical_closure_verified: bool = False
@@ -455,10 +461,24 @@ class MocMovingMixedRegimeInterfaceResult:
       object.__setattr__(self, 'terminal_conservative_state_residual', residual)
     ####
     for name in (
+      'maximum_boundary_mach',
+      'maximum_total_pressure_gain_fraction',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      numeric = float(value)
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative')
+      ####
+      object.__setattr__(self, name, numeric)
+    ####
+    for name in (
       'terminal_conservative_state_verified',
       'interface_geometry_verified',
       'conservative_boundary_verified',
       'complete_cross_section_coverage',
+      'subsonic_boundary_verified',
       'moving_interface_solve_attempted',
       'subsonic_field_required',
       'physical_closure_verified',
@@ -491,6 +511,7 @@ class MocMovingMixedRegimeInterfaceResult:
       and self.interface_geometry_verified
       and self.conservative_boundary_verified
       and self.complete_cross_section_coverage
+      and self.subsonic_boundary_verified
     )
   ####
 
@@ -511,6 +532,11 @@ class MocMovingMixedRegimeInterfaceResult:
       'interface_geometry_verified': self.interface_geometry_verified,
       'conservative_boundary_verified': self.conservative_boundary_verified,
       'complete_cross_section_coverage': self.complete_cross_section_coverage,
+      'subsonic_boundary_verified': self.subsonic_boundary_verified,
+      'maximum_boundary_mach': self.maximum_boundary_mach,
+      'maximum_total_pressure_gain_fraction': (
+        self.maximum_total_pressure_gain_fraction
+      ),
       'moving_interface_solve_attempted': self.moving_interface_solve_attempted,
       'subsonic_field_required': self.subsonic_field_required,
       'physical_closure_verified': self.physical_closure_verified,
@@ -539,8 +565,11 @@ class MocMovingMixedRegimeInterfaceAudit:
   interface_geometry_rederived: bool = False
   conservative_boundary_rederived: bool = False
   coverage_rederived: bool = False
+  subsonic_boundary_rederived: bool = False
   claim_flags_verified: bool = False
   terminal_conservative_state_residual: float | None = None
+  maximum_boundary_mach: float | None = None
+  maximum_total_pressure_gain_fraction: float | None = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -558,6 +587,7 @@ class MocMovingMixedRegimeInterfaceAudit:
       'interface_geometry_rederived',
       'conservative_boundary_rederived',
       'coverage_rederived',
+      'subsonic_boundary_rederived',
       'claim_flags_verified',
     ):
       if not isinstance(getattr(self, name), bool):
@@ -571,6 +601,19 @@ class MocMovingMixedRegimeInterfaceAudit:
         )
       ####
       object.__setattr__(self, 'terminal_conservative_state_residual', residual)
+    ####
+    for name in (
+      'maximum_boundary_mach',
+      'maximum_total_pressure_gain_fraction',
+    ):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      numeric = float(value)
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError(f'{name} must be finite and nonnegative')
+      ####
+      object.__setattr__(self, name, numeric)
     ####
     if not str(self.operator_id):
       raise ValueError('operator_id must be non-empty')
@@ -587,6 +630,7 @@ class MocMovingMixedRegimeInterfaceAudit:
       and self.interface_geometry_rederived
       and self.conservative_boundary_rederived
       and self.coverage_rederived
+      and self.subsonic_boundary_rederived
       and self.claim_flags_verified
     )
   ####
@@ -610,9 +654,14 @@ class MocMovingMixedRegimeInterfaceAudit:
       'interface_geometry_rederived': self.interface_geometry_rederived,
       'conservative_boundary_rederived': self.conservative_boundary_rederived,
       'coverage_rederived': self.coverage_rederived,
+      'subsonic_boundary_rederived': self.subsonic_boundary_rederived,
       'claim_flags_verified': self.claim_flags_verified,
       'terminal_conservative_state_residual': (
         self.terminal_conservative_state_residual
+      ),
+      'maximum_boundary_mach': self.maximum_boundary_mach,
+      'maximum_total_pressure_gain_fraction': (
+        self.maximum_total_pressure_gain_fraction
       ),
       'physical_closure_verified': self.physical_closure_verified,
       'production_claim_allowed': self.production_claim_allowed,
@@ -637,6 +686,9 @@ def _result(
   interface_geometry_verified: bool = False,
   conservative_boundary_verified: bool = False,
   complete_cross_section_coverage: bool = False,
+  subsonic_boundary_verified: bool = False,
+  maximum_boundary_mach: float | None = None,
+  maximum_total_pressure_gain_fraction: float | None = None,
   message: str,
 ) -> MocMovingMixedRegimeInterfaceResult:
   return MocMovingMixedRegimeInterfaceResult(
@@ -655,6 +707,9 @@ def _result(
     interface_geometry_verified=interface_geometry_verified,
     conservative_boundary_verified=conservative_boundary_verified,
     complete_cross_section_coverage=complete_cross_section_coverage,
+    subsonic_boundary_verified=subsonic_boundary_verified,
+    maximum_boundary_mach=maximum_boundary_mach,
+    maximum_total_pressure_gain_fraction=maximum_total_pressure_gain_fraction,
     message=message,
   )
 
@@ -682,14 +737,57 @@ def _interface_geometry_check(
 
 def _boundary_state_check(
   request: MocMovingMixedRegimeInterfaceRequest,
-) -> tuple[bool, float | None, str]:
+) -> tuple[bool, float | None, float | None, float | None, str]:
   gamma = request.gamma
+  maximum_mach = 0.0
+  maximum_total_pressure_gain_fraction = 0.0
+  terminal_total_pressure = (
+    request.terminal_geometry.request.shock_state.downstream_total_pressure_Pa
+  )
   for sample in request.boundary_samples:
     try:
-      _primitive_from_conservative(sample.conservative_state, gamma)
+      density, velocity_u, velocity_v, pressure = _primitive_from_conservative(
+        sample.conservative_state,
+        gamma,
+      )
     except ValueError as error:
-      return False, None, str(error)
+      return False, None, None, None, str(error)
     ####
+    sound_speed = (gamma * pressure / density) ** 0.5
+    mach = hypot(velocity_u, velocity_v) / sound_speed
+    maximum_mach = max(maximum_mach, mach)
+    total_pressure = pressure * (
+      1.0 + 0.5 * (gamma - 1.0) * mach * mach
+    ) ** (gamma / (gamma - 1.0))
+    gain_fraction = max(
+      0.0,
+      (total_pressure - terminal_total_pressure)
+      / max(abs(terminal_total_pressure), 1.0),
+    )
+    maximum_total_pressure_gain_fraction = max(
+      maximum_total_pressure_gain_fraction,
+      gain_fraction,
+    )
+    ####
+  if maximum_mach >= 1.0:
+    return (
+      False,
+      None,
+      maximum_mach,
+      maximum_total_pressure_gain_fraction,
+      'conservative boundary states must remain strictly subsonic',
+    )
+  ####
+  if maximum_total_pressure_gain_fraction > request.state_tolerance:
+    return (
+      False,
+      None,
+      maximum_mach,
+      maximum_total_pressure_gain_fraction,
+      'conservative boundary states cannot gain total pressure over the '
+      'audited terminal downstream state',
+    )
+  ####
   ####
   expected = _terminal_downstream_conservative_state(request.terminal_geometry)
   terminal_candidates = tuple(
@@ -704,6 +802,8 @@ def _boundary_state_check(
     return (
       False,
       None,
+      maximum_mach,
+      maximum_total_pressure_gain_fraction,
       'conservative boundary samples do not retain the exact audited terminal point',
     )
   ####
@@ -715,11 +815,19 @@ def _boundary_state_check(
     return (
       False,
       residual,
+      maximum_mach,
+      maximum_total_pressure_gain_fraction,
       'terminal conservative state does not reproduce the audited downstream '
       'Rankine-Hugoniot state',
     )
   ####
-  return True, residual, 'explicit conservative boundary states are physical'
+  return (
+    True,
+    residual,
+    maximum_mach,
+    maximum_total_pressure_gain_fraction,
+    'explicit conservative boundary states are physical and subsonic',
+  )
 
 
 def prepare_moc_moving_mixed_regime_interface(
@@ -754,14 +862,22 @@ def prepare_moc_moving_mixed_regime_interface(
       message=interface_message,
     )
   ####
-  conservative_verified, terminal_residual, state_message = _boundary_state_check(
-    request
-  )
+  (
+    conservative_verified,
+    terminal_residual,
+    maximum_boundary_mach,
+    maximum_total_pressure_gain_fraction,
+    state_message,
+  ) = _boundary_state_check(request)
   if not conservative_verified:
     status = (
       MocMovingMixedRegimeInterfaceStatus.CONSERVATIVE_STATE_FAILURE
       if terminal_residual is not None
-      else MocMovingMixedRegimeInterfaceStatus.CONSERVATIVE_BOUNDARY_REQUIRED
+      else (
+        MocMovingMixedRegimeInterfaceStatus.SUBSONIC_BOUNDARY_REQUIRED
+        if maximum_boundary_mach is not None
+        else MocMovingMixedRegimeInterfaceStatus.CONSERVATIVE_BOUNDARY_REQUIRED
+      )
     )
     return _result(
       status,
@@ -769,6 +885,11 @@ def prepare_moc_moving_mixed_regime_interface(
       geometry_audit,
       interface_points_m=request.interface_points_m,
       terminal_conservative_state_residual=terminal_residual,
+      subsonic_boundary_verified=False,
+      maximum_boundary_mach=maximum_boundary_mach,
+      maximum_total_pressure_gain_fraction=(
+        maximum_total_pressure_gain_fraction
+      ),
       message=state_message,
     )
   ####
@@ -789,6 +910,11 @@ def prepare_moc_moving_mixed_regime_interface(
       terminal_conservative_state_verified=True,
       interface_geometry_verified=True,
       conservative_boundary_verified=True,
+      subsonic_boundary_verified=True,
+      maximum_boundary_mach=maximum_boundary_mach,
+      maximum_total_pressure_gain_fraction=(
+        maximum_total_pressure_gain_fraction
+      ),
       missing_sample_indices=missing_indices,
       message=(
         'the audited terminal conservative state and explicit moving-interface '
@@ -807,6 +933,9 @@ def prepare_moc_moving_mixed_regime_interface(
     interface_geometry_verified=True,
     conservative_boundary_verified=True,
     complete_cross_section_coverage=True,
+    subsonic_boundary_verified=True,
+    maximum_boundary_mach=maximum_boundary_mach,
+    maximum_total_pressure_gain_fraction=maximum_total_pressure_gain_fraction,
     message=(
       'explicit conservative boundary coverage and moving-interface geometry '
       'are admitted; the separate subsonic field solve and physical closure '
@@ -870,6 +999,9 @@ def measure_moc_moving_mixed_regime_interface(
     candidate.boundary_samples == expected.boundary_samples
     and candidate.terminal_conservative_state_residual
     == expected.terminal_conservative_state_residual
+    and candidate.maximum_boundary_mach == expected.maximum_boundary_mach
+    and candidate.maximum_total_pressure_gain_fraction
+    == expected.maximum_total_pressure_gain_fraction
     and candidate.terminal_conservative_state_verified
     == expected.terminal_conservative_state_verified
     and candidate.conservative_boundary_verified
@@ -883,6 +1015,21 @@ def measure_moc_moving_mixed_regime_interface(
       'boundary state lineage',
       terminal_geometry_rederived=True,
       interface_geometry_rederived=True,
+    )
+  ####
+  subsonic_rederived = bool(
+    candidate.subsonic_boundary_verified
+    == expected.subsonic_boundary_verified
+  )
+  if not subsonic_rederived:
+    return _audit_failure(
+      MocMovingMixedRegimeInterfaceAuditStatus.CONSERVATIVE_BOUNDARY_FAILURE,
+      candidate,
+      'candidate subsonic boundary gate differs from independent remeasurement',
+      terminal_geometry_rederived=True,
+      interface_geometry_rederived=True,
+      conservative_boundary_rederived=True,
+      subsonic_boundary_rederived=False,
     )
   ####
   coverage_rederived = bool(
@@ -899,6 +1046,7 @@ def measure_moc_moving_mixed_regime_interface(
       terminal_geometry_rederived=True,
       interface_geometry_rederived=True,
       conservative_boundary_rederived=True,
+      subsonic_boundary_rederived=True,
     )
   ####
   flags_verified = bool(
@@ -917,6 +1065,7 @@ def measure_moc_moving_mixed_regime_interface(
       interface_geometry_rederived=True,
       conservative_boundary_rederived=True,
       coverage_rederived=True,
+      subsonic_boundary_rederived=True,
     )
   ####
   return MocMovingMixedRegimeInterfaceAudit(
@@ -926,9 +1075,14 @@ def measure_moc_moving_mixed_regime_interface(
     interface_geometry_rederived=True,
     conservative_boundary_rederived=True,
     coverage_rederived=True,
+    subsonic_boundary_rederived=True,
     claim_flags_verified=True,
     terminal_conservative_state_residual=(
       expected.terminal_conservative_state_residual
+    ),
+    maximum_boundary_mach=expected.maximum_boundary_mach,
+    maximum_total_pressure_gain_fraction=(
+      expected.maximum_total_pressure_gain_fraction
     ),
     message=(
       'independent remeasurement reproduces the explicit conservative '

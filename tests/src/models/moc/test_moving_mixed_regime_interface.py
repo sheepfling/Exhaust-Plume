@@ -117,6 +117,44 @@ def test_moving_interface_accepts_complete_explicit_boundary_without_claiming_fi
   assert not tampered_audit.converged
 
 
+def test_moving_interface_rejects_supersonic_boundary_profile():
+  geometry = _geometry()
+  samples = tuple(
+    _terminal_sample(geometry, index, 0.08 * index / 4.0)
+    for index in range(5)
+  )
+  supersonic_state = (
+    1.0,
+    1000.0,
+    0.0,
+    1000.0 / (1.4 - 1.0) + 0.5 * 1000.0**2,
+  )
+  request = MocMovingMixedRegimeInterfaceRequest(
+    terminal_geometry=geometry,
+    interface_points_m=((1.0, 0.0), (1.1, 0.002)),
+    boundary_samples=(
+      samples[0],
+      replace(samples[1], conservative_state=supersonic_state),
+      *samples[2:],
+    ),
+    cross_section_x_m=1.0,
+    lower_y_m=0.0,
+    upper_y_m=0.08,
+    sample_count=5,
+  )
+
+  result = prepare_moc_moving_mixed_regime_interface(request)
+
+  assert result.status is MocMovingMixedRegimeInterfaceStatus.SUBSONIC_BOUNDARY_REQUIRED
+  assert result.maximum_boundary_mach is not None
+  assert result.maximum_boundary_mach > 1.0
+  assert not result.subsonic_boundary_verified
+  assert result.chain_promotion_blocked
+  audit = measure_moc_moving_mixed_regime_interface(result)
+  assert audit.converged
+  assert audit.subsonic_boundary_rederived
+
+
 def test_moving_interface_requires_explicit_geometry_and_does_not_infer_a_trace():
   geometry = _geometry()
   request = MocMovingMixedRegimeInterfaceRequest(
