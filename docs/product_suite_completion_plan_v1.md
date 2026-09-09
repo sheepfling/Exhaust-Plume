@@ -3384,8 +3384,8 @@ and a bounded research continuation, not canonical closure.
 
 This is the active order of work for completing the suite.  The dedicated
 branch remains the integration candidate; ``main`` is not the working branch.
-The latest committed candidate was clean and published; this board is a
-documentation-only change awaiting its own commit.  Each item below is a
+The latest committed candidate is clean and published, including this
+execution board.  Each item below is a
 separate vertical slice with its contract, focused tests, evidence note, and
 static checks.  A later item may consume an earlier item only through its
 declared contract and claim ceiling.
