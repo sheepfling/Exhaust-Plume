@@ -2879,7 +2879,7 @@ are also accepted.
 
 | Gate | Must be true | Current state | Unlocks |
 | --- | --- | --- | --- |
-| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `f167d69` is pushed on `work/washed-integral-visual`; no release tag | Safe integration and review |
+| Branch and contracts | Dedicated branch is clean, pushed, and every merged slice preserves the stricter contract and claim ceiling | `work/washed-integral-visual` is clean and pushed; latest tested code candidate is `e81d4e9`; no release tag | Safe integration and review |
 | Visualization | All five model lanes emit the common bundle, views, slices, paths, regions, masks, diagnostics, and provenance; supplied provider overlays use the declared operator | Local standardized gallery is complete; provider comparison is pending | Visualization product claim |
 | Mission-time composition | State/cursor advancement preserves source, pose, atmosphere, chemistry, optics, ray, Signature, and FPA lineage without inferred time evolution | Local timeline and exact Signature/FPA point/timeline seams are present | Time-resolved product demonstrations |
 | Solver fidelity | Basic, reduced-order, straight/washed, and planar-MOC lanes remain independently configured and promotion-guarded | Local separation passes; planar-MOC is still research-only | Controlled use of each fidelity |
@@ -2925,6 +2925,31 @@ or provider outputs are external blockers to record and request, not inputs to
 replace with synthetic observations.  Approximate lanes remain useful for
 Visualization and engineering exploration, but they never inherit the
 canonical solver's unresolved claims.
+
+### Active execution decision checkpoint — 2026-09-08 (`e81d4e9`)
+
+The current branch is the clean, pushed integration candidate.  The local
+acceptance matrix is green on the preceding code candidate (`1188 passed, 18
+warnings`; Ruff, Pyright, documentation, lane partition, public-contract
+assets, offline wheel build, and installed-wheel smoke all passed), and the
+latest commit records that evidence without changing runtime behavior.
+
+The next implementation slice is the solver-owned canonical reflected /
+mixed-regime closure, not product promotion.  It must produce a fresh field
+that closes the physical boundary, Euler residuals, entropy transport,
+centerline reflection, ambient attachment, conservative boundary flux, and
+strict refinement on the target case, with an independent re-derivation.  The
+existing moving-frame, profiled-pressure, exact-handoff, and fine-ladder
+results are prerequisites and research evidence only; none may be relabelled
+as canonical closure or used to fit production shock cells.
+
+In parallel, validation intake remains an owner-supplied dependency.  When the
+Version 8 and alignment archives plus provider-bound VIS/SIG/RAY/FPA outputs
+arrive, ingest them through the strict digest and measurement-operator
+handoff, assign disjoint calibration/validation cases, and run those product
+comparisons without changing solver claim ceilings.  Until then, keep the
+provider and physical gates explicitly pending, continue focused local
+regressions after each vertical slice, and do not create a release tag.
 
 ### Five-lane executable Visualization checkpoint — 2026-09-08
 
