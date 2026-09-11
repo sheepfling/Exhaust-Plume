@@ -5623,6 +5623,37 @@ is a solver-mechanism improvement, not a convergence claim; the accepted
 records, exact field re-solves, and non-promotion flags remain visible and the
 outer moving/free-boundary feedback gate stays closed.
 
+### P2.2 front-state probe sensitivity boundary checkpoint — 2026-09-11
+
+The remaining moving-front mismatch was isolated to the downstream sampling
+location rather than to the mass equation.  On the fresh mixed-regime case,
+the signed mass residual remains approximately ``5.68e-14 kg/m²/s`` and the
+energy residual remains approximately ``2.4e-7 W/m²`` across the probe sweep,
+while the maximum normal-momentum residual changes as follows:
+
+| downstream probe fraction | maximum normal-momentum residual |
+| ---: | ---: |
+| ``0`` (retained post-shock front limit) | ``6.4e-10 Pa`` |
+| ``1e-4`` | ``0.4108 Pa`` |
+| ``1e-3`` | ``4.1103 Pa`` |
+| ``5e-3`` | ``20.6012 Pa`` |
+| ``1e-2`` (current moving default) | ``41.3279 Pa`` |
+| ``5e-2`` | ``211.9368 Pa`` |
+
+The exact front-limit path is already a strict stationary research result;
+it does not provide moving-front evidence.  A pressure-only overlay or an
+angle-only geometry perturbation would change a downstream state without an
+exact field re-solve and would therefore violate the retained state lineage.
+The bounded residual/field line search consequently remains correctly
+promotion-blocked: no local scalar correction is admitted as physical
+closure.  The next implementation packet is an actual global boundary-state
+feedback handoff that consumes downstream pressure, tangent/geometry, and
+conservative residual information in a fresh upstream/free-boundary solve,
+with independent state lineage and case/refinement audits.  Until that
+handoff exists, the interior-probe moving result is a diagnostic response,
+the exact front-limit result is a stationary diagnostic response, and neither
+may feed physical shock-cell fitting or Signature/FPA production claims.
+
 ### P2.2 exact-Euler conditioned perimeter closure checkpoint — 2026-09-11
 
 The exact-Euler frontier consumer now closes the conditioned physical field

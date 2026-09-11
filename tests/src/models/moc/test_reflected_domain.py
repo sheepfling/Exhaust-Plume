@@ -2377,6 +2377,55 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert stationary_joint_audit.maximum_normal_momentum_residual_Pa <= 1.0e-2
 
 
+def test_two_sided_interface_probe_fraction_separates_front_limit_from_motion():
+  law = _solver_owned_interface_law_for_resolution(9)
+  assert law.current_field_iteration is not None
+  assert law.request is not None
+
+  responses = []
+  for fraction in (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 5.0e-2):
+    candidate = build_solver_owned_euler_two_sided_interface_response(
+      law.current_field_iteration,
+      replace(
+        law.request,
+        downstream_probe_fraction=fraction,
+      ),
+    )
+    assert candidate.response is not None
+    responses.append(candidate)
+
+  momentum = tuple(
+    candidate.response.maximum_normal_momentum_residual_Pa
+    for candidate in responses
+    if candidate.response is not None
+  )
+  assert momentum[0] <= 1.0e-6
+  assert momentum == tuple(sorted(momentum))
+  assert momentum[-1] > 100.0 * momentum[1]
+  assert all(
+    candidate.response.maximum_mass_flux_residual_kg_m2_s <= 1.0e-9
+    and candidate.response.maximum_energy_flux_residual_W_m2 <= 1.0e-4
+    for candidate in responses
+    if candidate.response is not None
+  )
+  assert responses[0].stationary_equilibrium_candidate
+  assert responses[0].response.stationary_equilibrium_candidate
+  assert all(
+    candidate.response.stationary_equilibrium_candidate is False
+    for candidate in responses[1:]
+    if candidate.response is not None
+  )
+  assert all(
+    candidate.request is not None
+    and candidate.request.downstream_probe_fraction == fraction
+    for candidate, fraction in zip(
+      responses,
+      (0.0, 1.0e-4, 1.0e-3, 1.0e-2, 5.0e-2),
+      strict=True,
+    )
+  )
+
+
 def test_strict_moving_interface_binds_exact_shock_and_companion_lineage():
   research_law = _solver_owned_interface_law_for_resolution(9)
   assert research_law.current_field_iteration is not None
