@@ -5022,3 +5022,33 @@ This strengthens P2.2 case/resolution evidence only.  The strict moving-front
 conservative residual gate, canonical mixed-regime/free-boundary feedback,
 accepted physical shock-cell length, provider-bound validation, missing
 validation archives, and release freeze remain open.
+
+### WP-0 current product-lane release audit checkpoint — 2026-09-11
+
+The local product-lane validator was rerun from the current checkout without
+an external corpus.  It reports `local_status=passed` and retains
+`external_status=comparison-pending`; the seven local lanes are unchanged:
+Visualization, Signature, straight optical transfer, cross-product
+consistency, and mission-time composition pass their local contracts, the FPA
+lane is `boundary-validated-downstream`, and curved optical transfer remains
+`diagnostic-only`.  The committed report therefore remains an accurate local
+engineering snapshot, not an external-validation result.
+
+The release-manifest validator was also rerun against the current checkout.
+All functional checks complete without a validation-script failure, but the
+umbrella release remains `release_ready=false`.  The blockers are still
+substantive: no provider-bound measurement-space comparisons or accepted
+camera/detector observations, no disjoint reduced-order shock-train
+calibration/validation split, open canonical planar-MOC/free-boundary and
+physical first-cell closure, an unverified separately named alignment archive,
+and a historical release-freeze commit that does not identify the current
+candidate HEAD.  The freeze is intentionally not rewritten mid-stream; it
+will be refreshed only after the final code/documentation slice for a release
+candidate, followed by a fresh manifest on that exact candidate.
+
+This checkpoint establishes the operating baseline for the long-running goal:
+local contract evidence is green where implemented, claim ceilings remain
+visible, and no missing archive or external observation is substituted with a
+synthetic fixture.  The next execution slice remains `P2.2` canonical
+mixed-regime consumer work, while the evidence track may continue preparing
+provider intake and measurement-operator bindings in parallel.
