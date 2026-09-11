@@ -470,6 +470,12 @@ from exhaust_plume.validation.moc_global_boundary_state_joint_refinement import 
   MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement,
   measure_moc_global_boundary_state_joint_refinement,
 )
+from exhaust_plume.validation.moc_global_boundary_state_dimensioned_corrector import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_DIMENSIONED_CORRECTOR_OPERATOR_ID,
+  MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus,
+  MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult,
+  run_reflected_domain_global_boundary_state_dimensioned_corrector,
+)
 from exhaust_plume.validation.moc_global_boundary_state_outer_update import (
   MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_OUTER_UPDATE_OPERATOR_ID,
   MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus,
@@ -1326,6 +1332,10 @@ __all__ = (
   'MocReflectedDomainGlobalBoundaryStateJointRefinementStatus',
   'MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement',
   'measure_moc_global_boundary_state_joint_refinement',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_DIMENSIONED_CORRECTOR_OPERATOR_ID',
+  'MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus',
+  'MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult',
+  'run_reflected_domain_global_boundary_state_dimensioned_corrector',
   'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_OUTER_UPDATE_OPERATOR_ID',
   'MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus',
   'MocReflectedDomainGlobalBoundaryStateOuterUpdateResult',

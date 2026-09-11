@@ -438,6 +438,10 @@ from exhaust_plume.validation.moc_global_boundary_state_joint_refinement import 
   MocReflectedDomainGlobalBoundaryStateJointRefinementStatus,
   measure_moc_global_boundary_state_joint_refinement,
 )
+from exhaust_plume.validation.moc_global_boundary_state_dimensioned_corrector import (
+  MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus,
+  run_reflected_domain_global_boundary_state_dimensioned_corrector,
+)
 from exhaust_plume.validation.moc_global_boundary_state_outer_update import (
   MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus,
   run_reflected_domain_global_boundary_state_outer_update,
@@ -13339,6 +13343,63 @@ def test_global_boundary_state_joint_refinement_covers_cases_and_resolutions():
   report = measurement.as_report()
   assert report['operator_id'] == (
     'op.moc.reflected-domain.global-boundary-state-joint-refinement-v1'
+  )
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_boundary_state_dimensioned_corrector_keeps_channel_failure_typed():
+  closure = _global_physical_closure_for_mixed_regime(8)
+  feedback = run_reflected_domain_global_boundary_state_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+  )
+  assert feedback.handoff is not None
+  joint = run_reflected_domain_global_boundary_state_joint_solve(
+    feedback.handoff
+  )
+  assert joint.converged_research_joint_update
+
+  result = run_reflected_domain_global_boundary_state_dimensioned_corrector(
+    joint
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus
+    .CHANNEL_FAILURE
+  )
+  assert result.converged_research_dimensioned_corrector is False
+  assert result.joint_consumption_verified
+  assert result.terminal_boundary_equations_verified
+  assert result.terminal_global_recheck_verified
+  assert result.state_solver_invoked
+  assert result.complete_conservative_response_verified
+  assert result.state_lineage_verified
+  assert result.independent_residual_audit_verified
+  assert result.dimensioned_channel_descent_verified is False
+  assert result.residual_descent_verified is False
+  assert result.terminal_feedback_run is not None
+  assert result.terminal_feedback_run.research_feedback_completed
+  assert result.baseline_residual_norm is not None
+  assert result.refreshed_residual_norm is not None
+  assert len(result.baseline_dimensioned_channel_maxima) == 3
+  assert len(result.refreshed_dimensioned_channel_maxima) == 3
+  assert result.global_coupling_verified is False
+  assert result.downstream_boundary_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()
+  assert report['operator_id'] == (
+    'op.moc.reflected-domain.global-boundary-state-dimensioned-corrector-v1'
   )
   assert report['production_claim_allowed'] is False
 ####
