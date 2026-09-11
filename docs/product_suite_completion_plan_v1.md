@@ -5713,3 +5713,31 @@ consumes this packet in a fresh stateful upstream solve, followed by disjoint
 case/refinement evidence under the strict budget.  The validation archives,
 provider-bound VIS/SIG/RAY/FPA comparisons, physical shock-cell lengths, and
 release freeze remain open.
+
+### P2.2 joint boundary-state consumer checkpoint — 2026-09-11
+
+The handoff now has a named consumer,
+``op.moc.reflected-domain.global-boundary-state-joint-solve-v1``.  It recovers
+the exact solver-owned frame extension retained by the boundary-feedback run,
+passes that frame through a fresh global boundary-conditioned solve, and then
+replays the conservative two-sided state solver on the resulting closure.  It
+does not interpolate the signed shock-frame residuals onto the downstream
+proposal frame; the two frames are different and the consumer rejects any
+lineage or coverage mismatch.
+
+The current mixed-regime research handoff passes exact target consumption,
+fresh global closure, state lineage, moving-state, signed-channel, and
+independent residual-audit gates.  The refreshed normalized conservative
+residual is ``0.217711771324`` versus the retained baseline
+``0.217711771324``.  Because there is no strict descent, the consumer returns
+``RESIDUAL_DESCENT_FAILURE`` and keeps canonical coupling, shock-cell,
+Signature, FPA, and production claims closed.  The focused regression tranche
+passes (``3 passed``), with Ruff, Pyright, compilation, and whitespace checks
+clean.  This is a real stateful consumption attempt, not a convergence claim.
+
+The next physics gate is a solver-owned update direction that changes the
+fresh upstream/free-boundary state and demonstrates independently audited
+strict residual descent across disjoint cases and resolutions.  Direct
+residual-to-downstream-pressure interpolation remains disallowed.  Validation
+archives, provider-bound VIS/SIG/RAY/FPA comparisons, physical shock-cell
+lengths, and the release freeze remain open.

@@ -412,6 +412,10 @@ from exhaust_plume.validation.moc_global_boundary_state_feedback import (
   MocReflectedDomainGlobalBoundaryStateFeedbackStatus,
   run_reflected_domain_global_boundary_state_feedback,
 )
+from exhaust_plume.validation.moc_global_boundary_state_joint_solve import (
+  MocReflectedDomainGlobalBoundaryStateJointSolveStatus,
+  run_reflected_domain_global_boundary_state_joint_solve,
+)
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_refinement import (
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase,
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus,
@@ -12527,6 +12531,61 @@ def test_global_boundary_state_feedback_can_emit_only_an_explicit_loose_research
   assert result.handoff.signed_normal_momentum_residuals_Pa
   assert result.as_report()['handoff']['ready_for_joint_global_resolve'] is True
   assert result.as_report()['handoff']['consumed_by_global_solver'] is False
+####
+
+
+def test_global_boundary_state_joint_consumer_replays_exact_frame_and_blocks_no_descent():
+  closure = _global_physical_closure_for_mixed_regime()
+
+  feedback = run_reflected_domain_global_boundary_state_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+  )
+  assert feedback.handoff is not None
+
+  joint = run_reflected_domain_global_boundary_state_joint_solve(
+    feedback.handoff
+  )
+
+  assert joint.status is (
+    MocReflectedDomainGlobalBoundaryStateJointSolveStatus
+    .RESIDUAL_DESCENT_FAILURE
+  )
+  assert joint.handoff_lineage_verified
+  assert joint.global_consumer_invoked
+  assert joint.fresh_global_solve_verified
+  assert joint.target_consumption_verified
+  assert joint.target_geometry_consumption_verified
+  assert joint.state_solver_invoked
+  assert joint.state_lineage_verified
+  assert joint.signed_residuals_verified
+  assert joint.moving_state_verified
+  assert joint.independent_residual_audit_verified
+  assert joint.handoff_consumed
+  assert joint.joint_state_update_verified
+  assert joint.residual_descent_verified is False
+  assert joint.baseline_residual_norm == pytest.approx(
+    joint.refreshed_residual_norm
+  )
+  assert joint.global_coupling_verified is False
+  assert joint.downstream_boundary_closure_verified is False
+  assert joint.chain_promotion_blocked
+  assert joint.production_claim_allowed is False
+  report = joint.as_report()
+  assert report['operator_id'] == (
+    'op.moc.reflected-domain.global-boundary-state-joint-solve-v1'
+  )
+  assert report['handoff_consumed'] is True
+  assert report['production_claim_allowed'] is False
 ####
 
 
