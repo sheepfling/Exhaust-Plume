@@ -5100,3 +5100,34 @@ repository suite passes `1259 passed` with 18 existing warnings.  This is
 explicit quasi-steady/front-limit evidence only; it does not close the moving
 conservative residual, canonical mixed-regime/free-boundary feedback,
 physical shock-cell lengths, external product validation, or release gates.
+
+### P2.2 mixed-wave entropy-consumer audit checkpoint — 2026-09-11
+
+The explicit mixed-wave entropy/ambient-consumer path was exercised through
+its current end-to-end regression surface. Seven focused global mixed-wave
+tests pass. The consumer retains the exact source closure fingerprint,
+perimeter contract, station-resolved total-pressure profile, conservative
+ambient-entrainment mechanism, solver-owned transonic placement,
+coupled-field request, and an independent audit for every retained
+iteration. It remains research-only: canonical physical closure, global
+feedback, chain promotion, and production claims stay false.
+
+The actual global case remains a typed physical stop, not a consumer failure
+that can be hidden by relabeling. Its scalar pressure-matching transition
+requires upstream Mach approximately ``3.017``, while the retained global
+Euler frontier spans only approximately ``1.49``--``1.58``. A separate
+solver-owned interior-placement field can reduce the Euler residual below its
+local tolerance, but its downstream boundary remains over-pressured and has
+nonzero normal flow; extending the axial window does not establish pressure,
+tangency, centerline, or global feedback closure. No scalar normal-shock
+reference, entropy profile, outlet condition, or longer window is accepted
+as a substitute for the missing solver-owned mixed-regime response.
+
+The next P2.2 physics packet is therefore the canonical consumer itself: a
+fresh solver-owned interface/free-boundary solve that chooses the admissible
+transonic state and entropy production while closing the upstream frontier,
+downstream pressure/tangency, centerline reflection, and Euler residuals in
+one field. It must be independently audited on a stable case/resolution
+ladder before P3 shock-cell fitting can consume it. The validation archive,
+provider-bound product comparisons, and release-freeze blockers remain
+unchanged.
