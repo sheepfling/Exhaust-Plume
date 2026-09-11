@@ -12376,6 +12376,8 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
     tangent_corrections_rad=(0.0,) * candidate_count,
     pressure_corrections_Pa=(0.0,) * candidate_count,
     normal_velocity_values_m_s=(0.0,) * candidate_count,
+    free_boundary_signed_pressure_residuals_Pa=(0.0,) * candidate_count,
+    free_boundary_signed_normal_velocity_residuals_m_s=(0.0,) * candidate_count,
   )
   candidate_request = build_reflected_domain_global_frontier_reconciliation_request(
     closure,
@@ -12476,6 +12478,8 @@ def _fresh_global_frontier_resolve_for_mixed_regime(
     tangent_corrections_rad=(0.0,) * count,
     pressure_corrections_Pa=(0.0,) * count,
     normal_velocity_values_m_s=(0.0,) * count,
+    free_boundary_signed_pressure_residuals_Pa=(0.0,) * count,
+    free_boundary_signed_normal_velocity_residuals_m_s=(0.0,) * count,
   )
   candidate_request = build_reflected_domain_global_frontier_reconciliation_request(
     closure,
@@ -14224,6 +14228,8 @@ def test_global_frontier_target_pressure_reconciliation_consumes_exact_target_wi
     tangent_corrections_rad=(0.0,) * count,
     pressure_corrections_Pa=(0.0,) * count,
     normal_velocity_values_m_s=(0.0,) * count,
+    free_boundary_signed_pressure_residuals_Pa=(0.0,) * count,
+    free_boundary_signed_normal_velocity_residuals_m_s=(0.0,) * count,
   )
   exact_request = build_reflected_domain_global_frontier_reconciliation_request(
     closure,
@@ -14313,6 +14319,8 @@ def test_global_frontier_boundary_condition_consumes_pressure_with_solver_owned_
     tangent_corrections_rad=(0.0,) * count,
     pressure_corrections_Pa=(0.0,) * count,
     normal_velocity_values_m_s=(0.0,) * count,
+    free_boundary_signed_pressure_residuals_Pa=(0.0,) * count,
+    free_boundary_signed_normal_velocity_residuals_m_s=(0.0,) * count,
   )
   request = build_reflected_domain_global_frontier_reconciliation_request(
     source_closure,
@@ -14536,6 +14544,8 @@ def _identity_frontier_request_for_closure(
     tangent_corrections_rad=(0.0,) * count,
     pressure_corrections_Pa=(0.0,) * count,
     normal_velocity_values_m_s=(0.0,) * count,
+    free_boundary_signed_pressure_residuals_Pa=(0.0,) * count,
+    free_boundary_signed_normal_velocity_residuals_m_s=(0.0,) * count,
   )
   return build_reflected_domain_global_frontier_reconciliation_request(
     closure,
