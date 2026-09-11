@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — checkpoint `2887398`
+### Active execution card — checkpoint `40947c7`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -93,8 +93,9 @@ recheck and then invokes the complete signed conservative state solver.  The
 terminal boundary equations and response lineage pass.  The corrector now
 tightens any exploratory handoff to the strict accepted tolerances before
 measuring progress; the state solver retains three exact field-resolved
-attempts but remains non-converged.  This is the current physical stop, not a
-product or canonical-closure result.
+attempts and the channel-aware line-search rejects worsening trials, but it
+remains non-converged.  This is the current physical stop, not a product or
+canonical-closure result.
 
 The next implementation sprint is therefore a physically justified update law
 that improves the complete response after the terminal recheck:
@@ -379,20 +380,20 @@ lineage, fresh field re-solves, and independent residual audit.
 On the exercised mixed-regime case, the terminal boundary equations and the
 complete conservative response are verified in the strict acceptance space
 (``1e-3 kg/m²/s``, ``1e-2 Pa``, ``1e-1 W/m²``).  The solver retains three exact
-field-resolved attempts and reduces the normalized aggregate residual only
-slightly (``2458.5937153 -> 2458.5887071``), but remains non-converged; the
-energy channel worsens from approximately ``2.384e-6`` to ``3.576e-6`` while
-the normalized momentum channel remains about ``4.758e3``.  The typed result
-is therefore ``STATE_FAILURE`` with promotion blocked.  The exploratory
-100 Pa handoff tolerance cannot clear this gate.  No tolerance relaxation,
-geometry overlay, endpoint hold, or claim relabeling clears it.
+field-resolved attempts and the channel-aware line-search rejects worsening
+trials.  It reduces the normalized aggregate residual only slightly but
+remains non-converged; the normalized momentum channel remains about
+``4.758e3``.  The typed result is therefore ``STATE_FAILURE`` with promotion
+blocked.  The exploratory 100 Pa handoff tolerance cannot clear this gate.
+No tolerance relaxation, geometry overlay, endpoint hold, or claim relabeling
+clears it.
 
 The focused joint/corrector tranche passes (``3 passed``), with Ruff and
 compilation clean.  Canonical free-boundary coupling, physical shock-cell
 promotion, provider-bound Visualization/Signature/RAY/FPA validation, missing
 validation archives, and release readiness remain open.  The next physics
-slice is the update-law correction that turns this typed channel failure into
-strict improvement without weakening the equation or fidelity boundaries.
+slice is the update-law correction that turns this typed strict state failure
+into closure without weakening the equation or fidelity boundaries.
 
 ## Execution sprints and stop conditions
 
