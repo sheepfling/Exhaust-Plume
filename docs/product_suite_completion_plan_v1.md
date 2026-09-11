@@ -73,27 +73,30 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — checkpoint `f21c4fa`
+### Active execution card — checkpoint `c4a4c69`
 
 The current candidate is a clean dedicated integration branch with the
-disjoint signed pressure/geometry response refinement in place.  That slice
-is useful research evidence: each named case owns a distinct exact closure
-fingerprint, each resolution invokes a fresh solver response, and the
-independently audited normal-velocity residual descends.  It does not change
-the claim ceiling.  The outer global/coupled result, downstream boundary,
+disjoint signed pressure/geometry response refinement and the first
+solver-owned global shock-geometry response consumer in place.  The latter
+re-samples the moving-shock proposal against the retained source band,
+independently refits the Euler curve, rebuilds the exact ambient field, and
+demonstrates a small strict conservative-residual decrease.  These are useful
+research results only.  The outer global/coupled result, downstream boundary,
 canonical free-boundary, production shock-cell, provider-validation, and
 release flags remain closed.
 
-The next implementation sprint is therefore the canonical physical consumer,
-not another response wrapper:
+The next implementation sprint is therefore the full dimensioned physical
+corrector, not another response wrapper:
 
 1. Define the solver-owned mixed-regime/free-boundary state and its admissible
    transonic branch, including upstream frontier, downstream pressure and
    tangency, centerline reflection, entropy transport, and signed mass,
    normal-momentum, and energy residuals in one field solve.
-2. Consume the exact signed response in that state solve.  Every trial must
-   carry source/proposal/field fingerprints, retain its coordinate frame, use
-   bounded updates, and be freshly re-solved and independently remeasured.
+2. Extend the current geometry-response seam to consume the complete signed
+   mass, normal-momentum, and energy response in that state solve.  Every
+   trial must carry source/proposal/field fingerprints, retain its coordinate
+   frame, use bounded updates, and be freshly re-solved and independently
+   remeasured.
 3. Admit a candidate only when all declared physical residuals descend or meet
    the stated convergence test.  A pressure overlay, compression-envelope
    skew, terminal patch, scalar mixed-regime reference, or longer axial window
@@ -280,6 +283,30 @@ downstream regression now passes (``22 passed``); mass/energy descent, the
 canonical planar-MOC/free-boundary consumer, accepted provider comparisons,
 validation archives, physical shock-cell lengths, and release freeze remain
 open.
+
+### P2.2j solver-owned shock-geometry response consumer checkpoint — 2026-09-11
+
+The global boundary-state joint consumer now consumes the moving-interface
+solver's proposed shock geometry instead of replaying the unchanged global
+remesh.  The new seam re-samples the response against the retained source
+band, independently refits the Euler shock curve, preserves the source-band
+pressure-target lineage, assembles a fresh exact ambient/centerline field, and
+re-runs the independent global, field, downstream-boundary, entropy, and cell
+residual audits.  The result records the response object, corrected closure,
+and exact source-band/global-remesh lineage; geometry is not accepted merely
+because it is carried by a response object.
+
+On the exercised mixed-regime case, the fresh replay now demonstrates a
+measurable conservative residual decrease (approximately
+``0.2177117713 -> 0.2177115184``) and the focused joint/outer regression
+passes (``2 passed``).  This is a solver-owned research correction, not a
+canonical global/free-boundary fixed point: global coupling, downstream
+boundary closure, physical shock-cell promotion, provider validation, and
+production claims remain false.  The existing entropy-lineage and
+provider/archive blockers are intentionally unchanged.  The next physics
+slice is to extend this response consumer into the full dimensioned
+mass/normal-momentum/energy corrector and prove strict descent across the
+disjoint case/resolution ladder.
 
 ## Execution sprints and stop conditions
 

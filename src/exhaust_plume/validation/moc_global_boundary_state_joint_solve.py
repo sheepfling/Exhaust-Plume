@@ -26,6 +26,7 @@ from exhaust_plume.models.moc.global_frontier_reconciliation import (
 )
 from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
+  consume_reflected_domain_global_shock_geometry_response,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
 from exhaust_plume.models.moc.global_two_sided_moving_interface import (
@@ -50,6 +51,9 @@ from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
 )
 from exhaust_plume.models.moc.euler_two_sided_moving_interface import (
   MocEulerTwoSidedInterfaceResponse,
+)
+from exhaust_plume.models.moc.euler_shock_boundary import (
+  MocEulerShockBoundaryCurveResult,
 )
 
 __all__ = (
@@ -162,6 +166,8 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
   state_request: MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest | None = None
   state_result: MocReflectedDomainGlobalTwoSidedMovingInterfaceResult | None = None
   conservative_residual_audit: MocEulerTwoSidedConservativeResidualAudit | None = None
+  shock_geometry_response: MocEulerShockBoundaryCurveResult | None = None
+  geometry_response_closure: MocReflectedDomainGlobalPhysicalClosureResult | None = None
   baseline_residual_norm: float | None = None
   refreshed_residual_norm: float | None = None
   handoff_lineage_verified: bool = False
@@ -169,6 +175,8 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
   fresh_global_solve_verified: bool = False
   target_consumption_verified: bool = False
   target_geometry_consumption_verified: bool = False
+  shock_geometry_response_consumed: bool = False
+  shock_geometry_response_lineage_verified: bool = False
   state_solver_invoked: bool = False
   state_lineage_verified: bool = False
   signed_residuals_verified: bool = False
@@ -229,12 +237,24 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       MocEulerTwoSidedConservativeResidualAudit,
     ):
       raise TypeError('conservative_residual_audit must be typed or None')
+    if self.shock_geometry_response is not None and not isinstance(
+      self.shock_geometry_response,
+      MocEulerShockBoundaryCurveResult,
+    ):
+      raise TypeError('shock_geometry_response must be typed or None')
+    if self.geometry_response_closure is not None and not isinstance(
+      self.geometry_response_closure,
+      MocReflectedDomainGlobalPhysicalClosureResult,
+    ):
+      raise TypeError('geometry_response_closure must be typed or None')
     for name in (
       'handoff_lineage_verified',
       'global_consumer_invoked',
       'fresh_global_solve_verified',
       'target_consumption_verified',
       'target_geometry_consumption_verified',
+      'shock_geometry_response_consumed',
+      'shock_geometry_response_lineage_verified',
       'state_solver_invoked',
       'state_lineage_verified',
       'signed_residuals_verified',
@@ -293,6 +313,10 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       'fresh_global_solve_verified': self.fresh_global_solve_verified,
       'target_consumption_verified': self.target_consumption_verified,
       'target_geometry_consumption_verified': self.target_geometry_consumption_verified,
+      'shock_geometry_response_consumed': self.shock_geometry_response_consumed,
+      'shock_geometry_response_lineage_verified': (
+        self.shock_geometry_response_lineage_verified
+      ),
       'state_solver_invoked': self.state_solver_invoked,
       'state_lineage_verified': self.state_lineage_verified,
       'signed_residuals_verified': self.signed_residuals_verified,
@@ -331,6 +355,16 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
         None
         if self.conservative_residual_audit is None
         else self.conservative_residual_audit.as_report()
+      ),
+      'shock_geometry_response': (
+        None
+        if self.shock_geometry_response is None
+        else self.shock_geometry_response.as_report()
+      ),
+      'geometry_response_closure_fingerprint': (
+        None
+        if self.geometry_response_closure is None
+        else _fingerprint(self.geometry_response_closure)
       ),
       'handoff': None if self.handoff is None else self.handoff.as_report(),
       'claim_status': (
@@ -499,10 +533,98 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       target_geometry_consumption_verified=target_geometry_consumed,
     )
   assert candidate is not None
+  initial_response = _response(handoff.two_sided_result)
+  geometry_response = (
+    None if initial_response is None else initial_response.next_shock_boundary
+  )
+  if geometry_response is None:
+    return _result(
+      MocReflectedDomainGlobalBoundaryStateJointSolveStatus.GLOBAL_CONSUMER_FAILURE,
+      handoff,
+      'fresh global target consumption retained no solver-owned shock geometry '
+      'response for the global closure consumer',
+      source_closure=source,
+      frontier_request=request,
+      consumed_target=target,
+      boundary_condition=boundary_condition,
+      shock_geometry_response=geometry_response,
+      handoff_lineage_verified=True,
+      global_consumer_invoked=True,
+      fresh_global_solve_verified=False,
+      target_consumption_verified=target_consumed,
+      target_geometry_consumption_verified=target_geometry_consumed,
+    )
+  try:
+    geometry_response_closure = (
+      consume_reflected_domain_global_shock_geometry_response(
+        candidate,
+        geometry_response,
+      )
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _result(
+      MocReflectedDomainGlobalBoundaryStateJointSolveStatus.GLOBAL_CONSUMER_FAILURE,
+      handoff,
+      f'global shock geometry response consumer raised: {error}',
+      source_closure=source,
+      frontier_request=request,
+      consumed_target=target,
+      boundary_condition=boundary_condition,
+      shock_geometry_response=geometry_response,
+      handoff_lineage_verified=True,
+      global_consumer_invoked=True,
+      fresh_global_solve_verified=False,
+      target_consumption_verified=target_consumed,
+      target_geometry_consumption_verified=target_geometry_consumed,
+    )
+  corrected_global_euler = geometry_response_closure.global_euler
+  shock_geometry_response_consumed = bool(
+    geometry_response_closure.converged
+    and geometry_response_closure.physical_closure_verified
+    and geometry_response_closure is not candidate
+    and corrected_global_euler is not None
+    and corrected_global_euler.shock_boundary is not None
+    and corrected_global_euler.shock_boundary is not geometry_response
+    and tuple(corrected_global_euler.remeshed_shock_points_m)
+    == tuple(geometry_response.shock_points_m)
+  )
+  shock_geometry_response_lineage_verified = bool(
+    shock_geometry_response_consumed
+    and geometry_response_closure.source_band is candidate.source_band
+    and geometry_response_closure.global_remesh is candidate.global_remesh
+    and geometry_response_closure.source_pressure_target_source
+    == candidate.source_pressure_target_source
+  )
+  if not shock_geometry_response_consumed or not shock_geometry_response_lineage_verified:
+    return _result(
+      MocReflectedDomainGlobalBoundaryStateJointSolveStatus.GLOBAL_CONSUMER_FAILURE,
+      handoff,
+      'solver-owned shock geometry response was not independently consumed '
+      'with the exact source-band/global-remesh lineage: '
+      f'{geometry_response_closure.message}',
+      source_closure=source,
+      frontier_request=request,
+      consumed_target=target,
+      boundary_condition=boundary_condition,
+      shock_geometry_response=geometry_response,
+      geometry_response_closure=geometry_response_closure,
+      handoff_lineage_verified=True,
+      global_consumer_invoked=True,
+      fresh_global_solve_verified=False,
+      target_consumption_verified=target_consumed,
+      target_geometry_consumption_verified=target_geometry_consumed,
+      shock_geometry_response_consumed=shock_geometry_response_consumed,
+      shock_geometry_response_lineage_verified=shock_geometry_response_lineage_verified,
+    )
+  fresh_global_with_geometry = bool(
+    fresh_global
+    and shock_geometry_response_consumed
+    and shock_geometry_response_lineage_verified
+  )
   baseline_norm = float(handoff.final_residual_norm)
   state_request = replace(
     handoff.two_sided_result.request,
-    closure=candidate,
+    closure=geometry_response_closure,
     source=f'{resolved_consumer_id}-state-replay-v1',
   )
   try:
@@ -519,11 +641,15 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       consumed_target=target,
       boundary_condition=boundary_condition,
       state_request=state_request,
+      shock_geometry_response=geometry_response,
+      geometry_response_closure=geometry_response_closure,
       handoff_lineage_verified=True,
       global_consumer_invoked=True,
-      fresh_global_solve_verified=True,
-      target_consumption_verified=True,
-      target_geometry_consumption_verified=True,
+      fresh_global_solve_verified=fresh_global_with_geometry,
+      target_consumption_verified=target_consumed,
+      target_geometry_consumption_verified=target_geometry_consumed,
+      shock_geometry_response_consumed=shock_geometry_response_consumed,
+      shock_geometry_response_lineage_verified=shock_geometry_response_lineage_verified,
       state_solver_invoked=True,
       baseline_residual_norm=baseline_norm,
     )
@@ -532,7 +658,8 @@ def run_reflected_domain_global_boundary_state_joint_solve(
   response = _response(state_result)
   state_lineage = bool(
     state_result.request is state_request
-    and state_result.source_closure_fingerprint == _fingerprint(candidate)
+    and state_result.source_closure_fingerprint
+    == _fingerprint(geometry_response_closure)
   )
   signed = _signed_channels_finite(response)
   independent_audit = bool(
@@ -564,11 +691,15 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       state_request=state_request,
       state_result=state_result,
       conservative_residual_audit=audit,
+      shock_geometry_response=geometry_response,
+      geometry_response_closure=geometry_response_closure,
       handoff_lineage_verified=True,
       global_consumer_invoked=True,
-      fresh_global_solve_verified=True,
-      target_consumption_verified=True,
-      target_geometry_consumption_verified=True,
+      fresh_global_solve_verified=fresh_global_with_geometry,
+      target_consumption_verified=target_consumed,
+      target_geometry_consumption_verified=target_geometry_consumed,
+      shock_geometry_response_consumed=shock_geometry_response_consumed,
+      shock_geometry_response_lineage_verified=shock_geometry_response_lineage_verified,
       state_solver_invoked=True,
       state_lineage_verified=state_lineage,
       signed_residuals_verified=signed,
@@ -589,20 +720,35 @@ def run_reflected_domain_global_boundary_state_joint_solve(
     state_request=state_request,
     state_result=state_result,
     conservative_residual_audit=audit,
+    shock_geometry_response=geometry_response,
+    geometry_response_closure=geometry_response_closure,
     handoff_lineage_verified=True,
     global_consumer_invoked=True,
-    fresh_global_solve_verified=True,
-    target_consumption_verified=True,
-    target_geometry_consumption_verified=True,
+    fresh_global_solve_verified=fresh_global_with_geometry,
+    target_consumption_verified=target_consumed,
+    target_geometry_consumption_verified=target_geometry_consumed,
+    shock_geometry_response_consumed=shock_geometry_response_consumed,
+    shock_geometry_response_lineage_verified=shock_geometry_response_lineage_verified,
     state_solver_invoked=True,
     state_lineage_verified=state_lineage,
     signed_residuals_verified=signed,
     moving_state_verified=moving,
     independent_residual_audit_verified=independent_audit,
     residual_descent_verified=descent,
-    handoff_consumed=bool(state_lineage and signed and moving),
+    handoff_consumed=bool(
+      state_lineage
+      and signed
+      and moving
+      and shock_geometry_response_consumed
+      and shock_geometry_response_lineage_verified
+    ),
     joint_state_update_verified=bool(
-      state_lineage and signed and moving and independent_audit
+      state_lineage
+      and signed
+      and moving
+      and independent_audit
+      and shock_geometry_response_consumed
+      and shock_geometry_response_lineage_verified
     ),
     baseline_residual_norm=baseline_norm,
     refreshed_residual_norm=float(refreshed_norm),

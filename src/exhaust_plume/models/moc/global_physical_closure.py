@@ -38,6 +38,9 @@ from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryCurveResult,
   fit_euler_consistent_shock_boundary_from_geometry,
 )
+from exhaust_plume.models.moc.euler_physical_field import (
+  assemble_euler_ambient_physical_field,
+)
 from exhaust_plume.models.moc.physical_cell import (
   MocPhysicalPostShockFieldResult,
 )
@@ -66,6 +69,7 @@ __all__ = (
   'MocReflectedDomainGlobalPhysicalClosureResult',
   'moc_reflected_domain_global_physical_closure_fingerprint',
   'solve_reflected_domain_global_physical_closure',
+  'consume_reflected_domain_global_shock_geometry_response',
   'MocProductionShockCellFitStatus',
   'MocProductionShockCellFitResult',
   'fit_reflected_domain_production_shock_cell',
@@ -1944,6 +1948,484 @@ def solve_reflected_domain_global_physical_closure(
       f'{entropy_message}'
       if not entropy_verified
       else 'global Euler field did not pass the independent physical-field or cell-residual audit'
+    ),
+  )
+####
+
+
+def consume_reflected_domain_global_shock_geometry_response(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  shock_geometry_response: MocEulerShockBoundaryCurveResult,
+  *,
+  branch: ShockBranch = ShockBranch.WEAK,
+  position_tolerance_m: float = 1.0e-9,
+  invariant_tolerance: float = 1.0e-10,
+  pressure_tolerance: float = 1.0e-8,
+  tangent_tolerance: float = 1.0e-8,
+  maximum_boundary_iterations: int = 16,
+) -> MocReflectedDomainGlobalPhysicalClosureResult:
+  """Consume a solver-owned moving-shock geometry response.
+
+  The two-sided conservative state solver owns the proposed shock geometry,
+  but it does not own the global source-band field.  This seam therefore
+  re-samples the proposed geometry from the retained source band, independently
+  refits its Euler shock states, and assembles a new exact ambient/centerline
+  field.  The previous global-remesh attempt remains the provenance anchor;
+  the response is never accepted merely because it is carried by a response
+  object.
+
+  This is a research correction step.  It does not change the canonical
+  free-boundary, downstream-boundary, refinement, validation, or production
+  claim gates.
+  """
+
+  status_type = MocReflectedDomainGlobalPhysicalClosureStatus
+  source_band = (
+    closure.source_band
+    if isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult)
+    else None
+  )
+  global_remesh = (
+    closure.global_remesh
+    if isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult)
+    else None
+  )
+  previous_global_euler = (
+    closure.global_euler
+    if isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult)
+    else None
+  )
+
+  def failure(
+    status: MocReflectedDomainGlobalPhysicalClosureStatus,
+    message: str,
+    *,
+    global_euler: MocReflectedDomainGlobalEulerShockBoundaryResult | None = None,
+    global_audit: Any | None = None,
+    field_audit: Any | None = None,
+    downstream_boundary: MocReflectedDomainDownstreamBoundaryResult | None = None,
+    downstream_boundary_audit: Any | None = None,
+  ) -> MocReflectedDomainGlobalPhysicalClosureResult:
+    resolved_global_euler = (
+      previous_global_euler if global_euler is None else global_euler
+    )
+    resolved_downstream_boundary = downstream_boundary
+    if (
+      resolved_downstream_boundary is None
+      and global_remesh is not None
+      and resolved_global_euler is not None
+    ):
+      resolved_downstream_boundary = _build_downstream_boundary_result(
+        global_remesh,
+        resolved_global_euler,
+      )
+    return _closure_result(
+      status,
+      source_band,
+      global_remesh,
+      resolved_global_euler,
+      global_audit=global_audit,
+      field_audit=field_audit,
+      source_frontier_verified=(
+        False
+        if resolved_global_euler is None
+        else resolved_global_euler.source_frontier_verified
+      ),
+      incoming_handoff_verified=(
+        False
+        if resolved_global_euler is None
+        else resolved_global_euler.incoming_handoff_verified
+      ),
+      cell_euler_residuals_verified=bool(
+        field_audit is not None
+        and field_audit.cell_euler_residuals_verified
+      ),
+      downstream_boundary=resolved_downstream_boundary,
+      downstream_boundary_audit=downstream_boundary_audit,
+      message=message,
+    )
+  ####
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    return failure(
+      status_type.INVALID_INPUT,
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult',
+    )
+  if not isinstance(shock_geometry_response, MocEulerShockBoundaryCurveResult):
+    return failure(
+      status_type.INVALID_INPUT,
+      'shock_geometry_response must be a MocEulerShockBoundaryCurveResult',
+    )
+  if not isinstance(branch, ShockBranch):
+    return failure(status_type.INVALID_INPUT, 'branch must be a ShockBranch')
+  ####
+
+  try:
+    resolved_position_tolerance = float(position_tolerance_m)
+    resolved_invariant_tolerance = float(invariant_tolerance)
+    resolved_pressure_tolerance = float(pressure_tolerance)
+    resolved_tangent_tolerance = float(tangent_tolerance)
+  except (TypeError, ValueError):
+    return failure(
+      status_type.INVALID_INPUT,
+      'geometry-response tolerances must be numeric',
+    )
+  for name, value in (
+    ('position_tolerance_m', resolved_position_tolerance),
+    ('invariant_tolerance', resolved_invariant_tolerance),
+    ('pressure_tolerance', resolved_pressure_tolerance),
+    ('tangent_tolerance', resolved_tangent_tolerance),
+  ):
+    if not isfinite(value) or value <= 0.0:
+      return failure(
+        status_type.INVALID_INPUT,
+        f'{name} must be finite and positive',
+      )
+    ####
+  if (
+    isinstance(maximum_boundary_iterations, bool)
+    or not isinstance(maximum_boundary_iterations, int)
+    or maximum_boundary_iterations < 1
+  ):
+    return failure(
+      status_type.INVALID_INPUT,
+      'maximum_boundary_iterations must be a positive integer',
+    )
+  ####
+
+  if source_band is None or global_remesh is None or previous_global_euler is None:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'geometry response requires a complete global physical closure',
+    )
+  if not closure.converged or not closure.physical_closure_verified:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'geometry response requires a locally verified global physical closure',
+    )
+  if (
+    not shock_geometry_response.converged
+    or not shock_geometry_response.local_euler_verified
+  ):
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'solver-owned shock geometry response is not locally Euler verified',
+    )
+  ####
+
+  response_points = tuple(shock_geometry_response.shock_points_m)
+  if len(response_points) < 3:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'solver-owned shock geometry response must retain at least three points',
+    )
+  if any(
+    len(point) != 2 or not all(isfinite(float(value)) for value in point)
+    for point in response_points
+  ):
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'solver-owned shock geometry response contains non-finite points',
+    )
+  if any(
+    second[0] <= first[0] + resolved_position_tolerance
+    or second[1] > first[1] + resolved_position_tolerance
+    for first, second in zip(response_points, response_points[1:])
+  ):
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'solver-owned shock geometry response must advance downstream and downward',
+    )
+  ####
+
+  target_y = source_band.target_centerline_y_m
+  if abs(response_points[-1][1] - target_y) > resolved_position_tolerance:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'solver-owned shock geometry response does not terminate on the source '
+      'centerline frontier',
+    )
+  centerline_xs = tuple(state.x_m for state in source_band.centerline_source_states)
+  if (
+    not centerline_xs
+    or response_points[-1][0] < centerline_xs[0] - resolved_position_tolerance
+    or response_points[-1][0] > centerline_xs[-1] + resolved_position_tolerance
+  ):
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'solver-owned shock geometry response terminates outside the source '
+      'centerline frontier',
+    )
+  ####
+
+  upstream_states: list[CharacteristicState] = []
+  upstream_pressures: list[float] = []
+  for index, point in enumerate(response_points):
+    state = source_band.state_at(
+      point,
+      position_tolerance_m=resolved_position_tolerance,
+    )
+    pressure = source_band.static_pressure_at(
+      point,
+      position_tolerance_m=resolved_position_tolerance,
+    )
+    if (
+      state is None
+      or pressure is None
+      or not isfinite(float(pressure))
+      or pressure <= 0.0
+    ):
+      return failure(
+        status_type.GLOBAL_EULER_FAILURE,
+        f'solver-owned shock geometry response point {index} is outside the '
+        'retained source band',
+      )
+    upstream_states.append(state)
+    upstream_pressures.append(float(pressure))
+  ####
+
+  try:
+    refit = fit_euler_consistent_shock_boundary_from_geometry(
+      tuple(upstream_states),
+      tuple(upstream_pressures),
+      response_points,
+      branch=branch,
+      position_tolerance_m=resolved_position_tolerance,
+      shock_angle_tolerance_rad=max(
+        resolved_tangent_tolerance,
+        float(shock_geometry_response.shock_angle_tolerance_rad),
+      ),
+      residual_tolerance=max(
+        resolved_pressure_tolerance,
+        float(shock_geometry_response.residual_tolerance),
+      ),
+      allow_zero_strength_endpoints=True,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      f'independent shock geometry response refit raised: {error}',
+    )
+  if not refit.converged or not refit.local_euler_verified:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'independent shock geometry response refit did not converge: '
+      f'{refit.message}',
+    )
+  ####
+
+  ambient_pressure = source_band.ambient_pressure_Pa
+  frontier_state = source_band.state_at(
+    response_points[-1],
+    position_tolerance_m=resolved_position_tolerance,
+  )
+  frontier_total_pressure = source_band.total_pressure_at(
+    response_points[-1],
+    position_tolerance_m=resolved_position_tolerance,
+  )
+  if (
+    ambient_pressure is None
+    or frontier_state is None
+    or frontier_total_pressure is None
+    or not isfinite(float(frontier_total_pressure))
+    or frontier_total_pressure <= 0.0
+    or abs(frontier_state.theta_rad - source_band.target_centerline_flow_angle_rad)
+    > resolved_invariant_tolerance
+  ):
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'geometry response does not carry a complete source-centerline frontier',
+    )
+  ####
+
+  try:
+    physical_field = assemble_euler_ambient_physical_field(
+      refit,
+      ambient_pressure,
+      ambient_pressure_target=source_band.ambient_pressure_target,
+      incoming_handoff=(
+        source_band.incoming_handoff if source_band.incoming_handoff else None
+      ),
+      target_centerline_y_m=target_y,
+      position_tolerance_m=resolved_position_tolerance,
+      invariant_tolerance=resolved_invariant_tolerance,
+      pressure_tolerance=resolved_pressure_tolerance,
+      tangent_tolerance=resolved_tangent_tolerance,
+      maximum_boundary_iterations=maximum_boundary_iterations,
+      consume_ambient_pressure_target_geometry=False,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      f'geometry response exact ambient-field assembly raised: {error}',
+    )
+  if not physical_field.converged or not physical_field.physical_closure_verified:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'geometry response exact ambient-field assembly did not pass local '
+      f'closure gates: {physical_field.message}',
+    )
+  ####
+
+  updated_global_euler = replace(
+    previous_global_euler,
+    shock_boundary=refit,
+    physical_field=physical_field,
+    remeshed_shock_points_m=response_points,
+    source_frontier_state=frontier_state,
+    source_frontier_total_pressure_Pa=float(frontier_total_pressure),
+    source_frontier_verified=True,
+    first_endpoint_tangent_residual_rad=(
+      refit.tangent_residuals_rad[0]
+      if refit.tangent_residuals_rad
+      else None
+    ),
+    last_endpoint_tangent_residual_rad=(
+      refit.tangent_residuals_rad[-1]
+      if refit.tangent_residuals_rad
+      else None
+    ),
+    message=(
+      'solver-owned moving-shock geometry independently refit against the '
+      'retained source band and consumed by a fresh exact-Euler ambient field; '
+      'canonical coupling and production gates remain closed'
+    ),
+  )
+  if not updated_global_euler.converged:
+    return failure(
+      status_type.GLOBAL_EULER_FAILURE,
+      'geometry response produced a global Euler result that did not converge',
+      global_euler=updated_global_euler,
+    )
+  downstream_boundary = _build_downstream_boundary_result(
+    global_remesh,
+    updated_global_euler,
+  )
+  ####
+
+  downstream_boundary_audit: Any | None = None
+  global_audit: Any | None = None
+  field_audit: Any | None = None
+  try:
+    from exhaust_plume.validation.moc_euler import (
+      measure_moc_euler_ambient_physical_field,
+    )
+    from exhaust_plume.validation.moc_measurements import (
+      measure_moc_reflected_domain_downstream_boundary,
+      measure_moc_reflected_domain_global_euler_shock_boundary,
+    )
+
+    downstream_boundary_audit = measure_moc_reflected_domain_downstream_boundary(
+      downstream_boundary,
+      position_tolerance_m=resolved_position_tolerance,
+      pressure_tolerance=resolved_pressure_tolerance,
+      tangent_tolerance=resolved_tangent_tolerance,
+      residual_tolerance=max(
+        resolved_pressure_tolerance,
+        resolved_tangent_tolerance,
+      ),
+    )
+    global_audit = measure_moc_reflected_domain_global_euler_shock_boundary(
+      updated_global_euler,
+      position_tolerance_m=resolved_position_tolerance,
+      invariant_tolerance=resolved_invariant_tolerance,
+      pressure_tolerance=resolved_pressure_tolerance,
+      tangent_tolerance=resolved_tangent_tolerance,
+    )
+    field_audit = measure_moc_euler_ambient_physical_field(
+      physical_field,
+      position_tolerance_m=resolved_position_tolerance,
+      pressure_tolerance=resolved_pressure_tolerance,
+      invariant_tolerance=resolved_invariant_tolerance,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return failure(
+      status_type.INDEPENDENT_AUDIT_FAILURE,
+      f'geometry response independent audit raised: {error}',
+      global_euler=updated_global_euler,
+      global_audit=global_audit,
+      field_audit=field_audit,
+      downstream_boundary=downstream_boundary,
+      downstream_boundary_audit=downstream_boundary_audit,
+    )
+  ####
+
+  if downstream_boundary_audit is None or not downstream_boundary_audit.converged:
+    return failure(
+      status_type.INDEPENDENT_AUDIT_FAILURE,
+      'geometry response downstream-boundary audit failed: '
+      f'{"audit was not produced" if downstream_boundary_audit is None else downstream_boundary_audit.message}',
+      global_euler=updated_global_euler,
+      global_audit=global_audit,
+      field_audit=field_audit,
+      downstream_boundary=downstream_boundary,
+      downstream_boundary_audit=downstream_boundary_audit,
+    )
+  ####
+
+  entropy_verified, maximum_entropy_residual, entropy_message = (
+    _variable_entropy_transport_audit(
+      source_band,
+      updated_global_euler,
+      position_tolerance_m=resolved_position_tolerance,
+      pressure_tolerance=resolved_pressure_tolerance,
+    )
+  )
+  cell_residuals_verified = bool(
+    field_audit is not None
+    and field_audit.cell_euler_residuals_verified
+  )
+  provisional = _closure_result(
+    status_type.CONVERGED_GLOBAL_PHYSICAL_CLOSURE,
+    source_band,
+    global_remesh,
+    updated_global_euler,
+    global_audit=global_audit,
+    field_audit=field_audit,
+    source_frontier_verified=updated_global_euler.source_frontier_verified,
+    incoming_handoff_verified=updated_global_euler.incoming_handoff_verified,
+    variable_entropy_transport_verified=entropy_verified,
+    maximum_entropy_lineage_residual=maximum_entropy_residual,
+    cell_euler_residuals_verified=cell_residuals_verified,
+    downstream_boundary=downstream_boundary,
+    downstream_boundary_audit=downstream_boundary_audit,
+    message=(
+      'solver-owned shock geometry response consumed by a fresh global '
+      'exact-Euler closure; canonical free-boundary, downstream-boundary, '
+      'refinement, and external validation remain promotion gates'
+      if entropy_verified and cell_residuals_verified
+      else entropy_message
+    ),
+  )
+  if provisional.physical_closure_verified:
+    return provisional
+  ####
+
+  failure_status = (
+    status_type.ENTROPY_TRANSPORT_FAILURE
+    if not entropy_verified
+    else status_type.INDEPENDENT_AUDIT_FAILURE
+  )
+  return _closure_result(
+    failure_status,
+    source_band,
+    global_remesh,
+    updated_global_euler,
+    global_audit=global_audit,
+    field_audit=field_audit,
+    source_frontier_verified=updated_global_euler.source_frontier_verified,
+    incoming_handoff_verified=updated_global_euler.incoming_handoff_verified,
+    variable_entropy_transport_verified=entropy_verified,
+    maximum_entropy_lineage_residual=maximum_entropy_residual,
+    cell_euler_residuals_verified=cell_residuals_verified,
+    downstream_boundary=downstream_boundary,
+    downstream_boundary_audit=downstream_boundary_audit,
+    message=(
+      'geometry response global Euler field did not pass entropy transport: '
+      f'{entropy_message}'
+      if not entropy_verified
+      else 'geometry response global Euler field did not pass the independent '
+      'physical-field or cell-residual audit'
     ),
   )
 ####

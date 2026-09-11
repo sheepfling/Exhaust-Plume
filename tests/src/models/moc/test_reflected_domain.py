@@ -13188,7 +13188,7 @@ def test_global_boundary_state_feedback_can_emit_only_an_explicit_loose_research
 ####
 
 
-def test_global_boundary_state_joint_consumer_replays_exact_frame_and_blocks_no_descent():
+def test_global_boundary_state_joint_consumer_consumes_geometry_response_without_promotion():
   closure = _global_physical_closure_for_mixed_regime()
 
   feedback = run_reflected_domain_global_boundary_state_feedback(
@@ -13212,13 +13212,17 @@ def test_global_boundary_state_joint_consumer_replays_exact_frame_and_blocks_no_
 
   assert joint.status is (
     MocReflectedDomainGlobalBoundaryStateJointSolveStatus
-    .RESIDUAL_DESCENT_FAILURE
+    .CONVERGED_RESEARCH_JOINT_STATE_UPDATE
   )
   assert joint.handoff_lineage_verified
   assert joint.global_consumer_invoked
   assert joint.fresh_global_solve_verified
   assert joint.target_consumption_verified
   assert joint.target_geometry_consumption_verified
+  assert joint.shock_geometry_response is not None
+  assert joint.geometry_response_closure is not None
+  assert joint.shock_geometry_response_consumed
+  assert joint.shock_geometry_response_lineage_verified
   assert joint.state_solver_invoked
   assert joint.state_lineage_verified
   assert joint.signed_residuals_verified
@@ -13226,10 +13230,8 @@ def test_global_boundary_state_joint_consumer_replays_exact_frame_and_blocks_no_
   assert joint.independent_residual_audit_verified
   assert joint.handoff_consumed
   assert joint.joint_state_update_verified
-  assert joint.residual_descent_verified is False
-  assert joint.baseline_residual_norm == pytest.approx(
-    joint.refreshed_residual_norm
-  )
+  assert joint.residual_descent_verified
+  assert joint.refreshed_residual_norm < joint.baseline_residual_norm
   assert joint.global_coupling_verified is False
   assert joint.downstream_boundary_closure_verified is False
   assert joint.chain_promotion_blocked
