@@ -11559,6 +11559,68 @@ def test_global_coupled_boundary_condition_feedback_consumes_moving_frame_extens
 ####
 
 
+def test_global_coupled_boundary_condition_feedback_can_require_terminal_global_resolve():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+
+  run = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+      'inlet_boundary_mode': (
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+      ),
+      'physical_field_continuation_profile': handoff.continuation_profile,
+      'physical_field_shock_front_condition': handoff.shock_front_condition,
+    },
+    require_terminal_global_fixed_point=True,
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+    .TERMINAL_GLOBAL_FIXED_POINT_FAILURE
+  )
+  assert len(run.iterations) == 1
+  assert all(item.research_step_verified for item in run.iterations)
+  assert run.fresh_global_solve_verified
+  assert run.terminal_fixed_point_required
+  assert run.terminal_global_fixed_point_required
+  assert run.research_feedback_completed is False
+  assert run.terminal_fixed_point_audit is not None
+  audit = run.terminal_fixed_point_audit
+  assert audit.terminal_global_resolve_required
+  assert audit.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+    .TERMINAL_GLOBAL_RESOLVE_FAILURE
+  )
+  assert audit.terminal_global_fixed_point_verified is False
+  assert audit.terminal_global_resolve_verified is False
+  assert audit.terminal_global_resolve is not None
+  assert audit.terminal_global_resolve.converged_research_resolve is False
+  assert audit.terminal_global_resolve.global_coupling_verified is False
+  assert audit.terminal_global_resolve.downstream_boundary_closure_verified is False
+  assert audit.terminal_global_resolve.chain_promotion_blocked
+  assert audit.terminal_global_resolve.production_claim_allowed is False
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.production_claim_allowed is False
+  assert run.as_report()['terminal_global_fixed_point_verified'] is False
+  assert run.as_report()['terminal_fixed_point_audit'][
+    'terminal_global_resolve_verified'
+  ] is False
+####
+
+
 def test_global_coupled_boundary_condition_feedback_consumes_target_geometry():
   closure = _global_physical_closure_for_mixed_regime()
   handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(

@@ -117,6 +117,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus(str, Enum):
   TERMINAL_FIXED_POINT_FAILURE = (
     'global-coupled-boundary-condition-terminal-fixed-point-failure'
   )
+  TERMINAL_GLOBAL_FIXED_POINT_FAILURE = (
+    'global-coupled-boundary-condition-terminal-global-fixed-point-failure'
+  )
 ####
 
 
@@ -613,6 +616,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
     'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit'
     | None
   ) = None
+  terminal_global_fixed_point_required: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -686,6 +690,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'chain_promotion_blocked',
       'production_claim_allowed',
       'terminal_fixed_point_required',
+      'terminal_global_fixed_point_required',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -761,11 +766,26 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   ####
 
   @property
+  def terminal_global_fixed_point_verified(self) -> bool:
+    """Whether the optional strict terminal global re-solve gate passed."""
+
+    return bool(
+      not self.terminal_global_fixed_point_required
+      or (
+        self.terminal_fixed_point_audit is not None
+        and self.terminal_fixed_point_audit.terminal_global_fixed_point_verified
+      )
+    )
+  ####
+
+  @property
   def research_feedback_completed(self) -> bool:
     """Whether the bounded contract, including any strict terminal gate, passed."""
 
     return bool(
-      self.outer_feedback_completed and self.terminal_fixed_point_verified
+      self.outer_feedback_completed
+      and self.terminal_fixed_point_verified
+      and self.terminal_global_fixed_point_verified
     )
   ####
 
@@ -827,6 +847,12 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'outer_feedback_completed': self.outer_feedback_completed,
       'terminal_fixed_point_required': self.terminal_fixed_point_required,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
+      'terminal_global_fixed_point_required': (
+        self.terminal_global_fixed_point_required
+      ),
+      'terminal_global_fixed_point_verified': (
+        self.terminal_global_fixed_point_verified
+      ),
       'terminal_fixed_point_audit': (
         None
         if self.terminal_fixed_point_audit is None
@@ -854,6 +880,7 @@ def _run_result(
   message: str,
   *,
   terminal_fixed_point_required: bool = False,
+  terminal_global_fixed_point_required: bool = False,
   terminal_fixed_point_audit: (
     'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit'
     | None
@@ -895,6 +922,7 @@ def _run_result(
     frame_extension_verified=all_steps('frame_extension_verified'),
     fidelity_isolation_verified=all_steps('fidelity_isolation_verified'),
     terminal_fixed_point_required=terminal_fixed_point_required,
+    terminal_global_fixed_point_required=terminal_global_fixed_point_required,
     terminal_fixed_point_audit=terminal_fixed_point_audit,
     message=message,
   )
@@ -915,6 +943,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
   )
   TERMINAL_RESPONSE_FAILURE = (
     'global-coupled-boundary-condition-terminal-response-failure'
+  )
+  TERMINAL_GLOBAL_RESOLVE_FAILURE = (
+    'global-coupled-boundary-condition-terminal-global-resolve-failure'
   )
   FIDELITY_FAILURE = (
     'global-coupled-boundary-condition-terminal-fidelity-failure'
@@ -951,6 +982,17 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
   terminal_response_residuals_verified: bool = False
   terminal_proposal_verified: bool = False
   terminal_offset_tolerances_verified: bool = False
+  terminal_global_resolve_required: bool = False
+  terminal_global_resolve: (
+    MocReflectedDomainGlobalFrontierBoundaryConditionResult | None
+  ) = None
+  terminal_global_configuration_verified: bool = False
+  terminal_global_lineage_verified: bool = False
+  terminal_global_target_consumption_verified: bool = False
+  terminal_global_target_coverage_verified: bool = False
+  terminal_global_target_match_verified: bool = False
+  terminal_global_fidelity_isolation_verified: bool = False
+  terminal_global_resolve_verified: bool = False
   fidelity_isolation_verified: bool = False
   maximum_coordinate_offset_m: float | None = None
   maximum_tangent_offset_rad: float | None = None
@@ -983,6 +1025,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
       raise TypeError(
         'terminal_feedback must be a '
         'MocReflectedDomainGlobalCoupledDownstreamFeedbackRun or None'
+      )
+    ####
+    if self.terminal_global_resolve is not None and not isinstance(
+      self.terminal_global_resolve,
+      MocReflectedDomainGlobalFrontierBoundaryConditionResult,
+    ):
+      raise TypeError(
+        'terminal_global_resolve must be a typed boundary-condition result '
+        'or None'
       )
     ####
     if not isinstance(
@@ -1018,6 +1069,14 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
       'terminal_response_residuals_verified',
       'terminal_proposal_verified',
       'terminal_offset_tolerances_verified',
+      'terminal_global_resolve_required',
+      'terminal_global_configuration_verified',
+      'terminal_global_lineage_verified',
+      'terminal_global_target_consumption_verified',
+      'terminal_global_target_coverage_verified',
+      'terminal_global_target_match_verified',
+      'terminal_global_fidelity_isolation_verified',
+      'terminal_global_resolve_verified',
       'fidelity_isolation_verified',
       'global_coupling_verified',
       'downstream_boundary_closure_verified',
@@ -1090,7 +1149,26 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
       and self.terminal_response_residuals_verified
       and self.terminal_proposal_verified
       and self.terminal_offset_tolerances_verified
+      and self.terminal_global_fixed_point_verified
       and self.fidelity_isolation_verified
+    )
+  ####
+
+  @property
+  def terminal_global_fixed_point_verified(self) -> bool:
+    """Whether the terminal proposal was consumed by a fresh global solve."""
+
+    return bool(
+      not self.terminal_global_resolve_required
+      or (
+        self.terminal_global_resolve_verified
+        and self.terminal_global_configuration_verified
+        and self.terminal_global_lineage_verified
+        and self.terminal_global_target_consumption_verified
+        and self.terminal_global_target_coverage_verified
+        and self.terminal_global_target_match_verified
+        and self.terminal_global_fidelity_isolation_verified
+      )
     )
   ####
 
@@ -1124,6 +1202,32 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
       'terminal_response_residuals_verified': self.terminal_response_residuals_verified,
       'terminal_proposal_verified': self.terminal_proposal_verified,
       'terminal_offset_tolerances_verified': self.terminal_offset_tolerances_verified,
+      'terminal_global_resolve_required': self.terminal_global_resolve_required,
+      'terminal_global_fixed_point_verified': (
+        self.terminal_global_fixed_point_verified
+      ),
+      'terminal_global_configuration_verified': (
+        self.terminal_global_configuration_verified
+      ),
+      'terminal_global_lineage_verified': self.terminal_global_lineage_verified,
+      'terminal_global_target_consumption_verified': (
+        self.terminal_global_target_consumption_verified
+      ),
+      'terminal_global_target_coverage_verified': (
+        self.terminal_global_target_coverage_verified
+      ),
+      'terminal_global_target_match_verified': (
+        self.terminal_global_target_match_verified
+      ),
+      'terminal_global_fidelity_isolation_verified': (
+        self.terminal_global_fidelity_isolation_verified
+      ),
+      'terminal_global_resolve_verified': self.terminal_global_resolve_verified,
+      'terminal_global_resolve': (
+        None
+        if self.terminal_global_resolve is None
+        else self.terminal_global_resolve.as_report()
+      ),
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'maximum_coordinate_offset_m': self.maximum_coordinate_offset_m,
       'maximum_tangent_offset_rad': self.maximum_tangent_offset_rad,
@@ -1167,6 +1271,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   boundary_condition_options: Mapping[str, Any] | None = None,
   maximum_frame_extension_m: float = 0.5,
   require_terminal_fixed_point: bool = False,
+  require_terminal_global_fixed_point: bool = False,
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   """Run bounded downstream/global feedback with exact pressure consumption.
 
@@ -1181,7 +1286,13 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   true, a fresh downstream response is automatically replayed against the
   final retained closure and the run is marked failed unless that terminal
   response passes the independent research tolerances.  This remains below
-  canonical mixed-regime closure and production promotion.
+  canonical mixed-regime closure and production promotion.  When
+  ``require_terminal_global_fixed_point`` is true, that fresh terminal
+  response proposal is also consumed by one additional exact global
+  boundary-conditioned solve; the run fails closed unless the proposal is
+  lineage-bound, covered, consumed, and locally audited.  This is an
+  executable research gate around the future canonical joint solver, not a
+  canonical-closure claim.
   """
 
   if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
@@ -1191,6 +1302,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   ####
   if not isinstance(require_terminal_fixed_point, bool):
     raise ValueError('require_terminal_fixed_point must be a bool')
+  ####
+  if not isinstance(require_terminal_global_fixed_point, bool):
+    raise ValueError('require_terminal_global_fixed_point must be a bool')
   ####
   if (
     isinstance(maximum_iterations, bool)
@@ -1242,6 +1356,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       'maximum_iterations',
       'maximum_frame_extension_m',
       'require_terminal_fixed_point',
+      'require_terminal_global_fixed_point',
     ),
   )
   resolved_boundary_options = _options(
@@ -1279,7 +1394,10 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     'solver_owned_handoff_refresh_policy': (
       'refresh-exact-physical-field-handoff-after-each-fresh-upstream-closure-v1'
     ),
-    'terminal_fixed_point_required': require_terminal_fixed_point,
+    'terminal_fixed_point_required': (
+      require_terminal_fixed_point or require_terminal_global_fixed_point
+    ),
+    'terminal_global_fixed_point_required': require_terminal_global_fixed_point,
   }
   if not closure.converged or not closure.physical_closure_verified:
     return _run_result(
@@ -1290,7 +1408,10 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus.INVALID_INPUT,
       configuration,
       'boundary-condition feedback requires a locally verified source closure',
-      terminal_fixed_point_required=require_terminal_fixed_point,
+      terminal_fixed_point_required=(
+        require_terminal_fixed_point or require_terminal_global_fixed_point
+      ),
+      terminal_global_fixed_point_required=require_terminal_global_fixed_point,
     )
   ####
   current = closure
@@ -1771,19 +1892,30 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     status,
     configuration,
     message,
-    terminal_fixed_point_required=require_terminal_fixed_point,
+    terminal_fixed_point_required=(
+      require_terminal_fixed_point or require_terminal_global_fixed_point
+    ),
+    terminal_global_fixed_point_required=require_terminal_global_fixed_point,
   )
-  if require_terminal_fixed_point and run.outer_feedback_completed:
+  if (
+    (require_terminal_fixed_point or require_terminal_global_fixed_point)
+    and run.outer_feedback_completed
+  ):
     try:
       terminal_audit = (
         audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
-          run
+          run,
+          require_terminal_global_resolve=require_terminal_global_fixed_point,
         )
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return replace(
         run,
         status=(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+          .TERMINAL_GLOBAL_FIXED_POINT_FAILURE
+          if require_terminal_global_fixed_point
+          else
           MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
           .TERMINAL_FIXED_POINT_FAILURE
         ),
@@ -1794,6 +1926,10 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       return replace(
         run,
         status=(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+          .TERMINAL_GLOBAL_FIXED_POINT_FAILURE
+          if require_terminal_global_fixed_point
+          else
           MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
           .TERMINAL_FIXED_POINT_FAILURE
         ),
@@ -1811,6 +1947,12 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       message=(
         f'{run.message}; fresh terminal downstream response was independently '
         'audited'
+        + (
+          '; terminal response proposal was also consumed by a fresh global '
+          're-solve'
+          if require_terminal_global_fixed_point
+          else ''
+        )
       ),
     )
   ####
@@ -1822,6 +1964,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
   feedback_run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
   *,
   terminal_feedback: MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None = None,
+  require_terminal_global_resolve: bool = False,
   coordinate_offset_tolerance_m: float = 1.0e-3,
   tangent_offset_tolerance_rad: float = 5.0e-2,
   pressure_offset_tolerance_Pa: float = 2.0e4,
@@ -1833,6 +1976,8 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
   retained by ``feedback_run`` is replayed against ``feedback_run.final_closure``.
   A caller may supply a separately retained terminal run to avoid repeating an
   expensive solve; its closure fingerprint and configuration are still checked.
+  When ``require_terminal_global_resolve`` is true, the terminal proposal is
+  also consumed by one fresh lineage-bound global boundary-conditioned solve.
   No response is extrapolated or promoted to canonical global closure.
   """
 
@@ -1853,6 +1998,9 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
       'terminal_feedback must be a '
       'MocReflectedDomainGlobalCoupledDownstreamFeedbackRun or None'
     )
+  ####
+  if not isinstance(require_terminal_global_resolve, bool):
+    raise ValueError('require_terminal_global_resolve must be a bool')
   ####
   tolerances: dict[str, float] = {}
   for name, value in (
@@ -1883,6 +2031,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
     'terminal_fixed_point_policy': (
       'fresh-final-closure-downstream-response-without-extrapolation-v1'
     ),
+    'terminal_global_resolve_required': require_terminal_global_resolve,
     **tolerances,
   }
   configuration_fingerprint = _configuration_fingerprint(configuration)
@@ -1905,6 +2054,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
       normal_velocity_offset_tolerance_m_s=(
         tolerances['normal_velocity_offset_tolerance_m_s']
       ),
+      terminal_global_resolve_required=require_terminal_global_resolve,
       message=message,
       **values,
     )
@@ -2078,6 +2228,16 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
     and maximum_normal_velocity_offset
     <= tolerances['normal_velocity_offset_tolerance_m_s']
   )
+  terminal_global_resolve: (
+    MocReflectedDomainGlobalFrontierBoundaryConditionResult | None
+  ) = None
+  terminal_global_configuration_verified = False
+  terminal_global_lineage_verified = False
+  terminal_global_target_consumption_verified = False
+  terminal_global_target_coverage_verified = False
+  terminal_global_target_match_verified = False
+  terminal_global_fidelity_isolation_verified = False
+  terminal_global_resolve_verified = False
   common_values = {
     'terminal_closure_fingerprint': terminal_fingerprint,
     'terminal_configuration_verified': terminal_configuration_verified,
@@ -2130,12 +2290,141 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
       **common_values,
     )
   ####
+  if require_terminal_global_resolve:
+    boundary_options = feedback_run.configuration.get(
+      'boundary_condition_options',
+      {},
+    )
+    if not isinstance(boundary_options, Mapping):
+      return result(
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+        .TERMINAL_GLOBAL_RESOLVE_FAILURE,
+        'feedback run did not retain boundary-condition options for the '
+        'terminal global re-solve',
+        **common_values,
+      )
+    ####
+    try:
+      assert terminal_proposal is not None
+      terminal_request = build_reflected_domain_global_frontier_reconciliation_request(
+        feedback_run.final_closure,
+        terminal_proposal,
+        consumer_id=(
+          'moc-global-coupled-boundary-condition-terminal-global-resolve'
+        ),
+      )
+      terminal_base_target = _build_solver_owned_base_target(
+        feedback_run.final_closure,
+        terminal_request,
+        source_id=(
+          'moc-global-coupled-boundary-condition:terminal-global-base:'
+          f'{final_fingerprint}'
+        ),
+      )
+      terminal_global_resolve = (
+        run_reflected_domain_global_frontier_boundary_conditioned_resolve(
+          terminal_request,
+          feedback_run.final_closure,
+          base_target=terminal_base_target,
+          **dict(boundary_options),
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return result(
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+        .TERMINAL_GLOBAL_RESOLVE_FAILURE,
+        f'terminal global re-solve raised: {error}',
+        **common_values,
+      )
+    ####
+    terminal_global_configuration_verified = bool(
+      terminal_global_resolve.configuration.get('source_closure_fingerprint')
+      == final_fingerprint
+      and terminal_global_resolve.configuration.get(
+        'source_proposal_fingerprint'
+      ) == terminal_request.source_proposal_fingerprint
+      and terminal_global_resolve.request is terminal_request
+    )
+    terminal_global_lineage_verified = bool(
+      terminal_global_resolve.source_closure is feedback_run.final_closure
+      and terminal_global_resolve.request.proposal is terminal_proposal
+      and terminal_global_resolve.base_target is not None
+      and terminal_global_resolve.base_target.source_closure_fingerprint
+      == final_fingerprint
+      and terminal_global_resolve.base_target.source_proposal_fingerprint
+      == terminal_request.source_proposal_fingerprint
+      and terminal_global_resolve.conditioned_closure is not None
+      and terminal_global_resolve.conditioned_closure
+      is not feedback_run.final_closure
+    )
+    terminal_global_target_consumption_verified = bool(
+      terminal_global_resolve.target_boundary_condition_consumed
+    )
+    terminal_global_target_coverage_verified = bool(
+      terminal_global_resolve.target_coverage_verified
+    )
+    terminal_global_target_match_verified = bool(
+      terminal_global_resolve.target_match_verified
+    )
+    terminal_global_fidelity_isolation_verified = bool(
+      terminal_global_resolve.fidelity_isolation_verified
+      and terminal_global_resolve.chain_promotion_blocked
+      and not terminal_global_resolve.production_claim_allowed
+      and not terminal_global_resolve.global_coupling_verified
+      and not terminal_global_resolve.downstream_boundary_closure_verified
+    )
+    terminal_global_resolve_verified = bool(
+      terminal_global_resolve.converged_research_resolve
+      and terminal_global_configuration_verified
+      and terminal_global_lineage_verified
+      and terminal_global_target_consumption_verified
+      and terminal_global_target_coverage_verified
+      and terminal_global_target_match_verified
+      and terminal_global_fidelity_isolation_verified
+    )
+    common_values.update({
+      'terminal_global_resolve': terminal_global_resolve,
+      'terminal_global_configuration_verified': (
+        terminal_global_configuration_verified
+      ),
+      'terminal_global_lineage_verified': terminal_global_lineage_verified,
+      'terminal_global_target_consumption_verified': (
+        terminal_global_target_consumption_verified
+      ),
+      'terminal_global_target_coverage_verified': (
+        terminal_global_target_coverage_verified
+      ),
+      'terminal_global_target_match_verified': (
+        terminal_global_target_match_verified
+      ),
+      'terminal_global_fidelity_isolation_verified': (
+        terminal_global_fidelity_isolation_verified
+      ),
+      'terminal_global_resolve_verified': terminal_global_resolve_verified,
+    })
+    if not terminal_global_resolve_verified:
+      return result(
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+        .TERMINAL_GLOBAL_RESOLVE_FAILURE,
+        'terminal response proposal was not consumed by a covered, '
+        'lineage-bound, locally verified global re-solve',
+        **common_values,
+      )
+    ####
+  ####
   return result(
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
     .COMPLETED_RESEARCH_TERMINAL_FIXED_POINT,
     'the final global closure passed a fresh covered downstream response and '
-    'declared offset tolerances; canonical closure, external validation, and '
-    'production promotion remain open',
+    'declared offset tolerances'
+    + (
+      '; the terminal response proposal was consumed by a fresh covered global '
+      're-solve'
+      if require_terminal_global_resolve
+      else ''
+    )
+    + '; canonical closure, external validation, and production promotion '
+    'remain open',
     **common_values,
   )
 ####

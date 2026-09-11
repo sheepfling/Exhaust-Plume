@@ -5152,3 +5152,26 @@ comparisons, validation archives, and release promotion remain open. The
 next P2.2 physics packet is still the solver-owned joint interface/free-
 boundary consumer; this checkpoint only closes the admission and audit seam
 around that future consumer.
+
+### P2.2 strict terminal global re-solve admission checkpoint — 2026-09-11
+
+The bounded global feedback runner now exposes a second opt-in gate,
+``require_terminal_global_fixed_point``. After the final downstream response
+is freshly measured, the exact lineage-bound response proposal is consumed by
+one additional fresh global boundary-conditioned solve. The audit records the
+proposal/configuration lineage, target consumption, coverage, target match,
+and research-only fidelity flags. If the global re-solve cannot pass those
+checks, the run returns a typed ``terminal-global-fixed-point-failure`` and retains
+the failing global result; it does not reinterpret the earlier downstream
+response as a completed global fixed point.
+
+The focused global boundary-feedback tranche passes (``7 passed``). The new
+regression intentionally exercises the current mixed-regime fixture and
+confirms that its unresolved terminal global re-solve fails closed while all
+promotion flags remain blocked. This is a stricter admission contract, not
+canonical physics: the actual solver-owned interface/free-boundary equations,
+stable physical closure ladder, accepted physical shock-cell lengths,
+provider-bound comparisons, validation archives, and release freeze remain
+open. The branch must continue to treat a passing bounded response as
+research evidence until this global re-solve and its physical residuals pass
+on the canonical case ladder.
