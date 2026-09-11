@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — checkpoint `2741f43`
+### Active execution card — checkpoint `b842c26`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -87,16 +87,24 @@ research results only.  The outer global/coupled result, downstream boundary,
 canonical free-boundary, production shock-cell, provider-validation, and
 release flags remain closed.
 
-The next implementation sprint is therefore the equation-level physical
-corrector, not another response wrapper:
+The next equation-level corrector has now been exercised as well.  It sends the
+fresh joint closure through a terminal downstream -> global -> downstream
+recheck and then invokes the complete signed conservative state solver.  The
+terminal boundary equations and response lineage pass, but the final
+mass/normal-momentum/energy channel gate fails closed; this is the current
+physical stop, not a product or canonical-closure result.
+
+The next implementation sprint is therefore a physically justified update law
+that improves the complete response after the terminal recheck:
 
 1. Define the solver-owned mixed-regime/free-boundary state and its admissible
    transonic branch, including upstream frontier, downstream pressure and
    tangency, centerline reflection, entropy transport, and signed mass,
    normal-momentum, and energy residuals in one field solve.
-2. Extend the current geometry-response seam to consume the complete signed
-   mass, normal-momentum, and energy response in the actual downstream/global
-   state equations.  Every trial must carry source/proposal/field fingerprints,
+2. Replace the current non-improving terminal update direction with a
+   solver-owned update law that consumes the complete signed mass,
+   normal-momentum, and energy response in the actual downstream/global state
+   equations.  Every trial must carry source/proposal/field fingerprints,
    retain its coordinate frame, use bounded updates, and be freshly re-solved
    and independently remeasured.
 3. Admit a candidate only when all declared physical residuals descend or meet
@@ -350,9 +358,38 @@ claim.  Canonical global/free-boundary coupling, downstream closure, physical
 shock-cell promotion, provider-bound Visualization/Signature/RAY/FPA
 validation, and release readiness remain closed.
 
-The next physics gate is to consume the complete dimensioned response in the
-solver-owned downstream/global boundary equations and repeat the same
-cross-case/resolution audit before the shock-cell lane can use the field.
+The next physics gate is to make that complete response improve after the
+terminal downstream/global recheck, then repeat the same cross-case/resolution
+audit before the shock-cell lane can use the field.
+
+### P2.2m equation-level dimensioned corrector checkpoint — 2026-09-11
+
+The new
+``op.moc.reflected-domain.global-boundary-state-dimensioned-corrector-v1``
+operator exercises the next physical composition directly.  Starting from a
+converged joint-consumer result, it runs a fresh terminal downstream -> global
+-> downstream boundary loop with target geometry consumption, frame coverage,
+global re-solve, and downstream recheck gates enabled.  It then runs the
+solver-owned conservative line-search on the terminal closure, retaining the
+complete signed mass-flux, normal-momentum, and energy response, exact state
+lineage, fresh field re-solves, and independent residual audit.
+
+On the exercised mixed-regime case, the terminal boundary equations and the
+complete conservative response are verified, but the dimensioned channels do
+not improve: normalized normal momentum changes from approximately
+``0.47583750`` to ``0.47583787`` and the aggregate residual also increases
+(``0.2458593715 -> 0.2458596198``).  The typed result is therefore
+``CHANNEL_FAILURE`` with promotion blocked.  This is stronger evidence than a
+terminal response-only pass because it proves where the actual coupled physics
+still fails; no tolerance, geometry overlay, endpoint hold, or claim relabeling
+clears it.
+
+The focused joint/corrector tranche passes (``3 passed``), with Ruff and
+compilation clean.  Canonical free-boundary coupling, physical shock-cell
+promotion, provider-bound Visualization/Signature/RAY/FPA validation, missing
+validation archives, and release readiness remain open.  The next physics
+slice is the update-law correction that turns this typed channel failure into
+strict improvement without weakening the equation or fidelity boundaries.
 
 ## Execution sprints and stop conditions
 
