@@ -4840,3 +4840,21 @@ continues to block chain promotion and production claims.  This checkpoint
 closes a consumer-policy and audit-integrity seam only; the canonical moving
 free-boundary closure, physical shock-cell fits, provider-bound comparisons,
 validation archives, release freeze, and production tag remain open.
+
+### WP-1 strict moving-ladder flux gate checkpoint — 2026-09-10
+
+The solver-owned moving-interface re-solve ladder now has an explicit
+``require_conservative_flux_closure`` policy.  In strict mode, a response must
+retain the declared mass, normal-momentum, and energy closure evidence before
+the driver consumes its proposed geometry; a response with only numerically
+small residual channels but no strict evidence is rejected without a field
+re-solve.  The result and independent audit retain the policy/evidence pair
+and report a typed conservative-flux failure when the response is tampered or
+non-strict.
+
+The default research ladder remains unchanged, while a strict stationary
+front-limit response now passes the full driver/audit path and can feed the
+existing typed handoff adapter.  This closes a response-to-re-solve admission
+seam only; genuinely moving momentum closure, canonical free-boundary
+feedback, entropy/ambient/centerline closure, physical shock-cell fits,
+provider validation, archives, and release promotion remain open.

@@ -2006,6 +2006,35 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert research_fixed_point_audit.chain_promotion_blocked
   assert research_fixed_point_audit.production_claim_allowed is False
 
+  strict_driver = solve_euler_two_sided_moving_interface_with_solver_owned_law(
+    MocEulerTwoSidedMovingInterfaceRequest(
+      field_request=MocEulerTwoSidedFieldIterationRequest(
+        shock_boundary=shock_boundary,
+        companion_field=companion_field,
+        ambient_pressure_Pa=ambient_pressure,
+        maximum_field_iterations=3,
+      ),
+      maximum_interface_iterations=1,
+      require_conservative_flux_closure=True,
+    ),
+    law_request,
+  )
+  assert strict_driver.status is (
+    MocEulerTwoSidedMovingInterfaceStatus.CONSERVATIVE_FLUX_FAILURE
+  )
+  assert strict_driver.conservative_flux_closure_required
+  assert strict_driver.conservative_flux_closure_verified is False
+  strict_driver_audit = measure_moc_euler_two_sided_moving_interface(
+    strict_driver
+  )
+  assert strict_driver_audit.status is (
+    MocEulerTwoSidedMovingInterfaceAuditStatus.CONSERVATIVE_FLUX_FAILURE
+  )
+  assert strict_driver_audit.conservative_flux_closure_required
+  assert strict_driver_audit.conservative_flux_closure_verified is False
+  assert strict_driver_audit.chain_promotion_blocked
+  assert strict_driver_audit.production_claim_allowed is False
+
   joint_audit = measure_moc_euler_two_sided_interface_field_joint_closure(
     research_moving
   )
@@ -2148,6 +2177,7 @@ def test_strict_moving_interface_binds_exact_shock_and_companion_lineage():
       maximum_interface_iterations=1,
       require_interface_motion=False,
       allow_stationary_equilibrium=True,
+      require_conservative_flux_closure=True,
     ),
     strict_law.request,
   )
@@ -2155,6 +2185,8 @@ def test_strict_moving_interface_binds_exact_shock_and_companion_lineage():
     MocEulerTwoSidedMovingInterfaceStatus
     .CONVERGED_RESEARCH_STATIONARY_INTERFACE
   )
+  assert moving.conservative_flux_closure_required
+  assert moving.conservative_flux_closure_verified
   assert moving.final_field_iteration is not None
   assert moving.records
   assert all(
@@ -2162,6 +2194,9 @@ def test_strict_moving_interface_binds_exact_shock_and_companion_lineage():
     and record.response.conservative_flux_closure_verified
     for record in moving.records
   )
+  moving_audit = measure_moc_euler_two_sided_moving_interface(moving)
+  assert moving_audit.conservative_flux_closure_required
+  assert moving_audit.conservative_flux_closure_verified
 
   closure = _global_physical_closure_for_mixed_regime()
   mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)

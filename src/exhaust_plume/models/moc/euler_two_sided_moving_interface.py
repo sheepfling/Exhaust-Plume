@@ -65,6 +65,9 @@ class MocEulerTwoSidedMovingInterfaceStatus(str, Enum):
   INTERFACE_UPDATE_REQUIRED = 'two_sided_moving_interface_update_required'
   RESPONSE_LINEAGE_FAILURE = 'two_sided_moving_interface_response_lineage_failure'
   MOVEMENT_REQUIRED = 'two_sided_moving_interface_motion_required'
+  CONSERVATIVE_FLUX_FAILURE = (
+    'two_sided_moving_interface_conservative_flux_failure'
+  )
   FIELD_RESOLVE_FAILURE = 'two_sided_moving_interface_field_resolve_failure'
   ITERATION_LIMIT = 'two_sided_moving_interface_iteration_limit'
 
@@ -340,6 +343,7 @@ class MocEulerTwoSidedMovingInterfaceRequest:
   energy_flux_tolerance_W_m2: float = 1.0e-1
   require_interface_motion: bool = True
   allow_stationary_equilibrium: bool = False
+  require_conservative_flux_closure: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -374,7 +378,10 @@ class MocEulerTwoSidedMovingInterfaceRequest:
     ####
     if not isinstance(self.allow_stationary_equilibrium, bool):
       raise TypeError('allow_stationary_equilibrium must be a bool')
-  ####
+    ####
+    if not isinstance(self.require_conservative_flux_closure, bool):
+      raise TypeError('require_conservative_flux_closure must be a bool')
+    ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -386,6 +393,7 @@ class MocEulerTwoSidedMovingInterfaceRequest:
       'energy_flux_tolerance_W_m2': self.energy_flux_tolerance_W_m2,
       'require_interface_motion': self.require_interface_motion,
       'allow_stationary_equilibrium': self.allow_stationary_equilibrium,
+      'require_conservative_flux_closure': self.require_conservative_flux_closure,
       'production_claim_allowed': False,
     }
   ####
@@ -492,6 +500,8 @@ class MocEulerTwoSidedMovingInterfaceResult:
   canonical_euler_verified: bool
   chain_promotion_blocked: bool
   production_claim_allowed: bool
+  conservative_flux_closure_required: bool = False
+  conservative_flux_closure_verified: bool = False
   stationary_equilibrium_verified: bool = False
   message: str = ''
 
@@ -543,6 +553,8 @@ class MocEulerTwoSidedMovingInterfaceResult:
       'canonical_euler_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
+      'conservative_flux_closure_required',
+      'conservative_flux_closure_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -571,6 +583,16 @@ class MocEulerTwoSidedMovingInterfaceResult:
       raise ValueError(
         'moving_interface_verified requires an audited interface response and '
         'a verified exact field re-solve'
+      )
+    ####
+    if (
+      self.moving_interface_verified
+      and self.conservative_flux_closure_required
+      and not self.conservative_flux_closure_verified
+    ):
+      raise ValueError(
+        'strict moving-interface results require conservative flux closure '
+        'evidence across every accepted response'
       )
     ####
     object.__setattr__(self, 'records', records)
@@ -605,6 +627,12 @@ class MocEulerTwoSidedMovingInterfaceResult:
       'canonical_euler_verified': self.canonical_euler_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
+      'conservative_flux_closure_required': (
+        self.conservative_flux_closure_required
+      ),
+      'conservative_flux_closure_verified': (
+        self.conservative_flux_closure_verified
+      ),
       'request': None if self.request is None else self.request.as_report(),
       'initial_field_iteration': (
         None
@@ -647,6 +675,8 @@ def _failure(
   response_residuals_verified: bool = False,
   field_re_solve_verified: bool = False,
   stationary_equilibrium_verified: bool = False,
+  conservative_flux_closure_required: bool = False,
+  conservative_flux_closure_verified: bool = False,
 ) -> MocEulerTwoSidedMovingInterfaceResult:
   return MocEulerTwoSidedMovingInterfaceResult(
     status=status,
@@ -663,6 +693,12 @@ def _failure(
     canonical_euler_verified=False,
     chain_promotion_blocked=True,
     production_claim_allowed=False,
+    conservative_flux_closure_required=(
+      request.require_conservative_flux_closure
+      if request is not None
+      else conservative_flux_closure_required
+    ),
+    conservative_flux_closure_verified=conservative_flux_closure_verified,
     stationary_equilibrium_verified=stationary_equilibrium_verified,
     message=message,
   )
@@ -727,6 +763,16 @@ def _response_residuals_verified(
     <= request.normal_momentum_tolerance_Pa
     and response.maximum_energy_flux_residual_W_m2
     <= request.energy_flux_tolerance_W_m2
+  )
+
+
+def _response_conservative_flux_verified(
+  response: MocEulerTwoSidedInterfaceResponse,
+  request: MocEulerTwoSidedMovingInterfaceRequest,
+) -> bool:
+  return bool(
+    _response_residuals_verified(response, request)
+    and response.conservative_flux_closure_verified
   )
 
 
@@ -890,6 +936,41 @@ def solve_euler_two_sided_moving_interface(
         final_field_iteration=current_field,
       )
     ####
+    residuals_verified = _response_residuals_verified(response, request)
+    conservative_flux_verified = _response_conservative_flux_verified(
+      response,
+      request,
+    )
+    if request.require_conservative_flux_closure and not conservative_flux_verified:
+      record = MocEulerTwoSidedMovingInterfaceIterationRecord(
+        iteration_index=iteration_index,
+        field_iteration=current_field,
+        response=response,
+        next_field_iteration=None,
+        response_lineage_verified=True,
+        interface_motion_verified=motion_verified,
+        response_residuals_verified=False,
+        field_re_solve_verified=False,
+        message=(
+          'strict moving-interface mode rejected a response without verified '
+          'mass, normal-momentum, and energy conservative-flux closure; no '
+          'geometry update was consumed'
+        ),
+      )
+      records.append(record)
+      return _failure(
+        MocEulerTwoSidedMovingInterfaceStatus.CONSERVATIVE_FLUX_FAILURE,
+        record.message,
+        request=request,
+        records=records,
+        initial_field_iteration=initial,
+        final_field_iteration=current_field,
+        response_lineage_verified=True,
+        interface_motion_verified=motion_verified,
+        conservative_flux_closure_required=True,
+        conservative_flux_closure_verified=False,
+      )
+    ####
     next_request = replace(
       current_request,
       shock_boundary=response.next_shock_boundary,
@@ -927,7 +1008,6 @@ def solve_euler_two_sided_moving_interface(
       and next_field.initial_companion_field is response.next_companion_field
       and next_field.field_iteration_verified
     )
-    residuals_verified = _response_residuals_verified(response, request)
     stationary_equilibrium_verified = bool(
       not motion_verified
       and not request.require_interface_motion
@@ -984,6 +1064,7 @@ def solve_euler_two_sided_moving_interface(
           interface_motion_verified=motion_verified,
           response_residuals_verified=True,
           field_re_solve_verified=True,
+          conservative_flux_closure_verified=conservative_flux_verified,
           stationary_equilibrium_verified=False,
         )
       return MocEulerTwoSidedMovingInterfaceResult(
@@ -1007,6 +1088,10 @@ def solve_euler_two_sided_moving_interface(
         canonical_euler_verified=False,
         chain_promotion_blocked=True,
         production_claim_allowed=False,
+        conservative_flux_closure_required=(
+          request.require_conservative_flux_closure
+        ),
+        conservative_flux_closure_verified=conservative_flux_verified,
         stationary_equilibrium_verified=stationary_equilibrium_verified,
         message=(
           'solver-owned two-sided interface response and exact field re-solve '
@@ -1041,5 +1126,11 @@ def solve_euler_two_sided_moving_interface(
     )),
     stationary_equilibrium_verified=bool(records and all(
       record.stationary_equilibrium_verified for record in records
+    )),
+    conservative_flux_closure_verified=bool(records and all(
+      record.response is not None
+      and record.response.conservative_flux_closure_verified
+      and record.response_residuals_verified
+      for record in records
     )),
   )

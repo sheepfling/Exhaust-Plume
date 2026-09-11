@@ -53,6 +53,9 @@ class MocEulerTwoSidedMovingInterfaceAuditStatus(str, Enum):
   FIELD_RESOLVE_FAILURE = 'two_sided_moving_interface_audit_field_resolve_failure'
   FLAG_FAILURE = 'two_sided_moving_interface_audit_flag_failure'
   UPDATE_REQUIRED = 'two_sided_moving_interface_audit_update_required'
+  CONSERVATIVE_FLUX_FAILURE = (
+    'two_sided_moving_interface_audit_conservative_flux_failure'
+  )
   ITERATION_LIMIT = 'two_sided_moving_interface_audit_iteration_limit'
 
 
@@ -76,6 +79,8 @@ class MocEulerTwoSidedMovingInterfaceAudit:
   canonical_euler_verified: bool
   chain_promotion_blocked: bool
   production_claim_allowed: bool
+  conservative_flux_closure_required: bool = False
+  conservative_flux_closure_verified: bool = False
   maximum_normal_displacement_m: float = 0.0
   maximum_mass_flux_residual_kg_m2_s: float = 0.0
   maximum_normal_momentum_residual_Pa: float = 0.0
@@ -114,6 +119,8 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       'canonical_euler_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
+      'conservative_flux_closure_required',
+      'conservative_flux_closure_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -160,6 +167,10 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       and self.response_residuals_verified
       and self.field_re_solve_verified
       and self.moving_interface_verified
+      and (
+        not self.conservative_flux_closure_required
+        or self.conservative_flux_closure_verified
+      )
       and not self.canonical_free_boundary_verified
       and not self.canonical_euler_verified
       and self.chain_promotion_blocked
@@ -188,6 +199,12 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       'canonical_euler_verified': False,
       'chain_promotion_blocked': True,
       'production_claim_allowed': False,
+      'conservative_flux_closure_required': (
+        self.conservative_flux_closure_required
+      ),
+      'conservative_flux_closure_verified': (
+        self.conservative_flux_closure_verified
+      ),
       'maximum_normal_displacement_m': self.maximum_normal_displacement_m,
       'maximum_mass_flux_residual_kg_m2_s': (
         self.maximum_mass_flux_residual_kg_m2_s
@@ -219,6 +236,8 @@ def _failure(
   response_residuals_verified: bool = False,
   field_re_solve_verified: bool = False,
   moving_interface_verified: bool = False,
+  conservative_flux_closure_required: bool = False,
+  conservative_flux_closure_verified: bool = False,
   maximum_normal_displacement_m: float = 0.0,
   maximum_mass_flux_residual_kg_m2_s: float = 0.0,
   maximum_normal_momentum_residual_Pa: float = 0.0,
@@ -241,6 +260,8 @@ def _failure(
     canonical_euler_verified=False,
     chain_promotion_blocked=True,
     production_claim_allowed=False,
+    conservative_flux_closure_required=conservative_flux_closure_required,
+    conservative_flux_closure_verified=conservative_flux_closure_verified,
     maximum_normal_displacement_m=maximum_normal_displacement_m,
     maximum_mass_flux_residual_kg_m2_s=maximum_mass_flux_residual_kg_m2_s,
     maximum_normal_momentum_residual_Pa=maximum_normal_momentum_residual_Pa,
@@ -434,6 +455,7 @@ def measure_moc_euler_two_sided_moving_interface(
   maximum_mass = 0.0
   maximum_momentum = 0.0
   maximum_energy = 0.0
+  conservative_flux_closure_verified = True
   failure_status: MocEulerTwoSidedMovingInterfaceAuditStatus | None = None
   failure_message = ''
   for expected_index, record in enumerate(records):
@@ -472,6 +494,13 @@ def measure_moc_euler_two_sided_moving_interface(
     maximum_mass = max(maximum_mass, mass)
     maximum_momentum = max(maximum_momentum, momentum)
     maximum_energy = max(maximum_energy, energy)
+    response_conservative_flux_verified = bool(
+      response.conservative_flux_closure_verified and residuals
+    )
+    conservative_flux_closure_verified = (
+      conservative_flux_closure_verified
+      and response_conservative_flux_verified
+    )
     next_field = record.next_field_iteration
     field_resolve = False
     next_field_audit_verified = False
@@ -487,7 +516,14 @@ def measure_moc_euler_two_sided_moving_interface(
         and _field_request_lineage_verified(current, next_field, response)
       )
     ####
-    expected_response_residuals = bool(next_field is not None and residuals)
+    expected_response_residuals = bool(
+      next_field is not None
+      and residuals
+      and (
+        not request.require_conservative_flux_closure
+        or response_conservative_flux_verified
+      )
+    )
     expected_motion = moved
     expected_stationary = bool(
       next_field is not None
@@ -534,6 +570,16 @@ def measure_moc_euler_two_sided_moving_interface(
       failure_message = 'response retained the prior shock geometry; moving-interface evidence is absent'
       break
     ####
+    if request.require_conservative_flux_closure and not response_conservative_flux_verified:
+      failure_status = (
+        MocEulerTwoSidedMovingInterfaceAuditStatus.CONSERVATIVE_FLUX_FAILURE
+      )
+      failure_message = (
+        'strict moving-interface response did not retain independently '
+        'verified conservative mass, normal-momentum, and energy closure'
+      )
+      break
+    ####
     if next_field is None or not field_resolve:
       failure_status = MocEulerTwoSidedMovingInterfaceAuditStatus.FIELD_RESOLVE_FAILURE
       failure_message = 'response was present but its exact two-sided field re-solve was not independently verified'
@@ -557,6 +603,10 @@ def measure_moc_euler_two_sided_moving_interface(
     and (interface_motion_verified or stationary_equilibrium_verified)
     and response_residuals_verified
     and field_re_solve_verified
+    and (
+      not request.require_conservative_flux_closure
+      or conservative_flux_closure_verified
+    )
   )
   result_flags_verified = bool(
     result.moving_interface_verified == expected_moving
@@ -565,6 +615,10 @@ def measure_moc_euler_two_sided_moving_interface(
     and result.stationary_equilibrium_verified == stationary_equilibrium_verified
     and result.response_residuals_verified == response_residuals_verified
     and result.field_re_solve_verified == field_re_solve_verified
+    and result.conservative_flux_closure_required
+    == request.require_conservative_flux_closure
+    and result.conservative_flux_closure_verified
+    == conservative_flux_closure_verified
     and not result.canonical_free_boundary_verified
     and not result.canonical_euler_verified
     and result.chain_promotion_blocked
@@ -605,6 +659,8 @@ def measure_moc_euler_two_sided_moving_interface(
     response_residuals_verified=response_residuals_verified,
     field_re_solve_verified=field_re_solve_verified,
     moving_interface_verified=expected_moving,
+    conservative_flux_closure_required=request.require_conservative_flux_closure,
+    conservative_flux_closure_verified=conservative_flux_closure_verified,
     maximum_normal_displacement_m=maximum_displacement,
     maximum_mass_flux_residual_kg_m2_s=maximum_mass,
     maximum_normal_momentum_residual_Pa=maximum_momentum,
