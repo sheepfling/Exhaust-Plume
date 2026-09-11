@@ -551,6 +551,9 @@ def measure_moc_euler_two_sided_interface_law(
     == sample_count
   )
   expected_speeds: list[float] = []
+  expected_signed_mass: list[float] = []
+  expected_signed_momentum: list[float] = []
+  expected_signed_energy: list[float] = []
   expected_mass: list[float] = []
   expected_momentum: list[float] = []
   expected_energy: list[float] = []
@@ -642,29 +645,66 @@ def measure_moc_euler_two_sided_interface_law(
         speed = expected_speeds[-1]
         upstream_relative = upstream_normal - speed
         downstream_relative = downstream_normal - speed
-        expected_mass.append(
-          abs(
-            downstream_density * downstream_relative
-            - upstream_density * upstream_relative
-          )
+        signed_mass = (
+          downstream_density * downstream_relative
+          - upstream_density * upstream_relative
         )
-        expected_momentum.append(
-          abs(
-            downstream_density * downstream_relative**2 + downstream_static
-            - upstream_density * upstream_relative**2 - upstream_static
-          )
+        signed_momentum = (
+          downstream_density * downstream_relative**2
+          + downstream_static
+          - upstream_density * upstream_relative**2
+          - upstream_static
         )
-        expected_energy.append(
-          abs(
-            downstream_h * downstream_relative
-            - upstream_h * upstream_relative
-          )
+        signed_energy = (
+          downstream_h * downstream_relative
+          - upstream_h * upstream_relative
         )
+        expected_signed_mass.append(signed_mass)
+        expected_signed_momentum.append(signed_momentum)
+        expected_signed_energy.append(signed_energy)
+        expected_mass.append(abs(signed_mass))
+        expected_momentum.append(abs(signed_momentum))
+        expected_energy.append(abs(signed_energy))
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       downstream_probe_verified = False
   ####
+  signed_channels_verified = True
+  if response.signed_residuals_available:
+    signed_channels_verified = bool(
+      downstream_probe_verified
+      and len(expected_signed_mass)
+      == len(expected_signed_momentum)
+      == len(expected_signed_energy)
+      == sample_count
+      and all(
+        _close(actual, expected, max(1.0e-8, request.residual_tolerance))
+        for actual, expected in zip(
+          response.signed_mass_flux_residuals_kg_m2_s or (),
+          expected_signed_mass,
+          strict=True,
+        )
+      )
+      and all(
+        _close(actual, expected, max(1.0e-8, request.residual_tolerance))
+        for actual, expected in zip(
+          response.signed_normal_momentum_residuals_Pa or (),
+          expected_signed_momentum,
+          strict=True,
+        )
+      )
+      and all(
+        _close(actual, expected, max(1.0e-8, request.residual_tolerance))
+        for actual, expected in zip(
+          response.signed_energy_flux_residuals_W_m2 or (),
+          expected_signed_energy,
+          strict=True,
+        )
+      )
+    )
+  ####
   downstream_probe_verified = bool(
     downstream_probe_verified
+    and signed_channels_verified
     and all(
       _close(actual, expected, max(1.0e-8, request.source_state_tolerance))
       for actual, expected in zip(

@@ -854,6 +854,9 @@ def build_solver_owned_euler_two_sided_interface_response(
   mass_residuals: list[float] = []
   momentum_residuals: list[float] = []
   energy_residuals: list[float] = []
+  signed_mass_residuals: list[float] = []
+  signed_momentum_residuals: list[float] = []
+  signed_energy_residuals: list[float] = []
   try:
     for index, (point, probe) in enumerate(zip(shock.shock_points_m, probes, strict=True)):
       upstream_state, upstream_pressure = _source_sample(
@@ -905,26 +908,26 @@ def build_solver_owned_euler_two_sided_interface_response(
       ####
       upstream_relative_velocity = upstream_normal_velocity - speed
       downstream_relative_velocity = downstream_normal_velocity - speed
-      mass_residuals.append(
-        abs(
-          downstream_density * downstream_relative_velocity
-          - upstream_density * upstream_relative_velocity
-        )
+      signed_mass_residual = (
+        downstream_density * downstream_relative_velocity
+        - upstream_density * upstream_relative_velocity
       )
-      momentum_residuals.append(
-        abs(
-          downstream_density * downstream_relative_velocity**2
-          + downstream_pressure_static
-          - upstream_density * upstream_relative_velocity**2
-          - upstream_pressure_static
-        )
+      signed_momentum_residual = (
+        downstream_density * downstream_relative_velocity**2
+        + downstream_pressure_static
+        - upstream_density * upstream_relative_velocity**2
+        - upstream_pressure_static
       )
-      energy_residuals.append(
-        abs(
-          downstream_h * downstream_relative_velocity
-          - upstream_h * upstream_relative_velocity
-        )
+      signed_energy_residual = (
+        downstream_h * downstream_relative_velocity
+        - upstream_h * upstream_relative_velocity
       )
+      signed_mass_residuals.append(signed_mass_residual)
+      signed_momentum_residuals.append(signed_momentum_residual)
+      signed_energy_residuals.append(signed_energy_residual)
+      mass_residuals.append(abs(signed_mass_residual))
+      momentum_residuals.append(abs(signed_momentum_residual))
+      energy_residuals.append(abs(signed_energy_residual))
       ####
       speeds.append(speed)
       if index < request.anchor_endpoint_samples or index >= len(probes) - request.anchor_endpoint_samples:
@@ -1202,6 +1205,9 @@ def build_solver_owned_euler_two_sided_interface_response(
     mass_flux_residuals_kg_m2_s=tuple(mass_residuals),
     normal_momentum_residuals_Pa=tuple(momentum_residuals),
     energy_flux_residuals_W_m2=tuple(energy_residuals),
+    signed_mass_flux_residuals_kg_m2_s=tuple(signed_mass_residuals),
+    signed_normal_momentum_residuals_Pa=tuple(signed_momentum_residuals),
+    signed_energy_flux_residuals_W_m2=tuple(signed_energy_residuals),
     response_source=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
     law_id=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,

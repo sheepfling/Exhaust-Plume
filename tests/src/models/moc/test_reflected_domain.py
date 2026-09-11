@@ -1952,6 +1952,34 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert law.response.next_companion_field.shock_boundary is (
     law.response.next_shock_boundary
   )
+  assert law.response.signed_residuals_available
+  assert law.response.signed_mass_flux_residuals_kg_m2_s is not None
+  assert law.response.signed_normal_momentum_residuals_Pa is not None
+  assert law.response.signed_energy_flux_residuals_W_m2 is not None
+  assert all(
+    abs(signed) == pytest.approx(magnitude)
+    for signed, magnitude in zip(
+      law.response.signed_mass_flux_residuals_kg_m2_s,
+      law.response.mass_flux_residuals_kg_m2_s,
+      strict=True,
+    )
+  )
+  assert all(
+    abs(signed) == pytest.approx(magnitude)
+    for signed, magnitude in zip(
+      law.response.signed_normal_momentum_residuals_Pa,
+      law.response.normal_momentum_residuals_Pa,
+      strict=True,
+    )
+  )
+  assert all(
+    abs(signed) == pytest.approx(magnitude)
+    for signed, magnitude in zip(
+      law.response.signed_energy_flux_residuals_W_m2,
+      law.response.energy_flux_residuals_W_m2,
+      strict=True,
+    )
+  )
   audit = measure_moc_euler_two_sided_interface_law(law)
   assert audit.status is MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
   assert audit.converged
@@ -2022,6 +2050,60 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert not tampered_audit.response_lineage_verified
   assert tampered_audit.chain_promotion_blocked
   assert tampered_audit.production_claim_allowed is False
+
+  with pytest.raises(
+    ValueError,
+    match='signed residual channels must be supplied together',
+  ):
+    replace(
+      law.response,
+      signed_energy_flux_residuals_W_m2=None,
+    )
+
+  with pytest.raises(
+    ValueError,
+    match='must agree with the corresponding residual magnitudes',
+  ):
+    replace(
+      law.response,
+      signed_normal_momentum_residuals_Pa=(
+        law.response.signed_normal_momentum_residuals_Pa[0] + 1.0,
+        *law.response.signed_normal_momentum_residuals_Pa[1:],
+      ),
+    )
+
+  assert any(
+    abs(value) > 1.0e-12
+    for value in law.response.signed_normal_momentum_residuals_Pa
+  )
+  flip_index = next(
+    index
+    for index, value in enumerate(
+      law.response.signed_normal_momentum_residuals_Pa
+    )
+    if abs(value) > 1.0e-12
+  )
+  flipped_signed_momentum = tuple(
+    -value if index == flip_index else value
+    for index, value in enumerate(
+      law.response.signed_normal_momentum_residuals_Pa
+    )
+  )
+  signed_tampered_audit = measure_moc_euler_two_sided_interface_law(
+    replace(
+      law,
+      response=replace(
+        law.response,
+        signed_normal_momentum_residuals_Pa=flipped_signed_momentum,
+      ),
+    )
+  )
+  assert signed_tampered_audit.status is (
+    MocEulerTwoSidedInterfaceLawAuditStatus.DOWNSTREAM_PROBE_FAILURE
+  )
+  assert not signed_tampered_audit.downstream_probe_verified
+  assert signed_tampered_audit.chain_promotion_blocked
+  assert signed_tampered_audit.production_claim_allowed is False
 
   moving = solve_euler_two_sided_moving_interface_with_solver_owned_law(
     MocEulerTwoSidedMovingInterfaceRequest(

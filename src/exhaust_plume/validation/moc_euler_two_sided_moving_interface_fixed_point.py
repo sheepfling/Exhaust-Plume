@@ -284,16 +284,19 @@ def _maximum_absolute_difference(first: tuple[float, ...], second: tuple[float, 
 
 
 def _response_is_finite(response: MocEulerTwoSidedInterfaceResponse) -> bool:
-    return all(
-        isfinite(float(value))
-        for values in (
-            response.normal_displacements_m,
-            response.mass_flux_residuals_kg_m2_s,
-            response.normal_momentum_residuals_Pa,
-            response.energy_flux_residuals_W_m2,
-        )
-        for value in values
+  return all(
+    isfinite(float(value))
+    for values in (
+      response.normal_displacements_m,
+      response.mass_flux_residuals_kg_m2_s,
+      response.normal_momentum_residuals_Pa,
+      response.energy_flux_residuals_W_m2,
+      response.signed_mass_flux_residuals_kg_m2_s or (),
+      response.signed_normal_momentum_residuals_Pa or (),
+      response.signed_energy_flux_residuals_W_m2 or (),
     )
+    for value in values
+  )
 
 
 def measure_moc_euler_two_sided_moving_interface_fixed_point(

@@ -162,7 +162,8 @@ class MocEulerTwoSidedInterfaceResponse:
   The three flux channels are magnitudes of the mismatch between the current
   downstream field and the proposed interface state.  Their units are kept
   explicit so a caller cannot collapse unrelated residuals into one arbitrary
-  dimensionless score.
+  dimensionless score.  Solver-owned responses may additionally retain the
+  complete signed conservative residual vector for a future coupled solve.
   """
 
   prior_shock_boundary: MocEulerShockBoundaryCurveResult
@@ -178,6 +179,9 @@ class MocEulerTwoSidedInterfaceResponse:
   law_id: str = 'solver-owned-two-sided-euler-interface-law-required'
   stationary_equilibrium_candidate: bool = False
   conservative_flux_closure_verified: bool = False
+  signed_mass_flux_residuals_kg_m2_s: tuple[float, ...] | None = None
+  signed_normal_momentum_residuals_Pa: tuple[float, ...] | None = None
+  signed_energy_flux_residuals_W_m2: tuple[float, ...] | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -257,6 +261,57 @@ class MocEulerTwoSidedInterfaceResponse:
       ####
       object.__setattr__(self, name, residuals)
     ####
+    signed_fields = (
+      'signed_mass_flux_residuals_kg_m2_s',
+      'signed_normal_momentum_residuals_Pa',
+      'signed_energy_flux_residuals_W_m2',
+    )
+    signed_presence = tuple(
+      getattr(self, name) is not None for name in signed_fields
+    )
+    if any(signed_presence) and not all(signed_presence):
+      raise ValueError(
+        'signed residual channels must be supplied together'
+      )
+    ####
+    for signed_name, magnitude_name in (
+      (
+        'signed_mass_flux_residuals_kg_m2_s',
+        'mass_flux_residuals_kg_m2_s',
+      ),
+      (
+        'signed_normal_momentum_residuals_Pa',
+        'normal_momentum_residuals_Pa',
+      ),
+      (
+        'signed_energy_flux_residuals_W_m2',
+        'energy_flux_residuals_W_m2',
+      ),
+    ):
+      signed_values = getattr(self, signed_name)
+      if signed_values is None:
+        continue
+      ####
+      signed_residuals = tuple(float(value) for value in signed_values)
+      if len(signed_residuals) != sample_count or any(
+        not isfinite(value) for value in signed_residuals
+      ):
+        raise ValueError(
+          f'{signed_name} must be finite and align with the next shock boundary'
+        )
+      ####
+      magnitudes = getattr(self, magnitude_name)
+      if any(
+        abs(abs(signed) - magnitude)
+        > 1.0e-10 * max(1.0, abs(magnitude))
+        for signed, magnitude in zip(signed_residuals, magnitudes, strict=True)
+      ):
+        raise ValueError(
+          f'{signed_name} must agree with the corresponding residual magnitudes'
+        )
+      ####
+      object.__setattr__(self, signed_name, signed_residuals)
+    ####
     source = str(self.response_source)
     law_id = str(self.law_id)
     if not source or not law_id:
@@ -300,6 +355,17 @@ class MocEulerTwoSidedInterfaceResponse:
     return max(self.energy_flux_residuals_W_m2, default=0.0)
   ####
 
+  @property
+  def signed_residuals_available(self) -> bool:
+    """Whether the complete signed conservative residual vector is retained."""
+
+    return bool(
+      self.signed_mass_flux_residuals_kg_m2_s is not None
+      and self.signed_normal_momentum_residuals_Pa is not None
+      and self.signed_energy_flux_residuals_W_m2 is not None
+    )
+  ####
+
   def as_report(self) -> dict[str, object]:
     return {
       'operator_id': MOC_EULER_TWO_SIDED_MOVING_INTERFACE_OPERATOR_ID,
@@ -310,6 +376,16 @@ class MocEulerTwoSidedInterfaceResponse:
       'mass_flux_residuals_kg_m2_s': self.mass_flux_residuals_kg_m2_s,
       'normal_momentum_residuals_Pa': self.normal_momentum_residuals_Pa,
       'energy_flux_residuals_W_m2': self.energy_flux_residuals_W_m2,
+      'signed_mass_flux_residuals_kg_m2_s': (
+        self.signed_mass_flux_residuals_kg_m2_s
+      ),
+      'signed_normal_momentum_residuals_Pa': (
+        self.signed_normal_momentum_residuals_Pa
+      ),
+      'signed_energy_flux_residuals_W_m2': (
+        self.signed_energy_flux_residuals_W_m2
+      ),
+      'signed_residuals_available': self.signed_residuals_available,
       'maximum_mass_flux_residual_kg_m2_s': (
         self.maximum_mass_flux_residual_kg_m2_s
       ),

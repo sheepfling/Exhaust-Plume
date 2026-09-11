@@ -5300,3 +5300,24 @@ ineligible because its strict terminal policy and physical moving-front
 closure are not satisfied.  Reversed resolution order is rejected.  This is
 the reusable admission gate for the future coupled solver, not a claim that
 the current research response has become a physical moving-front solution.
+
+### P2.2 signed conservative residual-vector checkpoint — 2026-09-11
+
+The solver-owned two-sided interface response now retains the signed mass,
+normal-momentum, and energy residual channels in addition to their explicit
+nonnegative magnitudes.  The response contract requires all three signed
+channels together, checks their finiteness and magnitude consistency, exposes
+them in the serialized report, and preserves positional compatibility for
+existing response consumers.  The independent interface-law audit recomputes
+the signed Rankine--Hugoniot channels from the retained upstream/downstream
+states and rejects a sign-tampered response; fixed-point finiteness checks
+also cover the signed channels.
+
+The full reflected-domain regression passes (``191 passed``), with focused
+signed-channel, tamper, fixed-point, and refinement coverage.  This packet
+supplies the vector residual data required by a future coupled
+free-boundary/Newton or constrained solve; it does not itself provide that
+coupled solve.  The current interior-probe response therefore remains
+research-only, and canonical mixed-regime closure, accepted physical
+shock-cell lengths, provider-bound comparisons, validation archives, and
+release promotion remain open.
