@@ -23,6 +23,7 @@ from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
+  MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   build_reflected_domain_coupled_euler_free_boundary_request,
   solve_reflected_domain_coupled_euler_free_boundary,
@@ -3932,6 +3933,11 @@ def solve_reflected_domain_global_coupled_downstream(
   axial_station_count: int = 7,
   axial_cell_count: int = 12,
   transverse_cell_count: int = 6,
+  shape_relaxation: float = 0.35,
+  pressure_shape_relaxation: float = 0.20,
+  free_boundary_update_mode: MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode = (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.PRESSURE_SLOPE_RESEARCH
+  ),
   max_pseudo_iterations: int = 1200,
   max_shape_iterations: int = 18,
   inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
@@ -4276,6 +4282,9 @@ def solve_reflected_domain_global_coupled_downstream(
       reference_total_temperature_K=reference_total_temperature_K,
       axial_cell_count=axial_cell_count,
       transverse_cell_count=transverse_cell_count,
+      shape_relaxation=shape_relaxation,
+      pressure_shape_relaxation=pressure_shape_relaxation,
+      free_boundary_update_mode=free_boundary_update_mode,
       max_pseudo_iterations=max_pseudo_iterations,
       max_shape_iterations=max_shape_iterations,
       inlet_boundary_mode=inlet_boundary_mode,

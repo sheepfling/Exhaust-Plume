@@ -135,6 +135,14 @@ failure from the kinematic mode is evidence that the physical case is not
 closed; it must not be bypassed by switching back to the pressure proxy or
 by relabeling either result.
 
+The kinematic path now also survives the exact physical-field handoff without
+auto-injecting the handoff's diagnostic neighbor geometry.  A fresh local
+field reaches the existing pressure, tangency, centerline, entropy, and
+conservative checks on that path, and the independent audit passes.  The
+global-to-downstream wrapper carries the update-law selector and retains the
+same research-only flags.  This proves the fidelity seam and its lineage, not
+the missing global fixed point or external acceptance.
+
 ### P2.2d signed boundary-response checkpoint — 2026-09-11
 
 The coupled Euler/free-boundary result now retains both the unsigned

@@ -7024,6 +7024,9 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     pressure_x_stations = 0.5 * (x_stations[:-1] + x_stations[1:])
     neighbor_pressures: tuple[float, ...] | None = None
     neighbor_geometry: tuple[float, ...] | None = None
+    kinematic_update_mode = request.free_boundary_update_mode is (
+      MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+    )
     try:
       if request.free_boundary_pressure_profile_Pa is None:
         neighbor_pressures, _ = _derive_physical_field_neighbor_profiles(
@@ -7032,7 +7035,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
           lower_ordinate=lower_ordinate,
         )
       ####
-      if request.free_boundary_geometry_profile_y_m is None:
+      if request.free_boundary_geometry_profile_y_m is None and not kinematic_update_mode:
         _, neighbor_geometry = _derive_physical_field_neighbor_profiles(
           request,
           x_stations,
@@ -7060,7 +7063,7 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         ),
       )
     ####
-    if request.free_boundary_geometry_profile_y_m is None:
+    if request.free_boundary_geometry_profile_y_m is None and neighbor_geometry is not None:
       assert neighbor_geometry is not None
       request_updates.update(
         free_boundary_geometry_profile_y_m=neighbor_geometry,

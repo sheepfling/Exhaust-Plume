@@ -1018,6 +1018,77 @@ def test_coupled_euler_free_boundary_update_modes_are_explicitly_segregated():
   ####
 
 
+def test_kinematic_free_boundary_consumes_physical_field_without_geometry_overlay():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    build_reflected_domain_mixed_regime_boundary_request(closure),
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    pressure_shape_relaxation=0.0,
+    free_boundary_update_mode=(
+      MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+    ),
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+  )
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+  assert result.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .CONVERGED_LOCAL_PHYSICAL_CLOSURE
+  )
+  assert result.request is not None
+  assert result.request.free_boundary_update_mode is (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+  )
+  assert result.request.free_boundary_geometry_profile_y_m is None
+  assert result.physical_field_continuation_profile_consumed
+  assert result.free_boundary_pressure_profile_consumed
+  assert not result.free_boundary_geometry_profile_consumed
+  assert result.production_claim_allowed is False
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+####
+
+
+def test_global_coupled_downstream_retains_free_boundary_update_mode():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=8,
+    transverse_cell_count=8,
+    max_pseudo_iterations=40,
+    max_shape_iterations=2,
+    pressure_shape_relaxation=0.0,
+    free_boundary_update_mode=(
+      MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+    ),
+  )
+  assert result.coupled_request is not None
+  assert result.coupled_request.free_boundary_update_mode is (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+  )
+  assert result.coupled_field is not None
+  assert result.coupled_field.request is result.coupled_request
+  assert result.global_coupling_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
 def test_global_physical_field_uses_solver_owned_cross_section_placement():
   closure = _global_physical_closure_for_mixed_regime()
   assert closure.global_euler is not None
