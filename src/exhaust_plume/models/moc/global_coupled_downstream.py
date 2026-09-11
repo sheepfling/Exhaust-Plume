@@ -75,6 +75,7 @@ __all__ = (
   'build_reflected_domain_global_coupled_downstream_feedback_pressure_profile',
   'build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile',
   'build_reflected_domain_global_coupled_downstream_feedback_geometry_profile',
+  'build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile',
   'build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal',
   'build_reflected_domain_global_coupled_downstream_boundary_trace',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
@@ -711,6 +712,10 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
   )
   coordinate_tolerance_m: float = 1.0e-3
   coverage_verified: bool = True
+  source_response_status: str | None = None
+  signed_normal_response_time_s: float | None = None
+  geometry_correction_fraction: float = 0.0
+  maximum_displacement_fraction: float = 0.25
 
   def __post_init__(self) -> None:
     fingerprint = str(self.source_closure_fingerprint)
@@ -752,6 +757,59 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
     if not isinstance(self.coverage_verified, bool):
       raise TypeError('coverage_verified must be a bool')
     ####
+    if self.source_response_status is not None:
+      response_status = str(self.source_response_status)
+      if not response_status:
+        raise ValueError('source_response_status must be non-empty when supplied')
+      ####
+      object.__setattr__(self, 'source_response_status', response_status)
+    ####
+    response_time = self.signed_normal_response_time_s
+    if response_time is not None:
+      response_time = float(response_time)
+      if not isfinite(response_time) or response_time <= 0.0:
+        raise ValueError(
+          'signed_normal_response_time_s must be finite and positive when '
+          'supplied'
+        )
+      ####
+      object.__setattr__(self, 'signed_normal_response_time_s', response_time)
+    ####
+    correction_fraction = float(self.geometry_correction_fraction)
+    if (
+      not isfinite(correction_fraction)
+      or correction_fraction < 0.0
+      or correction_fraction > 1.0
+    ):
+      raise ValueError('geometry_correction_fraction must be in [0, 1]')
+    ####
+    maximum_displacement_fraction = float(self.maximum_displacement_fraction)
+    if (
+      not isfinite(maximum_displacement_fraction)
+      or maximum_displacement_fraction <= 0.0
+      or maximum_displacement_fraction > 1.0
+    ):
+      raise ValueError(
+        'maximum_displacement_fraction must be finite and in (0, 1]'
+      )
+    ####
+    if correction_fraction > 0.0 and response_time is None:
+      raise ValueError(
+        'a nonzero geometry_correction_fraction requires the signed normal '
+        'response time'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'geometry_correction_fraction',
+      correction_fraction,
+    )
+    object.__setattr__(
+      self,
+      'maximum_displacement_fraction',
+      maximum_displacement_fraction,
+    )
+    ####
     object.__setattr__(self, 'source_closure_fingerprint', fingerprint)
     object.__setattr__(self, 'x_stations_m', x_stations)
     object.__setattr__(self, 'boundary_y_m', boundary_y)
@@ -763,6 +821,15 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
   @property
   def profile_verified(self) -> bool:
     return bool(self.coverage_verified)
+  ####
+
+  @property
+  def signed_normal_response_consumed(self) -> bool:
+    return bool(
+      self.source_response_status is not None
+      and self.signed_normal_response_time_s is not None
+      and self.geometry_correction_fraction > 0.0
+    )
   ####
 
   @property
@@ -780,6 +847,11 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
       'lower_ordinate_m': self.lower_ordinate_m,
       'coordinate_tolerance_m': self.coordinate_tolerance_m,
       'coverage_verified': self.coverage_verified,
+      'source_response_status': self.source_response_status,
+      'signed_normal_response_time_s': self.signed_normal_response_time_s,
+      'geometry_correction_fraction': self.geometry_correction_fraction,
+      'maximum_displacement_fraction': self.maximum_displacement_fraction,
+      'signed_normal_response_consumed': self.signed_normal_response_consumed,
       'profile_verified': self.profile_verified,
       'production_claim_allowed': self.production_claim_allowed,
       'claim_status': (
@@ -2282,6 +2354,231 @@ def build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
     lower_ordinate_m=lower_ordinate,
     coordinate_tolerance_m=coordinate_tolerance_value,
     coverage_verified=True,
+  )
+####
+
+
+def build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  *,
+  signed_normal_response_time_s: float,
+  geometry_correction_fraction: float = 0.25,
+  maximum_displacement_fraction: float = 0.25,
+  position_tolerance_m: float = 1.0e-9,
+  coordinate_tolerance_m: float = 1.0e-3,
+) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
+  """Apply a dimensioned, bounded signed normal-velocity geometry update.
+
+  The response is a steady free-boundary normal-velocity residual, not a
+  hidden time integrator.  The caller therefore supplies the physical
+  response time explicitly.  With ``x`` stations held fixed, the local graph
+  normal converts the signed normal velocity to an ordinate rate.  The update
+  is applied to the retained coupled boundary, keeps the inlet anchor fixed,
+  and fails closed when the requested displacement exceeds the declared
+  fraction of the local plume height.  A fresh solver call is still required
+  to measure whether the residual actually descends; the response is never
+  treated as proof of convergence.
+  """
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if not isinstance(
+    response,
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  ):
+    raise TypeError(
+      'response must be a '
+      'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse'
+    )
+  ####
+  try:
+    response_time = float(signed_normal_response_time_s)
+    correction_fraction = float(geometry_correction_fraction)
+    maximum_fraction = float(maximum_displacement_fraction)
+    position_tolerance_value = float(position_tolerance_m)
+    coordinate_tolerance_value = float(coordinate_tolerance_m)
+  except (TypeError, ValueError) as error:
+    raise ValueError(
+      'signed free-boundary geometry response parameters must be numeric'
+    ) from error
+  ####
+  if not isfinite(response_time) or response_time <= 0.0:
+    raise ValueError(
+      'signed_normal_response_time_s must be finite and positive'
+    )
+  ####
+  if (
+    not isfinite(correction_fraction)
+    or correction_fraction <= 0.0
+    or correction_fraction > 1.0
+  ):
+    raise ValueError('geometry_correction_fraction must be in (0, 1]')
+  ####
+  if (
+    not isfinite(maximum_fraction)
+    or maximum_fraction <= 0.0
+    or maximum_fraction > 1.0
+  ):
+    raise ValueError('maximum_displacement_fraction must be in (0, 1]')
+  ####
+  if (
+    not isfinite(position_tolerance_value)
+    or position_tolerance_value <= 0.0
+    or not isfinite(coordinate_tolerance_value)
+    or coordinate_tolerance_value <= 0.0
+  ):
+    raise ValueError(
+      'signed free-boundary geometry tolerances must be finite and positive'
+    )
+  ####
+  if not response.signed_free_boundary_response_verified:
+    raise ValueError(
+      'signed free-boundary geometry feedback requires a complete, aligned '
+      'signed response'
+    )
+  ####
+  if response.upstream_boundary != closure.downstream_boundary:
+    raise ValueError(
+      'signed free-boundary geometry feedback must retain the exact closure '
+      'boundary'
+    )
+  ####
+  coupled_field = response.coupled_field
+  if coupled_field is None or coupled_field.request is None:
+    raise ValueError(
+      'signed free-boundary geometry feedback requires the source coupled '
+      'request'
+    )
+  ####
+  reference_profile = (
+    build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
+      closure,
+      response,
+      position_tolerance_m=position_tolerance_value,
+      coordinate_tolerance_m=coordinate_tolerance_value,
+    )
+  )
+  ####
+  coupled_points = tuple(response.coupled_boundary_points_m)
+  field_points = tuple(coupled_field.free_boundary_points_m)
+  signed_normal_velocities = tuple(
+    response.free_boundary_signed_normal_velocity_residuals_m_s
+  )
+  if len(coupled_points) < 2 or len(field_points) != len(coupled_points):
+    raise ValueError(
+      'signed free-boundary geometry feedback requires aligned retained '
+      'coupled boundary nodes'
+    )
+  ####
+  if len(signed_normal_velocities) != len(coupled_points):
+    raise ValueError(
+      'signed free-boundary geometry feedback requires one signed normal '
+      'response per retained boundary node'
+    )
+  ####
+  if any(
+    abs(first[0] - second[0]) > position_tolerance_value
+    or abs(first[1] - second[1]) > coordinate_tolerance_value
+    for first, second in zip(coupled_points, field_points, strict=True)
+  ):
+    raise ValueError(
+      'signed free-boundary geometry feedback changed the retained coupled '
+      'boundary frame'
+    )
+  ####
+  if any(
+    second[0] <= first[0] + position_tolerance_value
+    for first, second in zip(coupled_points, coupled_points[1:])
+  ):
+    raise ValueError(
+      'signed free-boundary geometry feedback stations must be strictly '
+      'downstream ordered'
+    )
+  ####
+  lower_ordinate = reference_profile.lower_ordinate_m
+  current_y = tuple(float(point[1]) for point in coupled_points)
+  if current_y[0] <= lower_ordinate:
+    raise ValueError(
+      'signed free-boundary geometry feedback requires a positive inlet '
+      'plume height above the retained lower ordinate'
+    )
+  ####
+  target_y = [current_y[0]]
+  for index in range(1, len(coupled_points)):
+    if index == len(coupled_points) - 1:
+      first = coupled_points[index - 1]
+      second = coupled_points[index]
+    else:
+      first = coupled_points[index - 1]
+      second = coupled_points[index + 1]
+    ####
+    tangent_x = float(second[0] - first[0])
+    tangent_y = float(second[1] - first[1])
+    tangent_length = hypot(tangent_x, tangent_y)
+    if not isfinite(tangent_length) or tangent_length <= 0.0:
+      raise ValueError(
+        'signed free-boundary geometry feedback encountered a zero-length '
+        'boundary tangent'
+      )
+    ####
+    normal_y = tangent_x / tangent_length
+    if not isfinite(normal_y) or normal_y <= 0.0:
+      raise ValueError(
+        'signed free-boundary geometry feedback requires a graph-like '
+        'outward normal with positive ordinate component'
+      )
+    ####
+    ordinate_rate_m_s = signed_normal_velocities[index] / normal_y
+    displacement_m = (
+      correction_fraction * ordinate_rate_m_s * response_time
+    )
+    maximum_displacement_m = maximum_fraction * (
+      current_y[index] - lower_ordinate
+    )
+    if not isfinite(maximum_displacement_m) or maximum_displacement_m <= 0.0:
+      raise ValueError(
+        'signed free-boundary geometry feedback requires positive local '
+        'plume height'
+      )
+    ####
+    if not isfinite(displacement_m) or abs(displacement_m) > (
+      maximum_displacement_m + coordinate_tolerance_value
+    ):
+      raise ValueError(
+        'signed free-boundary geometry feedback requested displacement '
+        'exceeds the declared local-height bound'
+      )
+    ####
+    updated_y = current_y[index] + displacement_m
+    if not isfinite(updated_y) or updated_y <= lower_ordinate:
+      raise ValueError(
+        'signed free-boundary geometry feedback would cross the retained '
+        'lower ordinate'
+      )
+    ####
+    target_y.append(updated_y)
+  ####
+  return MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile(
+    source_closure_fingerprint=(
+      moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    ),
+    x_stations_m=tuple(float(point[0]) for point in coupled_points),
+    boundary_y_m=tuple(target_y),
+    lower_ordinate_m=lower_ordinate,
+    source=(
+      'research-global-coupled-downstream-signed-free-boundary-geometry-'
+      'feedback-v1'
+    ),
+    coordinate_tolerance_m=coordinate_tolerance_value,
+    coverage_verified=True,
+    source_response_status=response.status.value,
+    signed_normal_response_time_s=response_time,
+    geometry_correction_fraction=correction_fraction,
+    maximum_displacement_fraction=maximum_fraction,
   )
 ####
 

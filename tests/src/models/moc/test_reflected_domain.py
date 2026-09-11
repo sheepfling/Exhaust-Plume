@@ -203,6 +203,7 @@ from exhaust_plume.models.moc import (
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
   build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile,
+  build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   build_reflected_domain_global_coupled_downstream_boundary_trace,
   build_reflected_domain_global_frontier_reconciliation_request,
@@ -7793,6 +7794,80 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
   )
   assert geometry_feedback_profile.as_report()['production_claim_allowed'] is False
 
+  signed_geometry_feedback_profile = (
+    build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile(
+      closure,
+      baseline.downstream_boundary_response,
+      signed_normal_response_time_s=1.0e-6,
+      geometry_correction_fraction=0.25,
+      maximum_displacement_fraction=0.25,
+    )
+  )
+  assert signed_geometry_feedback_profile.source == (
+    'research-global-coupled-downstream-signed-free-boundary-geometry-'
+    'feedback-v1'
+  )
+  assert signed_geometry_feedback_profile.source_response_status == (
+    baseline.downstream_boundary_response.status.value
+  )
+  assert signed_geometry_feedback_profile.signed_normal_response_consumed
+  assert signed_geometry_feedback_profile.signed_normal_response_time_s == pytest.approx(
+    1.0e-6
+  )
+  assert signed_geometry_feedback_profile.boundary_y_m[0] == pytest.approx(
+    baseline.coupled_field.free_boundary_points_m[0][1]
+  )
+  for index in range(1, len(baseline.coupled_field.free_boundary_points_m)):
+    if index == len(baseline.coupled_field.free_boundary_points_m) - 1:
+      first_point = baseline.coupled_field.free_boundary_points_m[index - 1]
+      second_point = baseline.coupled_field.free_boundary_points_m[index]
+    else:
+      first_point = baseline.coupled_field.free_boundary_points_m[index - 1]
+      second_point = baseline.coupled_field.free_boundary_points_m[index + 1]
+    tangent_length = np.hypot(
+      second_point[0] - first_point[0],
+      second_point[1] - first_point[1],
+    )
+    normal_y = (second_point[0] - first_point[0]) / tangent_length
+    expected_y = (
+      baseline.coupled_field.free_boundary_points_m[index][1]
+      + 0.25
+      * baseline.downstream_boundary_response
+      .free_boundary_signed_normal_velocity_residuals_m_s[index]
+      / normal_y
+      * 1.0e-6
+    )
+    assert signed_geometry_feedback_profile.boundary_y_m[index] == pytest.approx(
+      expected_y
+    )
+  with pytest.raises(ValueError, match='exceeds the declared local-height bound'):
+    build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile(
+      closure,
+      baseline.downstream_boundary_response,
+      signed_normal_response_time_s=1.0e3,
+      geometry_correction_fraction=0.25,
+      maximum_displacement_fraction=0.25,
+    )
+  signed_geometry_consumed = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    boundary_geometry_profile=signed_geometry_feedback_profile,
+  )
+  assert signed_geometry_consumed.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus
+    .CONVERGED_LOCAL_COUPLED_FIELD
+  )
+  assert signed_geometry_consumed.coupled_field is not None
+  assert signed_geometry_consumed.coupled_field.free_boundary_geometry_profile_consumed
+  assert signed_geometry_consumed.boundary_geometry_profile == (
+    signed_geometry_feedback_profile
+  )
+
   anchored_consumed = solve_reflected_domain_global_coupled_downstream(
     closure,
     reference_total_temperature_K=1500.0,
@@ -8570,6 +8645,63 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
     and item.result.production_claim_allowed is False
     for item in run.iterations
   )
+####
+
+
+def test_global_coupled_downstream_feedback_consumes_signed_geometry_response():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  ambient_pressure = mixed_request.control_section.samples[-1].static_pressure_Pa
+  with pytest.raises(
+    ValueError,
+    match='signed_normal_response_time_s must be finite and positive',
+  ):
+    run_reflected_domain_global_coupled_downstream_feedback(
+      closure,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=2,
+      ambient_pressure_Pa=ambient_pressure,
+      use_signed_free_boundary_geometry_response=True,
+    )
+  ####
+  run = run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    ambient_pressure_Pa=ambient_pressure,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    signed_normal_response_time_s=1.0e-6,
+    use_signed_free_boundary_geometry_response=True,
+  )
+
+  assert len(run.iterations) == 2
+  assert run.fresh_solver_invocation_verified
+  assert run.configuration['use_signed_free_boundary_geometry_response'] is True
+  assert run.configuration['signed_normal_response_time_s'] == pytest.approx(
+    1.0e-6
+  )
+  first, second = run.iterations
+  assert first.next_geometry_profile is not None
+  assert first.next_geometry_profile.signed_normal_response_consumed
+  assert first.next_geometry_profile.source == (
+    'research-global-coupled-downstream-signed-free-boundary-geometry-'
+    'feedback-v1'
+  )
+  assert second.input_geometry_profile == first.next_geometry_profile
+  assert first.result.local_coupled_field_verified
+  assert second.result.local_coupled_field_verified is False
+  assert second.result.status is (
+    MocReflectedDomainGlobalCoupledDownstreamStatus.COUPLED_SOLVER_FAILURE
+  )
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  assert run.converged is False
 ####
 
 

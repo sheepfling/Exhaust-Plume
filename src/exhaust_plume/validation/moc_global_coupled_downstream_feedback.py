@@ -32,6 +32,7 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
   build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile,
+  build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
@@ -890,6 +891,10 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   maximum_iterations: int = 3,
   pressure_correction_fraction: float = 0.25,
   use_signed_free_boundary_pressure_response: bool = False,
+  use_signed_free_boundary_geometry_response: bool = False,
+  signed_normal_response_time_s: float | None = None,
+  geometry_correction_fraction: float = 0.25,
+  signed_normal_max_displacement_fraction: float = 0.25,
   pressure_update_tolerance_Pa: float = 1.0e3,
   position_tolerance_m: float = 1.0e-9,
   ambient_pressure_Pa: float | None = None,
@@ -933,6 +938,45 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   if not isinstance(use_signed_free_boundary_pressure_response, bool):
     raise TypeError('use_signed_free_boundary_pressure_response must be a bool')
   ####
+  if not isinstance(use_signed_free_boundary_geometry_response, bool):
+    raise TypeError('use_signed_free_boundary_geometry_response must be a bool')
+  ####
+  response_time = (
+    None
+    if signed_normal_response_time_s is None
+    else float(signed_normal_response_time_s)
+  )
+  if use_signed_free_boundary_geometry_response and (
+    response_time is None
+    or not isfinite(response_time)
+    or response_time <= 0.0
+  ):
+    raise ValueError(
+      'signed_normal_response_time_s must be finite and positive when signed '
+      'free-boundary geometry response is enabled'
+    )
+  ####
+  if response_time is not None and (
+    not isfinite(response_time) or response_time <= 0.0
+  ):
+    raise ValueError(
+      'signed_normal_response_time_s must be finite and positive when supplied'
+    )
+  ####
+  geometry_fraction = float(geometry_correction_fraction)
+  if not isfinite(geometry_fraction) or geometry_fraction <= 0.0 or geometry_fraction > 1.0:
+    raise ValueError('geometry_correction_fraction must be in (0, 1]')
+  ####
+  maximum_geometry_fraction = float(signed_normal_max_displacement_fraction)
+  if (
+    not isfinite(maximum_geometry_fraction)
+    or maximum_geometry_fraction <= 0.0
+    or maximum_geometry_fraction > 1.0
+  ):
+    raise ValueError(
+      'signed_normal_max_displacement_fraction must be in (0, 1]'
+    )
+  ####
   update_tolerance = float(pressure_update_tolerance_Pa)
   if not isfinite(update_tolerance) or update_tolerance <= 0.0:
     raise ValueError('pressure_update_tolerance_Pa must be finite and positive')
@@ -955,6 +999,12 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     'use_signed_free_boundary_pressure_response': (
       use_signed_free_boundary_pressure_response
     ),
+    'use_signed_free_boundary_geometry_response': (
+      use_signed_free_boundary_geometry_response
+    ),
+    'signed_normal_response_time_s': response_time,
+    'geometry_correction_fraction': geometry_fraction,
+    'signed_normal_max_displacement_fraction': maximum_geometry_fraction,
     'pressure_update_tolerance_Pa': update_tolerance,
     'position_tolerance_m': position_tolerance,
     'ambient_pressure_Pa': ambient_pressure_Pa,
@@ -1208,13 +1258,30 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         stop_reason = f'pressure feedback profile construction failed: {error}'
       ####
       try:
-        next_geometry_profile = (
-          build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
-            closure,
-            response,
-            position_tolerance_m=position_tolerance,
+        if use_signed_free_boundary_geometry_response:
+          if response_time is None:
+            raise ValueError(
+              'signed_normal_response_time_s is required for signed geometry '
+              'feedback'
+            )
+          next_geometry_profile = (
+            build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile(
+              closure,
+              response,
+              signed_normal_response_time_s=response_time,
+              geometry_correction_fraction=geometry_fraction,
+              maximum_displacement_fraction=maximum_geometry_fraction,
+              position_tolerance_m=position_tolerance,
+            )
           )
-        )
+        else:
+          next_geometry_profile = (
+            build_reflected_domain_global_coupled_downstream_feedback_geometry_profile(
+              closure,
+              response,
+              position_tolerance_m=position_tolerance,
+            )
+          )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         stop_reason = (
           stop_reason

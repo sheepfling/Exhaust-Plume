@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch; current checkpoint is the signed-residual response slice; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch; current checkpoint is the dimensioned signed-geometry response slice; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -136,6 +136,32 @@ claims closed.  The focused profile-consumer and fresh-feedback regressions
 pass (``2 passed``).  The next physics slice is the jointly dimensioned
 geometry/pressure corrector with strict residual descent and independent
 conservative audits.
+
+### P2.2g dimensioned signed-geometry response checkpoint — 2026-09-11
+
+The downstream geometry contract now has an explicit signed-response
+consumer, ``build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile``.
+It consumes the node-aligned outward-normal velocity response in the exact
+retained coupled boundary frame, converts it to an ordinate update through
+the local graph normal, requires a caller-supplied response time, preserves
+the solver-owned first-ordinate/inlet anchor, and rejects non-finite or
+over-height motion instead of clipping it.  The response status, time,
+correction fraction, and displacement bound are serialized on the typed
+profile; the source remains research-only.
+
+The direct signed-geometry profile is consumed by a fresh local coupled-Euler
+solve with exact source/frame lineage.  The opt-in feedback runner also
+requires the explicit response time and records the signed-geometry source;
+on the exercised mixed-regime case its combined pressure-plus-geometry outer
+ladder fails closed when the second fresh field does not pass the local solver
+gate.  That failure is retained as evidence: it is not converted into a
+residual-descent claim, a global-coupling claim, or a production input.
+The focused pressure/geometry consumer and feedback regressions pass
+(``3 passed``), with Ruff and bytecode checks clean.  Strict residual descent
+across the combined outer loop, the canonical planar-MOC/free-boundary
+equation, disjoint case/refinement evidence, provider-bound product
+comparisons, validation archives, physical shock-cell lengths, and release
+freeze remain open.
 
 ## Execution sprints and stop conditions
 
