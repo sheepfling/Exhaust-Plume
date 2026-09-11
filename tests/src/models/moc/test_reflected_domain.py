@@ -11583,7 +11583,7 @@ def test_global_coupled_boundary_condition_feedback_can_require_terminal_global_
       'physical_field_continuation_profile': handoff.continuation_profile,
       'physical_field_shock_front_condition': handoff.shock_front_condition,
     },
-    require_terminal_global_fixed_point=True,
+    require_terminal_global_downstream_recheck=True,
   )
 
   assert run.status is (
@@ -11593,10 +11593,12 @@ def test_global_coupled_boundary_condition_feedback_can_require_terminal_global_
   assert run.outer_feedback_completed
   assert run.terminal_fixed_point_required
   assert run.terminal_global_fixed_point_required
+  assert run.terminal_global_downstream_recheck_required
   assert run.research_feedback_completed
   assert run.terminal_fixed_point_audit is not None
   audit = run.terminal_fixed_point_audit
   assert audit.terminal_global_resolve_required
+  assert audit.terminal_global_downstream_recheck_required
   assert audit.status is (
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
     .COMPLETED_RESEARCH_TERMINAL_FIXED_POINT
@@ -11616,6 +11618,14 @@ def test_global_coupled_boundary_condition_feedback_can_require_terminal_global_
   assert audit.terminal_global_target_match_verified
   assert audit.terminal_global_fidelity_isolation_verified
   assert audit.terminal_global_resolve_verified
+  assert audit.terminal_global_downstream_recheck_configuration_verified
+  assert audit.terminal_global_downstream_recheck_lineage_verified
+  assert audit.terminal_global_downstream_recheck_response_verified
+  assert audit.terminal_global_downstream_recheck_offset_tolerances_verified
+  assert audit.terminal_global_downstream_recheck_fidelity_isolation_verified
+  assert audit.terminal_global_downstream_recheck_verified
+  assert audit.terminal_global_downstream_recheck is not None
+  assert audit.terminal_global_downstream_recheck.converged
   assert audit.terminal_global_resolve is not None
   assert audit.terminal_global_resolve.converged_research_resolve
   assert audit.terminal_global_resolve.global_coupling_verified is False
@@ -11626,6 +11636,7 @@ def test_global_coupled_boundary_condition_feedback_can_require_terminal_global_
   assert run.downstream_boundary_closure_verified is False
   assert run.production_claim_allowed is False
   assert run.as_report()['terminal_global_fixed_point_verified'] is True
+  assert run.as_report()['terminal_global_downstream_recheck_verified'] is True
   assert run.as_report()['terminal_fixed_point_audit'][
     'terminal_global_resolve_verified'
   ] is True

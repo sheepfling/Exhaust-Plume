@@ -120,6 +120,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus(str, Enum):
   TERMINAL_GLOBAL_FIXED_POINT_FAILURE = (
     'global-coupled-boundary-condition-terminal-global-fixed-point-failure'
   )
+  TERMINAL_GLOBAL_DOWNSTREAM_RESPONSE_FAILURE = (
+    'global-coupled-boundary-condition-terminal-global-downstream-response-failure'
+  )
 ####
 
 
@@ -617,6 +620,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
     | None
   ) = None
   terminal_global_fixed_point_required: bool = False
+  terminal_global_downstream_recheck_required: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -691,6 +695,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'production_claim_allowed',
       'terminal_fixed_point_required',
       'terminal_global_fixed_point_required',
+      'terminal_global_downstream_recheck_required',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -779,6 +784,20 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   ####
 
   @property
+  def terminal_global_downstream_recheck_verified(self) -> bool:
+    """Whether the optional downstream recheck after the global solve passed."""
+
+    return bool(
+      not self.terminal_global_downstream_recheck_required
+      or (
+        self.terminal_fixed_point_audit is not None
+        and self.terminal_fixed_point_audit
+        .terminal_global_downstream_recheck_verified
+      )
+    )
+  ####
+
+  @property
   def research_feedback_completed(self) -> bool:
     """Whether the bounded contract, including any strict terminal gate, passed."""
 
@@ -786,6 +805,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       self.outer_feedback_completed
       and self.terminal_fixed_point_verified
       and self.terminal_global_fixed_point_verified
+      and self.terminal_global_downstream_recheck_verified
     )
   ####
 
@@ -853,6 +873,12 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'terminal_global_fixed_point_verified': (
         self.terminal_global_fixed_point_verified
       ),
+      'terminal_global_downstream_recheck_required': (
+        self.terminal_global_downstream_recheck_required
+      ),
+      'terminal_global_downstream_recheck_verified': (
+        self.terminal_global_downstream_recheck_verified
+      ),
       'terminal_fixed_point_audit': (
         None
         if self.terminal_fixed_point_audit is None
@@ -881,6 +907,7 @@ def _run_result(
   *,
   terminal_fixed_point_required: bool = False,
   terminal_global_fixed_point_required: bool = False,
+  terminal_global_downstream_recheck_required: bool = False,
   terminal_fixed_point_audit: (
     'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit'
     | None
@@ -923,6 +950,9 @@ def _run_result(
     fidelity_isolation_verified=all_steps('fidelity_isolation_verified'),
     terminal_fixed_point_required=terminal_fixed_point_required,
     terminal_global_fixed_point_required=terminal_global_fixed_point_required,
+    terminal_global_downstream_recheck_required=(
+      terminal_global_downstream_recheck_required
+    ),
     terminal_fixed_point_audit=terminal_fixed_point_audit,
     message=message,
   )
@@ -1001,6 +1031,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
   terminal_global_target_match_verified: bool = False
   terminal_global_fidelity_isolation_verified: bool = False
   terminal_global_resolve_verified: bool = False
+  terminal_global_downstream_recheck_required: bool = False
+  terminal_global_downstream_recheck: (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None
+  ) = None
+  terminal_global_downstream_recheck_configuration_verified: bool = False
+  terminal_global_downstream_recheck_lineage_verified: bool = False
+  terminal_global_downstream_recheck_response_verified: bool = False
+  terminal_global_downstream_recheck_offset_tolerances_verified: bool = False
+  terminal_global_downstream_recheck_fidelity_isolation_verified: bool = False
   fidelity_isolation_verified: bool = False
   maximum_coordinate_offset_m: float | None = None
   maximum_tangent_offset_rad: float | None = None
@@ -1042,6 +1081,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
       raise TypeError(
         'terminal_global_resolve must be a typed boundary-condition result '
         'or None'
+      )
+    ####
+    if self.terminal_global_downstream_recheck is not None and not isinstance(
+      self.terminal_global_downstream_recheck,
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRun,
+    ):
+      raise TypeError(
+        'terminal_global_downstream_recheck must be a typed downstream '
+        'feedback run or None'
       )
     ####
     if (
@@ -1111,6 +1159,12 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
       'terminal_global_target_match_verified',
       'terminal_global_fidelity_isolation_verified',
       'terminal_global_resolve_verified',
+      'terminal_global_downstream_recheck_required',
+      'terminal_global_downstream_recheck_configuration_verified',
+      'terminal_global_downstream_recheck_lineage_verified',
+      'terminal_global_downstream_recheck_response_verified',
+      'terminal_global_downstream_recheck_offset_tolerances_verified',
+      'terminal_global_downstream_recheck_fidelity_isolation_verified',
       'fidelity_isolation_verified',
       'global_coupling_verified',
       'downstream_boundary_closure_verified',
@@ -1203,6 +1257,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
         and self.terminal_global_target_coverage_verified
         and self.terminal_global_target_match_verified
         and self.terminal_global_fidelity_isolation_verified
+        and self.terminal_global_downstream_recheck_verified
       )
     )
   ####
@@ -1212,6 +1267,23 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
     """Alias for the research terminal response, never canonical closure."""
 
     return self.terminal_fixed_point_verified
+  ####
+
+  @property
+  def terminal_global_downstream_recheck_verified(self) -> bool:
+    """Whether the conditioned global field passed a fresh downstream run."""
+
+    return bool(
+      not self.terminal_global_downstream_recheck_required
+      or (
+        self.terminal_global_downstream_recheck is not None
+        and self.terminal_global_downstream_recheck_configuration_verified
+        and self.terminal_global_downstream_recheck_lineage_verified
+        and self.terminal_global_downstream_recheck_response_verified
+        and self.terminal_global_downstream_recheck_offset_tolerances_verified
+        and self.terminal_global_downstream_recheck_fidelity_isolation_verified
+      )
+    )
   ####
 
   def as_report(self) -> dict[str, Any]:
@@ -1258,6 +1330,27 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
         self.terminal_global_fidelity_isolation_verified
       ),
       'terminal_global_resolve_verified': self.terminal_global_resolve_verified,
+      'terminal_global_downstream_recheck_required': (
+        self.terminal_global_downstream_recheck_required
+      ),
+      'terminal_global_downstream_recheck_configuration_verified': (
+        self.terminal_global_downstream_recheck_configuration_verified
+      ),
+      'terminal_global_downstream_recheck_lineage_verified': (
+        self.terminal_global_downstream_recheck_lineage_verified
+      ),
+      'terminal_global_downstream_recheck_response_verified': (
+        self.terminal_global_downstream_recheck_response_verified
+      ),
+      'terminal_global_downstream_recheck_offset_tolerances_verified': (
+        self.terminal_global_downstream_recheck_offset_tolerances_verified
+      ),
+      'terminal_global_downstream_recheck_fidelity_isolation_verified': (
+        self.terminal_global_downstream_recheck_fidelity_isolation_verified
+      ),
+      'terminal_global_downstream_recheck_verified': (
+        self.terminal_global_downstream_recheck_verified
+      ),
       'terminal_global_frame_extension_required': (
         self.terminal_global_frame_extension_required
       ),
@@ -1278,6 +1371,11 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
         None
         if self.terminal_global_resolve is None
         else self.terminal_global_resolve.as_report()
+      ),
+      'terminal_global_downstream_recheck': (
+        None
+        if self.terminal_global_downstream_recheck is None
+        else self.terminal_global_downstream_recheck.as_report()
       ),
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'maximum_coordinate_offset_m': self.maximum_coordinate_offset_m,
@@ -1323,6 +1421,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   maximum_frame_extension_m: float = 0.5,
   require_terminal_fixed_point: bool = False,
   require_terminal_global_fixed_point: bool = False,
+  require_terminal_global_downstream_recheck: bool = False,
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   """Run bounded downstream/global feedback with exact pressure consumption.
 
@@ -1343,7 +1442,12 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   boundary-conditioned solve; the run fails closed unless the proposal is
   lineage-bound, covered, consumed, and locally audited.  This is an
   executable research gate around the future canonical joint solver, not a
-  canonical-closure claim.
+  canonical-closure claim.  When
+  ``require_terminal_global_downstream_recheck`` is true, the conditioned
+  global field is then passed through one fresh downstream response run and
+  must satisfy the same declared response tolerances.  This closes the
+  ``downstream -> global -> downstream`` admission loop while remaining
+  research-only.
   """
 
   if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
@@ -1356,6 +1460,11 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   ####
   if not isinstance(require_terminal_global_fixed_point, bool):
     raise ValueError('require_terminal_global_fixed_point must be a bool')
+  ####
+  if not isinstance(require_terminal_global_downstream_recheck, bool):
+    raise ValueError(
+      'require_terminal_global_downstream_recheck must be a bool'
+    )
   ####
   if (
     isinstance(maximum_iterations, bool)
@@ -1408,6 +1517,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       'maximum_frame_extension_m',
       'require_terminal_fixed_point',
       'require_terminal_global_fixed_point',
+      'require_terminal_global_downstream_recheck',
     ),
   )
   resolved_boundary_options = _options(
@@ -1446,9 +1556,17 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       'refresh-exact-physical-field-handoff-after-each-fresh-upstream-closure-v1'
     ),
     'terminal_fixed_point_required': (
-      require_terminal_fixed_point or require_terminal_global_fixed_point
+      require_terminal_fixed_point
+      or require_terminal_global_fixed_point
+      or require_terminal_global_downstream_recheck
     ),
-    'terminal_global_fixed_point_required': require_terminal_global_fixed_point,
+    'terminal_global_fixed_point_required': (
+      require_terminal_global_fixed_point
+      or require_terminal_global_downstream_recheck
+    ),
+    'terminal_global_downstream_recheck_required': (
+      require_terminal_global_downstream_recheck
+    ),
   }
   if not closure.converged or not closure.physical_closure_verified:
     return _run_result(
@@ -1460,9 +1578,17 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       configuration,
       'boundary-condition feedback requires a locally verified source closure',
       terminal_fixed_point_required=(
-        require_terminal_fixed_point or require_terminal_global_fixed_point
+        require_terminal_fixed_point
+        or require_terminal_global_fixed_point
+        or require_terminal_global_downstream_recheck
       ),
-      terminal_global_fixed_point_required=require_terminal_global_fixed_point,
+      terminal_global_fixed_point_required=(
+        require_terminal_global_fixed_point
+        or require_terminal_global_downstream_recheck
+      ),
+      terminal_global_downstream_recheck_required=(
+        require_terminal_global_downstream_recheck
+      ),
     )
   ####
   current = closure
@@ -1944,25 +2070,47 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     configuration,
     message,
     terminal_fixed_point_required=(
-      require_terminal_fixed_point or require_terminal_global_fixed_point
+      require_terminal_fixed_point
+      or require_terminal_global_fixed_point
+      or require_terminal_global_downstream_recheck
     ),
-    terminal_global_fixed_point_required=require_terminal_global_fixed_point,
+    terminal_global_fixed_point_required=(
+      require_terminal_global_fixed_point
+      or require_terminal_global_downstream_recheck
+    ),
+    terminal_global_downstream_recheck_required=(
+      require_terminal_global_downstream_recheck
+    ),
   )
   if (
-    (require_terminal_fixed_point or require_terminal_global_fixed_point)
+    (
+      require_terminal_fixed_point
+      or require_terminal_global_fixed_point
+      or require_terminal_global_downstream_recheck
+    )
     and run.outer_feedback_completed
   ):
     try:
       terminal_audit = (
         audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
           run,
-          require_terminal_global_resolve=require_terminal_global_fixed_point,
+          require_terminal_global_resolve=(
+            require_terminal_global_fixed_point
+            or require_terminal_global_downstream_recheck
+          ),
+          require_terminal_global_downstream_recheck=(
+            require_terminal_global_downstream_recheck
+          ),
         )
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return replace(
         run,
         status=(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+          .TERMINAL_GLOBAL_DOWNSTREAM_RESPONSE_FAILURE
+          if require_terminal_global_downstream_recheck
+          else
           MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
           .TERMINAL_GLOBAL_FIXED_POINT_FAILURE
           if require_terminal_global_fixed_point
@@ -1977,6 +2125,10 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       return replace(
         run,
         status=(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+          .TERMINAL_GLOBAL_DOWNSTREAM_RESPONSE_FAILURE
+          if require_terminal_global_downstream_recheck
+          else
           MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
           .TERMINAL_GLOBAL_FIXED_POINT_FAILURE
           if require_terminal_global_fixed_point
@@ -2001,7 +2153,15 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
         + (
           '; terminal response proposal was also consumed by a fresh global '
           're-solve'
-          if require_terminal_global_fixed_point
+          if (
+            require_terminal_global_fixed_point
+            or require_terminal_global_downstream_recheck
+          )
+          else ''
+        )
+        + (
+          '; the conditioned global field was freshly rechecked downstream'
+          if require_terminal_global_downstream_recheck
           else ''
         )
       ),
@@ -2016,6 +2176,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
   *,
   terminal_feedback: MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None = None,
   require_terminal_global_resolve: bool = False,
+  require_terminal_global_downstream_recheck: bool = False,
   coordinate_offset_tolerance_m: float = 1.0e-3,
   tangent_offset_tolerance_rad: float = 5.0e-2,
   pressure_offset_tolerance_Pa: float = 2.0e4,
@@ -2029,6 +2190,10 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
   expensive solve; its closure fingerprint and configuration are still checked.
   When ``require_terminal_global_resolve`` is true, the terminal proposal is
   also consumed by one fresh lineage-bound global boundary-conditioned solve.
+  When ``require_terminal_global_downstream_recheck`` is true, that global
+  result is then passed through one fresh downstream feedback run and its
+  final response must pass the same declared offset tolerances.  This option
+  implies the global re-solve requirement.
   No response is extrapolated or promoted to canonical global closure.
   """
 
@@ -2053,6 +2218,14 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
   if not isinstance(require_terminal_global_resolve, bool):
     raise ValueError('require_terminal_global_resolve must be a bool')
   ####
+  if not isinstance(require_terminal_global_downstream_recheck, bool):
+    raise ValueError(
+      'require_terminal_global_downstream_recheck must be a bool'
+    )
+  ####
+  require_terminal_global_resolve = bool(
+    require_terminal_global_resolve or require_terminal_global_downstream_recheck
+  )
   tolerances: dict[str, float] = {}
   for name, value in (
     ('coordinate_offset_tolerance_m', coordinate_offset_tolerance_m),
@@ -2083,6 +2256,9 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
       'fresh-final-closure-downstream-response-without-extrapolation-v1'
     ),
     'terminal_global_resolve_required': require_terminal_global_resolve,
+    'terminal_global_downstream_recheck_required': (
+      require_terminal_global_downstream_recheck
+    ),
     **tolerances,
   }
   configuration_fingerprint = _configuration_fingerprint(configuration)
@@ -2106,6 +2282,9 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
         tolerances['normal_velocity_offset_tolerance_m_s']
       ),
       terminal_global_resolve_required=require_terminal_global_resolve,
+      terminal_global_downstream_recheck_required=(
+        require_terminal_global_downstream_recheck
+      ),
       message=message,
       **values,
     )
@@ -2297,6 +2476,14 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
   terminal_global_target_match_verified = False
   terminal_global_fidelity_isolation_verified = False
   terminal_global_resolve_verified = False
+  terminal_global_downstream_recheck: (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None
+  ) = None
+  terminal_global_downstream_recheck_configuration_verified = False
+  terminal_global_downstream_recheck_lineage_verified = False
+  terminal_global_downstream_recheck_response_verified = False
+  terminal_global_downstream_recheck_offset_tolerances_verified = False
+  terminal_global_downstream_recheck_fidelity_isolation_verified = False
   common_values = {
     'terminal_closure_fingerprint': terminal_fingerprint,
     'terminal_configuration_verified': terminal_configuration_verified,
@@ -2314,6 +2501,24 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
     'maximum_tangent_offset_rad': maximum_tangent_offset,
     'maximum_pressure_offset_Pa': maximum_pressure_offset,
     'maximum_normal_velocity_offset_m_s': maximum_normal_velocity_offset,
+    'terminal_global_downstream_recheck': (
+      terminal_global_downstream_recheck
+    ),
+    'terminal_global_downstream_recheck_configuration_verified': (
+      terminal_global_downstream_recheck_configuration_verified
+    ),
+    'terminal_global_downstream_recheck_lineage_verified': (
+      terminal_global_downstream_recheck_lineage_verified
+    ),
+    'terminal_global_downstream_recheck_response_verified': (
+      terminal_global_downstream_recheck_response_verified
+    ),
+    'terminal_global_downstream_recheck_offset_tolerances_verified': (
+      terminal_global_downstream_recheck_offset_tolerances_verified
+    ),
+    'terminal_global_downstream_recheck_fidelity_isolation_verified': (
+      terminal_global_downstream_recheck_fidelity_isolation_verified
+    ),
   }
   if not terminal_configuration_verified or not terminal_closure_lineage_verified:
     return result(
@@ -2576,6 +2781,184 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
         **common_values,
       )
     ####
+    if require_terminal_global_downstream_recheck:
+      conditioned_closure = terminal_global_resolve.conditioned_closure
+      downstream_options = feedback_run.configuration.get('downstream_options')
+      reference_temperature = feedback_run.configuration.get(
+        'reference_total_temperature_K'
+      )
+      downstream_iterations = feedback_run.configuration.get(
+        'downstream_feedback_iterations'
+      )
+      if not isinstance(downstream_options, Mapping):
+        return result(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+          .TERMINAL_GLOBAL_DOWNSTREAM_RESPONSE_FAILURE,
+          'feedback run did not retain downstream options for the conditioned '
+          'global downstream recheck',
+          **common_values,
+        )
+      if conditioned_closure is None or not conditioned_closure.physical_closure_verified:
+        return result(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+          .TERMINAL_GLOBAL_DOWNSTREAM_RESPONSE_FAILURE,
+          'terminal global re-solve retained no locally verified conditioned '
+          'closure for the downstream recheck',
+          **common_values,
+        )
+      try:
+        refreshed_options = _refresh_solver_owned_downstream_options(
+          conditioned_closure,
+          downstream_options,
+        )
+        terminal_global_downstream_recheck = (
+          run_reflected_domain_global_coupled_downstream_feedback(
+            conditioned_closure,
+            reference_total_temperature_K=float(reference_temperature),
+            maximum_iterations=int(downstream_iterations),
+            **refreshed_options,
+          )
+        )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        return result(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+          .TERMINAL_GLOBAL_DOWNSTREAM_RESPONSE_FAILURE,
+          f'conditioned global downstream recheck raised: {error}',
+          **common_values,
+        )
+      recheck_configuration = terminal_global_downstream_recheck.configuration
+      conditioned_fingerprint = (
+        moc_reflected_domain_global_physical_closure_fingerprint(
+          conditioned_closure
+        )
+      )
+      try:
+        terminal_global_downstream_recheck_configuration_verified = bool(
+          recheck_configuration.get('closure_fingerprint')
+          == conditioned_fingerprint
+          and recheck_configuration.get('reference_total_temperature_K')
+          is not None
+          and abs(
+            float(recheck_configuration['reference_total_temperature_K'])
+            - float(reference_temperature)
+          )
+          <= 1.0e-12 * max(abs(float(reference_temperature)), 1.0)
+          and int(recheck_configuration.get('maximum_iterations'))
+          == int(downstream_iterations)
+        )
+      except (TypeError, ValueError):
+        terminal_global_downstream_recheck_configuration_verified = False
+      ####
+      recheck_iteration = (
+        terminal_global_downstream_recheck.iterations[-1]
+        if terminal_global_downstream_recheck.iterations
+        else None
+      )
+      recheck_response = (
+        None if recheck_iteration is None else recheck_iteration.response
+      )
+      terminal_global_downstream_recheck_lineage_verified = bool(
+        terminal_global_downstream_recheck.closure_lineage_verified
+        and (
+          terminal_global_downstream_recheck.closure is conditioned_closure
+          or terminal_global_downstream_recheck.closure == conditioned_closure
+        )
+        and recheck_iteration is not None
+        and recheck_iteration.response_lineage_verified
+        and recheck_response is not None
+        and recheck_response.upstream_boundary
+        is conditioned_closure.downstream_boundary
+      )
+      terminal_global_downstream_recheck_response_verified = bool(
+        terminal_global_downstream_recheck.converged
+        and terminal_global_downstream_recheck.response_lineage_verified
+        and terminal_global_downstream_recheck.response_channels_finite
+        and terminal_global_downstream_recheck.response_coverage_verified
+        and terminal_global_downstream_recheck.response_residuals_verified
+        and recheck_iteration is not None
+        and recheck_iteration.response_lineage_verified
+        and recheck_iteration.response_channels_finite
+        and recheck_iteration.response_coverage_verified
+        and recheck_iteration.response_residuals_verified
+        and recheck_response is not None
+        and recheck_response.converged
+      )
+      recheck_coordinate_offset = (
+        None
+        if recheck_response is None
+        else maximum_absolute(recheck_response.coordinate_offsets_m)
+      )
+      recheck_tangent_offset = (
+        None
+        if recheck_response is None
+        else maximum_absolute(recheck_response.tangent_offsets_rad)
+      )
+      recheck_pressure_offset = (
+        None
+        if recheck_response is None
+        else maximum_absolute(recheck_response.pressure_offsets_Pa)
+      )
+      recheck_normal_velocity_offset = (
+        None
+        if recheck_response is None
+        else maximum_absolute(recheck_response.normal_velocity_values_m_s)
+      )
+      terminal_global_downstream_recheck_offset_tolerances_verified = bool(
+        recheck_coordinate_offset is not None
+        and recheck_tangent_offset is not None
+        and recheck_pressure_offset is not None
+        and recheck_normal_velocity_offset is not None
+        and recheck_coordinate_offset
+        <= tolerances['coordinate_offset_tolerance_m']
+        and recheck_tangent_offset
+        <= tolerances['tangent_offset_tolerance_rad']
+        and recheck_pressure_offset
+        <= tolerances['pressure_offset_tolerance_Pa']
+        and recheck_normal_velocity_offset
+        <= tolerances['normal_velocity_offset_tolerance_m_s']
+      )
+      terminal_global_downstream_recheck_fidelity_isolation_verified = bool(
+        terminal_global_downstream_recheck.fidelity_isolation_verified
+        and not terminal_global_downstream_recheck.global_coupling_verified
+        and not terminal_global_downstream_recheck.downstream_boundary_closure_verified
+        and terminal_global_downstream_recheck.chain_promotion_blocked
+        and not terminal_global_downstream_recheck.production_claim_allowed
+      )
+      common_values.update({
+        'terminal_global_downstream_recheck': (
+          terminal_global_downstream_recheck
+        ),
+        'terminal_global_downstream_recheck_configuration_verified': (
+          terminal_global_downstream_recheck_configuration_verified
+        ),
+        'terminal_global_downstream_recheck_lineage_verified': (
+          terminal_global_downstream_recheck_lineage_verified
+        ),
+        'terminal_global_downstream_recheck_response_verified': (
+          terminal_global_downstream_recheck_response_verified
+        ),
+        'terminal_global_downstream_recheck_offset_tolerances_verified': (
+          terminal_global_downstream_recheck_offset_tolerances_verified
+        ),
+        'terminal_global_downstream_recheck_fidelity_isolation_verified': (
+          terminal_global_downstream_recheck_fidelity_isolation_verified
+        ),
+      })
+      if not (
+        terminal_global_downstream_recheck_configuration_verified
+        and terminal_global_downstream_recheck_lineage_verified
+        and terminal_global_downstream_recheck_response_verified
+        and terminal_global_downstream_recheck_offset_tolerances_verified
+        and terminal_global_downstream_recheck_fidelity_isolation_verified
+      ):
+        return result(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
+          .TERMINAL_GLOBAL_DOWNSTREAM_RESPONSE_FAILURE,
+          'the conditioned global field did not pass a fresh covered '
+          'downstream response recheck within the declared tolerances',
+          **common_values,
+        )
+    ####
   ####
   return result(
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
@@ -2586,6 +2969,11 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
       '; the terminal response proposal was consumed by a fresh covered global '
       're-solve'
       if require_terminal_global_resolve
+      else ''
+    )
+    + (
+      '; the conditioned global field was freshly rechecked downstream'
+      if require_terminal_global_downstream_recheck
       else ''
     )
     + '; canonical closure, external validation, and production promotion '

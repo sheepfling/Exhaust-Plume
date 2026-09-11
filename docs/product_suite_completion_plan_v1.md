@@ -5177,3 +5177,25 @@ ladder, accepted physical shock-cell lengths, provider-bound comparisons,
 validation archives, and release freeze remain open. The branch must continue
 to treat this as research evidence until the global re-solve and its physical
 residuals pass on the canonical case ladder.
+
+### P2.2 strict two-sided terminal loop admission checkpoint — 2026-09-11
+
+The terminal global gate now has a separate opt-in
+``require_terminal_global_downstream_recheck`` policy.  It implies the
+lineage-bound global re-solve and then runs one fresh downstream feedback
+measurement against that newly conditioned global closure.  The terminal
+audit retains the conditioned-closure fingerprint, configuration and response
+lineage, response coverage/residual channels, declared offset tolerances, and
+research-only fidelity flags.  A missing or non-converged recheck returns a
+typed ``terminal-global-downstream-response-failure`` rather than treating the
+one-way ``downstream -> global`` handoff as a fixed point.
+
+The existing mixed-regime regression passes with the full
+``downstream -> global -> downstream`` policy, and the focused global
+feedback/refinement tranche passes (``12 passed``).  Ruff, Pyright, bytecode
+compilation, and whitespace checks are clean.  This is a stronger admission
+and provenance contract, not the canonical physics solve: the solver-owned
+mixed-regime interface/free-boundary equations, stable physical case ladder,
+accepted first-cell lengths, provider-bound comparisons, validation archives,
+and release freeze remain open.  No global or production claim flags are
+changed by this checkpoint.
