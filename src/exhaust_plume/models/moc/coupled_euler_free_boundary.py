@@ -63,6 +63,7 @@ from exhaust_plume.models.moc.moving_mixed_regime_interface import (
 
 __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
+  'MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode',
   'MocReflectedDomainCoupledEulerInletBoundaryMode',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudget',
@@ -383,6 +384,20 @@ class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   INLET_MOVING_MIXED_REGIME_FIELD_FAILURE = (
     'coupled-euler-inlet-moving-mixed-regime-field-failure'
   )
+####
+
+
+class MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode(str, Enum):
+  """Select the explicit free-boundary geometry update law.
+
+  The pressure-slope law is retained as the historical research proxy.  The
+  streamline law uses only the local Euler velocity tangent for its predicted
+  boundary slope; it does not by itself close the pressure, entropy, or
+  global-to-downstream coupling problem.
+  """
+
+  PRESSURE_SLOPE_RESEARCH = 'pressure-slope-research-v1'
+  KINEMATIC_STREAMLINE = 'kinematic-streamline-v1'
 ####
 
 
@@ -1607,6 +1622,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   shape_convergence_tolerance: float = 1.0e-3
   shape_relaxation: float = 0.35
   pressure_shape_relaxation: float = 0.20
+  free_boundary_update_mode: MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode = (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.PRESSURE_SLOPE_RESEARCH
+  )
   downstream_length_m: float | None = None
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL
   outlet_static_pressure_Pa: float | None = None
@@ -1662,6 +1680,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'MocReflectedDomainCoupledEulerInletBoundaryMode'
       )
     ####
+    if not isinstance(
+      self.free_boundary_update_mode,
+      MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode,
+    ):
+      raise TypeError(
+        'free_boundary_update_mode must be a '
+        'MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode'
+      )
+    ####
     for name, value in (
       ('reference_total_temperature_K', self.reference_total_temperature_K),
       ('gas_constant_J_kgK', self.gas_constant_J_kgK),
@@ -1681,13 +1708,24 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       ),
       ('shape_convergence_tolerance', self.shape_convergence_tolerance),
       ('shape_relaxation', self.shape_relaxation),
-      ('pressure_shape_relaxation', self.pressure_shape_relaxation),
     ):
       numeric = float(value)
       if not isfinite(numeric) or numeric <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
       ####
       object.__setattr__(self, name, numeric)
+    ####
+    pressure_shape_relaxation = float(self.pressure_shape_relaxation)
+    if not isfinite(pressure_shape_relaxation) or pressure_shape_relaxation < 0.0:
+      raise ValueError(
+        'pressure_shape_relaxation must be finite and nonnegative'
+      )
+    ####
+    object.__setattr__(
+      self,
+      'pressure_shape_relaxation',
+      pressure_shape_relaxation,
+    )
     ####
     if self.cfl_number >= 1.0:
       raise ValueError('cfl_number must be less than one')
@@ -1885,6 +1923,27 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         self,
         'free_boundary_geometry_profile_lower_ordinate_m',
         lower_ordinate,
+      )
+    ####
+    if self.free_boundary_update_mode is (
+      MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+    ):
+      if self.pressure_shape_relaxation != 0.0:
+        raise ValueError(
+          'kinematic-streamline free-boundary updates require '
+          'pressure_shape_relaxation=0.0'
+        )
+      ####
+      if self.free_boundary_geometry_profile_y_m is not None:
+        raise ValueError(
+          'kinematic-streamline free-boundary updates cannot consume an '
+          'externally prescribed geometry profile'
+        )
+      ####
+    elif self.pressure_shape_relaxation <= 0.0:
+      raise ValueError(
+        'pressure-slope free-boundary updates require a positive '
+        'pressure_shape_relaxation'
       )
     ####
     if self.transonic_shock_geometry is not None and not isinstance(
@@ -2275,6 +2334,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'shape_convergence_tolerance': self.shape_convergence_tolerance,
       'shape_relaxation': self.shape_relaxation,
       'pressure_shape_relaxation': self.pressure_shape_relaxation,
+      'free_boundary_update_mode': self.free_boundary_update_mode.value,
       'downstream_length_m': self.downstream_length_m,
       'effective_downstream_length_m': self.effective_downstream_length_m,
       'outlet_static_pressure_Pa': self.outlet_static_pressure_Pa,
@@ -2386,6 +2446,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   shape_convergence_tolerance: float = 1.0e-3,
   shape_relaxation: float = 0.35,
   pressure_shape_relaxation: float = 0.20,
+  free_boundary_update_mode: MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode = (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.PRESSURE_SLOPE_RESEARCH
+  ),
   downstream_length_m: float | None = None,
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
   outlet_static_pressure_Pa: float | None = None,
@@ -2455,6 +2518,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     shape_convergence_tolerance=shape_convergence_tolerance,
     shape_relaxation=shape_relaxation,
     pressure_shape_relaxation=pressure_shape_relaxation,
+    free_boundary_update_mode=free_boundary_update_mode,
     downstream_length_m=downstream_length_m,
     source=source,
     outlet_static_pressure_Pa=outlet_static_pressure_Pa,
@@ -4006,6 +4070,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
   shape_convergence_tolerance: float = 1.0e-3,
   shape_relaxation: float = 0.35,
   pressure_shape_relaxation: float = 0.20,
+  free_boundary_update_mode: MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode = (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.PRESSURE_SLOPE_RESEARCH
+  ),
   downstream_length_m: float | None = None,
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
   outlet_static_pressure_Pa: float | None = None,
@@ -4067,6 +4134,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       shape_convergence_tolerance=shape_convergence_tolerance,
       shape_relaxation=shape_relaxation,
       pressure_shape_relaxation=pressure_shape_relaxation,
+      free_boundary_update_mode=free_boundary_update_mode,
       downstream_length_m=downstream_length_m,
       source=source,
       outlet_static_pressure_Pa=outlet_static_pressure_Pa,
@@ -4158,6 +4226,32 @@ def _validate_control_request(
     )
   ####
   return x_values[0], y_values[0], inlet_height, gamma
+####
+
+
+def _free_boundary_target_slope(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  *,
+  flow_slope: float,
+  pressure_error: float,
+) -> float:
+  """Return the selected research-law prediction for the boundary tangent."""
+
+  if request.free_boundary_update_mode is (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+  ):
+    # The solver-owned path is a kinematic streamline tangent.  Pressure is
+    # still consumed by the boundary flux, but it cannot alter geometry here.
+    return float(np.clip(flow_slope, -0.75, 0.75))
+  ####
+  return float(
+    np.clip(
+      flow_slope
+      + request.pressure_shape_relaxation * pressure_error,
+      -0.75,
+      0.75,
+    )
+  )
 ####
 
 
@@ -7229,13 +7323,10 @@ def solve_reflected_domain_coupled_euler_free_boundary(
         pressure - pressure_targets[i]
       ) / max(pressure, pressure_targets[i])
       flow_slope = 0.0 if abs(u) <= 1.0e-12 else v / u
-      target_slope = float(
-        np.clip(
-          flow_slope
-          + request.pressure_shape_relaxation * pressure_error,
-          -0.75,
-          0.75,
-        )
+      target_slope = _free_boundary_target_slope(
+        request,
+        flow_slope=flow_slope,
+        pressure_error=pressure_error,
       )
       target_height = new_heights[i] + dx * target_slope
       lower_bound = max(0.20 * inlet_height, 1.0e-8)

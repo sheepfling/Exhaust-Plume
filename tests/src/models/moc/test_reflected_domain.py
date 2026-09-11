@@ -110,6 +110,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
+  MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode,
   MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus,
   MocReflectedDomainCoupledEulerPressureProfileCompatibilityStatus,
   MocReflectedDomainCoupledEulerControlSectionCompatibilityStatus,
@@ -984,6 +985,37 @@ def test_global_physical_field_binds_an_audited_profile_to_the_coupled_lane():
   )
   assert coupled.production_claim_allowed is False
 ####
+
+
+def test_coupled_euler_free_boundary_update_modes_are_explicitly_segregated():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    pressure_shape_relaxation=0.0,
+    free_boundary_update_mode=(
+      MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+    ),
+  )
+  assert request.as_report()['free_boundary_update_mode'] == (
+    'kinematic-streamline-v1'
+  )
+  assert coupled_euler._free_boundary_target_slope(
+    request,
+    flow_slope=0.22,
+    pressure_error=0.90,
+  ) == pytest.approx(0.22)
+
+  with pytest.raises(ValueError, match='pressure_shape_relaxation=0.0'):
+    build_reflected_domain_coupled_euler_free_boundary_request(
+      mixed_request,
+      reference_total_temperature_K=1500.0,
+      free_boundary_update_mode=(
+        MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+      ),
+    )
+  ####
 
 
 def test_global_physical_field_uses_solver_owned_cross_section_placement():

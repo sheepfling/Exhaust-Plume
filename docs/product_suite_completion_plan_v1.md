@@ -110,6 +110,31 @@ renaming may clear the stop.  Validation intake, provider-bound VIS/SIG/RAY/
 FPA comparisons, and release freeze remain parallel gates rather than
 substitutes for this physics sprint.
 
+### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
+
+The coupled-Euler free-boundary request now names its geometry update law
+explicitly.  The historical ``pressure-slope-research-v1`` proxy remains the
+default for compatibility.  A separate
+``kinematic-streamline-v1`` mode uses only the local Euler velocity tangent
+``v/u`` for the predicted free-boundary slope; it cannot silently add a
+pressure-error correction or consume an externally prescribed geometry
+profile.  Kinematic mode requires an explicit zero pressure-shape
+coefficient, and the selected mode is retained in the request/report lineage.
+
+The focused mode-segregation regression and two adjacent coupled-field
+regressions pass.  This is a fidelity and provenance boundary, not a
+canonical-closure admission: both modes remain research-only, and the
+kinematic path still has to demonstrate pressure/tangency, centerline,
+entropy, conservative-residual, disjoint-case, and increasing-resolution
+evidence before it can feed the physical shock-cell chain or production
+Signature/FPA work.
+
+The next physics slice remains the equation-level solver-owned consumer that
+jointly closes the global frontier and downstream free boundary.  A typed
+failure from the kinematic mode is evidence that the physical case is not
+closed; it must not be bypassed by switching back to the pressure proxy or
+by relabeling either result.
+
 ### P2.2d signed boundary-response checkpoint — 2026-09-11
 
 The coupled Euler/free-boundary result now retains both the unsigned
