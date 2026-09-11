@@ -5539,6 +5539,34 @@ This checkpoint does not authorize canonical mixed-regime closure, physical
 shock-cell fitting, Signature/FPA production, provider validation, or release
 tagging.
 
+### P2.2 fresh-frontier conservative residual admission checkpoint — 2026-09-11
+
+The fresh global frontier result now has a downstream research-only admission
+adapter, ``op.moc.reflected-domain.global-frontier-fresh-resolve-
+conservative-residual-v1``.  It requires the exact candidate object produced
+by the fresh resolve, re-audits the fresh target/geometry/identity lineage,
+invokes the opt-in signed mass/normal-momentum/energy residual line search,
+and independently remeasures the residual solver result.  The adapter retains
+initial/final residual norms, per-channel response magnitudes, strict-descent
+status, independent-audit status, and explicit promotion blockers.
+
+The current mixed-regime case reaches the exact fresh candidate and invokes
+the strict downstream residual consumer, but returns the typed
+``RESIDUAL_AUDIT_FAILURE`` outcome under the tight normal-momentum policy.
+That failure is intentional evidence, not a reason to loosen the gate: the
+result remains research-only, the exact candidate lineage is preserved, and
+no canonical/free-boundary, shock-cell, Signature/FPA, provider-validation,
+or release claim is opened.  The complete reflected-domain suite passes
+(``195 passed``), along with Ruff, Pyright, bytecode compilation, and
+whitespace checks.
+
+The next implementation packet is a fresh-frontier case/refinement ladder
+that records strict signed residual descent and per-channel residual behavior
+across multiple admissible cases and resolutions.  Only a consistently
+independently audited ladder may feed a bounded outer feedback experiment;
+until then, the current failure remains the correct product and physics
+boundary.
+
 ### P2.2 exact-Euler conditioned perimeter closure checkpoint — 2026-09-11
 
 The exact-Euler frontier consumer now closes the conditioned physical field
