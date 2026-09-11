@@ -408,6 +408,10 @@ from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback imp
   audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point,
   run_reflected_domain_global_coupled_boundary_condition_feedback,
 )
+from exhaust_plume.validation.moc_global_boundary_state_feedback import (
+  MocReflectedDomainGlobalBoundaryStateFeedbackStatus,
+  run_reflected_domain_global_boundary_state_feedback,
+)
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_refinement import (
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase,
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus,
@@ -12441,6 +12445,88 @@ def test_global_coupled_boundary_condition_feedback_consumes_target_geometry():
     'global_coupled_boundary_condition_feedback_geometry_conditioning_verified'
   ] is True
   assert visualization.claims.production_claim_allowed is False
+####
+
+
+def test_global_boundary_state_feedback_binds_target_and_signed_state_without_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+
+  result = run_reflected_domain_global_boundary_state_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalBoundaryStateFeedbackStatus.RESIDUAL_AUDIT_FAILURE
+  )
+  assert result.boundary_feedback_run is not None
+  assert result.boundary_feedback_run.research_feedback_completed
+  assert result.proposal is not None
+  assert result.proposal_lineage_verified
+  assert result.state_solver_invoked
+  assert result.two_sided_request is not None
+  assert result.two_sided_result is not None
+  assert result.state_lineage_verified
+  assert result.signed_residuals_verified
+  assert result.conservative_residual_audit is not None
+  assert result.independent_residual_audit_verified is False
+  assert result.handoff is None
+  assert result.handoff_ready is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  residual = result.two_sided_result.conservative_residual_result
+  assert residual is not None
+  assert residual.final_response is not None
+  assert residual.final_response.signed_residuals_available
+  report = result.as_report()
+  assert report['operator_id'] == (
+    'op.moc.reflected-domain.global-boundary-state-feedback-v1'
+  )
+  assert report['signed_residual_response'] is not None
+  assert report['handoff'] is None
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_boundary_state_feedback_can_emit_only_an_explicit_loose_research_handoff():
+  closure = _global_physical_closure_for_mixed_regime()
+
+  result = run_reflected_domain_global_boundary_state_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalBoundaryStateFeedbackStatus.READY_RESEARCH_STATE_HANDOFF
+  )
+  assert result.handoff_ready
+  assert result.handoff is not None
+  assert result.handoff.ready_for_joint_global_resolve
+  assert result.handoff.consumed_by_global_solver is False
+  assert result.handoff.global_coupling_verified is False
+  assert result.handoff.downstream_boundary_closure_verified is False
+  assert result.handoff.chain_promotion_blocked
+  assert result.handoff.production_claim_allowed is False
+  assert result.handoff.signed_normal_momentum_residuals_Pa
+  assert result.as_report()['handoff']['ready_for_joint_global_resolve'] is True
+  assert result.as_report()['handoff']['consumed_by_global_solver'] is False
 ####
 
 

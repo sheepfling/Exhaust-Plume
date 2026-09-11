@@ -5683,3 +5683,33 @@ The next implementation packet is the fresh-resolve case/refinement ladder
 with independent signed mass, normal-momentum, and energy measurements.  Only
 after that evidence passes may a bounded outer feedback iteration consume the
 fresh result.
+
+### P2.2 conservative boundary-state handoff checkpoint — 2026-09-11
+
+The global feedback path now has an explicit
+``op.moc.reflected-domain.global-boundary-state-feedback-v1`` composition.  It
+fresh-solves the downstream pressure/tangent/geometry proposal through the
+solver-owned global boundary consumer, then binds the resulting closure to the
+signed mass, normal-momentum, and energy response from the conservative
+two-sided interface solver.  The packet preserves the proposal-source
+fingerprint, final fresh-closure fingerprint, exact request identity, signed
+residual channels, residual norm, and independent residual audit.
+
+The handoff is intentionally unconsumed: no global solver is allowed to claim
+that it accepted the packet, and canonical global coupling, downstream
+boundary closure, shock-cell, Signature, FPA, and production flags remain
+false.  A strict default normal-momentum budget of ``0.01 Pa`` keeps the known
+interior-probe mismatch fail-closed; the mixed-regime case therefore returns a
+typed residual-audit failure while retaining its signed response.  An
+explicitly requested ``100 Pa`` exploratory budget can produce a ready
+research handoff, but the packet remains unconsumed and promotion-blocked.
+
+The new regression pair and the surrounding reflected-domain boundary-feedback
+tranche pass (``9 passed``), with Ruff, Pyright, compilation, and whitespace
+checks clean.  This closes the provenance seam between the existing target
+feedback and conservative response evidence; it does not close the joint
+upstream/free-boundary equation.  The next physics gate is a solver that
+consumes this packet in a fresh stateful upstream solve, followed by disjoint
+case/refinement evidence under the strict budget.  The validation archives,
+provider-bound VIS/SIG/RAY/FPA comparisons, physical shock-cell lengths, and
+release freeze remain open.
