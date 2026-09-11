@@ -118,6 +118,62 @@ def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) 
   )
 
 
+def _dimensioned_channel_maxima(
+  response: MocEulerTwoSidedInterfaceResponse | None,
+  request: MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest | None,
+) -> tuple[float, float, float] | None:
+  """Return normalized maxima for the three signed conservative channels."""
+
+  if response is None or request is None or not response.signed_residuals_available:
+    return None
+  channels = (
+    response.signed_mass_flux_residuals_kg_m2_s,
+    response.signed_normal_momentum_residuals_Pa,
+    response.signed_energy_flux_residuals_W_m2,
+  )
+  tolerances = (
+    request.mass_flux_tolerance_kg_m2_s,
+    request.normal_momentum_tolerance_Pa,
+    request.energy_flux_tolerance_W_m2,
+  )
+  if any(channel is None for channel in channels):
+    return None
+  assert all(channel is not None for channel in channels)
+  if not (len(channels[0]) == len(channels[1]) == len(channels[2])):
+    return None
+  if any(not isfinite(float(value)) or value <= 0.0 for value in tolerances):
+    return None
+  maxima = tuple(
+    max((abs(float(value)) / tolerance for value in channel), default=float('inf'))
+    for channel, tolerance in zip(channels, tolerances, strict=True)
+  )
+  if any(not isfinite(value) for value in maxima):
+    return None
+  return maxima
+
+
+def _dimensioned_channel_descent(
+  before: tuple[float, float, float] | None,
+  after: tuple[float, float, float] | None,
+) -> bool:
+  """Require no normalized channel worsening and one strict decrease."""
+
+  if before is None or after is None:
+    return False
+  numerical_tolerance = 1.0e-12
+  nonincreasing = all(
+    next_value
+    <= current_value + numerical_tolerance * max(1.0, abs(current_value))
+    for current_value, next_value in zip(before, after, strict=True)
+  )
+  strict = any(
+    next_value
+    < current_value - numerical_tolerance * max(1.0, abs(current_value))
+    for current_value, next_value in zip(before, after, strict=True)
+  )
+  return bool(nonincreasing and strict)
+
+
 def _options(value: Mapping[str, Any] | None) -> dict[str, Any]:
   if value is None:
     return {'consume_target_geometry': True}
@@ -170,6 +226,8 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
   geometry_response_closure: MocReflectedDomainGlobalPhysicalClosureResult | None = None
   baseline_residual_norm: float | None = None
   refreshed_residual_norm: float | None = None
+  baseline_dimensioned_channel_maxima: tuple[float, ...] = ()
+  refreshed_dimensioned_channel_maxima: tuple[float, ...] = ()
   handoff_lineage_verified: bool = False
   global_consumer_invoked: bool = False
   fresh_global_solve_verified: bool = False
@@ -177,6 +235,8 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
   target_geometry_consumption_verified: bool = False
   shock_geometry_response_consumed: bool = False
   shock_geometry_response_lineage_verified: bool = False
+  dimensioned_channels_verified: bool = False
+  dimensioned_channel_descent_verified: bool = False
   state_solver_invoked: bool = False
   state_lineage_verified: bool = False
   signed_residuals_verified: bool = False
@@ -248,6 +308,17 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
     ):
       raise TypeError('geometry_response_closure must be typed or None')
     for name in (
+      'baseline_dimensioned_channel_maxima',
+      'refreshed_dimensioned_channel_maxima',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if values and (
+        len(values) != 3
+        or any(not isfinite(value) or value < 0.0 for value in values)
+      ):
+        raise ValueError(f'{name} must contain three finite nonnegative values')
+      object.__setattr__(self, name, values)
+    for name in (
       'handoff_lineage_verified',
       'global_consumer_invoked',
       'fresh_global_solve_verified',
@@ -255,6 +326,8 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       'target_geometry_consumption_verified',
       'shock_geometry_response_consumed',
       'shock_geometry_response_lineage_verified',
+      'dimensioned_channels_verified',
+      'dimensioned_channel_descent_verified',
       'state_solver_invoked',
       'state_lineage_verified',
       'signed_residuals_verified',
@@ -290,6 +363,21 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       and self.residual_descent_verified
     ):
       raise ValueError('converged joint update must pass consumption and descent gates')
+    if self.dimensioned_channels_verified and not (
+      len(self.baseline_dimensioned_channel_maxima) == 3
+      and len(self.refreshed_dimensioned_channel_maxima) == 3
+    ):
+      raise ValueError(
+        'dimensioned_channels_verified requires three baseline and refreshed '
+        'channel maxima'
+      )
+    if self.dimensioned_channel_descent_verified and not (
+      self.dimensioned_channels_verified
+      and self.residual_descent_verified
+    ):
+      raise ValueError(
+        'dimensioned_channel_descent_verified requires verified residual descent'
+      )
     object.__setattr__(self, 'message', str(self.message))
 
   @property
@@ -317,6 +405,10 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       'shock_geometry_response_lineage_verified': (
         self.shock_geometry_response_lineage_verified
       ),
+      'dimensioned_channels_verified': self.dimensioned_channels_verified,
+      'dimensioned_channel_descent_verified': (
+        self.dimensioned_channel_descent_verified
+      ),
       'state_solver_invoked': self.state_solver_invoked,
       'state_lineage_verified': self.state_lineage_verified,
       'signed_residuals_verified': self.signed_residuals_verified,
@@ -334,6 +426,12 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       ),
       'baseline_residual_norm': self.baseline_residual_norm,
       'refreshed_residual_norm': self.refreshed_residual_norm,
+      'baseline_dimensioned_channel_maxima': list(
+        self.baseline_dimensioned_channel_maxima
+      ),
+      'refreshed_dimensioned_channel_maxima': list(
+        self.refreshed_dimensioned_channel_maxima
+      ),
       'frontier_request': (
         None if self.frontier_request is None else self.frontier_request.as_report()
       ),
@@ -650,12 +748,30 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       target_geometry_consumption_verified=target_geometry_consumed,
       shock_geometry_response_consumed=shock_geometry_response_consumed,
       shock_geometry_response_lineage_verified=shock_geometry_response_lineage_verified,
+      baseline_dimensioned_channel_maxima=(
+        _dimensioned_channel_maxima(initial_response, state_request) or ()
+      ),
       state_solver_invoked=True,
       baseline_residual_norm=baseline_norm,
     )
   residual = state_result.conservative_residual_result
   audit = state_result.conservative_residual_audit
   response = _response(state_result)
+  baseline_dimensioned_channel_maxima = (
+    _dimensioned_channel_maxima(initial_response, state_request)
+  )
+  refreshed_dimensioned_channel_maxima = _dimensioned_channel_maxima(
+    response,
+    state_request,
+  )
+  dimensioned_channels_verified = bool(
+    baseline_dimensioned_channel_maxima is not None
+    and refreshed_dimensioned_channel_maxima is not None
+  )
+  dimensioned_channel_descent_verified = _dimensioned_channel_descent(
+    baseline_dimensioned_channel_maxima,
+    refreshed_dimensioned_channel_maxima,
+  )
   state_lineage = bool(
     state_result.request is state_request
     and state_result.source_closure_fingerprint
@@ -700,6 +816,14 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       target_geometry_consumption_verified=target_geometry_consumed,
       shock_geometry_response_consumed=shock_geometry_response_consumed,
       shock_geometry_response_lineage_verified=shock_geometry_response_lineage_verified,
+      baseline_dimensioned_channel_maxima=(
+        baseline_dimensioned_channel_maxima or ()
+      ),
+      refreshed_dimensioned_channel_maxima=(
+        refreshed_dimensioned_channel_maxima or ()
+      ),
+      dimensioned_channels_verified=dimensioned_channels_verified,
+      dimensioned_channel_descent_verified=dimensioned_channel_descent_verified,
       state_solver_invoked=True,
       state_lineage_verified=state_lineage,
       signed_residuals_verified=signed,
@@ -729,6 +853,14 @@ def run_reflected_domain_global_boundary_state_joint_solve(
     target_geometry_consumption_verified=target_geometry_consumed,
     shock_geometry_response_consumed=shock_geometry_response_consumed,
     shock_geometry_response_lineage_verified=shock_geometry_response_lineage_verified,
+    baseline_dimensioned_channel_maxima=(
+      baseline_dimensioned_channel_maxima or ()
+    ),
+    refreshed_dimensioned_channel_maxima=(
+      refreshed_dimensioned_channel_maxima or ()
+    ),
+    dimensioned_channels_verified=dimensioned_channels_verified,
+    dimensioned_channel_descent_verified=dimensioned_channel_descent_verified,
     state_solver_invoked=True,
     state_lineage_verified=state_lineage,
     signed_residuals_verified=signed,
@@ -741,6 +873,8 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       and moving
       and shock_geometry_response_consumed
       and shock_geometry_response_lineage_verified
+      and dimensioned_channels_verified
+      and dimensioned_channel_descent_verified
     ),
     joint_state_update_verified=bool(
       state_lineage
@@ -749,16 +883,26 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       and independent_audit
       and shock_geometry_response_consumed
       and shock_geometry_response_lineage_verified
+      and dimensioned_channels_verified
+      and dimensioned_channel_descent_verified
     ),
     baseline_residual_norm=baseline_norm,
     refreshed_residual_norm=float(refreshed_norm),
   )
-  if not signed or not independent_audit or not moving or not state_lineage:
+  if (
+    not signed
+    or not independent_audit
+    or not moving
+    or not state_lineage
+    or not dimensioned_channels_verified
+    or not dimensioned_channel_descent_verified
+  ):
     return _result(
       MocReflectedDomainGlobalBoundaryStateJointSolveStatus.RESIDUAL_AUDIT_FAILURE,
       handoff,
       'fresh global target consumption completed, but the replayed '
-      'conservative state did not pass every independent audit gate',
+      'conservative state did not pass every independent or dimensioned '
+      'channel audit gate',
       **common,
     )
   if not descent:

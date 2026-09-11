@@ -308,6 +308,24 @@ slice is to extend this response consumer into the full dimensioned
 mass/normal-momentum/energy corrector and prove strict descent across the
 disjoint case/resolution ladder.
 
+### P2.2k dimensioned conservative-channel gate checkpoint — 2026-09-11
+
+The global boundary-state joint result now reports normalized maxima for the
+complete signed mass-flux, normal-momentum, and energy-flux channels before
+and after the solver-owned geometry response.  It requires aligned finite
+channels, rejects material worsening in any channel, and requires at least one
+strict channel decrease.  On the exercised case, normal momentum decreases
+strictly while mass and energy remain non-increasing at floating-point
+roundoff; the aggregate residual also descends.  This makes the dimensional
+acceptance evidence explicit instead of hiding it behind one scalar norm.
+
+The gate remains research-only and does not imply a canonical free-boundary
+fixed point, downstream closure, physical shock-cell acceptance, provider
+validation, or production Signature/FPA claim.  The next slice is to use the
+same three-channel evidence across disjoint cases and increasing resolutions,
+then connect the accepted response to the solver-owned downstream boundary
+equations rather than only the current moving-shock correction.
+
 ## Execution sprints and stop conditions
 
 The long-running goal is executed as a sequence of bounded sprints.  Each

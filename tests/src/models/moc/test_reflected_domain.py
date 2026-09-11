@@ -13223,6 +13223,19 @@ def test_global_boundary_state_joint_consumer_consumes_geometry_response_without
   assert joint.geometry_response_closure is not None
   assert joint.shock_geometry_response_consumed
   assert joint.shock_geometry_response_lineage_verified
+  assert joint.dimensioned_channels_verified
+  assert joint.dimensioned_channel_descent_verified
+  assert len(joint.baseline_dimensioned_channel_maxima) == 3
+  assert len(joint.refreshed_dimensioned_channel_maxima) == 3
+  assert joint.refreshed_dimensioned_channel_maxima[0] <= (
+    joint.baseline_dimensioned_channel_maxima[0]
+  )
+  assert joint.refreshed_dimensioned_channel_maxima[1] < (
+    joint.baseline_dimensioned_channel_maxima[1]
+  )
+  assert joint.refreshed_dimensioned_channel_maxima[2] <= (
+    joint.baseline_dimensioned_channel_maxima[2]
+  )
   assert joint.state_solver_invoked
   assert joint.state_lineage_verified
   assert joint.signed_residuals_verified
