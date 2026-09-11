@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `1d5d9eb`; full suite is green after signed-fixture alignment; release-path checks are next; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `000ab04`; full suite is green on the behavior candidate and exact-`HEAD` release-path checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -442,6 +442,27 @@ manifests, static/documentation checks, wheel build, and installed-wheel
 smoke.  The external/provider archives, canonical physical closure,
 physical shock-cell acceptance, and product measurement-space comparisons
 remain independent blockers.
+
+### Sprint 0 local release-path checkpoint — 2026-09-11
+
+The exact clean candidate ``000ab04`` passes the remaining local release-path
+checks: the test-lane manifest partitions ``140`` test modules into ``12``
+lanes; Ruff, scope markers (``489`` files), Markdown policy, Pyright, and
+public-contract schema/fixture/manifest determinism all pass; and the offline
+wheel build, fresh install, and installed smoke pass.  The scope-marker
+commit is comment-only mechanical normalization and was audited before
+commit.  The complete behavior suite therefore remains ``1298 passed, 18
+warnings`` from ``1d5d9eb``, with no executable-line change between that
+run and ``000ab04``.
+
+The local product validator reports ``local_status=passed``: all five
+standardized Visualization bundles, the repository-local Signature/ray/FPA
+boundaries, and the three-state mission-time composition pass.  The lane
+release audit reports no low-fidelity promotion, all active lanes have local
+evidence, the FPA downstream guard passes, and ``release_ready=false`` for
+the correct reasons: provider preflight is not externally accepted, the
+recorded release freeze is stale, and the external/provider archives and
+canonical physical/shock-cell evidence are still absent.
 
 ## Execution sprints and stop conditions
 
