@@ -5238,3 +5238,27 @@ This is a contract/provenance improvement only: an independently solved
 subsonic interior field, ambient/tangency closure, stable mixed-regime case
 ladder, accepted physical shock-cell lengths, provider-bound validation,
 validation archives, and release gates remain open.
+
+### P2.2 conservative residual sensitivity checkpoint — 2026-09-11
+
+The current global-to-two-sided response was exercised beyond its default
+one-step research budget to distinguish a real closure mechanism from a
+time-step artifact.  On the canonical global fixture, the interior-probe
+response starts at approximately ``41.685 Pa`` maximum normal-momentum
+residual.  Eight exact geometry/field re-solves at the default
+``1e-8 s`` pseudo-step reduce that only to approximately ``41.685 Pa``; the
+terminal fixed-point gate therefore remains open.  Increasing the pseudo-step
+to ``1e-5 s`` produces a slow reduction to approximately ``41.411 Pa`` after
+30 iterations, while ``2e-5 s`` and larger steps eventually lose a valid
+solver-owned interface update before closing the field.
+
+This controlled sensitivity check rejects pseudo-time tuning as evidence of
+conservative moving-front closure.  The next P2.2 implementation packet must
+derive the front/field update from a solver-owned coupled conservative
+residual system, retain exact upstream/downstream/entropy/ambient/centerline
+lineage, and demonstrate strict mass, normal-momentum, and energy closure on a
+multi-case, multi-resolution ladder.  No response produced by the current
+interior probe is eligible for canonical mixed-regime closure, physical
+shock-cell fitting, Signature/FPA production claims, or release promotion.
+The validation archives, provider-bound comparisons, and release freeze remain
+open as separate gates.
