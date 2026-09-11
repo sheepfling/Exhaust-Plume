@@ -2428,6 +2428,12 @@ def test_global_closure_binds_exact_two_sided_moving_interface_ladder():
   assert result.moving_audit.converged
   assert result.joint_audit is not None
   assert result.joint_audit.converged
+  assert result.moving_fixed_point_audit is not None
+  assert result.moving_fixed_point_audit.status is (
+    MocEulerTwoSidedMovingInterfaceFixedPointAuditStatus.MOTION_FAILURE
+  )
+  assert result.moving_fixed_point_audit.fixed_point_verified is False
+  assert result.moving_fixed_point_audit.chain_promotion_blocked
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
@@ -2482,6 +2488,9 @@ def test_global_two_sided_stationary_interface_is_an_explicit_strict_mode():
   assert result.moving_result.stationary_equilibrium_verified
   assert result.moving_result.conservative_flux_closure_verified
   assert result.moving_result.terminal_fixed_point_verified
+  assert result.moving_fixed_point_audit is not None
+  assert result.moving_fixed_point_audit.converged
+  assert result.moving_fixed_point_audit.fixed_point_verified
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
 

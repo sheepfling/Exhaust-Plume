@@ -283,6 +283,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
   moving_result: MocEulerTwoSidedMovingInterfaceResult | None = None
   moving_audit: Any | None = None
   joint_audit: Any | None = None
+  moving_fixed_point_audit: Any | None = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -398,6 +399,14 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
         None
         if self.joint_audit is None or not hasattr(self.joint_audit, 'as_report')
         else self.joint_audit.as_report()
+      ),
+      'moving_fixed_point_audit': (
+        None
+        if (
+          self.moving_fixed_point_audit is None
+          or not hasattr(self.moving_fixed_point_audit, 'as_report')
+        )
+        else self.moving_fixed_point_audit.as_report()
       ),
       'request': None if self.request is None else self.request.as_report(),
       'physical_closure_verified': self.physical_closure_verified,
@@ -620,10 +629,16 @@ def solve_reflected_domain_global_two_sided_moving_interface(
     from exhaust_plume.validation.moc_euler_two_sided_moving_interface import (
       measure_moc_euler_two_sided_moving_interface,
     )
+    from exhaust_plume.validation.moc_euler_two_sided_moving_interface_fixed_point import (
+      measure_moc_euler_two_sided_moving_interface_fixed_point,
+    )
 
     moving_audit = measure_moc_euler_two_sided_moving_interface(moving_result)
     joint_audit = measure_moc_euler_two_sided_interface_field_joint_closure(
       moving_result
+    )
+    moving_fixed_point_audit = (
+      measure_moc_euler_two_sided_moving_interface_fixed_point(moving_result)
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
@@ -648,6 +663,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       moving_result=moving_result,
       moving_audit=moving_audit,
       joint_audit=joint_audit,
+      moving_fixed_point_audit=moving_fixed_point_audit,
     )
   ####
   if not (
@@ -665,6 +681,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       moving_result=moving_result,
       moving_audit=moving_audit,
       joint_audit=joint_audit,
+      moving_fixed_point_audit=moving_fixed_point_audit,
     )
   ####
   return MocReflectedDomainGlobalTwoSidedMovingInterfaceResult(
@@ -679,6 +696,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
     moving_result=moving_result,
     moving_audit=moving_audit,
     joint_audit=joint_audit,
+    moving_fixed_point_audit=moving_fixed_point_audit,
     message=(
       'verified global source-band and shock-boundary lineage fed the exact '
       'two-sided companion/physical-field response ladder; result remains '

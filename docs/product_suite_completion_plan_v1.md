@@ -5262,3 +5262,24 @@ interior probe is eligible for canonical mixed-regime closure, physical
 shock-cell fitting, Signature/FPA production claims, or release promotion.
 The validation archives, provider-bound comparisons, and release freeze remain
 open as separate gates.
+
+### P2.2 global fixed-point evidence retention checkpoint — 2026-09-11
+
+The global-to-two-sided moving-interface result now retains an independent
+``op.moc.euler-two-sided-moving-interface-fixed-point-audit`` alongside its
+existing moving and joint-field audits.  The audit rechecks exact response and
+field lineage, iteration stability, conservative response flags, and the
+terminal zero-update condition; it is not inferred from the wrapper's local
+``converged`` flag.
+
+The ordinary interior-probe global research case now reports a typed
+``MOTION_FAILURE`` fixed-point audit while remaining available as research
+evidence.  The explicit stationary front-limit case retains a passing strict
+fixed-point audit.  This makes the distinction visible in serialized global
+reports and prevents later refinement or product adapters from treating a
+single loose residual-passing response as a settled front.
+
+No canonical mixed-regime/free-boundary claim, physical shock-cell fit,
+Signature/FPA production claim, provider comparison, validation archive, or
+release gate is relaxed by this packet.  The next physics packet remains the
+solver-owned coupled conservative residual/free-boundary solve.
