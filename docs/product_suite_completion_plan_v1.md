@@ -32,6 +32,111 @@ claim ceiling.
 | 5 | FPA downstream product | Explicit camera geometry, detector response, expected electrons, ADC, metadata, and accepted camera/detector comparisons | Deterministic downstream boundary exists; no FPA provider or external image claim |
 | 6 | Validation and release | Provider-bound evidence, disjoint calibration/validation, current manifests, CI, package smoke, and `release_ready=true` | Blocked by the release gates listed below |
 
+## Full-suite definition of done
+
+The suite is complete only when each product can be evaluated in its own
+measurement space and every upstream dependency is explicit.  The following
+matrix is the working release contract; a green local test is necessary but
+does not substitute for the provider-bound evidence in the final column.
+
+| Product or gate | Must exist in the candidate | Must be independently checked | Current state |
+| --- | --- | --- | --- |
+| Visualization | Five isolated model lanes, common bundle/view schema, slices, station and path inspectors, masks, region/cell geometry, provenance, and galleries | Provider-bound geometry/feature comparison with declared coordinate/frame/operator semantics | Local contract and gallery complete; provider comparison pending |
+| Signature | Source-bound chemistry/radiation inputs, wavelength/angular/time query, resolved ray radiance, atmospheric composition, units, masks, and uncertainty lineage | Spectral/radiance comparison in the named measurement space; gray/table paths remain diagnostic unless the source is accepted | Local table, LTE engineering, gray, time, angular, and query seams exist; resolved physical/provider evidence pending |
+| Ray transfer | Straight and curved operators with explicit path, hit, validity, and source identity | Analytic or provider ray/path comparison per operator and convergence/refinement evidence for curved paths | Straight local checks pass; curved refinement is nonmonotonic and remains diagnostic |
+| FPA | Camera geometry, pixel mapping, detector response, expected electrons, optional ADC, invalid-ray propagation, and visualization metadata | Source-bound camera/detector image comparison with calibration and validation cases kept disjoint | Deterministic downstream boundary passes; observation corpus/provider comparison missing |
+| Canonical flow | One solver-owned reflected/mixed-regime field that closes frontier, shock, ambient, centerline, entropy, conservative residual, and downstream boundary together | Independent re-derivation plus multi-case/multi-resolution stability and physical observation comparison | Research ladders and target-guided re-solves exist; canonical feedback/free-boundary closure remains open |
+| Shock cells | First and continued cells fit from the accepted physical field/frontier, with uncertainties and termination semantics | Accepted physical solver-length comparison; diagnostic pressure-extrema spacing is insufficient | Research-only fitter and chain planners exist; blocked by canonical closure and observations |
+| Validation intake | Raw archives, member digests, provenance/license, provider snapshots, operators, units/frames, uncertainty, and disjoint calibration/validation manifest | Exact source/output identity and reproducible intake audit | Version 8 provenance record exists; raw archive, alignment archive, and provider-bound outputs are unavailable |
+| Release | Current candidate freeze, clean checkout, full tests/static/docs/public-contract checks, wheel build, installed-wheel smoke, and manifest with `release_ready=true` | Re-run from the exact frozen `HEAD`, with no stale commit or branch references | Not releasable; current local checks pass but promotion gates are open |
+
+## Execution sprints and stop conditions
+
+The long-running goal is executed as a sequence of bounded sprints.  Each
+sprint ends with a committed checkpoint and a typed report.  A failed or
+missing dependency stops that sprint; it does not justify routing a lower
+fidelity result into a higher-fidelity product.
+
+### Sprint 0 — candidate hygiene and contract inventory
+
+Keep the work on the dedicated integration branch, reconcile public API and
+fidelity contracts, and record the exact candidate commit.  Run the focused
+lane tests, full reflected-domain tests, Ruff, Pyright, documentation and
+public-contract checks, wheel build, and installed-wheel smoke.  Do not edit
+the historical release freeze until the final candidate is actually selected.
+
+Exit: clean branch, no unresolved conflict markers, reproducible local
+matrix, and a current plan checkpoint.
+
+### Sprint 1 — validation intake
+
+Recover the owner-supplied Version 8 archive and the separately named
+alignment archive.  Verify member checksums, provenance, license, coordinate
+frames, provider snapshots, and measurement operators.  Split calibration and
+validation cases before tuning any reduced-order lane.  If an archive or
+provider output is absent, record a typed missing-input result and keep the
+external gate red.
+
+Exit: accepted intake manifest with disjoint cases, or an explicit external
+blocker with no synthetic replacement.
+
+### Sprint 2 — canonical physical field
+
+Continue P2.2 from the solver-owned signed residual vector.  Implement the
+actual model-side global consumer: downstream pressure, tangent, geometry, and
+conservative response must be consumed by a fresh upstream/free-boundary
+re-solve.  The consumer must retain exact source/proposal/field fingerprints,
+reject uncovered frames, use bounded steps, and independently remeasure every
+accepted trial.  Require strict residual descent in mass, normal momentum, and
+energy and run a case/resolution ladder before any production flag changes.
+
+Exit: canonical field and downstream boundary both verified on the declared
+case ladder, with independent audit evidence.  The current validation-side
+target-guided resolver and the two-sided residual line-search remain research
+evidence until this exit is met.
+
+### Sprint 3 — physical shock-cell chain
+
+Feed only the accepted field/frontier into first-cell fitting and continued
+cell planning.  Retain physical observations, solver length, uncertainty,
+frontier identity, handoff links, and termination reason for every cell.  Keep
+the basic and reduced-order visualization lanes unchanged; they may show
+research overlays but may not inherit canonical status.
+
+Exit: accepted first-cell and continued-chain comparisons on disjoint
+validation cases, with no pressure-extrema-only proxy used as a physical cell.
+
+### Sprint 4 — product measurement-space acceptance
+
+Run Visualization, Signature, ray-transfer, and FPA comparisons against their
+own provider-bound cases.  For Signature, require source spectral radiance or
+an explicitly scoped engineering claim; for FPA, require a camera/detector
+observation contract; for curved ray transfer, require convergent operator
+evidence or keep the lane diagnostic-only.  Preserve mission-time state,
+source pose, masks, and uncertainty through every product boundary.
+
+Exit: each product has a named accepted operator, provider identity, coverage,
+tolerance, uncertainty, and disjoint validation result.
+
+### Sprint 5 — candidate acceptance and release
+
+Refresh all release-facing reports from the exact final `HEAD`, run the full
+test/static/documentation/package matrix, verify the checkout is clean, and
+confirm that no claim ceiling or promotion blocker is bypassed.  Only then
+write the current release freeze and create a tag.  Until this sprint exits,
+commits and pushes are integration checkpoints, not releases.
+
+## Current next action
+
+The local product surfaces are sufficiently complete for continued integration.
+The next implementation slice is Sprint 2: move the downstream frontier
+feedback from a validation/request-and-receipt seam into a solver-owned,
+freshly re-solved coupled free-boundary mechanism, with an independent
+multi-channel residual audit.  The existing two-sided directional line-search
+(``4a62e6b``) is the starting packet; it remains research-only and must not be
+used to mark canonical closure, physical shock cells, Signature production,
+FPA production, or release readiness.
+
 ## Operating protocol
 
 This is a long-running integration goal, so the repository is worked in
