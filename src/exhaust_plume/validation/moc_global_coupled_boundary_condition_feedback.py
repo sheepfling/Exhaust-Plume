@@ -112,6 +112,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus(str, Enum):
   FRAME_NEGOTIATION_FAILURE = (
     'global-coupled-boundary-condition-frame-negotiation-failure'
   )
+  RESPONSE_DESCENT_FAILURE = (
+    'global-coupled-boundary-condition-response-descent-failure'
+  )
   FIDELITY_FAILURE = 'global-coupled-boundary-condition-fidelity-failure'
   ITERATION_LIMIT = 'global-coupled-boundary-condition-iteration-limit'
   TERMINAL_FIXED_POINT_FAILURE = (
@@ -325,6 +328,45 @@ def _negotiate_solver_frame(
 ####
 
 
+def _latest_downstream_normalized_overlap_residual(
+  feedback: MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None,
+) -> float | None:
+  """Return the latest finite dimensionless overlap residual, if retained."""
+
+  if feedback is None:
+    return None
+  ####
+  for iteration in reversed(feedback.iterations):
+    response = iteration.response
+    if response is None:
+      continue
+    ####
+    metric = float(response.maximum_normalized_overlap_residual)
+    if isfinite(metric) and metric >= 0.0:
+      return metric
+    ####
+  ####
+  return None
+####
+
+
+def _strict_response_residual_descent(metrics: tuple[float, ...]) -> bool:
+  """Require finite, strict decrease of the retained outer response metric."""
+
+  return bool(
+    len(metrics) >= 2
+    and all(
+      isfinite(before)
+      and isfinite(after)
+      and before >= 0.0
+      and after >= 0.0
+      and after < before
+      for before, after in zip(metrics, metrics[1:])
+    )
+  )
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
   """One downstream-response and solver-owned global boundary step."""
@@ -477,6 +519,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
   ####
 
   @property
+  def downstream_normalized_overlap_residual(self) -> float | None:
+    """Return this step's latest dimensionless overlap residual metric."""
+
+    return _latest_downstream_normalized_overlap_residual(
+      self.downstream_feedback
+    )
+  ####
+
+  @property
   def research_step_verified(self) -> bool:
     """Whether this step reached every local research-only evidence gate."""
 
@@ -511,6 +562,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
     return {
       'iteration_index': self.iteration_index,
       'research_step_verified': self.research_step_verified,
+      'downstream_normalized_overlap_residual': (
+        self.downstream_normalized_overlap_residual
+      ),
       'downstream_response_verified': self.downstream_response_verified,
       'source_lineage_verified': self.source_lineage_verified,
       'base_target_lineage_verified': self.base_target_lineage_verified,
@@ -757,6 +811,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       and self.frame_extension_verified
       and self.fidelity_isolation_verified
       and all(item.research_step_verified for item in self.iterations)
+      and (
+        not self.response_residual_descent_required
+        or self.response_residual_descent_verified
+      )
     )
   ####
 
@@ -809,6 +867,34 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       and self.terminal_fixed_point_verified
       and self.terminal_global_fixed_point_verified
       and self.terminal_global_downstream_recheck_verified
+    )
+  ####
+
+  @property
+  def response_residual_descent_required(self) -> bool:
+    """Whether this run requested strict outer-response descent evidence."""
+
+    return bool(self.configuration.get('response_residual_descent_required', False))
+  ####
+
+  @property
+  def downstream_normalized_overlap_residuals(self) -> tuple[float, ...]:
+    """Return one dimensionless overlap metric for each retained outer step."""
+
+    return tuple(
+      metric
+      for item in self.iterations
+      for metric in (item.downstream_normalized_overlap_residual,)
+      if metric is not None
+    )
+  ####
+
+  @property
+  def response_residual_descent_verified(self) -> bool:
+    """Whether every retained outer response strictly improves the metric."""
+
+    return _strict_response_residual_descent(
+      self.downstream_normalized_overlap_residuals
     )
   ####
 
@@ -868,6 +954,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'outer_feedback_completed': self.outer_feedback_completed,
+      'response_residual_descent_required': (
+        self.response_residual_descent_required
+      ),
+      'response_residual_descent_verified': (
+        self.response_residual_descent_verified
+      ),
+      'downstream_normalized_overlap_residuals': (
+        self.downstream_normalized_overlap_residuals
+      ),
       'terminal_fixed_point_required': self.terminal_fixed_point_required,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
       'terminal_global_fixed_point_required': (
@@ -1422,6 +1517,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   downstream_options: Mapping[str, Any] | None = None,
   boundary_condition_options: Mapping[str, Any] | None = None,
   maximum_frame_extension_m: float = 0.5,
+  require_response_residual_descent: bool = False,
   require_terminal_fixed_point: bool = False,
   require_terminal_global_fixed_point: bool = False,
   require_terminal_global_downstream_recheck: bool = False,
@@ -1435,7 +1531,13 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   failure is retained as a typed stop.
   ``boundary_condition_options`` may opt into declared target-geometry
   consumption; the result records that mode separately from the downstream
-  solver-owned ambient boundary.  When ``require_terminal_fixed_point`` is
+  solver-owned ambient boundary.  When
+  ``require_response_residual_descent`` is true, each fresh outer solve must
+  strictly reduce the dimensionless maximum of the retained coordinate,
+  tangent, pressure, and normal-velocity overlap residual channels; otherwise
+  the run fails closed with a typed response-descent status.  This is a
+  research-loop audit, not a replacement for the individual residual gates.
+  When ``require_terminal_fixed_point`` is
   true, a fresh downstream response is automatically replayed against the
   final retained closure and the run is marked failed unless that terminal
   response passes the independent research tolerances.  This remains below
@@ -1460,6 +1562,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   ####
   if not isinstance(require_terminal_fixed_point, bool):
     raise ValueError('require_terminal_fixed_point must be a bool')
+  ####
+  if not isinstance(require_response_residual_descent, bool):
+    raise ValueError('require_response_residual_descent must be a bool')
   ####
   if not isinstance(require_terminal_global_fixed_point, bool):
     raise ValueError('require_terminal_global_fixed_point must be a bool')
@@ -1545,6 +1650,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     'maximum_iterations': maximum_iterations,
     'downstream_feedback_iterations': downstream_feedback_iterations,
     'maximum_frame_extension_m': resolved_maximum_frame_extension,
+    'response_residual_descent_required': require_response_residual_descent,
     'consumer_id': resolved_consumer_id,
     'downstream_options': resolved_downstream_options,
     'boundary_condition_options': resolved_boundary_options,
@@ -2011,6 +2117,30 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       message=boundary_condition.message,
     )
     iterations.append(step)
+    if failure_status is None and require_response_residual_descent:
+      if iteration_index > 0:
+        previous_metric = _latest_downstream_normalized_overlap_residual(
+          iterations[-2].downstream_feedback
+        )
+        current_metric = step.downstream_normalized_overlap_residual
+        if (
+          previous_metric is None
+          or current_metric is None
+          or not _strict_response_residual_descent(
+            (previous_metric, current_metric)
+          )
+        ):
+          failure_status = (
+            MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+            .RESPONSE_DESCENT_FAILURE
+          )
+          failure_message = (
+            'outer downstream normalized overlap residual did not strictly '
+            'decrease between fresh global solves'
+          )
+        ####
+      ####
+    ####
     if failure_status is not None:
       break
     ####
@@ -2042,6 +2172,24 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     current = conditioned
   ####
   retained_iterations = tuple(iterations)
+  if failure_status is None and require_response_residual_descent:
+    metrics = tuple(
+      metric
+      for item in retained_iterations
+      for metric in (item.downstream_normalized_overlap_residual,)
+      if metric is not None
+    )
+    if not _strict_response_residual_descent(metrics):
+      failure_status = (
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+        .RESPONSE_DESCENT_FAILURE
+      )
+      failure_message = (
+        'outer response-residual descent requires at least two finite '
+        'strictly decreasing fresh global response metrics'
+      )
+    ####
+  ####
   if failure_status is None:
     status = (
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus

@@ -1441,6 +1441,25 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
   ####
 
   @property
+  def maximum_normalized_overlap_residual(self) -> float:
+    """Return the largest dimensionless overlap residual channel.
+
+    The four channels remain available in their physical units.  This scalar
+    is only a research-loop comparison metric: each channel is normalized by
+    its declared response tolerance before the maximum is taken.  It is not
+    a replacement for the individual residual audit or a closure claim.
+    """
+
+    return max(
+      self.maximum_coordinate_residual_m / self.coordinate_tolerance_m,
+      self.maximum_tangent_residual_rad / self.tangent_tolerance_rad,
+      self.maximum_pressure_residual_Pa / self.pressure_tolerance_Pa,
+      self.maximum_normal_velocity_residual_m_s
+      / self.normal_velocity_tolerance_m_s,
+    )
+  ####
+
+  @property
   def signed_free_boundary_response_verified(self) -> bool:
     """Whether the local signed response survived in the overlap node frame."""
 
@@ -1505,6 +1524,9 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       'maximum_pressure_residual_Pa': self.maximum_pressure_residual_Pa,
       'maximum_normal_velocity_residual_m_s': (
         self.maximum_normal_velocity_residual_m_s
+      ),
+      'maximum_normalized_overlap_residual': (
+        self.maximum_normalized_overlap_residual
       ),
       'signed_free_boundary_response_verified': (
         self.signed_free_boundary_response_verified
