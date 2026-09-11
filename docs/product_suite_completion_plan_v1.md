@@ -115,6 +115,28 @@ conservative, entropy, ambient, centerline, and downstream audits.  Provider
 validation, the missing archives, physical shock-cell length acceptance, and
 release freeze remain separate blockers.
 
+### P2.2f signed free-boundary pressure-consumer checkpoint — 2026-09-11
+
+The downstream feedback ladder now has an explicit opt-in
+``use_signed_free_boundary_pressure_response`` mode.  It consumes the aligned
+signed local pressure response, averages that node response onto the exact
+coupled cell centers, applies a bounded correction to the next local pressure
+target, and performs a fresh coupled-Euler field solve through the existing
+independent field, boundary-trace, lineage, entropy, ambient, and centerline
+checks.  The profile source and mode are serialized so the response cannot be
+mistaken for the older global-overlap pressure overlay.
+
+This is deliberately pressure-only: the signed normal-velocity channel is
+retained for the future dimensioned geometry corrector and is not converted
+into an arbitrary ordinate displacement.  The fresh local field may pass
+while the global/coupled response remains unresolved; the compatible
+regression therefore reports a typed research iteration limit with global
+coupling, canonical closure, shock-cell, provider-validation, and production
+claims closed.  The focused profile-consumer and fresh-feedback regressions
+pass (``2 passed``).  The next physics slice is the jointly dimensioned
+geometry/pressure corrector with strict residual descent and independent
+conservative audits.
+
 ## Execution sprints and stop conditions
 
 The long-running goal is executed as a sequence of bounded sprints.  Each

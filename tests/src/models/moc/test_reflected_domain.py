@@ -202,6 +202,7 @@ from exhaust_plume.models.moc import (
   build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target,
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
+  build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   build_reflected_domain_global_coupled_downstream_boundary_trace,
   build_reflected_domain_global_frontier_reconciliation_request,
@@ -7692,6 +7693,30 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
     baseline.downstream_boundary_response.status.value
   )
   assert feedback_profile.pressure_correction_fraction == pytest.approx(0.25)
+  signed_feedback_profile = (
+    build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile(
+      closure,
+      baseline.downstream_boundary_response,
+      pressure_correction_fraction=0.25,
+    )
+  )
+  assert signed_feedback_profile.source == (
+    'research-global-coupled-downstream-signed-free-boundary-pressure-feedback-v1'
+  )
+  assert signed_feedback_profile.source_response_status == (
+    baseline.downstream_boundary_response.status.value
+  )
+  assert signed_feedback_profile.pressure_Pa[0] == pytest.approx(
+    ambient_pressure
+    + 0.25
+    * 0.5
+    * (
+      baseline.downstream_boundary_response
+      .free_boundary_signed_pressure_residuals_Pa[0]
+      + baseline.downstream_boundary_response
+      .free_boundary_signed_pressure_residuals_Pa[1]
+    )
+  )
   response_consumed = solve_reflected_domain_global_coupled_downstream(
     closure,
     reference_total_temperature_K=1500.0,
@@ -8490,6 +8515,7 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
     max_pseudo_iterations=400,
     max_shape_iterations=12,
     pressure_update_tolerance_Pa=1.0e3,
+    use_signed_free_boundary_pressure_response=True,
   )
 
   assert run.requested_iterations == 2
@@ -8499,6 +8525,7 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
   assert run.configuration['geometry_feedback_frame_policy'] == (
     'solver-owned-first-ordinate-anchor-v1'
   )
+  assert run.configuration['use_signed_free_boundary_pressure_response'] is True
   assert run.pressure_profile_lineage_verified
   assert run.pressure_profile_alignment_verified
   assert run.geometry_profile_lineage_verified
@@ -8508,10 +8535,10 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
   assert run.response_channels_finite
   assert run.response_coverage_verified
   assert run.response_residuals_verified is False
-  assert run.local_coupled_field_verified is False
+  assert run.local_coupled_field_verified
   assert run.pressure_update_convergence_verified is False
   assert run.status is (
-    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.SOLVER_FAILURE
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.ITERATION_LIMIT
   )
   assert run.converged is False
   assert run.global_coupling_verified is False
@@ -8522,6 +8549,9 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
   first, second = run.iterations
   assert first.input_pressure_profile is None
   assert first.next_pressure_profile is not None
+  assert first.next_pressure_profile.source == (
+    'research-global-coupled-downstream-signed-free-boundary-pressure-feedback-v1'
+  )
   assert first.input_geometry_profile is None
   assert first.next_geometry_profile is not None
   assert second.input_pressure_profile == first.next_pressure_profile

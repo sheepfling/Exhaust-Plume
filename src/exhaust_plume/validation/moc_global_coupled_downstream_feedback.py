@@ -31,6 +31,7 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamStatus,
   build_reflected_domain_global_coupled_downstream_feedback_geometry_profile,
   build_reflected_domain_global_coupled_downstream_feedback_pressure_profile,
+  build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile,
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
@@ -888,6 +889,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   reference_total_temperature_K: float,
   maximum_iterations: int = 3,
   pressure_correction_fraction: float = 0.25,
+  use_signed_free_boundary_pressure_response: bool = False,
   pressure_update_tolerance_Pa: float = 1.0e3,
   position_tolerance_m: float = 1.0e-9,
   ambient_pressure_Pa: float | None = None,
@@ -928,6 +930,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   if not isfinite(fraction) or fraction <= 0.0 or fraction > 1.0:
     raise ValueError('pressure_correction_fraction must be in (0, 1]')
   ####
+  if not isinstance(use_signed_free_boundary_pressure_response, bool):
+    raise TypeError('use_signed_free_boundary_pressure_response must be a bool')
+  ####
   update_tolerance = float(pressure_update_tolerance_Pa)
   if not isfinite(update_tolerance) or update_tolerance <= 0.0:
     raise ValueError('pressure_update_tolerance_Pa must be finite and positive')
@@ -947,6 +952,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     'reference_total_temperature_K': float(reference_total_temperature_K),
     'maximum_iterations': maximum_iterations,
     'pressure_correction_fraction': fraction,
+    'use_signed_free_boundary_pressure_response': (
+      use_signed_free_boundary_pressure_response
+    ),
     'pressure_update_tolerance_Pa': update_tolerance,
     'position_tolerance_m': position_tolerance,
     'ambient_pressure_Pa': ambient_pressure_Pa,
@@ -1178,14 +1186,24 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     maximum_pressure_update = None
     if response is not None:
       try:
-        next_profile = (
-          build_reflected_domain_global_coupled_downstream_feedback_pressure_profile(
-            closure,
-            response,
-            pressure_correction_fraction=fraction,
-            position_tolerance_m=position_tolerance,
+        if use_signed_free_boundary_pressure_response:
+          next_profile = (
+            build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile(
+              closure,
+              response,
+              pressure_correction_fraction=fraction,
+              position_tolerance_m=position_tolerance,
+            )
           )
-        )
+        else:
+          next_profile = (
+            build_reflected_domain_global_coupled_downstream_feedback_pressure_profile(
+              closure,
+              response,
+              pressure_correction_fraction=fraction,
+              position_tolerance_m=position_tolerance,
+            )
+          )
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         stop_reason = f'pressure feedback profile construction failed: {error}'
       ####

@@ -73,6 +73,7 @@ __all__ = (
   'build_reflected_domain_global_coupled_downstream_boundary_geometry_profile',
   'build_reflected_domain_global_coupled_downstream_boundary_profiles_from_pressure_target',
   'build_reflected_domain_global_coupled_downstream_feedback_pressure_profile',
+  'build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile',
   'build_reflected_domain_global_coupled_downstream_feedback_geometry_profile',
   'build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal',
   'build_reflected_domain_global_coupled_downstream_boundary_trace',
@@ -2000,6 +2001,139 @@ def build_reflected_domain_global_coupled_downstream_feedback_pressure_profile(
     pressure_Pa=tuple(pressures),
     source=(
       'research-global-coupled-downstream-response-pressure-feedback-v1'
+    ),
+    source_response_status=response.status.value,
+    pressure_correction_fraction=fraction,
+    coverage_verified=True,
+  )
+####
+
+
+def build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressure_profile(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  response: MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  *,
+  pressure_correction_fraction: float = 0.25,
+  position_tolerance_m: float = 1.0e-9,
+) -> MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile:
+  """Apply a bounded signed local free-boundary pressure correction.
+
+  The response's signed pressure channel is defined as adjacent interior
+  pressure minus the current local target.  A positive value therefore raises
+  the next target, while a negative value lowers it.  The correction is
+  averaged from the retained boundary-node frame to the exact coupled
+  cell-center frame; no regridding or global-boundary extrapolation is
+  attempted.  This is an opt-in downstream research handoff, not an upstream
+  global re-solve or a geometry corrector.
+  """
+
+  if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
+    raise TypeError(
+      'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+    )
+  ####
+  if not isinstance(
+    response,
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse,
+  ):
+    raise TypeError(
+      'response must be a '
+      'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse'
+    )
+  ####
+  fraction = float(pressure_correction_fraction)
+  if not isfinite(fraction) or fraction <= 0.0 or fraction > 1.0:
+    raise ValueError('pressure_correction_fraction must be in (0, 1]')
+  ####
+  if not response.signed_free_boundary_response_verified:
+    raise ValueError(
+      'signed free-boundary pressure feedback requires a complete, aligned '
+      'signed response'
+    )
+  ####
+  if response.upstream_boundary != closure.downstream_boundary:
+    raise ValueError(
+      'signed free-boundary pressure feedback must retain the exact closure '
+      'boundary'
+    )
+  ####
+  coupled_field = response.coupled_field
+  if coupled_field is None or coupled_field.request is None:
+    raise ValueError(
+      'signed free-boundary pressure feedback requires the source coupled '
+      'request'
+    )
+  ####
+  points = tuple(coupled_field.free_boundary_points_m)
+  signed_nodes = tuple(response.free_boundary_signed_pressure_residuals_Pa)
+  if len(points) < 2 or len(signed_nodes) != len(points):
+    raise ValueError(
+      'signed free-boundary pressure feedback requires one signed node '
+      'response per retained boundary point'
+    )
+  ####
+  if any(second[0] <= first[0] for first, second in zip(points, points[1:])):
+    raise ValueError(
+      'signed free-boundary pressure feedback stations must be strictly '
+      'downstream ordered'
+    )
+  ####
+  try:
+    tolerance = float(position_tolerance_m)
+  except (TypeError, ValueError) as error:
+    raise ValueError('position_tolerance_m must be numeric') from error
+  ####
+  if not isfinite(tolerance) or tolerance <= 0.0:
+    raise ValueError('position_tolerance_m must be finite and positive')
+  ####
+  request = coupled_field.request
+  x_centers = tuple(
+    0.5 * (first[0] + second[0]) for first, second in zip(points, points[1:])
+  )
+  if request.free_boundary_pressure_profile_Pa is None:
+    base_pressures = tuple(
+      float(request.mixed_regime_request.ambient_pressure_Pa)
+      for _ in x_centers
+    )
+  else:
+    base_pressures = tuple(request.free_boundary_pressure_profile_Pa)
+  if len(base_pressures) != len(x_centers):
+    raise ValueError(
+      'signed free-boundary pressure feedback target does not align with '
+      'coupled cell columns'
+    )
+  ####
+  supplied_x = request.free_boundary_pressure_profile_x_stations_m
+  if supplied_x is not None and any(
+    abs(float(station) - center) > tolerance
+    for station, center in zip(supplied_x, x_centers, strict=True)
+  ):
+    raise ValueError(
+      'signed free-boundary pressure feedback target changed the exact '
+      'cell-center frame; no regridding was attempted'
+    )
+  ####
+  pressures: list[float] = []
+  for index, base_pressure in enumerate(base_pressures):
+    correction = fraction * 0.5 * (signed_nodes[index] + signed_nodes[index + 1])
+    pressure = float(base_pressure + correction)
+    if not isfinite(pressure) or pressure <= 0.0:
+      raise ValueError(
+        'signed free-boundary pressure feedback produced a non-positive '
+        'pressure target'
+      )
+    ####
+    pressures.append(pressure)
+  ####
+  return MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile(
+    source_closure_fingerprint=(
+      moc_reflected_domain_global_physical_closure_fingerprint(closure)
+    ),
+    x_stations_m=x_centers,
+    pressure_Pa=tuple(pressures),
+    source=(
+      'research-global-coupled-downstream-signed-free-boundary-pressure-'
+      'feedback-v1'
     ),
     source_response_status=response.status.value,
     pressure_correction_fraction=fraction,
