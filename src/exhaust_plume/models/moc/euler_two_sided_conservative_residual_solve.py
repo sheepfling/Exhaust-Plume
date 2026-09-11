@@ -119,6 +119,7 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
   minimum_step_fraction: float = 1.0e-2
   minimum_descent_fraction: float = 1.0e-6
   require_strict_descent: bool = True
+  require_dimensioned_channel_descent: bool = False
   use_directional_residual_correction: bool = True
   jacobian_probe_fraction: float = 0.5
   maximum_directional_step_fraction: float = 1.0
@@ -164,6 +165,8 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
     ####
     if not isinstance(self.require_strict_descent, bool):
       raise TypeError('require_strict_descent must be a bool')
+    if not isinstance(self.require_dimensioned_channel_descent, bool):
+      raise TypeError('require_dimensioned_channel_descent must be a bool')
     ####
     if not isinstance(self.use_directional_residual_correction, bool):
       raise TypeError('use_directional_residual_correction must be a bool')
@@ -200,6 +203,9 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
       'minimum_step_fraction': self.minimum_step_fraction,
       'minimum_descent_fraction': self.minimum_descent_fraction,
       'require_strict_descent': self.require_strict_descent,
+      'require_dimensioned_channel_descent': (
+        self.require_dimensioned_channel_descent
+      ),
       'use_directional_residual_correction': (
         self.use_directional_residual_correction
       ),
@@ -275,6 +281,63 @@ def _residuals_verified(
     and response.maximum_energy_flux_residual_W_m2
     <= request.energy_flux_tolerance_W_m2
   )
+
+
+def _dimensioned_channel_maxima(
+  response: MocEulerTwoSidedInterfaceResponse,
+  request: MocEulerTwoSidedMovingInterfaceRequest,
+) -> tuple[float, float, float] | None:
+  """Return normalized mass, momentum, and energy residual maxima."""
+
+  if not response.signed_residuals_available:
+    return None
+  channels = (
+    response.signed_mass_flux_residuals_kg_m2_s,
+    response.signed_normal_momentum_residuals_Pa,
+    response.signed_energy_flux_residuals_W_m2,
+  )
+  tolerances = (
+    request.mass_flux_tolerance_kg_m2_s,
+    request.normal_momentum_tolerance_Pa,
+    request.energy_flux_tolerance_W_m2,
+  )
+  if any(channel is None for channel in channels):
+    return None
+  assert all(channel is not None for channel in channels)
+  if not (len(channels[0]) == len(channels[1]) == len(channels[2])):
+    return None
+  maxima = tuple(
+    max(
+      (abs(float(value)) / tolerance for value in channel),
+      default=float('inf'),
+    )
+    for channel, tolerance in zip(channels, tolerances, strict=True)
+  )
+  if any(not isfinite(value) for value in maxima):
+    return None
+  return maxima
+
+
+def _dimensioned_channel_descent(
+  before: tuple[float, float, float] | None,
+  after: tuple[float, float, float] | None,
+) -> bool:
+  """Require no channel worsening and at least one strict channel decrease."""
+
+  if before is None or after is None:
+    return False
+  numerical_tolerance = 1.0e-12
+  nonincreasing = all(
+    next_value
+    <= current_value + numerical_tolerance * max(1.0, abs(current_value))
+    for current_value, next_value in zip(before, after, strict=True)
+  )
+  strict = any(
+    next_value
+    < current_value - numerical_tolerance * max(1.0, abs(current_value))
+    for current_value, next_value in zip(before, after, strict=True)
+  )
+  return bool(nonincreasing and strict)
 
 
 def _directional_least_squares_step(
@@ -909,6 +972,7 @@ def solve_euler_two_sided_conservative_residual(
     def is_descent(
       after: float,
       measured_response: MocEulerTwoSidedInterfaceResponse,
+      before_response: MocEulerTwoSidedInterfaceResponse,
     ) -> bool:
       strict_descent = after < full_norm * (
         1.0 - request.minimum_descent_fraction
@@ -922,6 +986,20 @@ def solve_euler_two_sided_conservative_residual(
         # A closed residual vector is admissible even when the final
         # backtracked movement is below numerical descent resolution.
         descent = True
+      if request.require_dimensioned_channel_descent and not (
+        _dimensioned_channel_descent(
+          _dimensioned_channel_maxima(
+            before_response,
+            request.moving_request,
+          ),
+          _dimensioned_channel_maxima(
+            measured_response,
+            request.moving_request,
+          ),
+        )
+        or _residuals_verified(measured_response, request.moving_request)
+      ):
+        descent = False
       return descent
 
     if request.use_directional_residual_correction:
@@ -939,7 +1017,11 @@ def solve_euler_two_sided_conservative_residual(
           directional_jacobian_verified = True
           directional_correction_seen = True
           directional_candidate = evaluate_step(directional_step_fraction)
-          if is_descent(directional_candidate[3], directional_candidate[2]):
+          if is_descent(
+            directional_candidate[3],
+            directional_candidate[2],
+            full_response,
+          ):
             accepted = True
             accepted_field = directional_candidate[1]
             accepted_response = directional_candidate[0]
@@ -967,7 +1049,7 @@ def solve_euler_two_sided_conservative_residual(
         trial_response, candidate, measured_response, after, _ = evaluate_step(
           step_fraction
         )
-        if is_descent(after, measured_response):
+        if is_descent(after, measured_response, full_response):
           accepted = True
           accepted_field = candidate
           accepted_response = trial_response

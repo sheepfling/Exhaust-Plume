@@ -600,6 +600,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       joint_result.state_request.energy_flux_tolerance_W_m2,
       accepted_energy_tolerance,
     ),
+    require_dimensioned_conservative_channel_descent=True,
     source='solver-owned-global-boundary-state-dimensioned-corrector-v1',
   )
   baseline_response = _response(joint_result.state_result)
@@ -661,6 +662,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
     and residual_result.field_re_solve_verified
     and state_request.use_conservative_residual_line_search
     and state_request.require_conservative_flux_closure
+    and state_request.require_dimensioned_conservative_channel_descent
     and signed
   )
   independent = bool(

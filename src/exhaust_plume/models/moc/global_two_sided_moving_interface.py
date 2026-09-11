@@ -164,6 +164,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
   minimum_residual_step_fraction: float = 1.0e-2
   minimum_residual_descent_fraction: float = 1.0e-6
   require_strict_residual_descent: bool = True
+  require_dimensioned_conservative_channel_descent: bool = False
   use_conservative_residual_directional_correction: bool = True
   residual_jacobian_probe_fraction: float = 0.5
   maximum_residual_directional_step_fraction: float = 1.0
@@ -291,6 +292,13 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
     if not isinstance(self.require_strict_residual_descent, bool):
       raise TypeError('require_strict_residual_descent must be a bool')
     if not isinstance(
+      self.require_dimensioned_conservative_channel_descent,
+      bool,
+    ):
+      raise TypeError(
+        'require_dimensioned_conservative_channel_descent must be a bool'
+      )
+    if not isinstance(
       self.use_conservative_residual_directional_correction,
       bool,
     ):
@@ -354,6 +362,9 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
         self.minimum_residual_descent_fraction
       ),
       'require_strict_residual_descent': self.require_strict_residual_descent,
+      'require_dimensioned_conservative_channel_descent': (
+        self.require_dimensioned_conservative_channel_descent
+      ),
       'use_conservative_residual_directional_correction': (
         self.use_conservative_residual_directional_correction
       ),
@@ -823,6 +834,9 @@ def solve_reflected_domain_global_two_sided_moving_interface(
           minimum_step_fraction=request.minimum_residual_step_fraction,
           minimum_descent_fraction=request.minimum_residual_descent_fraction,
           require_strict_descent=request.require_strict_residual_descent,
+          require_dimensioned_channel_descent=(
+            request.require_dimensioned_conservative_channel_descent
+          ),
           use_directional_residual_correction=(
             request.use_conservative_residual_directional_correction
           ),
