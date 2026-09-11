@@ -629,6 +629,68 @@ def solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_f
       message='sample_count must be an integer of at least three',
     )
   ####
+  start_point = patch.outgoing_trace_points_m[0]
+  start_state = patch.state_at(
+    start_point,
+    position_tolerance_m=tolerances[0],
+  )
+  if start_state is None:
+    return _failure(
+      status_type.TERMINAL_PATCH_FAILURE,
+      interface=interface,
+      terminal_probe=terminal_probe,
+      outer_flow_angle_bracket=bracket,
+      sample_count=resolved_sample_count,
+      interface_consumed=True,
+      source_field_consumed=True,
+      frontier_consumed=True,
+      terminal_probe_consumed=True,
+      message='terminal reflection patch cannot sample its outgoing start state',
+    )
+  ####
+  start_y = float(start_point[1])
+  target_y = float(interface.target_centerline_y_m)
+  target_angle = float(interface.target_centerline_flow_angle_rad)
+  if start_y <= target_y + tolerances[0]:
+    return _failure(
+      status_type.TERMINAL_PATCH_FAILURE,
+      interface=interface,
+      terminal_probe=terminal_probe,
+      outer_flow_angle_bracket=bracket,
+      sample_count=resolved_sample_count,
+      interface_consumed=True,
+      source_field_consumed=True,
+      frontier_consumed=True,
+      terminal_probe_consumed=True,
+      message='terminal reflection patch start must lie above the centerline',
+    )
+  ####
+
+  def reflected_downstream_angle_at(
+    _index: int,
+    point_m: tuple[float, float],
+  ) -> float:
+    upstream_state = patch.state_at(
+      point_m,
+      position_tolerance_m=tolerances[0],
+    )
+    if upstream_state is None:
+      raise ValueError(
+        f'terminal reflection patch has no state at requested point {point_m}'
+      )
+    fraction = (float(point_m[1]) - target_y) / (start_y - target_y)
+    fraction = max(0.0, min(1.0, fraction))
+    positive_reference = (
+      target_angle
+      + (start_state.theta_rad - target_angle) * fraction
+    )
+    # The retained shock curve descends at theta_upstream - beta.  Mirror the
+    # old positive-turn reference around the local upstream direction so the
+    # attached solver receives the physically matching negative signed turn;
+    # the opt-in downstream solver then uses its magnitude for compression.
+    return 2.0 * upstream_state.theta_rad - positive_reference
+  ####
+
   common = dict(
     interface=interface,
     terminal_probe=terminal_probe,
@@ -676,6 +738,9 @@ def solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_f
         maximum_boundary_iterations=maximum_boundary_iterations,
         maximum_shooting_iterations=maximum_shooting_iterations,
         allow_zero_strength_attachment=allow_zero_strength_attachment,
+        allow_negative_turn=True,
+        downstream_flow_angle_at=reflected_downstream_angle_at,
+        continuation_law='reflected-negative-turn',
       )
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:

@@ -1418,7 +1418,7 @@ def test_global_transonic_mixed_wave_physical_field_keeps_centerline_stop_typed(
   assert tampered.chain_promotion_blocked
 
 
-def test_global_transonic_mixed_wave_terminal_patch_retains_local_field_audit_stop():
+def test_global_transonic_mixed_wave_terminal_patch_passes_local_audit_but_blocks_global_promotion():
   closure = _global_physical_closure_for_mixed_regime()
   ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
   assert ambient_pressure is not None
@@ -1447,7 +1447,7 @@ def test_global_transonic_mixed_wave_terminal_patch_retains_local_field_audit_st
 
   assert result.status is (
     MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchPhysicalFieldStatus
-    .AUDIT_FAILURE
+    .CONVERGED_RESEARCH_TERMINAL_PATCH_PHYSICAL_FIELD
   )
   assert result.interface is interface
   assert result.terminal_probe is probe
@@ -1461,14 +1461,15 @@ def test_global_transonic_mixed_wave_terminal_patch_retains_local_field_audit_st
   assert result.physical_field.physical_closure_verified
   assert result.physical_field.state_sampling_available
   assert result.physical_field.upstream_coupling_verified
+  assert result.physical_field.continuation_law == 'reflected-negative-turn'
   assert result.audit is not None
-  assert result.independent_audit_verified is False
-  assert result.audit.converged is False
+  assert result.independent_audit_verified
+  assert result.audit.converged
   assert result.physical_closure_verified is False
   assert result.global_coupling_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
-  assert 'independent conservative audit' in result.message
+  assert 'independent conservative audit passed' in result.message
 
 
 def test_global_transonic_mixed_wave_terminal_probe_keeps_reference_below_promotion():

@@ -1672,6 +1672,7 @@ def fit_attached_shock_boundary(
     shock_angle_tolerance_rad: float = 1.0e-8,
     allow_zero_strength_start: bool = False,
     allow_zero_strength_endpoints: bool = False,
+    allow_negative_turn: bool = False,
 ) -> MocShockBoundaryFitResult:
   """Fit downstream attached states to an explicitly sampled shock curve.
 
@@ -1684,6 +1685,11 @@ def fit_attached_shock_boundary(
   zero-turn Mach-wave attachment.  If ``allow_zero_strength_endpoints`` is
   also enabled, the final centerline sample may use the same endpoint model;
   all interior samples still require strict positive total-pressure loss.
+  ``allow_negative_turn`` is an explicit reflected-shock convention: a
+  negative signed downstream turn is solved using its positive compression
+  magnitude while retaining the descending shock geometry
+  ``theta_upstream - beta``.  It is disabled for ordinary callers so that an
+  expansion request remains outside this attached-compression contract.
   """
 
   samples = tuple(upstream_states)
@@ -1713,6 +1719,9 @@ def fit_attached_shock_boundary(
   ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise TypeError('allow_zero_strength_endpoints must be a bool')
+  ####
+  if not isinstance(allow_negative_turn, bool):
+    raise TypeError('allow_negative_turn must be a bool')
   ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
@@ -1802,6 +1811,8 @@ def fit_attached_shock_boundary(
     )
     if zero_strength_start:
       target_turn = 0.0
+    elif allow_negative_turn and target_turn < 0.0:
+      target_turn = -target_turn
     ####
     if target_turn < 0.0 or (target_turn == 0.0 and not zero_strength_start):
       return _shock_fit_failure(

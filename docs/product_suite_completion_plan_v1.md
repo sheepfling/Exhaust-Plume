@@ -5894,3 +5894,32 @@ repeat the terminal-patch field/audit across disjoint cases and resolutions.
 Canonical reflected/free-boundary feedback, physical shock-cell lengths,
 provider-bound Visualization/Signature/RAY/FPA validation, missing archives,
 and release freeze remain open.
+
+### P2.2 reflected-turn terminal-patch audit checkpoint — 2026-09-11
+
+The prior terminal-patch audit failure was traced to a signed-turn/orientation
+defect in the retained descending shock convention.  The attached geometry is
+``theta_upstream - beta``; the downstream state must therefore use the
+opposite signed turn, while the oblique-shock solve consumes its positive
+compression magnitude.  An explicit opt-in ``allow_negative_turn`` path now
+flows through the shock-boundary fit, marched free-boundary solver, and
+ambient/centerline physical-field wrappers.  Existing callers retain the
+strict positive-turn behavior by default.
+
+The mixed-wave terminal-patch admission operator now supplies a documented
+``reflected-negative-turn`` law, passes the independent conservative Euler
+audit, and returns the research terminal-patch physical-field status.  Its
+state-carrying field, centerline closure, and upstream coupling remain
+verified, while ``global_coupling_verified=false``, chain promotion remains
+blocked, and no production claim is permitted.  The implementation does not
+infer a canonical mixed-regime free boundary or promote the local audit to a
+global closure claim.
+
+The focused terminal-patch regression passes (``1 passed``); the changed
+post-shock, free-boundary, and physical-cell suites pass (``38``, ``42``, and
+``48 passed``), and the complete reflected-domain suite passes (``206
+passed``).  Ruff, Pyright, and compilation are clean.  The next gate is
+disjoint-case and resolution evidence for the corrected orientation, followed
+by canonical reflected/free-boundary feedback and physical shock-cell-length
+comparisons.  Provider-bound Visualization/Signature/RAY/FPA validation,
+external archives, and the release freeze remain open.

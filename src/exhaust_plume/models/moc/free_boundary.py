@@ -800,6 +800,7 @@ def solve_marched_attached_shock_field(
   allow_zero_strength_start: bool = False,
   zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
   allow_zero_strength_endpoints: bool = False,
+  allow_negative_turn: bool = False,
 ) -> MocFreeBoundaryShockResult:
   """March an attached shock from a boundary point to the symmetry line.
 
@@ -823,7 +824,11 @@ def solve_marched_attached_shock_field(
   exact zero-turn Mach-wave attachment.  The remaining samples still require
   strict positive total-pressure loss; ordinary shock solves leave this
   exception disabled.  ``allow_zero_strength_endpoints`` additionally allows
-  the final centerline sample to use the same Mach-wave endpoint model.
+  the final centerline sample to use the same Mach-wave endpoint model.  The
+  explicit ``allow_negative_turn`` option supports a reflected
+  descending-shock convention by solving the magnitude of a negative signed
+  turn while retaining the shock tangent ``theta_upstream - beta``; it is
+  disabled for ordinary callers.
   """
 
   try:
@@ -864,6 +869,9 @@ def solve_marched_attached_shock_field(
   ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise ValueError('allow_zero_strength_endpoints must be a bool')
+  ####
+  if not isinstance(allow_negative_turn, bool):
+    raise ValueError('allow_negative_turn must be a bool')
   ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
@@ -1024,6 +1032,9 @@ def solve_marched_attached_shock_field(
       and index == sample_count - 1
       and abs(turn) <= invariant_tolerance
     )
+    if allow_negative_turn and turn < 0.0:
+      turn = -turn
+    ####
     if (
       (turn < 0.0 or turn == 0.0)
       and not (zero_strength_start or zero_strength_end)
@@ -1279,6 +1290,7 @@ def solve_marched_attached_shock_field(
     shock_angle_tolerance_rad=shock_angle_tolerance_rad,
     allow_zero_strength_start=allow_zero_strength_start,
     allow_zero_strength_endpoints=allow_zero_strength_endpoints,
+    allow_negative_turn=allow_negative_turn,
   )
   if not shock_fit.converged:
     return _failure(

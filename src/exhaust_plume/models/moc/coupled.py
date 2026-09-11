@@ -825,6 +825,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
   allow_zero_strength_attachment: bool = False,
   zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
   allow_zero_strength_endpoints: bool = False,
+  allow_negative_turn: bool = False,
   downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
   continuation_law: str = 'linear-centerline-reference',
   continuation_polarity: MocReflectedTracePolarity | None = None,
@@ -859,6 +860,9 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
   ####
   if not isinstance(allow_zero_strength_endpoints, bool):
     raise ValueError('allow_zero_strength_endpoints must be a bool')
+  ####
+  if not isinstance(allow_negative_turn, bool):
+    raise ValueError('allow_negative_turn must be a bool')
   ####
   if downstream_flow_angle_at is not None and not callable(downstream_flow_angle_at):
     raise ValueError('downstream_flow_angle_at must be callable when supplied')
@@ -1195,6 +1199,7 @@ def solve_marched_attached_shock_with_ambient_attachment_closure(
       allow_zero_strength_endpoints=(
         allow_zero_strength_attachment and allow_zero_strength_endpoints
       ),
+      allow_negative_turn=allow_negative_turn,
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _ambient_attachment_failure(
@@ -1343,6 +1348,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
   allow_zero_strength_attachment: bool = False,
   zero_strength_start_trace: Sequence[MocChainBoundarySample] | None = None,
   allow_zero_strength_endpoints: bool = False,
+  allow_negative_turn: bool = False,
   downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
   continuation_law: str = 'linear-centerline-reference',
   continuation_polarity: MocReflectedTracePolarity | None = None,
@@ -1424,6 +1430,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field(
       allow_zero_strength_attachment=allow_zero_strength_attachment,
       zero_strength_start_trace=zero_strength_start_trace,
       allow_zero_strength_endpoints=allow_zero_strength_endpoints,
+      allow_negative_turn=allow_negative_turn,
       downstream_flow_angle_at=downstream_flow_angle_at,
       continuation_law=continuation_law,
       continuation_polarity=continuation_polarity,
@@ -1791,6 +1798,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
   maximum_boundary_iterations: int = 16,
   maximum_shooting_iterations: int = 40,
   allow_zero_strength_attachment: bool = True,
+  allow_negative_turn: bool = False,
   downstream_flow_angle_at: Callable[[int, tuple[float, float]], float] | None = None,
   continuation_law: str = 'linear-centerline-reference',
   reflected_trace_polarity: MocReflectedTracePolarityResult | None = None,
@@ -1985,6 +1993,7 @@ def solve_marched_attached_shock_with_ambient_centerline_physical_field_from_ter
       maximum_shooting_iterations=maximum_shooting_iterations,
       allow_zero_strength_attachment=allow_zero_strength_attachment,
       allow_zero_strength_endpoints=allow_zero_strength_attachment,
+      allow_negative_turn=allow_negative_turn,
       zero_strength_start_trace=patch.outgoing_trace_samples,
       downstream_flow_angle_at=downstream_flow_angle_at,
       continuation_law=continuation_law,
