@@ -4667,3 +4667,18 @@ claim ceiling.  Focused model-visualization, shock-cell, and shock-train
 tests pass (28 tests); the offline wheel/install smoke also passes (exit code
 0).  Canonical MOC closure, external provider validation, and release-freeze
 gates remain unchanged and closed.
+
+### WP-6 canonical intake-manifest validation checkpoint — 2026-09-10
+
+The validation-corpus loader now validates the canonical intake manifest
+before any archive or provider comparison runs.  It requires the declared
+manifest identity, both required archive IDs in stable order, lowercase
+SHA-256 digests, canonical filenames, and non-empty retrieval statuses.  A
+minimal two-archive manifest without the canonical identity remains supported
+for isolated temporary FPA tests, but it cannot weaken the repository's
+release manifest.  Malformed, reordered, renamed, or non-canonical-digest
+manifests now fail closed with typed ``ValueError`` messages.  The focused
+corpus/provider/FPA/alignment suite passes (28 tests), with Ruff, Pyright, and
+bytecode checks clean.  The actual Version 8 and separately named alignment
+archives remain absent, so external validation and release readiness are
+unchanged.

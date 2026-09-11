@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from hashlib import sha256
+import json
 from pathlib import Path
 from zipfile import ZipFile
+
+import pytest
 
 from scripts.verify_validation_corpus import (
   load_manifest,
@@ -32,6 +35,41 @@ def test_intake_manifest_records_the_two_external_archives() -> None:
   assert manifest['archives'][0]['retrieval']['status'] == 'verified'
   assert manifest['archives'][1]['retrieval']['status'] == 'missing'
 ####
+
+
+def test_intake_manifest_rejects_wrong_required_archive_filename(
+  tmp_path: Path,
+) -> None:
+  manifest = load_manifest()
+  manifest['archives'][0]['filename'] = 'renamed-validation.zip'
+  path = tmp_path / 'manifest.json'
+  path.write_text(json.dumps(manifest), encoding='utf-8')
+
+  with pytest.raises(ValueError, match='must name'):
+    load_manifest(path)
+  ####
+
+
+def test_intake_manifest_rejects_invalid_digest_and_archive_order(
+  tmp_path: Path,
+) -> None:
+  manifest = load_manifest()
+  manifest['archives'][0]['sha256'] = 'A' * 64
+  path = tmp_path / 'manifest-invalid-digest.json'
+  path.write_text(json.dumps(manifest), encoding='utf-8')
+
+  with pytest.raises(ValueError, match='lowercase SHA-256'):
+    load_manifest(path)
+  ####
+
+  reordered = load_manifest()
+  reordered['archives'] = list(reversed(reordered['archives']))
+  reordered_path = tmp_path / 'manifest-reordered.json'
+  reordered_path.write_text(json.dumps(reordered), encoding='utf-8')
+
+  with pytest.raises(ValueError, match='order/IDs'):
+    load_manifest(reordered_path)
+  ####
 
 
 def test_missing_archives_are_not_treated_as_validation_success(tmp_path: Path) -> None:

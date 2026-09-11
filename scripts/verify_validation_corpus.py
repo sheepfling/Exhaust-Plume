@@ -12,6 +12,11 @@ from typing import Any, Mapping
 from zipfile import BadZipFile, ZipFile
 
 MANIFEST_PATH = Path(__file__).resolve().parents[1] / 'docs' / 'validation' / 'corpus_intake_manifest_v1.json'
+MANIFEST_ID = 'exhaust-plume-validation-corpus-intake-v1'
+REQUIRED_ARCHIVES = (
+  ('validation-corpus-v8', 'plume_validation_data_v8.zip'),
+  ('mvp-validation-alignment-v1', 'plume_mvp_validation_alignment_v1.zip'),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,11 +35,79 @@ class ArchiveCheck:
 
 
 def load_manifest(path: Path = MANIFEST_PATH) -> dict[str, Any]:
-  """Load the immutable expected-digest manifest."""
+  """Load and structurally validate the immutable intake manifest."""
 
-  payload = json.loads(path.read_text(encoding='utf-8'))
-  if not isinstance(payload, dict) or not isinstance(payload.get('archives'), list):
+  try:
+    payload = json.loads(path.read_text(encoding='utf-8'))
+  except (OSError, json.JSONDecodeError) as error:
+    raise ValueError(f'could not read validation intake manifest: {error}') from error
+  ####
+  if not isinstance(payload, dict):
+    raise ValueError('validation intake manifest must be a JSON object')
+  ####
+  manifest_id = payload.get('manifest_id')
+  canonical_manifest = manifest_id is not None
+  if canonical_manifest and manifest_id != MANIFEST_ID:
+    raise ValueError(
+      f'validation intake manifest must have manifest_id {MANIFEST_ID!r}'
+    )
+  ####
+  archives = payload.get('archives')
+  if not isinstance(archives, list):
     raise ValueError('validation intake manifest must contain an archives list')
+  ####
+  if len(archives) != len(REQUIRED_ARCHIVES):
+    raise ValueError(
+      'validation intake manifest must contain exactly the two required archives'
+    )
+  ####
+  observed_ids: list[str] = []
+  for index, archive in enumerate(archives):
+    if not isinstance(archive, dict):
+      raise ValueError(f'archives[{index}] must be a JSON object')
+    ####
+    archive_id = archive.get('archive_id')
+    filename = archive.get('filename')
+    digest = archive.get('sha256')
+    retrieval = archive.get('retrieval')
+    if not isinstance(archive_id, str) or not archive_id:
+      raise ValueError(f'archives[{index}].archive_id must be non-empty')
+    ####
+    if not isinstance(filename, str) or not filename:
+      raise ValueError(f'archives[{index}].filename must be non-empty')
+    ####
+    if not isinstance(digest, str) or len(digest) != 64 or any(
+      character not in '0123456789abcdef' for character in digest
+    ):
+      raise ValueError(
+        f'archives[{index}].sha256 must be a lowercase SHA-256 digest'
+      )
+    ####
+    if canonical_manifest:
+      if not isinstance(retrieval, dict):
+        raise ValueError(f'archives[{index}].retrieval must be a JSON object')
+      ####
+      retrieval_status = retrieval.get('status')
+      if not isinstance(retrieval_status, str) or not retrieval_status:
+        raise ValueError(
+          f'archives[{index}].retrieval.status must be non-empty'
+        )
+    ####
+    observed_ids.append(archive_id)
+  ####
+  expected_ids = tuple(archive_id for archive_id, _filename in REQUIRED_ARCHIVES)
+  if tuple(observed_ids) != expected_ids:
+    raise ValueError(
+      'validation intake manifest archive order/IDs must be '
+      f'{expected_ids!r}'
+    )
+  ####
+  if canonical_manifest:
+    for index, (archive_id, expected_filename) in enumerate(REQUIRED_ARCHIVES):
+      if archives[index]['filename'] != expected_filename:
+        raise ValueError(
+          f'archives[{index}] ({archive_id}) must name {expected_filename!r}'
+        )
   ####
   return payload
 ####
