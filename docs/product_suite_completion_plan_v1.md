@@ -73,6 +73,43 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
+### Active execution card — checkpoint `f21c4fa`
+
+The current candidate is a clean dedicated integration branch with the
+disjoint signed pressure/geometry response refinement in place.  That slice
+is useful research evidence: each named case owns a distinct exact closure
+fingerprint, each resolution invokes a fresh solver response, and the
+independently audited normal-velocity residual descends.  It does not change
+the claim ceiling.  The outer global/coupled result, downstream boundary,
+canonical free-boundary, production shock-cell, provider-validation, and
+release flags remain closed.
+
+The next implementation sprint is therefore the canonical physical consumer,
+not another response wrapper:
+
+1. Define the solver-owned mixed-regime/free-boundary state and its admissible
+   transonic branch, including upstream frontier, downstream pressure and
+   tangency, centerline reflection, entropy transport, and signed mass,
+   normal-momentum, and energy residuals in one field solve.
+2. Consume the exact signed response in that state solve.  Every trial must
+   carry source/proposal/field fingerprints, retain its coordinate frame, use
+   bounded updates, and be freshly re-solved and independently remeasured.
+3. Admit a candidate only when all declared physical residuals descend or meet
+   the stated convergence test.  A pressure overlay, compression-envelope
+   skew, terminal patch, scalar mixed-regime reference, or longer axial window
+   is an explicit research result and cannot satisfy this gate.
+4. Repeat the accepted solver on disjoint cases and increasing axial and
+   transverse resolutions before allowing the physical shock-cell fitter to
+   consume it.
+
+The sprint stops immediately, with a typed research failure retained, when
+the canonical state equation, boundary coverage, conservative residual, or
+independent audit is missing.  No tolerance relaxation, endpoint hold,
+interpolation/extrapolation, synthetic observation, manifest edit, or claim
+renaming may clear the stop.  Validation intake, provider-bound VIS/SIG/RAY/
+FPA comparisons, and release freeze remain parallel gates rather than
+substitutes for this physics sprint.
+
 ### P2.2d signed boundary-response checkpoint — 2026-09-11
 
 The coupled Euler/free-boundary result now retains both the unsigned
