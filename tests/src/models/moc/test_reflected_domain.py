@@ -286,9 +286,11 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_downstream import 
 )
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_entropy_closure import (
   CONSERVATIVE_AMBIENT_ENTRAINMENT_MECHANISM_ID,
+  MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus,
   MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus,
   MocReflectedDomainGlobalTransonicMixedWaveEntropyClosureStatus,
   audit_reflected_domain_global_transonic_mixed_wave_entropy_closure,
+  audit_reflected_domain_global_transonic_mixed_wave_joint_field,
   build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile,
   build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile,
   solve_reflected_domain_global_transonic_mixed_wave_entropy_closure,
@@ -2982,6 +2984,45 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
   assert joint.global_coupling_verified is False
   assert joint.chain_promotion_blocked
   assert joint.production_claim_allowed is False
+
+  joint_audit = audit_reflected_domain_global_transonic_mixed_wave_joint_field(
+    joint
+  )
+  assert joint_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus
+    .AUDITED_RESEARCH_EVIDENCE
+  ), joint_audit.message
+  assert joint_audit.converged
+  assert joint_audit.research_evidence_verified
+  assert joint_audit.iterations_rechecked == len(joint.iterations)
+  assert joint_audit.profile_lineage_verified
+  assert joint_audit.interface_placement_lineage_verified
+  assert not joint_audit.interface_placement_coverage_verified
+  assert joint_audit.iteration_lineage_verified
+  assert joint_audit.iteration_metrics_verified
+  assert joint_audit.independent_iteration_audits_verified
+  assert joint_audit.joint_field_consumed
+  assert joint_audit.promotion_flags_verified
+
+  tampered_next_profile = replace(
+    joint.iterations[1].profile,
+    entrainment_fraction_by_station=tuple(
+      min(1.0, value + 1.0e-3)
+      for value in joint.iterations[1].profile.entrainment_fraction_by_station
+    ),
+  )
+  tampered_iterations = (
+    joint.iterations[0],
+    replace(joint.iterations[1], profile=tampered_next_profile),
+  )
+  tampered_joint_audit = audit_reflected_domain_global_transonic_mixed_wave_joint_field(
+    replace(joint, iterations=tampered_iterations)
+  )
+  assert tampered_joint_audit.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus
+    .ITERATION_LINEAGE_FAILURE
+  )
+  assert not tampered_joint_audit.research_evidence_verified
 
   legacy_joint = solve_reflected_domain_global_transonic_mixed_wave_joint_field(
     result,

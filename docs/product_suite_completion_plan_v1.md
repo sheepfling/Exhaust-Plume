@@ -4718,3 +4718,21 @@ including a negative tamper assertion.  This is fidelity/accounting evidence;
 it does not close the canonical globally coupled downstream boundary, accept a
 physical shock-cell length, satisfy provider validation, or change the
 release blockers.
+
+### WP-2 mixed-wave joint-field audit checkpoint — 2026-09-10
+
+The solver-owned mixed-wave entropy/source iteration now has a separate
+independent audit operator.  It remeasures every retained coupled-Euler field,
+recomputes the static- and total-pressure residual metrics, checks exact
+source-profile and transonic-placement lineage, and verifies that each applied
+ambient-source update produced the exact next profile.  A tampered next profile
+is rejected with a typed iteration-lineage failure.
+
+The audit deliberately distinguishes independently remeasured research
+evidence from converged physical closure: an iteration may retain a typed
+entropy or residual failure and still be auditable as failed evidence, but it
+cannot become a successful joint closure or production result.  The mixed-wave
+focused slice passes all 7 tests, with Ruff and bytecode checks clean.  This
+closes an evidence-integrity gap only; canonical mixed-regime closure,
+disjoint physical shock-cell fitting, provider-bound validation, and the final
+release freeze remain open.

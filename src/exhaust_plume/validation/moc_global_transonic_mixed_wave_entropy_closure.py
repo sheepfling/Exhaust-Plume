@@ -52,9 +52,12 @@ __all__ = (
   'MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveJointFieldIteration',
   'MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult',
+  'MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus',
+  'MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit',
   'build_reflected_domain_global_transonic_mixed_wave_entropy_closure_profile',
   'build_reflected_domain_global_transonic_mixed_wave_ambient_entrainment_profile',
   'audit_reflected_domain_global_transonic_mixed_wave_entropy_closure',
+  'audit_reflected_domain_global_transonic_mixed_wave_joint_field',
   'solve_reflected_domain_global_transonic_mixed_wave_entropy_closure',
   'solve_reflected_domain_global_transonic_mixed_wave_joint_field',
 )
@@ -749,6 +752,153 @@ class MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult:
     }
 
 
+class MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus(
+  str,
+  Enum,
+):
+  """Outcome of independently rechecking a joint-field research result."""
+
+  AUDITED_RESEARCH_EVIDENCE = (
+    'audited-research-global-transonic-mixed-wave-joint-interface-field'
+  )
+  INVALID_INPUT = 'invalid_input'
+  DOWNSTREAM_SEAM_FAILURE = (
+    'mixed-wave-joint-field-audit-downstream-seam-failure'
+  )
+  PROFILE_LINEAGE_FAILURE = (
+    'mixed-wave-joint-field-audit-profile-lineage-failure'
+  )
+  ITERATION_LINEAGE_FAILURE = (
+    'mixed-wave-joint-field-audit-iteration-lineage-failure'
+  )
+  METRIC_FAILURE = 'mixed-wave-joint-field-audit-metric-failure'
+  INDEPENDENT_AUDIT_FAILURE = (
+    'mixed-wave-joint-field-audit-independent-field-audit-failure'
+  )
+  PROMOTION_FLAG_FAILURE = (
+    'mixed-wave-joint-field-audit-promotion-flag-failure'
+  )
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit:
+  """Independent evidence for the retained source/interface iteration.
+
+  The joint solver already stores a local coupled-Euler audit per iteration.
+  This record is a second pass over the retained result: it remeasures every
+  field, recomputes the source residual metrics, and checks that each source
+  update produced the exact next profile.  It remains research evidence and
+  cannot authorize canonical or production promotion.
+  """
+
+  status: MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus
+  candidate: MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult | None
+  iterations_rechecked: int = 0
+  profile_lineage_verified: bool = False
+  interface_placement_lineage_verified: bool = False
+  interface_placement_coverage_verified: bool = False
+  iteration_lineage_verified: bool = False
+  iteration_metrics_verified: bool = False
+  independent_iteration_audits_verified: bool = False
+  joint_field_consumed: bool = False
+  promotion_flags_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus,
+    ):
+      raise TypeError('status must be a typed joint-field audit status')
+    if self.candidate is not None and not isinstance(
+      self.candidate,
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult,
+    ):
+      raise TypeError(
+        'candidate must be a typed joint-field result or None'
+      )
+    if (
+      isinstance(self.iterations_rechecked, bool)
+      or not isinstance(self.iterations_rechecked, int)
+      or self.iterations_rechecked < 0
+    ):
+      raise ValueError('iterations_rechecked must be a nonnegative integer')
+    for name in (
+      'profile_lineage_verified',
+      'interface_placement_lineage_verified',
+      'interface_placement_coverage_verified',
+      'iteration_lineage_verified',
+      'iteration_metrics_verified',
+      'independent_iteration_audits_verified',
+      'joint_field_consumed',
+      'promotion_flags_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.candidate is not None and self.candidate.production_claim_allowed:
+      raise ValueError('joint-field audit cannot accept production claims')
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus
+      .AUDITED_RESEARCH_EVIDENCE
+    )
+
+  @property
+  def research_evidence_verified(self) -> bool:
+    """Whether the retained joint result passed the independent audit."""
+
+    return bool(
+      self.converged
+      and self.profile_lineage_verified
+      and self.interface_placement_lineage_verified
+      and self.iteration_lineage_verified
+      and self.iteration_metrics_verified
+      and self.independent_iteration_audits_verified
+      and self.joint_field_consumed
+      and self.promotion_flags_verified
+      and self.candidate is not None
+      and self.candidate.chain_promotion_blocked
+      and not self.candidate.physical_closure_verified
+      and not self.candidate.global_coupling_verified
+      and not self.candidate.production_claim_allowed
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_JOINT_FIELD_OPERATOR_ID,
+      'status': self.status.value,
+      'converged': self.converged,
+      'research_evidence_verified': self.research_evidence_verified,
+      'iterations_rechecked': self.iterations_rechecked,
+      'profile_lineage_verified': self.profile_lineage_verified,
+      'interface_placement_lineage_verified': (
+        self.interface_placement_lineage_verified
+      ),
+      'interface_placement_coverage_verified': (
+        self.interface_placement_coverage_verified
+      ),
+      'iteration_lineage_verified': self.iteration_lineage_verified,
+      'iteration_metrics_verified': self.iteration_metrics_verified,
+      'independent_iteration_audits_verified': (
+        self.independent_iteration_audits_verified
+      ),
+      'joint_field_consumed': self.joint_field_consumed,
+      'promotion_flags_verified': self.promotion_flags_verified,
+      'candidate': (
+        None if self.candidate is None else self.candidate.as_report()
+      ),
+      'claim_status': (
+        'independent research audit only; canonical closure, external '
+        'validation, shock-cell promotion, and production claims remain '
+        'blocked'
+      ),
+      'message': self.message,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class _JointFieldMetrics:
   pressure_residual_fraction_by_station: tuple[float, ...]
@@ -886,6 +1036,330 @@ def _joint_interface_lineage_verified(
     and field.transonic_shock_interface_field_placement is placement
     and field.transonic_shock_interface_field_placement_consumed
     and field.transonic_shock_interface_profile_consumed
+  )
+
+
+def _joint_float_matches(actual: float | None, expected: float | None) -> bool:
+  if actual is None or expected is None:
+    return actual is None and expected is None
+  return abs(float(actual) - float(expected)) <= (
+    3.0e-10 * max(abs(float(actual)), abs(float(expected)), 1.0)
+  )
+
+
+def _joint_float_sequence_matches(
+  actual: tuple[float, ...],
+  expected: tuple[float, ...],
+) -> bool:
+  return bool(
+    len(actual) == len(expected)
+    and all(
+      abs(float(observed) - float(reference))
+      <= 3.0e-10 * max(abs(float(observed)), abs(float(reference)), 1.0)
+      for observed, reference in zip(actual, expected, strict=True)
+    )
+  )
+
+
+def audit_reflected_domain_global_transonic_mixed_wave_joint_field(
+  candidate: MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult,
+) -> MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit:
+  """Independently remeasure a retained mixed-wave joint-field result.
+
+  This audit is intentionally separate from the outer iteration operator.  It
+  rechecks the exact source-profile lineage, every coupled-Euler field, the
+  stored residual metrics, and the deterministic profile-to-profile update.
+  It can certify research evidence, but it cannot turn the research result
+  into canonical global closure or a production claim.
+  """
+
+  audit_status = MocReflectedDomainGlobalTransonicMixedWaveJointFieldAuditStatus
+  if not isinstance(
+    candidate,
+    MocReflectedDomainGlobalTransonicMixedWaveJointFieldResult,
+  ):
+    return MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit(
+      status=audit_status.INVALID_INPUT,
+      candidate=None,
+      message='candidate must be a typed mixed-wave joint-field result',
+    )
+  ####
+  downstream = candidate.downstream
+  initial_profile = candidate.initial_profile
+  if downstream is None or initial_profile is None:
+    return MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit(
+      status=audit_status.DOWNSTREAM_SEAM_FAILURE,
+      candidate=candidate,
+      message=(
+        'joint-field result retained no downstream seam or initial entropy '
+        'profile for independent remeasurement'
+      ),
+    )
+  ####
+  try:
+    initial_preflight = (
+      audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+        downstream,
+        initial_profile,
+      )
+    )
+  except (ArithmeticError, TypeError, ValueError) as error:
+    return MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit(
+      status=audit_status.PROFILE_LINEAGE_FAILURE,
+      candidate=candidate,
+      message=f'initial profile independent audit failed: {error}',
+    )
+  ####
+  profile_lineage_verified = bool(
+    initial_preflight.profile_ready_for_joint_solver
+    and candidate.source_closure_fingerprint
+    == initial_preflight.source_closure_fingerprint
+  )
+  if not profile_lineage_verified:
+    return MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit(
+      status=audit_status.PROFILE_LINEAGE_FAILURE,
+      candidate=candidate,
+      profile_lineage_verified=profile_lineage_verified,
+      message=(
+        'joint-field result did not retain the exact independently audited '
+        'source closure fingerprint and profile lineage'
+      ),
+    )
+  ####
+  interface_placement_lineage_verified = _joint_interface_lineage_verified(
+    downstream
+  )
+  if not interface_placement_lineage_verified:
+    return MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit(
+      status=audit_status.DOWNSTREAM_SEAM_FAILURE,
+      candidate=candidate,
+      profile_lineage_verified=True,
+      message=(
+        'joint-field result did not retain the exact solver-owned transonic '
+        'placement through the downstream field request'
+      ),
+    )
+  ####
+  interface_placement_coverage_verified = bool(
+    downstream.interface_placement_coverage_verified
+    and downstream.interface_placement_coverage is not None
+    and downstream.interface_placement_coverage.joint_interface_coverage_verified
+  )
+  iterations = tuple(candidate.iterations)
+  if not iterations or tuple(item.iteration_index for item in iterations) != tuple(
+    range(len(iterations))
+  ):
+    return MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit(
+      status=audit_status.ITERATION_LINEAGE_FAILURE,
+      candidate=candidate,
+      iterations_rechecked=len(iterations),
+      profile_lineage_verified=True,
+      interface_placement_lineage_verified=True,
+      interface_placement_coverage_verified=interface_placement_coverage_verified,
+      message='joint-field iteration indices are not contiguous and zero-based',
+    )
+  ####
+  if len(iterations) > candidate.requested_iterations:
+    return MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit(
+      status=audit_status.ITERATION_LINEAGE_FAILURE,
+      candidate=candidate,
+      iterations_rechecked=len(iterations),
+      profile_lineage_verified=True,
+      interface_placement_lineage_verified=True,
+      interface_placement_coverage_verified=interface_placement_coverage_verified,
+      message='joint-field result retained more iterations than requested',
+    )
+  ####
+  iteration_lineage_verified = iterations[0].profile is initial_profile
+  iteration_metrics_verified = True
+  independent_iteration_audits_verified = True
+  retained_consumed = True
+  independent_failure_details: list[str] = []
+  ####
+  for index, item in enumerate(iterations):
+    try:
+      profile_preflight = (
+        audit_reflected_domain_global_transonic_mixed_wave_entropy_closure(
+          downstream,
+          item.profile,
+        )
+      )
+      metrics = _joint_field_metrics(item.field, item.profile)
+      independent_audit = measure_reflected_domain_coupled_euler_free_boundary(
+        item.field
+      )
+    except (ArithmeticError, FloatingPointError, RuntimeError, TypeError, ValueError):
+      iteration_metrics_verified = False
+      independent_iteration_audits_verified = False
+      retained_consumed = False
+      break
+    ####
+    profile_ok = bool(
+      profile_preflight.profile_ready_for_joint_solver
+      and profile_preflight.source_closure_fingerprint
+      == initial_preflight.source_closure_fingerprint
+    )
+    exact_consumption = item.exact_profile_consumed
+    retained_consumed = bool(retained_consumed and exact_consumption)
+    iteration_lineage_verified = bool(
+      iteration_lineage_verified
+      and profile_ok
+      and exact_consumption
+      and item.field.request is not None
+      and item.field.request.transonic_shock_interface_field_placement
+      is downstream.transonic_interface_placement
+    )
+    metric_match = bool(
+      _joint_float_sequence_matches(
+        item.pressure_residual_fraction_by_station,
+        metrics.pressure_residual_fraction_by_station,
+      )
+      and _joint_float_sequence_matches(
+        item.total_pressure_residual_fraction_by_station,
+        metrics.total_pressure_residual_fraction_by_station,
+      )
+      and _joint_float_matches(
+        item.maximum_pressure_residual_fraction,
+        metrics.maximum_pressure_residual_fraction,
+      )
+      and _joint_float_matches(
+        item.maximum_total_pressure_residual_fraction,
+        metrics.maximum_total_pressure_residual_fraction,
+      )
+      and _joint_float_matches(
+        item.maximum_normal_velocity_residual_fraction,
+        metrics.maximum_normal_velocity_residual_fraction,
+      )
+      and _joint_float_matches(
+        item.maximum_centerline_normal_velocity_residual_fraction,
+        metrics.maximum_centerline_normal_velocity_residual_fraction,
+      )
+      and _joint_float_matches(
+        item.maximum_euler_residual,
+        metrics.maximum_euler_residual,
+      )
+      and _joint_float_matches(item.objective, metrics.objective)
+    )
+    iteration_metrics_verified = bool(iteration_metrics_verified and metric_match)
+    independent_match = bool(
+      item.audit.candidate is item.field
+      and item.audit.status is independent_audit.status
+      and item.audit.residual_channels_recomputed
+      and independent_audit.residual_channels_recomputed
+      and item.audit.residual_report_verified
+      and independent_audit.residual_report_verified
+      and item.audit.free_boundary_report_verified
+      and independent_audit.free_boundary_report_verified
+      and item.audit.centerline_report_verified
+      and independent_audit.centerline_report_verified
+      and item.audit.promotion_flags_verified
+      and independent_audit.promotion_flags_verified
+      and item.field.chain_promotion_blocked
+      and not item.field.production_claim_allowed
+    )
+    independent_iteration_audits_verified = bool(
+      independent_iteration_audits_verified and independent_match
+    )
+    if not independent_match:
+      independent_failure_details.append(
+        f'iteration {index}: '
+        f'stored_status={item.audit.status.value}, '
+        f'fresh_status={independent_audit.status.value}, '
+        f'stored_residual={item.audit.residual_report_verified}, '
+        f'fresh_residual={independent_audit.residual_report_verified}, '
+        f'stored_boundary={item.audit.free_boundary_report_verified}, '
+        f'fresh_boundary={independent_audit.free_boundary_report_verified}'
+      )
+    ####
+    if item.source_update_applied:
+      if index + 1 >= len(iterations) or item.source_update_step <= 0.0:
+        iteration_lineage_verified = False
+      else:
+        expected_next_profile, expected_update = _joint_next_profile(
+          item.profile,
+          metrics.signed_update_error_by_station,
+          item.source_update_step,
+        )
+        iteration_lineage_verified = bool(
+          iteration_lineage_verified
+          and expected_update
+          and iterations[index + 1].profile == expected_next_profile
+        )
+    elif index + 1 < len(iterations):
+      iteration_lineage_verified = False
+  ####
+  stored_independent = bool(
+    iterations and all(item.independently_audited for item in iterations)
+  )
+  reported_flags_verified = bool(
+    candidate.profile_lineage_verified
+    and candidate.interface_placement_lineage_verified
+    == interface_placement_lineage_verified
+    and candidate.interface_placement_coverage_verified
+    == interface_placement_coverage_verified
+    and candidate.independent_iteration_audits_verified == stored_independent
+    and candidate.joint_field_consumed == retained_consumed
+    and candidate.local_joint_boundary_verified
+    == (
+      candidate.status
+      is MocReflectedDomainGlobalTransonicMixedWaveJointFieldStatus
+      .CONVERGED_RESEARCH_ITERATION
+    )
+  )
+  promotion_flags_verified = bool(
+    candidate.chain_promotion_blocked
+    and not candidate.physical_closure_verified
+    and not candidate.global_coupling_verified
+    and not candidate.production_claim_allowed
+    and reported_flags_verified
+  )
+  if not iteration_lineage_verified:
+    status = audit_status.ITERATION_LINEAGE_FAILURE
+    message = (
+      'joint-field source updates did not retain the exact deterministic '
+      'profile-to-profile lineage'
+    )
+  elif not iteration_metrics_verified:
+    status = audit_status.METRIC_FAILURE
+    message = (
+      'joint-field retained residual metrics do not match independent '
+      'recomputation from the retained fields'
+    )
+  elif not independent_iteration_audits_verified:
+    status = audit_status.INDEPENDENT_AUDIT_FAILURE
+    message = (
+      'one or more retained joint-field iterations failed the independent '
+      'coupled-Euler audit or its promotion guard: '
+      + '; '.join(independent_failure_details)
+    )
+  elif not promotion_flags_verified:
+    status = audit_status.PROMOTION_FLAG_FAILURE
+    message = (
+      'joint-field result flags do not preserve research-only status or '
+      'reported lineage gates'
+    )
+  else:
+    status = audit_status.AUDITED_RESEARCH_EVIDENCE
+    message = (
+      'independent source lineage, field audits, joint residual metrics, and '
+      'research-only promotion flags passed; canonical closure remains blocked'
+    )
+  ####
+  return MocReflectedDomainGlobalTransonicMixedWaveJointFieldAudit(
+    status=status,
+    candidate=candidate,
+    iterations_rechecked=len(iterations),
+    profile_lineage_verified=True,
+    interface_placement_lineage_verified=interface_placement_lineage_verified,
+    interface_placement_coverage_verified=interface_placement_coverage_verified,
+    iteration_lineage_verified=iteration_lineage_verified,
+    iteration_metrics_verified=iteration_metrics_verified,
+    independent_iteration_audits_verified=(
+      independent_iteration_audits_verified
+    ),
+    joint_field_consumed=retained_consumed,
+    promotion_flags_verified=promotion_flags_verified,
+    message=message,
   )
 
 
