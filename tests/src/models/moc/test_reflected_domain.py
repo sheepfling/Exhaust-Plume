@@ -296,6 +296,13 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_patch_phy
   MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchPhysicalFieldStatus,
   solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_field,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_patch_refinement import (
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchCrossCase,
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchRefinementCase,
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchRefinementStatus,
+  run_reflected_domain_global_transonic_mixed_wave_terminal_patch_cross_case_refinement,
+  run_reflected_domain_global_transonic_mixed_wave_terminal_patch_refinement,
+)
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_probe import (
   MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeStatus,
   probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation,
@@ -1470,6 +1477,99 @@ def test_global_transonic_mixed_wave_terminal_patch_passes_local_audit_but_block
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
   assert 'independent conservative audit passed' in result.message
+
+
+def _terminal_patch_source_for_resolution(sample_count: int):
+  closure = _global_physical_closure_for_mixed_regime(sample_count)
+  ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  attempt = run_reflected_domain_global_transonic_expansion_attempt(
+    MocReflectedDomainGlobalTransonicClosureRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_Pa=ambient_pressure,
+    )
+  )
+  assert attempt.characteristic_field is not None
+  interface = solve_reflected_domain_global_transonic_mixed_wave_interface(
+    attempt.characteristic_field,
+    ambient_pressure,
+    effective_inlet_height_m=0.002,
+    downstream_length_m=0.2,
+  )
+  probe = probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation(
+    interface
+  )
+  return interface, probe
+
+
+def test_global_transonic_mixed_wave_terminal_patch_resolution_ladder_is_fresh_and_audited():
+  interface, probe = _terminal_patch_source_for_resolution(9)
+  run = run_reflected_domain_global_transonic_mixed_wave_terminal_patch_refinement(
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchRefinementCase(
+      case_id='mixed-terminal-resolution-9',
+      interface=interface,
+      terminal_probe=probe,
+      outer_flow_angle_bracket=(-0.05, 0.05),
+      sample_counts=(7, 9),
+    )
+  )
+
+  assert run.converged
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchRefinementStatus
+    .CONVERGED_RESEARCH_LADDER
+  )
+  assert run.measurement.resolution_order_verified
+  assert run.measurement.fresh_solves_verified
+  assert run.measurement.local_audits_verified
+  assert run.measurement.residual_trend_verified
+  assert run.measurement.source_lineage_verified
+  assert run.measurement.reflected_turn_law_verified
+  assert len(run.measurement.steps) == 2
+  assert all(step.converged for step in run.measurement.steps)
+  assert all(
+    step.result is not None
+    and step.result.global_coupling_verified is False
+    and step.result.production_claim_allowed is False
+    for step in run.measurement.steps
+  )
+
+
+def test_global_transonic_mixed_wave_terminal_patch_cross_case_keeps_sources_disjoint():
+  interface_a, probe_a = _terminal_patch_source_for_resolution(7)
+  interface_b, probe_b = _terminal_patch_source_for_resolution(9)
+  run = run_reflected_domain_global_transonic_mixed_wave_terminal_patch_cross_case_refinement(
+    (
+      MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchCrossCase(
+        case_id='mixed-terminal-case-a',
+        interface=interface_a,
+        terminal_probe=probe_a,
+        outer_flow_angle_bracket=(-0.05, 0.05),
+        sample_counts=(7, 9),
+      ),
+      MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchCrossCase(
+        case_id='mixed-terminal-case-b',
+        interface=interface_b,
+        terminal_probe=probe_b,
+        outer_flow_angle_bracket=(-0.05, 0.05),
+        sample_counts=(7, 9),
+      ),
+    )
+  )
+
+  assert run.converged
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchRefinementStatus
+    .CONVERGED_RESEARCH_CROSS_CASE
+  )
+  assert run.measurement.case_bindings_verified
+  assert run.measurement.distinct_sources_verified
+  assert run.measurement.resolution_ladders_verified
+  assert run.measurement.fresh_solves_verified
+  assert run.measurement.residual_trends_verified
+  assert run.measurement.global_promotion_blocked
+  assert run.measurement.production_claim_allowed is False
 
 
 def test_global_transonic_mixed_wave_terminal_probe_keeps_reference_below_promotion():

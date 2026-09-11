@@ -5923,3 +5923,32 @@ disjoint-case and resolution evidence for the corrected orientation, followed
 by canonical reflected/free-boundary feedback and physical shock-cell-length
 comparisons.  Provider-bound Visualization/Signature/RAY/FPA validation,
 external archives, and the release freeze remain open.
+
+### P2.2 terminal-patch disjoint-resolution checkpoint — 2026-09-11
+
+The corrected reflected-turn terminal-patch lane now has a reusable refinement
+operator,
+``op.moc.reflected-domain.global-transonic-mixed-wave-terminal-patch-refinement``,
+and a disjoint-case operator,
+``op.moc.reflected-domain.global-transonic-mixed-wave-terminal-patch-cross-case-refinement``.
+Each ladder consumes caller-owned typed mixed-wave interface and terminal-probe
+lineage, invokes a fresh terminal-patch field solve at every declared sample
+count, verifies the explicit ``reflected-negative-turn`` law, rechecks the
+independent conservative Euler audit, and rejects reused result objects or
+non-increasing residual evidence.  Cross-case execution additionally requires
+unique case IDs and distinct source fingerprints.
+
+The retained mixed-regime source passes a fresh ``(7, 9)`` resolution ladder
+with a decreasing maximum normalized audit residual.  Two independently
+fingerprinted mixed-regime sources (7-sample and 9-sample source closures)
+also pass their separate ``(7, 9)`` ladders.  The aggregate evidence keeps
+global coupling false, chain promotion blocked, production claims disabled,
+and external validation required; it is local research evidence rather than a
+canonical reflected/free-boundary closure claim.
+
+The focused ladder/cross-case regressions pass (``2 passed``), the complete
+reflected-domain suite passes (``208 passed``), and Ruff, Pyright, compilation,
+and whitespace checks are clean.  The next physics gate is the canonical
+reflected/free-boundary equation and independently accepted physical
+shock-cell-length comparison.  Provider-bound Visualization/Signature/RAY/FPA
+validation, validation archives, and release freeze remain open.
