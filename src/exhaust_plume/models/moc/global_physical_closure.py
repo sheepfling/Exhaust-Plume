@@ -1480,6 +1480,8 @@ def solve_reflected_domain_global_physical_closure(
   consume_ambient_pressure_target_geometry: bool = False,
   ambient_pressure_target_geometry_tolerance_rad: float = 1.0e-6,
   use_composed_source_pressure_target_for_global_euler: bool = False,
+  consume_ambient_pressure_target_geometry_at_global_boundary: bool = False,
+  ambient_pressure_target_geometry_position_tolerance_m: float | None = None,
 ) -> MocReflectedDomainGlobalPhysicalClosureResult:
   """Solve and independently audit one globally coupled physical closure.
 
@@ -1503,6 +1505,15 @@ def solve_reflected_domain_global_physical_closure(
   builds a complete bounded target frame, that composed frame is supplied to
   the global Euler ambient march.  Existing target consumers retain their
   original target semantics unless they request this behavior explicitly.
+  ``consume_ambient_pressure_target_geometry_at_global_boundary`` is a
+  separate research seam.  It leaves the alternating source-band geometry
+  solver-owned and consumes the composed target curve at the exact-Euler
+  ambient boundary instead.  This is the appropriate role for a downstream
+  frontier geometry proposal; it does not establish a mixed-regime fixed
+  point or a production boundary.
+  ``ambient_pressure_target_geometry_position_tolerance_m`` optionally widens
+  only the geometry-target intersection residual used by that global boundary
+  seam; ordinary field and source-band position tolerances stay unchanged.
   """
 
   status_type = MocReflectedDomainGlobalPhysicalClosureStatus
@@ -1526,6 +1537,22 @@ def solve_reflected_domain_global_physical_closure(
       None,
       message=(
         'use_composed_source_pressure_target_for_global_euler must be a bool'
+      ),
+    )
+  if not isinstance(
+    consume_ambient_pressure_target_geometry_at_global_boundary,
+    bool,
+  ):
+    return _closure_result(
+      status_type.INVALID_INPUT,
+      source_band
+      if isinstance(source_band, MocReflectedDomainAlternatingSourceResult)
+      else None,
+      None,
+      None,
+      message=(
+        'consume_ambient_pressure_target_geometry_at_global_boundary must be '
+        'a bool'
       ),
     )
   if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
@@ -1759,6 +1786,15 @@ def solve_reflected_domain_global_physical_closure(
       shock_angle_tolerance_rad=euler_reconciliation_shock_angle_tolerance_rad,
       residual_tolerance=euler_reconciliation_residual_tolerance,
       maximum_boundary_iterations=maximum_boundary_iterations,
+      consume_ambient_pressure_target_geometry=(
+        consume_ambient_pressure_target_geometry_at_global_boundary
+      ),
+      ambient_pressure_target_geometry_tolerance_rad=(
+        ambient_pressure_target_geometry_tolerance_rad
+      ),
+      ambient_pressure_target_geometry_position_tolerance_m=(
+        ambient_pressure_target_geometry_position_tolerance_m
+      ),
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _closure_result(

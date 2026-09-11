@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import isfinite
+from math import atan2, cos, isfinite, sin
 from typing import TYPE_CHECKING, Any, Sequence
 
 from exhaust_plume.models.moc.ambient_boundary import (
@@ -49,6 +49,8 @@ from exhaust_plume.models.moc.primitives import (
   CharacteristicState,
   MocPrimitiveStatus,
   interior_characteristic_point,
+  prandtl_meyer_angle_rad,
+  supersonic_mach_from_stagnation_pressure_ratio,
 )
 
 if TYPE_CHECKING:
@@ -985,6 +987,346 @@ def _solve_ambient_pressure_profile_point(
 ####
 
 
+@dataclass(frozen=True, slots=True)
+class _GeometryTargetBoundaryEvaluation:
+  """One trial of the exact-Euler ambient geometry target."""
+
+  state: CharacteristicState
+  point_m: tuple[float, float]
+  target_pressure_Pa: float
+  characteristic_residual_m: float
+  boundary_residual_m: float
+  target_tangent_residual_rad: float
+  state_tangent_residual_rad: float
+  signed_characteristic_residual_m: float
+####
+
+
+def _wrapped_geometry_angle_residual(first: float, second: float) -> float:
+  return abs(atan2(sin(first - second), cos(first - second)))
+####
+
+
+def _interpolate_geometry_target(
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> tuple[tuple[float, float], float] | None:
+  """Interpolate target geometry without extending its declared frame."""
+
+  if not target.boundary_points_m or not target.tangent_rad:
+    return None
+  ####
+  if (
+    len(target.boundary_points_m) != target.sample_count
+    or len(target.tangent_rad) != target.sample_count
+  ):
+    return None
+  ####
+  x_value = float(x_m)
+  tolerance = float(position_tolerance_m)
+  if (
+    x_value < target.x_stations_m[0] - tolerance
+    or x_value > target.x_stations_m[-1] + tolerance
+  ):
+    return None
+  ####
+  for index, (first, second) in enumerate(
+    zip(target.x_stations_m, target.x_stations_m[1:])
+  ):
+    if abs(x_value - first) <= tolerance:
+      return target.boundary_points_m[index], target.tangent_rad[index]
+    ####
+    if x_value <= second + tolerance:
+      span = second - first
+      if span <= tolerance:
+        return None
+      ####
+      fraction = min(max((x_value - first) / span, 0.0), 1.0)
+      first_point = target.boundary_points_m[index]
+      second_point = target.boundary_points_m[index + 1]
+      return (
+        (
+          first_point[0] + fraction * (second_point[0] - first_point[0]),
+          first_point[1] + fraction * (second_point[1] - first_point[1]),
+        ),
+        target.tangent_rad[index]
+        + fraction * (target.tangent_rad[index + 1] - target.tangent_rad[index]),
+      )
+    ####
+  ####
+  return target.boundary_points_m[-1], target.tangent_rad[-1]
+####
+
+
+def _solve_ambient_geometry_target_point(
+  incoming: CharacteristicState,
+  previous_boundary: CharacteristicState,
+  *,
+  total_pressure_Pa: float,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  position_tolerance_m: float,
+  pressure_tolerance: float,
+  tangent_tolerance_rad: float,
+  maximum_iterations: int,
+) -> MocFreeBoundaryPointResult:
+  """Solve one Euler C+ boundary point against a declared target curve."""
+
+  if not isfinite(total_pressure_Pa) or total_pressure_Pa <= 0.0:
+    raise ValueError('total_pressure_Pa must be finite and positive')
+  ####
+  lower_x = max(incoming.x_m, previous_boundary.x_m) + position_tolerance_m
+  upper_x = target.x_stations_m[-1]
+  if upper_x <= lower_x:
+    return MocFreeBoundaryPointResult(
+      status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+      family=CharacteristicFamily.PLUS,
+      state=None,
+      point_m=None,
+      pressure_residual=None,
+      tangent_residual=None,
+      geometry_residual=None,
+      iterations=0,
+      message=(
+        'ambient geometry target does not retain a downstream interval for '
+        'the next Euler C+ boundary point'
+      ),
+    )
+  ####
+
+  def evaluate(x_m: float) -> _GeometryTargetBoundaryEvaluation | None:
+    geometry = _interpolate_geometry_target(
+      target,
+      x_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if geometry is None:
+      return None
+    ####
+    point, target_tangent = geometry
+    if abs(point[0] - x_m) > position_tolerance_m:
+      return None
+    ####
+    target_pressure = target.pressure_at_x(
+      x_m,
+      position_tolerance_m=position_tolerance_m,
+    )
+    if target_pressure is None or target_pressure <= 0.0:
+      return None
+    ####
+    inverse = supersonic_mach_from_stagnation_pressure_ratio(
+      total_pressure_Pa / target_pressure,
+      incoming.gamma,
+    )
+    if not inverse.converged or inverse.value is None:
+      return None
+    ####
+    boundary_mach = float(inverse.value)
+    boundary_theta = incoming.k_plus + prandtl_meyer_angle_rad(
+      boundary_mach,
+      incoming.gamma,
+    )
+    state = CharacteristicState(
+      x_m=point[0],
+      y_m=point[1],
+      theta_rad=boundary_theta,
+      mach=boundary_mach,
+      gamma=incoming.gamma,
+    )
+    incoming_angle = 0.5 * (
+      incoming.theta_rad
+      + incoming.mu_rad
+      + state.theta_rad
+      + state.mu_rad
+    )
+    boundary_angle = 0.5 * (
+      previous_boundary.theta_rad + state.theta_rad
+    )
+    incoming_direction = (cos(incoming_angle), sin(incoming_angle))
+    boundary_direction = (cos(boundary_angle), sin(boundary_angle))
+    incoming_delta = (
+      point[0] - incoming.x_m,
+      point[1] - incoming.y_m,
+    )
+    boundary_delta = (
+      point[0] - previous_boundary.x_m,
+      point[1] - previous_boundary.y_m,
+    )
+    signed_characteristic_residual = (
+      incoming_delta[0] * incoming_direction[1]
+      - incoming_delta[1] * incoming_direction[0]
+    )
+    boundary_residual = abs(
+      boundary_delta[0] * boundary_direction[1]
+      - boundary_delta[1] * boundary_direction[0]
+    )
+    segment_angle = atan2(boundary_delta[1], boundary_delta[0])
+    return _GeometryTargetBoundaryEvaluation(
+      state=state,
+      point_m=point,
+      target_pressure_Pa=float(target_pressure),
+      characteristic_residual_m=abs(signed_characteristic_residual),
+      boundary_residual_m=boundary_residual,
+      target_tangent_residual_rad=_wrapped_geometry_angle_residual(
+        state.theta_rad,
+        target_tangent,
+      ),
+      state_tangent_residual_rad=_wrapped_geometry_angle_residual(
+        segment_angle,
+        boundary_angle,
+      ),
+      signed_characteristic_residual_m=signed_characteristic_residual,
+    )
+  ####
+
+  def pressure_residual(evaluation: _GeometryTargetBoundaryEvaluation) -> float:
+    return (
+      _static_pressure_from_total(
+        evaluation.state,
+        total_pressure_Pa,
+      )
+      - evaluation.target_pressure_Pa
+    ) / evaluation.target_pressure_Pa
+  ####
+
+  def accepted(evaluation: _GeometryTargetBoundaryEvaluation) -> bool:
+    return bool(
+      abs(pressure_residual(evaluation)) <= pressure_tolerance
+      and evaluation.characteristic_residual_m <= position_tolerance_m
+      and evaluation.boundary_residual_m <= position_tolerance_m
+      and evaluation.target_tangent_residual_rad <= tangent_tolerance_rad
+      and evaluation.state_tangent_residual_rad <= tangent_tolerance_rad
+    )
+  ####
+
+  def as_result(
+    evaluation: _GeometryTargetBoundaryEvaluation,
+    *,
+    iterations: int,
+    success: bool,
+  ) -> MocFreeBoundaryPointResult:
+    return MocFreeBoundaryPointResult(
+      status=(
+        MocPrimitiveStatus.CONVERGED
+        if success
+        else MocPrimitiveStatus.GEOMETRY_FAILURE
+      ),
+      family=CharacteristicFamily.PLUS,
+      state=evaluation.state,
+      point_m=evaluation.point_m,
+      pressure_residual=pressure_residual(evaluation),
+      tangent_residual=max(
+        evaluation.target_tangent_residual_rad,
+        evaluation.state_tangent_residual_rad,
+      ),
+      geometry_residual=max(
+        evaluation.characteristic_residual_m,
+        evaluation.boundary_residual_m,
+      ),
+      iterations=iterations,
+      message=(
+        'solver-owned Euler ambient geometry target was consumed exactly'
+        if success
+        else 'Euler ambient geometry target was covered but characteristic '
+        'or tangent residuals exceeded the declared tolerances'
+      ),
+    )
+  ####
+
+  scan_count = max(8, min(64, maximum_iterations * 4))
+  previous_x: float | None = None
+  previous_evaluation: _GeometryTargetBoundaryEvaluation | None = None
+  best: _GeometryTargetBoundaryEvaluation | None = None
+  best_score = float('inf')
+  for scan_index in range(scan_count + 1):
+    x_value = lower_x + (upper_x - lower_x) * scan_index / scan_count
+    evaluation = evaluate(x_value)
+    if evaluation is None:
+      continue
+    ####
+    score = max(
+      abs(pressure_residual(evaluation)),
+      evaluation.characteristic_residual_m,
+      evaluation.boundary_residual_m,
+      evaluation.target_tangent_residual_rad,
+      evaluation.state_tangent_residual_rad,
+    )
+    if score < best_score:
+      best = evaluation
+      best_score = score
+    ####
+    if accepted(evaluation):
+      return as_result(evaluation, iterations=scan_index + 1, success=True)
+    ####
+    if (
+      previous_evaluation is not None
+      and previous_x is not None
+      and previous_evaluation.signed_characteristic_residual_m
+      * evaluation.signed_characteristic_residual_m
+      <= 0.0
+    ):
+      bracket_lower = previous_x
+      bracket_upper = x_value
+      bracket_evaluation = previous_evaluation
+      for iteration in range(1, maximum_iterations + 1):
+        midpoint = 0.5 * (bracket_lower + bracket_upper)
+        midpoint_evaluation = evaluate(midpoint)
+        if midpoint_evaluation is None:
+          break
+        ####
+        midpoint_score = max(
+          abs(pressure_residual(midpoint_evaluation)),
+          midpoint_evaluation.characteristic_residual_m,
+          midpoint_evaluation.boundary_residual_m,
+          midpoint_evaluation.target_tangent_residual_rad,
+          midpoint_evaluation.state_tangent_residual_rad,
+        )
+        if midpoint_score < best_score:
+          best = midpoint_evaluation
+          best_score = midpoint_score
+        ####
+        if accepted(midpoint_evaluation):
+          return as_result(
+            midpoint_evaluation,
+            iterations=scan_count + iteration,
+            success=True,
+          )
+        ####
+        if (
+          bracket_evaluation.signed_characteristic_residual_m
+          * midpoint_evaluation.signed_characteristic_residual_m
+          <= 0.0
+        ):
+          bracket_upper = midpoint
+        else:
+          bracket_lower = midpoint
+          bracket_evaluation = midpoint_evaluation
+      ####
+    ####
+    previous_x = x_value
+    previous_evaluation = evaluation
+  ####
+  if best is None:
+    return MocFreeBoundaryPointResult(
+      status=MocPrimitiveStatus.GEOMETRY_FAILURE,
+      family=CharacteristicFamily.PLUS,
+      state=None,
+      point_m=None,
+      pressure_residual=None,
+      tangent_residual=None,
+      geometry_residual=None,
+      iterations=scan_count,
+      message=(
+        'Euler ambient geometry target could not be sampled on the declared '
+        'solver interval; no extrapolation was attempted'
+      ),
+    )
+  ####
+  return as_result(best, iterations=scan_count, success=False)
+####
+
+
 def march_euler_ambient_boundary(
   shock_boundary: MocEulerShockBoundaryCurveResult,
   ambient_pressure_Pa: float,
@@ -995,6 +1337,9 @@ def march_euler_ambient_boundary(
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
   maximum_iterations: int = 16,
+  consume_ambient_pressure_target_geometry: bool = False,
+  ambient_pressure_target_geometry_tolerance_rad: float = 1.0e-6,
+  ambient_pressure_target_geometry_position_tolerance_m: float | None = None,
 ) -> MocEulerAmbientBoundaryMarchResult:
   """March the exact post-shock ``C+`` sources to an ambient boundary.
 
@@ -1002,7 +1347,10 @@ def march_euler_ambient_boundary(
   equal ``ambient_pressure_Pa``.  When a pressure target is supplied, the
   target value at the attachment station is used instead, and every later
   boundary point is solved against the target value at its solver-owned
-  station.  Target geometry is intentionally ignored.
+  station.  When ``consume_ambient_pressure_target_geometry`` is enabled,
+  later points must additionally lie on the declared target curve and satisfy
+  its tangent; an unreachable curve returns a typed geometry failure rather
+  than projecting the result onto the pressure-only march.
   """
 
   if not isinstance(shock_boundary, MocEulerShockBoundaryCurveResult):
@@ -1033,6 +1381,14 @@ def march_euler_ambient_boundary(
     position_tolerance = float(position_tolerance_m)
     invariant_tolerance_value = float(invariant_tolerance)
     pressure_tolerance_value = float(pressure_tolerance)
+    geometry_tolerance = float(
+      ambient_pressure_target_geometry_tolerance_rad
+    )
+    geometry_position_tolerance = (
+      position_tolerance
+      if ambient_pressure_target_geometry_position_tolerance_m is None
+      else float(ambient_pressure_target_geometry_position_tolerance_m)
+    )
   except (TypeError, ValueError):
     return _march_failure(
       MocEulerAmbientBoundaryMarchStatus.INVALID_INPUT,
@@ -1053,6 +1409,11 @@ def march_euler_ambient_boundary(
     ('position_tolerance_m', position_tolerance),
     ('invariant_tolerance', invariant_tolerance_value),
     ('pressure_tolerance', pressure_tolerance_value),
+    ('ambient_pressure_target_geometry_tolerance_rad', geometry_tolerance),
+    (
+      'ambient_pressure_target_geometry_position_tolerance_m',
+      geometry_position_tolerance,
+    ),
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
@@ -1060,6 +1421,31 @@ def march_euler_ambient_boundary(
   ####
   if isinstance(maximum_iterations, bool) or maximum_iterations < 1:
     raise ValueError('maximum_iterations must be a positive integer')
+  ####
+  if not isinstance(consume_ambient_pressure_target_geometry, bool):
+    return _march_failure(
+      MocEulerAmbientBoundaryMarchStatus.INVALID_INPUT,
+      shock_boundary,
+      ambient_pressure,
+      message=(
+        'consume_ambient_pressure_target_geometry must be a bool'
+      ),
+    )
+  ####
+  if consume_ambient_pressure_target_geometry and (
+    ambient_pressure_target is None
+    or not ambient_pressure_target.boundary_points_m
+    or not ambient_pressure_target.tangent_rad
+  ):
+    return _march_failure(
+      MocEulerAmbientBoundaryMarchStatus.GEOMETRY_FAILURE,
+      shock_boundary,
+      ambient_pressure,
+      message=(
+        'joint Euler ambient geometry consumption requires a pressure target '
+        'with declared boundary points and tangents'
+      ),
+    )
   ####
   if not shock_boundary.converged or not shock_boundary.local_euler_verified:
     return _march_failure(
@@ -1221,13 +1607,25 @@ def march_euler_ambient_boundary(
     )
   ]
   k_plus_residuals: list[float] = [0.0]
+  geometry_target_consumed = False
   previous_boundary = states[0]
   for index, (state, total_pressure, shock_point) in enumerate(
     zip(states[1:], pressures[1:], points[1:], strict=True),
     start=1,
   ):
     result = (
-      solve_ambient_pressure_free_boundary_point(
+      _solve_ambient_geometry_target_point(
+        state,
+        previous_boundary,
+        total_pressure_Pa=float(total_pressure),
+        target=ambient_pressure_target,
+        position_tolerance_m=geometry_position_tolerance,
+        pressure_tolerance=pressure_tolerance_value,
+        tangent_tolerance_rad=geometry_tolerance,
+        maximum_iterations=maximum_iterations,
+      )
+      if consume_ambient_pressure_target_geometry
+      else solve_ambient_pressure_free_boundary_point(
         state,
         previous_boundary,
         CharacteristicFamily.PLUS,
@@ -1252,7 +1650,11 @@ def march_euler_ambient_boundary(
     point_results.append(result)
     if not result.converged or result.state is None or result.point_m is None:
       return _march_failure(
-        MocEulerAmbientBoundaryMarchStatus.BOUNDARY_FAILURE,
+        (
+          MocEulerAmbientBoundaryMarchStatus.GEOMETRY_FAILURE
+          if consume_ambient_pressure_target_geometry
+          else MocEulerAmbientBoundaryMarchStatus.BOUNDARY_FAILURE
+        ),
         shock_boundary,
         ambient_pressure,
         samples=samples,
@@ -1262,6 +1664,9 @@ def march_euler_ambient_boundary(
         message=f'exact Euler ambient boundary sample {index} failed: {result.message}',
       )
     ####
+    geometry_target_consumed = bool(
+      geometry_target_consumed or consume_ambient_pressure_target_geometry
+    )
     if result.point_m[0] <= previous_boundary.x_m + position_tolerance:
       return _march_failure(
         MocEulerAmbientBoundaryMarchStatus.GEOMETRY_FAILURE,
@@ -1357,7 +1762,11 @@ def march_euler_ambient_boundary(
       target_source=target_source,
       position_tolerance_m=position_tolerance,
       pressure_tolerance=pressure_tolerance_value,
-      tangent_tolerance=pressure_tolerance_value,
+      tangent_tolerance=(
+        geometry_tolerance
+        if consume_ambient_pressure_target_geometry
+        else pressure_tolerance_value
+      ),
     )
   ####
   if not ambient_boundary.converged:
@@ -1387,7 +1796,7 @@ def march_euler_ambient_boundary(
     ambient_pressure_Pa=ambient_pressure,
     ambient_pressure_target_source=target_source,
     ambient_pressure_target_consumed=ambient_pressure_target is not None,
-    ambient_pressure_target_geometry_consumed=False,
+    ambient_pressure_target_geometry_consumed=geometry_target_consumed,
     boundary_samples=tuple(samples),
     point_results=tuple(point_results),
     ambient_boundary=ambient_boundary,

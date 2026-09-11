@@ -410,12 +410,17 @@ def _check_target_consumption(
     and consumed.composition_mode == 'explicit-overlay'
     and consumed.composition_overlay_source_id == target.source_id
   )
+  global_euler = candidate.global_euler
+  physical_field = None if global_euler is None else global_euler.physical_field
+  ambient_march = (
+    None if physical_field is None else physical_field.ambient_march
+  )
   geometry_consumed = bool(
     target_consumed
-    and candidate.source_pressure_target_geometry_consumed
-    and candidate.source_band.ambient_pressure_target_geometry_consumed
-    and len(consumed.boundary_points_m) == len(consumed.x_stations_m)
-    and len(consumed.tangent_rad) == len(consumed.x_stations_m)
+    and ambient_march is not None
+    and ambient_march.ambient_pressure_target_consumed
+    and ambient_march.ambient_pressure_target_source == consumed.source_id
+    and ambient_march.ambient_pressure_target_geometry_consumed
   )
   return target_consumed, geometry_consumed
 ####

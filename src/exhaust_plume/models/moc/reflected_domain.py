@@ -2721,6 +2721,9 @@ def solve_reflected_domain_global_euler_shock_boundary(
   shock_angle_tolerance_rad: float = 1.0e-8,
   residual_tolerance: float = 1.0e-8,
   maximum_boundary_iterations: int = 16,
+  consume_ambient_pressure_target_geometry: bool = False,
+  ambient_pressure_target_geometry_tolerance_rad: float = 1.0e-6,
+  ambient_pressure_target_geometry_position_tolerance_m: float | None = None,
 ) -> MocReflectedDomainGlobalEulerShockBoundaryResult:
   """Close one bounded global-remesh shock against its source frontier.
 
@@ -3124,6 +3127,15 @@ def solve_reflected_domain_global_euler_shock_boundary(
       pressure_tolerance=pressure_tolerance,
       tangent_tolerance=tangent_tolerance,
       maximum_boundary_iterations=maximum_boundary_iterations,
+      consume_ambient_pressure_target_geometry=(
+        consume_ambient_pressure_target_geometry
+      ),
+      ambient_pressure_target_geometry_tolerance_rad=(
+        ambient_pressure_target_geometry_tolerance_rad
+      ),
+      ambient_pressure_target_geometry_position_tolerance_m=(
+        ambient_pressure_target_geometry_position_tolerance_m
+      ),
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return failure(

@@ -11730,8 +11730,8 @@ def test_global_frontier_fresh_resolve_typed_failure_is_independently_audited():
   assert audit.source_lineage_verified
   assert audit.candidate_identity_verified
   assert audit.candidate_closure_verified is False
-  assert audit.target_consumption_verified is False
-  assert audit.target_geometry_consumption_verified is False
+  assert audit.target_consumption_verified
+  assert audit.target_geometry_consumption_verified
   assert audit.target_coverage_verified is False
   assert audit.target_match_verified is False
   assert audit.promotion_flags_verified

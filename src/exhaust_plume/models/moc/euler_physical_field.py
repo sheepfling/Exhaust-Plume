@@ -391,6 +391,9 @@ def assemble_euler_ambient_physical_field(
   pressure_tolerance: float = 1.0e-8,
   tangent_tolerance: float = 1.0e-8,
   maximum_boundary_iterations: int = 16,
+  consume_ambient_pressure_target_geometry: bool = False,
+  ambient_pressure_target_geometry_tolerance_rad: float = 1.0e-6,
+  ambient_pressure_target_geometry_position_tolerance_m: float | None = None,
 ) -> MocEulerAmbientPhysicalFieldResult:
   """Assemble a reflected exact-Euler field from solver-owned boundaries.
 
@@ -478,6 +481,14 @@ def assemble_euler_ambient_physical_field(
     invariant_tolerance_value = float(invariant_tolerance)
     pressure_tolerance_value = float(pressure_tolerance)
     tangent_tolerance_value = float(tangent_tolerance)
+    geometry_tolerance_value = float(
+      ambient_pressure_target_geometry_tolerance_rad
+    )
+    geometry_position_tolerance_value = (
+      position_tolerance
+      if ambient_pressure_target_geometry_position_tolerance_m is None
+      else float(ambient_pressure_target_geometry_position_tolerance_m)
+    )
   except (TypeError, ValueError):
     return _failure(
       MocEulerAmbientPhysicalFieldStatus.INVALID_INPUT,
@@ -496,6 +507,14 @@ def assemble_euler_ambient_physical_field(
     ('invariant_tolerance', invariant_tolerance_value),
     ('pressure_tolerance', pressure_tolerance_value),
     ('tangent_tolerance', tangent_tolerance_value),
+    (
+      'ambient_pressure_target_geometry_tolerance_rad',
+      geometry_tolerance_value,
+    ),
+    (
+      'ambient_pressure_target_geometry_position_tolerance_m',
+      geometry_position_tolerance_value,
+    ),
   ):
     if not isfinite(value) or value <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
@@ -534,6 +553,16 @@ def assemble_euler_ambient_physical_field(
     )
   ####
   try:
+    field_position_tolerance = (
+      max(position_tolerance, geometry_position_tolerance_value)
+      if consume_ambient_pressure_target_geometry
+      else position_tolerance
+    )
+    field_tangent_tolerance = (
+      max(tangent_tolerance_value, geometry_tolerance_value)
+      if consume_ambient_pressure_target_geometry
+      else tangent_tolerance_value
+    )
     ambient_march = march_euler_ambient_boundary(
       shock_boundary,
       ambient_pressure,
@@ -543,6 +572,15 @@ def assemble_euler_ambient_physical_field(
       invariant_tolerance=invariant_tolerance_value,
       pressure_tolerance=pressure_tolerance_value,
       maximum_iterations=maximum_boundary_iterations,
+      consume_ambient_pressure_target_geometry=(
+        consume_ambient_pressure_target_geometry
+      ),
+      ambient_pressure_target_geometry_tolerance_rad=(
+        ambient_pressure_target_geometry_tolerance_rad
+      ),
+      ambient_pressure_target_geometry_position_tolerance_m=(
+        ambient_pressure_target_geometry_position_tolerance_m
+      ),
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
@@ -590,10 +628,10 @@ def assemble_euler_ambient_physical_field(
       incoming_handoff=(
         resolved_incoming_handoff if incoming_handoff is not None else None
       ),
-      position_tolerance_m=position_tolerance,
+      position_tolerance_m=field_position_tolerance,
       invariant_tolerance=invariant_tolerance_value,
       pressure_tolerance=pressure_tolerance_value,
-      tangent_tolerance=tangent_tolerance_value,
+      tangent_tolerance=field_tangent_tolerance,
       allow_zero_strength_shock_start=(
         shock_boundary.zero_strength_endpoints_allowed
       ),

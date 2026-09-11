@@ -1217,10 +1217,17 @@ def _fresh_resolve_target_consumption(
     == request.frontier_request.source_proposal_fingerprint
     and consumed_target.composition_overlay_source_id == target.source_id
   )
+  global_euler = candidate.global_euler
+  physical_field = None if global_euler is None else global_euler.physical_field
+  ambient_march = (
+    None if physical_field is None else physical_field.ambient_march
+  )
   geometry_consumed = bool(
     target_consumed
-    and candidate.source_pressure_target_geometry_consumed
-    and source_band.ambient_pressure_target_geometry_consumed
+    and ambient_march is not None
+    and ambient_march.ambient_pressure_target_consumed
+    and ambient_march.ambient_pressure_target_source == consumed_target.source_id
+    and ambient_march.ambient_pressure_target_geometry_consumed
   )
   return target_consumed, geometry_consumed
 ####
@@ -1331,11 +1338,15 @@ def solve_reflected_domain_global_frontier_fresh_resolve(
       branch=request.branch,
       shock_angle_tolerance_rad=request.shock_angle_tolerance_rad,
       maximum_boundary_iterations=request.maximum_boundary_iterations,
-      consume_ambient_pressure_target_geometry=True,
+      consume_ambient_pressure_target_geometry=False,
       ambient_pressure_target_geometry_tolerance_rad=(
         request.target_tangent_tolerance_rad
       ),
+      ambient_pressure_target_geometry_position_tolerance_m=(
+        request.target_position_tolerance_m
+      ),
       use_composed_source_pressure_target_for_global_euler=True,
+      consume_ambient_pressure_target_geometry_at_global_boundary=True,
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _fresh_resolve_failure(

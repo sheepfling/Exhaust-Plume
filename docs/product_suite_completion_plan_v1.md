@@ -138,20 +138,27 @@ research-only promotion ceiling.  The separate
 ``moc_global_frontier_fresh_resolve`` audit recomputes those channels from the
 candidate boundary rather than trusting the result summary flags.
 
-The exercised mixed-regime case demonstrates the intended fail-closed
-behavior: the target can reach the fresh source-band attempt, but the current
-geometry-conditioned ambient march returns a typed global-resolve failure
-before a verified downstream boundary is retained.  The audit records that
-candidate failure and rejects a missing/tampered target packet.  No canonical,
-shock-cell, Signature, FPA, or release gate is relaxed by this slice.
+The geometry consumer is now correctly separated by domain.  The downstream
+frontier proposal is not routed into the alternating source-band geometry
+seam; an opt-in exact-Euler ambient-boundary seam consumes the declared target
+curve and tangent without extrapolation while preserving the original
+source-band behavior for callers that do not select it.  The focused regression
+shows that the fresh candidate reaches both pressure-target and geometry-target
+consumption.  On the exercised mixed-regime case, the candidate then stops at
+the explicit physical-field perimeter/topology gate, so no verified downstream
+boundary is retained.  The independent audit records the candidate failure,
+target lineage, and target consumption, and rejects a missing or tampered
+target packet.  No canonical, shock-cell, Signature, FPA, or release gate is
+relaxed by this slice.
 
-Current next action: isolate and fix the geometry-conditioned ambient-march
-failure on the declared case/refinement ladder, then require a successful
-fresh candidate plus independent residual descent before adding a bounded
-outer feedback iteration.  The existing two-sided directional line-search
-(``4a62e6b``) and the new fresh-consumer result are research evidence only;
-they must not be used to mark canonical closure, physical shock cells,
-Signature production, FPA production, or release readiness.
+Current next action: close the explicit shock/ambient/centerline perimeter
+topology for the geometry-conditioned physical field, then require a
+successful fresh candidate plus independent residual descent on the declared
+case/refinement ladder before adding a bounded outer feedback iteration.  The
+existing two-sided directional line-search (``4a62e6b``) and the fresh
+consumer remain research evidence only; they must not be used to mark
+canonical closure, physical shock cells, Signature production, FPA production,
+or release readiness.
 
 ## Operating protocol
 
@@ -5505,3 +5512,31 @@ solver evidence, not canonical closure: the residual path remains
 research-only and promotion-blocked, and the physical free-boundary,
 multi-case refinement, shock-cell, provider-validation, archive, and release
 gates remain open.
+
+### P2.2 exact-Euler downstream geometry seam checkpoint — 2026-09-11
+
+The fresh global consumer now has a separate opt-in
+``consume_ambient_pressure_target_geometry_at_global_boundary`` seam.  A
+frontier proposal's boundary points and tangents are consumed by the exact
+Euler ambient march itself, while the existing alternating source-band
+geometry consumer remains unchanged and is not used for this downstream
+target.  The new seam enforces target coverage, solves the incoming ``C+``
+characteristic against the target pressure, checks target and state tangency,
+and returns typed failure without projection or extrapolation when the curve
+cannot be reached.
+
+The independent fresh-resolve audit now remeasures target consumption from the
+nested global Euler ambient march rather than from source-band flags.  The
+solver-generated-target regression passes, the focused global-frontier suite
+passes (``13 passed``), the ambient/Euler validation tranche passes (``39
+passed``), and the complete reflected-domain suite passes (``194 passed``).
+On the exercised mixed-regime case, pressure and geometry are consumed, but
+the subsequent exact physical-field assembly still fails closed because the
+coupled field lacks an explicit shock/ambient/centerline perimeter topology.
+The candidate therefore remains research-only with all promotion flags closed.
+
+The next P2.2 packet is the perimeter/topology closure and its independent
+audit, followed by a stable case/resolution ladder and strict conservative
+residual descent.  This checkpoint does not authorize canonical mixed-regime
+closure, physical shock-cell fitting, Signature/FPA production, provider
+validation, or release tagging.
