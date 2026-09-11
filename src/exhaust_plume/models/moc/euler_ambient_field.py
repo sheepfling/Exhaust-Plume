@@ -1066,7 +1066,8 @@ def _solve_ambient_geometry_target_point(
   *,
   total_pressure_Pa: float,
   target: MocPhysicalFieldEulerBoundaryPressureTarget,
-  position_tolerance_m: float,
+  target_position_tolerance_m: float,
+  characteristic_position_tolerance_m: float,
   pressure_tolerance: float,
   tangent_tolerance_rad: float,
   maximum_iterations: int,
@@ -1076,7 +1077,10 @@ def _solve_ambient_geometry_target_point(
   if not isfinite(total_pressure_Pa) or total_pressure_Pa <= 0.0:
     raise ValueError('total_pressure_Pa must be finite and positive')
   ####
-  lower_x = max(incoming.x_m, previous_boundary.x_m) + position_tolerance_m
+  lower_x = (
+    max(incoming.x_m, previous_boundary.x_m)
+    + characteristic_position_tolerance_m
+  )
   upper_x = target.x_stations_m[-1]
   if upper_x <= lower_x:
     return MocFreeBoundaryPointResult(
@@ -1099,18 +1103,18 @@ def _solve_ambient_geometry_target_point(
     geometry = _interpolate_geometry_target(
       target,
       x_m,
-      position_tolerance_m=position_tolerance_m,
+      position_tolerance_m=target_position_tolerance_m,
     )
     if geometry is None:
       return None
     ####
     point, target_tangent = geometry
-    if abs(point[0] - x_m) > position_tolerance_m:
+    if abs(point[0] - x_m) > target_position_tolerance_m:
       return None
     ####
     target_pressure = target.pressure_at_x(
       x_m,
-      position_tolerance_m=position_tolerance_m,
+      position_tolerance_m=target_position_tolerance_m,
     )
     if target_pressure is None or target_pressure <= 0.0:
       return None
@@ -1193,8 +1197,9 @@ def _solve_ambient_geometry_target_point(
   def accepted(evaluation: _GeometryTargetBoundaryEvaluation) -> bool:
     return bool(
       abs(pressure_residual(evaluation)) <= pressure_tolerance
-      and evaluation.characteristic_residual_m <= position_tolerance_m
-      and evaluation.boundary_residual_m <= position_tolerance_m
+      and evaluation.characteristic_residual_m
+      <= characteristic_position_tolerance_m
+      and evaluation.boundary_residual_m <= characteristic_position_tolerance_m
       and evaluation.target_tangent_residual_rad <= tangent_tolerance_rad
       and evaluation.state_tangent_residual_rad <= tangent_tolerance_rad
     )
@@ -1234,7 +1239,7 @@ def _solve_ambient_geometry_target_point(
     )
   ####
 
-  scan_count = max(8, min(64, maximum_iterations * 4))
+  scan_count = max(64, min(256, maximum_iterations * 8))
   previous_x: float | None = None
   previous_evaluation: _GeometryTargetBoundaryEvaluation | None = None
   best: _GeometryTargetBoundaryEvaluation | None = None
@@ -1269,7 +1274,7 @@ def _solve_ambient_geometry_target_point(
       bracket_lower = previous_x
       bracket_upper = x_value
       bracket_evaluation = previous_evaluation
-      for iteration in range(1, maximum_iterations + 1):
+      for iteration in range(1, max(64, maximum_iterations) + 1):
         midpoint = 0.5 * (bracket_lower + bracket_upper)
         midpoint_evaluation = evaluate(midpoint)
         if midpoint_evaluation is None:
@@ -1619,7 +1624,8 @@ def march_euler_ambient_boundary(
         previous_boundary,
         total_pressure_Pa=float(total_pressure),
         target=ambient_pressure_target,
-        position_tolerance_m=geometry_position_tolerance,
+        target_position_tolerance_m=geometry_position_tolerance,
+        characteristic_position_tolerance_m=position_tolerance,
         pressure_tolerance=pressure_tolerance_value,
         tangent_tolerance_rad=geometry_tolerance,
         maximum_iterations=maximum_iterations,

@@ -2319,6 +2319,7 @@ def assemble_ambient_boundary_post_shock_field(
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   centerline_reflection: bool = False,
   position_tolerance_m: float = 1.0e-10,
+  topology_position_tolerance_m: float | None = None,
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
   tangent_tolerance: float = 1.0e-8,
@@ -2345,6 +2346,10 @@ def assemble_ambient_boundary_post_shock_field(
   require strict total-pressure loss.
   ``allow_zero_strength_endpoints`` additionally permits the final centerline
   sample to use the same endpoint model; all interior samples remain strict.
+  ``topology_position_tolerance_m`` is an optional, independent coordinate
+  identity tolerance for mesh edge matching.  It allows a caller to use a
+  wider numerical residual tolerance without merging distinct perimeter
+  edges.
   """
 
   if not isinstance(shock_fit, MocShockBoundaryFitResult):
@@ -2383,6 +2388,12 @@ def assemble_ambient_boundary_post_shock_field(
   ####
   for name, value in (
     ('position_tolerance_m', position_tolerance_m),
+    (
+      'topology_position_tolerance_m',
+      position_tolerance_m
+      if topology_position_tolerance_m is None
+      else topology_position_tolerance_m,
+    ),
     ('invariant_tolerance', invariant_tolerance),
     ('pressure_tolerance', pressure_tolerance),
     ('tangent_tolerance', tangent_tolerance),
@@ -2391,6 +2402,11 @@ def assemble_ambient_boundary_post_shock_field(
       raise ValueError(f'{name} must be finite and positive')
     ####
   ####
+  topology_position_tolerance = (
+    float(position_tolerance_m)
+    if topology_position_tolerance_m is None
+    else float(topology_position_tolerance_m)
+  )
   try:
     incoming_samples = () if incoming_handoff is None else tuple(incoming_handoff)
   except TypeError:
@@ -3099,11 +3115,23 @@ def assemble_ambient_boundary_post_shock_field(
     )
   ####
 
-  edge_counts = _edge_counts(cells, position_tolerance_m)
+  edge_counts = _edge_counts(cells, topology_position_tolerance)
   if not (
-    _path_edges_present(shock_points, edge_counts, position_tolerance_m)
-    and _path_edges_present(ambient_points, edge_counts, position_tolerance_m)
-    and _path_edges_present(axis_points, edge_counts, position_tolerance_m)
+    _path_edges_present(
+      shock_points,
+      edge_counts,
+      topology_position_tolerance,
+    )
+    and _path_edges_present(
+      ambient_points,
+      edge_counts,
+      topology_position_tolerance,
+    )
+    and _path_edges_present(
+      axis_points,
+      edge_counts,
+      topology_position_tolerance,
+    )
   ):
     return _failure(
       MocPhysicalPostShockFieldStatus.GEOMETRY_FAILURE,
@@ -3220,6 +3248,7 @@ def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
   ambient_pressure_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
   incoming_handoff: Sequence[MocChainBoundarySample] | None = None,
   position_tolerance_m: float = 1.0e-10,
+  topology_position_tolerance_m: float | None = None,
   invariant_tolerance: float = 1.0e-10,
   pressure_tolerance: float = 1.0e-8,
   tangent_tolerance: float = 1.0e-8,
@@ -3245,6 +3274,7 @@ def assemble_ambient_boundary_post_shock_field_with_centerline_reflection(
     incoming_handoff=incoming_handoff,
     centerline_reflection=True,
     position_tolerance_m=position_tolerance_m,
+    topology_position_tolerance_m=topology_position_tolerance_m,
     invariant_tolerance=invariant_tolerance,
     pressure_tolerance=pressure_tolerance,
     tangent_tolerance=tangent_tolerance,

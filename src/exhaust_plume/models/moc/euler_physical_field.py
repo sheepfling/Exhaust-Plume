@@ -629,6 +629,7 @@ def assemble_euler_ambient_physical_field(
         resolved_incoming_handoff if incoming_handoff is not None else None
       ),
       position_tolerance_m=field_position_tolerance,
+      topology_position_tolerance_m=position_tolerance,
       invariant_tolerance=invariant_tolerance_value,
       pressure_tolerance=pressure_tolerance_value,
       tangent_tolerance=field_tangent_tolerance,

@@ -144,18 +144,18 @@ seam; an opt-in exact-Euler ambient-boundary seam consumes the declared target
 curve and tangent without extrapolation while preserving the original
 source-band behavior for callers that do not select it.  The focused regression
 shows that the fresh candidate reaches both pressure-target and geometry-target
-consumption.  On the exercised mixed-regime case, the candidate then stops at
-the explicit physical-field perimeter/topology gate, so no verified downstream
-boundary is retained.  The independent audit records the candidate failure,
-target lineage, and target consumption, and rejects a missing or tampered
-target packet.  No canonical, shock-cell, Signature, FPA, or release gate is
-relaxed by this slice.
+consumption.  The conditioned exact physical field now also closes its
+explicit shock/ambient/centerline perimeter: topology identity uses a separate
+tight edge-key tolerance, while characteristic intersection solving remains
+tight independently of the broader target-curve coverage tolerance.  The
+exercised mixed-regime case therefore retains a fresh closed research field
+and passes the independent fresh-resolve audit.  Global coupling, downstream
+fixed-point closure, and every product promotion gate remain closed.
 
-Current next action: close the explicit shock/ambient/centerline perimeter
-topology for the geometry-conditioned physical field, then require a
-successful fresh candidate plus independent residual descent on the declared
-case/refinement ladder before adding a bounded outer feedback iteration.  The
-existing two-sided directional line-search (``4a62e6b``) and the fresh
+Current next action: run the successful fresh consumer across the declared
+case/refinement ladder and require strict independent mass, normal-momentum,
+and energy residual descent before adding or widening bounded outer feedback.
+The existing two-sided directional line-search (``4a62e6b``) and the fresh
 consumer remain research evidence only; they must not be used to mark
 canonical closure, physical shock cells, Signature production, FPA production,
 or release readiness.
@@ -5535,8 +5535,36 @@ the subsequent exact physical-field assembly still fails closed because the
 coupled field lacks an explicit shock/ambient/centerline perimeter topology.
 The candidate therefore remains research-only with all promotion flags closed.
 
-The next P2.2 packet is the perimeter/topology closure and its independent
-audit, followed by a stable case/resolution ladder and strict conservative
-residual descent.  This checkpoint does not authorize canonical mixed-regime
-closure, physical shock-cell fitting, Signature/FPA production, provider
-validation, or release tagging.
+This checkpoint does not authorize canonical mixed-regime closure, physical
+shock-cell fitting, Signature/FPA production, provider validation, or release
+tagging.
+
+### P2.2 exact-Euler conditioned perimeter closure checkpoint — 2026-09-11
+
+The exact-Euler frontier consumer now closes the conditioned physical field
+without conflating target-curve tolerance with mesh edge identity.  The
+physical-cell assembler accepts a separate topology coordinate tolerance, and
+the target-boundary solver independently drives characteristic and boundary
+intersection residuals to the strict field tolerance while retaining the
+declared target coverage/tangent tolerance for interpolation.  This prevents
+nearby shock edges from being merged and prevents millimeter-level target
+intersections from being called physical closure.
+
+The solver-generated exact-target physical-field regression passes with every
+immutable physical closure gate true.  The actual mixed-regime fresh consumer
+now reaches a converged research closure; its independent audit passes target
+lineage, pressure/geometry consumption, candidate identity, coverage, target
+match, and promotion-block checks.  The ambient/Euler/physical-cell tranche
+passes (``87 passed``), the focused fresh-resolve regression passes, and the
+complete reflected-domain suite passes (``194 passed``).
+
+This is a real solver-closure advance, but not canonical production physics:
+the fresh result has not yet demonstrated strict conservative residual descent
+on a multi-case/multi-resolution ladder or a downstream fixed point.  Physical
+shock-cell fitting, provider-bound Visualization/Signature/FPA validation,
+missing validation archives, and release gates remain open.
+
+The next implementation packet is the fresh-resolve case/refinement ladder
+with independent signed mass, normal-momentum, and energy measurements.  Only
+after that evidence passes may a bounded outer feedback iteration consume the
+fresh result.

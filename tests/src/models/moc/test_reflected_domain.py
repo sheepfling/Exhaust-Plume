@@ -11639,7 +11639,7 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
 ####
 
 
-def test_global_frontier_fresh_resolve_typed_failure_is_independently_audited():
+def test_global_frontier_fresh_resolve_is_independently_audited():
   closure = _global_physical_closure_for_mixed_regime()
   handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
     closure
@@ -11719,21 +11719,21 @@ def test_global_frontier_fresh_resolve_typed_failure_is_independently_audited():
   assert fresh.downstream_boundary_closure_verified is False
   assert fresh.chain_promotion_blocked
   assert fresh.production_claim_allowed is False
-  assert fresh.converged_research_resolve is False
+  assert fresh.converged_research_resolve
   audit = audit_reflected_domain_global_frontier_fresh_resolve(fresh)
   assert audit.status is (
     MocReflectedDomainGlobalFrontierFreshResolveAuditStatus
-    .CANDIDATE_FAILURE
+    .AUDITED_RESEARCH_RESOLVE
   )
-  assert audit.audited_research_resolve is False
+  assert audit.audited_research_resolve
   assert audit.target_packet_verified
   assert audit.source_lineage_verified
   assert audit.candidate_identity_verified
-  assert audit.candidate_closure_verified is False
+  assert audit.candidate_closure_verified
   assert audit.target_consumption_verified
   assert audit.target_geometry_consumption_verified
-  assert audit.target_coverage_verified is False
-  assert audit.target_match_verified is False
+  assert audit.target_coverage_verified
+  assert audit.target_match_verified
   assert audit.promotion_flags_verified
   assert audit.production_claim_allowed is False
   tampered_audit = audit_reflected_domain_global_frontier_fresh_resolve(

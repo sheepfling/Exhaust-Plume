@@ -298,7 +298,7 @@ def test_exact_ambient_physical_field_closes_local_mesh_but_stops_chain() -> Non
 ####
 
 
-def test_exact_ambient_boundary_consumes_solver_generated_geometry_target() -> None:
+def test_exact_ambient_physical_field_consumes_solver_generated_geometry_target() -> None:
   shock = _shaped_exact_shock()
   baseline = march_euler_ambient_boundary(
     shock,
@@ -314,7 +314,7 @@ def test_exact_ambient_boundary_consumes_solver_generated_geometry_target() -> N
     source_id='test-solver-generated-ambient-geometry-target',
   )
 
-  conditioned = march_euler_ambient_boundary(
+  conditioned = assemble_euler_ambient_physical_field(
     shock,
     shock.downstream_static_pressure_Pa[0],
     ambient_pressure_target=target,
@@ -323,11 +323,16 @@ def test_exact_ambient_boundary_consumes_solver_generated_geometry_target() -> N
     ambient_pressure_target_geometry_position_tolerance_m=5.0e-3,
   )
 
-  assert conditioned.status is MocEulerAmbientBoundaryMarchStatus.CONVERGED
+  assert conditioned.status is (
+    MocEulerAmbientPhysicalFieldStatus.CONVERGED_AMBIENT_CLOSED
+  )
   assert conditioned.converged
-  assert conditioned.ambient_pressure_target_consumed
-  assert conditioned.ambient_pressure_target_geometry_consumed
-  assert conditioned.physical_closure_verified is False
+  assert conditioned.ambient_march is not None
+  assert conditioned.field is not None
+  assert conditioned.ambient_march.ambient_pressure_target_consumed
+  assert conditioned.ambient_march.ambient_pressure_target_geometry_consumed
+  assert conditioned.physical_closure_verified
+  assert all(conditioned.field.physical_closure_gates.values())
   assert conditioned.chain_promotion_blocked
   assert conditioned.production_claim_allowed is False
 ####
