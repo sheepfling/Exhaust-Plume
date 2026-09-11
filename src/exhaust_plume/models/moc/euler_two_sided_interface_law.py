@@ -27,6 +27,9 @@ from exhaust_plume.models.moc.euler_characteristic_field import (
   assemble_euler_consistent_companion_characteristic_strip,
   solve_euler_ambient_companion_boundary_reference,
 )
+from exhaust_plume.models.moc.euler_physical_field import (
+  MocEulerAmbientPhysicalFieldResult,
+)
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryCurveResult,
   fit_euler_consistent_shock_boundary_from_geometry,
@@ -207,6 +210,14 @@ class MocEulerTwoSidedInterfaceLawRequest:
   source_band: MocReflectedDomainAlternatingSourceResult
   reference_total_temperature_K: float
   gas_constant_J_kgK: float = 287.05
+  # An optional exact physical field supplied by a higher-level global
+  # closure.  It is used only while its shock-boundary object is the current
+  # response boundary; after an accepted front update, the exact field
+  # re-solve becomes the downstream source again.
+  downstream_physical_field: MocEulerAmbientPhysicalFieldResult | None = None
+  downstream_physical_field_source: str = (
+    'solver-owned-two-sided-field-iteration'
+  )
   pseudo_time_step_s: float = 1.0e-8
   relaxation: float = 0.5
   maximum_normal_displacement_m: float = 1.0e-3
@@ -248,6 +259,21 @@ class MocEulerTwoSidedInterfaceLawRequest:
         'source_band must pass its independent source-field gates before it '
         'can drive a moving-interface response'
       )
+    ####
+    if self.downstream_physical_field is not None and not isinstance(
+      self.downstream_physical_field,
+      MocEulerAmbientPhysicalFieldResult,
+    ):
+      raise TypeError(
+        'downstream_physical_field must be a '
+        'MocEulerAmbientPhysicalFieldResult or None'
+      )
+    ####
+    downstream_source = str(self.downstream_physical_field_source)
+    if not downstream_source:
+      raise ValueError('downstream_physical_field_source must be non-empty')
+    ####
+    object.__setattr__(self, 'downstream_physical_field_source', downstream_source)
     ####
     if not isinstance(self.branch, ShockBranch):
       raise TypeError('branch must be a ShockBranch')
@@ -305,6 +331,10 @@ class MocEulerTwoSidedInterfaceLawRequest:
       'source_field_verified': self.source_band.source_field_verified,
       'reference_total_temperature_K': self.reference_total_temperature_K,
       'gas_constant_J_kgK': self.gas_constant_J_kgK,
+      'downstream_physical_field_supplied': (
+        self.downstream_physical_field is not None
+      ),
+      'downstream_physical_field_source': self.downstream_physical_field_source,
       'pseudo_time_step_s': self.pseudo_time_step_s,
       'relaxation': self.relaxation,
       'maximum_normal_displacement_m': self.maximum_normal_displacement_m,
@@ -348,6 +378,8 @@ class MocEulerTwoSidedInterfaceLawResult:
   interface_motion_verified: bool = False
   stationary_equilibrium_candidate: bool = False
   conservative_flux_closure_verified: bool = False
+  downstream_field_source: str = 'unavailable'
+  downstream_field_lineage_verified: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -425,9 +457,14 @@ class MocEulerTwoSidedInterfaceLawResult:
       'interface_motion_verified',
       'stationary_equilibrium_candidate',
       'conservative_flux_closure_verified',
+      'downstream_field_lineage_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+    ####
+    downstream_source = str(self.downstream_field_source)
+    if not downstream_source:
+      raise ValueError('downstream_field_source must be non-empty')
     ####
     if self.status is MocEulerTwoSidedInterfaceLawStatus.RESPONSE_READY and (
       self.response is None
@@ -458,6 +495,7 @@ class MocEulerTwoSidedInterfaceLawResult:
       tuple(float(value) for value in self.downstream_probe_total_pressure_Pa),
     )
     object.__setattr__(self, 'message', str(self.message))
+    object.__setattr__(self, 'downstream_field_source', downstream_source)
   ####
 
   @property
@@ -487,6 +525,8 @@ class MocEulerTwoSidedInterfaceLawResult:
       'conservative_flux_closure_verified': (
         self.conservative_flux_closure_verified
       ),
+      'downstream_field_source': self.downstream_field_source,
+      'downstream_field_lineage_verified': self.downstream_field_lineage_verified,
       'probe_points_m': self.probe_points_m,
       'probe_normals': self.probe_normals,
       'interface_normal_speeds_m_s': self.interface_normal_speeds_m_s,
@@ -805,6 +845,44 @@ def build_solver_owned_euler_two_sided_interface_response(
       current_field_iteration=current_field_iteration,
     )
   ####
+  downstream_field_source = 'solver-owned-two-sided-field-iteration'
+  downstream_field_lineage_verified = True
+  configured_physical = request.downstream_physical_field
+  if configured_physical is not None:
+    # The higher-level global closure may seed the first response with its
+    # exact physical field.  Once the front moves, the current field iteration
+    # owns the new geometry and the seed is intentionally not projected onto
+    # it; the next exact re-solve supplies the downstream probes instead.
+    if configured_physical.shock_boundary is shock:
+      if (
+        not configured_physical.physical_field_verified
+        or configured_physical.field is None
+      ):
+        return _failure(
+          MocEulerTwoSidedInterfaceLawStatus.DOWNSTREAM_FIELD_REQUIRED,
+          'configured downstream physical field retained the exact shock '
+          'object but did not pass its physical-field gates',
+          request=request,
+          current_field_iteration=current_field_iteration,
+          downstream_field_lineage_verified=False,
+        )
+      ####
+      physical = configured_physical
+      field = configured_physical.field
+      downstream_field_source = request.downstream_physical_field_source
+    else:
+      downstream_field_source = 'solver-owned-two-sided-field-re-solve'
+    ####
+  if field is None:
+    return _failure(
+      MocEulerTwoSidedInterfaceLawStatus.DOWNSTREAM_FIELD_REQUIRED,
+      'selected downstream physical field did not retain a bounded mesh',
+      request=request,
+      current_field_iteration=current_field_iteration,
+      downstream_field_source=downstream_field_source,
+      downstream_field_lineage_verified=False,
+    )
+  ####
   if not request.source_band.source_field_verified:
     return _failure(
       MocEulerTwoSidedInterfaceLawStatus.SOURCE_FIELD_REQUIRED,
@@ -847,6 +925,8 @@ def build_solver_owned_euler_two_sided_interface_response(
       request=request,
       current_field_iteration=current_field_iteration,
       source_lineage_verified=True,
+      downstream_field_source=downstream_field_source,
+      downstream_field_lineage_verified=downstream_field_lineage_verified,
     )
   ####
   next_points: list[tuple[float, float]] = []
@@ -958,6 +1038,8 @@ def build_solver_owned_euler_two_sided_interface_response(
       downstream_probe_total_pressure_Pa=tuple(
         probe.total_pressure_Pa for probe in probes
       ),
+      downstream_field_source=downstream_field_source,
+      downstream_field_lineage_verified=downstream_field_lineage_verified,
     )
   ####
   conservative_flux_closure_verified = bool(
@@ -989,6 +1071,8 @@ def build_solver_owned_euler_two_sided_interface_response(
         probe.total_pressure_Pa for probe in probes
       ),
       conservative_flux_closure_verified=False,
+      downstream_field_source=downstream_field_source,
+      downstream_field_lineage_verified=downstream_field_lineage_verified,
     )
   ####
   points = tuple(next_points)
@@ -1022,6 +1106,8 @@ def build_solver_owned_euler_two_sided_interface_response(
         probe.total_pressure_Pa for probe in probes
       ),
       endpoint_constraints_applied=True,
+      downstream_field_source=downstream_field_source,
+      downstream_field_lineage_verified=downstream_field_lineage_verified,
     )
   ####
   try:
@@ -1067,6 +1153,8 @@ def build_solver_owned_euler_two_sided_interface_response(
         probe.total_pressure_Pa for probe in probes
       ),
       endpoint_constraints_applied=True,
+      downstream_field_source=downstream_field_source,
+      downstream_field_lineage_verified=downstream_field_lineage_verified,
     )
   ####
   if not next_shock.converged or not next_shock.local_euler_verified:
@@ -1087,6 +1175,8 @@ def build_solver_owned_euler_two_sided_interface_response(
         probe.total_pressure_Pa for probe in probes
       ),
       endpoint_constraints_applied=True,
+      downstream_field_source=downstream_field_source,
+      downstream_field_lineage_verified=downstream_field_lineage_verified,
     )
   ####
   ambient_pressure = request.source_band.ambient_pressure_Pa
@@ -1212,6 +1302,8 @@ def build_solver_owned_euler_two_sided_interface_response(
     law_id=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    downstream_field_source=downstream_field_source,
+    downstream_field_lineage_verified=downstream_field_lineage_verified,
   )
   result_status = (
     MocEulerTwoSidedInterfaceLawStatus.RESPONSE_READY
@@ -1238,6 +1330,8 @@ def build_solver_owned_euler_two_sided_interface_response(
     interface_motion_verified=motion_verified,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    downstream_field_source=downstream_field_source,
+    downstream_field_lineage_verified=downstream_field_lineage_verified,
     message=(
       'solver-owned Rankine--Hugoniot front response built from the retained '
       'upstream source band and downstream physical cell probes; the regenerated '

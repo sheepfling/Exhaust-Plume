@@ -24,6 +24,9 @@ from exhaust_plume.models.moc.euler_characteristic_field import (
 from exhaust_plume.models.moc.euler_two_sided_field_iteration import (
   MocEulerTwoSidedFieldIterationRequest,
 )
+from exhaust_plume.models.moc.euler_physical_field import (
+  MocEulerAmbientPhysicalFieldResult,
+)
 from exhaust_plume.models.moc.euler_two_sided_interface_law import (
   MocEulerTwoSidedInterfaceLawRequest,
   solve_euler_two_sided_moving_interface_with_solver_owned_law,
@@ -73,6 +76,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus(str, Enum):
   SHOCK_BOUNDARY_REQUIRED = 'global-two-sided-shock-boundary-required'
   COMPANION_BOUNDARY_FAILURE = 'global-two-sided-companion-boundary-failure'
   COMPANION_FIELD_FAILURE = 'global-two-sided-companion-field-failure'
+  GLOBAL_PHYSICAL_FIELD_FAILURE = 'global-two-sided-global-physical-field-failure'
   MOVING_INTERFACE_FAILURE = 'global-two-sided-moving-interface-failure'
   INDEPENDENT_AUDIT_FAILURE = 'global-two-sided-independent-audit-failure'
 
@@ -150,6 +154,11 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
   require_conservative_flux_closure: bool = False
   require_terminal_fixed_point: bool = False
   use_conservative_residual_line_search: bool = False
+  # The default two-sided lane assembles its own downstream research field.
+  # The global state-feedback lane may opt into an exact global physical-field
+  # seed for its first downstream probe, with identity checks and no geometry
+  # projection after the front moves.
+  consume_global_physical_field_for_downstream_probes: bool = False
   maximum_residual_backtracks: int = 5
   residual_backtrack_factor: float = 0.5
   minimum_residual_step_fraction: float = 1.0e-2
@@ -272,6 +281,13 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
     ####
     if not isinstance(self.use_conservative_residual_line_search, bool):
       raise TypeError('use_conservative_residual_line_search must be a bool')
+    if not isinstance(
+      self.consume_global_physical_field_for_downstream_probes,
+      bool,
+    ):
+      raise TypeError(
+        'consume_global_physical_field_for_downstream_probes must be a bool'
+      )
     if not isinstance(self.require_strict_residual_descent, bool):
       raise TypeError('require_strict_residual_descent must be a bool')
     if not isinstance(
@@ -328,6 +344,9 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'use_conservative_residual_line_search': (
         self.use_conservative_residual_line_search
       ),
+      'consume_global_physical_field_for_downstream_probes': (
+        self.consume_global_physical_field_for_downstream_probes
+      ),
       'maximum_residual_backtracks': self.maximum_residual_backtracks,
       'residual_backtrack_factor': self.residual_backtrack_factor,
       'minimum_residual_step_fraction': self.minimum_residual_step_fraction,
@@ -366,6 +385,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
   moving_audit: Any | None = None
   joint_audit: Any | None = None
   moving_fixed_point_audit: Any | None = None
+  global_physical_field_consumed: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -415,6 +435,9 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
         'conservative_residual_result must be a typed residual-solve result '
         'or None'
       )
+    ####
+    if not isinstance(self.global_physical_field_consumed, bool):
+      raise TypeError('global_physical_field_consumed must be a bool')
     ####
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -522,6 +545,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
         )
         else self.moving_fixed_point_audit.as_report()
       ),
+      'global_physical_field_consumed': self.global_physical_field_consumed,
       'request': None if self.request is None else self.request.as_report(),
       'physical_closure_verified': self.physical_closure_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -548,6 +572,45 @@ def _failure(
     message=message,
     **kwargs,
   )
+####
+
+
+_GLOBAL_PHYSICAL_FIELD_SOURCE = 'global-closure-physical-field-v1'
+
+
+def _global_physical_field_was_consumed(
+  moving_result: MocEulerTwoSidedMovingInterfaceResult | None,
+  conservative_residual_result: (
+    MocEulerTwoSidedConservativeResidualSolveResult | None
+  ),
+) -> bool:
+  """Check retained response packets for exact global-field consumption."""
+
+  responses: list[Any] = []
+  if moving_result is not None:
+    responses.extend(
+      record.response
+      for record in moving_result.records
+      if record.response is not None
+    )
+  if conservative_residual_result is not None:
+    if conservative_residual_result.final_response is not None:
+      responses.append(conservative_residual_result.final_response)
+    for record in conservative_residual_result.records:
+      if record.response is not None:
+        responses.append(record.response)
+      if record.measured_response is not None:
+        responses.append(record.measured_response)
+  return any(
+    bool(
+      getattr(response, 'downstream_field_lineage_verified', False)
+      and getattr(response, 'downstream_field_source', None)
+      == _GLOBAL_PHYSICAL_FIELD_SOURCE
+    )
+    for response in responses
+  )
+
+
 ####
 
 
@@ -599,6 +662,27 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       request,
       'global closure did not retain a locally Euler-verified shock boundary',
     )
+  ####
+  global_physical_field: MocEulerAmbientPhysicalFieldResult | None = None
+  if request.consume_global_physical_field_for_downstream_probes:
+    candidate_global_physical_field = global_euler.physical_field
+    if not (
+      isinstance(candidate_global_physical_field, MocEulerAmbientPhysicalFieldResult)
+      and candidate_global_physical_field.physical_field_verified
+      and candidate_global_physical_field.field is not None
+      and candidate_global_physical_field.shock_boundary is shock_boundary
+    ):
+      return _failure(
+        MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+        .GLOBAL_PHYSICAL_FIELD_FAILURE,
+        request,
+        'global downstream-probe mode requires the closure-owned physical '
+        'field to retain the exact shock boundary object and pass its local '
+        'physical-field gates; no separate field was substituted',
+        shock_boundary=shock_boundary,
+      )
+    ####
+    global_physical_field = candidate_global_physical_field
   ####
   ambient_pressure = source_band.ambient_pressure_Pa
   if ambient_pressure is None:
@@ -693,6 +777,8 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       source_band=source_band,
       reference_total_temperature_K=request.reference_total_temperature_K,
       gas_constant_J_kgK=request.gas_constant_J_kgK,
+      downstream_physical_field=global_physical_field,
+      downstream_physical_field_source=_GLOBAL_PHYSICAL_FIELD_SOURCE,
       pseudo_time_step_s=request.pseudo_time_step_s,
       relaxation=request.relaxation,
       maximum_normal_displacement_m=request.maximum_normal_displacement_m,
@@ -763,6 +849,10 @@ def solve_reflected_domain_global_two_sided_moving_interface(
   ####
   if request.use_conservative_residual_line_search:
     assert conservative_residual_result is not None
+    global_physical_field_consumed = _global_physical_field_was_consumed(
+      None,
+      conservative_residual_result,
+    )
     try:
       from exhaust_plume.validation.moc_euler_two_sided_conservative_residual import (
         measure_moc_euler_two_sided_conservative_residual,
@@ -782,6 +872,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
         companion_boundary=companion_boundary,
         companion_field=companion_field,
         conservative_residual_result=conservative_residual_result,
+        global_physical_field_consumed=global_physical_field_consumed,
       )
     ####
     if not conservative_residual_result.converged:
@@ -795,6 +886,22 @@ def solve_reflected_domain_global_two_sided_moving_interface(
         companion_field=companion_field,
         conservative_residual_result=conservative_residual_result,
         conservative_residual_audit=conservative_residual_audit,
+        global_physical_field_consumed=global_physical_field_consumed,
+      )
+    ####
+    if request.consume_global_physical_field_for_downstream_probes and not global_physical_field_consumed:
+      return _failure(
+        MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+        .INDEPENDENT_AUDIT_FAILURE,
+        request,
+        'global downstream-probe mode reached the residual solver without '
+        'retaining a response sourced from the exact closure-owned physical field',
+        shock_boundary=shock_boundary,
+        companion_boundary=companion_boundary,
+        companion_field=companion_field,
+        conservative_residual_result=conservative_residual_result,
+        conservative_residual_audit=conservative_residual_audit,
+        global_physical_field_consumed=False,
       )
     ####
     if not conservative_residual_audit.converged:
@@ -809,6 +916,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
         companion_field=companion_field,
         conservative_residual_result=conservative_residual_result,
         conservative_residual_audit=conservative_residual_audit,
+        global_physical_field_consumed=global_physical_field_consumed,
       )
     ####
     return MocReflectedDomainGlobalTwoSidedMovingInterfaceResult(
@@ -822,6 +930,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       companion_field=companion_field,
       conservative_residual_result=conservative_residual_result,
       conservative_residual_audit=conservative_residual_audit,
+      global_physical_field_consumed=global_physical_field_consumed,
       message=(
         'global closure fed the solver-owned signed conservative residual '
         'line-search and exact field re-solves; the result is research-only '
@@ -831,6 +940,10 @@ def solve_reflected_domain_global_two_sided_moving_interface(
     )
   ####
   assert moving_result is not None
+  global_physical_field_consumed = _global_physical_field_was_consumed(
+    moving_result,
+    None,
+  )
   try:
     from exhaust_plume.validation.moc_euler_two_sided_interface_field_joint_closure import (
       measure_moc_euler_two_sided_interface_field_joint_closure,
@@ -858,6 +971,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       companion_boundary=companion_boundary,
       companion_field=companion_field,
       moving_result=moving_result,
+      global_physical_field_consumed=global_physical_field_consumed,
     )
   ####
   if not moving_result.converged:
@@ -873,6 +987,24 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       moving_audit=moving_audit,
       joint_audit=joint_audit,
       moving_fixed_point_audit=moving_fixed_point_audit,
+      global_physical_field_consumed=global_physical_field_consumed,
+    )
+  ####
+  if request.consume_global_physical_field_for_downstream_probes and not global_physical_field_consumed:
+    return _failure(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+      .INDEPENDENT_AUDIT_FAILURE,
+      request,
+      'global downstream-probe mode reached the moving solver without '
+      'retaining a response sourced from the exact closure-owned physical field',
+      shock_boundary=shock_boundary,
+      companion_boundary=companion_boundary,
+      companion_field=companion_field,
+      moving_result=moving_result,
+      moving_audit=moving_audit,
+      joint_audit=joint_audit,
+      moving_fixed_point_audit=moving_fixed_point_audit,
+      global_physical_field_consumed=False,
     )
   ####
   if not (
@@ -891,6 +1023,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       moving_audit=moving_audit,
       joint_audit=joint_audit,
       moving_fixed_point_audit=moving_fixed_point_audit,
+      global_physical_field_consumed=global_physical_field_consumed,
     )
   ####
   return MocReflectedDomainGlobalTwoSidedMovingInterfaceResult(
@@ -906,6 +1039,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
     moving_audit=moving_audit,
     joint_audit=joint_audit,
     moving_fixed_point_audit=moving_fixed_point_audit,
+    global_physical_field_consumed=global_physical_field_consumed,
     message=(
       'verified global source-band and shock-boundary lineage fed the exact '
       'two-sided companion/physical-field response ladder; result remains '

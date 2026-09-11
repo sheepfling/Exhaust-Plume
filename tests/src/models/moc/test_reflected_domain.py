@@ -416,6 +416,10 @@ from exhaust_plume.validation.moc_global_boundary_state_joint_solve import (
   MocReflectedDomainGlobalBoundaryStateJointSolveStatus,
   run_reflected_domain_global_boundary_state_joint_solve,
 )
+from exhaust_plume.validation.moc_global_boundary_state_outer_update import (
+  MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus,
+  run_reflected_domain_global_boundary_state_outer_update,
+)
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_refinement import (
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase,
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus,
@@ -12478,6 +12482,8 @@ def test_global_boundary_state_feedback_binds_target_and_signed_state_without_pr
   assert result.state_solver_invoked
   assert result.two_sided_request is not None
   assert result.two_sided_result is not None
+  assert result.two_sided_request.consume_global_physical_field_for_downstream_probes
+  assert result.two_sided_result.global_physical_field_consumed
   assert result.state_lineage_verified
   assert result.signed_residuals_verified
   assert result.conservative_residual_audit is not None
@@ -12490,6 +12496,18 @@ def test_global_boundary_state_feedback_binds_target_and_signed_state_without_pr
   assert residual is not None
   assert residual.final_response is not None
   assert residual.final_response.signed_residuals_available
+  assert residual.final_response.downstream_field_lineage_verified
+  assert residual.final_response.downstream_field_source == (
+    'solver-owned-two-sided-field-re-solve'
+  )
+  assert any(
+    record.response is not None
+    and record.response.downstream_field_lineage_verified
+    and record.response.downstream_field_source == (
+      'global-closure-physical-field-v1'
+    )
+    for record in residual.records
+  )
   report = result.as_report()
   assert report['operator_id'] == (
     'op.moc.reflected-domain.global-boundary-state-feedback-v1'
@@ -12523,6 +12541,9 @@ def test_global_boundary_state_feedback_can_emit_only_an_explicit_loose_research
   assert result.handoff_ready
   assert result.handoff is not None
   assert result.handoff.ready_for_joint_global_resolve
+  assert result.handoff.two_sided_result.global_physical_field_consumed
+  assert result.handoff.two_sided_result.request is not None
+  assert result.handoff.two_sided_result.request.consume_global_physical_field_for_downstream_probes
   assert result.handoff.consumed_by_global_solver is False
   assert result.handoff.global_coupling_verified is False
   assert result.handoff.downstream_boundary_closure_verified is False
@@ -12585,6 +12606,64 @@ def test_global_boundary_state_joint_consumer_replays_exact_frame_and_blocks_no_
     'op.moc.reflected-domain.global-boundary-state-joint-solve-v1'
   )
   assert report['handoff_consumed'] is True
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_boundary_state_outer_update_changes_closure_but_keeps_descent_gate_closed():
+  closure = _global_physical_closure_for_mixed_regime()
+
+  feedback = run_reflected_domain_global_boundary_state_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+  )
+  assert feedback.handoff is not None
+
+  outer = run_reflected_domain_global_boundary_state_outer_update(
+    feedback.handoff
+  )
+
+  assert outer.status is (
+    MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus
+    .RESIDUAL_DESCENT_FAILURE
+  )
+  assert outer.handoff_lineage_verified
+  assert outer.outer_feedback_invoked
+  assert outer.outer_feedback_verified
+  assert outer.updated_closure_lineage_verified
+  assert outer.updated_closure is not None
+  assert outer.source_closure is not None
+  assert outer.updated_closure is not outer.source_closure
+  assert outer.state_solver_invoked
+  assert outer.state_lineage_verified
+  assert outer.signed_residuals_verified
+  assert outer.moving_state_verified
+  assert outer.independent_residual_audit_verified
+  assert outer.outer_state_update_verified
+  assert outer.residual_descent_verified is False
+  assert outer.baseline_residual_norm == pytest.approx(
+    outer.refreshed_residual_norm
+  )
+  assert outer.global_coupling_verified is False
+  assert outer.downstream_boundary_closure_verified is False
+  assert outer.chain_promotion_blocked
+  assert outer.production_claim_allowed is False
+  report = outer.as_report()
+  assert report['operator_id'] == (
+    'op.moc.reflected-domain.global-boundary-state-outer-update-v1'
+  )
+  assert report['updated_closure_fingerprint'] != report[
+    'source_closure_fingerprint'
+  ]
   assert report['production_claim_allowed'] is False
 ####
 

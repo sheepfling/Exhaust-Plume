@@ -5741,3 +5741,56 @@ strict residual descent across disjoint cases and resolutions.  Direct
 residual-to-downstream-pressure interpolation remains disallowed.  Validation
 archives, provider-bound VIS/SIG/RAY/FPA comparisons, physical shock-cell
 lengths, and the release freeze remain open.
+
+### P2.2 bounded outer state-update checkpoint — 2026-09-11
+
+The next update direction is now explicit as
+``op.moc.reflected-domain.global-boundary-state-outer-update-v1``.  Starting
+from the consumed handoff closure, it runs one fresh downstream-response/global
+feedback step, retains the changed solver-owned closure, and remeasures the
+conservative moving-state response on that new closure.  It carries the exact
+source/final fingerprints and refuses to infer a downstream target by
+interpolating the shock-frame residual vector.
+
+On the mixed-regime research case the outer step genuinely changes the global
+closure fingerprint and passes state lineage, moving-state, signed-channel,
+and independent residual-audit checks.  The normalized residual nevertheless
+remains ``0.217711771324`` versus the retained baseline, so the typed result
+is ``RESIDUAL_DESCENT_FAILURE``.  This is stronger evidence than a target
+replay but still does not open canonical coupling or any product claim.  The
+new focused regression passes (``1 passed``), with Ruff, Pyright, and
+compilation clean.
+
+The next physics gate is a physically justified global update parameter or
+coupled equation that changes the audited residual—not a tolerance relaxation
+or a no-op outer iteration—followed by disjoint case/refinement evidence.
+Validation archives, provider-bound VIS/SIG/RAY/FPA comparisons, physical
+shock-cell lengths, and the release freeze remain open.
+
+### P2.2 explicit global-physical-field probe handoff checkpoint — 2026-09-11
+
+The conservative global boundary-state lane now has an explicit
+``consume_global_physical_field_for_downstream_probes`` request control.  When
+selected, the global adapter requires the closure-owned physical field to
+retain the exact shock-boundary object and to pass its independent physical
+field gates before it can seed the first downstream probe.  The response
+retains the field source and lineage flag, and the global result reports
+whether a response actually consumed that exact field; a configured-but-
+unconsumed field is an independent typed failure.
+
+After an accepted front update, the original closure field is not reused or
+projected onto the new geometry.  The law records the exact global field on
+the first response and then switches to the solver-owned exact field
+re-solve.  The focused boundary-state, joint-consumer, and outer-update
+regressions pass (``4 passed``), including assertions that the global source
+was consumed and that the later response came from the exact re-solved field.
+The complete reflected-domain suite now passes (``202 passed``).  Ruff,
+Pyright, and compilation are clean.
+
+This closes the field-ownership/evidence seam only.  It did not change the
+mixed-case result's promotion ceiling or produce strict residual descent; the
+normalized outer residual remains unchanged.  The next physics gate is a
+physically justified coupled update that changes the independently audited
+residual, followed by disjoint cases and resolution refinement.  Validation
+archives, provider-bound VIS/SIG/RAY/FPA comparisons, physical shock-cell
+lengths, and the release freeze remain open.

@@ -561,6 +561,10 @@ def run_reflected_domain_global_boundary_state_feedback(
     # exploratory response studies, but it must not silently turn the known
     # interior-probe mismatch into a ready state packet.
     resolved_two_sided.setdefault('normal_momentum_tolerance_Pa', 1.0e-2)
+    resolved_two_sided.setdefault(
+      'consume_global_physical_field_for_downstream_probes',
+      True,
+    )
     handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
       closure
     )

@@ -182,6 +182,8 @@ class MocEulerTwoSidedInterfaceResponse:
   signed_mass_flux_residuals_kg_m2_s: tuple[float, ...] | None = None
   signed_normal_momentum_residuals_Pa: tuple[float, ...] | None = None
   signed_energy_flux_residuals_W_m2: tuple[float, ...] | None = None
+  downstream_field_source: str = 'solver-owned-two-sided-field-iteration'
+  downstream_field_lineage_verified: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -323,8 +325,16 @@ class MocEulerTwoSidedInterfaceResponse:
     if not isinstance(self.conservative_flux_closure_verified, bool):
       raise TypeError('conservative_flux_closure_verified must be a bool')
     ####
+    if not isinstance(self.downstream_field_lineage_verified, bool):
+      raise TypeError('downstream_field_lineage_verified must be a bool')
+    ####
+    downstream_source = str(self.downstream_field_source)
+    if not downstream_source:
+      raise ValueError('downstream_field_source must be non-empty')
+    ####
     object.__setattr__(self, 'response_source', source)
     object.__setattr__(self, 'law_id', law_id)
+    object.__setattr__(self, 'downstream_field_source', downstream_source)
   ####
 
   @property
@@ -401,6 +411,8 @@ class MocEulerTwoSidedInterfaceResponse:
       'conservative_flux_closure_verified': (
         self.conservative_flux_closure_verified
       ),
+      'downstream_field_source': self.downstream_field_source,
+      'downstream_field_lineage_verified': self.downstream_field_lineage_verified,
       'production_claim_allowed': False,
     }
   ####
