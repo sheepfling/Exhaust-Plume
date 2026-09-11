@@ -264,8 +264,10 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
   source_closure_fingerprint: str | None
   samples: tuple[MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceSample, ...] = ()
   pressure_residuals_Pa: tuple[float, ...] = ()
+  signed_pressure_residuals_Pa: tuple[float, ...] = ()
   pressure_residual_fractions: tuple[float, ...] = ()
   normal_velocity_residuals_m_s: tuple[float, ...] = ()
+  signed_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   normal_velocity_residual_fractions: tuple[float, ...] = ()
   centerline_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   tangent_residuals_rad: tuple[float, ...] = ()
@@ -331,9 +333,20 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
       ####
       object.__setattr__(self, name, values)
     ####
+    for name in (
+      'signed_pressure_residuals_Pa',
+      'signed_normal_velocity_residuals_m_s',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) for value in values):
+        raise ValueError(f'{name} must contain finite values')
+      ####
+      object.__setattr__(self, name, values)
+    ####
     sample_count = len(samples)
     if sample_count and (
       len(self.pressure_residuals_Pa) != sample_count
+      or len(self.signed_pressure_residuals_Pa) != sample_count
       or len(self.pressure_residual_fractions) != sample_count
     ):
       raise ValueError(
@@ -342,6 +355,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
     ####
     if sample_count and (
       len(self.normal_velocity_residuals_m_s) != sample_count - 1
+      or len(self.signed_normal_velocity_residuals_m_s) != sample_count - 1
       or len(self.normal_velocity_residual_fractions) != sample_count - 1
       or len(self.centerline_normal_velocity_residuals_m_s) != sample_count - 1
       or len(self.tangent_residuals_rad) != sample_count - 1
@@ -428,9 +442,13 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
       'sample_count': self.sample_count,
       'samples': [sample.as_report() for sample in self.samples],
       'pressure_residuals_Pa': list(self.pressure_residuals_Pa),
+      'signed_pressure_residuals_Pa': list(self.signed_pressure_residuals_Pa),
       'pressure_residual_fractions': list(self.pressure_residual_fractions),
       'normal_velocity_residuals_m_s': list(
         self.normal_velocity_residuals_m_s
+      ),
+      'signed_normal_velocity_residuals_m_s': list(
+        self.signed_normal_velocity_residuals_m_s
       ),
       'normal_velocity_residual_fractions': list(
         self.normal_velocity_residual_fractions
@@ -1205,6 +1223,12 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
   tangent_offsets_rad: tuple[float, ...] = ()
   pressure_offsets_Pa: tuple[float, ...] = ()
   normal_velocity_values_m_s: tuple[float, ...] = ()
+  # These channels preserve the signed local free-boundary response from the
+  # coupled Euler field in the same node frame as the overlap response.  They
+  # are intentionally separate from pressure_offsets/normal_velocity_values,
+  # which describe the global/coupled overlap comparison.
+  free_boundary_signed_pressure_residuals_Pa: tuple[float, ...] = ()
+  free_boundary_signed_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   coordinate_tolerance_m: float = 1.0e-3
   tangent_tolerance_rad: float = 5.0e-2
   pressure_tolerance_Pa: float = 2.0e4
@@ -1289,6 +1313,8 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       len(self.tangent_offsets_rad),
       len(self.pressure_offsets_Pa),
       len(self.normal_velocity_values_m_s),
+      len(self.free_boundary_signed_pressure_residuals_Pa),
+      len(self.free_boundary_signed_normal_velocity_residuals_m_s),
     }
     if signed_lengths != {0}:
       lengths.update(signed_lengths)
@@ -1340,6 +1366,27 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
   ####
 
   @property
+  def signed_free_boundary_response_verified(self) -> bool:
+    """Whether the local signed response survived in the overlap node frame."""
+
+    expected = len(self.matched_x_stations_m)
+    return bool(
+      expected >= 2
+      and len(self.free_boundary_signed_pressure_residuals_Pa) == expected
+      and len(self.free_boundary_signed_normal_velocity_residuals_m_s)
+      == expected
+      and all(
+        isfinite(value)
+        for channel in (
+          self.free_boundary_signed_pressure_residuals_Pa,
+          self.free_boundary_signed_normal_velocity_residuals_m_s,
+        )
+        for value in channel
+      )
+    )
+  ####
+
+  @property
   def converged(self) -> bool:
     return bool(
       self.status
@@ -1347,6 +1394,7 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       .CONVERGED_LOCAL_OVERLAP
       and self.overlap_coverage_verified
       and self.residuals_verified
+      and self.signed_free_boundary_response_verified
     )
   ####
 
@@ -1371,11 +1419,20 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse:
       'tangent_offsets_rad': self.tangent_offsets_rad,
       'pressure_offsets_Pa': self.pressure_offsets_Pa,
       'normal_velocity_values_m_s': self.normal_velocity_values_m_s,
+      'free_boundary_signed_pressure_residuals_Pa': (
+        self.free_boundary_signed_pressure_residuals_Pa
+      ),
+      'free_boundary_signed_normal_velocity_residuals_m_s': (
+        self.free_boundary_signed_normal_velocity_residuals_m_s
+      ),
       'maximum_coordinate_residual_m': self.maximum_coordinate_residual_m,
       'maximum_tangent_residual_rad': self.maximum_tangent_residual_rad,
       'maximum_pressure_residual_Pa': self.maximum_pressure_residual_Pa,
       'maximum_normal_velocity_residual_m_s': (
         self.maximum_normal_velocity_residual_m_s
+      ),
+      'signed_free_boundary_response_verified': (
+        self.signed_free_boundary_response_verified
       ),
       'coordinate_tolerance_m': self.coordinate_tolerance_m,
       'tangent_tolerance_rad': self.tangent_tolerance_rad,
@@ -1420,6 +1477,8 @@ class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal:
   tangent_corrections_rad: tuple[float, ...]
   pressure_corrections_Pa: tuple[float, ...]
   normal_velocity_values_m_s: tuple[float, ...]
+  free_boundary_signed_pressure_residuals_Pa: tuple[float, ...]
+  free_boundary_signed_normal_velocity_residuals_m_s: tuple[float, ...]
   correction_fraction: float = 0.25
   overlap_coverage_verified: bool = False
   response_channels_finite: bool = False
@@ -1488,6 +1547,8 @@ class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal:
       'tangent_corrections_rad',
       'pressure_corrections_Pa',
       'normal_velocity_values_m_s',
+      'free_boundary_signed_pressure_residuals_Pa',
+      'free_boundary_signed_normal_velocity_residuals_m_s',
     )
     channel_values: dict[str, tuple[float, ...]] = {}
     for name in channel_names:
@@ -1608,6 +1669,12 @@ class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal:
       'tangent_corrections_rad': self.tangent_corrections_rad,
       'pressure_corrections_Pa': self.pressure_corrections_Pa,
       'normal_velocity_values_m_s': self.normal_velocity_values_m_s,
+      'free_boundary_signed_pressure_residuals_Pa': (
+        self.free_boundary_signed_pressure_residuals_Pa
+      ),
+      'free_boundary_signed_normal_velocity_residuals_m_s': (
+        self.free_boundary_signed_normal_velocity_residuals_m_s
+      ),
       'correction_fraction': self.correction_fraction,
       'overlap_coverage_verified': self.overlap_coverage_verified,
       'response_channels_finite': self.response_channels_finite,
@@ -1716,6 +1783,12 @@ def build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
   tangent_offsets = tuple(response.tangent_offsets_rad)
   pressure_offsets = tuple(response.pressure_offsets_Pa)
   normal_velocity_values = tuple(response.normal_velocity_values_m_s)
+  free_boundary_signed_pressure_residuals = tuple(
+    response.free_boundary_signed_pressure_residuals_Pa
+  )
+  free_boundary_signed_normal_velocity_residuals = tuple(
+    response.free_boundary_signed_normal_velocity_residuals_m_s
+  )
   expected_count = len(x_stations)
   if expected_count < 2 or any(
     len(values) != expected_count
@@ -1726,6 +1799,8 @@ def build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
       tangent_offsets,
       pressure_offsets,
       normal_velocity_values,
+      free_boundary_signed_pressure_residuals,
+      free_boundary_signed_normal_velocity_residuals,
     )
   ):
     raise ValueError(
@@ -1807,6 +1882,12 @@ def build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
     tangent_corrections_rad=tuple(applied_tangent_corrections),
     pressure_corrections_Pa=tuple(applied_pressure_corrections),
     normal_velocity_values_m_s=normal_velocity_values,
+    free_boundary_signed_pressure_residuals_Pa=(
+      free_boundary_signed_pressure_residuals
+    ),
+    free_boundary_signed_normal_velocity_residuals_m_s=(
+      free_boundary_signed_normal_velocity_residuals
+    ),
     correction_fraction=fraction,
     overlap_coverage_verified=response.overlap_coverage_verified,
     response_channels_finite=True,
@@ -2153,18 +2234,56 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
   coupled_pressures = tuple(
     coupled_field.free_boundary_adjacent_static_pressure_Pa
   )
+  coupled_pressure_residuals = tuple(
+    coupled_field.free_boundary_pressure_residuals_Pa
+  )
+  coupled_signed_pressure_residuals = tuple(
+    coupled_field.free_boundary_signed_pressure_residuals_Pa
+  )
   coupled_normal_velocities = tuple(
     coupled_field.free_boundary_normal_velocity_residuals_m_s
+  )
+  coupled_signed_normal_velocities = tuple(
+    coupled_field.free_boundary_signed_normal_velocity_residuals_m_s
   )
   if not (
     len(coupled_points) >= 2
     and len(coupled_pressures) == len(coupled_points) - 1
+    and len(coupled_pressure_residuals) == len(coupled_points) - 1
+    and len(coupled_signed_pressure_residuals) == len(coupled_points) - 1
     and len(coupled_normal_velocities) == len(coupled_points) - 1
+    and len(coupled_signed_normal_velocities) == len(coupled_points) - 1
   ):
     return failure(
       MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
       .COUPLED_FIELD_FAILURE,
       'coupled field retained no aligned free-boundary pressure response',
+      upstream=upstream,
+      coupled=coupled_field,
+    )
+  ####
+  if any(
+    abs(abs(signed) - magnitude)
+    > max(1.0e-8, 3.0e-6 * max(abs(magnitude), 1.0))
+    for signed, magnitude in zip(
+      coupled_signed_pressure_residuals,
+      coupled_pressure_residuals,
+      strict=True,
+    )
+  ) or any(
+    abs(abs(signed) - magnitude)
+    > max(1.0e-8, 3.0e-6 * max(abs(magnitude), 1.0))
+    for signed, magnitude in zip(
+      coupled_signed_normal_velocities,
+      coupled_normal_velocities,
+      strict=True,
+    )
+  ):
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+      .COUPLED_FIELD_FAILURE,
+      'coupled field signed free-boundary responses disagree with their '
+      'retained magnitude channels',
       upstream=upstream,
       coupled=coupled_field,
     )
@@ -2191,6 +2310,8 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
   tangent_offsets: list[float] = []
   pressure_offsets: list[float] = []
   normal_velocity_values: list[float] = []
+  free_boundary_signed_pressure_residuals: list[float] = []
+  free_boundary_signed_normal_velocity_residuals: list[float] = []
   for index, point in enumerate(coupled_points):
     reference = _interpolate_downstream_boundary(
       upstream,
@@ -2227,6 +2348,19 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
     pressure_offsets.append(pressure_offset)
     pressure_residuals.append(abs(pressure_offset))
     if index == 0:
+      signed_pressure_residual = coupled_signed_pressure_residuals[0]
+    elif index >= len(coupled_signed_pressure_residuals):
+      signed_pressure_residual = coupled_signed_pressure_residuals[-1]
+    else:
+      signed_pressure_residual = 0.5 * (
+        coupled_signed_pressure_residuals[index - 1]
+        + coupled_signed_pressure_residuals[index]
+      )
+    ####
+    free_boundary_signed_pressure_residuals.append(
+      float(signed_pressure_residual)
+    )
+    if index == 0:
       coupled_theta = atan2(
         coupled_points[1][1] - coupled_points[0][1],
         coupled_points[1][0] - coupled_points[0][0],
@@ -2247,6 +2381,14 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
     ####
     normal_velocity_values.append(normal_velocity_value)
     normal_velocity_residuals.append(abs(normal_velocity_value))
+    if index < len(coupled_signed_normal_velocities):
+      signed_normal_velocity_value = coupled_signed_normal_velocities[index]
+    else:
+      signed_normal_velocity_value = coupled_signed_normal_velocities[-1]
+    ####
+    free_boundary_signed_normal_velocity_residuals.append(
+      float(signed_normal_velocity_value)
+    )
   ####
   coupled_boundary_points = tuple(
     (float(point[0]), float(point[1])) for point in coupled_points
@@ -2286,6 +2428,12 @@ def measure_reflected_domain_global_coupled_downstream_boundary_response(
     tangent_offsets_rad=tuple(tangent_offsets),
     pressure_offsets_Pa=tuple(pressure_offsets),
     normal_velocity_values_m_s=tuple(normal_velocity_values),
+    free_boundary_signed_pressure_residuals_Pa=tuple(
+      free_boundary_signed_pressure_residuals
+    ),
+    free_boundary_signed_normal_velocity_residuals_m_s=tuple(
+      free_boundary_signed_normal_velocity_residuals
+    ),
     coordinate_tolerance_m=tolerances[1],
     tangent_tolerance_rad=tolerances[2],
     pressure_tolerance_Pa=tolerances[3],
@@ -2977,6 +3125,27 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
     )
     for node_index in range(axial_count + 1)
   )
+  reported_signed_pressure_residuals = tuple(
+    field.free_boundary_signed_pressure_residuals_Pa
+  )
+  if len(reported_signed_pressure_residuals) != axial_count:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled field signed pressure residuals do not align with cell columns',
+    )
+  ####
+  signed_pressure_residuals = tuple(
+    float(reported_signed_pressure_residuals[0])
+    if node_index == 0
+    else float(reported_signed_pressure_residuals[-1])
+    if node_index == axial_count
+    else 0.5
+    * (
+      float(reported_signed_pressure_residuals[node_index - 1])
+      + float(reported_signed_pressure_residuals[node_index])
+    )
+    for node_index in range(axial_count + 1)
+  )
   pressure_fractions = tuple(
     residual / max(abs(target), 1.0)
     for residual, target in zip(pressure_residuals, node_targets, strict=True)
@@ -2993,6 +3162,19 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
     )
   ####
   normal_residuals = tuple(float(value) for value in reported_normal_residuals)
+  reported_signed_normal_residuals = tuple(
+    field.free_boundary_signed_normal_velocity_residuals_m_s
+  )
+  if len(reported_signed_normal_residuals) != axial_count:
+    return failure(
+      MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
+      'coupled field signed normal-velocity residuals do not align with cell '
+      'columns',
+    )
+  ####
+  signed_normal_residuals = tuple(
+    float(value) for value in reported_signed_normal_residuals
+  )
   reported_centerline_residuals = tuple(
     field.centerline_normal_velocity_residuals_m_s
   )
@@ -3094,8 +3276,10 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
     source_closure_fingerprint=fingerprint,
     samples=samples,
     pressure_residuals_Pa=pressure_residuals,
+    signed_pressure_residuals_Pa=signed_pressure_residuals,
     pressure_residual_fractions=pressure_fractions,
     normal_velocity_residuals_m_s=normal_residuals,
+    signed_normal_velocity_residuals_m_s=signed_normal_residuals,
     normal_velocity_residual_fractions=tuple(normal_fractions),
     centerline_normal_velocity_residuals_m_s=centerline_residuals,
     tangent_residuals_rad=tuple(tangent_residuals),

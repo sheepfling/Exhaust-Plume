@@ -267,6 +267,8 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration:
         response.tangent_offsets_rad,
         response.pressure_offsets_Pa,
         response.normal_velocity_values_m_s,
+        response.free_boundary_signed_pressure_residuals_Pa,
+        response.free_boundary_signed_normal_velocity_residuals_m_s,
       )
       for value in channel
     )

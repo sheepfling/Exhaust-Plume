@@ -93,6 +93,28 @@ physics slice is to consume these signed responses in a bounded, solver-owned
 interface/free-boundary corrector with fresh field re-solves and independent
 mass, normal-momentum, energy, entropy, ambient, and centerline audits.
 
+### P2.2e signed response handoff alignment checkpoint — 2026-09-11
+
+The signed free-boundary response now survives the complete local
+global/coupled handoff: the independently measured overlap response retains
+node-aligned signed pressure and outward-normal velocity channels, the
+unconsumed upstream feedback proposal carries those same values without
+regridding, and the full-state boundary trace serializes both signed and
+nonnegative residual views.  The overlap response reports an explicit
+``signed_free_boundary_response_verified`` gate, and its measurement operator
+rejects a signed channel whose magnitude disagrees with the solver-retained
+unsigned channel.
+
+This closes the response-frame seam needed by the next corrector; it does not
+consume the vectors in a fresh global/free-boundary solve, and it does not
+turn the visualization trace or handoff into canonical closure evidence.  The
+focused downstream trace/response/proposal regressions pass (``20 passed``),
+including tampered signed-channel rejection.  The next physics slice remains
+the bounded solver-owned corrector with fresh field re-solves and independent
+conservative, entropy, ambient, centerline, and downstream audits.  Provider
+validation, the missing archives, physical shock-cell length acceptance, and
+release freeze remain separate blockers.
+
 ## Execution sprints and stop conditions
 
 The long-running goal is executed as a sequence of bounded sprints.  Each

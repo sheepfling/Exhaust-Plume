@@ -6819,7 +6819,11 @@ def test_global_coupled_downstream_retains_a_separate_full_state_boundary_trace(
   assert trace.local_trace_verified
   assert trace.sample_count == result.coupled_field.request.axial_cell_count + 1
   assert len(trace.pressure_residuals_Pa) == trace.sample_count
+  assert len(trace.signed_pressure_residuals_Pa) == trace.sample_count
   assert len(trace.normal_velocity_residuals_m_s) == trace.sample_count - 1
+  assert len(trace.signed_normal_velocity_residuals_m_s) == (
+    trace.sample_count - 1
+  )
   assert len(trace.centerline_normal_velocity_residuals_m_s) == (
     trace.sample_count - 1
   )
@@ -6831,6 +6835,9 @@ def test_global_coupled_downstream_retains_a_separate_full_state_boundary_trace(
   assert trace.chain_promotion_blocked
   assert trace.production_claim_allowed is False
   assert result.as_report()['downstream_boundary_trace']['local_trace_verified'] is True
+  trace_report = result.as_report()['downstream_boundary_trace']
+  assert 'signed_pressure_residuals_Pa' in trace_report
+  assert 'signed_normal_velocity_residuals_m_s' in trace_report
 
   rebuilt = build_reflected_domain_global_coupled_downstream_boundary_trace(
     result
@@ -7468,6 +7475,13 @@ def test_global_coupled_downstream_measures_boundary_overlap_without_promotion()
   assert len(response.normal_velocity_values_m_s) == len(
     response.matched_x_stations_m
   )
+  assert len(response.free_boundary_signed_pressure_residuals_Pa) == len(
+    response.matched_x_stations_m
+  )
+  assert len(response.free_boundary_signed_normal_velocity_residuals_m_s) == len(
+    response.matched_x_stations_m
+  )
+  assert response.signed_free_boundary_response_verified
   assert all(abs(value) <= response.coordinate_tolerance_m for value in response.coordinate_offsets_m)
   assert response.maximum_pressure_residual_Pa >= 0.0
   assert result.global_coupling_verified is False
@@ -7505,6 +7519,24 @@ def test_global_coupled_downstream_measures_boundary_overlap_without_promotion()
   )
   assert tampered_response.overlap_coverage_verified is False
   assert tampered_response.converged is False
+
+  signed_tampered = replace(
+    result.coupled_field,
+    free_boundary_signed_pressure_residuals_Pa=tuple(
+      value + 1.0 for value in result.coupled_field.free_boundary_signed_pressure_residuals_Pa
+    ),
+  )
+  signed_tampered_response = (
+    measure_reflected_domain_global_coupled_downstream_boundary_response(
+      closure,
+      signed_tampered,
+    )
+  )
+  assert signed_tampered_response.status is (
+    MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus
+    .COUPLED_FIELD_FAILURE
+  )
+  assert signed_tampered_response.converged is False
 ####
 
 
@@ -7550,6 +7582,12 @@ def test_global_coupled_downstream_packages_unconsumed_upstream_feedback():
   )
   assert len(proposal.proposed_boundary_points_m) == len(
     response.matched_x_stations_m
+  )
+  assert proposal.free_boundary_signed_pressure_residuals_Pa == (
+    response.free_boundary_signed_pressure_residuals_Pa
+  )
+  assert proposal.free_boundary_signed_normal_velocity_residuals_m_s == (
+    response.free_boundary_signed_normal_velocity_residuals_m_s
   )
   assert proposal.proposed_boundary_points_m[0][1] == pytest.approx(
     proposal.reference_boundary_points_m[0][1]
