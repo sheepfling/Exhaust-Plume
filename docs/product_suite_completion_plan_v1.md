@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch; current checkpoint is the dimensioned signed-geometry response slice; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch; current checkpoint is the cross-case dimensioned joint-consumer refinement slice; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -73,19 +73,21 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — checkpoint `691b6fb`
+### Active execution card — checkpoint `2741f43`
 
 The current candidate is a clean dedicated integration branch with the
-disjoint signed pressure/geometry response refinement and the first
-solver-owned global shock-geometry response consumer in place.  The latter
-re-samples the moving-shock proposal against the retained source band,
-independently refits the Euler curve, rebuilds the exact ambient field, and
-demonstrates a small strict conservative-residual decrease.  These are useful
+disjoint signed pressure/geometry response refinement, the solver-owned global
+shock-geometry response consumer, and a dimensioned joint-consumer refinement
+audit in place.  The latest audit exercises two distinct source-closure
+families at ordered 8/9-sample resolutions.  Each case independently
+re-samples the moving-shock proposal, refits the Euler curve, rebuilds the
+exact ambient field, and passes normalized mass-flux, normal-momentum, and
+energy-channel descent plus aggregate residual descent.  These are useful
 research results only.  The outer global/coupled result, downstream boundary,
 canonical free-boundary, production shock-cell, provider-validation, and
 release flags remain closed.
 
-The next implementation sprint is therefore the full dimensioned physical
+The next implementation sprint is therefore the equation-level physical
 corrector, not another response wrapper:
 
 1. Define the solver-owned mixed-regime/free-boundary state and its admissible
@@ -93,17 +95,18 @@ corrector, not another response wrapper:
    tangency, centerline reflection, entropy transport, and signed mass,
    normal-momentum, and energy residuals in one field solve.
 2. Extend the current geometry-response seam to consume the complete signed
-   mass, normal-momentum, and energy response in that state solve.  Every
-   trial must carry source/proposal/field fingerprints, retain its coordinate
-   frame, use bounded updates, and be freshly re-solved and independently
-   remeasured.
+   mass, normal-momentum, and energy response in the actual downstream/global
+   state equations.  Every trial must carry source/proposal/field fingerprints,
+   retain its coordinate frame, use bounded updates, and be freshly re-solved
+   and independently remeasured.
 3. Admit a candidate only when all declared physical residuals descend or meet
    the stated convergence test.  A pressure overlay, compression-envelope
    skew, terminal patch, scalar mixed-regime reference, or longer axial window
    is an explicit research result and cannot satisfy this gate.
 4. Repeat the accepted solver on disjoint cases and increasing axial and
    transverse resolutions before allowing the physical shock-cell fitter to
-   consume it.
+   consume it.  The new joint-consumer refinement operator is the reusable
+   gate for this evidence, not a promotion by itself.
 
 The sprint stops immediately, with a typed research failure retained, when
 the canonical state equation, boundary coverage, conservative residual, or
@@ -325,6 +328,31 @@ validation, or production Signature/FPA claim.  The next slice is to use the
 same three-channel evidence across disjoint cases and increasing resolutions,
 then connect the accepted response to the solver-owned downstream boundary
 equations rather than only the current moving-shock correction.
+
+### P2.2l global joint-consumer cross-case refinement checkpoint — 2026-09-11
+
+The dimensioned joint-consumer gate is now exercised on fresh results from two
+distinct source-closure families and an ordered 8/9-sample resolution ladder
+per family.  The new
+``op.moc.reflected-domain.global-boundary-state-joint-refinement-v1`` operator
+requires exact source-closure fingerprints, case identity, resolution order,
+independent state/global audits, finite normalized mass/normal-momentum/
+energy channels, no channel worsening, strict aggregate residual descent, and
+research-only fidelity flags.  The focused regression passes the complete
+two-case/two-resolution ladder.
+
+This slice also corrected two bookkeeping defects exposed by the ladder:
+solver-refit endpoint residuals are stored as nonnegative measurements despite
+signed floating-point roundoff, and a dimensioned-channel pass with aggregate
+residual failure is retained as a typed residual-descent failure instead of
+raising during result construction.  Neither correction changes a physical
+claim.  Canonical global/free-boundary coupling, downstream closure, physical
+shock-cell promotion, provider-bound Visualization/Signature/RAY/FPA
+validation, and release readiness remain closed.
+
+The next physics gate is to consume the complete dimensioned response in the
+solver-owned downstream/global boundary equations and repeat the same
+cross-case/resolution audit before the shock-cell lane can use the field.
 
 ## Execution sprints and stop conditions
 
