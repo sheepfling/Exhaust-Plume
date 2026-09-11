@@ -143,6 +143,13 @@ global-to-downstream wrapper carries the update-law selector and retains the
 same research-only flags.  This proves the fidelity seam and its lineage, not
 the missing global fixed point or external acceptance.
 
+The bounded global/coupled feedback runner now carries the same selector.  In
+kinematic mode it retains pressure-response diagnostics but refuses to feed a
+measured geometry overlay into the next field; signed geometry feedback is a
+typed incompatible configuration.  A two-step physical-field feedback run
+keeps local field/audit evidence and promotion blocked while reporting the
+remaining overlap residual failure.
+
 ### P2.2d signed boundary-response checkpoint — 2026-09-11
 
 The coupled Euler/free-boundary result now retains both the unsigned

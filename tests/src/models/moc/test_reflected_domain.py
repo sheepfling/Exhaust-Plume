@@ -8754,6 +8754,57 @@ def test_global_coupled_downstream_feedback_iteration_keeps_global_gate_open():
 ####
 
 
+def test_global_coupled_downstream_feedback_kinematic_mode_owns_geometry():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  run = run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=8,
+    pressure_shape_relaxation=0.0,
+    free_boundary_update_mode=(
+      MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+    ),
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.RESPONSE_FAILURE
+  )
+  assert run.configuration['free_boundary_update_mode'] == (
+    'kinematic-streamline-v1'
+  )
+  assert run.configuration['geometry_update_policy'] == (
+    'solver-owned-kinematic-tangent-no-overlay-v1'
+  )
+  assert run.local_coupled_field_verified
+  assert run.geometry_profile_consumption_verified
+  assert all(item.next_geometry_profile is None for item in run.iterations)
+  assert all(
+    item.result.coupled_request is not None
+    and item.result.coupled_request.free_boundary_update_mode is (
+      MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+    )
+    for item in run.iterations
+  )
+  assert run.global_coupling_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+####
+
+
 def test_global_coupled_downstream_feedback_consumes_signed_geometry_response():
   closure = _global_physical_closure_for_mixed_regime()
   mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)

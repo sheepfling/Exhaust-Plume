@@ -19,6 +19,7 @@ from typing import Any, Sequence
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE,
+  MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
@@ -993,6 +994,11 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   transverse_cell_count: int = 6,
   max_pseudo_iterations: int = 1200,
   max_shape_iterations: int = 18,
+  shape_relaxation: float = 0.35,
+  pressure_shape_relaxation: float = 0.20,
+  free_boundary_update_mode: MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode = (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.PRESSURE_SLOPE_RESEARCH
+  ),
   inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
     MocReflectedDomainCoupledEulerInletBoundaryMode.FULL_STATE_RUSANOV
   ),
@@ -1025,6 +1031,24 @@ def run_reflected_domain_global_coupled_downstream_feedback(
   ####
   if not isinstance(use_signed_free_boundary_geometry_response, bool):
     raise TypeError('use_signed_free_boundary_geometry_response must be a bool')
+  ####
+  if not isinstance(
+    free_boundary_update_mode,
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode,
+  ):
+    raise TypeError(
+      'free_boundary_update_mode must be a '
+      'MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode'
+    )
+  ####
+  kinematic_update_mode = free_boundary_update_mode is (
+    MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.KINEMATIC_STREAMLINE
+  )
+  if kinematic_update_mode and use_signed_free_boundary_geometry_response:
+    raise ValueError(
+      'kinematic-streamline free-boundary updates cannot consume a signed '
+      'geometry feedback profile'
+    )
   ####
   response_time = (
     None
@@ -1108,6 +1132,14 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     'transverse_cell_count': int(transverse_cell_count),
     'max_pseudo_iterations': int(max_pseudo_iterations),
     'max_shape_iterations': int(max_shape_iterations),
+    'shape_relaxation': float(shape_relaxation),
+    'pressure_shape_relaxation': float(pressure_shape_relaxation),
+    'free_boundary_update_mode': free_boundary_update_mode.value,
+    'geometry_update_policy': (
+      'solver-owned-kinematic-tangent-no-overlay-v1'
+      if kinematic_update_mode
+      else 'bounded-response-geometry-profile-v1'
+    ),
     'inlet_boundary_mode': inlet_boundary_mode.value,
     'transonic_interface_audit_policy': (
       'independent-global-transonic-interface-seam-required-v1'
@@ -1164,6 +1196,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         axial_station_count=axial_station_count,
         axial_cell_count=axial_cell_count,
         transverse_cell_count=transverse_cell_count,
+        shape_relaxation=shape_relaxation,
+        pressure_shape_relaxation=pressure_shape_relaxation,
+        free_boundary_update_mode=free_boundary_update_mode,
         max_pseudo_iterations=max_pseudo_iterations,
         max_shape_iterations=max_shape_iterations,
         inlet_boundary_mode=inlet_boundary_mode,
@@ -1348,7 +1383,9 @@ def run_reflected_domain_global_coupled_downstream_feedback(
         stop_reason = f'pressure feedback profile construction failed: {error}'
       ####
       try:
-        if use_signed_free_boundary_geometry_response:
+        if kinematic_update_mode:
+          next_geometry_profile = None
+        elif use_signed_free_boundary_geometry_response:
           if response_time is None:
             raise ValueError(
               'signed_normal_response_time_s is required for signed geometry '
@@ -1494,7 +1531,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
       )
       break
     ####
-    if next_geometry_profile is None:
+    if next_geometry_profile is None and not kinematic_update_mode:
       stop_reason = stop_reason or (
         'independently measured response did not produce a covered geometry '
         'profile for the next fresh solve'
