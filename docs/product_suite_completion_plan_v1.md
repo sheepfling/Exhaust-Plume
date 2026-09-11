@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch; current checkpoint is the cross-case dimensioned joint-consumer refinement slice; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `1d5d9eb`; full suite is green after signed-fixture alignment; release-path checks are next; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -423,6 +423,25 @@ canonical/global, physical shock-cell, provider-validation, and production
 gates remain false.  The regression test and static checks pass in commit
 ``a510d73``.  The next physics task is to improve the control basis and
 equation-level closure, then repeat disjoint case and resolution audits.
+
+### Sprint 0 candidate hygiene evidence checkpoint — 2026-09-11
+
+The signed frontier fixture repair is committed in ``1d5d9eb``.  It keeps
+pressure and normal-velocity residual arrays aligned with every replaced
+station geometry, including the two cross-case refinement fixtures that
+previously failed during result construction.  The full repository suite now
+passes from the clean candidate: ``1298 passed, 18 warnings`` in
+``907.82s``.  The warnings are limited to the existing legacy
+``calculatePlumeZones`` compatibility deprecations and expected projected-area
+numerical diagnostics; no new failure or uncaught conflict marker was
+reported.
+
+This closes the local integration-test portion of Sprint 0, but it is not a
+release freeze.  The remaining local gates are the public-contract and lane
+manifests, static/documentation checks, wheel build, and installed-wheel
+smoke.  The external/provider archives, canonical physical closure,
+physical shock-cell acceptance, and product measurement-space comparisons
+remain independent blockers.
 
 ## Execution sprints and stop conditions
 
