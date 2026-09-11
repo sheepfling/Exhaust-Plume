@@ -6602,3 +6602,29 @@ iterations and prove monotone improvement across disjoint cases and
 resolutions.  A bounded open response may remain an input to that experiment,
 but it must never be relabeled as a converged response merely because the
 outer loop completed.
+
+### P3.8 outer-response descent gate checkpoint — 2026-09-11
+
+The implementation checkpoint ``3196d34`` adds a dimensionless
+``maximum_normalized_overlap_residual`` to the typed downstream response.  It
+is the maximum of the retained coordinate, tangent, pressure, and
+normal-velocity channels after normalization by their declared response
+tolerances; the physical-unit channels and their individual audits remain the
+authoritative evidence.
+
+The outer global boundary-feedback runner now exposes an opt-in
+``require_response_residual_descent`` gate.  With the retained mixed-regime
+open-response case, two fresh global solves show strict metric decrease and
+pass as research evidence.  A one-step request fails closed with a typed
+``response-descent-failure`` status instead of claiming a monotone loop.  The
+serialized iteration and run reports retain the metric sequence and gate
+status.  This remains below canonical closure: mass/energy/state residual
+vector coupling, disjoint case/resolution evidence, physical shock-cell
+acceptance, provider validation, and production promotion are still open.
+
+The focused descent regressions pass (``3 passed``), the complete
+reflected-domain suite passes (``221 passed``), and Ruff, Pyright, compilation,
+scope-marker, and whitespace checks are clean.  The next physics step is to
+extend this metric from overlap channels to the complete coupled state and
+conservative residual vector, then require the same fail-closed descent logic
+across disjoint cases and a declared resolution ladder.
