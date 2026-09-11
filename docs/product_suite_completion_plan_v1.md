@@ -4768,3 +4768,21 @@ This strengthens lineage and fidelity isolation only.  The handoff remains
 research-only: downstream free-boundary closure, global fixed-point feedback,
 multi-resolution/cross-case evidence, physical shock-cell fitting, provider
 validation, owner archives, and the final release freeze remain open.
+
+### WP-1 explicit moving-interface fixed-point gate checkpoint — 2026-09-10
+
+The moving-interface validation surface now has a separate
+``op.moc.euler-two-sided-moving-interface-fixed-point-audit``.  It verifies
+contiguous exact response-to-field lineage across retained iterations,
+remeasures adjacent normal-update and flux-residual changes in their native
+units, and requires a zero final interface update.  An explicit stationary
+equilibrium response may satisfy the research gate with its declared
+stationary policy; a nonzero final moving update cannot be labelled a fixed
+point merely because one local flux tolerance passed.
+
+The focused regression passes for both paths: the bounded moving research
+case is correctly rejected by the fixed-point gate, while the stationary
+equilibrium case passes as research evidence.  Canonical free-boundary,
+physical shock-cell, Signature/FPA, external-validation, and production gates
+remain closed.  The next WP-1 slice is still the conservative moving-front
+closure itself, not a weaker interpretation of this audit.

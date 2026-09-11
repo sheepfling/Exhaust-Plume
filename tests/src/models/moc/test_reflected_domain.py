@@ -16,6 +16,10 @@ from exhaust_plume.validation.moc_euler_two_sided_moving_interface import (
   MocEulerTwoSidedMovingInterfaceAuditStatus,
   measure_moc_euler_two_sided_moving_interface,
 )
+from exhaust_plume.validation.moc_euler_two_sided_moving_interface_fixed_point import (
+  MocEulerTwoSidedMovingInterfaceFixedPointAuditStatus,
+  measure_moc_euler_two_sided_moving_interface_fixed_point,
+)
 from exhaust_plume.validation.moc_euler_two_sided_interface_field_joint_closure import (
   MocEulerTwoSidedInterfaceFieldJointClosureAuditStatus,
   measure_moc_euler_two_sided_interface_field_joint_closure,
@@ -1916,6 +1920,18 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert research_moving_audit.chain_promotion_blocked
   assert research_moving_audit.production_claim_allowed is False
 
+  research_fixed_point_audit = (
+    measure_moc_euler_two_sided_moving_interface_fixed_point(research_moving)
+  )
+  assert research_fixed_point_audit.status is (
+    MocEulerTwoSidedMovingInterfaceFixedPointAuditStatus.MOTION_FAILURE
+  )
+  assert not research_fixed_point_audit.converged
+  assert research_fixed_point_audit.final_update_zero_verified is False
+  assert research_fixed_point_audit.fixed_point_verified is False
+  assert research_fixed_point_audit.chain_promotion_blocked
+  assert research_fixed_point_audit.production_claim_allowed is False
+
   joint_audit = measure_moc_euler_two_sided_interface_field_joint_closure(
     research_moving
   )
@@ -1988,6 +2004,18 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   )
   assert stationary_moving_audit.local_consistency_verified
   assert stationary_moving_audit.stationary_equilibrium_verified
+  stationary_fixed_point_audit = (
+    measure_moc_euler_two_sided_moving_interface_fixed_point(stationary_moving)
+  )
+  assert stationary_fixed_point_audit.status is (
+    MocEulerTwoSidedMovingInterfaceFixedPointAuditStatus
+    .CONVERGED_RESEARCH_FIXED_POINT
+  )
+  assert stationary_fixed_point_audit.converged
+  assert stationary_fixed_point_audit.stationary_equilibrium_verified
+  assert stationary_fixed_point_audit.fixed_point_verified
+  assert stationary_fixed_point_audit.chain_promotion_blocked
+  assert stationary_fixed_point_audit.production_claim_allowed is False
   stationary_joint_audit = (
     measure_moc_euler_two_sided_interface_field_joint_closure(stationary_moving)
   )
