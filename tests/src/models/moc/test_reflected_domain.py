@@ -2006,6 +2006,7 @@ def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():
   assert measurement.local_consistency_verified
   assert measurement.case_audits_verified
   assert measurement.case_identity_verified
+  assert measurement.response_mode_identity_verified
   assert measurement.resolution_order_verified
   assert measurement.residuals_finite
   assert measurement.mass_residuals_verified
@@ -2049,11 +2050,49 @@ def test_solver_owned_two_sided_interface_law_has_cross_case_refinement():
   assert measurement.converged
   assert measurement.local_consistency_verified
   assert measurement.case_audits_verified
+  assert measurement.response_mode_identity_verified
   assert measurement.resolution_order_verified
   assert measurement.momentum_nonincreasing_verified
   assert measurement.momentum_reduction_verified
   assert measurement.cross_case_verified
   assert measurement.refinement_convergence_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+
+def test_solver_owned_two_sided_interface_law_refinement_rejects_mixed_response_modes():
+  moving = _solver_owned_interface_law_for_resolution(5)
+  moving_fine = _solver_owned_interface_law_for_resolution(9)
+  assert moving_fine.current_field_iteration is not None
+  assert moving_fine.request is not None
+  stationary = build_solver_owned_euler_two_sided_interface_response(
+    moving_fine.current_field_iteration,
+    replace(moving_fine.request, downstream_probe_fraction=0.0),
+  )
+  assert stationary.response is not None
+  assert stationary.stationary_equilibrium_candidate
+
+  measurement = measure_moc_euler_two_sided_interface_law_refinement(
+    (
+      MocEulerTwoSidedInterfaceLawRefinementCase(
+        case_id='mixed-response-mode',
+        resolution_sample_count=5,
+        result=moving,
+      ),
+      MocEulerTwoSidedInterfaceLawRefinementCase(
+        case_id='mixed-response-mode',
+        resolution_sample_count=9,
+        result=stationary,
+      ),
+    )
+  )
+
+  assert measurement.status is (
+    MocEulerTwoSidedInterfaceLawRefinementStatus.RESPONSE_MODE_FAILURE
+  )
+  assert measurement.response_mode_identity_verified is False
+  assert measurement.converged is False
+  assert measurement.local_consistency_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
 

@@ -4682,3 +4682,21 @@ corpus/provider/FPA/alignment suite passes (28 tests), with Ruff, Pyright, and
 bytecode checks clean.  The actual Version 8 and separately named alignment
 archives remain absent, so external validation and release readiness are
 unchanged.
+
+### WP-1 response-mode refinement isolation checkpoint — 2026-09-10
+
+The solver-owned two-sided interface-law refinement operator now binds every
+resolution ladder to an explicit response-mode signature: response source and
+law identity, downstream probe fraction, endpoint sampling policy, branch, and
+stationary-equilibrium flag.  A stationary front-limit result and an interior
+moving response can therefore not be combined into one apparent momentum
+refinement trend.  Mixed modes return the typed
+``two-sided-interface-law-refinement-response-mode-failure`` status, keep the
+local-refinement evidence false, and retain the chain-promotion and production
+claim blocks.
+
+The regression suite covers both accepted moving ladders and explicit
+moving/stationary mixing; the focused solver-owned interface-law slice passes
+four tests.  This closes an evidence-accounting boundary only.  It does not
+promote either response mode to canonical free-boundary closure, physical
+shock-cell fitting, provider validation, or a release claim.

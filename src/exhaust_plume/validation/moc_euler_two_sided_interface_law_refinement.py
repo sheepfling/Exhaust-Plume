@@ -87,6 +87,9 @@ class MocEulerTwoSidedInterfaceLawRefinementStatus(str, Enum):
   RESOLUTION_ORDER_FAILURE = (
     'two-sided-interface-law-refinement-resolution-order-failure'
   )
+  RESPONSE_MODE_FAILURE = (
+    'two-sided-interface-law-refinement-response-mode-failure'
+  )
   RESIDUAL_FAILURE = 'two-sided-interface-law-refinement-residual-failure'
   FLAG_FAILURE = 'two-sided-interface-law-refinement-flag-failure'
 
@@ -106,6 +109,7 @@ class MocEulerTwoSidedInterfaceLawRefinementMeasurement:
   maximum_energy_flux_residuals_W_m2: tuple[float, ...]
   case_audits_verified: bool
   case_identity_verified: bool
+  response_mode_identity_verified: bool
   resolution_order_verified: bool
   residuals_finite: bool
   mass_residuals_verified: bool
@@ -187,6 +191,7 @@ class MocEulerTwoSidedInterfaceLawRefinementMeasurement:
     for name in (
       'case_audits_verified',
       'case_identity_verified',
+      'response_mode_identity_verified',
       'resolution_order_verified',
       'residuals_finite',
       'mass_residuals_verified',
@@ -254,6 +259,7 @@ class MocEulerTwoSidedInterfaceLawRefinementMeasurement:
       self.converged
       and self.case_audits_verified
       and self.case_identity_verified
+      and self.response_mode_identity_verified
       and self.resolution_order_verified
       and self.residuals_finite
       and self.mass_residuals_verified
@@ -297,6 +303,7 @@ class MocEulerTwoSidedInterfaceLawRefinementMeasurement:
       ),
       'case_audits_verified': self.case_audits_verified,
       'case_identity_verified': self.case_identity_verified,
+      'response_mode_identity_verified': self.response_mode_identity_verified,
       'resolution_order_verified': self.resolution_order_verified,
       'residuals_finite': self.residuals_finite,
       'mass_residuals_verified': self.mass_residuals_verified,
@@ -335,6 +342,7 @@ def _failure(
   energy: Sequence[float] = (),
   case_audits_verified: bool = False,
   case_identity_verified: bool = False,
+  response_mode_identity_verified: bool = False,
   resolution_order_verified: bool = False,
   residuals_finite: bool = False,
   mass_residuals_verified: bool = False,
@@ -361,6 +369,7 @@ def _failure(
     maximum_energy_flux_residuals_W_m2=tuple(energy),
     case_audits_verified=case_audits_verified,
     case_identity_verified=case_identity_verified,
+    response_mode_identity_verified=response_mode_identity_verified,
     resolution_order_verified=resolution_order_verified,
     residuals_finite=residuals_finite,
     mass_residuals_verified=mass_residuals_verified,
@@ -405,6 +414,31 @@ def _case_signature(
       downstream.theta_rad,
       downstream.mach,
     )
+  )
+
+
+def _response_mode_signature(
+  case: MocEulerTwoSidedInterfaceLawRefinementCase,
+) -> tuple[object, ...]:
+  """Identify the response mode that a resolution ladder is measuring.
+
+  A stationary front-limit response and an interior moving response can share
+  the same retained shock geometry while representing different equations.
+  They must not be mixed into one refinement trend.
+  """
+
+  request = case.result.request
+  response = case.result.response
+  if request is None or response is None:
+    return ()
+  ####
+  return (
+    response.response_source,
+    response.law_id,
+    round(float(request.downstream_probe_fraction), 12),
+    request.anchor_endpoint_samples,
+    request.branch.value,
+    response.stationary_equilibrium_candidate,
   )
 
 
@@ -490,6 +524,16 @@ def measure_moc_euler_two_sided_interface_law_refinement(
     )
     for indices in grouped_indices.values()
   )
+  response_mode_signatures = tuple(
+    _response_mode_signature(case) for case in case_values
+  )
+  response_mode_identity_verified = bool(
+    all(response_mode_signatures)
+    and all(
+      len({response_mode_signatures[index] for index in indices}) == 1
+      for indices in grouped_indices.values()
+    )
+  )
   residuals_finite = all(
     isfinite(value) and value >= 0.0
     for value in (*speeds, *mass, *momentum, *energy)
@@ -532,6 +576,7 @@ def measure_moc_euler_two_sided_interface_law_refinement(
   local_refinement_verified = bool(
     case_audits_verified
     and case_identity_verified
+    and response_mode_identity_verified
     and resolution_order_verified
     and residuals_finite
     and mass_residuals_verified
@@ -554,6 +599,13 @@ def measure_moc_euler_two_sided_interface_law_refinement(
   elif not resolution_order_verified:
     status = MocEulerTwoSidedInterfaceLawRefinementStatus.RESOLUTION_ORDER_FAILURE
     message = 'interface-law refinement cases are not strictly resolution ordered'
+  elif not response_mode_identity_verified:
+    status = MocEulerTwoSidedInterfaceLawRefinementStatus.RESPONSE_MODE_FAILURE
+    message = (
+      'interface-law refinement cases mix response modes within a declared '
+      'resolution ladder; stationary front-limit and moving responses must be '
+      'audited separately'
+    )
   elif not (
     residuals_finite
     and mass_residuals_verified
@@ -597,6 +649,7 @@ def measure_moc_euler_two_sided_interface_law_refinement(
     energy=energy,
     case_audits_verified=case_audits_verified,
     case_identity_verified=case_identity_verified,
+    response_mode_identity_verified=response_mode_identity_verified,
     resolution_order_verified=resolution_order_verified,
     residuals_finite=residuals_finite,
     mass_residuals_verified=mass_residuals_verified,
