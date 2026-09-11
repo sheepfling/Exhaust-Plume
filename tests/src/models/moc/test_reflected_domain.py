@@ -176,6 +176,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_global_coupled_downstream,
   solve_reflected_domain_global_two_sided_moving_interface,
+  solve_reflected_domain_global_two_sided_stationary_interface,
   build_reflected_domain_global_solver_owned_transonic_interface_placement,
   build_reflected_domain_global_solver_owned_physical_field_handoff,
   build_reflected_domain_global_coupled_downstream_boundary_pressure_profile,
@@ -2367,6 +2368,48 @@ def test_global_closure_binds_exact_two_sided_moving_interface_ladder():
   assert strict.moving_result.converged is False
   assert strict.moving_result.chain_promotion_blocked
   assert strict.moving_result.production_claim_allowed is False
+
+
+def test_global_two_sided_stationary_interface_is_an_explicit_strict_mode():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+    closure=closure,
+    reference_total_temperature_K=1500.0,
+    maximum_field_iterations=3,
+    maximum_interface_iterations=1,
+    downstream_probe_fraction=0.0,
+    require_interface_motion=False,
+    allow_stationary_equilibrium=True,
+    require_conservative_flux_closure=True,
+    require_terminal_fixed_point=True,
+    normal_momentum_tolerance_Pa=1.0e-6,
+  )
+
+  result = solve_reflected_domain_global_two_sided_stationary_interface(request)
+
+  assert result.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+    .CONVERGED_RESEARCH_INTERFACE
+  )
+  assert result.converged
+  assert result.moving_result is not None
+  assert result.moving_result.status is (
+    MocEulerTwoSidedMovingInterfaceStatus
+    .CONVERGED_RESEARCH_STATIONARY_INTERFACE
+  )
+  assert result.moving_result.stationary_equilibrium_verified
+  assert result.moving_result.conservative_flux_closure_verified
+  assert result.moving_result.terminal_fixed_point_verified
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+  rejected = solve_reflected_domain_global_two_sided_stationary_interface(
+    replace(request, downstream_probe_fraction=0.01),
+  )
+  assert rejected.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INVALID_INPUT
+  )
+  assert 'interior probes belong to the moving research lane' in rejected.message
 
 
 def test_global_two_sided_moving_interface_has_independent_case_refinement():

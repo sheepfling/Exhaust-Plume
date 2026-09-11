@@ -487,6 +487,7 @@ from exhaust_plume.models.moc.global_two_sided_moving_interface import (
   MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
   MocReflectedDomainGlobalTwoSidedMovingInterfaceResult,
   solve_reflected_domain_global_two_sided_moving_interface,
+  solve_reflected_domain_global_two_sided_stationary_interface,
 )
 from exhaust_plume.models.moc.global_frontier_reconciliation import (
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_RECONCILIATION_MODEL,
@@ -1366,6 +1367,7 @@ __all__ = (
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest',
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceResult',
   'solve_reflected_domain_global_two_sided_moving_interface',
+  'solve_reflected_domain_global_two_sided_stationary_interface',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_RECONCILIATION_MODEL',
   'MocReflectedDomainGlobalFrontierReconciliationStatus',
   'MocReflectedDomainGlobalFrontierReconciliationReceipt',

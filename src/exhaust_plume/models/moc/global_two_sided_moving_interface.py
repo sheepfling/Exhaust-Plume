@@ -47,6 +47,7 @@ __all__ = (
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest',
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceResult',
   'solve_reflected_domain_global_two_sided_moving_interface',
+  'solve_reflected_domain_global_two_sided_stationary_interface',
 )
 
 
@@ -684,3 +685,85 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       'research-only and cannot promote a canonical free boundary or chain'
     ),
   )
+
+
+def solve_reflected_domain_global_two_sided_stationary_interface(
+  request: MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
+) -> MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
+  """Run the explicit zero-speed front-limit research lane.
+
+  A stationary front-limit response is a different solver mode from the
+  interior-probe moving response.  This helper makes that distinction
+  executable: it accepts only the exact post-shock boundary probe and forces
+  the conservative-flux and terminal-fixed-point gates on.  It never turns a
+  stationary result into moving-interface evidence or changes the result's
+  research-only claim ceiling.
+  """
+
+  if not isinstance(
+    request,
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
+  ):
+    return _failure(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INVALID_INPUT,
+      None,
+      'request must be a typed global two-sided moving-interface request',
+    )
+  ####
+  if request.downstream_probe_fraction != 0.0:
+    return _failure(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INVALID_INPUT,
+      request,
+      'stationary interface mode requires downstream_probe_fraction=0; '
+      'interior probes belong to the moving research lane',
+    )
+  ####
+  if request.require_interface_motion:
+    return _failure(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INVALID_INPUT,
+      request,
+      'stationary interface mode requires require_interface_motion=false',
+    )
+  ####
+  if not request.allow_stationary_equilibrium:
+    return _failure(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INVALID_INPUT,
+      request,
+      'stationary interface mode requires allow_stationary_equilibrium=true',
+    )
+  ####
+  if not request.require_conservative_flux_closure:
+    return _failure(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INVALID_INPUT,
+      request,
+      'stationary interface mode requires strict conservative-flux closure',
+    )
+  ####
+  if not request.require_terminal_fixed_point:
+    return _failure(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INVALID_INPUT,
+      request,
+      'stationary interface mode requires a terminal fixed-point audit',
+    )
+  ####
+  result = solve_reflected_domain_global_two_sided_moving_interface(request)
+  if result.converged and (
+    result.moving_result is None
+    or not result.moving_result.stationary_equilibrium_verified
+    or not result.moving_result.conservative_flux_closure_verified
+    or not result.moving_result.terminal_fixed_point_verified
+  ):
+    return _failure(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INDEPENDENT_AUDIT_FAILURE,
+      request,
+      'stationary interface mode returned without independently verified '
+      'stationary, conservative, and terminal fixed-point evidence',
+      shock_boundary=result.shock_boundary,
+      companion_boundary=result.companion_boundary,
+      companion_field=result.companion_field,
+      moving_result=result.moving_result,
+      moving_audit=result.moving_audit,
+      joint_audit=result.joint_audit,
+    )
+  ####
+  return result

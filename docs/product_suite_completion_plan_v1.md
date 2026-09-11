@@ -5083,3 +5083,20 @@ misaligned-matrix rejection, alongside the existing invalid-sample guard.
 This improves Signature evaluation evidence only; it does not establish
 source-bound chemistry, atmospheric/ray validation, or an external product
 claim.
+
+### WP-1 explicit stationary front-limit lane checkpoint — 2026-09-11
+
+The global two-sided handoff now exposes
+`solve_reflected_domain_global_two_sided_stationary_interface` as a distinct
+research mode.  It accepts only `downstream_probe_fraction=0`, requires
+`require_interface_motion=false`, `allow_stationary_equilibrium=true`, strict
+conservative-flux closure, and a terminal fixed-point audit.  Interior probes
+are rejected as belonging to the moving research lane rather than being
+silently treated as stationary evidence.
+
+The focused global moving/stationary regression passes `2 passed`; Ruff,
+Pyright, bytecode compilation, and whitespace checks are clean.  The complete
+repository suite passes `1259 passed` with 18 existing warnings.  This is
+explicit quasi-steady/front-limit evidence only; it does not close the moving
+conservative residual, canonical mixed-regime/free-boundary feedback,
+physical shock-cell lengths, external product validation, or release gates.
