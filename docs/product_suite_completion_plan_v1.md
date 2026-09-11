@@ -150,6 +150,25 @@ typed incompatible configuration.  A two-step physical-field feedback run
 keeps local field/audit evidence and promotion blocked while reporting the
 remaining overlap residual failure.
 
+### P2.2i outer global/downstream consumer checkpoint — 2026-09-11
+
+The `downstream → global → downstream` consumer was exercised against the
+solver-owned kinematic path and the existing terminal global-consumption
+path.  The kinematic run retains exact physical-field lineage, local field
+and audit evidence, and pressure-response diagnostics, but stops before
+emitting a ready global proposal because the independently measured coupled
+overlap residual remains open.  The outer consumer therefore does not invent
+a global target, relax the residual gate, or pass an unverified proposal to
+the global solver.
+
+The adjacent research consumer still passes its declared terminal global
+re-solve, target-geometry consumption, and downstream recheck tests.  Those
+tests prove fresh solver invocation and exact handoff lineage only; all
+canonical global coupling, downstream closure, shock-cell, provider
+validation, and production flags remain closed.  The next implementation
+slice is the equation-level global/free-boundary corrector that consumes a
+verified response and jointly audits the coupled residual vector.
+
 ### P2.2d signed boundary-response checkpoint — 2026-09-11
 
 The coupled Euler/free-boundary result now retains both the unsigned
