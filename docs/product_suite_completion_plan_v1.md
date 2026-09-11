@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — checkpoint `b842c26`
+### Active execution card — checkpoint `2887398`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -90,9 +90,11 @@ release flags remain closed.
 The next equation-level corrector has now been exercised as well.  It sends the
 fresh joint closure through a terminal downstream -> global -> downstream
 recheck and then invokes the complete signed conservative state solver.  The
-terminal boundary equations and response lineage pass, but the final
-mass/normal-momentum/energy channel gate fails closed; this is the current
-physical stop, not a product or canonical-closure result.
+terminal boundary equations and response lineage pass.  The corrector now
+tightens any exploratory handoff to the strict accepted tolerances before
+measuring progress; the state solver retains three exact field-resolved
+attempts but remains non-converged.  This is the current physical stop, not a
+product or canonical-closure result.
 
 The next implementation sprint is therefore a physically justified update law
 that improves the complete response after the terminal recheck:
@@ -101,7 +103,7 @@ that improves the complete response after the terminal recheck:
    transonic branch, including upstream frontier, downstream pressure and
    tangency, centerline reflection, entropy transport, and signed mass,
    normal-momentum, and energy residuals in one field solve.
-2. Replace the current non-improving terminal update direction with a
+2. Replace the current non-converging terminal update direction with a
    solver-owned update law that consumes the complete signed mass,
    normal-momentum, and energy response in the actual downstream/global state
    equations.  Every trial must carry source/proposal/field fingerprints,
@@ -375,14 +377,15 @@ complete signed mass-flux, normal-momentum, and energy response, exact state
 lineage, fresh field re-solves, and independent residual audit.
 
 On the exercised mixed-regime case, the terminal boundary equations and the
-complete conservative response are verified, but the dimensioned channels do
-not improve: normalized normal momentum changes from approximately
-``0.47583750`` to ``0.47583787`` and the aggregate residual also increases
-(``0.2458593715 -> 0.2458596198``).  The typed result is therefore
-``CHANNEL_FAILURE`` with promotion blocked.  This is stronger evidence than a
-terminal response-only pass because it proves where the actual coupled physics
-still fails; no tolerance, geometry overlay, endpoint hold, or claim relabeling
-clears it.
+complete conservative response are verified in the strict acceptance space
+(``1e-3 kg/m²/s``, ``1e-2 Pa``, ``1e-1 W/m²``).  The solver retains three exact
+field-resolved attempts and reduces the normalized aggregate residual only
+slightly (``2458.5937153 -> 2458.5887071``), but remains non-converged; the
+energy channel worsens from approximately ``2.384e-6`` to ``3.576e-6`` while
+the normalized momentum channel remains about ``4.758e3``.  The typed result
+is therefore ``STATE_FAILURE`` with promotion blocked.  The exploratory
+100 Pa handoff tolerance cannot clear this gate.  No tolerance relaxation,
+geometry overlay, endpoint hold, or claim relabeling clears it.
 
 The focused joint/corrector tranche passes (``3 passed``), with Ruff and
 compilation clean.  Canonical free-boundary coupling, physical shock-cell
