@@ -11588,25 +11588,36 @@ def test_global_coupled_boundary_condition_feedback_can_require_terminal_global_
 
   assert run.status is (
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
-    .TERMINAL_GLOBAL_FIXED_POINT_FAILURE
+    .COMPLETED_RESEARCH_BOUNDARY_FEEDBACK
   )
-  assert len(run.iterations) == 1
-  assert all(item.research_step_verified for item in run.iterations)
-  assert run.fresh_global_solve_verified
+  assert run.outer_feedback_completed
   assert run.terminal_fixed_point_required
   assert run.terminal_global_fixed_point_required
-  assert run.research_feedback_completed is False
+  assert run.research_feedback_completed
   assert run.terminal_fixed_point_audit is not None
   audit = run.terminal_fixed_point_audit
   assert audit.terminal_global_resolve_required
   assert audit.status is (
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
-    .TERMINAL_GLOBAL_RESOLVE_FAILURE
+    .COMPLETED_RESEARCH_TERMINAL_FIXED_POINT
   )
-  assert audit.terminal_global_fixed_point_verified is False
-  assert audit.terminal_global_resolve_verified is False
+  assert audit.terminal_global_fixed_point_verified
+  assert audit.terminal_global_configuration_verified
+  assert audit.terminal_global_lineage_verified
+  assert audit.terminal_global_frame_negotiation is not None
+  assert audit.terminal_global_frame_negotiation.frame_covered
+  assert audit.terminal_global_frame_extension_verified
+  if audit.terminal_global_frame_extension_required:
+    assert audit.terminal_global_frame_extension is not None
+    assert audit.terminal_global_frame_extension.converged
+    assert audit.terminal_global_frame_extension.extension_generated
+  assert audit.terminal_global_target_consumption_verified
+  assert audit.terminal_global_target_coverage_verified
+  assert audit.terminal_global_target_match_verified
+  assert audit.terminal_global_fidelity_isolation_verified
+  assert audit.terminal_global_resolve_verified
   assert audit.terminal_global_resolve is not None
-  assert audit.terminal_global_resolve.converged_research_resolve is False
+  assert audit.terminal_global_resolve.converged_research_resolve
   assert audit.terminal_global_resolve.global_coupling_verified is False
   assert audit.terminal_global_resolve.downstream_boundary_closure_verified is False
   assert audit.terminal_global_resolve.chain_promotion_blocked
@@ -11614,10 +11625,10 @@ def test_global_coupled_boundary_condition_feedback_can_require_terminal_global_
   assert run.global_coupling_verified is False
   assert run.downstream_boundary_closure_verified is False
   assert run.production_claim_allowed is False
-  assert run.as_report()['terminal_global_fixed_point_verified'] is False
+  assert run.as_report()['terminal_global_fixed_point_verified'] is True
   assert run.as_report()['terminal_fixed_point_audit'][
     'terminal_global_resolve_verified'
-  ] is False
+  ] is True
 ####
 
 

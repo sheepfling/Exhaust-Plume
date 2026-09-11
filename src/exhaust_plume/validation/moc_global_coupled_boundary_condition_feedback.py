@@ -986,6 +986,14 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
   terminal_global_resolve: (
     MocReflectedDomainGlobalFrontierBoundaryConditionResult | None
   ) = None
+  terminal_global_frame_negotiation: (
+    MocReflectedDomainGlobalBoundaryFrameNegotiationResult | None
+  ) = None
+  terminal_global_frame_extension: (
+    MocReflectedDomainGlobalBoundaryFrameExtensionResult | None
+  ) = None
+  terminal_global_frame_extension_required: bool = False
+  terminal_global_frame_extension_verified: bool = False
   terminal_global_configuration_verified: bool = False
   terminal_global_lineage_verified: bool = False
   terminal_global_target_consumption_verified: bool = False
@@ -1036,6 +1044,30 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
         'or None'
       )
     ####
+    if (
+      self.terminal_global_frame_negotiation is not None
+      and not isinstance(
+        self.terminal_global_frame_negotiation,
+        MocReflectedDomainGlobalBoundaryFrameNegotiationResult,
+      )
+    ):
+      raise TypeError(
+        'terminal_global_frame_negotiation must be a typed frame negotiation '
+        'result or None'
+      )
+    ####
+    if (
+      self.terminal_global_frame_extension is not None
+      and not isinstance(
+        self.terminal_global_frame_extension,
+        MocReflectedDomainGlobalBoundaryFrameExtensionResult,
+      )
+    ):
+      raise TypeError(
+        'terminal_global_frame_extension must be a typed frame extension '
+        'result or None'
+      )
+    ####
     if not isinstance(
       self.status,
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus,
@@ -1070,6 +1102,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
       'terminal_proposal_verified',
       'terminal_offset_tolerances_verified',
       'terminal_global_resolve_required',
+      'terminal_global_frame_extension_required',
+      'terminal_global_frame_extension_verified',
       'terminal_global_configuration_verified',
       'terminal_global_lineage_verified',
       'terminal_global_target_consumption_verified',
@@ -1164,6 +1198,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
         self.terminal_global_resolve_verified
         and self.terminal_global_configuration_verified
         and self.terminal_global_lineage_verified
+        and self.terminal_global_frame_extension_verified
         and self.terminal_global_target_consumption_verified
         and self.terminal_global_target_coverage_verified
         and self.terminal_global_target_match_verified
@@ -1223,6 +1258,22 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
         self.terminal_global_fidelity_isolation_verified
       ),
       'terminal_global_resolve_verified': self.terminal_global_resolve_verified,
+      'terminal_global_frame_extension_required': (
+        self.terminal_global_frame_extension_required
+      ),
+      'terminal_global_frame_extension_verified': (
+        self.terminal_global_frame_extension_verified
+      ),
+      'terminal_global_frame_negotiation': (
+        None
+        if self.terminal_global_frame_negotiation is None
+        else self.terminal_global_frame_negotiation.as_report()
+      ),
+      'terminal_global_frame_extension': (
+        None
+        if self.terminal_global_frame_extension is None
+        else self.terminal_global_frame_extension.as_report()
+      ),
       'terminal_global_resolve': (
         None
         if self.terminal_global_resolve is None
@@ -2231,6 +2282,14 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
   terminal_global_resolve: (
     MocReflectedDomainGlobalFrontierBoundaryConditionResult | None
   ) = None
+  terminal_global_frame_negotiation: (
+    MocReflectedDomainGlobalBoundaryFrameNegotiationResult | None
+  ) = None
+  terminal_global_frame_extension: (
+    MocReflectedDomainGlobalBoundaryFrameExtensionResult | None
+  ) = None
+  terminal_global_frame_extension_required = False
+  terminal_global_frame_extension_verified = False
   terminal_global_configuration_verified = False
   terminal_global_lineage_verified = False
   terminal_global_target_consumption_verified = False
@@ -2337,6 +2396,98 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
         **common_values,
       )
     ####
+    terminal_global_frame_error: str | None = None
+    try:
+      maximum_extension = float(
+        feedback_run.configuration.get('maximum_frame_extension_m', 0.0)
+      )
+      terminal_global_frame_negotiation = _negotiate_solver_frame(
+        feedback_run.final_closure,
+        terminal_request,
+        terminal_global_resolve,
+        maximum_extension_m=maximum_extension,
+        consumer_id=(
+          'moc-global-coupled-boundary-condition-terminal-global-frame'
+        ),
+      )
+      terminal_global_frame_extension_required = bool(
+        terminal_global_frame_negotiation is not None
+        and terminal_global_frame_negotiation.extension_required
+      )
+      if (
+        terminal_global_frame_negotiation is not None
+        and terminal_global_frame_negotiation.status
+        in (
+          MocReflectedDomainGlobalBoundaryFrameNegotiationStatus
+          .EXTENSION_BUDGET_FAILURE,
+          MocReflectedDomainGlobalBoundaryFrameNegotiationStatus
+          .NON_PHYSICAL_FRAME,
+          MocReflectedDomainGlobalBoundaryFrameNegotiationStatus
+          .LINEAGE_FAILURE,
+        )
+      ):
+        terminal_global_frame_error = terminal_global_frame_negotiation.message
+      ####
+      if (
+        terminal_global_frame_error is None
+        and terminal_global_frame_extension_required
+      ):
+        extension_request = (
+          build_reflected_domain_global_boundary_frame_extension_request(
+            feedback_run.final_closure,
+            terminal_request,
+            terminal_global_frame_negotiation,
+            terminal_base_target,
+            consumer_id=(
+              'moc-global-coupled-boundary-condition-terminal-global-extension'
+            ),
+          )
+        )
+        terminal_global_frame_extension = (
+          extend_reflected_domain_global_boundary_frame(extension_request)
+        )
+        if (
+          not terminal_global_frame_extension.converged
+          or terminal_global_frame_extension.extended_target is None
+        ):
+          terminal_global_frame_error = terminal_global_frame_extension.message
+        else:
+          terminal_global_resolve = (
+            run_reflected_domain_global_frontier_boundary_conditioned_resolve(
+              terminal_request,
+              feedback_run.final_closure,
+              base_target=terminal_global_frame_extension.extended_target,
+              **dict(boundary_options),
+            )
+          )
+          final_frame_negotiation = _negotiate_solver_frame(
+            feedback_run.final_closure,
+            terminal_request,
+            terminal_global_resolve,
+            maximum_extension_m=maximum_extension,
+            consumer_id=(
+              'moc-global-coupled-boundary-condition-terminal-global-frame-final'
+            ),
+          )
+          if final_frame_negotiation is not None:
+            terminal_global_frame_negotiation = final_frame_negotiation
+          ####
+      ####
+      terminal_global_frame_extension_verified = bool(
+        terminal_global_frame_negotiation is not None
+        and terminal_global_frame_negotiation.frame_covered
+        and (
+          not terminal_global_frame_extension_required
+          or (
+            terminal_global_frame_extension is not None
+            and terminal_global_frame_extension.extension_generated
+            and terminal_global_frame_extension.converged
+          )
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      terminal_global_frame_error = f'global frame extension raised: {error}'
+    ####
     terminal_global_configuration_verified = bool(
       terminal_global_resolve.configuration.get('source_closure_fingerprint')
       == final_fingerprint
@@ -2380,10 +2531,19 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
       and terminal_global_target_consumption_verified
       and terminal_global_target_coverage_verified
       and terminal_global_target_match_verified
+      and terminal_global_frame_extension_verified
       and terminal_global_fidelity_isolation_verified
     )
     common_values.update({
       'terminal_global_resolve': terminal_global_resolve,
+      'terminal_global_frame_negotiation': terminal_global_frame_negotiation,
+      'terminal_global_frame_extension': terminal_global_frame_extension,
+      'terminal_global_frame_extension_required': (
+        terminal_global_frame_extension_required
+      ),
+      'terminal_global_frame_extension_verified': (
+        terminal_global_frame_extension_verified
+      ),
       'terminal_global_configuration_verified': (
         terminal_global_configuration_verified
       ),
@@ -2407,7 +2567,12 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
         MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
         .TERMINAL_GLOBAL_RESOLVE_FAILURE,
         'terminal response proposal was not consumed by a covered, '
-        'lineage-bound, locally verified global re-solve',
+        'lineage-bound, locally verified global re-solve'
+        + (
+          f': {terminal_global_frame_error}'
+          if terminal_global_frame_error is not None
+          else ''
+        ),
         **common_values,
       )
     ####

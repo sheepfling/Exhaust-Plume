@@ -5161,17 +5161,19 @@ is freshly measured, the exact lineage-bound response proposal is consumed by
 one additional fresh global boundary-conditioned solve. The audit records the
 proposal/configuration lineage, target consumption, coverage, target match,
 and research-only fidelity flags. If the global re-solve cannot pass those
-checks, the run returns a typed ``terminal-global-fixed-point-failure`` and retains
-the failing global result; it does not reinterpret the earlier downstream
-response as a completed global fixed point.
+checks, the run returns a typed ``terminal-global-fixed-point-failure`` and
+retains the failing global result; it does not reinterpret the earlier
+downstream response as a completed global fixed point. The terminal audit now
+reuses the existing solver-owned frame negotiation/extension contract, with no
+endpoint hold or extrapolation, before making that decision.
 
 The focused global boundary-feedback tranche passes (``7 passed``). The new
-regression intentionally exercises the current mixed-regime fixture and
-confirms that its unresolved terminal global re-solve fails closed while all
-promotion flags remain blocked. This is a stricter admission contract, not
-canonical physics: the actual solver-owned interface/free-boundary equations,
-stable physical closure ladder, accepted physical shock-cell lengths,
-provider-bound comparisons, validation archives, and release freeze remain
-open. The branch must continue to treat a passing bounded response as
-research evidence until this global re-solve and its physical residuals pass
-on the canonical case ladder.
+regression exercises the current mixed-regime fixture and confirms that the
+terminal response proposal is consumed by a covered fresh global re-solve,
+including the retained frame-extension evidence; all promotion flags remain
+blocked. This is a stricter admission contract, not canonical physics: the
+actual solver-owned interface/free-boundary equations, stable physical closure
+ladder, accepted physical shock-cell lengths, provider-bound comparisons,
+validation archives, and release freeze remain open. The branch must continue
+to treat this as research evidence until the global re-solve and its physical
+residuals pass on the canonical case ladder.
