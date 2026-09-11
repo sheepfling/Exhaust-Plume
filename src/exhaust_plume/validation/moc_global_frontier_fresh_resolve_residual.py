@@ -50,6 +50,9 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualStatus(str, Enum):
   CONVERGED_RESEARCH_RESIDUAL = (
     'converged-research-global-frontier-fresh-resolve-residual'
   )
+  CONVERGED_RESEARCH_STATIONARY_RESIDUAL = (
+    'converged-research-global-frontier-fresh-resolve-stationary-residual'
+  )
   INVALID_INPUT = 'invalid_input'
   FRESH_RESOLVE_REQUIRED = (
     'global-frontier-fresh-resolve-residual-fresh-resolve-required'
@@ -93,6 +96,7 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualResult:
   strict_residual_descent_verified: bool = False
   independent_residual_audit_verified: bool = False
   fidelity_isolation_verified: bool = False
+  stationary_residual_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
   message: str = ''
@@ -167,6 +171,7 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualResult:
       'strict_residual_descent_verified',
       'independent_residual_audit_verified',
       'fidelity_isolation_verified',
+      'stationary_residual_closure_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
     ):
@@ -187,13 +192,20 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualResult:
 
     return bool(
       self.status
-      is MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
-      .CONVERGED_RESEARCH_RESIDUAL
+      in (
+        MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+        .CONVERGED_RESEARCH_RESIDUAL,
+        MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+        .CONVERGED_RESEARCH_STATIONARY_RESIDUAL,
+      )
       and self.fresh_resolve_verified
       and self.fresh_audit_verified
       and self.residual_solver_invoked
       and self.residual_vector_verified
-      and self.strict_residual_descent_verified
+      and (
+        self.strict_residual_descent_verified
+        or self.stationary_residual_closure_verified
+      )
       and self.independent_residual_audit_verified
       and self.fidelity_isolation_verified
       and self.two_sided_result is not None
@@ -217,6 +229,9 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualResult:
         self.independent_residual_audit_verified
       ),
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'stationary_residual_closure_verified': (
+        self.stationary_residual_closure_verified
+      ),
       'chain_promotion_blocked': True,
       'production_claim_allowed': False,
       'initial_residual_norm': self.initial_residual_norm,
@@ -405,6 +420,21 @@ def run_reflected_domain_global_frontier_fresh_resolve_conservative_residual(
     and residual_audit.descent_verified
   )
   independent_verified = residual_audit.local_consistency_verified
+  stationary_closure = bool(
+    not strict_descent
+    and not residual_result.records
+    and residual_result.converged
+    and residual_result.conservative_flux_closure_verified
+    and residual_result.field_re_solve_verified
+    and residual_result.terminal_fixed_point_verified
+    and residual_audit.local_consistency_verified
+    and two_sided_result.request is not None
+    and two_sided_result.request.downstream_probe_fraction == 0.0
+    and not two_sided_result.request.require_interface_motion
+    and two_sided_result.request.allow_stationary_equilibrium
+    and residual_result.final_response is not None
+    and residual_result.final_response.stationary_equilibrium_candidate
+  )
   fidelity_verified = bool(
     two_sided_result.chain_promotion_blocked
     and not two_sided_result.production_claim_allowed
@@ -426,6 +456,7 @@ def run_reflected_domain_global_frontier_fresh_resolve_conservative_residual(
     'strict_residual_descent_verified': strict_descent,
     'independent_residual_audit_verified': independent_verified,
     'fidelity_isolation_verified': fidelity_verified,
+    'stationary_residual_closure_verified': stationary_closure,
   }
   if metrics is not None:
     common.update(
@@ -440,20 +471,32 @@ def run_reflected_domain_global_frontier_fresh_resolve_conservative_residual(
       .RESIDUAL_AUDIT_FAILURE
     )
     message = f'independent conservative residual audit did not pass: {residual_audit.message}'
-  elif not strict_descent:
-    status = (
-      MocReflectedDomainGlobalFrontierFreshResolveResidualStatus.RESIDUAL_FAILURE
-    )
-    message = (
-      'fresh frontier residual solve did not retain strict signed-vector '
-      'descent through an exact field re-solve'
-    )
   elif not fidelity_verified:
     status = (
       MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
       .PROMOTION_FAILURE
     )
     message = 'fresh frontier residual handoff weakened a promotion blocker'
+  elif not strict_descent:
+    if stationary_closure:
+      status = (
+        MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+        .CONVERGED_RESEARCH_STATIONARY_RESIDUAL
+      )
+      message = (
+        'fresh frontier exact front-limit reached independently audited '
+        'stationary mass/momentum/energy closure; moving-front descent and '
+        'canonical free-boundary coupling remain open'
+      )
+    else:
+      status = (
+        MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+        .RESIDUAL_FAILURE
+      )
+      message = (
+        'fresh frontier residual solve did not retain strict signed-vector '
+        'descent through an exact field re-solve'
+      )
   elif not two_sided_result.converged:
     status = (
       MocReflectedDomainGlobalFrontierFreshResolveResidualStatus.RESIDUAL_FAILURE

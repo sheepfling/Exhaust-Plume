@@ -11804,6 +11804,27 @@ def test_global_frontier_fresh_resolve_residual_admission_is_fail_closed():
   )
   assert result.converged_research_residual is False
   assert result.as_report()['claim_status'].startswith('research-only')
+  stationary = run_reflected_domain_global_frontier_fresh_resolve_conservative_residual(
+    fresh,
+    replace(
+      residual_request,
+      downstream_probe_fraction=0.0,
+      require_interface_motion=False,
+      allow_stationary_equilibrium=True,
+    ),
+  )
+  assert stationary.status is (
+    MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+    .CONVERGED_RESEARCH_STATIONARY_RESIDUAL
+  )
+  assert stationary.converged_research_residual
+  assert stationary.stationary_residual_closure_verified
+  assert stationary.strict_residual_descent_verified is False
+  assert stationary.independent_residual_audit_verified
+  assert stationary.two_sided_result is not None
+  assert stationary.two_sided_result.converged
+  assert stationary.chain_promotion_blocked
+  assert stationary.production_claim_allowed is False
   retained_count = len(
     fresh.candidate_closure.global_euler.physical_field.field.ambient_boundary.points_m
   )

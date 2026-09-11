@@ -5604,6 +5604,15 @@ alone did not change either outcome; the next solver packet therefore needs a
 new physically justified correction/free-boundary update, not a looser
 tolerance or a no-op convergence declaration.
 
+The exact front-limit is now represented as a separate stationary research
+outcome.  With ``downstream_probe_fraction=0``, explicit stationary policy,
+zero accepted updates, conservative flux closure, terminal fixed point, and
+the independent audit all passing, the adapter reports
+``CONVERGED_RESEARCH_STATIONARY_RESIDUAL``.  This is useful static-field
+evidence for downstream diagnostic studies, but it is deliberately excluded
+from the moving-front refinement ladder and cannot open canonical
+free-boundary, shock-cell, Signature/FPA production, or release gates.
+
 ### P2.2 exact-Euler conditioned perimeter closure checkpoint — 2026-09-11
 
 The exact-Euler frontier consumer now closes the conditioned physical field
