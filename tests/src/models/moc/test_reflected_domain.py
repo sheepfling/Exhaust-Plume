@@ -1994,6 +1994,40 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert research_moving_audit.chain_promotion_blocked
   assert research_moving_audit.production_claim_allowed is False
 
+  terminal_required_moving = (
+    solve_euler_two_sided_moving_interface_with_solver_owned_law(
+      MocEulerTwoSidedMovingInterfaceRequest(
+        field_request=MocEulerTwoSidedFieldIterationRequest(
+          shock_boundary=shock_boundary,
+          companion_field=companion_field,
+          ambient_pressure_Pa=ambient_pressure,
+          maximum_field_iterations=3,
+        ),
+        maximum_interface_iterations=1,
+        mass_flux_tolerance_kg_m2_s=1.0e-6,
+        normal_momentum_tolerance_Pa=100.0,
+        energy_flux_tolerance_W_m2=1.0e-1,
+        require_terminal_fixed_point=True,
+      ),
+      law_request,
+    )
+  )
+  assert terminal_required_moving.status is (
+    MocEulerTwoSidedMovingInterfaceStatus.ITERATION_LIMIT
+  )
+  assert terminal_required_moving.terminal_fixed_point_required
+  assert terminal_required_moving.terminal_fixed_point_verified is False
+  assert len(terminal_required_moving.records) == 1
+  terminal_required_audit = measure_moc_euler_two_sided_moving_interface(
+    terminal_required_moving
+  )
+  assert terminal_required_audit.status is (
+    MocEulerTwoSidedMovingInterfaceAuditStatus.ITERATION_LIMIT
+  )
+  assert terminal_required_audit.terminal_fixed_point_required
+  assert terminal_required_audit.terminal_fixed_point_verified is False
+  assert terminal_required_audit.local_consistency_verified is False
+
   research_fixed_point_audit = (
     measure_moc_euler_two_sided_moving_interface_fixed_point(research_moving)
   )
@@ -2111,6 +2145,7 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
       maximum_interface_iterations=1,
       require_interface_motion=False,
       allow_stationary_equilibrium=True,
+      require_terminal_fixed_point=True,
     ),
     stationary_law.request,
   )
@@ -2122,11 +2157,15 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert stationary_moving.moving_interface_verified
   assert stationary_moving.interface_motion_verified is False
   assert stationary_moving.stationary_equilibrium_verified
+  assert stationary_moving.terminal_fixed_point_required
+  assert stationary_moving.terminal_fixed_point_verified
   stationary_moving_audit = measure_moc_euler_two_sided_moving_interface(
     stationary_moving
   )
   assert stationary_moving_audit.local_consistency_verified
   assert stationary_moving_audit.stationary_equilibrium_verified
+  assert stationary_moving_audit.terminal_fixed_point_required
+  assert stationary_moving_audit.terminal_fixed_point_verified
   stationary_fixed_point_audit = (
     measure_moc_euler_two_sided_moving_interface_fixed_point(stationary_moving)
   )

@@ -4950,3 +4950,27 @@ The branch is allowed to accumulate research and evidence-plumbing commits,
 but no lane is promoted, no lower-fidelity solver is mutated into a higher-
 fidelity solver, and no release tag is created until the gates above and the
 release manifest are green.
+
+### WP-1 terminal fixed-point admission checkpoint — 2026-09-10
+
+The exact two-sided moving-interface driver now exposes an explicit
+``require_terminal_fixed_point`` policy.  In that mode, a response that meets
+the declared mass/momentum/energy tolerances is not sufficient by itself: the
+driver consumes another solver-owned interface response and exact field
+re-solve until the terminal normal front update is zero or the declared
+iteration budget is exhausted.  A later zero update is admitted only after an
+earlier moving update; an initial stationary result still requires the
+explicit stationary-equilibrium policy.
+
+The policy and its ``terminal_fixed_point_required`` /
+``terminal_fixed_point_verified`` evidence are carried through the result and
+independent moving-interface audit.  The current bounded interior-probe case
+therefore remains a typed iteration-limit result in strict terminal mode,
+while the retained front-limit stationary case passes the same strict gate.
+The default research mode is unchanged for existing callers.  The focused
+moving-interface regressions and the full reflected-domain/MOC suite pass
+(``185 passed``), with the chain-promotion and production-claim ceilings still
+closed.  This is a solver-admission and time-advancement contract improvement;
+it does not close the missing conservative moving-front field, canonical
+mixed-regime closure, accepted physical shock-cell lengths, provider-bound
+product validation, or release freeze.

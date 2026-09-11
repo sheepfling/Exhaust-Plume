@@ -81,6 +81,8 @@ class MocEulerTwoSidedMovingInterfaceAudit:
   production_claim_allowed: bool
   conservative_flux_closure_required: bool = False
   conservative_flux_closure_verified: bool = False
+  terminal_fixed_point_required: bool = False
+  terminal_fixed_point_verified: bool = False
   maximum_normal_displacement_m: float = 0.0
   maximum_mass_flux_residual_kg_m2_s: float = 0.0
   maximum_normal_momentum_residual_Pa: float = 0.0
@@ -121,6 +123,8 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       'production_claim_allowed',
       'conservative_flux_closure_required',
       'conservative_flux_closure_verified',
+      'terminal_fixed_point_required',
+      'terminal_fixed_point_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -171,6 +175,10 @@ class MocEulerTwoSidedMovingInterfaceAudit:
         not self.conservative_flux_closure_required
         or self.conservative_flux_closure_verified
       )
+      and (
+        not self.terminal_fixed_point_required
+        or self.terminal_fixed_point_verified
+      )
       and not self.canonical_free_boundary_verified
       and not self.canonical_euler_verified
       and self.chain_promotion_blocked
@@ -205,6 +213,8 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       'conservative_flux_closure_verified': (
         self.conservative_flux_closure_verified
       ),
+      'terminal_fixed_point_required': self.terminal_fixed_point_required,
+      'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
       'maximum_normal_displacement_m': self.maximum_normal_displacement_m,
       'maximum_mass_flux_residual_kg_m2_s': (
         self.maximum_mass_flux_residual_kg_m2_s
@@ -238,6 +248,8 @@ def _failure(
   moving_interface_verified: bool = False,
   conservative_flux_closure_required: bool = False,
   conservative_flux_closure_verified: bool = False,
+  terminal_fixed_point_required: bool = False,
+  terminal_fixed_point_verified: bool = False,
   maximum_normal_displacement_m: float = 0.0,
   maximum_mass_flux_residual_kg_m2_s: float = 0.0,
   maximum_normal_momentum_residual_Pa: float = 0.0,
@@ -262,6 +274,8 @@ def _failure(
     production_claim_allowed=False,
     conservative_flux_closure_required=conservative_flux_closure_required,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    terminal_fixed_point_required=terminal_fixed_point_required,
+    terminal_fixed_point_verified=terminal_fixed_point_verified,
     maximum_normal_displacement_m=maximum_normal_displacement_m,
     maximum_mass_flux_residual_kg_m2_s=maximum_mass_flux_residual_kg_m2_s,
     maximum_normal_momentum_residual_Pa=maximum_normal_momentum_residual_Pa,
@@ -448,6 +462,7 @@ def measure_moc_euler_two_sided_moving_interface(
   record_lineage_verified = True
   response_lineage_verified = True
   interface_motion_verified = True
+  interface_motion_seen = False
   stationary_equilibrium_verified = True
   response_residuals_verified = True
   field_re_solve_verified = True
@@ -456,6 +471,7 @@ def measure_moc_euler_two_sided_moving_interface(
   maximum_momentum = 0.0
   maximum_energy = 0.0
   conservative_flux_closure_verified = True
+  terminal_fixed_point_verified = False
   failure_status: MocEulerTwoSidedMovingInterfaceAuditStatus | None = None
   failure_message = ''
   for expected_index, record in enumerate(records):
@@ -533,6 +549,12 @@ def measure_moc_euler_two_sided_moving_interface(
       and request.allow_stationary_equilibrium
       and response.stationary_equilibrium_candidate
     )
+    terminal_response_verified = bool(
+      next_field is not None
+      and residuals
+      and displacement <= request.position_tolerance_m
+      and (moved or expected_stationary or interface_motion_seen)
+    )
     expected_response_lineage = response_lineage
     expected_field_resolve = field_resolve
     record_flags_match = bool(
@@ -546,6 +568,9 @@ def measure_moc_euler_two_sided_moving_interface(
       response_lineage and record_flags_match
     )
     interface_motion_verified = interface_motion_verified and (
+      moved and record_flags_match
+    )
+    interface_motion_seen = interface_motion_seen or (
       moved and record_flags_match
     )
     stationary_equilibrium_verified = stationary_equilibrium_verified and (
@@ -565,7 +590,15 @@ def measure_moc_euler_two_sided_moving_interface(
       failure_message = 'response displacement or shock/companion lineage failed independent remeasurement'
       break
     ####
-    if request.require_interface_motion and not moved:
+    if (
+      request.require_interface_motion
+      and not moved
+      and not (
+        request.require_terminal_fixed_point
+        and interface_motion_seen
+        and terminal_response_verified
+      )
+    ):
       failure_status = MocEulerTwoSidedMovingInterfaceAuditStatus.RESPONSE_FAILURE
       failure_message = 'response retained the prior shock geometry; moving-interface evidence is absent'
       break
@@ -586,6 +619,7 @@ def measure_moc_euler_two_sided_moving_interface(
       break
     ####
     current = next_field
+    terminal_fixed_point_verified = terminal_response_verified
     if not record_flags_match:
       failure_status = MocEulerTwoSidedMovingInterfaceAuditStatus.FLAG_FAILURE
       failure_message = 'moving-interface record flags did not match independently remeasured evidence'
@@ -593,6 +627,16 @@ def measure_moc_euler_two_sided_moving_interface(
   ####
   final_lineage = bool(result.final_field_iteration is current)
   record_lineage_verified = record_lineage_verified and final_lineage
+  expected_terminal_fixed_point = bool(
+    records
+    and terminal_fixed_point_verified
+    and result.final_field_iteration is current
+  )
+  expected_motion = bool(
+    interface_motion_seen
+    if request.require_terminal_fixed_point
+    else interface_motion_verified
+  )
   expected_moving = bool(
     result.status in (
       MocEulerTwoSidedMovingInterfaceStatus.CONVERGED_RESEARCH_MOVING_INTERFACE,
@@ -600,18 +644,22 @@ def measure_moc_euler_two_sided_moving_interface(
     )
     and record_lineage_verified
     and response_lineage_verified
-    and (interface_motion_verified or stationary_equilibrium_verified)
+    and (expected_motion or stationary_equilibrium_verified)
     and response_residuals_verified
     and field_re_solve_verified
     and (
       not request.require_conservative_flux_closure
       or conservative_flux_closure_verified
     )
+    and (
+      not request.require_terminal_fixed_point
+      or expected_terminal_fixed_point
+    )
   )
   result_flags_verified = bool(
     result.moving_interface_verified == expected_moving
     and result.response_lineage_verified == response_lineage_verified
-    and result.interface_motion_verified == interface_motion_verified
+    and result.interface_motion_verified == expected_motion
     and result.stationary_equilibrium_verified == stationary_equilibrium_verified
     and result.response_residuals_verified == response_residuals_verified
     and result.field_re_solve_verified == field_re_solve_verified
@@ -619,6 +667,10 @@ def measure_moc_euler_two_sided_moving_interface(
     == request.require_conservative_flux_closure
     and result.conservative_flux_closure_verified
     == conservative_flux_closure_verified
+    and result.terminal_fixed_point_required
+    == request.require_terminal_fixed_point
+    and result.terminal_fixed_point_verified
+    == expected_terminal_fixed_point
     and not result.canonical_free_boundary_verified
     and not result.canonical_euler_verified
     and result.chain_promotion_blocked
@@ -654,13 +706,15 @@ def measure_moc_euler_two_sided_moving_interface(
     initial_field_verified=True,
     record_lineage_verified=record_lineage_verified,
     response_lineage_verified=response_lineage_verified,
-    interface_motion_verified=interface_motion_verified,
+    interface_motion_verified=expected_motion,
     stationary_equilibrium_verified=stationary_equilibrium_verified,
     response_residuals_verified=response_residuals_verified,
     field_re_solve_verified=field_re_solve_verified,
     moving_interface_verified=expected_moving,
     conservative_flux_closure_required=request.require_conservative_flux_closure,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    terminal_fixed_point_required=request.require_terminal_fixed_point,
+    terminal_fixed_point_verified=expected_terminal_fixed_point,
     maximum_normal_displacement_m=maximum_displacement,
     maximum_mass_flux_residual_kg_m2_s=maximum_mass,
     maximum_normal_momentum_residual_Pa=maximum_momentum,

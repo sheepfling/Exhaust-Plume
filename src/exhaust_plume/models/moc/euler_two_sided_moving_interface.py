@@ -344,6 +344,10 @@ class MocEulerTwoSidedMovingInterfaceRequest:
   require_interface_motion: bool = True
   allow_stationary_equilibrium: bool = False
   require_conservative_flux_closure: bool = False
+  # A residual-passing response is not necessarily a settled front.  When
+  # enabled, keep consuming solver-owned responses until the terminal normal
+  # update is zero or the bounded iteration budget is exhausted.
+  require_terminal_fixed_point: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -382,6 +386,9 @@ class MocEulerTwoSidedMovingInterfaceRequest:
     if not isinstance(self.require_conservative_flux_closure, bool):
       raise TypeError('require_conservative_flux_closure must be a bool')
     ####
+    if not isinstance(self.require_terminal_fixed_point, bool):
+      raise TypeError('require_terminal_fixed_point must be a bool')
+    ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -394,6 +401,7 @@ class MocEulerTwoSidedMovingInterfaceRequest:
       'require_interface_motion': self.require_interface_motion,
       'allow_stationary_equilibrium': self.allow_stationary_equilibrium,
       'require_conservative_flux_closure': self.require_conservative_flux_closure,
+      'require_terminal_fixed_point': self.require_terminal_fixed_point,
       'production_claim_allowed': False,
     }
   ####
@@ -503,6 +511,8 @@ class MocEulerTwoSidedMovingInterfaceResult:
   conservative_flux_closure_required: bool = False
   conservative_flux_closure_verified: bool = False
   stationary_equilibrium_verified: bool = False
+  terminal_fixed_point_required: bool = False
+  terminal_fixed_point_verified: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -555,6 +565,8 @@ class MocEulerTwoSidedMovingInterfaceResult:
       'production_claim_allowed',
       'conservative_flux_closure_required',
       'conservative_flux_closure_verified',
+      'terminal_fixed_point_required',
+      'terminal_fixed_point_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -595,6 +607,16 @@ class MocEulerTwoSidedMovingInterfaceResult:
         'evidence across every accepted response'
       )
     ####
+    if (
+      self.moving_interface_verified
+      and self.terminal_fixed_point_required
+      and not self.terminal_fixed_point_verified
+    ):
+      raise ValueError(
+        'terminal fixed-point mode requires a verified zero terminal '
+        'interface update'
+      )
+    ####
     object.__setattr__(self, 'records', records)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -633,6 +655,8 @@ class MocEulerTwoSidedMovingInterfaceResult:
       'conservative_flux_closure_verified': (
         self.conservative_flux_closure_verified
       ),
+      'terminal_fixed_point_required': self.terminal_fixed_point_required,
+      'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
       'request': None if self.request is None else self.request.as_report(),
       'initial_field_iteration': (
         None
@@ -677,6 +701,8 @@ def _failure(
   stationary_equilibrium_verified: bool = False,
   conservative_flux_closure_required: bool = False,
   conservative_flux_closure_verified: bool = False,
+  terminal_fixed_point_required: bool = False,
+  terminal_fixed_point_verified: bool = False,
 ) -> MocEulerTwoSidedMovingInterfaceResult:
   return MocEulerTwoSidedMovingInterfaceResult(
     status=status,
@@ -700,6 +726,12 @@ def _failure(
     ),
     conservative_flux_closure_verified=conservative_flux_closure_verified,
     stationary_equilibrium_verified=stationary_equilibrium_verified,
+    terminal_fixed_point_required=(
+      request.require_terminal_fixed_point
+      if request is not None
+      else terminal_fixed_point_required
+    ),
+    terminal_fixed_point_verified=terminal_fixed_point_verified,
     message=message,
   )
 
@@ -914,7 +946,15 @@ def solve_euler_two_sided_moving_interface(
         final_field_iteration=current_field,
       )
     ####
-    if request.require_interface_motion and not motion_verified:
+    # In terminal-fixed-point mode a later response may legitimately return
+    # zero motion after one or more accepted moving updates.  The initial
+    # response still has to move when ``require_interface_motion`` is set.
+    allow_terminal_zero_motion = bool(
+      request.require_terminal_fixed_point
+      and records
+      and not motion_verified
+    )
+    if request.require_interface_motion and not motion_verified and not allow_terminal_zero_motion:
       record = MocEulerTwoSidedMovingInterfaceIterationRecord(
         iteration_index=iteration_index,
         field_iteration=current_field,
@@ -1015,6 +1055,15 @@ def solve_euler_two_sided_moving_interface(
       and response.stationary_equilibrium_candidate
       and residuals_verified
     )
+    terminal_fixed_point_verified = bool(
+      residuals_verified
+      and response.maximum_normal_displacement_m <= request.position_tolerance_m
+      and (
+        motion_verified
+        or stationary_equilibrium_verified
+        or allow_terminal_zero_motion
+      )
+    )
     record = MocEulerTwoSidedMovingInterfaceIterationRecord(
       iteration_index=iteration_index,
       field_iteration=current_field,
@@ -1051,7 +1100,14 @@ def solve_euler_two_sided_moving_interface(
       )
     ####
     if residuals_verified:
-      if not (motion_verified or stationary_equilibrium_verified):
+      if request.require_terminal_fixed_point and not terminal_fixed_point_verified:
+        current_request = next_request
+        current_field = next_field
+        continue
+      motion_seen = bool(
+        any(record.interface_motion_verified for record in records)
+      )
+      if not (motion_verified or stationary_equilibrium_verified or motion_seen):
         return _failure(
           MocEulerTwoSidedMovingInterfaceStatus.MOVEMENT_REQUIRED,
           'response fluxes passed, but the solver did not declare either '
@@ -1066,6 +1122,7 @@ def solve_euler_two_sided_moving_interface(
           field_re_solve_verified=True,
           conservative_flux_closure_verified=conservative_flux_verified,
           stationary_equilibrium_verified=False,
+          terminal_fixed_point_verified=terminal_fixed_point_verified,
         )
       return MocEulerTwoSidedMovingInterfaceResult(
         status=(
@@ -1081,7 +1138,7 @@ def solve_euler_two_sided_moving_interface(
         final_field_iteration=next_field,
         moving_interface_verified=True,
         response_lineage_verified=True,
-        interface_motion_verified=motion_verified,
+        interface_motion_verified=bool(motion_verified or motion_seen),
         response_residuals_verified=True,
         field_re_solve_verified=True,
         canonical_free_boundary_verified=False,
@@ -1093,6 +1150,8 @@ def solve_euler_two_sided_moving_interface(
         ),
         conservative_flux_closure_verified=conservative_flux_verified,
         stationary_equilibrium_verified=stationary_equilibrium_verified,
+        terminal_fixed_point_required=request.require_terminal_fixed_point,
+        terminal_fixed_point_verified=terminal_fixed_point_verified,
         message=(
           'solver-owned two-sided interface response and exact field re-solve '
           'met the declared research residual tolerances; canonical '
@@ -1127,6 +1186,8 @@ def solve_euler_two_sided_moving_interface(
     stationary_equilibrium_verified=bool(records and all(
       record.stationary_equilibrium_verified for record in records
     )),
+    terminal_fixed_point_required=request.require_terminal_fixed_point,
+    terminal_fixed_point_verified=False,
     conservative_flux_closure_verified=bool(records and all(
       record.response is not None
       and record.response.conservative_flux_closure_verified
