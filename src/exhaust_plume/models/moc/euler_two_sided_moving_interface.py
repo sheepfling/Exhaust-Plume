@@ -57,6 +57,9 @@ class MocEulerTwoSidedMovingInterfaceStatus(str, Enum):
   CONVERGED_RESEARCH_MOVING_INTERFACE = (
     'converged_research_two_sided_moving_interface'
   )
+  CONVERGED_RESEARCH_STATIONARY_INTERFACE = (
+    'converged_research_two_sided_stationary_interface'
+  )
   INVALID_INPUT = 'invalid_input'
   FIELD_ITERATION_REQUIRED = 'two_sided_moving_interface_field_iteration_required'
   INTERFACE_UPDATE_REQUIRED = 'two_sided_moving_interface_update_required'
@@ -170,6 +173,7 @@ class MocEulerTwoSidedInterfaceResponse:
     'solver-owned-two-sided-euler-moving-interface-response-v1'
   )
   law_id: str = 'solver-owned-two-sided-euler-interface-law-required'
+  stationary_equilibrium_candidate: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -254,6 +258,9 @@ class MocEulerTwoSidedInterfaceResponse:
     if not source or not law_id:
       raise ValueError('response_source and law_id must be non-empty')
     ####
+    if not isinstance(self.stationary_equilibrium_candidate, bool):
+      raise TypeError('stationary_equilibrium_candidate must be a bool')
+    ####
     object.__setattr__(self, 'response_source', source)
     object.__setattr__(self, 'law_id', law_id)
   ####
@@ -307,6 +314,7 @@ class MocEulerTwoSidedInterfaceResponse:
       ),
       'response_source': self.response_source,
       'law_id': self.law_id,
+      'stationary_equilibrium_candidate': self.stationary_equilibrium_candidate,
       'production_claim_allowed': False,
     }
   ####
@@ -324,6 +332,7 @@ class MocEulerTwoSidedMovingInterfaceRequest:
   normal_momentum_tolerance_Pa: float = 1.0e-2
   energy_flux_tolerance_W_m2: float = 1.0e-1
   require_interface_motion: bool = True
+  allow_stationary_equilibrium: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -355,6 +364,9 @@ class MocEulerTwoSidedMovingInterfaceRequest:
     ####
     if not isinstance(self.require_interface_motion, bool):
       raise TypeError('require_interface_motion must be a bool')
+    ####
+    if not isinstance(self.allow_stationary_equilibrium, bool):
+      raise TypeError('allow_stationary_equilibrium must be a bool')
   ####
 
   def as_report(self) -> dict[str, object]:
@@ -366,6 +378,7 @@ class MocEulerTwoSidedMovingInterfaceRequest:
       'normal_momentum_tolerance_Pa': self.normal_momentum_tolerance_Pa,
       'energy_flux_tolerance_W_m2': self.energy_flux_tolerance_W_m2,
       'require_interface_motion': self.require_interface_motion,
+      'allow_stationary_equilibrium': self.allow_stationary_equilibrium,
       'production_claim_allowed': False,
     }
   ####
@@ -384,6 +397,7 @@ class MocEulerTwoSidedMovingInterfaceIterationRecord:
   interface_motion_verified: bool
   response_residuals_verified: bool
   field_re_solve_verified: bool
+  stationary_equilibrium_verified: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -424,6 +438,7 @@ class MocEulerTwoSidedMovingInterfaceIterationRecord:
       'interface_motion_verified',
       'response_residuals_verified',
       'field_re_solve_verified',
+      'stationary_equilibrium_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -445,6 +460,7 @@ class MocEulerTwoSidedMovingInterfaceIterationRecord:
       'interface_motion_verified': self.interface_motion_verified,
       'response_residuals_verified': self.response_residuals_verified,
       'field_re_solve_verified': self.field_re_solve_verified,
+      'stationary_equilibrium_verified': self.stationary_equilibrium_verified,
       'message': self.message,
     }
   ####
@@ -469,6 +485,7 @@ class MocEulerTwoSidedMovingInterfaceResult:
   canonical_euler_verified: bool
   chain_promotion_blocked: bool
   production_claim_allowed: bool
+  stationary_equilibrium_verified: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -514,6 +531,7 @@ class MocEulerTwoSidedMovingInterfaceResult:
       'interface_motion_verified',
       'response_residuals_verified',
       'field_re_solve_verified',
+      'stationary_equilibrium_verified',
       'canonical_free_boundary_verified',
       'canonical_euler_verified',
       'chain_promotion_blocked',
@@ -534,7 +552,10 @@ class MocEulerTwoSidedMovingInterfaceResult:
     ####
     if self.moving_interface_verified and not (
       self.response_lineage_verified
-      and self.interface_motion_verified
+      and (
+        self.interface_motion_verified
+        or self.stationary_equilibrium_verified
+      )
       and self.response_residuals_verified
       and self.field_re_solve_verified
       and self.final_field_iteration is not None
@@ -553,8 +574,12 @@ class MocEulerTwoSidedMovingInterfaceResult:
   def converged(self) -> bool:
     return bool(
       self.status
-      is MocEulerTwoSidedMovingInterfaceStatus
-      .CONVERGED_RESEARCH_MOVING_INTERFACE
+      in (
+        MocEulerTwoSidedMovingInterfaceStatus
+        .CONVERGED_RESEARCH_MOVING_INTERFACE,
+        MocEulerTwoSidedMovingInterfaceStatus
+        .CONVERGED_RESEARCH_STATIONARY_INTERFACE,
+      )
     )
   ####
 
@@ -568,6 +593,7 @@ class MocEulerTwoSidedMovingInterfaceResult:
       'interface_motion_verified': self.interface_motion_verified,
       'response_residuals_verified': self.response_residuals_verified,
       'field_re_solve_verified': self.field_re_solve_verified,
+      'stationary_equilibrium_verified': self.stationary_equilibrium_verified,
       'canonical_free_boundary_verified': self.canonical_free_boundary_verified,
       'canonical_euler_verified': self.canonical_euler_verified,
       'chain_promotion_blocked': self.chain_promotion_blocked,
@@ -613,6 +639,7 @@ def _failure(
   interface_motion_verified: bool = False,
   response_residuals_verified: bool = False,
   field_re_solve_verified: bool = False,
+  stationary_equilibrium_verified: bool = False,
 ) -> MocEulerTwoSidedMovingInterfaceResult:
   return MocEulerTwoSidedMovingInterfaceResult(
     status=status,
@@ -629,6 +656,7 @@ def _failure(
     canonical_euler_verified=False,
     chain_promotion_blocked=True,
     production_claim_allowed=False,
+    stationary_equilibrium_verified=stationary_equilibrium_verified,
     message=message,
   )
 
@@ -893,6 +921,13 @@ def solve_euler_two_sided_moving_interface(
       and next_field.field_iteration_verified
     )
     residuals_verified = _response_residuals_verified(response, request)
+    stationary_equilibrium_verified = bool(
+      not motion_verified
+      and not request.require_interface_motion
+      and request.allow_stationary_equilibrium
+      and response.stationary_equilibrium_candidate
+      and residuals_verified
+    )
     record = MocEulerTwoSidedMovingInterfaceIterationRecord(
       iteration_index=iteration_index,
       field_iteration=current_field,
@@ -902,6 +937,7 @@ def solve_euler_two_sided_moving_interface(
       interface_motion_verified=motion_verified,
       response_residuals_verified=residuals_verified,
       field_re_solve_verified=field_re_solve_verified,
+      stationary_equilibrium_verified=stationary_equilibrium_verified,
       message=(
         'solver-owned interface response was consumed by an exact field '
         're-solve; '
@@ -924,12 +960,31 @@ def solve_euler_two_sided_moving_interface(
         response_lineage_verified=True,
         interface_motion_verified=motion_verified,
         response_residuals_verified=residuals_verified,
+        stationary_equilibrium_verified=stationary_equilibrium_verified,
       )
     ####
     if residuals_verified:
+      if not (motion_verified or stationary_equilibrium_verified):
+        return _failure(
+          MocEulerTwoSidedMovingInterfaceStatus.MOVEMENT_REQUIRED,
+          'response fluxes passed, but the solver did not declare either '
+          'interface motion or an allowed stationary equilibrium',
+          request=request,
+          records=records,
+          initial_field_iteration=initial,
+          final_field_iteration=next_field,
+          response_lineage_verified=True,
+          interface_motion_verified=motion_verified,
+          response_residuals_verified=True,
+          field_re_solve_verified=True,
+          stationary_equilibrium_verified=False,
+        )
       return MocEulerTwoSidedMovingInterfaceResult(
         status=(
           MocEulerTwoSidedMovingInterfaceStatus
+          .CONVERGED_RESEARCH_STATIONARY_INTERFACE
+          if stationary_equilibrium_verified
+          else MocEulerTwoSidedMovingInterfaceStatus
           .CONVERGED_RESEARCH_MOVING_INTERFACE
         ),
         request=request,
@@ -945,6 +1000,7 @@ def solve_euler_two_sided_moving_interface(
         canonical_euler_verified=False,
         chain_promotion_blocked=True,
         production_claim_allowed=False,
+        stationary_equilibrium_verified=stationary_equilibrium_verified,
         message=(
           'solver-owned two-sided interface response and exact field re-solve '
           'met the declared research residual tolerances; canonical '
@@ -975,5 +1031,8 @@ def solve_euler_two_sided_moving_interface(
     )),
     field_re_solve_verified=bool(records and all(
       record.field_re_solve_verified for record in records
+    )),
+    stationary_equilibrium_verified=bool(records and all(
+      record.stationary_equilibrium_verified for record in records
     )),
   )

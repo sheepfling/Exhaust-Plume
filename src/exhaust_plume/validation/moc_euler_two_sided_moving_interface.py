@@ -68,6 +68,7 @@ class MocEulerTwoSidedMovingInterfaceAudit:
   record_lineage_verified: bool
   response_lineage_verified: bool
   interface_motion_verified: bool
+  stationary_equilibrium_verified: bool
   response_residuals_verified: bool
   field_re_solve_verified: bool
   moving_interface_verified: bool
@@ -105,6 +106,7 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       'record_lineage_verified',
       'response_lineage_verified',
       'interface_motion_verified',
+      'stationary_equilibrium_verified',
       'response_residuals_verified',
       'field_re_solve_verified',
       'moving_interface_verified',
@@ -151,7 +153,10 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       and self.initial_field_verified
       and self.record_lineage_verified
       and self.response_lineage_verified
-      and self.interface_motion_verified
+      and (
+        self.interface_motion_verified
+        or self.stationary_equilibrium_verified
+      )
       and self.response_residuals_verified
       and self.field_re_solve_verified
       and self.moving_interface_verified
@@ -175,6 +180,7 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       'record_lineage_verified': self.record_lineage_verified,
       'response_lineage_verified': self.response_lineage_verified,
       'interface_motion_verified': self.interface_motion_verified,
+      'stationary_equilibrium_verified': self.stationary_equilibrium_verified,
       'response_residuals_verified': self.response_residuals_verified,
       'field_re_solve_verified': self.field_re_solve_verified,
       'moving_interface_verified': self.moving_interface_verified,
@@ -209,6 +215,7 @@ def _failure(
   record_lineage_verified: bool = False,
   response_lineage_verified: bool = False,
   interface_motion_verified: bool = False,
+  stationary_equilibrium_verified: bool = False,
   response_residuals_verified: bool = False,
   field_re_solve_verified: bool = False,
   moving_interface_verified: bool = False,
@@ -226,6 +233,7 @@ def _failure(
     record_lineage_verified=record_lineage_verified,
     response_lineage_verified=response_lineage_verified,
     interface_motion_verified=interface_motion_verified,
+    stationary_equilibrium_verified=stationary_equilibrium_verified,
     response_residuals_verified=response_residuals_verified,
     field_re_solve_verified=field_re_solve_verified,
     moving_interface_verified=moving_interface_verified,
@@ -419,6 +427,7 @@ def measure_moc_euler_two_sided_moving_interface(
   record_lineage_verified = True
   response_lineage_verified = True
   interface_motion_verified = True
+  stationary_equilibrium_verified = True
   response_residuals_verified = True
   field_re_solve_verified = True
   maximum_displacement = 0.0
@@ -480,11 +489,20 @@ def measure_moc_euler_two_sided_moving_interface(
     ####
     expected_response_residuals = bool(next_field is not None and residuals)
     expected_motion = moved
+    expected_stationary = bool(
+      next_field is not None
+      and residuals
+      and not moved
+      and not request.require_interface_motion
+      and request.allow_stationary_equilibrium
+      and response.stationary_equilibrium_candidate
+    )
     expected_response_lineage = response_lineage
     expected_field_resolve = field_resolve
     record_flags_match = bool(
       record.response_lineage_verified == expected_response_lineage
       and record.interface_motion_verified == expected_motion
+      and record.stationary_equilibrium_verified == expected_stationary
       and record.response_residuals_verified == expected_response_residuals
       and record.field_re_solve_verified == expected_field_resolve
     )
@@ -493,6 +511,9 @@ def measure_moc_euler_two_sided_moving_interface(
     )
     interface_motion_verified = interface_motion_verified and (
       moved and record_flags_match
+    )
+    stationary_equilibrium_verified = stationary_equilibrium_verified and (
+      expected_stationary and record_flags_match
     )
     response_residuals_verified = response_residuals_verified and (
       expected_response_residuals and record_flags_match
@@ -527,10 +548,13 @@ def measure_moc_euler_two_sided_moving_interface(
   final_lineage = bool(result.final_field_iteration is current)
   record_lineage_verified = record_lineage_verified and final_lineage
   expected_moving = bool(
-    result.status is MocEulerTwoSidedMovingInterfaceStatus.CONVERGED_RESEARCH_MOVING_INTERFACE
+    result.status in (
+      MocEulerTwoSidedMovingInterfaceStatus.CONVERGED_RESEARCH_MOVING_INTERFACE,
+      MocEulerTwoSidedMovingInterfaceStatus.CONVERGED_RESEARCH_STATIONARY_INTERFACE,
+    )
     and record_lineage_verified
     and response_lineage_verified
-    and interface_motion_verified
+    and (interface_motion_verified or stationary_equilibrium_verified)
     and response_residuals_verified
     and field_re_solve_verified
   )
@@ -538,6 +562,7 @@ def measure_moc_euler_two_sided_moving_interface(
     result.moving_interface_verified == expected_moving
     and result.response_lineage_verified == response_lineage_verified
     and result.interface_motion_verified == interface_motion_verified
+    and result.stationary_equilibrium_verified == stationary_equilibrium_verified
     and result.response_residuals_verified == response_residuals_verified
     and result.field_re_solve_verified == field_re_solve_verified
     and not result.canonical_free_boundary_verified
@@ -556,7 +581,7 @@ def measure_moc_euler_two_sided_moving_interface(
       failure_status = MocEulerTwoSidedMovingInterfaceAuditStatus.CONVERGED_LOCAL_AUDIT
       failure_message = (
         'independent moving-interface audit passed exact response lineage, '
-        'nonzero interface motion, residual, and field re-solve gates; '
+        'interface condition, residual, and field re-solve gates; '
         'canonical closure and production promotion remain blocked'
       )
     elif result.status is MocEulerTwoSidedMovingInterfaceStatus.ITERATION_LIMIT:
@@ -576,6 +601,7 @@ def measure_moc_euler_two_sided_moving_interface(
     record_lineage_verified=record_lineage_verified,
     response_lineage_verified=response_lineage_verified,
     interface_motion_verified=interface_motion_verified,
+    stationary_equilibrium_verified=stationary_equilibrium_verified,
     response_residuals_verified=response_residuals_verified,
     field_re_solve_verified=field_re_solve_verified,
     moving_interface_verified=expected_moving,

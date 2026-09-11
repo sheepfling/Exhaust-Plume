@@ -67,6 +67,7 @@ class MocEulerTwoSidedInterfaceLawAudit:
   companion_field_verified: bool
   endpoint_constraints_verified: bool
   interface_motion_verified: bool
+  stationary_equilibrium_candidate: bool
   result_flags_verified: bool
   canonical_free_boundary_verified: bool
   canonical_euler_verified: bool
@@ -100,6 +101,7 @@ class MocEulerTwoSidedInterfaceLawAudit:
       'companion_field_verified',
       'endpoint_constraints_verified',
       'interface_motion_verified',
+      'stationary_equilibrium_candidate',
       'result_flags_verified',
       'canonical_free_boundary_verified',
       'canonical_euler_verified',
@@ -149,7 +151,10 @@ class MocEulerTwoSidedInterfaceLawAudit:
       and self.candidate_geometry_verified
       and self.companion_field_verified
       and self.endpoint_constraints_verified
-      and self.interface_motion_verified
+      and (
+        self.interface_motion_verified
+        or self.stationary_equilibrium_candidate
+      )
       and self.result_flags_verified
       and not self.canonical_free_boundary_verified
       and not self.canonical_euler_verified
@@ -174,6 +179,7 @@ class MocEulerTwoSidedInterfaceLawAudit:
       'companion_field_verified': self.companion_field_verified,
       'endpoint_constraints_verified': self.endpoint_constraints_verified,
       'interface_motion_verified': self.interface_motion_verified,
+      'stationary_equilibrium_candidate': self.stationary_equilibrium_candidate,
       'result_flags_verified': self.result_flags_verified,
       'canonical_free_boundary_verified': False,
       'canonical_euler_verified': False,
@@ -212,6 +218,7 @@ def _failure(
   companion_field_verified: bool = False,
   endpoint_constraints_verified: bool = False,
   interface_motion_verified: bool = False,
+  stationary_equilibrium_candidate: bool = False,
   result_flags_verified: bool = False,
   maximum_interface_normal_speed_m_s: float = 0.0,
   maximum_normal_displacement_m: float = 0.0,
@@ -231,6 +238,7 @@ def _failure(
     companion_field_verified=companion_field_verified,
     endpoint_constraints_verified=endpoint_constraints_verified,
     interface_motion_verified=interface_motion_verified,
+    stationary_equilibrium_candidate=stationary_equilibrium_candidate,
     result_flags_verified=result_flags_verified,
     canonical_free_boundary_verified=False,
     canonical_euler_verified=False,
@@ -275,11 +283,16 @@ def _normal_for_cell(
 ) -> tuple[float, float]:
   if index == len(shock_points) - 1:
     edge_start, edge_end = shock_points[index - 1], shock_points[index]
+    normal_start, normal_end = edge_start, edge_end
+  elif index == 0:
+    edge_start, edge_end = shock_points[index], shock_points[index + 1]
+    normal_start, normal_end = edge_start, edge_end
   else:
     edge_start, edge_end = shock_points[index], shock_points[index + 1]
+    normal_start, normal_end = shock_points[index - 1], shock_points[index + 1]
   ####
-  tangent_x = edge_end[0] - edge_start[0]
-  tangent_y = edge_end[1] - edge_start[1]
+  tangent_x = normal_end[0] - normal_start[0]
+  tangent_y = normal_end[1] - normal_start[1]
   tangent_length = hypot(tangent_x, tangent_y)
   if tangent_length <= tolerance_m:
     raise ValueError('shock probe edge has no positive length')
@@ -359,6 +372,26 @@ def _primitive(
     velocity_v,
     pressure,
     total_enthalpy_density,
+  )
+
+
+def _front_limit_state_compatible(
+  upstream_state: Any,
+  upstream_pressure: float,
+  downstream_state: Any,
+  downstream_pressure: float,
+  request: Any,
+) -> bool:
+  return bool(
+    max(
+      abs(float(upstream_state.theta_rad) - float(downstream_state.theta_rad)),
+      abs(float(upstream_state.mach) - float(downstream_state.mach)),
+      abs(float(upstream_state.gamma) - float(downstream_state.gamma)),
+    )
+    <= request.source_state_tolerance
+    and abs(upstream_pressure - downstream_pressure)
+    <= request.source_pressure_tolerance
+    * max(1.0, abs(upstream_pressure), abs(downstream_pressure))
   )
 
 
@@ -552,11 +585,26 @@ def measure_moc_euler_two_sided_interface_law(
         downstream_normal = downstream_u * normal_x + downstream_v * normal_y
         density_jump = downstream_density - upstream_density
         if abs(density_jump) <= 1.0e-12 * max(upstream_density, downstream_density, 1.0):
-          raise ValueError(f'density jump is too small at probe {index}')
-        expected_speeds.append(
-          (downstream_density * downstream_normal - upstream_density * upstream_normal)
-          / density_jump
-        )
+          if (
+            request.downstream_probe_fraction != 0.0
+            or not _front_limit_state_compatible(
+              upstream_state,
+              float(upstream_pressure),
+              declared_state,
+              declared_pressure,
+              request,
+            )
+          ):
+            raise ValueError(f'density jump is too small at probe {index}')
+          expected_speeds.append(0.0)
+        else:
+          expected_speeds.append(
+            (
+              downstream_density * downstream_normal
+              - upstream_density * upstream_normal
+            )
+            / density_jump
+          )
         speed = expected_speeds[-1]
         upstream_relative = upstream_normal - speed
         downstream_relative = downstream_normal - speed
@@ -649,6 +697,11 @@ def measure_moc_euler_two_sided_interface_law(
   interface_motion_verified = any(
     abs(value) > request.position_tolerance_m for value in displacements
   )
+  stationary_equilibrium_candidate = bool(
+    response.stationary_equilibrium_candidate
+    and request.downstream_probe_fraction == 0.0
+    and not interface_motion_verified
+  )
   candidate_geometry_verified = _geometry_valid(result)
   endpoint_constraints_verified = bool(
     all(
@@ -696,12 +749,14 @@ def measure_moc_euler_two_sided_interface_law(
     and result.companion_field_verified == companion_field_verified
     and result.endpoint_constraints_applied == endpoint_constraints_verified
     and result.interface_motion_verified == interface_motion_verified
+    and result.stationary_equilibrium_candidate
+    == stationary_equilibrium_candidate
     and result.response_ready == bool(
       response_lineage_verified
       and candidate_geometry_verified
       and companion_field_verified
       and endpoint_constraints_verified
-      and interface_motion_verified
+      and (interface_motion_verified or stationary_equilibrium_candidate)
     )
     and result.as_report()['chain_promotion_blocked'] is True
     and result.as_report()['production_claim_allowed'] is False
@@ -711,7 +766,7 @@ def measure_moc_euler_two_sided_interface_law(
     and candidate_geometry_verified
     and companion_field_verified
     and endpoint_constraints_verified
-    and interface_motion_verified
+    and (interface_motion_verified or stationary_equilibrium_candidate)
   )
   status = (
     MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
@@ -737,6 +792,7 @@ def measure_moc_euler_two_sided_interface_law(
     companion_field_verified=companion_field_verified,
     endpoint_constraints_verified=endpoint_constraints_verified,
     interface_motion_verified=interface_motion_verified,
+    stationary_equilibrium_candidate=stationary_equilibrium_candidate,
     result_flags_verified=result_flags_verified,
     maximum_interface_normal_speed_m_s=max(
       (abs(value) for value in expected_speeds),

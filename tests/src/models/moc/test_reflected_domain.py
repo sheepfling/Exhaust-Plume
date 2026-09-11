@@ -1934,6 +1934,58 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert joint_audit.chain_promotion_blocked
   assert joint_audit.production_claim_allowed is False
 
+  stationary_law = build_solver_owned_euler_two_sided_interface_response(
+    result,
+    replace(law_request, downstream_probe_fraction=0.0),
+  )
+  assert stationary_law.status is MocEulerTwoSidedInterfaceLawStatus.RESPONSE_READY
+  assert stationary_law.response_ready
+  assert stationary_law.stationary_equilibrium_candidate
+  assert stationary_law.response is not None
+  assert stationary_law.response.stationary_equilibrium_candidate
+  assert stationary_law.response.maximum_normal_momentum_residual_Pa <= 1.0e-2
+  stationary_law_audit = measure_moc_euler_two_sided_interface_law(
+    stationary_law
+  )
+  assert stationary_law_audit.status is (
+    MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
+  )
+  assert stationary_law_audit.local_consistency_verified
+  assert stationary_law_audit.stationary_equilibrium_candidate
+
+  stationary_moving = solve_euler_two_sided_moving_interface_with_solver_owned_law(
+    MocEulerTwoSidedMovingInterfaceRequest(
+      field_request=MocEulerTwoSidedFieldIterationRequest(
+        shock_boundary=shock_boundary,
+        companion_field=companion_field,
+        ambient_pressure_Pa=ambient_pressure,
+        maximum_field_iterations=3,
+      ),
+      maximum_interface_iterations=1,
+      require_interface_motion=False,
+      allow_stationary_equilibrium=True,
+    ),
+    stationary_law.request,
+  )
+  assert stationary_moving.status is (
+    MocEulerTwoSidedMovingInterfaceStatus
+    .CONVERGED_RESEARCH_STATIONARY_INTERFACE
+  )
+  assert stationary_moving.converged
+  assert stationary_moving.moving_interface_verified
+  assert stationary_moving.interface_motion_verified is False
+  assert stationary_moving.stationary_equilibrium_verified
+  stationary_moving_audit = measure_moc_euler_two_sided_moving_interface(
+    stationary_moving
+  )
+  assert stationary_moving_audit.local_consistency_verified
+  assert stationary_moving_audit.stationary_equilibrium_verified
+  stationary_joint_audit = (
+    measure_moc_euler_two_sided_interface_field_joint_closure(stationary_moving)
+  )
+  assert stationary_joint_audit.local_consistency_verified
+  assert stationary_joint_audit.maximum_normal_momentum_residual_Pa <= 1.0e-2
+
 
 def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():
   cases = tuple(

@@ -97,8 +97,16 @@ def _positive_float(value: Any, name: str) -> float:
   return numeric
 
 
-def _bounded_fraction(value: Any, name: str) -> float:
-  numeric = _positive_float(value, name)
+def _bounded_fraction(
+  value: Any,
+  name: str,
+  *,
+  allow_zero: bool = False,
+) -> float:
+  numeric = float(value)
+  if not isfinite(numeric) or (numeric < 0.0 if allow_zero else numeric <= 0.0):
+    qualifier = 'nonnegative' if allow_zero else 'positive'
+    raise ValueError(f'{name} must be finite and {qualifier}')
   if numeric > 1.0:
     raise ValueError(f'{name} must be no greater than one')
   ####
@@ -199,10 +207,10 @@ class MocEulerTwoSidedInterfaceLawRequest:
   pseudo_time_step_s: float = 1.0e-8
   relaxation: float = 0.5
   maximum_normal_displacement_m: float = 1.0e-3
-  # The interface state is the one-sided post-front limit.  A small explicit
-  # fraction samples just inside the retained downstream cell; the caller can
-  # increase it for a declared sensitivity study, but the default must not
-  # silently use a cell-center state as the front state.
+  # The interface state is the one-sided post-front limit.  A positive
+  # fraction samples just inside the retained downstream cell for the
+  # research response; zero selects the explicitly retained post-shock
+  # boundary state and is the stationary-equilibrium/front-limit path.
   downstream_probe_fraction: float = 0.01
   companion_separation_m: float = 0.5
   companion_seed_flow_angle_rad: float = 0.0
@@ -251,7 +259,11 @@ class MocEulerTwoSidedInterfaceLawRequest:
     object.__setattr__(
       self,
       'downstream_probe_fraction',
-      _bounded_fraction(self.downstream_probe_fraction, 'downstream_probe_fraction'),
+      _bounded_fraction(
+        self.downstream_probe_fraction,
+        'downstream_probe_fraction',
+        allow_zero=True,
+      ),
     )
     ####
     seed_angle = float(self.companion_seed_flow_angle_rad)
@@ -314,6 +326,7 @@ class MocEulerTwoSidedInterfaceLawResult:
   companion_field_verified: bool = False
   endpoint_constraints_applied: bool = False
   interface_motion_verified: bool = False
+  stationary_equilibrium_candidate: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -389,6 +402,7 @@ class MocEulerTwoSidedInterfaceLawResult:
       'companion_field_verified',
       'endpoint_constraints_applied',
       'interface_motion_verified',
+      'stationary_equilibrium_candidate',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -400,7 +414,10 @@ class MocEulerTwoSidedInterfaceLawResult:
       or not self.candidate_geometry_verified
       or not self.companion_field_verified
       or not self.endpoint_constraints_applied
-      or not self.interface_motion_verified
+      or not (
+        self.interface_motion_verified
+        or self.stationary_equilibrium_candidate
+      )
     ):
       raise ValueError(
         'a ready interface-law response must retain every local response gate'
@@ -440,6 +457,7 @@ class MocEulerTwoSidedInterfaceLawResult:
       'companion_field_verified': self.companion_field_verified,
       'endpoint_constraints_applied': self.endpoint_constraints_applied,
       'interface_motion_verified': self.interface_motion_verified,
+      'stationary_equilibrium_candidate': self.stationary_equilibrium_candidate,
       'probe_points_m': self.probe_points_m,
       'probe_normals': self.probe_normals,
       'interface_normal_speeds_m_s': self.interface_normal_speeds_m_s,
@@ -576,6 +594,26 @@ def _source_lineage(
   return True
 
 
+def _front_limit_state_compatible(
+  upstream_state: Any,
+  upstream_pressure: float,
+  downstream_state: Any,
+  downstream_pressure: float,
+  request: MocEulerTwoSidedInterfaceLawRequest,
+) -> bool:
+  return bool(
+    max(
+      abs(float(upstream_state.theta_rad) - float(downstream_state.theta_rad)),
+      abs(float(upstream_state.mach) - float(downstream_state.mach)),
+      abs(float(upstream_state.gamma) - float(downstream_state.gamma)),
+    )
+    <= request.source_state_tolerance
+    and abs(upstream_pressure - downstream_pressure)
+    <= request.source_pressure_tolerance
+    * max(1.0, abs(upstream_pressure), abs(downstream_pressure))
+  )
+
+
 def _probe_downstream_field(
   field: MocPhysicalPostShockFieldResult,
   point_m: tuple[float, float],
@@ -585,15 +623,23 @@ def _probe_downstream_field(
 ) -> _DownstreamProbe:
   if index == len(shock_points) - 1:
     edge_start, edge_end = shock_points[index - 1], shock_points[index]
+    normal_start, normal_end = edge_start, edge_end
+  elif index == 0:
+    edge_start, edge_end = shock_points[index], shock_points[index + 1]
+    normal_start, normal_end = edge_start, edge_end
   else:
     edge_start, edge_end = shock_points[index], shock_points[index + 1]
+    # The exact shock solver uses a centered tangent for interior samples.
+    # Keep the forward edge for cell ownership, but use the same centered
+    # front normal for the conservative response channels.
+    normal_start, normal_end = shock_points[index - 1], shock_points[index + 1]
   ####
   edge_midpoint = (
     0.5 * (edge_start[0] + edge_end[0]),
     0.5 * (edge_start[1] + edge_end[1]),
   )
-  tangent_x = edge_end[0] - edge_start[0]
-  tangent_y = edge_end[1] - edge_start[1]
+  tangent_x = normal_end[0] - normal_start[0]
+  tangent_y = normal_end[1] - normal_start[1]
   tangent_length = hypot(tangent_x, tangent_y)
   if tangent_length <= request.position_tolerance_m:
     raise ValueError('shock probe edge has no positive length')
@@ -626,18 +672,31 @@ def _probe_downstream_field(
     normal_y = -normal_y
   ####
   probe_fraction = request.downstream_probe_fraction
-  probe_point = (
-    point_m[0] + probe_fraction * (centroid[0] - point_m[0]),
-    point_m[1] + probe_fraction * (centroid[1] - point_m[1]),
-  )
-  state = field.state_at(
-    probe_point,
-    position_tolerance_m=max(1.0e-10, request.position_tolerance_m * 0.1),
-  )
-  pressure = field.total_pressure_at(
-    probe_point,
-    position_tolerance_m=max(1.0e-10, request.position_tolerance_m * 0.1),
-  )
+  if probe_fraction == 0.0:
+    if (
+      len(field.post_shock_boundary_states) != len(shock_points)
+      or len(field.post_shock_boundary_total_pressure_Pa) != len(shock_points)
+    ):
+      raise ValueError(
+        'exact front-limit response requires retained post-shock boundary '
+        'state and pressure samples'
+      )
+    probe_point = point_m
+    state = field.post_shock_boundary_states[index]
+    pressure = field.post_shock_boundary_total_pressure_Pa[index]
+  else:
+    probe_point = (
+      point_m[0] + probe_fraction * (centroid[0] - point_m[0]),
+      point_m[1] + probe_fraction * (centroid[1] - point_m[1]),
+    )
+    state = field.state_at(
+      probe_point,
+      position_tolerance_m=max(1.0e-10, request.position_tolerance_m * 0.1),
+    )
+    pressure = field.total_pressure_at(
+      probe_point,
+      position_tolerance_m=max(1.0e-10, request.position_tolerance_m * 0.1),
+    )
   if state is None or pressure is None:
     raise ValueError(
       f'downstream physical field does not sample the shock probe at {index}'
@@ -795,12 +854,23 @@ def build_solver_owned_euler_two_sided_interface_response(
       )
       density_jump = downstream_density - upstream_density
       if abs(density_jump) <= 1.0e-12 * max(upstream_density, downstream_density, 1.0):
-        raise ValueError(f'shock density jump is too small at sample {index}')
-      ####
-      speed = (
-        downstream_density * downstream_normal_velocity
-        - upstream_density * upstream_normal_velocity
-      ) / density_jump
+        if (
+          request.downstream_probe_fraction != 0.0
+          or not _front_limit_state_compatible(
+            upstream_state,
+            upstream_pressure,
+            probe.state,
+            probe.total_pressure_Pa,
+            request,
+          )
+        ):
+          raise ValueError(f'shock density jump is too small at sample {index}')
+        speed = 0.0
+      else:
+        speed = (
+          downstream_density * downstream_normal_velocity
+          - upstream_density * upstream_normal_velocity
+        ) / density_jump
       if not isfinite(speed):
         raise ValueError(f'interface normal speed is non-finite at sample {index}')
       ####
@@ -1061,6 +1131,9 @@ def build_solver_owned_euler_two_sided_interface_response(
   motion_verified = any(
     abs(value) > request.position_tolerance_m for value in displacement
   )
+  stationary_equilibrium_candidate = bool(
+    request.downstream_probe_fraction == 0.0 and not motion_verified
+  )
   response = MocEulerTwoSidedInterfaceResponse(
     prior_shock_boundary=shock,
     next_shock_boundary=next_shock,
@@ -1071,10 +1144,11 @@ def build_solver_owned_euler_two_sided_interface_response(
     energy_flux_residuals_W_m2=tuple(energy_residuals),
     response_source=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
     law_id=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
+    stationary_equilibrium_candidate=stationary_equilibrium_candidate,
   )
   result_status = (
     MocEulerTwoSidedInterfaceLawStatus.RESPONSE_READY
-    if motion_verified
+    if motion_verified or stationary_equilibrium_candidate
     else MocEulerTwoSidedInterfaceLawStatus.NO_INTERFACE_MOTION
   )
   return MocEulerTwoSidedInterfaceLawResult(
@@ -1095,6 +1169,7 @@ def build_solver_owned_euler_two_sided_interface_response(
     companion_field_verified=True,
     endpoint_constraints_applied=True,
     interface_motion_verified=motion_verified,
+    stationary_equilibrium_candidate=stationary_equilibrium_candidate,
     message=(
       'solver-owned Rankine--Hugoniot front response built from the retained '
       'upstream source band and downstream physical cell probes; the regenerated '

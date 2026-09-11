@@ -4607,3 +4607,26 @@ response and exact field re-solve.  It does not close the strict default
 momentum tolerance, solver-owned canonical free-boundary feedback, stable
 multi-case physical refinement, accepted shock-cell lengths, provider-bound
 product validation, owner archives, or release tagging.
+
+### WP-1 stationary front-limit checkpoint — 2026-09-10
+
+The solver-owned response now has an explicit front-limit path.  A declared
+``downstream_probe_fraction=0`` uses the retained one-sided post-shock
+boundary state and pressure directly; it does not interpolate an interior
+cell state.  Interior probe normals are also now aligned with the exact
+shock solver's centered tangent convention, while forward/backward edges
+remain responsible for downstream-cell ownership.
+
+On the current exact field, the front-limit response passes the independent
+law audit with a maximum normal-momentum residual of ``2.62e-10 Pa``.  The
+moving driver accepts the resulting zero-speed state only when the caller
+explicitly sets ``require_interface_motion=false`` and
+``allow_stationary_equilibrium=true``.  The result is typed and reported as
+``CONVERGED_RESEARCH_STATIONARY_INTERFACE``; it preserves the research-only
+claim ceiling and the exact field re-solve lineage.
+
+This separates a physically stationary initial condition from a transient
+moving-front response.  The default ``0.01`` interior-probe research law
+still has an open momentum residual for genuinely moving updates, and the
+canonical feedback solve, multi-case refinement, physical shock-cell fits,
+external product validation, owner archives, and release gates remain open.

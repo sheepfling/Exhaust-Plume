@@ -468,7 +468,10 @@ def measure_moc_euler_two_sided_interface_field_joint_closure(
   moving_verified = moving_audit.local_consistency_verified
   response_lineage_verified = bool(
     moving_audit.response_lineage_verified
-    and moving_audit.interface_motion_verified
+    and (
+      moving_audit.interface_motion_verified
+      or moving_audit.stationary_equilibrium_verified
+    )
     and moving_audit.response_residuals_verified
   )
   field_re_solve_verified = moving_audit.field_re_solve_verified
