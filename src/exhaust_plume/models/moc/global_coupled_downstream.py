@@ -143,6 +143,9 @@ class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus(
   """Outcome of packaging a covered response for a future global re-solve."""
 
   READY_FOR_GLOBAL_RESOLVE = 'ready-for-global-resolve'
+  READY_FOR_GLOBAL_RESOLVE_WITH_OPEN_RESPONSE = (
+    'ready-for-global-resolve-with-open-response'
+  )
   INVALID_INPUT = 'invalid_input'
   COVERAGE_FAILURE = 'upstream-feedback-coverage-failure'
   RESPONSE_FAILURE = 'upstream-feedback-response-failure'
@@ -1659,19 +1662,32 @@ class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal:
         raise TypeError(f'{name} must be a bool')
       ####
     ####
-    if self.status is (
+    ready_statuses = (
       MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
-      .READY_FOR_GLOBAL_RESOLVE
-    ) and not (
+      .READY_FOR_GLOBAL_RESOLVE,
+      MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+      .READY_FOR_GLOBAL_RESOLVE_WITH_OPEN_RESPONSE,
+    )
+    if self.status in ready_statuses and not (
       self.overlap_coverage_verified
       and self.response_channels_finite
-      and self.response_residuals_verified
       and self.global_resolve_required
       and not self.consumed_by_global_solver
     ):
       raise ValueError(
         'ready upstream feedback must have a covered, finite, locally '
-        'verified response awaiting a global re-solve'
+        'measured response awaiting a global re-solve'
+      )
+    ####
+    if (
+      self.status
+      is MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+      .READY_FOR_GLOBAL_RESOLVE
+      and not self.response_residuals_verified
+    ):
+      raise ValueError(
+        'a fully ready upstream feedback packet must retain closed local '
+        'overlap residuals'
       )
     ####
     if self.consumed_by_global_solver:
@@ -1708,11 +1724,14 @@ class MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal:
   def ready_for_global_resolve(self) -> bool:
     return bool(
       self.status
-      is MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
-      .READY_FOR_GLOBAL_RESOLVE
+      in (
+        MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+        .READY_FOR_GLOBAL_RESOLVE,
+        MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+        .READY_FOR_GLOBAL_RESOLVE_WITH_OPEN_RESPONSE,
+      )
       and self.overlap_coverage_verified
       and self.response_channels_finite
-      and self.response_residuals_verified
       and self.global_resolve_required
       and not self.consumed_by_global_solver
     )
@@ -1786,6 +1805,9 @@ def build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
   proposal cannot silently inherit a shifted mesh or an extrapolated endpoint.
   The returned targets are relaxed toward the measured coupled response; they
   remain unconsumed until a future solver explicitly accepts this contract.
+  A covered response whose overlap residual is still open is retained as a
+  distinct research handoff: the next fresh global solve is allowed to try to
+  reduce it, but the open response cannot be mislabeled as converged.
   """
 
   if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
@@ -1808,10 +1830,13 @@ def build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
       'physical closure'
     )
   ####
-  if not response.converged:
+  if not (
+    response.overlap_coverage_verified
+    and response.signed_free_boundary_response_verified
+  ):
     raise ValueError(
-      'upstream feedback proposal requires a covered response whose local '
-      'overlap residuals pass'
+      'upstream feedback proposal requires a covered, finite signed response '
+      'whose exact overlap frame is retained'
     )
   ####
   if response.upstream_boundary != closure.downstream_boundary:
@@ -1936,10 +1961,14 @@ def build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
   fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
     closure
   )
+  response_closed = response.converged
   return MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal(
     status=(
       MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
       .READY_FOR_GLOBAL_RESOLVE
+      if response_closed
+      else MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+      .READY_FOR_GLOBAL_RESOLVE_WITH_OPEN_RESPONSE
     ),
     source_closure_fingerprint=fingerprint,
     source_response_status=response.status.value,
@@ -1966,7 +1995,12 @@ def build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
     response_residuals_verified=response.residuals_verified,
     message=(
       'covered downstream response packaged for a future global re-solve; '
-      'the proposal is unconsumed and remains research-only'
+      + (
+        'local overlap residuals pass; '
+        if response_closed
+        else 'local overlap residuals remain open; '
+      )
+      + 'the proposal is unconsumed and remains research-only'
     ),
   )
 ####

@@ -13339,6 +13339,60 @@ def test_global_coupled_boundary_condition_feedback_consumes_target_geometry():
 ####
 
 
+def test_global_coupled_boundary_feedback_consumes_open_response_as_research_step():
+  """A covered open response can drive one fresh global solve without promotion."""
+
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  ambient_pressure = mixed_request.control_section.samples[-1].static_pressure_Pa
+  run = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'ambient_pressure_Pa': ambient_pressure,
+      'pressure_correction_fraction': 0.005,
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    boundary_condition_options={'consume_target_geometry': True},
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+    .COMPLETED_RESEARCH_BOUNDARY_FEEDBACK
+  )
+  assert run.research_feedback_completed
+  assert run.downstream_response_verified
+  assert run.fresh_global_solve_verified
+  assert run.target_consumption_verified
+  assert run.target_geometry_consumed
+  assert run.geometry_conditioning_verified
+  assert run.fidelity_isolation_verified
+  assert run.global_coupling_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  iteration = run.iterations[0]
+  assert iteration.proposal is not None
+  assert iteration.proposal.status is (
+    MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus
+    .READY_FOR_GLOBAL_RESOLVE_WITH_OPEN_RESPONSE
+  )
+  assert iteration.proposal.ready_for_global_resolve
+  assert iteration.proposal.response_residuals_verified is False
+  assert iteration.boundary_condition is not None
+  assert iteration.boundary_condition.target_geometry_consumed
+  assert iteration.research_step_verified
+  assert run.as_report()['iterations'][0]['proposal']['ready_for_global_resolve']
+  assert run.as_report()['production_claim_allowed'] is False
+####
+
+
 def test_global_boundary_state_feedback_binds_target_and_signed_state_without_promotion():
   closure = _global_physical_closure_for_mixed_regime()
 

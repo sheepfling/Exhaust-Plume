@@ -551,6 +551,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
         if self.downstream_feedback is None
         else self.downstream_feedback.as_report()
       ),
+      'proposal': (
+        None if self.proposal is None else self.proposal.as_report()
+      ),
       'boundary_condition': (
         None
         if self.boundary_condition is None
