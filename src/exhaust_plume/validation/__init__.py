@@ -370,6 +370,12 @@ from exhaust_plume.validation.moc_global_frontier_target_resolve import (
   MocReflectedDomainGlobalFrontierTargetResolveResult,
   run_reflected_domain_global_frontier_target_guided_resolve,
 )
+from exhaust_plume.validation.moc_global_frontier_fresh_resolve import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_AUDIT_OPERATOR_ID,
+  MocReflectedDomainGlobalFrontierFreshResolveAuditStatus,
+  MocReflectedDomainGlobalFrontierFreshResolveAudit,
+  audit_reflected_domain_global_frontier_fresh_resolve,
+)
 from exhaust_plume.validation.moc_global_frontier_target_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_REFINEMENT_OPERATOR_ID,
   MocReflectedDomainGlobalFrontierTargetRefinementStatus,
@@ -1156,6 +1162,10 @@ __all__ = (
   'MocReflectedDomainGlobalFrontierTargetResolveCandidate',
   'MocReflectedDomainGlobalFrontierTargetResolveResult',
   'run_reflected_domain_global_frontier_target_guided_resolve',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_AUDIT_OPERATOR_ID',
+  'MocReflectedDomainGlobalFrontierFreshResolveAuditStatus',
+  'MocReflectedDomainGlobalFrontierFreshResolveAudit',
+  'audit_reflected_domain_global_frontier_fresh_resolve',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainGlobalFrontierTargetRefinementStatus',
   'MocReflectedDomainGlobalFrontierTargetRefinementStep',

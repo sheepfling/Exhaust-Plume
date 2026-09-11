@@ -63,6 +63,10 @@ from exhaust_plume.validation.moc_global_frontier_target_resolve import (
   MocReflectedDomainGlobalFrontierTargetResolveStatus,
   run_reflected_domain_global_frontier_target_guided_resolve,
 )
+from exhaust_plume.validation.moc_global_frontier_fresh_resolve import (
+  MocReflectedDomainGlobalFrontierFreshResolveAuditStatus,
+  audit_reflected_domain_global_frontier_fresh_resolve,
+)
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
@@ -92,6 +96,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus,
   MocReflectedDomainGlobalFrontierReconciliationStatus,
   MocReflectedDomainGlobalFrontierReconciliationReceipt,
+  MocReflectedDomainGlobalFrontierFreshResolveRequest,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
@@ -191,6 +196,7 @@ from exhaust_plume.models.moc import (
   build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal,
   build_reflected_domain_global_coupled_downstream_boundary_trace,
   build_reflected_domain_global_frontier_reconciliation_request,
+  solve_reflected_domain_global_frontier_fresh_resolve,
   moc_reflected_domain_global_frontier_proposal_fingerprint,
   reconcile_reflected_domain_global_frontier,
   measure_reflected_domain_global_coupled_downstream_boundary_response,
@@ -11630,6 +11636,113 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
   assert candidate_consumption.global_coupling_verified is False
   assert candidate_consumption.chain_promotion_blocked
   assert candidate_consumption.production_claim_allowed is False
+####
+
+
+def test_global_frontier_fresh_resolve_typed_failure_is_independently_audited():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  feedback = downstream_feedback.run_reflected_domain_global_coupled_downstream_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    axial_station_count=7,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+    ),
+    physical_field_continuation_profile=handoff.continuation_profile,
+    physical_field_shock_front_condition=handoff.shock_front_condition,
+  )
+  proposal = feedback.upstream_feedback_proposals[-1]
+  assert proposal is not None
+  request = build_reflected_domain_global_frontier_reconciliation_request(
+    closure,
+    proposal,
+    consumer_id='test-fresh-global-frontier-resolve-v1',
+  )
+  pressure_requested = run_reflected_domain_global_frontier_target_guided_resolve(
+    request,
+    closure,
+    candidate_compression_envelope_skews=(0.0,),
+    consume_target_in_global_closure=True,
+  )
+  assert pressure_requested.status is (
+    MocReflectedDomainGlobalFrontierTargetResolveStatus
+    .CONVERGED_TARGET_GUIDED_RESEARCH_RESOLVE
+  )
+  assert pressure_requested.selected_candidate is not None
+  pressure_candidate = pressure_requested.selected_candidate
+  candidate = pressure_candidate.closure
+  assert candidate is not None
+  assert candidate.global_euler is not None
+  assert candidate.global_euler.physical_field is not None
+  assert candidate.global_euler.physical_field.field is not None
+  boundary = candidate.global_euler.physical_field.field.ambient_boundary
+  count = len(boundary.points_m)
+  candidate_proposal = replace(
+    proposal,
+    matched_x_stations_m=tuple(point[0] for point in boundary.points_m),
+    reference_boundary_points_m=boundary.points_m,
+    proposed_boundary_points_m=boundary.points_m,
+    reference_tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    proposed_tangent_rad=tuple(state.theta_rad for state in boundary.states),
+    reference_static_pressure_Pa=boundary.static_pressure_Pa,
+    proposed_static_pressure_Pa=boundary.static_pressure_Pa,
+    coordinate_corrections_m=(0.0,) * count,
+    tangent_corrections_rad=(0.0,) * count,
+    pressure_corrections_Pa=(0.0,) * count,
+    normal_velocity_values_m_s=(0.0,) * count,
+  )
+  candidate_request = build_reflected_domain_global_frontier_reconciliation_request(
+    closure,
+    candidate_proposal,
+    consumer_id='test-fresh-global-frontier-resolve-v1',
+  )
+  fresh = solve_reflected_domain_global_frontier_fresh_resolve(
+    MocReflectedDomainGlobalFrontierFreshResolveRequest(
+      closure=closure,
+      frontier_request=candidate_request,
+      compression_envelope_skew=pressure_candidate.compression_envelope_skew,
+    )
+  )
+
+  assert fresh.fresh_global_solve_attempted
+  assert fresh.candidate_closure is not closure
+  assert fresh.global_coupling_verified is False
+  assert fresh.downstream_boundary_closure_verified is False
+  assert fresh.chain_promotion_blocked
+  assert fresh.production_claim_allowed is False
+  assert fresh.converged_research_resolve is False
+  audit = audit_reflected_domain_global_frontier_fresh_resolve(fresh)
+  assert audit.status is (
+    MocReflectedDomainGlobalFrontierFreshResolveAuditStatus
+    .CANDIDATE_FAILURE
+  )
+  assert audit.audited_research_resolve is False
+  assert audit.target_packet_verified
+  assert audit.source_lineage_verified
+  assert audit.candidate_identity_verified
+  assert audit.candidate_closure_verified is False
+  assert audit.target_consumption_verified is False
+  assert audit.target_geometry_consumption_verified is False
+  assert audit.target_coverage_verified is False
+  assert audit.target_match_verified is False
+  assert audit.promotion_flags_verified
+  assert audit.production_claim_allowed is False
+  tampered_audit = audit_reflected_domain_global_frontier_fresh_resolve(
+    replace(fresh, target=None)
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainGlobalFrontierFreshResolveAuditStatus
+    .TARGET_PACKET_FAILURE
+  )
 ####
 
 

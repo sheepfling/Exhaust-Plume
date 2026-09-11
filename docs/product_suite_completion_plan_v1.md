@@ -126,16 +126,32 @@ confirm that no claim ceiling or promotion blocker is bypassed.  Only then
 write the current release freeze and create a tag.  Until this sprint exits,
 commits and pushes are integration checkpoints, not releases.
 
-## Current next action
+## P2.2 checkpoint — solver-owned fresh consumer
 
-The local product surfaces are sufficiently complete for continued integration.
-The next implementation slice is Sprint 2: move the downstream frontier
-feedback from a validation/request-and-receipt seam into a solver-owned,
-freshly re-solved coupled free-boundary mechanism, with an independent
-multi-channel residual audit.  The existing two-sided directional line-search
-(``4a62e6b``) is the starting packet; it remains research-only and must not be
-used to mark canonical closure, physical shock cells, Signature production,
-FPA production, or release readiness.
+The first model-side consumer slice is now present in
+``global_frontier_reconciliation``.  It rebuilds an exact pressure/geometry/
+tangent target from the retained proposal, recovers the source closure's
+solver-owned remesh and incoming handoff, and performs a fresh global physical
+closure solve.  The result retains source/proposal/target lineage, target
+coverage, coordinate/tangent/pressure residuals, and an explicit
+research-only promotion ceiling.  The separate
+``moc_global_frontier_fresh_resolve`` audit recomputes those channels from the
+candidate boundary rather than trusting the result summary flags.
+
+The exercised mixed-regime case demonstrates the intended fail-closed
+behavior: the target can reach the fresh source-band attempt, but the current
+geometry-conditioned ambient march returns a typed global-resolve failure
+before a verified downstream boundary is retained.  The audit records that
+candidate failure and rejects a missing/tampered target packet.  No canonical,
+shock-cell, Signature, FPA, or release gate is relaxed by this slice.
+
+Current next action: isolate and fix the geometry-conditioned ambient-march
+failure on the declared case/refinement ladder, then require a successful
+fresh candidate plus independent residual descent before adding a bounded
+outer feedback iteration.  The existing two-sided directional line-search
+(``4a62e6b``) and the new fresh-consumer result are research evidence only;
+they must not be used to mark canonical closure, physical shock cells,
+Signature production, FPA production, or release readiness.
 
 ## Operating protocol
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
 import json
-from math import isfinite
+from math import atan2, cos, hypot, isfinite, sin
 from typing import Any
 
 from exhaust_plume.models.moc.global_coupled_downstream import (
@@ -23,7 +23,12 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
 from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
+  solve_reflected_domain_global_physical_closure,
 )
+from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerBoundaryPressureTarget,
+)
+from exhaust_plume.util.aero.shock_validity import ShockBranch
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_RECONCILIATION_MODEL',
@@ -31,14 +36,23 @@ __all__ = (
   'MocReflectedDomainGlobalFrontierReconciliationReceipt',
   'MocReflectedDomainGlobalFrontierReconciliationRequest',
   'MocReflectedDomainGlobalFrontierReconciliationResult',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_MODEL',
+  'MocReflectedDomainGlobalFrontierFreshResolveStatus',
+  'MocReflectedDomainGlobalFrontierFreshResolveRequest',
+  'MocReflectedDomainGlobalFrontierFreshResolveResult',
   'moc_reflected_domain_global_frontier_proposal_fingerprint',
   'build_reflected_domain_global_frontier_reconciliation_request',
+  'build_reflected_domain_global_frontier_pressure_target',
   'reconcile_reflected_domain_global_frontier',
+  'solve_reflected_domain_global_frontier_fresh_resolve',
 )
 
 
 MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_RECONCILIATION_MODEL = (
   'research-global-frontier-reconciliation-consumer-v1'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_MODEL = (
+  'research-global-frontier-fresh-global-resolve-v1'
 )
 
 
@@ -658,5 +672,768 @@ def reconcile_reflected_domain_global_frontier(
       'solver-owned consumer accepted the exact frontier target; a global '
       're-solve and physical closure audit are still required'
     ),
+  )
+####
+
+
+class MocReflectedDomainGlobalFrontierFreshResolveStatus(str, Enum):
+  """Outcome of one model-owned fresh global target re-solve."""
+
+  CONVERGED_RESEARCH_RESOLVE = 'converged-research-global-frontier-resolve'
+  INVALID_INPUT = 'invalid_input'
+  SOURCE_CLOSURE_REQUIRED = 'global-frontier-source-closure-required'
+  SOURCE_CONFIGURATION_FAILURE = 'global-frontier-source-configuration-failure'
+  GLOBAL_RESOLVE_FAILURE = 'global-frontier-fresh-global-resolve-failure'
+  TARGET_CONSUMPTION_FAILURE = 'global-frontier-target-consumption-failure'
+  TARGET_COVERAGE_FAILURE = 'global-frontier-target-coverage-failure'
+  TARGET_MATCH_FAILURE = 'global-frontier-target-match-failure'
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalFrontierFreshResolveRequest:
+  """Inputs for a solver-owned global re-solve from one exact target packet.
+
+  The request retains both the source closure and the immutable frontier
+  proposal request.  This is intentionally different from the receipt-only
+  reconciliation seam: the solver is required to create a fresh closure and
+  consume the target's pressure, geometry, and tangent channels.  The result
+  remains research-only until the canonical mixed-regime and refinement gates
+  are independently satisfied.
+  """
+
+  closure: MocReflectedDomainGlobalPhysicalClosureResult
+  frontier_request: MocReflectedDomainGlobalFrontierReconciliationRequest
+  compression_envelope_skew: float | None = None
+  branch: ShockBranch = ShockBranch.WEAK
+  shock_angle_tolerance_rad: float = 2.0e-2
+  target_position_tolerance_m: float = 5.0e-3
+  target_tangent_tolerance_rad: float = 5.0e-3
+  target_pressure_tolerance_fraction: float = 2.0e-2
+  maximum_boundary_iterations: int = 16
+  source: str = MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_MODEL
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.closure,
+      MocReflectedDomainGlobalPhysicalClosureResult,
+    ):
+      raise TypeError(
+        'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+      )
+    ####
+    if not isinstance(
+      self.frontier_request,
+      MocReflectedDomainGlobalFrontierReconciliationRequest,
+    ):
+      raise TypeError(
+        'frontier_request must be a '
+        'MocReflectedDomainGlobalFrontierReconciliationRequest'
+      )
+    ####
+    closure_fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
+      self.closure
+    )
+    if closure_fingerprint != self.frontier_request.source_closure_fingerprint:
+      raise ValueError(
+        'frontier_request must retain the exact source closure fingerprint'
+      )
+    ####
+    if not self.frontier_request.lineage_verified:
+      raise ValueError('frontier_request lineage must be verified')
+    ####
+    if not self.closure.converged or not self.closure.physical_closure_verified:
+      raise ValueError(
+        'fresh global frontier resolving requires a locally verified source '
+        'closure'
+      )
+    ####
+    if not isinstance(self.branch, ShockBranch):
+      raise TypeError('branch must be a ShockBranch')
+    ####
+    for name in (
+      'shock_angle_tolerance_rad',
+      'target_position_tolerance_m',
+      'target_tangent_tolerance_rad',
+      'target_pressure_tolerance_fraction',
+    ):
+      value = float(getattr(self, name))
+      if not isfinite(value) or value <= 0.0:
+        raise ValueError(f'{name} must be finite and positive')
+      ####
+      object.__setattr__(self, name, value)
+    ####
+    if self.target_pressure_tolerance_fraction >= 1.0:
+      raise ValueError('target_pressure_tolerance_fraction must be less than one')
+    ####
+    if (
+      isinstance(self.maximum_boundary_iterations, bool)
+      or not isinstance(self.maximum_boundary_iterations, int)
+      or self.maximum_boundary_iterations < 1
+    ):
+      raise ValueError('maximum_boundary_iterations must be a positive integer')
+    ####
+    if self.compression_envelope_skew is not None:
+      skew = float(self.compression_envelope_skew)
+      if not isfinite(skew) or abs(skew) > 1.0:
+        raise ValueError('compression_envelope_skew must lie in [-1, 1]')
+      ####
+      object.__setattr__(self, 'compression_envelope_skew', skew)
+    ####
+    source = str(self.source)
+    if not source:
+      raise ValueError('source must be non-empty')
+    ####
+    object.__setattr__(self, 'source', source)
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_MODEL,
+      'closure_fingerprint': (
+        moc_reflected_domain_global_physical_closure_fingerprint(self.closure)
+      ),
+      'frontier_request': self.frontier_request.as_report(),
+      'compression_envelope_skew': self.compression_envelope_skew,
+      'branch': self.branch.value,
+      'shock_angle_tolerance_rad': self.shock_angle_tolerance_rad,
+      'target_position_tolerance_m': self.target_position_tolerance_m,
+      'target_tangent_tolerance_rad': self.target_tangent_tolerance_rad,
+      'target_pressure_tolerance_fraction': (
+        self.target_pressure_tolerance_fraction
+      ),
+      'maximum_boundary_iterations': self.maximum_boundary_iterations,
+      'source': self.source,
+      'claim_status': (
+        'research-only-global-frontier-fresh-resolve-request; canonical '
+        'free-boundary, refinement, external validation, and production '
+        'promotion remain open'
+      ),
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalFrontierFreshResolveResult:
+  """Retained evidence from one exact target-consuming global re-solve."""
+
+  status: MocReflectedDomainGlobalFrontierFreshResolveStatus
+  request: MocReflectedDomainGlobalFrontierFreshResolveRequest
+  target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
+  candidate_closure: MocReflectedDomainGlobalPhysicalClosureResult | None = None
+  target_coordinate_residuals_m: tuple[float, ...] = ()
+  target_tangent_residuals_rad: tuple[float, ...] = ()
+  target_pressure_residuals_Pa: tuple[float, ...] = ()
+  source_lineage_verified: bool = False
+  fresh_global_solve_attempted: bool = False
+  candidate_is_fresh: bool = False
+  target_consumption_verified: bool = False
+  target_geometry_consumption_verified: bool = False
+  target_coverage_verified: bool = False
+  target_residuals_finite: bool = False
+  target_match_verified: bool = False
+  global_coupling_verified: bool = False
+  downstream_boundary_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalFrontierFreshResolveStatus,
+    ):
+      raise TypeError(
+        'status must be a MocReflectedDomainGlobalFrontierFreshResolveStatus'
+      )
+    ####
+    if not isinstance(
+      self.request,
+      MocReflectedDomainGlobalFrontierFreshResolveRequest,
+    ):
+      raise TypeError(
+        'request must be a '
+        'MocReflectedDomainGlobalFrontierFreshResolveRequest'
+      )
+    ####
+    if self.target is not None and not isinstance(
+      self.target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError(
+        'target must be a MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      )
+    ####
+    if self.candidate_closure is not None and not isinstance(
+      self.candidate_closure,
+      MocReflectedDomainGlobalPhysicalClosureResult,
+    ):
+      raise TypeError(
+        'candidate_closure must be a '
+        'MocReflectedDomainGlobalPhysicalClosureResult or None'
+      )
+    ####
+    residual_lengths: set[int] = set()
+    for name in (
+      'target_coordinate_residuals_m',
+      'target_tangent_residuals_rad',
+      'target_pressure_residuals_Pa',
+    ):
+      values = tuple(float(value) for value in getattr(self, name))
+      if any(not isfinite(value) or value < 0.0 for value in values):
+        raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
+      residual_lengths.add(len(values))
+      object.__setattr__(self, name, values)
+    ####
+    if len(residual_lengths) != 1:
+      raise ValueError('target residual channels must have equal lengths')
+    ####
+    for name in (
+      'source_lineage_verified',
+      'fresh_global_solve_attempted',
+      'candidate_is_fresh',
+      'target_consumption_verified',
+      'target_geometry_consumption_verified',
+      'target_coverage_verified',
+      'target_residuals_finite',
+      'target_match_verified',
+      'global_coupling_verified',
+      'downstream_boundary_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    if self.global_coupling_verified or self.downstream_boundary_closure_verified:
+      raise ValueError(
+        'fresh frontier research results cannot claim canonical global '
+        'coupling or downstream boundary closure'
+      )
+    ####
+    if not self.chain_promotion_blocked or self.production_claim_allowed:
+      raise ValueError(
+        'fresh frontier research results must remain promotion-blocked'
+      )
+    ####
+    if self.target_match_verified and not (
+      self.target_coverage_verified and self.target_residuals_finite
+    ):
+      raise ValueError(
+        'target_match_verified requires covered finite target residuals'
+      )
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def source_closure_fingerprint(self) -> str:
+    return self.request.frontier_request.source_closure_fingerprint
+  ####
+
+  @property
+  def candidate_closure_fingerprint(self) -> str | None:
+    return (
+      None
+      if self.candidate_closure is None
+      else moc_reflected_domain_global_physical_closure_fingerprint(
+        self.candidate_closure
+      )
+    )
+  ####
+
+  @property
+  def converged_research_resolve(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalFrontierFreshResolveStatus
+      .CONVERGED_RESEARCH_RESOLVE
+      and self.source_lineage_verified
+      and self.fresh_global_solve_attempted
+      and self.candidate_is_fresh
+      and self.target_consumption_verified
+      and self.target_geometry_consumption_verified
+      and self.target_coverage_verified
+      and self.target_residuals_finite
+      and self.target_match_verified
+      and self.candidate_closure is not None
+      and self.candidate_closure.converged
+      and self.candidate_closure.physical_closure_verified
+    )
+  ####
+
+  @property
+  def production_claim_allowed_by_result(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_MODEL,
+      'status': self.status.value,
+      'converged_research_resolve': self.converged_research_resolve,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
+      'candidate_closure_fingerprint': self.candidate_closure_fingerprint,
+      'request': self.request.as_report(),
+      'target': None if self.target is None else self.target.as_report(),
+      'candidate_closure': (
+        None
+        if self.candidate_closure is None
+        else self.candidate_closure.as_report()
+      ),
+      'target_coordinate_residuals_m': self.target_coordinate_residuals_m,
+      'target_tangent_residuals_rad': self.target_tangent_residuals_rad,
+      'target_pressure_residuals_Pa': self.target_pressure_residuals_Pa,
+      'source_lineage_verified': self.source_lineage_verified,
+      'fresh_global_solve_attempted': self.fresh_global_solve_attempted,
+      'candidate_is_fresh': self.candidate_is_fresh,
+      'target_consumption_verified': self.target_consumption_verified,
+      'target_geometry_consumption_verified': (
+        self.target_geometry_consumption_verified
+      ),
+      'target_coverage_verified': self.target_coverage_verified,
+      'target_residuals_finite': self.target_residuals_finite,
+      'target_match_verified': self.target_match_verified,
+      'global_coupling_verified': self.global_coupling_verified,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'production_claim_allowed_by_result': (
+        self.production_claim_allowed_by_result
+      ),
+      'claim_status': (
+        'research-only-global-frontier-fresh-resolve; exact target consumption '
+        'and a fresh global field are retained, but canonical mixed-regime '
+        'coupling, refinement, external validation, and production claims '
+        'remain open'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def build_reflected_domain_global_frontier_pressure_target(
+  request: MocReflectedDomainGlobalFrontierReconciliationRequest,
+) -> MocPhysicalFieldEulerBoundaryPressureTarget:
+  """Build the exact pressure/geometry target consumed by the fresh solver."""
+
+  if not isinstance(
+    request,
+    MocReflectedDomainGlobalFrontierReconciliationRequest,
+  ):
+    raise TypeError(
+      'request must be a '
+      'MocReflectedDomainGlobalFrontierReconciliationRequest'
+    )
+  ####
+  if not request.lineage_verified:
+    raise ValueError('frontier reconciliation request lineage must be verified')
+  ####
+  proposal_fingerprint = moc_reflected_domain_global_frontier_proposal_fingerprint(
+    request.proposal
+  )
+  return MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=request.target_x_stations_m,
+    static_pressure_Pa=request.target_static_pressure_Pa,
+    boundary_points_m=request.target_boundary_points_m,
+    tangent_rad=request.target_tangent_rad,
+    source_id=f'global-frontier-fresh-resolve-target:{proposal_fingerprint}',
+    model=MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_MODEL,
+    source_closure_fingerprint=request.source_closure_fingerprint,
+    source_proposal_fingerprint=proposal_fingerprint,
+  )
+####
+
+
+def _fresh_resolve_boundary_sample(
+  candidate: MocReflectedDomainGlobalPhysicalClosureResult,
+  x_m: float,
+  *,
+  position_tolerance_m: float,
+) -> tuple[tuple[float, float], float, float] | None:
+  boundary = candidate.downstream_boundary
+  if boundary is None:
+    return None
+  ####
+  points = boundary.boundary_points_m
+  states = boundary.boundary_states
+  pressures = boundary.boundary_static_pressure_Pa
+  if not (len(points) == len(states) == len(pressures) >= 2):
+    return None
+  ####
+  if any(
+    second[0] <= first[0] + position_tolerance_m
+    for first, second in zip(points, points[1:])
+  ):
+    return None
+  ####
+  if (
+    x_m < points[0][0] - position_tolerance_m
+    or x_m > points[-1][0] + position_tolerance_m
+  ):
+    return None
+  ####
+  for index, (first, second) in enumerate(zip(points, points[1:])):
+    if abs(x_m - first[0]) <= position_tolerance_m:
+      return (
+        (float(first[0]), float(first[1])),
+        float(states[index].theta_rad),
+        float(pressures[index]),
+      )
+    ####
+    if x_m <= second[0] + position_tolerance_m:
+      span = second[0] - first[0]
+      if span <= position_tolerance_m:
+        return None
+      ####
+      fraction = min(max((x_m - first[0]) / span, 0.0), 1.0)
+      return (
+        (
+          float(first[0] + fraction * (second[0] - first[0])),
+          float(first[1] + fraction * (second[1] - first[1])),
+        ),
+        float(
+          states[index].theta_rad
+          + fraction * (states[index + 1].theta_rad - states[index].theta_rad)
+        ),
+        float(
+          pressures[index]
+          + fraction * (pressures[index + 1] - pressures[index])
+        ),
+      )
+    ####
+  ####
+  if abs(x_m - points[-1][0]) <= position_tolerance_m:
+    return (
+      (float(points[-1][0]), float(points[-1][1])),
+      float(states[-1].theta_rad),
+      float(pressures[-1]),
+    )
+  ####
+  return None
+####
+
+
+def _fresh_resolve_target_measurement(
+  request: MocReflectedDomainGlobalFrontierFreshResolveRequest,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  candidate: MocReflectedDomainGlobalPhysicalClosureResult,
+) -> tuple[
+  tuple[float, ...],
+  tuple[float, ...],
+  tuple[float, ...],
+  bool,
+  bool,
+  bool,
+]:
+  coordinate_residuals: list[float] = []
+  tangent_residuals: list[float] = []
+  pressure_residuals: list[float] = []
+  coverage_verified = True
+  for station, target_point, target_tangent, target_pressure in zip(
+    target.x_stations_m,
+    target.boundary_points_m,
+    target.tangent_rad,
+    target.static_pressure_Pa,
+    strict=True,
+  ):
+    sample = _fresh_resolve_boundary_sample(
+      candidate,
+      station,
+      position_tolerance_m=request.target_position_tolerance_m,
+    )
+    if sample is None:
+      coverage_verified = False
+      continue
+    ####
+    point, tangent, pressure = sample
+    coordinate_residuals.append(hypot(point[0] - target_point[0], point[1] - target_point[1]))
+    tangent_residuals.append(
+      abs(
+        atan2(
+          sin(tangent - target_tangent),
+          cos(tangent - target_tangent),
+        )
+      )
+    )
+    pressure_residuals.append(abs(pressure - target_pressure))
+  ####
+  residuals = (
+    *coordinate_residuals,
+    *tangent_residuals,
+    *pressure_residuals,
+  )
+  residuals_finite = bool(residuals) and all(isfinite(value) for value in residuals)
+  target_match_verified = bool(
+    coverage_verified
+    and residuals_finite
+    and len(coordinate_residuals) == len(target.x_stations_m)
+    and max(coordinate_residuals, default=float('inf'))
+    <= request.target_position_tolerance_m
+    and max(tangent_residuals, default=float('inf'))
+    <= request.target_tangent_tolerance_rad
+    and all(
+      residual / max(abs(target_pressure), 1.0)
+      <= request.target_pressure_tolerance_fraction
+      for residual, target_pressure in zip(
+        pressure_residuals,
+        target.static_pressure_Pa,
+        strict=True,
+      )
+    )
+  )
+  return (
+    tuple(coordinate_residuals),
+    tuple(tangent_residuals),
+    tuple(pressure_residuals),
+    coverage_verified,
+    residuals_finite,
+    target_match_verified,
+  )
+####
+
+
+def _fresh_resolve_target_consumption(
+  request: MocReflectedDomainGlobalFrontierFreshResolveRequest,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+  candidate: MocReflectedDomainGlobalPhysicalClosureResult,
+) -> tuple[bool, bool]:
+  source_band = candidate.source_band
+  consumed_target = None if source_band is None else source_band.ambient_pressure_target
+  if consumed_target is None:
+    return False, False
+  ####
+  target_consumed = bool(
+    candidate.source_pressure_target_consumed
+    and consumed_target.source_closure_fingerprint
+    == request.frontier_request.source_closure_fingerprint
+    and consumed_target.source_proposal_fingerprint
+    == request.frontier_request.source_proposal_fingerprint
+    and consumed_target.composition_overlay_source_id == target.source_id
+  )
+  geometry_consumed = bool(
+    target_consumed
+    and candidate.source_pressure_target_geometry_consumed
+    and source_band.ambient_pressure_target_geometry_consumed
+  )
+  return target_consumed, geometry_consumed
+####
+
+
+def _fresh_resolve_failure(
+  request: MocReflectedDomainGlobalFrontierFreshResolveRequest,
+  status: MocReflectedDomainGlobalFrontierFreshResolveStatus,
+  message: str,
+  *,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None,
+  candidate: MocReflectedDomainGlobalPhysicalClosureResult | None = None,
+  fresh_global_solve_attempted: bool = False,
+  source_lineage_verified: bool = False,
+) -> MocReflectedDomainGlobalFrontierFreshResolveResult:
+  return MocReflectedDomainGlobalFrontierFreshResolveResult(
+    status=status,
+    request=request,
+    target=target,
+    candidate_closure=candidate,
+    source_lineage_verified=source_lineage_verified,
+    fresh_global_solve_attempted=fresh_global_solve_attempted,
+    candidate_is_fresh=bool(candidate is not None and candidate is not request.closure),
+    message=message,
+  )
+####
+
+
+def solve_reflected_domain_global_frontier_fresh_resolve(
+  request: MocReflectedDomainGlobalFrontierFreshResolveRequest,
+) -> MocReflectedDomainGlobalFrontierFreshResolveResult:
+  """Consume an exact frontier target through a fresh global closure solve.
+
+  The source closure is used only to recover its solver-owned remesh family,
+  first-cell bracket, and incoming handoff.  The target is then passed into a
+  new alternating source/global Euler solve with pressure, boundary geometry,
+  and tangent consumption enabled.  No current downstream field is relabeled
+  as canonical global coupling; the result is a research evidence packet until
+  a downstream recheck, multi-case refinement, and independent promotion audit
+  all pass.
+  """
+
+  if not isinstance(
+    request,
+    MocReflectedDomainGlobalFrontierFreshResolveRequest,
+  ):
+    raise TypeError(
+      'request must be a '
+      'MocReflectedDomainGlobalFrontierFreshResolveRequest'
+    )
+  ####
+  target = build_reflected_domain_global_frontier_pressure_target(
+    request.frontier_request
+  )
+  ####
+  remesh = request.closure.global_remesh
+  selected_attempt = None if remesh is None else remesh.selected_attempt
+  source_band = request.closure.source_band
+  if remesh is None or selected_attempt is None or source_band is None:
+    return _fresh_resolve_failure(
+      request,
+      MocReflectedDomainGlobalFrontierFreshResolveStatus
+      .SOURCE_CONFIGURATION_FAILURE,
+      'source closure retained no selected global remesh attempt or source band',
+      target=target,
+      source_lineage_verified=True,
+    )
+  ####
+  first_cell = selected_attempt.first_cell_result
+  bracket = first_cell.compression_amplitude_bracket
+  selected_field = first_cell.selected_physical_field
+  selected_physical_field = (
+    None if selected_field is None else selected_field.field
+  )
+  if (
+    bracket is None
+    or len(bracket) != 2
+    or selected_physical_field is None
+    or len(selected_physical_field.shock_boundary_points_m) < 3
+  ):
+    return _fresh_resolve_failure(
+      request,
+      MocReflectedDomainGlobalFrontierFreshResolveStatus
+      .SOURCE_CONFIGURATION_FAILURE,
+      'source closure retained no solver-owned amplitude bracket or complete '
+      'selected physical field for a fresh global re-solve',
+      target=target,
+      source_lineage_verified=True,
+    )
+  ####
+  skew = (
+    selected_attempt.compression_envelope_skew
+    if request.compression_envelope_skew is None
+    else request.compression_envelope_skew
+  )
+  try:
+    candidate = solve_reflected_domain_global_physical_closure(
+      source_band,
+      outer_source_indices=remesh.outer_source_indices,
+      target_centerline_indices=remesh.target_centerline_indices,
+      compression_amplitude_lower_rad=float(bracket[0]),
+      compression_amplitude_upper_rad=float(bracket[1]),
+      compression_envelope_skews=(float(skew),),
+      use_trace_referenced_profile=remesh.use_trace_referenced_profile,
+      incoming_handoff=source_band.incoming_handoff,
+      ambient_pressure_target=target,
+      sample_count=len(selected_physical_field.shock_boundary_points_m),
+      branch=request.branch,
+      shock_angle_tolerance_rad=request.shock_angle_tolerance_rad,
+      maximum_boundary_iterations=request.maximum_boundary_iterations,
+      consume_ambient_pressure_target_geometry=True,
+      ambient_pressure_target_geometry_tolerance_rad=(
+        request.target_tangent_tolerance_rad
+      ),
+      use_composed_source_pressure_target_for_global_euler=True,
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return _fresh_resolve_failure(
+      request,
+      MocReflectedDomainGlobalFrontierFreshResolveStatus.GLOBAL_RESOLVE_FAILURE,
+      f'fresh global frontier re-solve raised: {error}',
+      target=target,
+      fresh_global_solve_attempted=True,
+      source_lineage_verified=True,
+    )
+  ####
+  target_consumed, target_geometry_consumed = _fresh_resolve_target_consumption(
+    request,
+    target,
+    candidate,
+  )
+  if not candidate.converged or not candidate.physical_closure_verified:
+    return _fresh_resolve_failure(
+      request,
+      MocReflectedDomainGlobalFrontierFreshResolveStatus.GLOBAL_RESOLVE_FAILURE,
+      'fresh global frontier re-solve retained a typed non-converged closure: '
+      f'{candidate.message}',
+      target=target,
+      candidate=candidate,
+      fresh_global_solve_attempted=True,
+      source_lineage_verified=True,
+    )
+  ####
+  coordinate_residuals, tangent_residuals, pressure_residuals, coverage, finite, match = (
+    _fresh_resolve_target_measurement(request, target, candidate)
+  )
+  base_kwargs = {
+    'target': target,
+    'candidate_closure': candidate,
+    'target_coordinate_residuals_m': coordinate_residuals,
+    'target_tangent_residuals_rad': tangent_residuals,
+    'target_pressure_residuals_Pa': pressure_residuals,
+    'source_lineage_verified': True,
+    'fresh_global_solve_attempted': True,
+    'candidate_is_fresh': candidate is not request.closure,
+    'target_consumption_verified': target_consumed,
+    'target_geometry_consumption_verified': target_geometry_consumed,
+    'target_coverage_verified': coverage,
+    'target_residuals_finite': finite,
+    'target_match_verified': match,
+  }
+  if not target_consumed or not target_geometry_consumed:
+    return MocReflectedDomainGlobalFrontierFreshResolveResult(
+      status=(
+        MocReflectedDomainGlobalFrontierFreshResolveStatus
+        .TARGET_CONSUMPTION_FAILURE
+      ),
+      request=request,
+      message=(
+        'fresh global closure converged but did not retain exact solver-owned '
+        'pressure and geometry/tangent target consumption'
+      ),
+      **base_kwargs,
+    )
+  ####
+  if not coverage or not finite:
+    return MocReflectedDomainGlobalFrontierFreshResolveResult(
+      status=(
+        MocReflectedDomainGlobalFrontierFreshResolveStatus
+        .TARGET_COVERAGE_FAILURE
+      ),
+      request=request,
+      message=(
+        'fresh global closure consumed the target but did not retain complete '
+        'finite target-station coverage'
+      ),
+      **base_kwargs,
+    )
+  ####
+  if not match:
+    return MocReflectedDomainGlobalFrontierFreshResolveResult(
+      status=(
+        MocReflectedDomainGlobalFrontierFreshResolveStatus.TARGET_MATCH_FAILURE
+      ),
+      request=request,
+      message=(
+        'fresh global closure consumed the target but exceeded one or more '
+        'bounded geometry, tangent, or pressure target tolerances'
+      ),
+      **base_kwargs,
+    )
+  ####
+  return MocReflectedDomainGlobalFrontierFreshResolveResult(
+    status=(
+      MocReflectedDomainGlobalFrontierFreshResolveStatus
+      .CONVERGED_RESEARCH_RESOLVE
+    ),
+    request=request,
+    message=(
+      'fresh global closure consumed the exact frontier target and matched '
+      'its retained station frame; canonical downstream coupling, refinement, '
+      'external validation, and production promotion remain open'
+    ),
+    **base_kwargs,
   )
 ####
