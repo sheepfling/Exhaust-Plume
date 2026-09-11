@@ -6568,3 +6568,37 @@ downstream response in the actual global/free-boundary equation while
 preserving these two distinct modes: front-limit local closure may not be
 used to mask the unresolved moving-boundary overlap, and smooth geometry
 controls may not be treated as pressure or state overlays.
+
+### P3.7 bounded open-response global handoff checkpoint — 2026-09-11
+
+The implementation checkpoint ``44f2b5c`` adds a distinct
+``ready-for-global-resolve-with-open-response`` proposal status.  A downstream
+response may now be handed to one fresh global boundary solve when its exact
+overlap coverage and signed geometry/response channels are finite, even when
+the local pressure/normal-velocity residual remains open.  The fully-ready
+status still requires closed local overlap residuals; the new status is
+explicitly research-only and cannot be consumed as production closure.
+
+The bounded boundary-feedback path now exercises this seam with the retained
+mixed-regime case: it consumes the solver-owned target geometry, runs a fresh
+global solve, and exposes the typed proposal through the serialized iteration
+report.  The run continues to report global coupling and downstream boundary
+closure as false, keeps chain promotion blocked, and keeps production claims
+disabled.  The pressure correction used by this research step is a declared
+bounded response parameter, not a tolerance relaxation or synthetic provider
+observation.
+
+The focused handoff/report regressions pass (``4 passed``), the complete
+reflected-domain suite passes (``220 passed``), and Ruff, Pyright, compilation,
+scope-marker, and whitespace checks are clean.  This closes one executable
+research-loop seam but not the canonical free-boundary equation: independent
+multi-case/resolution evidence, accepted physical shock-cell lengths, provider
+validation archives/outputs, Signature/RAY/FPA acceptance, and the release
+freeze remain open.
+
+The next implementation checkpoint is to make the fresh solve consume the
+full coupled pressure/geometry/state residual vector over multiple outer
+iterations and prove monotone improvement across disjoint cases and
+resolutions.  A bounded open response may remain an input to that experiment,
+but it must never be relabeled as a converged response merely because the
+outer loop completed.
