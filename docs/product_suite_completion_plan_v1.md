@@ -5588,6 +5588,13 @@ release gate is relaxed.  The next physics packet is to generate actual
 fresh solves at three increasing resolutions for at least two disjoint cases,
 then rerun this operator before any outer feedback is permitted.
 
+The first concrete resolution probe now records why that gate is necessary:
+the 5-sample fresh resolve returns a typed exact-Euler geometry failure,
+while the 7- and 9-sample resolves pass the fresh target/geometry audit.  The
+downstream residual admission still fails its independent audit at the
+passing resolutions, so this is a resolution-sensitivity record rather than
+refinement convergence or a production-quality closure result.
+
 ### P2.2 exact-Euler conditioned perimeter closure checkpoint — 2026-09-11
 
 The exact-Euler frontier consumer now closes the conditioned physical field

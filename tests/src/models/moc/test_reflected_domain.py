@@ -11648,8 +11648,16 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
 ####
 
 
-def test_global_frontier_fresh_resolve_is_independently_audited():
-  closure = _global_physical_closure_for_mixed_regime()
+def _fresh_global_frontier_resolve_for_mixed_regime(
+  sample_count: int = 9,
+  *,
+  compression_envelope_skews=(-0.75, 0.0),
+  consumer_id: str = 'test-fresh-global-frontier-resolve-v1',
+):
+  closure = _global_physical_closure_for_mixed_regime(
+    sample_count,
+    compression_envelope_skews=compression_envelope_skews,
+  )
   handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
     closure
   )
@@ -11674,7 +11682,7 @@ def test_global_frontier_fresh_resolve_is_independently_audited():
   request = build_reflected_domain_global_frontier_reconciliation_request(
     closure,
     proposal,
-    consumer_id='test-fresh-global-frontier-resolve-v1',
+    consumer_id=consumer_id,
   )
   pressure_requested = run_reflected_domain_global_frontier_target_guided_resolve(
     request,
@@ -11712,18 +11720,23 @@ def test_global_frontier_fresh_resolve_is_independently_audited():
   candidate_request = build_reflected_domain_global_frontier_reconciliation_request(
     closure,
     candidate_proposal,
-    consumer_id='test-fresh-global-frontier-resolve-v1',
+    consumer_id=consumer_id,
   )
-  fresh = solve_reflected_domain_global_frontier_fresh_resolve(
+  return solve_reflected_domain_global_frontier_fresh_resolve(
     MocReflectedDomainGlobalFrontierFreshResolveRequest(
       closure=closure,
       frontier_request=candidate_request,
       compression_envelope_skew=pressure_candidate.compression_envelope_skew,
     )
   )
+####
+
+
+def test_global_frontier_fresh_resolve_is_independently_audited():
+  fresh = _fresh_global_frontier_resolve_for_mixed_regime()
 
   assert fresh.fresh_global_solve_attempted
-  assert fresh.candidate_closure is not closure
+  assert fresh.candidate_closure is not fresh.request.closure
   assert fresh.global_coupling_verified is False
   assert fresh.downstream_boundary_closure_verified is False
   assert fresh.chain_promotion_blocked
@@ -11756,77 +11769,8 @@ def test_global_frontier_fresh_resolve_is_independently_audited():
 
 
 def test_global_frontier_fresh_resolve_residual_admission_is_fail_closed():
-  closure = _global_physical_closure_for_mixed_regime()
-  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
-    closure
-  )
-  feedback = downstream_feedback.run_reflected_domain_global_coupled_downstream_feedback(
-    closure,
-    reference_total_temperature_K=1500.0,
-    maximum_iterations=2,
-    axial_station_count=7,
-    axial_cell_count=8,
-    transverse_cell_count=4,
-    max_pseudo_iterations=400,
-    max_shape_iterations=12,
-    inlet_boundary_mode=(
-      MocReflectedDomainCoupledEulerInletBoundaryMode
-      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
-    ),
-    physical_field_continuation_profile=handoff.continuation_profile,
-    physical_field_shock_front_condition=handoff.shock_front_condition,
-  )
-  proposal = feedback.upstream_feedback_proposals[-1]
-  assert proposal is not None
-  request = build_reflected_domain_global_frontier_reconciliation_request(
-    closure,
-    proposal,
+  fresh = _fresh_global_frontier_resolve_for_mixed_regime(
     consumer_id='test-fresh-global-frontier-residual-v1',
-  )
-  pressure_requested = run_reflected_domain_global_frontier_target_guided_resolve(
-    request,
-    closure,
-    candidate_compression_envelope_skews=(0.0,),
-    consume_target_in_global_closure=True,
-  )
-  assert pressure_requested.status is (
-    MocReflectedDomainGlobalFrontierTargetResolveStatus
-    .CONVERGED_TARGET_GUIDED_RESEARCH_RESOLVE
-  )
-  assert pressure_requested.selected_candidate is not None
-  pressure_candidate = pressure_requested.selected_candidate
-  candidate = pressure_candidate.closure
-  assert candidate is not None
-  assert candidate.global_euler is not None
-  assert candidate.global_euler.physical_field is not None
-  assert candidate.global_euler.physical_field.field is not None
-  boundary = candidate.global_euler.physical_field.field.ambient_boundary
-  count = len(boundary.points_m)
-  candidate_proposal = replace(
-    proposal,
-    matched_x_stations_m=tuple(point[0] for point in boundary.points_m),
-    reference_boundary_points_m=boundary.points_m,
-    proposed_boundary_points_m=boundary.points_m,
-    reference_tangent_rad=tuple(state.theta_rad for state in boundary.states),
-    proposed_tangent_rad=tuple(state.theta_rad for state in boundary.states),
-    reference_static_pressure_Pa=boundary.static_pressure_Pa,
-    proposed_static_pressure_Pa=boundary.static_pressure_Pa,
-    coordinate_corrections_m=(0.0,) * count,
-    tangent_corrections_rad=(0.0,) * count,
-    pressure_corrections_Pa=(0.0,) * count,
-    normal_velocity_values_m_s=(0.0,) * count,
-  )
-  candidate_request = build_reflected_domain_global_frontier_reconciliation_request(
-    closure,
-    candidate_proposal,
-    consumer_id='test-fresh-global-frontier-residual-v1',
-  )
-  fresh = solve_reflected_domain_global_frontier_fresh_resolve(
-    MocReflectedDomainGlobalFrontierFreshResolveRequest(
-      closure=closure,
-      frontier_request=candidate_request,
-      compression_envelope_skew=pressure_candidate.compression_envelope_skew,
-    )
   )
   assert fresh.converged_research_resolve
   assert fresh.candidate_closure is not None
@@ -11885,6 +11829,86 @@ def test_global_frontier_fresh_resolve_residual_admission_is_fail_closed():
   assert refinement.fresh_audit_verified == (True, True)
   assert refinement.independent_residual_audit_verified == (False, False)
   assert refinement.case_audits_verified is False
+  assert refinement.chain_promotion_blocked
+  assert refinement.production_claim_allowed is False
+####
+
+
+def test_global_frontier_fresh_residual_refinement_records_resolution_ladder():
+  cases = []
+  for sample_count in (5, 7, 9):
+    fresh = _fresh_global_frontier_resolve_for_mixed_regime(
+      sample_count,
+      consumer_id=f'test-fresh-global-frontier-residual-ladder-{sample_count}',
+    )
+    residual_closure = fresh.candidate_closure
+    if residual_closure is None:
+      residual_closure = fresh.request.closure
+    residual_request = MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+      closure=residual_closure,
+      reference_total_temperature_K=1500.0,
+      maximum_field_iterations=3,
+      maximum_interface_iterations=1,
+      use_conservative_residual_line_search=True,
+      require_conservative_flux_closure=True,
+      require_strict_residual_descent=True,
+      maximum_residual_backtracks=2,
+      normal_momentum_tolerance_Pa=1.0e-2,
+    )
+    result = run_reflected_domain_global_frontier_fresh_resolve_conservative_residual(
+      fresh,
+      residual_request,
+    )
+    assert result.converged_research_residual is False
+    if fresh.converged_research_resolve:
+      assert result.fresh_resolve_verified
+      assert result.fresh_audit_verified
+      assert result.status in (
+        MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+        .RESIDUAL_FAILURE,
+        MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+        .RESIDUAL_AUDIT_FAILURE,
+      )
+    else:
+      assert result.fresh_resolve_verified is False
+      assert result.fresh_audit_verified is False
+      assert result.status in (
+        MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+        .FRESH_AUDIT_FAILURE,
+        MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+        .FRESH_RESOLVE_REQUIRED,
+      )
+    retained_count = sample_count
+    candidate = fresh.candidate_closure
+    if (
+      candidate is not None
+      and candidate.global_euler is not None
+      and candidate.global_euler.physical_field is not None
+      and candidate.global_euler.physical_field.field is not None
+    ):
+      retained_count = len(
+        candidate.global_euler.physical_field.field.ambient_boundary.points_m
+      )
+    cases.append(
+      MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementCase(
+        case_id='mixed-regime',
+        resolution_sample_count=retained_count,
+        result=result,
+      )
+    )
+  ####
+  refinement = measure_moc_global_frontier_fresh_resolve_residual_refinement(
+    tuple(cases)
+  )
+  assert refinement.status is (
+    MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementStatus
+    .FRESH_AUDIT_FAILURE
+  )
+  assert refinement.resolution_sample_counts == (5, 7, 9)
+  assert len(set(refinement.source_closure_fingerprints)) == 3
+  assert refinement.fresh_audit_verified == (False, True, True)
+  assert refinement.case_audits_verified is False
+  assert refinement.converged is False
   assert refinement.chain_promotion_blocked
   assert refinement.production_claim_allowed is False
 ####

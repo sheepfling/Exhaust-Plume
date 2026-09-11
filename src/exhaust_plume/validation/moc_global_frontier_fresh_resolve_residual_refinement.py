@@ -78,13 +78,15 @@ def _candidate_resolution_sample_count(
   physical_field = None if global_euler is None else global_euler.physical_field
   field = None if physical_field is None else physical_field.field
   if field is not None:
-    return len(field.ambient_boundary.points_m)
+    count = len(field.ambient_boundary.points_m)
+    return count if count >= 3 else None
   ####
   boundary = candidate.downstream_boundary
   if boundary is None:
     return None
   ####
-  return len(boundary.boundary_points_m)
+  count = len(boundary.boundary_points_m)
+  return count if count >= 3 else None
 ####
 
 
