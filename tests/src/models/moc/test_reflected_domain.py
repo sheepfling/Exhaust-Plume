@@ -13348,7 +13348,7 @@ def test_global_boundary_state_joint_refinement_covers_cases_and_resolutions():
 ####
 
 
-def test_global_boundary_state_dimensioned_corrector_keeps_channel_failure_typed():
+def test_global_boundary_state_dimensioned_corrector_keeps_strict_state_failure_typed():
   closure = _global_physical_closure_for_mixed_regime(8)
   feedback = run_reflected_domain_global_boundary_state_feedback(
     closure,
@@ -13375,7 +13375,7 @@ def test_global_boundary_state_dimensioned_corrector_keeps_channel_failure_typed
 
   assert result.status is (
     MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus
-    .CHANNEL_FAILURE
+    .STATE_FAILURE
   )
   assert result.converged_research_dimensioned_corrector is False
   assert result.joint_consumption_verified
@@ -13384,9 +13384,9 @@ def test_global_boundary_state_dimensioned_corrector_keeps_channel_failure_typed
   assert result.state_solver_invoked
   assert result.complete_conservative_response_verified
   assert result.state_lineage_verified
-  assert result.independent_residual_audit_verified
+  assert result.independent_residual_audit_verified is False
   assert result.dimensioned_channel_descent_verified is False
-  assert result.residual_descent_verified is False
+  assert result.residual_descent_verified
   assert result.terminal_feedback_run is not None
   assert result.terminal_feedback_run.research_feedback_completed
   assert result.baseline_residual_norm is not None

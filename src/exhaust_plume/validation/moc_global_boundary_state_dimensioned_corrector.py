@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import isfinite
+from math import isfinite, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.euler_two_sided_moving_interface import (
@@ -168,6 +168,38 @@ def _strict_descent(before: float | None, after: float | None, fraction: float) 
   if before <= 0.0:
     return after < before
   return after < before * (1.0 - fraction)
+
+
+def _normalized_residual_norm(
+  response: MocEulerTwoSidedInterfaceResponse | None,
+  request: MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest | None,
+) -> float | None:
+  """Return the RMS norm in the same strict units as the channel maxima."""
+
+  if response is None or request is None or not response.signed_residuals_available:
+    return None
+  channels = (
+    response.signed_mass_flux_residuals_kg_m2_s,
+    response.signed_normal_momentum_residuals_Pa,
+    response.signed_energy_flux_residuals_W_m2,
+  )
+  tolerances = (
+    request.mass_flux_tolerance_kg_m2_s,
+    request.normal_momentum_tolerance_Pa,
+    request.energy_flux_tolerance_W_m2,
+  )
+  if any(channel is None for channel in channels):
+    return None
+  assert all(channel is not None for channel in channels)
+  terms = tuple(
+    abs(float(value)) / tolerance
+    for channel, tolerance in zip(channels, tolerances, strict=True)
+    for value in channel
+  )
+  if not terms or any(not isfinite(value) for value in terms):
+    return None
+  result = sqrt(sum(value * value for value in terms) / len(terms))
+  return result if isfinite(result) else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,6 +408,10 @@ def _result(
 
 def run_reflected_domain_global_boundary_state_dimensioned_corrector(
   joint_result: MocReflectedDomainGlobalBoundaryStateJointSolveResult | None,
+  *,
+  accepted_mass_flux_tolerance_kg_m2_s: float = 1.0e-3,
+  accepted_normal_momentum_tolerance_Pa: float = 1.0e-2,
+  accepted_energy_flux_tolerance_W_m2: float = 1.0e-1,
 ) -> MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult:
   """Exercise the terminal equation-level global/downstream corrector."""
 
@@ -388,6 +424,30 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       None,
       'joint_result must be a typed global boundary-state joint result',
     )
+  try:
+    accepted_tolerances = tuple(
+      float(value)
+      for value in (
+        accepted_mass_flux_tolerance_kg_m2_s,
+        accepted_normal_momentum_tolerance_Pa,
+        accepted_energy_flux_tolerance_W_m2,
+      )
+    )
+  except (TypeError, ValueError):
+    return _result(
+      MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus.INVALID_INPUT,
+      joint_result,
+      'accepted conservative tolerances must be numeric',
+    )
+  if any(not isfinite(value) or value <= 0.0 for value in accepted_tolerances):
+    return _result(
+      MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus.INVALID_INPUT,
+      joint_result,
+      'accepted conservative tolerances must be finite and positive',
+    )
+  accepted_mass_tolerance, accepted_momentum_tolerance, accepted_energy_tolerance = (
+    accepted_tolerances
+  )
   joint_consumption_verified = bool(
     joint_result.converged_research_joint_update
     and joint_result.handoff_consumed
@@ -399,8 +459,10 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
   )
   source = joint_result.geometry_response_closure
   handoff = joint_result.handoff
-  baseline = joint_result.refreshed_residual_norm
-  baseline_channels = tuple(joint_result.refreshed_dimensioned_channel_maxima)
+  reported_baseline = joint_result.refreshed_residual_norm
+  reported_baseline_channels = tuple(
+    joint_result.refreshed_dimensioned_channel_maxima
+  )
   if not joint_consumption_verified or source is None or handoff is None:
     return _result(
       MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus
@@ -409,8 +471,8 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       'joint result did not retain a converged, dimensioned, lineage-verified '
       'source for the equation-level corrector',
       source_closure=source,
-      baseline_residual_norm=baseline,
-      baseline_dimensioned_channel_maxima=baseline_channels,
+      baseline_residual_norm=reported_baseline,
+      baseline_dimensioned_channel_maxima=reported_baseline_channels,
       joint_consumption_verified=joint_consumption_verified,
     )
   ####
@@ -446,8 +508,8 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       joint_result,
       f'equation-level corrector setup failed: {error}',
       source_closure=source,
-      baseline_residual_norm=baseline,
-      baseline_dimensioned_channel_maxima=baseline_channels,
+      baseline_residual_norm=reported_baseline,
+      baseline_dimensioned_channel_maxima=reported_baseline_channels,
       joint_consumption_verified=True,
     )
   ####
@@ -473,8 +535,8 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       joint_result,
       f'terminal equation-level downstream/global recheck raised: {error}',
       source_closure=source,
-      baseline_residual_norm=baseline,
-      baseline_dimensioned_channel_maxima=baseline_channels,
+      baseline_residual_norm=reported_baseline,
+      baseline_dimensioned_channel_maxima=reported_baseline_channels,
       joint_consumption_verified=True,
     )
   terminal_global_recheck_verified = bool(
@@ -502,8 +564,8 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       'research-only boundary, frame, coverage, and downstream-recheck gates',
       source_closure=source,
       terminal_feedback_run=terminal_feedback,
-      baseline_residual_norm=baseline,
-      baseline_dimensioned_channel_maxima=baseline_channels,
+      baseline_residual_norm=reported_baseline,
+      baseline_dimensioned_channel_maxima=reported_baseline_channels,
       joint_consumption_verified=True,
       terminal_boundary_equations_verified=False,
       terminal_global_recheck_verified=terminal_global_recheck_verified,
@@ -517,8 +579,8 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       'equation-level correction',
       source_closure=source,
       terminal_feedback_run=terminal_feedback,
-      baseline_residual_norm=baseline,
-      baseline_dimensioned_channel_maxima=baseline_channels,
+      baseline_residual_norm=reported_baseline,
+      baseline_dimensioned_channel_maxima=reported_baseline_channels,
       joint_consumption_verified=True,
       terminal_boundary_equations_verified=True,
       terminal_global_recheck_verified=terminal_global_recheck_verified,
@@ -526,8 +588,42 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
   state_request = replace(
     joint_result.state_request,
     closure=terminal_feedback.final_closure,
+    mass_flux_tolerance_kg_m2_s=min(
+      joint_result.state_request.mass_flux_tolerance_kg_m2_s,
+      accepted_mass_tolerance,
+    ),
+    normal_momentum_tolerance_Pa=min(
+      joint_result.state_request.normal_momentum_tolerance_Pa,
+      accepted_momentum_tolerance,
+    ),
+    energy_flux_tolerance_W_m2=min(
+      joint_result.state_request.energy_flux_tolerance_W_m2,
+      accepted_energy_tolerance,
+    ),
     source='solver-owned-global-boundary-state-dimensioned-corrector-v1',
   )
+  baseline_response = _response(joint_result.state_result)
+  baseline_channels = _normalized_channel_maxima(
+    baseline_response,
+    state_request,
+  )
+  baseline = _normalized_residual_norm(baseline_response, state_request)
+  if baseline is None or baseline_channels is None:
+    return _result(
+      MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus
+      .LINEAGE_FAILURE,
+      joint_result,
+      'joint result did not retain a complete signed response for the strict '
+      'accepted conservative tolerance space',
+      source_closure=source,
+      terminal_feedback_run=terminal_feedback,
+      state_request=state_request,
+      baseline_residual_norm=baseline,
+      baseline_dimensioned_channel_maxima=baseline_channels or (),
+      joint_consumption_verified=True,
+      terminal_boundary_equations_verified=True,
+      terminal_global_recheck_verified=terminal_global_recheck_verified,
+    )
   try:
     state_result = solve_reflected_domain_global_two_sided_moving_interface(
       state_request
@@ -607,6 +703,14 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
     residual_descent_verified=residual_descent,
     corrector_update_verified=corrector_update,
   )
+  if residual_result is None or not residual_result.converged:
+    return _result(
+      MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus.STATE_FAILURE,
+      joint_result,
+      'strict accepted conservative tolerances retained a typed non-converged '
+      'state solve after exact field re-solves; canonical closure was not claimed',
+      **common,
+    )
   if not state_lineage or not complete_response or not independent:
     return _result(
       MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus.LINEAGE_FAILURE,
