@@ -646,6 +646,13 @@ from exhaust_plume.validation.moc_euler_two_sided_interface_law_refinement impor
   MocEulerTwoSidedInterfaceLawRefinementMeasurement,
   measure_moc_euler_two_sided_interface_law_refinement,
 )
+from exhaust_plume.validation.moc_global_two_sided_moving_interface_refinement import (
+  MOC_GLOBAL_TWO_SIDED_MOVING_INTERFACE_REFINEMENT_AUDIT_OPERATOR_ID,
+  MocGlobalTwoSidedMovingInterfaceRefinementCase,
+  MocGlobalTwoSidedMovingInterfaceRefinementStatus,
+  MocGlobalTwoSidedMovingInterfaceRefinementMeasurement,
+  measure_moc_global_two_sided_moving_interface_refinement,
+)
 from exhaust_plume.validation.moc_euler_variable_entropy_lineage import (
   MOC_EULER_VARIABLE_ENTROPY_LINEAGE_AUDIT_OPERATOR_ID,
   MocEulerVariableEntropyLineageAuditStatus,
@@ -1555,6 +1562,11 @@ __all__ = (
   'MocEulerTwoSidedInterfaceLawRefinementStatus',
   'MocEulerTwoSidedInterfaceLawRefinementMeasurement',
   'measure_moc_euler_two_sided_interface_law_refinement',
+  'MOC_GLOBAL_TWO_SIDED_MOVING_INTERFACE_REFINEMENT_AUDIT_OPERATOR_ID',
+  'MocGlobalTwoSidedMovingInterfaceRefinementCase',
+  'MocGlobalTwoSidedMovingInterfaceRefinementStatus',
+  'MocGlobalTwoSidedMovingInterfaceRefinementMeasurement',
+  'measure_moc_global_two_sided_moving_interface_refinement',
   'MOC_EULER_TWO_SIDED_FIELD_REFINEMENT_AUDIT_OPERATOR_ID',
   'MocEulerTwoSidedFieldIterationRefinementCase',
   'MocEulerTwoSidedFieldRefinementAuditStatus',

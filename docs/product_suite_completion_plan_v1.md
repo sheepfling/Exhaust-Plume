@@ -4999,3 +4999,26 @@ strict moving-front case is not accepted until its physical residuals close,
 and canonical free-boundary feedback, multi-resolution/cross-case acceptance,
 physical shock-cell fitting, external validation, and release freeze remain
 open.
+
+### WP-1 global-to-two-sided cross-case refinement checkpoint — 2026-09-11
+
+The global adapter now has its own independent refinement operator,
+``op.moc.global-two-sided-moving-interface-refinement-audit-v1``.  It
+re-audits every retained moving-interface result and joint field closure,
+requires fresh unique global-closure fingerprints within each case ladder,
+matches the declared resolution to the exact shock curve, and rejects mixed
+response modes or reversed resolution order.  It does not reuse the wrapper's
+stored audit as proof.
+
+Two distinct solver-owned global envelope families pass fresh `(5, 9, 13)`
+resolution ladders.  The maximum normal-momentum response decreases from
+approximately `82.8` to `27.9 Pa` in the first family and from `82.6` to
+`27.7 Pa` in the second; the focused regression also rejects a reversed
+ladder.  The result remains research evidence with
+``physical_closure_verified=false``, chain promotion blocked, and production
+claims disabled.
+
+This strengthens P2.2 case/resolution evidence only.  The strict moving-front
+conservative residual gate, canonical mixed-regime/free-boundary feedback,
+accepted physical shock-cell length, provider-bound validation, missing
+validation archives, and release freeze remain open.

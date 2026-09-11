@@ -33,6 +33,11 @@ from exhaust_plume.validation.moc_euler_two_sided_interface_law_refinement impor
   MocEulerTwoSidedInterfaceLawRefinementStatus,
   measure_moc_euler_two_sided_interface_law_refinement,
 )
+from exhaust_plume.validation.moc_global_two_sided_moving_interface_refinement import (
+  MocGlobalTwoSidedMovingInterfaceRefinementCase,
+  MocGlobalTwoSidedMovingInterfaceRefinementStatus,
+  measure_moc_global_two_sided_moving_interface_refinement,
+)
 from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
   MocEulerTwoSidedFieldIterationRefinementCase,
   MocEulerTwoSidedFieldRefinementAuditStatus,
@@ -2362,6 +2367,70 @@ def test_global_closure_binds_exact_two_sided_moving_interface_ladder():
   assert strict.moving_result.converged is False
   assert strict.moving_result.chain_promotion_blocked
   assert strict.moving_result.production_claim_allowed is False
+
+
+def test_global_two_sided_moving_interface_has_independent_case_refinement():
+  cases = []
+  for case_id, skew in (
+    ('global-envelope-a', (-0.75, 0.0)),
+    ('global-envelope-b', (-0.5, 0.5)),
+  ):
+    for sample_count in (5, 9, 13):
+      closure = _global_physical_closure_for_mixed_regime(
+        sample_count,
+        compression_envelope_skews=skew,
+      )
+      result = solve_reflected_domain_global_two_sided_moving_interface(
+        MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+          closure=closure,
+          reference_total_temperature_K=1500.0,
+          maximum_interface_iterations=1,
+        )
+      )
+      cases.append(
+        MocGlobalTwoSidedMovingInterfaceRefinementCase(
+          case_id=case_id,
+          resolution_sample_count=sample_count,
+          result=result,
+        )
+      )
+
+  measurement = measure_moc_global_two_sided_moving_interface_refinement(cases)
+
+  assert measurement.status is (
+    MocGlobalTwoSidedMovingInterfaceRefinementStatus
+    .CONVERGED_CROSS_CASE_REFINEMENT
+  )
+  assert measurement.converged
+  assert measurement.case_audits_verified
+  assert measurement.case_identity_verified
+  assert measurement.closure_identity_verified
+  assert measurement.response_mode_identity_verified
+  assert measurement.resolution_order_verified
+  assert measurement.residuals_finite
+  assert measurement.momentum_nonincreasing_verified
+  assert measurement.momentum_reduction_verified
+  assert measurement.cross_case_verified
+  assert measurement.fidelity_flags_verified
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.canonical_euler_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.maximum_normal_momentum_residuals_Pa[2] < (
+    measurement.maximum_normal_momentum_residuals_Pa[0]
+  )
+  assert measurement.maximum_normal_momentum_residuals_Pa[5] < (
+    measurement.maximum_normal_momentum_residuals_Pa[3]
+  )
+
+  reversed_measurement = measure_moc_global_two_sided_moving_interface_refinement(
+    tuple(reversed(cases[:3])) + tuple(cases[3:])
+  )
+  assert reversed_measurement.status is (
+    MocGlobalTwoSidedMovingInterfaceRefinementStatus
+    .RESOLUTION_ORDER_FAILURE
+  )
+  assert reversed_measurement.converged is False
 
 
 def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():
