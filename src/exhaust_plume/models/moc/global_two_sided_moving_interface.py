@@ -144,6 +144,9 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
   minimum_residual_step_fraction: float = 1.0e-2
   minimum_residual_descent_fraction: float = 1.0e-6
   require_strict_residual_descent: bool = True
+  use_conservative_residual_directional_correction: bool = True
+  residual_jacobian_probe_fraction: float = 0.5
+  maximum_residual_directional_step_fraction: float = 1.0
   source: str = 'solver-owned-global-two-sided-moving-interface-request-v1'
 
   def __post_init__(self) -> None:
@@ -190,6 +193,8 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'residual_backtrack_factor',
       'minimum_residual_step_fraction',
       'minimum_residual_descent_fraction',
+      'residual_jacobian_probe_fraction',
+      'maximum_residual_directional_step_fraction',
     ):
       value = _bounded_fraction(getattr(self, name), name)
       if name == 'residual_backtrack_factor' and value >= 1.0:
@@ -254,6 +259,13 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       raise TypeError('use_conservative_residual_line_search must be a bool')
     if not isinstance(self.require_strict_residual_descent, bool):
       raise TypeError('require_strict_residual_descent must be a bool')
+    if not isinstance(
+      self.use_conservative_residual_directional_correction,
+      bool,
+    ):
+      raise TypeError(
+        'use_conservative_residual_directional_correction must be a bool'
+      )
     ####
     source = str(self.source)
     if not source:
@@ -308,6 +320,13 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
         self.minimum_residual_descent_fraction
       ),
       'require_strict_residual_descent': self.require_strict_residual_descent,
+      'use_conservative_residual_directional_correction': (
+        self.use_conservative_residual_directional_correction
+      ),
+      'residual_jacobian_probe_fraction': self.residual_jacobian_probe_fraction,
+      'maximum_residual_directional_step_fraction': (
+        self.maximum_residual_directional_step_fraction
+      ),
       'source': self.source,
       'chain_promotion_blocked': True,
       'production_claim_allowed': False,
@@ -328,6 +347,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
   conservative_residual_result: (
     MocEulerTwoSidedConservativeResidualSolveResult | None
   ) = None
+  conservative_residual_audit: Any | None = None
   moving_audit: Any | None = None
   joint_audit: Any | None = None
   moving_fixed_point_audit: Any | None = None
@@ -412,6 +432,8 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
         or (
           self.conservative_residual_result is not None
           and self.conservative_residual_result.converged
+          and self.conservative_residual_audit is not None
+          and bool(getattr(self.conservative_residual_audit, 'converged', False))
         )
       )
     )
@@ -458,6 +480,14 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
         None
         if self.conservative_residual_result is None
         else self.conservative_residual_result.as_report()
+      ),
+      'conservative_residual_audit': (
+        None
+        if (
+          self.conservative_residual_audit is None
+          or not hasattr(self.conservative_residual_audit, 'as_report')
+        )
+        else self.conservative_residual_audit.as_report()
       ),
       'moving_audit': (
         None
@@ -692,6 +722,13 @@ def solve_reflected_domain_global_two_sided_moving_interface(
           minimum_step_fraction=request.minimum_residual_step_fraction,
           minimum_descent_fraction=request.minimum_residual_descent_fraction,
           require_strict_descent=request.require_strict_residual_descent,
+          use_directional_residual_correction=(
+            request.use_conservative_residual_directional_correction
+          ),
+          jacobian_probe_fraction=request.residual_jacobian_probe_fraction,
+          maximum_directional_step_fraction=(
+            request.maximum_residual_directional_step_fraction
+          ),
         )
       )
     else:
@@ -711,6 +748,27 @@ def solve_reflected_domain_global_two_sided_moving_interface(
   ####
   if request.use_conservative_residual_line_search:
     assert conservative_residual_result is not None
+    try:
+      from exhaust_plume.validation.moc_euler_two_sided_conservative_residual import (
+        measure_moc_euler_two_sided_conservative_residual,
+      )
+
+      conservative_residual_audit = (
+        measure_moc_euler_two_sided_conservative_residual(
+          conservative_residual_result
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _failure(
+        MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INDEPENDENT_AUDIT_FAILURE,
+        request,
+        f'global conservative residual independent audit raised: {error}',
+        shock_boundary=shock_boundary,
+        companion_boundary=companion_boundary,
+        companion_field=companion_field,
+        conservative_residual_result=conservative_residual_result,
+      )
+    ####
     if not conservative_residual_result.converged:
       return _failure(
         MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.MOVING_INTERFACE_FAILURE,
@@ -721,6 +779,21 @@ def solve_reflected_domain_global_two_sided_moving_interface(
         companion_boundary=companion_boundary,
         companion_field=companion_field,
         conservative_residual_result=conservative_residual_result,
+        conservative_residual_audit=conservative_residual_audit,
+      )
+    ####
+    if not conservative_residual_audit.converged:
+      return _failure(
+        MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INDEPENDENT_AUDIT_FAILURE,
+        request,
+        'global conservative residual solver converged locally but its '
+        'independent residual audit did not converge: '
+        f'{conservative_residual_audit.message}',
+        shock_boundary=shock_boundary,
+        companion_boundary=companion_boundary,
+        companion_field=companion_field,
+        conservative_residual_result=conservative_residual_result,
+        conservative_residual_audit=conservative_residual_audit,
       )
     ####
     return MocReflectedDomainGlobalTwoSidedMovingInterfaceResult(
@@ -733,6 +806,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       companion_boundary=companion_boundary,
       companion_field=companion_field,
       conservative_residual_result=conservative_residual_result,
+      conservative_residual_audit=conservative_residual_audit,
       message=(
         'global closure fed the solver-owned signed conservative residual '
         'line-search and exact field re-solves; the result is research-only '

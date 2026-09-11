@@ -109,6 +109,9 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
   minimum_step_fraction: float = 1.0e-2
   minimum_descent_fraction: float = 1.0e-6
   require_strict_descent: bool = True
+  use_directional_residual_correction: bool = True
+  jacobian_probe_fraction: float = 0.5
+  maximum_directional_step_fraction: float = 1.0
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -152,8 +155,25 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
     if not isinstance(self.require_strict_descent, bool):
       raise TypeError('require_strict_descent must be a bool')
     ####
+    if not isinstance(self.use_directional_residual_correction, bool):
+      raise TypeError('use_directional_residual_correction must be a bool')
+    ####
     if self.backtrack_factor >= 1.0:
       raise ValueError('backtrack_factor must be less than one')
+    ####
+    object.__setattr__(
+      self,
+      'jacobian_probe_fraction',
+      _bounded_fraction(self.jacobian_probe_fraction, 'jacobian_probe_fraction'),
+    )
+    object.__setattr__(
+      self,
+      'maximum_directional_step_fraction',
+      _bounded_fraction(
+        self.maximum_directional_step_fraction,
+        'maximum_directional_step_fraction',
+      ),
+    )
     ####
     if self.law_request.source_band is None:
       raise ValueError('law_request must retain a source band')
@@ -170,15 +190,22 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
       'minimum_step_fraction': self.minimum_step_fraction,
       'minimum_descent_fraction': self.minimum_descent_fraction,
       'require_strict_descent': self.require_strict_descent,
+      'use_directional_residual_correction': (
+        self.use_directional_residual_correction
+      ),
+      'jacobian_probe_fraction': self.jacobian_probe_fraction,
+      'maximum_directional_step_fraction': (
+        self.maximum_directional_step_fraction
+      ),
       'production_claim_allowed': False,
     }
 
 
-def _residual_norm(
+def _scaled_residual_vector(
   response: MocEulerTwoSidedInterfaceResponse,
   request: MocEulerTwoSidedMovingInterfaceRequest,
-) -> float:
-  """Return an RMS norm of the complete signed conservative vector."""
+) -> tuple[float, ...]:
+  """Return the complete signed conservative vector in declared units."""
 
   if not response.signed_residuals_available:
     raise ValueError('response did not retain the complete signed residual vector')
@@ -192,7 +219,7 @@ def _residual_norm(
     raise ValueError('signed residual channels are not aligned')
   if not signed_mass:
     raise ValueError('signed residual vector is empty')
-  terms = []
+  terms: list[float] = []
   for mass, momentum, energy in zip(
     signed_mass,
     signed_momentum,
@@ -206,6 +233,19 @@ def _residual_norm(
         float(energy) / request.energy_flux_tolerance_W_m2,
       )
     )
+  if any(not isfinite(term) for term in terms):
+    raise ValueError('scaled conservative residual vector is non-finite')
+  ####
+  return tuple(terms)
+
+
+def _residual_norm(
+  response: MocEulerTwoSidedInterfaceResponse,
+  request: MocEulerTwoSidedMovingInterfaceRequest,
+) -> float:
+  """Return an RMS norm of the complete signed conservative vector."""
+
+  terms = _scaled_residual_vector(response, request)
   value = sqrt(sum(term * term for term in terms) / len(terms))
   if not isfinite(value):
     raise ValueError('conservative residual norm is non-finite')
@@ -225,6 +265,39 @@ def _residuals_verified(
     and response.maximum_energy_flux_residual_W_m2
     <= request.energy_flux_tolerance_W_m2
   )
+
+
+def _directional_least_squares_step(
+  current_vector: tuple[float, ...],
+  probe_vector: tuple[float, ...],
+  probe_fraction: float,
+  maximum_step_fraction: float,
+) -> float | None:
+  """Estimate a bounded scalar correction along the solver-owned direction."""
+
+  if len(current_vector) != len(probe_vector) or not current_vector:
+    raise ValueError('directional residual vectors must be non-empty and aligned')
+  ####
+  derivative = tuple(
+    (probe - current) / probe_fraction
+    for current, probe in zip(current_vector, probe_vector, strict=True)
+  )
+  denominator = sum(value * value for value in derivative)
+  if not isfinite(denominator) or denominator <= 1.0e-24:
+    return None
+  ####
+  numerator = sum(
+    current * slope
+    for current, slope in zip(current_vector, derivative, strict=True)
+  )
+  if not isfinite(numerator):
+    return None
+  ####
+  raw_step = -numerator / denominator
+  if not isfinite(raw_step) or raw_step <= 0.0:
+    return None
+  ####
+  return min(maximum_step_fraction, raw_step)
 
 
 def _field_verified(field: MocEulerTwoSidedFieldIterationResult) -> bool:
@@ -252,6 +325,11 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
   accepted: bool
   field_re_solve_verified: bool
   message: str = ''
+  directional_jacobian_verified: bool = False
+  jacobian_probe_step_fraction: float | None = None
+  jacobian_probe_residual_norm: float | None = None
+  directional_step_fraction: float | None = None
+  step_source: str = 'backtracked-law-direction'
 
   def __post_init__(self) -> None:
     if (
@@ -302,6 +380,40 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
         object.__setattr__(self, name, numeric)
       ####
     ####
+    if self.jacobian_probe_step_fraction is not None:
+      object.__setattr__(
+        self,
+        'jacobian_probe_step_fraction',
+        _bounded_fraction(
+          self.jacobian_probe_step_fraction,
+          'jacobian_probe_step_fraction',
+        ),
+      )
+    if self.jacobian_probe_residual_norm is not None:
+      object.__setattr__(
+        self,
+        'jacobian_probe_residual_norm',
+        _nonnegative_float(
+          self.jacobian_probe_residual_norm,
+          'jacobian_probe_residual_norm',
+        ),
+      )
+    if self.directional_step_fraction is not None:
+      object.__setattr__(
+        self,
+        'directional_step_fraction',
+        _bounded_fraction(
+          self.directional_step_fraction,
+          'directional_step_fraction',
+        ),
+      )
+    if not isinstance(self.directional_jacobian_verified, bool):
+      raise TypeError('directional_jacobian_verified must be a bool')
+    ####
+    object.__setattr__(self, 'step_source', str(self.step_source))
+    if not self.step_source:
+      raise ValueError('step_source must be non-empty')
+    ####
     for name in ('residual_descent_verified', 'accepted', 'field_re_solve_verified'):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -319,6 +431,11 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
       'residual_descent_verified': self.residual_descent_verified,
       'accepted': self.accepted,
       'field_re_solve_verified': self.field_re_solve_verified,
+      'directional_jacobian_verified': self.directional_jacobian_verified,
+      'jacobian_probe_step_fraction': self.jacobian_probe_step_fraction,
+      'jacobian_probe_residual_norm': self.jacobian_probe_residual_norm,
+      'directional_step_fraction': self.directional_step_fraction,
+      'step_source': self.step_source,
       'response': None if self.response is None else self.response.as_report(),
       'measured_response': (
         None
@@ -351,6 +468,7 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
   conservative_flux_closure_verified: bool
   field_re_solve_verified: bool
   terminal_fixed_point_verified: bool
+  directional_residual_correction_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
   message: str = ''
@@ -418,6 +536,7 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
       'conservative_flux_closure_verified',
       'field_re_solve_verified',
       'terminal_fixed_point_verified',
+      'directional_residual_correction_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
     ):
@@ -467,6 +586,9 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
       ),
       'field_re_solve_verified': self.field_re_solve_verified,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
+      'directional_residual_correction_verified': (
+        self.directional_residual_correction_verified
+      ),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'request': None if self.request is None else self.request.as_report(),
@@ -508,6 +630,7 @@ def _failure(
   conservative_flux_closure_verified: bool = False,
   field_re_solve_verified: bool = False,
   terminal_fixed_point_verified: bool = False,
+  directional_residual_correction_verified: bool = False,
 ) -> MocEulerTwoSidedConservativeResidualSolveResult:
   return MocEulerTwoSidedConservativeResidualSolveResult(
     status=status,
@@ -522,6 +645,9 @@ def _failure(
     conservative_flux_closure_verified=conservative_flux_closure_verified,
     field_re_solve_verified=field_re_solve_verified,
     terminal_fixed_point_verified=terminal_fixed_point_verified,
+    directional_residual_correction_verified=(
+      directional_residual_correction_verified
+    ),
     chain_promotion_blocked=True,
     production_claim_allowed=False,
     message=message,
@@ -604,6 +730,7 @@ def solve_euler_two_sided_conservative_residual(
   records: list[MocEulerTwoSidedConservativeResidualSolveIteration] = []
   motion_seen = False
   field_re_solve_verified = True
+  directional_correction_seen = False
   ####
   for iteration_index in range(request.maximum_iterations):
     full_response_result = _law_result(current, request.law_request)
@@ -625,6 +752,10 @@ def solve_euler_two_sided_conservative_residual(
     ####
     try:
       full_norm = _residual_norm(full_response, request.moving_request)
+      full_vector = _scaled_residual_vector(
+        full_response,
+        request.moving_request,
+      )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       return _failure(
         MocEulerTwoSidedConservativeResidualSolveStatus.RESPONSE_FAILURE,
@@ -678,6 +809,9 @@ def solve_euler_two_sided_conservative_residual(
         conservative_flux_closure_verified=full_response.conservative_flux_closure_verified,
         field_re_solve_verified=field_re_solve_verified,
         terminal_fixed_point_verified=terminal_zero,
+        directional_residual_correction_verified=(
+          directional_correction_seen
+        ),
         chain_promotion_blocked=True,
         production_claim_allowed=False,
         message=(
@@ -694,12 +828,22 @@ def solve_euler_two_sided_conservative_residual(
     accepted_after: float | None = None
     accepted_step = 1.0
     accepted_backtracks = 0
+    accepted_step_source = 'backtracked-law-direction'
+    directional_jacobian_verified = False
+    jacobian_probe_step_fraction: float | None = None
+    jacobian_probe_residual_norm: float | None = None
+    directional_step_fraction: float | None = None
     last_message = 'no trial passed the residual descent criterion'
-    for backtrack_count in range(request.maximum_backtracks + 1):
-      step_fraction = request.backtrack_factor**backtrack_count
-      if step_fraction < request.minimum_step_fraction:
-        break
-      ####
+
+    def evaluate_step(
+      step_fraction: float,
+    ) -> tuple[
+      MocEulerTwoSidedInterfaceResponse,
+      MocEulerTwoSidedFieldIterationResult,
+      MocEulerTwoSidedInterfaceResponse,
+      float,
+      tuple[float, ...],
+    ]:
       trial_law_request = replace(
         request.law_request,
         pseudo_time_step_s=(
@@ -707,47 +851,107 @@ def solve_euler_two_sided_conservative_residual(
         ),
         require_conservative_flux_closure=False,
       )
+      trial_law = build_solver_owned_euler_two_sided_interface_response(
+        current,
+        trial_law_request,
+        iteration_index=iteration_index,
+      )
+      trial_response = trial_law.response
+      if trial_response is None:
+        raise ValueError(trial_law.message)
+      ####
+      next_request = replace(
+        current.request,
+        shock_boundary=trial_response.next_shock_boundary,
+        companion_field=trial_response.next_companion_field,
+      )
+      candidate = solve_euler_two_sided_field_iteration(next_request)
+      if not _field_verified(candidate):
+        raise ValueError(
+          'exact field re-solve did not pass its local gates: '
+          f'{candidate.status.value}'
+        )
+      ####
+      measurement = _law_result(candidate, trial_law_request)
+      measured_response = measurement.response
+      if measured_response is None:
+        raise ValueError(measurement.message)
+      ####
+      after = _residual_norm(measured_response, request.moving_request)
+      measured_vector = _scaled_residual_vector(
+        measured_response,
+        request.moving_request,
+      )
+      return (
+        trial_response,
+        candidate,
+        measured_response,
+        after,
+        measured_vector,
+      )
+
+    def is_descent(
+      after: float,
+      measured_response: MocEulerTwoSidedInterfaceResponse,
+    ) -> bool:
+      strict_descent = after < full_norm * (
+        1.0 - request.minimum_descent_fraction
+      )
+      nonstrict_descent = after < full_norm
+      descent = strict_descent if request.require_strict_descent else nonstrict_descent
+      if not descent and _residuals_verified(
+        measured_response,
+        request.moving_request,
+      ):
+        # A closed residual vector is admissible even when the final
+        # backtracked movement is below numerical descent resolution.
+        descent = True
+      return descent
+
+    if request.use_directional_residual_correction:
       try:
-        trial_law = build_solver_owned_euler_two_sided_interface_response(
-          current,
-          trial_law_request,
-          iteration_index=iteration_index,
+        jacobian_probe_step_fraction = request.jacobian_probe_fraction
+        probe = evaluate_step(jacobian_probe_step_fraction)
+        jacobian_probe_residual_norm = probe[3]
+        directional_step_fraction = _directional_least_squares_step(
+          full_vector,
+          probe[4],
+          jacobian_probe_step_fraction,
+          request.maximum_directional_step_fraction,
         )
-        trial_response = trial_law.response
-        if trial_response is None:
-          raise ValueError(trial_law.message)
-        ####
-        next_request = replace(
-          current.request,
-          shock_boundary=trial_response.next_shock_boundary,
-          companion_field=trial_response.next_companion_field,
+        if directional_step_fraction is not None:
+          directional_jacobian_verified = True
+          directional_correction_seen = True
+          directional_candidate = evaluate_step(directional_step_fraction)
+          if is_descent(directional_candidate[3], directional_candidate[2]):
+            accepted = True
+            accepted_field = directional_candidate[1]
+            accepted_response = directional_candidate[0]
+            accepted_measurement = directional_candidate[2]
+            accepted_after = directional_candidate[3]
+            accepted_step = directional_step_fraction
+            accepted_step_source = 'directional-least-squares-correction'
+          else:
+            last_message = (
+              'directional least-squares correction did not descend the '
+              f'conservative residual norm ({directional_candidate[3]:.6g} '
+              f'from {full_norm:.6g})'
+            )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        last_message = f'directional residual correction failed: {error}'
+    ####
+    for backtrack_count in range(request.maximum_backtracks + 1):
+      if accepted:
+        break
+      step_fraction = request.backtrack_factor**backtrack_count
+      if step_fraction < request.minimum_step_fraction:
+        break
+      ####
+      try:
+        trial_response, candidate, measured_response, after, _ = evaluate_step(
+          step_fraction
         )
-        candidate = solve_euler_two_sided_field_iteration(next_request)
-        if not _field_verified(candidate):
-          raise ValueError(
-            'exact field re-solve did not pass its local gates: '
-            f'{candidate.status.value}'
-          )
-        ####
-        measurement = _law_result(candidate, trial_law_request)
-        measured_response = measurement.response
-        if measured_response is None:
-          raise ValueError(measurement.message)
-        after = _residual_norm(measured_response, request.moving_request)
-        strict_descent = after < current_norm * (
-          1.0 - request.minimum_descent_fraction
-        )
-        nonstrict_descent = after < current_norm
-        descent = strict_descent if request.require_strict_descent else nonstrict_descent
-        if not descent and _residuals_verified(
-          measured_response,
-          request.moving_request,
-        ):
-          # A closed residual vector is admissible even when the final
-          # backtracked movement is below numerical descent resolution.
-          descent = True
-        ####
-        if descent:
+        if is_descent(after, measured_response):
           accepted = True
           accepted_field = candidate
           accepted_response = trial_response
@@ -755,6 +959,7 @@ def solve_euler_two_sided_conservative_residual(
           accepted_after = after
           accepted_step = step_fraction
           accepted_backtracks = backtrack_count
+          accepted_step_source = 'backtracked-law-direction'
           break
         ####
         last_message = (
@@ -780,6 +985,11 @@ def solve_euler_two_sided_conservative_residual(
         residual_descent_verified=False,
         accepted=False,
         field_re_solve_verified=False,
+        directional_jacobian_verified=directional_jacobian_verified,
+        jacobian_probe_step_fraction=jacobian_probe_step_fraction,
+        jacobian_probe_residual_norm=jacobian_probe_residual_norm,
+        directional_step_fraction=directional_step_fraction,
+        step_source=accepted_step_source,
         message=last_message,
       )
       records.append(record)
@@ -797,6 +1007,9 @@ def solve_euler_two_sided_conservative_residual(
         residual_vector_verified=full_response.signed_residuals_available,
         conservative_flux_closure_verified=full_response.conservative_flux_closure_verified,
         field_re_solve_verified=field_re_solve_verified,
+        directional_residual_correction_verified=(
+          directional_correction_seen
+        ),
       )
     ####
     record = MocEulerTwoSidedConservativeResidualSolveIteration(
@@ -812,9 +1025,15 @@ def solve_euler_two_sided_conservative_residual(
       residual_descent_verified=True,
       accepted=True,
       field_re_solve_verified=True,
+      directional_jacobian_verified=directional_jacobian_verified,
+      jacobian_probe_step_fraction=jacobian_probe_step_fraction,
+      jacobian_probe_residual_norm=jacobian_probe_residual_norm,
+      directional_step_fraction=directional_step_fraction,
+      step_source=accepted_step_source,
       message=(
         'trial front was accepted after an exact field re-solve because the '
-        'complete signed conservative residual norm descended'
+        'complete signed conservative residual norm descended; step source='
+        f'{accepted_step_source}'
       ),
     )
     records.append(record)
@@ -844,4 +1063,5 @@ def solve_euler_two_sided_conservative_residual(
       and current_response.conservative_flux_closure_verified
     ),
     field_re_solve_verified=field_re_solve_verified,
+    directional_residual_correction_verified=directional_correction_seen,
   )

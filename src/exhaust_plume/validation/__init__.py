@@ -627,6 +627,12 @@ from exhaust_plume.validation.moc_euler_two_sided_moving_interface import (
   MocEulerTwoSidedMovingInterfaceAudit,
   measure_moc_euler_two_sided_moving_interface,
 )
+from exhaust_plume.validation.moc_euler_two_sided_conservative_residual import (
+  MOC_EULER_TWO_SIDED_CONSERVATIVE_RESIDUAL_AUDIT_OPERATOR_ID,
+  MocEulerTwoSidedConservativeResidualAuditStatus,
+  MocEulerTwoSidedConservativeResidualAudit,
+  measure_moc_euler_two_sided_conservative_residual,
+)
 from exhaust_plume.validation.moc_euler_two_sided_moving_interface_fixed_point import (
   MOC_EULER_TWO_SIDED_MOVING_INTERFACE_FIXED_POINT_AUDIT_OPERATOR_ID,
   MocEulerTwoSidedMovingInterfaceFixedPointAuditStatus,
@@ -1561,6 +1567,10 @@ __all__ = (
   'MocEulerTwoSidedMovingInterfaceAuditStatus',
   'MocEulerTwoSidedMovingInterfaceAudit',
   'measure_moc_euler_two_sided_moving_interface',
+  'MOC_EULER_TWO_SIDED_CONSERVATIVE_RESIDUAL_AUDIT_OPERATOR_ID',
+  'MocEulerTwoSidedConservativeResidualAuditStatus',
+  'MocEulerTwoSidedConservativeResidualAudit',
+  'measure_moc_euler_two_sided_conservative_residual',
   'MOC_EULER_TWO_SIDED_MOVING_INTERFACE_FIXED_POINT_AUDIT_OPERATOR_ID',
   'MocEulerTwoSidedMovingInterfaceFixedPointAuditStatus',
   'MocEulerTwoSidedMovingInterfaceFixedPointAudit',

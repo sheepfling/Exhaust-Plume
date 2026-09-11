@@ -2560,9 +2560,14 @@ def test_global_closure_can_consume_signed_conservative_residual_line_search():
 
   assert result.conservative_residual_result is not None
   residual = result.conservative_residual_result
+  assert result.conservative_residual_audit is not None
+  assert result.conservative_residual_audit.converged is False
+  assert result.conservative_residual_audit.record_count == 1
+  assert result.conservative_residual_audit.local_consistency_verified is False
   assert result.moving_result is None
   assert result.converged is False
   assert residual.residual_vector_verified
+  assert residual.directional_residual_correction_verified
   assert residual.records
   record = residual.records[0]
   assert record.accepted
@@ -2570,6 +2575,9 @@ def test_global_closure_can_consume_signed_conservative_residual_line_search():
   assert record.residual_norm_after is not None
   assert record.residual_norm_before is not None
   assert record.residual_norm_after < record.residual_norm_before
+  assert record.directional_jacobian_verified
+  assert record.jacobian_probe_residual_norm is not None
+  assert record.step_source == 'directional-least-squares-correction'
   assert residual.production_claim_allowed is False
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
@@ -2578,6 +2586,38 @@ def test_global_closure_can_consume_signed_conservative_residual_line_search():
   assert report['solver_id'] == (
     'op.moc.euler-two-sided-conservative-residual-line-search-v1'
   )
+  audit_report = result.as_report()['conservative_residual_audit']
+  assert audit_report['operator_id'] == (
+    'op.moc.euler-two-sided-conservative-residual-audit-v1'
+  )
+
+
+def test_global_conservative_residual_success_requires_independent_audit():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_two_sided_moving_interface(
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_field_iterations=3,
+      maximum_interface_iterations=1,
+      use_conservative_residual_line_search=True,
+    )
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+    .CONVERGED_RESEARCH_INTERFACE
+  )
+  assert result.converged
+  assert result.conservative_residual_result is not None
+  assert result.conservative_residual_result.converged
+  assert result.conservative_residual_audit is not None
+  assert result.conservative_residual_audit.converged
+  assert result.conservative_residual_audit.local_consistency_verified
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
 
 def test_global_two_sided_stationary_interface_is_an_explicit_strict_mode():
   closure = _global_physical_closure_for_mixed_regime()

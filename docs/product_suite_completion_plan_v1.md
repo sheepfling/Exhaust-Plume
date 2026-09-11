@@ -5363,3 +5363,24 @@ closure: the residual consumer remains research-only and promotion-blocked;
 independent global/free-boundary audits, multi-case/multi-resolution physical
 closure, accepted shock-cell fits, provider comparisons, validation archives,
 and the release freeze remain open.
+
+### P2.2 directional coupled-residual correction and audit checkpoint — 2026-09-11
+
+The signed-residual consumer now uses an opt-in solver-owned directional
+least-squares correction.  It finite-differences the complete normalized
+signed mass, normal-momentum, and energy vector through an additional exact
+field re-solve, computes a bounded scalar correction along the current front
+direction, and retains the probe norm, reconstructed step, and step source.
+The global adapter exposes the correction controls without changing its
+default moving-interface lane.
+
+The new independent audit reconstructs the initial/final residuals, every
+accepted trial, exact-field lineage, strict descent, and the directional probe
+step.  The canonical tight-tolerance case remains a typed iteration-limit
+failure with a consistent audit; the loose research case is accepted only
+when the independent audit also passes.  Focused global tests, Ruff, Pyright,
+compilation, and whitespace checks are clean.  This is stronger coupled
+solver evidence, not canonical closure: the residual path remains
+research-only and promotion-blocked, and the physical free-boundary,
+multi-case refinement, shock-cell, provider-validation, archive, and release
+gates remain open.
