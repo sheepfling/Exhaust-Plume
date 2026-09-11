@@ -5613,6 +5613,16 @@ evidence for downstream diagnostic studies, but it is deliberately excluded
 from the moving-front refinement ladder and cannot open canonical
 free-boundary, shock-cell, Signature/FPA production, or release gates.
 
+The moving residual consumer now also permits a bounded Newton-like
+directional extrapolation up to sixteen baseline law steps, while retaining
+the original default of one.  The fresh mixed-regime probe with an eight-step
+bound and a smaller physical pseudo-step records independently remeasured
+strict descent (normalized residual norm approximately ``2.151 -> 2.139``),
+but reaches the declared iteration limit before conservative closure.  This
+is a solver-mechanism improvement, not a convergence claim; the accepted
+records, exact field re-solves, and non-promotion flags remain visible and the
+outer moving/free-boundary feedback gate stays closed.
+
 ### P2.2 exact-Euler conditioned perimeter closure checkpoint — 2026-09-11
 
 The exact-Euler frontier consumer now closes the conditioned physical field

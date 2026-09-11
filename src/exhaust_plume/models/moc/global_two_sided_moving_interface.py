@@ -101,6 +101,17 @@ def _bounded_fraction(value: object, name: str, *, allow_zero: bool = False) -> 
 ####
 
 
+def _bounded_directional_step_fraction(value: object, name: str) -> float:
+  numeric = float(value)
+  if not isfinite(numeric) or numeric <= 0.0 or numeric > 16.0:
+    raise ValueError(
+      f'{name} must be finite, positive, and no greater than sixteen'
+    )
+  ####
+  return numeric
+####
+
+
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
   """Configuration for one exact global-to-moving-interface handoff."""
@@ -196,7 +207,11 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'residual_jacobian_probe_fraction',
       'maximum_residual_directional_step_fraction',
     ):
-      value = _bounded_fraction(getattr(self, name), name)
+      value = (
+        _bounded_directional_step_fraction(getattr(self, name), name)
+        if name == 'maximum_residual_directional_step_fraction'
+        else _bounded_fraction(getattr(self, name), name)
+      )
       if name == 'residual_backtrack_factor' and value >= 1.0:
         raise ValueError('residual_backtrack_factor must be less than one')
       ####

@@ -85,6 +85,16 @@ def _bounded_fraction(value: Any, name: str) -> float:
   return numeric
 
 
+def _bounded_directional_step_fraction(value: Any, name: str) -> float:
+  """Allow bounded Newton-like extrapolation beyond one law step."""
+
+  numeric = _positive_float(value, name)
+  if numeric > 16.0:
+    raise ValueError(f'{name} must be no greater than sixteen')
+  ####
+  return numeric
+
+
 def _nonnegative_float(value: Any, name: str) -> float:
   try:
     numeric = float(value)
@@ -169,7 +179,7 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
     object.__setattr__(
       self,
       'maximum_directional_step_fraction',
-      _bounded_fraction(
+      _bounded_directional_step_fraction(
         self.maximum_directional_step_fraction,
         'maximum_directional_step_fraction',
       ),
@@ -364,7 +374,15 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
         )
       ####
     ####
-    step = _bounded_fraction(self.step_fraction, 'step_fraction')
+    step_source = str(self.step_source)
+    if not step_source:
+      raise ValueError('step_source must be non-empty')
+    ####
+    step = (
+      _bounded_directional_step_fraction(self.step_fraction, 'step_fraction')
+      if step_source == 'directional-least-squares-correction'
+      else _bounded_fraction(self.step_fraction, 'step_fraction')
+    )
     object.__setattr__(self, 'step_fraction', step)
     if (
       isinstance(self.backtrack_count, bool)
@@ -402,7 +420,7 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
       object.__setattr__(
         self,
         'directional_step_fraction',
-        _bounded_fraction(
+        _bounded_directional_step_fraction(
           self.directional_step_fraction,
           'directional_step_fraction',
         ),
@@ -410,9 +428,7 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
     if not isinstance(self.directional_jacobian_verified, bool):
       raise TypeError('directional_jacobian_verified must be a bool')
     ####
-    object.__setattr__(self, 'step_source', str(self.step_source))
-    if not self.step_source:
-      raise ValueError('step_source must be non-empty')
+    object.__setattr__(self, 'step_source', step_source)
     ####
     for name in ('residual_descent_verified', 'accepted', 'field_re_solve_verified'):
       if not isinstance(getattr(self, name), bool):

@@ -11855,6 +11855,46 @@ def test_global_frontier_fresh_resolve_residual_admission_is_fail_closed():
 ####
 
 
+def test_global_frontier_residual_directional_extrapolation_records_descent_without_promotion():
+  fresh = _fresh_global_frontier_resolve_for_mixed_regime(
+    consumer_id='test-fresh-global-frontier-directional-extrapolation-v1',
+  )
+  assert fresh.converged_research_resolve
+  assert fresh.candidate_closure is not None
+  result = run_reflected_domain_global_frontier_fresh_resolve_conservative_residual(
+    fresh,
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+      closure=fresh.candidate_closure,
+      reference_total_temperature_K=1500.0,
+      maximum_field_iterations=3,
+      maximum_interface_iterations=8,
+      use_conservative_residual_line_search=True,
+      require_conservative_flux_closure=True,
+      require_strict_residual_descent=True,
+      maximum_residual_backtracks=5,
+      normal_momentum_tolerance_Pa=10.0,
+      pseudo_time_step_s=1.0e-6,
+      maximum_residual_directional_step_fraction=8.0,
+    ),
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
+    .RESIDUAL_AUDIT_FAILURE
+  )
+  assert result.strict_residual_descent_verified
+  assert result.independent_residual_audit_verified is False
+  assert result.initial_residual_norm is not None
+  assert result.final_residual_norm is not None
+  assert result.final_residual_norm < result.initial_residual_norm
+  assert result.conservative_residual_audit is not None
+  assert result.conservative_residual_audit.descent_verified
+  assert result.conservative_residual_audit.local_consistency_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
 def test_global_frontier_fresh_residual_refinement_records_resolution_ladder():
   cases = []
   for sample_count in (5, 7, 9):
