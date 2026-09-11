@@ -5131,3 +5131,24 @@ one field. It must be independently audited on a stable case/resolution
 ladder before P3 shock-cell fitting can consume it. The validation archive,
 provider-bound product comparisons, and release-freeze blockers remain
 unchanged.
+
+### P2.2 strict terminal response admission checkpoint — 2026-09-11
+
+The global downstream-feedback runner now exposes an opt-in
+``require_terminal_fixed_point`` mode. When enabled, a completed outer
+feedback run automatically replays the final solver-owned global closure
+through a fresh downstream response solve, retains the independent terminal
+audit, and returns a typed terminal-fixed-point failure if the declared
+response/offset tolerances do not pass. The default research mode remains
+backward-compatible, while strict mode prevents a caller from treating an
+outer pressure-overlay iteration as a completed terminal response without
+performing the final fresh measurement.
+
+The focused global boundary-feedback/refinement tranche passes (``6 passed``),
+including the strict terminal mode. The new gate is still research-only:
+canonical mixed-regime/free-boundary closure, conservative moving-front
+acceptance, accepted physical shock-cell lengths, provider-bound product
+comparisons, validation archives, and release promotion remain open. The
+next P2.2 physics packet is still the solver-owned joint interface/free-
+boundary consumer; this checkpoint only closes the admission and audit seam
+around that future consumer.

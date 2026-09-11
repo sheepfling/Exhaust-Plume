@@ -11410,6 +11410,7 @@ def test_global_coupled_boundary_condition_feedback_consumes_moving_frame_extens
       'physical_field_continuation_profile': handoff.continuation_profile,
       'physical_field_shock_front_condition': handoff.shock_front_condition,
     },
+    require_terminal_fixed_point=True,
   )
 
   assert run.status is (
@@ -11417,6 +11418,11 @@ def test_global_coupled_boundary_condition_feedback_consumes_moving_frame_extens
     .COMPLETED_RESEARCH_BOUNDARY_FEEDBACK
   )
   assert run.research_feedback_completed is True
+  assert run.outer_feedback_completed is True
+  assert run.terminal_fixed_point_required is True
+  assert run.terminal_fixed_point_verified is True
+  assert run.terminal_fixed_point_audit is not None
+  assert run.terminal_fixed_point_audit.terminal_fixed_point_verified
   assert len(run.iterations) == 2
   assert all(item.research_step_verified for item in run.iterations)
   assert run.downstream_response_verified
@@ -11520,29 +11526,10 @@ def test_global_coupled_boundary_condition_feedback_consumes_moving_frame_extens
   assert run.as_report()['configuration']['feedback_policy'] == (
     'downstream-response-explicit-pressure-overlay-fresh-global-ambient-march-v1'
   )
-  terminal_handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
-    run.final_closure
-  )
-  terminal_feedback = run_reflected_domain_global_coupled_downstream_feedback(
-    run.final_closure,
-    reference_total_temperature_K=1500.0,
-    maximum_iterations=2,
-    axial_station_count=7,
-    axial_cell_count=8,
-    transverse_cell_count=4,
-    max_pseudo_iterations=400,
-    max_shape_iterations=12,
-    inlet_boundary_mode=(
-      MocReflectedDomainCoupledEulerInletBoundaryMode
-      .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
-    ),
-    physical_field_continuation_profile=terminal_handoff.continuation_profile,
-    physical_field_shock_front_condition=terminal_handoff.shock_front_condition,
-  )
   terminal_audit = (
     audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
       run,
-      terminal_feedback=terminal_feedback,
+      terminal_feedback=run.terminal_fixed_point_audit.terminal_feedback,
     )
   )
   assert terminal_audit.status is (

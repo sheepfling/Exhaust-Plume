@@ -19,7 +19,7 @@ solver-owned and the mode stays below canonical mixed-regime closure.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from hashlib import sha256
 import json
@@ -114,6 +114,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus(str, Enum):
   )
   FIDELITY_FAILURE = 'global-coupled-boundary-condition-fidelity-failure'
   ITERATION_LIMIT = 'global-coupled-boundary-condition-iteration-limit'
+  TERMINAL_FIXED_POINT_FAILURE = (
+    'global-coupled-boundary-condition-terminal-fixed-point-failure'
+  )
 ####
 
 
@@ -605,6 +608,11 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   downstream_boundary_closure_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
+  terminal_fixed_point_required: bool = False
+  terminal_fixed_point_audit: (
+    'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit'
+    | None
+  ) = None
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -677,10 +685,20 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       'downstream_boundary_closure_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
+      'terminal_fixed_point_required',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
       ####
+    ####
+    if self.terminal_fixed_point_audit is not None and not isinstance(
+      self.terminal_fixed_point_audit,
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit,
+    ):
+      raise TypeError(
+        'terminal_fixed_point_audit must be a typed terminal fixed-point '
+        'audit or None'
+      )
     ####
     if self.global_coupling_verified or self.downstream_boundary_closure_verified:
       raise ValueError(
@@ -698,8 +716,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   ####
 
   @property
-  def research_feedback_completed(self) -> bool:
-    """Whether every requested step reached the bounded research contract."""
+  def outer_feedback_completed(self) -> bool:
+    """Whether every requested step reached the bounded outer contract."""
 
     return bool(
       self.status
@@ -726,6 +744,28 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       and self.frame_extension_verified
       and self.fidelity_isolation_verified
       and all(item.research_step_verified for item in self.iterations)
+    )
+  ####
+
+  @property
+  def terminal_fixed_point_verified(self) -> bool:
+    """Whether the optional strict terminal response gate is satisfied."""
+
+    return bool(
+      not self.terminal_fixed_point_required
+      or (
+        self.terminal_fixed_point_audit is not None
+        and self.terminal_fixed_point_audit.terminal_fixed_point_verified
+      )
+    )
+  ####
+
+  @property
+  def research_feedback_completed(self) -> bool:
+    """Whether the bounded contract, including any strict terminal gate, passed."""
+
+    return bool(
+      self.outer_feedback_completed and self.terminal_fixed_point_verified
     )
   ####
 
@@ -784,6 +824,14 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       ),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
+      'outer_feedback_completed': self.outer_feedback_completed,
+      'terminal_fixed_point_required': self.terminal_fixed_point_required,
+      'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
+      'terminal_fixed_point_audit': (
+        None
+        if self.terminal_fixed_point_audit is None
+        else self.terminal_fixed_point_audit.as_report()
+      ),
       'configuration': self.configuration,
       'configuration_fingerprint': self.configuration_fingerprint,
       'iterations': tuple(item.as_report() for item in self.iterations),
@@ -804,6 +852,12 @@ def _run_result(
   status: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus,
   configuration: Mapping[str, Any],
   message: str,
+  *,
+  terminal_fixed_point_required: bool = False,
+  terminal_fixed_point_audit: (
+    'MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit'
+    | None
+  ) = None,
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   def all_steps(name: str) -> bool:
     return bool(iterations) and all(getattr(item, name) for item in iterations)
@@ -840,6 +894,8 @@ def _run_result(
     ),
     frame_extension_verified=all_steps('frame_extension_verified'),
     fidelity_isolation_verified=all_steps('fidelity_isolation_verified'),
+    terminal_fixed_point_required=terminal_fixed_point_required,
+    terminal_fixed_point_audit=terminal_fixed_point_audit,
     message=message,
   )
 ####
@@ -1023,7 +1079,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPoint
       self.status
       is MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
       .COMPLETED_RESEARCH_TERMINAL_FIXED_POINT
-      and self.feedback_run.research_feedback_completed
+      and self.feedback_run.outer_feedback_completed
       and self.terminal_configuration_verified
       and self.terminal_closure_lineage_verified
       and self.terminal_feedback_verified
@@ -1110,6 +1166,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   downstream_options: Mapping[str, Any] | None = None,
   boundary_condition_options: Mapping[str, Any] | None = None,
   maximum_frame_extension_m: float = 0.5,
+  require_terminal_fixed_point: bool = False,
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   """Run bounded downstream/global feedback with exact pressure consumption.
 
@@ -1120,13 +1177,20 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   failure is retained as a typed stop.
   ``boundary_condition_options`` may opt into declared target-geometry
   consumption; the result records that mode separately from the downstream
-  solver-owned ambient boundary.
+  solver-owned ambient boundary.  When ``require_terminal_fixed_point`` is
+  true, a fresh downstream response is automatically replayed against the
+  final retained closure and the run is marked failed unless that terminal
+  response passes the independent research tolerances.  This remains below
+  canonical mixed-regime closure and production promotion.
   """
 
   if not isinstance(closure, MocReflectedDomainGlobalPhysicalClosureResult):
     raise TypeError(
       'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
     )
+  ####
+  if not isinstance(require_terminal_fixed_point, bool):
+    raise ValueError('require_terminal_fixed_point must be a bool')
   ####
   if (
     isinstance(maximum_iterations, bool)
@@ -1177,6 +1241,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       'reference_total_temperature_K',
       'maximum_iterations',
       'maximum_frame_extension_m',
+      'require_terminal_fixed_point',
     ),
   )
   resolved_boundary_options = _options(
@@ -1214,6 +1279,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     'solver_owned_handoff_refresh_policy': (
       'refresh-exact-physical-field-handoff-after-each-fresh-upstream-closure-v1'
     ),
+    'terminal_fixed_point_required': require_terminal_fixed_point,
   }
   if not closure.converged or not closure.physical_closure_verified:
     return _run_result(
@@ -1224,6 +1290,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus.INVALID_INPUT,
       configuration,
       'boundary-condition feedback requires a locally verified source closure',
+      terminal_fixed_point_required=require_terminal_fixed_point,
     )
   ####
   current = closure
@@ -1696,7 +1763,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     status = failure_status
     message = failure_message or 'boundary-condition feedback stopped'
   ####
-  return _run_result(
+  run = _run_result(
     closure,
     current,
     maximum_iterations,
@@ -1704,7 +1771,50 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     status,
     configuration,
     message,
+    terminal_fixed_point_required=require_terminal_fixed_point,
   )
+  if require_terminal_fixed_point and run.outer_feedback_completed:
+    try:
+      terminal_audit = (
+        audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
+          run
+        )
+      )
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return replace(
+        run,
+        status=(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+          .TERMINAL_FIXED_POINT_FAILURE
+        ),
+        message=f'terminal fixed-point audit raised: {error}',
+      )
+    ####
+    if not terminal_audit.terminal_fixed_point_verified:
+      return replace(
+        run,
+        status=(
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+          .TERMINAL_FIXED_POINT_FAILURE
+        ),
+        terminal_fixed_point_audit=terminal_audit,
+        message=(
+          'outer boundary feedback completed, but the required fresh terminal '
+          'downstream response did not pass its declared research tolerances: '
+          f'{terminal_audit.message}'
+        ),
+      )
+    ####
+    return replace(
+      run,
+      terminal_fixed_point_audit=terminal_audit,
+      message=(
+        f'{run.message}; fresh terminal downstream response was independently '
+        'audited'
+      ),
+    )
+  ####
+  return run
 ####
 
 
@@ -1800,7 +1910,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
     )
   ####
 
-  if not feedback_run.research_feedback_completed:
+  if not feedback_run.outer_feedback_completed:
     return result(
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
       .INVALID_INPUT,
