@@ -609,6 +609,12 @@ from exhaust_plume.validation.moc_euler_two_sided_field_iteration import (
   MocEulerTwoSidedFieldIterationAudit,
   measure_moc_euler_two_sided_field_iteration,
 )
+from exhaust_plume.validation.moc_euler_two_sided_moving_interface import (
+  MOC_EULER_TWO_SIDED_MOVING_INTERFACE_AUDIT_OPERATOR_ID,
+  MocEulerTwoSidedMovingInterfaceAuditStatus,
+  MocEulerTwoSidedMovingInterfaceAudit,
+  measure_moc_euler_two_sided_moving_interface,
+)
 from exhaust_plume.validation.moc_euler_variable_entropy_lineage import (
   MOC_EULER_VARIABLE_ENTROPY_LINEAGE_AUDIT_OPERATOR_ID,
   MocEulerVariableEntropyLineageAuditStatus,
@@ -1493,6 +1499,10 @@ __all__ = (
   'MocEulerTwoSidedFieldIterationAuditStatus',
   'MocEulerTwoSidedFieldIterationAudit',
   'measure_moc_euler_two_sided_field_iteration',
+  'MOC_EULER_TWO_SIDED_MOVING_INTERFACE_AUDIT_OPERATOR_ID',
+  'MocEulerTwoSidedMovingInterfaceAuditStatus',
+  'MocEulerTwoSidedMovingInterfaceAudit',
+  'measure_moc_euler_two_sided_moving_interface',
   'MOC_EULER_TWO_SIDED_FIELD_REFINEMENT_AUDIT_OPERATOR_ID',
   'MocEulerTwoSidedFieldIterationRefinementCase',
   'MocEulerTwoSidedFieldRefinementAuditStatus',

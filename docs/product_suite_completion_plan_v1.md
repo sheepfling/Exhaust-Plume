@@ -4379,3 +4379,34 @@ promote the fixed shock geometry, close moving/free-boundary feedback, accept
 physical shock-cell lengths, or satisfy provider-bound product validation and
 release gates.  The next physics slice remains the solver-owned moving
 interface/free-boundary iteration.
+
+### P2.2m solver-owned two-sided moving-interface contract checkpoint — 2026-09-10
+
+The higher-fidelity lane now has a typed
+``MocEulerTwoSidedMovingInterfaceRequest`` / ``Result`` and an explicit
+``MocEulerTwoSidedInterfaceResponse`` packet.  The response must retain the
+exact prior shock object, provide an equally sampled proposed shock and open
+companion field, and report separate signed-normal displacement, mass-flux,
+normal-momentum, and energy-flux channels.  The driver independently
+remeasures displacement from shock geometry, consumes the proposed geometry
+through a fresh exact two-sided field solve, and retains the response/re-solve
+lineage at every bounded iteration.
+
+The new independent audit re-runs the existing exact-field audit for the
+initial and re-solved fields, recomputes every response channel, checks the
+declared tolerances and promotion flags, and refuses to infer an update from
+the fixed geometry.  The focused moving-interface regression passes three
+tests: a missing solver-owned update law returns ``INTERFACE_UPDATE_REQUIRED``
+and a zero-motion response returns ``MOVEMENT_REQUIRED`` with an independent
+``RESPONSE_FAILURE`` audit.  The complete reflected-domain model regression
+passes 177 tests; Ruff, Pyright, Python compilation, and whitespace checks are
+clean.
+
+This is an orchestration and evidence checkpoint, not the physical interface
+law itself.  The callback remains intentionally unimplemented in the canonical
+solver: no pressure-profile controller, endpoint hold, interpolation, or
+lower-fidelity substitute is allowed to move the shock.  Canonical
+mixed-regime/free-boundary closure, independent coupled refinement, physical
+shock-cell fitting, provider-bound Visualization/Signature/FPA validation,
+owner archives, and release tagging remain blocked until a solver-owned
+interface law supplies the missing physics and passes those gates.

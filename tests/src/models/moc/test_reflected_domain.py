@@ -12,6 +12,10 @@ from exhaust_plume.validation.moc_euler_two_sided_field_iteration import (
   MocEulerTwoSidedFieldIterationAuditStatus,
   measure_moc_euler_two_sided_field_iteration,
 )
+from exhaust_plume.validation.moc_euler_two_sided_moving_interface import (
+  MocEulerTwoSidedMovingInterfaceAuditStatus,
+  measure_moc_euler_two_sided_moving_interface,
+)
 from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
   MocEulerTwoSidedFieldIterationRefinementCase,
   MocEulerTwoSidedFieldRefinementAuditStatus,
@@ -86,6 +90,10 @@ from exhaust_plume.models.moc import (
   MocEulerTwoSidedFieldIterationRequest,
   MocEulerTwoSidedFieldIterationStatus,
   solve_euler_two_sided_field_iteration,
+  MocEulerTwoSidedInterfaceResponse,
+  MocEulerTwoSidedMovingInterfaceRequest,
+  MocEulerTwoSidedMovingInterfaceStatus,
+  solve_euler_two_sided_moving_interface,
   MocEulerTwoSidedTerminalClosureRequest,
   MocEulerTwoSidedTerminalClosureStatus,
   solve_euler_two_sided_terminal_closure,
@@ -1641,6 +1649,88 @@ def test_two_sided_euler_field_iteration_audit_rejects_tampered_fixed_point_reco
   assert audit.status is MocEulerTwoSidedFieldIterationAuditStatus.RESIDUAL_FAILURE
   assert not audit.converged
   assert not audit.handoff_residuals_verified
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_two_sided_moving_interface_requires_solver_owned_update_law():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  result = solve_euler_two_sided_moving_interface(
+    MocEulerTwoSidedMovingInterfaceRequest(
+      field_request=MocEulerTwoSidedFieldIterationRequest(
+        shock_boundary=shock_boundary,
+        companion_field=companion_field,
+        ambient_pressure_Pa=ambient_pressure,
+        maximum_field_iterations=3,
+      )
+    )
+  )
+
+  assert result.status is (
+    MocEulerTwoSidedMovingInterfaceStatus.INTERFACE_UPDATE_REQUIRED
+  )
+  assert result.initial_field_iteration is not None
+  assert result.initial_field_iteration.field_iteration_verified
+  assert not result.moving_interface_verified
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+  audit = measure_moc_euler_two_sided_moving_interface(result)
+
+  assert audit.status is MocEulerTwoSidedMovingInterfaceAuditStatus.UPDATE_REQUIRED
+  assert not audit.converged
+  assert audit.initial_field_verified
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_two_sided_moving_interface_rejects_fixed_geometry_response():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  request = MocEulerTwoSidedMovingInterfaceRequest(
+    field_request=MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+
+  def fixed_geometry_response(field, _iteration_index):
+    assert field.request is not None
+    shock = field.request.shock_boundary
+    companion = field.request.companion_field
+    sample_count = len(shock.shock_points_m)
+    return MocEulerTwoSidedInterfaceResponse(
+      prior_shock_boundary=shock,
+      next_shock_boundary=shock,
+      next_companion_field=companion,
+      normal_displacements_m=(0.0,) * sample_count,
+      mass_flux_residuals_kg_m2_s=(0.0,) * sample_count,
+      normal_momentum_residuals_Pa=(0.0,) * sample_count,
+      energy_flux_residuals_W_m2=(0.0,) * sample_count,
+    )
+
+  result = solve_euler_two_sided_moving_interface(
+    request,
+    advance_interface=fixed_geometry_response,
+  )
+
+  assert result.status is MocEulerTwoSidedMovingInterfaceStatus.MOVEMENT_REQUIRED
+  assert len(result.records) == 1
+  assert not result.interface_motion_verified
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+  audit = measure_moc_euler_two_sided_moving_interface(result)
+
+  assert audit.status is MocEulerTwoSidedMovingInterfaceAuditStatus.RESPONSE_FAILURE
+  assert not audit.converged
+  assert audit.response_lineage_verified
+  assert not audit.interface_motion_verified
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
 
