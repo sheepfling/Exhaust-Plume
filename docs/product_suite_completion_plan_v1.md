@@ -3384,10 +3384,10 @@ and a bounded research continuation, not canonical closure.
 
 This is the active order of work for completing the suite.  The dedicated
 branch remains the integration candidate; ``main`` is not the working branch.
-The current branch contains the verified but uncommitted P2.2e--P2.2l
-two-sided research tranche; it is not a release candidate and must not be
-described as a clean published candidate until that tranche is committed and
-the release matrix is rerun.  Each item below is a separate vertical slice
+The current branch contains the committed P2.2e--P2.2l two-sided research
+tranche at ``920b9ef``; it is not a release candidate and must not be
+described as a clean published candidate until the release matrix is rerun.
+Each item below is a separate vertical slice
 with its contract, focused tests, evidence note, and static checks.  A later
 item may consume an earlier item only through its declared contract and claim
 ceiling.
