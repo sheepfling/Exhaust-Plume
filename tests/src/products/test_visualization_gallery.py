@@ -244,6 +244,53 @@ def test_gallery_reject_policy_never_converts_invalid_samples_to_zero(tmp_path: 
   with pytest.raises(ValueError, match='invalid sample'):
     render_product_gallery(result, tmp_path, spec=spec)
   ####
+
+
+def test_signature_gallery_renders_only_declared_aligned_numeric_uncertainty(tmp_path: Path) -> None:
+  result = _signature_result()
+  result = result.model_copy(update={
+    'payload': result.payload.model_copy(update={
+      'uncertainty': {
+        'source': 'synthetic',
+        'absolute_standard_uncertainty_W_sr_m': (
+          (0.1, None),
+          (0.05, 0.02),
+          (0.01, 0.03),
+        ),
+      },
+    }),
+  })
+  manifest = render_product_gallery(result, tmp_path)
+  payload = json.loads(manifest.manifest_path.read_text(encoding='utf-8'))
+
+  uncertainty_artifacts = {
+    artifact['view_id']: artifact['path']
+    for artifact in payload['artifacts']
+  }
+  assert uncertainty_artifacts['signature.uncertainty-heatmap'] == (
+    'signature_uncertainty_heatmap.png'
+  )
+  assert (tmp_path / 'signature_uncertainty_heatmap.png').exists()
+  assert payload['product_metadata']['numeric_uncertainty_declared'] is True
+  ####
+
+
+def test_signature_gallery_rejects_misaligned_numeric_uncertainty(tmp_path: Path) -> None:
+  result = _signature_result()
+  result = result.model_copy(update={
+    'payload': result.payload.model_copy(update={
+      'uncertainty': {
+        'absolute_standard_uncertainty_W_sr_m': (
+          (0.1, 0.2),
+          (0.05, 0.02),
+          (0.01, 0.03),
+        ),
+      },
+    }),
+  })
+  with pytest.raises(ValueError, match='invalid'):
+    render_product_gallery(result, tmp_path)
+  ####
 ####
 
 

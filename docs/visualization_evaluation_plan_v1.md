@@ -248,6 +248,12 @@ detector-response metadata.  The noise-variance view is explicitly an
 expected-uncertainty field, never a sampled noise realization or measured
 detector image.
 
+The standard Signature gallery also accepts the explicit aligned numeric
+uncertainty schema `absolute_standard_uncertainty_W_sr_m` (with a lowercase
+`w` compatibility spelling), renders a masked uncertainty heatmap, and
+rejects shape or validity-mask mismatches.  Free-form uncertainty metadata
+continues to be recorded without being interpreted as numeric error bars.
+
 ## Milestones and exit gates
 
 ### M0 — Shared foundation

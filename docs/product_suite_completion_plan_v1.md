@@ -5068,3 +5068,18 @@ Pyright, bytecode compilation, and whitespace checks are clean.  This closes
 a visualization/evidence-surface gap in the FPA lane only; the camera/detector
 observation contract, alignment archive, provider-bound comparison, canonical
 mixed-regime closure, and release gates remain open.
+
+### WP-4 Signature uncertainty-surface checkpoint — 2026-09-11
+
+The standard Signature gallery now renders a numeric uncertainty heatmap only
+when the result declares the aligned `absolute_standard_uncertainty_W_sr_m`
+matrix (or its compatibility spelling) with finite nonnegative values and
+nulls matching invalid intensity samples.  Free-form uncertainty metadata is
+still preserved but never treated as an error field; malformed or mask-
+mismatched numeric matrices fail closed.
+
+The focused standard-gallery regression covers the positive heatmap and the
+misaligned-matrix rejection, alongside the existing invalid-sample guard.
+This improves Signature evaluation evidence only; it does not establish
+source-bound chemistry, atmospheric/ray validation, or an external product
+claim.

@@ -312,6 +312,100 @@ def _wavelength_axis(grid: SpectralRadiantIntensityGrid | Any, spec: Visualizati
 ####
 
 
+def _numeric_signature_uncertainty(
+  grid: SpectralRadiantIntensityGrid,
+) -> tuple[tuple[float | None, ...], ...] | None:
+  """Read the one explicitly supported numeric Signature uncertainty schema."""
+
+  raw = grid.uncertainty.get('absolute_standard_uncertainty_W_sr_m')
+  if raw is None:
+    raw = grid.uncertainty.get('absolute_standard_uncertainty_w_sr_m')
+  if raw is None:
+    return None
+  ####
+  try:
+    rows = tuple(tuple(row) for row in raw)
+  except (TypeError, ValueError) as error:
+    raise ValueError(
+      'numeric Signature uncertainty must be a direction-by-wavelength matrix'
+    ) from error
+  ####
+  if len(rows) != len(grid.directions) or any(
+    len(row) != len(grid.wavelengths_m) for row in rows
+  ):
+    raise ValueError(
+      'numeric Signature uncertainty matrix must match the direction and '
+      'wavelength axes'
+    )
+  ####
+  normalized: list[tuple[float | None, ...]] = []
+  for direction_index, (row, validity) in enumerate(
+    zip(rows, grid.validity_mask, strict=True)
+  ):
+    values: list[float | None] = []
+    for wavelength_index, (value, valid) in enumerate(
+      zip(row, validity, strict=True)
+    ):
+      if value is None:
+        if valid:
+          raise ValueError(
+            'numeric Signature uncertainty cannot be missing at a valid '
+            f'sample ({direction_index}, {wavelength_index})'
+          )
+        ####
+        values.append(None)
+        continue
+      ####
+      try:
+        numeric = float(value)
+      except (TypeError, ValueError) as error:
+        raise ValueError(
+          'numeric Signature uncertainty must contain finite nonnegative '
+          'values'
+        ) from error
+      ####
+      if not isfinite(numeric) or numeric < 0.0:
+        raise ValueError(
+          'numeric Signature uncertainty must contain finite nonnegative '
+          'values'
+        )
+      ####
+      if not valid:
+        raise ValueError(
+          'numeric Signature uncertainty must use null values at invalid '
+          f'samples ({direction_index}, {wavelength_index})'
+        )
+      ####
+      values.append(numeric)
+    ####
+    normalized.append(tuple(values))
+  ####
+  return tuple(normalized)
+
+
+def _uncertainty_matrix_for_display(
+  rows: Sequence[Sequence[float | None]],
+  spec: VisualizationSpec,
+) -> list[list[float]]:
+  matrix: list[list[float]] = []
+  for row in rows:
+    prepared: list[float] = []
+    for value in row:
+      if value is None:
+        if spec.invalid_sample_policy is InvalidSamplePolicy.REJECT:
+          raise ValueError('numeric Signature uncertainty contains an invalid sample')
+        ####
+        prepared.append(float('nan'))
+      else:
+        prepared.append(float(value))
+      ####
+    ####
+    matrix.append(prepared)
+  ####
+  return matrix
+####
+
+
 def _masked_matrix(
   rows: Sequence[Sequence[float | None]],
   spec: VisualizationSpec,
@@ -632,6 +726,40 @@ def render_spectral_radiant_intensity_gallery(
   _save(figure, heatmap_path, title='Spectral radiant-intensity direction/wavelength heatmap', result=result, spec=resolved)
   plt.close(figure)
 
+  uncertainty = _numeric_signature_uncertainty(grid)
+  uncertainty_path: Path | None = None
+  if uncertainty is not None:
+    uncertainty_path = output / 'signature_uncertainty_heatmap.png'
+    figure, axis = plt.subplots(figsize=(9.0, 5.5))
+    uncertainty_matrix = _uncertainty_matrix_for_display(uncertainty, resolved)
+    cmap = plt.get_cmap(resolved.color_map).copy()
+    cmap.set_bad(alpha=0.0)
+    uncertainty_image = axis.imshow(
+      uncertainty_matrix,
+      aspect='auto',
+      interpolation='nearest',
+      origin='lower',
+      cmap=cmap,
+    )
+    axis.set_xlabel(wavelength_label)
+    axis.set_ylabel('Direction index [1] — exact direction rows')
+    axis.set_xticks(range(len(wavelengths)))
+    axis.set_xticklabels([f'{value:g}' for value in wavelengths], rotation=35, ha='right')
+    axis.set_yticks(range(len(grid.directions)))
+    figure.colorbar(
+      uncertainty_image,
+      ax=axis,
+      label='absolute standard uncertainty [W sr⁻¹ m⁻¹]',
+    )
+    _save(
+      figure,
+      uncertainty_path,
+      title='Declared Signature uncertainty heatmap',
+      result=result,
+      spec=resolved,
+    )
+    plt.close(figure)
+
   sphere_path = output / 'signature_direction_sphere.png'
   figure = plt.figure(figsize=(8.0, 6.5))
   axis = figure.add_subplot(111, projection='3d')
@@ -665,6 +793,9 @@ def render_spectral_radiant_intensity_gallery(
   artifacts = (
     GalleryArtifact('signature.spectra', spectrum_path.name, 'image/png'),
     GalleryArtifact('signature.heatmap', heatmap_path.name, 'image/png'),
+    *(() if uncertainty_path is None else (
+      GalleryArtifact('signature.uncertainty-heatmap', uncertainty_path.name, 'image/png'),
+    )),
     GalleryArtifact('signature.direction-sphere', sphere_path.name, 'image/png'),
     GalleryArtifact('signature.direction-table', table_path.name, 'text/csv'),
   )
@@ -681,12 +812,13 @@ def render_spectral_radiant_intensity_gallery(
       'selected_wavelength_index': projection.wavelength_index,
       'selected_wavelength_m': projection.selected_wavelength_m,
       'uncertainty_metadata': grid.uncertainty,
+      'numeric_uncertainty_declared': uncertainty is not None,
     },
     artifacts,
     (
       'direction_index_and_exact_3d_direction_are_used; no scalar_angle_is_invented',
       'invalid_signature_samples_remain_masked_or_gapped',
-      'numeric_uncertainty_bands_require_a_declared_uncertainty_schema',
+      'numeric_uncertainty_heatmaps_require_a_declared_aligned_uncertainty_schema',
       'geometry_and_focal_plane_values_are_not_derived_from_signature_data',
     ),
   )
