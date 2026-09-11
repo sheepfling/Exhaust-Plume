@@ -222,6 +222,11 @@ evaluation layers for the four strict `ProductResult` families:
   interval. The gallery records that limitation and does not infer it from
   zero radiance or unit transmittance. The strict visual contract likewise does
   not acquire shock-diamond or plume-region claims from tessellation.
+- The basic shock-cell adapter now preserves explicit source-region labels and
+  the legacy solver's declared oblique-shock/flow-turn angles when converting
+  closed zones. They are emitted as polygon-aligned metadata and masked scalar
+  channels in radians; the adapter does not infer angles or shock strength
+  from display geometry.
 - `exhaust_plume.products.signature_timeline` now joins compatible exact
   signature request/result pairs into renderer-neutral sampled angular maps,
   direction traces, and source-pose trajectories. It retains the request axes,

@@ -381,6 +381,8 @@ class ModelVisualField:
   channels: Mapping[str, tuple[Scalar, ...]] = field(default_factory=dict)
   channel_units: Mapping[str, str] = field(default_factory=dict)
   channel_semantics: Mapping[str, str] = field(default_factory=dict)
+  region_types: tuple[str | None, ...] = ()
+  region_labels: tuple[str | None, ...] = ()
 
   def __post_init__(self) -> None:
     if not self.field_id or not self.semantic:
@@ -425,7 +427,17 @@ class ModelVisualField:
     object.__setattr__(self, 'channels', normalized_channels)
     object.__setattr__(self, 'channel_units', normalized_units)
     object.__setattr__(self, 'channel_semantics', normalized_semantics)
-  ####
+    for name in ('region_types', 'region_labels'):
+      values = tuple(
+        None if value is None else str(value)
+        for value in getattr(self, name)
+      )
+      if values and len(values) != len(polygons):
+        raise ValueError(f'{name} must match polygon count when supplied')
+      if any(value == '' for value in values if value is not None):
+        raise ValueError(f'{name} entries must be non-empty when supplied')
+      object.__setattr__(self, name, values)
+    ####
 
   def model_dump(self) -> dict[str, object]:
     return {
@@ -440,6 +452,8 @@ class ModelVisualField:
         }
         for channel_id, values in self.channels.items()
       },
+      'region_types': list(self.region_types),
+      'region_labels': list(self.region_labels),
     }
   ####
 ####
@@ -693,6 +707,20 @@ def _basic_visualization(
         'density': ('static_density', 'kg m^-3', 'zone static density'),
         'mach': ('mach', '1', 'zone Mach number'),
       },
+      zone_values={
+        'shock_angle_rad': (
+          'shock_angle_rad',
+          'rad',
+          'declared oblique-shock angle; masked for non-shock regions',
+        ),
+        'turn_angle_rad': (
+          'turn_angle_rad',
+          'rad',
+          'declared flow-turn angle for the source region',
+        ),
+      },
+      region_type_attribute='region_type',
+      region_label_attribute='region_label',
     ),
   )
   return _bundle(
@@ -719,6 +747,10 @@ def _basic_visualization(
     diagnostics={
       'cell_count': len(result.cells),
       'zone_count': len(result.zones),
+      'declared_region_parameter_count': sum(
+        int(zone.shock_angle_rad is not None or zone.turn_angle_rad is not None)
+        for zone in zones
+      ),
       'pressure_residual': float(result.pressure_residual),
       'termination_reason': getattr(result.termination_reason, 'value', str(result.termination_reason)),
     },
@@ -736,9 +768,17 @@ def _field_from_zones(
   zones: Sequence[object],
   *,
   flow_values: Mapping[str, tuple[str, str, str]],
+  zone_values: Mapping[str, tuple[str, str, str]] | None = None,
+  region_type_attribute: str | None = None,
+  region_label_attribute: str | None = None,
 ) -> ModelVisualField:
   polygons: list[tuple[Vector2, ...]] = []
-  channel_values: dict[str, list[float]] = {name: [] for name in flow_values}
+  declared_zone_values = {} if zone_values is None else dict(zone_values)
+  channel_values: dict[str, list[Scalar]] = {
+    name: [] for name in (*flow_values, *declared_zone_values)
+  }
+  region_types: list[str | None] = []
+  region_labels: list[str | None] = []
   for zone in zones:
     raw = getattr(zone, 'vertices_xr_m', None)
     if raw is None:
@@ -757,13 +797,29 @@ def _field_from_zones(
     for channel_id, (attribute, _unit, _semantic) in flow_values.items():
       value = getattr(flow, attribute, None)
       channel_values[channel_id].append(_finite(f'{channel_id} zone value', value))
+    for channel_id, (attribute, _unit, _semantic) in declared_zone_values.items():
+      value = getattr(zone, attribute, None)
+      channel_values[channel_id].append(
+        None if value is None else _finite(f'{channel_id} zone value', value)
+      )
+    region_types.append(
+      None
+      if region_type_attribute is None
+      else getattr(zone, region_type_attribute, None)
+    )
+    region_labels.append(
+      None
+      if region_label_attribute is None
+      else getattr(zone, region_label_attribute, None)
+    )
     ####
   ####
   if not polygons:
     raise ValueError(f'{field_id} contains no finite polygons')
   ####
-  units = {name: values[1] for name, values in flow_values.items()}
-  semantics = {name: values[2] for name, values in flow_values.items()}
+  all_values = {**flow_values, **declared_zone_values}
+  units = {name: values[1] for name, values in all_values.items()}
+  semantics = {name: values[2] for name, values in all_values.items()}
   return ModelVisualField(
     field_id=field_id,
     semantic=semantic,
@@ -771,6 +827,8 @@ def _field_from_zones(
     channels={name: tuple(values) for name, values in channel_values.items()},
     channel_units=units,
     channel_semantics=semantics,
+    region_types=tuple(region_types),
+    region_labels=tuple(region_labels),
   )
 ####
 

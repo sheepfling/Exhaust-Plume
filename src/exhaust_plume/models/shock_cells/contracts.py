@@ -104,6 +104,10 @@ class ClosedZone:
   flow: FlowState
   geometry_status: GeometryStatus = GeometryStatus.VALID
   composition_mass_fractions: Optional[np.ndarray] = None
+  region_type: str | None = None
+  region_label: str | None = None
+  shock_angle_rad: float | None = None
+  turn_angle_rad: float | None = None
 
   def __post_init__(self) -> None:
     vertices = np.array(self.vertices_xr_m, dtype=float, copy=True)
@@ -127,6 +131,26 @@ class ClosedZone:
       ####
       composition.flags.writeable = False
       object.__setattr__(self, "composition_mass_fractions", composition)
+    ####
+    for name in ('region_type', 'region_label'):
+      value = getattr(self, name)
+      if value is not None:
+        normalized = str(value)
+        if not normalized:
+          raise ValueError(f'{name} must be non-empty when supplied')
+        object.__setattr__(self, name, normalized)
+      ####
+    ####
+    for name in ('shock_angle_rad', 'turn_angle_rad'):
+      value = getattr(self, name)
+      if value is None:
+        continue
+      ####
+      normalized = float(value)
+      if not np.isfinite(normalized):
+        raise ValueError(f'{name} must be finite when supplied')
+      ####
+      object.__setattr__(self, name, normalized)
     ####
   ####
 ####

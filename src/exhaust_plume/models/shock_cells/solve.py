@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import isfinite, radians
 from typing import Any
 
 from exhaust_plume.geometry import validate_polygon
@@ -45,6 +46,18 @@ def _closed_zones(legacy_zones: list[Any], cell_index: int) -> tuple[ClosedZone,
         cell_index=cell_index,
         vertices_xr_m=vertices,
         flow=zone.asFlowState(),
+        region_type=zone.type.name,
+        region_label=zone.label,
+        shock_angle_rad=(
+          radians(float(zone.beta))
+          if isfinite(float(zone.beta))
+          else None
+        ),
+        turn_angle_rad=(
+          radians(float(zone.theta))
+          if isfinite(float(zone.theta))
+          else None
+        ),
     ))
   ####
   return tuple(out)

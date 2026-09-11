@@ -48,7 +48,7 @@ provenance. No new product capability is added.
 
 | Lane | Common display | Extra view data | Claim ceiling |
 | --- | --- | --- | --- |
-| `shock-cell-basic-v1` | Fast straight sectioned tube with radius and flow channels | Finite axisymmetric zone polygons with temperature, pressure, density, and Mach | Engineering-approximate visualization; no radiation or detector claim |
+| `shock-cell-basic-v1` | Fast straight sectioned tube with radius and flow channels | Finite axisymmetric zone polygons with region type/label, temperature, pressure, density, Mach, and declared shock/turn angles where the source provides them | Engineering-approximate visualization; no radiation or detector claim |
 | `shock-cell-reduced-order-v1` | Sectioned tube across resolved and reduced-order cell stations | Cell/envelope polygons with pressure and Mach; calibration identity | Calibrated engineering approximation; downstream cells are not resolved MOC |
 | `straight-integral-v1` | Straight top-hat tube with conserved-flow channels | Upper/lower boundaries and interval polygons | Supporting/reference integral display; endpoint is a requested domain limit |
 | `washed-integral-v1` | Rotation-minimizing swept tube along the curved centerline | 3-D centerline path and curvature/entrainment/mixing channels | Curved integral supporting lane; no automatic spectral or ray-transfer claim |
@@ -70,9 +70,11 @@ bundle:
    ellipse/frame inspector.
 3. One axial line plot per declared section channel, including its unit and
    semantic description.
-4. Region/cell polygons, when supplied, with a selectable scalar channel and
-   an invalid-sample mask. A missing value remains missing; it is never drawn
-   as zero.
+4. Region/cell polygons, when supplied, with a selectable scalar channel,
+   source region labels, and an invalid-sample mask. A missing value remains
+   missing; it is never drawn as zero. For the basic lane, declared
+   oblique-shock and flow-turn angles are exposed in radians and remain
+   masked for regions that do not provide them.
 5. Named boundary-path overlays. For MOC, the shock boundary, ambient
    pressure boundary, centerline reflection, and incoming frontier must be
    independently togglable.

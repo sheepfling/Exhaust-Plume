@@ -498,6 +498,30 @@ def test_all_five_model_lanes_share_one_bundle_shape() -> None:
   assert not bundles[1].claims.production_claim_allowed
   assert not bundles[-1].claims.production_claim_allowed
   assert len(bundles[0].fields) == 1
+  basic_field = bundles[0].fields[0]
+  assert basic_field.region_types == (
+    'Isentropic',
+    'ExpansionFan',
+    'ExpansionFan',
+    'ExpansionFan',
+    'ExpansionFan',
+    'ObliqueShock',
+  )
+  assert basic_field.region_labels[-1] == 'Centerline Compression Exit'
+  assert basic_field.channels['shock_angle_rad'][:-1] == (
+    None,
+    None,
+    None,
+    None,
+    None,
+  )
+  assert basic_field.channels['shock_angle_rad'][-1] == pytest.approx(
+    0.34702962104132495,
+  )
+  assert basic_field.channels['turn_angle_rad'][1] == pytest.approx(
+    0.010599288423643438,
+  )
+  assert bundles[0].diagnostics['declared_region_parameter_count'] == 5
   assert len(bundles[-1].fields[0].polygons_xr_m) == 2
   assert {path.path_id for path in bundles[-1].paths} >= {
     'moc-shock-boundary',

@@ -182,6 +182,10 @@ def _scaled_zones(
         vertices_xr_m=vertices,
         flow=flow,
         composition_mass_fractions=template.composition_mass_fractions,
+        region_type=template.region_type,
+        region_label=template.region_label,
+        shock_angle_rad=template.shock_angle_rad,
+        turn_angle_rad=template.turn_angle_rad,
       ))
     except ValueError:
       return ()

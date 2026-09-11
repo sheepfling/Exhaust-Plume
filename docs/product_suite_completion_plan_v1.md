@@ -4653,3 +4653,17 @@ first-cell closure, and the lack of accepted physical shock-cell length
 comparisons.  The Version 8 ZIP is not present in the current workspace, so
 no external evidence was synthesized or promoted.  No release tag is
 authorized until those gates and the final exact-HEAD freeze are refreshed.
+
+### WP-3 source-region parameter visibility checkpoint — 2026-09-10
+
+The standardized basic shock-cell Visualization adapter now retains the
+source solver's explicit region type and label, plus declared oblique-shock
+and flow-turn angles when those fields are present.  The angles are emitted
+as polygon-aligned ``rad`` channels; non-shock regions remain masked rather
+than receiving inferred or zero-valued shock parameters.  This makes the
+shock/expansion-region inspector materially more useful without deriving
+physics from tessellation or changing the basic lane's engineering-approximate
+claim ceiling.  Focused model-visualization, shock-cell, and shock-train
+tests pass (28 tests); the offline wheel/install smoke also passes (exit code
+0).  Canonical MOC closure, external provider validation, and release-freeze
+gates remain unchanged and closed.
