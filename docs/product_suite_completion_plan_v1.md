@@ -4736,3 +4736,20 @@ focused slice passes all 7 tests, with Ruff and bytecode checks clean.  This
 closes an evidence-integrity gap only; canonical mixed-regime closure,
 disjoint physical shock-cell fitting, provider-bound validation, and the final
 release freeze remain open.
+
+### WP-1 global-frontier handoff audit checkpoint — 2026-09-10
+
+The bounded downstream-to-global frontier feedback runner now has a separate
+independent handoff audit.  It rechecks the contiguous source-to-selected-
+closure chain, exact proposal and reconciliation-request identity, fresh
+target-guided global solve lineage, covered finite target consumption, target
+matching, aggregate run flags, and the explicit research-only promotion
+boundary.  A tampered selected-resolve target is rejected with a typed target-
+match failure.
+
+This audit verifies the integrity of the global-frontier reconciliation
+evidence; it does not rerun or promote the compression-envelope equations,
+and it does not close the solver-owned mixed-regime/free-boundary law.  The
+canonical physical closure, accepted shock-cell lengths, provider-bound
+Visualization/Signature/FPA comparisons, owner archives, and exact release
+freeze remain open.

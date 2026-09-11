@@ -356,7 +356,9 @@ from exhaust_plume.validation.moc_global_frontier_target_refinement import (
   run_reflected_domain_global_frontier_target_conditioned_refinement,
 )
 from exhaust_plume.validation.moc_global_coupled_frontier_feedback import (
+  MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus,
   MocReflectedDomainGlobalCoupledFrontierFeedbackStatus,
+  audit_reflected_domain_global_coupled_frontier_feedback,
   run_reflected_domain_global_coupled_frontier_feedback,
 )
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback import (
@@ -10764,6 +10766,41 @@ def test_global_coupled_frontier_feedback_executes_fresh_global_steps_without_pr
   assert iteration.target_resolve.fresh_global_solve_invocation_verified
   assert iteration.target_resolve.target_consumption_verified
   assert iteration.selected_closure is run.final_closure
+  audit = audit_reflected_domain_global_coupled_frontier_feedback(run)
+  assert audit.status is (
+    MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus
+    .AUDITED_RESEARCH_EVIDENCE
+  )
+  assert audit.converged
+  assert audit.research_evidence_verified
+  assert audit.configuration_verified
+  assert audit.source_chain_lineage_verified
+  assert audit.downstream_lineage_verified
+  assert audit.target_request_lineage_verified
+  assert audit.target_resolve_lineage_verified
+  assert audit.fresh_global_solve_verified
+  assert audit.target_consumption_verified
+  assert audit.target_match_verified
+  assert audit.iteration_flags_verified
+  assert audit.aggregate_flags_verified
+  assert audit.promotion_flags_verified
+  tampered_target_resolve = replace(
+    iteration.target_resolve,
+    target_match_verified=False,
+  )
+  tampered_iteration = replace(
+    iteration,
+    target_resolve=tampered_target_resolve,
+  )
+  tampered_run = replace(run, iterations=(tampered_iteration,))
+  tampered_audit = audit_reflected_domain_global_coupled_frontier_feedback(
+    tampered_run
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus
+    .TARGET_MATCH_FAILURE
+  )
+  assert tampered_audit.research_evidence_verified is False
   visualization = standardize_model_visualization(run)
   assert visualization.model_id == (
     'planar-moc-global-coupled-frontier-feedback'

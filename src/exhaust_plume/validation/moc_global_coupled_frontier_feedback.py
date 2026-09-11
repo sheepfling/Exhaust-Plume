@@ -28,6 +28,7 @@ from typing import Any
 from exhaust_plume.models.moc.global_frontier_reconciliation import (
   MocReflectedDomainGlobalFrontierReconciliationRequest,
   build_reflected_domain_global_frontier_reconciliation_request,
+  moc_reflected_domain_global_frontier_proposal_fingerprint,
 )
 from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
@@ -50,6 +51,9 @@ __all__ = (
   'MocReflectedDomainGlobalCoupledFrontierFeedbackStatus',
   'MocReflectedDomainGlobalCoupledFrontierFeedbackIteration',
   'MocReflectedDomainGlobalCoupledFrontierFeedbackRun',
+  'MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus',
+  'MocReflectedDomainGlobalCoupledFrontierFeedbackAudit',
+  'audit_reflected_domain_global_coupled_frontier_feedback',
   'run_reflected_domain_global_coupled_frontier_feedback',
 )
 
@@ -72,6 +76,36 @@ class MocReflectedDomainGlobalCoupledFrontierFeedbackStatus(str, Enum):
   FIDELITY_FAILURE = 'global-frontier-fidelity-isolation-failure'
   ITERATION_LIMIT = 'global-frontier-feedback-iteration-limit'
 ####
+
+
+class MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus(str, Enum):
+  """Outcome of independently rechecking a retained frontier feedback run."""
+
+  AUDITED_RESEARCH_EVIDENCE = (
+    'audited-research-global-coupled-frontier-feedback'
+  )
+  INVALID_INPUT = 'invalid_input'
+  ITERATION_LINEAGE_FAILURE = (
+    'global-frontier-feedback-audit-iteration-lineage-failure'
+  )
+  DOWNSTREAM_LINEAGE_FAILURE = (
+    'global-frontier-feedback-audit-downstream-lineage-failure'
+  )
+  TARGET_REQUEST_FAILURE = (
+    'global-frontier-feedback-audit-target-request-failure'
+  )
+  TARGET_RESOLVE_FAILURE = (
+    'global-frontier-feedback-audit-target-resolve-failure'
+  )
+  TARGET_MATCH_FAILURE = (
+    'global-frontier-feedback-audit-target-match-failure'
+  )
+  AGGREGATE_FLAG_FAILURE = (
+    'global-frontier-feedback-audit-aggregate-flag-failure'
+  )
+  PROMOTION_FLAG_FAILURE = (
+    'global-frontier-feedback-audit-promotion-flag-failure'
+  )
 
 
 def _options(
@@ -444,6 +478,463 @@ class MocReflectedDomainGlobalCoupledFrontierFeedbackRun:
       'message': self.message,
     }
   ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledFrontierFeedbackAudit:
+  """Independent evidence for one retained global frontier handoff.
+
+  The runner records its own seam flags while it executes.  This audit is a
+  second pass over the immutable handoff objects: it checks the source chain,
+  exact proposal/request identity, fresh target-resolve lineage, aggregate
+  flags, and the explicit research-only boundary.  It does not rerun the
+  global equations and cannot promote the compression-envelope law.
+  """
+
+  status: MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus
+  candidate: MocReflectedDomainGlobalCoupledFrontierFeedbackRun | None
+  iterations_rechecked: int = 0
+  configuration_verified: bool = False
+  iteration_index_verified: bool = False
+  source_chain_lineage_verified: bool = False
+  downstream_lineage_verified: bool = False
+  target_request_lineage_verified: bool = False
+  target_resolve_lineage_verified: bool = False
+  fresh_global_solve_verified: bool = False
+  target_consumption_verified: bool = False
+  target_match_verified: bool = False
+  iteration_flags_verified: bool = False
+  aggregate_flags_verified: bool = False
+  promotion_flags_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus,
+    ):
+      raise TypeError('status must be a typed frontier-feedback audit status')
+    if self.candidate is not None and not isinstance(
+      self.candidate,
+      MocReflectedDomainGlobalCoupledFrontierFeedbackRun,
+    ):
+      raise TypeError('candidate must be a typed frontier-feedback run or None')
+    if (
+      isinstance(self.iterations_rechecked, bool)
+      or not isinstance(self.iterations_rechecked, int)
+      or self.iterations_rechecked < 0
+    ):
+      raise ValueError('iterations_rechecked must be a nonnegative integer')
+    for name in (
+      'configuration_verified',
+      'iteration_index_verified',
+      'source_chain_lineage_verified',
+      'downstream_lineage_verified',
+      'target_request_lineage_verified',
+      'target_resolve_lineage_verified',
+      'fresh_global_solve_verified',
+      'target_consumption_verified',
+      'target_match_verified',
+      'iteration_flags_verified',
+      'aggregate_flags_verified',
+      'promotion_flags_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    if self.candidate is not None and self.candidate.production_claim_allowed:
+      raise ValueError('frontier-feedback audit cannot accept production claims')
+    ####
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return self.status is (
+      MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus
+      .AUDITED_RESEARCH_EVIDENCE
+    )
+  ####
+
+  @property
+  def research_evidence_verified(self) -> bool:
+    """Whether the retained frontier handoff passed the second-pass audit."""
+
+    candidate = self.candidate
+    return bool(
+      self.converged
+      and candidate is not None
+      and candidate.research_feedback_completed
+      and self.configuration_verified
+      and self.iteration_index_verified
+      and self.source_chain_lineage_verified
+      and self.downstream_lineage_verified
+      and self.target_request_lineage_verified
+      and self.target_resolve_lineage_verified
+      and self.fresh_global_solve_verified
+      and self.target_consumption_verified
+      and self.target_match_verified
+      and self.iteration_flags_verified
+      and self.aggregate_flags_verified
+      and self.promotion_flags_verified
+      and candidate.chain_promotion_blocked
+      and not candidate.global_coupling_verified
+      and not candidate.downstream_boundary_closure_verified
+      and not candidate.production_claim_allowed
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'operator_id': MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_FRONTIER_FEEDBACK_OPERATOR_ID,
+      'status': self.status.value,
+      'converged': self.converged,
+      'research_evidence_verified': self.research_evidence_verified,
+      'iterations_rechecked': self.iterations_rechecked,
+      'configuration_verified': self.configuration_verified,
+      'iteration_index_verified': self.iteration_index_verified,
+      'source_chain_lineage_verified': self.source_chain_lineage_verified,
+      'downstream_lineage_verified': self.downstream_lineage_verified,
+      'target_request_lineage_verified': self.target_request_lineage_verified,
+      'target_resolve_lineage_verified': self.target_resolve_lineage_verified,
+      'fresh_global_solve_verified': self.fresh_global_solve_verified,
+      'target_consumption_verified': self.target_consumption_verified,
+      'target_match_verified': self.target_match_verified,
+      'iteration_flags_verified': self.iteration_flags_verified,
+      'aggregate_flags_verified': self.aggregate_flags_verified,
+      'promotion_flags_verified': self.promotion_flags_verified,
+      'candidate': (
+        None if self.candidate is None else self.candidate.as_report()
+      ),
+      'claim_status': (
+        'independent research handoff audit only; canonical mixed-regime '
+        'closure, physical shock-cell fitting, external validation, and '
+        'production claims remain blocked'
+      ),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def audit_reflected_domain_global_coupled_frontier_feedback(
+  candidate: MocReflectedDomainGlobalCoupledFrontierFeedbackRun,
+) -> MocReflectedDomainGlobalCoupledFrontierFeedbackAudit:
+  """Independently recheck one retained global/downstream feedback run."""
+
+  audit_status = MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus
+  if not isinstance(
+    candidate,
+    MocReflectedDomainGlobalCoupledFrontierFeedbackRun,
+  ):
+    return MocReflectedDomainGlobalCoupledFrontierFeedbackAudit(
+      status=audit_status.INVALID_INPUT,
+      candidate=None,
+      message='candidate must be a typed global frontier feedback run',
+    )
+  ####
+
+  iterations = tuple(candidate.iterations)
+  configuration_verified = bool(
+    candidate.configuration_fingerprint
+    == _configuration_fingerprint(candidate.configuration)
+  )
+  iteration_index_verified = bool(
+    iterations
+    and len(iterations) == candidate.requested_iterations
+    and tuple(item.iteration_index for item in iterations)
+    == tuple(range(len(iterations)))
+  )
+  source_chain_lineage_verified = True
+  downstream_lineage_verified = True
+  target_request_lineage_verified = True
+  target_resolve_lineage_verified = True
+  fresh_global_solve_verified = True
+  target_consumption_verified = True
+  target_match_verified = True
+  iteration_flags_verified = True
+  promotion_flags_verified = True
+
+  independent_steps: list[bool] = []
+  selected_closures: list[MocReflectedDomainGlobalPhysicalClosureResult] = []
+  for index, item in enumerate(iterations):
+    expected_source = (
+      candidate.source_closure
+      if index == 0
+      else iterations[index - 1].selected_closure
+    )
+    source_fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(
+      item.source_closure
+    )
+    expected_source_fingerprint = (
+      None
+      if expected_source is None
+      else moc_reflected_domain_global_physical_closure_fingerprint(
+        expected_source
+      )
+    )
+    source_ok = bool(
+      expected_source is not None
+      and item.source_closure is expected_source
+      and source_fingerprint == expected_source_fingerprint
+    )
+    source_chain_lineage_verified = bool(
+      source_chain_lineage_verified and source_ok
+    )
+
+    downstream = item.downstream_feedback
+    proposal = item.proposal
+    proposals = () if downstream is None else downstream.upstream_feedback_proposals
+    downstream_ok = bool(
+      downstream is not None
+      and downstream.closure is item.source_closure
+      and downstream.closure_lineage_verified
+      and downstream.fresh_solver_invocation_verified
+      and downstream.upstream_feedback_proposal_verified
+      and proposal is not None
+      and proposals
+      and proposals[-1] is proposal
+      and proposal.ready_for_global_resolve
+      and proposal.source_closure_fingerprint == source_fingerprint
+      and not proposal.consumed_by_global_solver
+    )
+    downstream_lineage_verified = bool(
+      downstream_lineage_verified and downstream_ok
+    )
+
+    request = item.frontier_request
+    proposal_fingerprint = (
+      None
+      if proposal is None
+      else moc_reflected_domain_global_frontier_proposal_fingerprint(proposal)
+    )
+    request_ok = bool(
+      request is not None
+      and proposal is not None
+      and request.proposal is proposal
+      and request.lineage_verified
+      and request.global_resolve_required
+      and request.source_closure_fingerprint == source_fingerprint
+      and request.source_proposal_fingerprint == proposal_fingerprint
+      and request.target_x_stations_m == proposal.matched_x_stations_m
+      and request.target_boundary_points_m == proposal.proposed_boundary_points_m
+      and request.target_tangent_rad == proposal.proposed_tangent_rad
+      and request.target_static_pressure_Pa
+      == proposal.proposed_static_pressure_Pa
+    )
+    target_request_lineage_verified = bool(
+      target_request_lineage_verified and request_ok
+    )
+
+    target_resolve = item.target_resolve
+    selected = None if target_resolve is None else target_resolve.selected_candidate
+    selected_closure = None if selected is None else selected.closure
+    target_resolve_ok = bool(
+      target_resolve is not None
+      and request is not None
+      and target_resolve.request is request
+      and target_resolve.source_closure is item.source_closure
+      and target_resolve.target_lineage_verified
+      and target_resolve.source_closure
+      and moc_reflected_domain_global_physical_closure_fingerprint(
+        target_resolve.source_closure
+      )
+      == source_fingerprint
+    )
+    target_resolve_lineage_verified = bool(
+      target_resolve_lineage_verified and target_resolve_ok
+    )
+    fresh_ok = bool(
+      target_resolve_ok
+      and target_resolve is not None
+      and target_resolve.fresh_global_solve_invocation_verified
+      and selected is not None
+      and selected.fresh_global_solve_attempted
+      and selected_closure is item.selected_closure
+      and selected_closure is not None
+      and selected_closure is not item.source_closure
+    )
+    fresh_global_solve_verified = bool(
+      fresh_global_solve_verified and fresh_ok
+    )
+    consumption_ok = bool(
+      target_resolve_ok
+      and target_resolve is not None
+      and target_resolve.target_consumption_verified
+      and target_resolve.target_coverage_verified
+      and selected is not None
+      and selected.target_coverage_verified
+      and selected.target_residuals_finite
+    )
+    target_consumption_verified = bool(
+      target_consumption_verified and consumption_ok
+    )
+    match_ok = bool(
+      consumption_ok
+      and target_resolve is not None
+      and target_resolve.target_match_verified
+      and selected is not None
+      and selected.target_match_verified
+      and item.selected_closure is selected.closure
+    )
+    target_match_verified = bool(target_match_verified and match_ok)
+
+    fidelity_ok = bool(
+      downstream_ok
+      and target_resolve is not None
+      and not target_resolve.global_coupling_verified
+      and not target_resolve.downstream_boundary_closure_verified
+      and target_resolve.chain_promotion_blocked
+      and not target_resolve.production_claim_allowed
+      and (
+        selected_closure is None
+        or not selected_closure.production_claim_allowed
+      )
+    )
+    step_ok = bool(
+      downstream_ok
+      and source_ok
+      and target_resolve_ok
+      and fresh_ok
+      and consumption_ok
+      and match_ok
+      and fidelity_ok
+      and item.selected_closure is not None
+    )
+    stored_step_flags_match = bool(
+      item.downstream_feedback_verified == downstream_ok
+      and item.source_lineage_verified == source_ok
+      and item.target_lineage_verified == target_resolve_ok
+      and item.fresh_global_solve_verified == fresh_ok
+      and item.target_consumption_verified == consumption_ok
+      and item.target_match_verified == match_ok
+      and item.fidelity_isolation_verified == fidelity_ok
+      and item.research_step_verified == step_ok
+    )
+    iteration_flags_verified = bool(
+      iteration_flags_verified and stored_step_flags_match
+    )
+    promotion_flags_verified = bool(
+      promotion_flags_verified
+      and fidelity_ok
+      and item.selected_closure is not None
+      and item.selected_closure.downstream_boundary_closure_verified is False
+      and item.selected_closure.production_claim_allowed is False
+    )
+    independent_steps.append(step_ok)
+    if selected_closure is not None:
+      selected_closures.append(selected_closure)
+  ####
+
+  expected_final = (
+    selected_closures[-1] if selected_closures else candidate.source_closure
+  )
+  expected_aggregate = bool(
+    iteration_index_verified
+    and independent_steps
+    and all(independent_steps)
+  )
+  aggregate_flags_verified = bool(
+    candidate.final_closure is expected_final
+    and candidate.downstream_feedback_verified == downstream_lineage_verified
+    and candidate.source_lineage_verified == source_chain_lineage_verified
+    and candidate.target_lineage_verified == target_request_lineage_verified
+    and candidate.fresh_global_solve_verified == fresh_global_solve_verified
+    and candidate.target_consumption_verified == target_consumption_verified
+    and candidate.target_match_verified == target_match_verified
+    and candidate.fidelity_isolation_verified
+    == (downstream_lineage_verified and promotion_flags_verified)
+    and candidate.research_feedback_completed == expected_aggregate
+    and configuration_verified
+  )
+  promotion_flags_verified = bool(
+    promotion_flags_verified
+    and candidate.chain_promotion_blocked
+    and not candidate.global_coupling_verified
+    and not candidate.downstream_boundary_closure_verified
+    and not candidate.production_claim_allowed
+  )
+
+  if not iteration_index_verified or not source_chain_lineage_verified:
+    status = audit_status.ITERATION_LINEAGE_FAILURE
+    message = (
+      'frontier feedback did not retain a contiguous iteration chain from '
+      'the source closure through each selected closure'
+    )
+  elif not downstream_lineage_verified:
+    status = audit_status.DOWNSTREAM_LINEAGE_FAILURE
+    message = (
+      'one or more downstream feedback runs did not retain the exact source '
+      'closure and final ready proposal'
+    )
+  elif not target_request_lineage_verified:
+    status = audit_status.TARGET_REQUEST_FAILURE
+    message = (
+      'one or more frontier requests did not retain the exact proposal, '
+      'source fingerprint, or target channels'
+    )
+  elif not target_resolve_lineage_verified:
+    status = audit_status.TARGET_RESOLVE_FAILURE
+    message = (
+      'one or more target-guided resolves did not retain the exact request '
+      'and source closure lineage'
+    )
+  elif not fresh_global_solve_verified:
+    status = audit_status.TARGET_RESOLVE_FAILURE
+    message = (
+      'one or more selected frontier candidates were not produced by a '
+      'fresh global solve'
+    )
+  elif not target_consumption_verified:
+    status = audit_status.TARGET_RESOLVE_FAILURE
+    message = (
+      'one or more target-guided resolves did not verify covered finite '
+      'target consumption'
+    )
+  elif not target_match_verified:
+    status = audit_status.TARGET_MATCH_FAILURE
+    message = (
+      'one or more selected global candidates did not retain the verified '
+      'frontier target match'
+    )
+  elif not aggregate_flags_verified:
+    status = audit_status.AGGREGATE_FLAG_FAILURE
+    message = (
+      'frontier feedback aggregate flags or final-closure lineage do not '
+      'match the independently rechecked iterations'
+    )
+  elif not promotion_flags_verified:
+    status = audit_status.PROMOTION_FLAG_FAILURE
+    message = (
+      'frontier feedback did not preserve its explicit research-only '
+      'global-coupling and production-promotion boundary'
+    )
+  else:
+    status = audit_status.AUDITED_RESEARCH_EVIDENCE
+    message = (
+      'independent source, proposal, request, fresh-resolve, target-match, '
+      'and promotion checks passed; canonical closure remains blocked'
+    )
+  ####
+  return MocReflectedDomainGlobalCoupledFrontierFeedbackAudit(
+    status=status,
+    candidate=candidate,
+    iterations_rechecked=len(iterations),
+    configuration_verified=configuration_verified,
+    iteration_index_verified=iteration_index_verified,
+    source_chain_lineage_verified=source_chain_lineage_verified,
+    downstream_lineage_verified=downstream_lineage_verified,
+    target_request_lineage_verified=target_request_lineage_verified,
+    target_resolve_lineage_verified=target_resolve_lineage_verified,
+    fresh_global_solve_verified=fresh_global_solve_verified,
+    target_consumption_verified=target_consumption_verified,
+    target_match_verified=target_match_verified,
+    iteration_flags_verified=iteration_flags_verified,
+    aggregate_flags_verified=aggregate_flags_verified,
+    promotion_flags_verified=promotion_flags_verified,
+    message=message,
+  )
 ####
 
 
