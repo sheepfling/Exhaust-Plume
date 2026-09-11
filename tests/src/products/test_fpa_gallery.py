@@ -86,10 +86,15 @@ def test_static_fpa_gallery_writes_views_and_guardrails(tmp_path: Path) -> None:
   assert payload['source']['source']['content_sha256'] == 'c' * 64
   assert any('not_measured_detector_counts' in guard for guard in payload['guardrails'])
   assert (tmp_path / 'fpa-gallery' / 'fpa_expected_electrons.png').exists()
+  assert (tmp_path / 'fpa-gallery' / 'fpa_dark_electrons.png').exists()
+  assert (tmp_path / 'fpa-gallery' / 'fpa_noise_variance.png').exists()
   assert (tmp_path / 'fpa-gallery' / 'fpa_digitized_counts.png').exists()
   assert (tmp_path / 'fpa-gallery' / 'fpa_detector_response.png').exists()
   assert (tmp_path / 'fpa-gallery' / 'fpa_pixel_values.csv').exists()
   assert all((tmp_path / 'fpa-gallery' / artifact['path']).exists() for artifact in payload['artifacts'])
+  display_layers = {view['display_layer'] for view in payload['view_specs']}
+  assert 'dark_electrons' in display_layers
+  assert 'noise_variance_e2' in display_layers
 ####
 
 

@@ -241,6 +241,13 @@ for all products. Validation datasets must still enter through their declared
 measurement-space/operator contracts; a gallery cannot promote a diagnostic
 overlay into validation evidence.
 
+The static FPA gallery now renders every declared deterministic pixel layer:
+expected electrons, dark electrons, expected noise variance, and (when
+available) deterministic ADC counts, alongside validity/saturation masks and
+detector-response metadata.  The noise-variance view is explicitly an
+expected-uncertainty field, never a sampled noise realization or measured
+detector image.
+
 ## Milestones and exit gates
 
 ### M0 — Shared foundation

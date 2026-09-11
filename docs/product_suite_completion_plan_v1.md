@@ -5052,3 +5052,19 @@ visible, and no missing archive or external observation is substituted with a
 synthetic fixture.  The next execution slice remains `P2.2` canonical
 mixed-regime consumer work, while the evidence track may continue preparing
 provider intake and measurement-operator bindings in parallel.
+
+### WP-5 deterministic FPA uncertainty-view checkpoint — 2026-09-11
+
+The downstream FPA gallery now renders the complete declared deterministic
+pixel-layer set: expected electrons, dark electrons, expected noise variance,
+and optional deterministic ADC counts, together with validity/saturation
+masks, detector-response metadata, and the source-bound pixel table.  The
+noise-variance artifact is labelled as expected variance and is not treated as
+a sampled noise realization, measured detector count, detection result, or
+external validation observation.
+
+The focused FPA product and visualization suites pass (`8 passed`), and Ruff,
+Pyright, bytecode compilation, and whitespace checks are clean.  This closes
+a visualization/evidence-surface gap in the FPA lane only; the camera/detector
+observation contract, alignment archive, provider-bound comparison, canonical
+mixed-regime closure, and release gates remain open.

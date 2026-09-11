@@ -372,6 +372,32 @@ def render_fpa_gallery(
   )
   view_specs.append(expected_spec)
   artifacts.append(GalleryArtifact('fpa.expected-electrons', 'fpa_expected_electrons.png', 'image/png'))
+  dark_spec = base_spec.model_copy(update={
+    'view_kind': 'fpa.dark-electrons',
+    'display_layer': FpaDisplayLayer.DARK_ELECTRONS,
+  })
+  _render_pixel_grid(
+    inputs,
+    dark_spec,
+    output,
+    title='expected dark electrons (deterministic detector model)',
+    file_name='fpa_dark_electrons.png',
+  )
+  view_specs.append(dark_spec)
+  artifacts.append(GalleryArtifact('fpa.dark-electrons', 'fpa_dark_electrons.png', 'image/png'))
+  noise_spec = base_spec.model_copy(update={
+    'view_kind': 'fpa.noise-variance',
+    'display_layer': FpaDisplayLayer.NOISE_VARIANCE,
+  })
+  _render_pixel_grid(
+    inputs,
+    noise_spec,
+    output,
+    title='expected detector noise variance (not a noise realization)',
+    file_name='fpa_noise_variance.png',
+  )
+  view_specs.append(noise_spec)
+  artifacts.append(GalleryArtifact('fpa.noise-variance', 'fpa_noise_variance.png', 'image/png'))
   if inputs.digitized is not None:
     counts_spec = base_spec.model_copy(update={
       'view_kind': 'fpa.digitized-counts',
