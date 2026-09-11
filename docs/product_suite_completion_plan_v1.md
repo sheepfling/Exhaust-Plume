@@ -2144,6 +2144,39 @@ checkout remained clean after the run; the known legacy expansion-fan
 warnings and expected unattainable pressure-target diagnostic were retained
 as non-fatal diagnostics.
 
+### Solver-owned global pressure-target consumption checkpoint — 2026-09-10
+
+The global-frontier resolver now has an explicit pressure-consumption lane.
+For each declared candidate it constructs the exact typed target from the
+frontier request, including source closure/proposal fingerprints, re-solves
+the source band, composes the partial frontier pressure profile onto the
+complete source-band ambient frame, and supplies that bounded frame to the
+global Euler ambient march.  The completed source-band frame is enabled for
+the new consumer through an explicit solver option so existing boundary-
+feedback consumers retain their prior target semantics.
+
+The result contract separates ``global_target_consumption_requested`` and
+``global_target_consumption_verified`` from the stricter,
+``global_target_geometry_consumption_requested`` and
+``global_target_geometry_consumed`` channels.  On the mixed-regime fixture,
+the pressure-only opt-in reaches a fresh, locally verified global closure and
+matches the exact frontier target.  It remains research evidence with
+``global_coupling_verified=false``,
+``downstream_boundary_closure_verified=false``, chain promotion blocked, and
+production claims blocked.  The pressure-plus-geometry variant fails closed
+because the declared target tangent does not pass the independent source-band
+acceptance tolerance; it does not silently fall back to pressure-only
+consumption.
+
+The full reflected-domain/MOC regression file passes (185 tests), with Ruff,
+Python compilation, and diff checks clean.  This advances the P2.2 research
+consumer seam but does not close the canonical free-boundary equation,
+downstream fixed point, cross-case refinement, physical shock-cell length,
+provider-bound validation, or release gates.  The next physics slice is to
+make the target geometry/tangent condition physically reachable and iterate
+the pressure/geometry response through the downstream field, then re-run the
+disjoint refinement ladder before opening P3 physical cell fitting.
+
 This closes the current packaging checkpoint only.  It does not refresh the
 historical release-freeze artifact, and it does not promote any lane: the
 canonical globally coupled closure, physical shock-cell fit, provider-bound

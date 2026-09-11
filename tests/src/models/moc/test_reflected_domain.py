@@ -10975,6 +10975,49 @@ def test_global_frontier_target_guided_resolve_fresh_solves_candidates_without_p
   ] == 'explicit-overlay'
   assert composed_visualization.claims.production_claim_allowed is False
   assert pressure_requested.converged_research_resolve is False
+  global_pressure_requested = (
+    run_reflected_domain_global_frontier_target_guided_resolve(
+      request,
+      closure,
+      candidate_compression_envelope_skews=(0.0,),
+      consume_target_in_global_closure=True,
+    )
+  )
+  assert global_pressure_requested.status is (
+    MocReflectedDomainGlobalFrontierTargetResolveStatus
+    .CONVERGED_TARGET_GUIDED_RESEARCH_RESOLVE
+  )
+  assert global_pressure_requested.converged_research_resolve
+  assert global_pressure_requested.global_target_consumption_requested
+  assert global_pressure_requested.global_target_consumption_verified
+  assert (
+    global_pressure_requested.global_target_geometry_consumption_requested
+    is False
+  )
+  assert global_pressure_requested.global_target_geometry_consumed is False
+  assert global_pressure_requested.selected_candidate is not None
+  assert global_pressure_requested.selected_candidate.global_target_consumed
+  assert (
+    global_pressure_requested.selected_candidate.global_target_geometry_consumed
+    is False
+  )
+  assert global_pressure_requested.global_coupling_verified is False
+  assert global_pressure_requested.chain_promotion_blocked
+  assert global_pressure_requested.production_claim_allowed is False
+  global_geometry_requested = (
+    run_reflected_domain_global_frontier_target_guided_resolve(
+      request,
+      closure,
+      candidate_compression_envelope_skews=(0.0,),
+      consume_target_in_global_closure=True,
+      consume_target_geometry_in_global_closure=True,
+    )
+  )
+  assert global_geometry_requested.global_target_consumption_requested
+  assert global_geometry_requested.global_target_geometry_consumption_requested
+  assert global_geometry_requested.global_target_geometry_consumed is False
+  assert global_geometry_requested.converged_research_resolve is False
+  assert global_geometry_requested.selected_candidate is None
   candidate = resolved.selected_candidate.closure
   assert candidate is not None
   assert candidate.global_euler is not None

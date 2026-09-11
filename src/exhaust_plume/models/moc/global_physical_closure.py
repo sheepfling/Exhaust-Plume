@@ -1479,6 +1479,7 @@ def solve_reflected_domain_global_physical_closure(
   maximum_attempts: int = 64,
   consume_ambient_pressure_target_geometry: bool = False,
   ambient_pressure_target_geometry_tolerance_rad: float = 1.0e-6,
+  use_composed_source_pressure_target_for_global_euler: bool = False,
 ) -> MocReflectedDomainGlobalPhysicalClosureResult:
   """Solve and independently audit one globally coupled physical closure.
 
@@ -1497,6 +1498,11 @@ def solve_reflected_domain_global_physical_closure(
   coordinates and tangents in addition to pressure; an unreachable target
   returns a typed failure rather than falling back to the pressure-only lane.
   This does not alter the canonical or production claim ceiling.
+  ``use_composed_source_pressure_target_for_global_euler`` is a separate
+  opt-in for partial frontier targets: after the source-band pressure seam
+  builds a complete bounded target frame, that composed frame is supplied to
+  the global Euler ambient march.  Existing target consumers retain their
+  original target semantics unless they request this behavior explicitly.
   """
 
   status_type = MocReflectedDomainGlobalPhysicalClosureStatus
@@ -1509,6 +1515,18 @@ def solve_reflected_domain_global_physical_closure(
       None,
       None,
       message='consume_ambient_pressure_target_geometry must be a bool',
+    )
+  if not isinstance(use_composed_source_pressure_target_for_global_euler, bool):
+    return _closure_result(
+      status_type.INVALID_INPUT,
+      source_band
+      if isinstance(source_band, MocReflectedDomainAlternatingSourceResult)
+      else None,
+      None,
+      None,
+      message=(
+        'use_composed_source_pressure_target_for_global_euler must be a bool'
+      ),
     )
   if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
     return _closure_result(
@@ -1524,6 +1542,7 @@ def solve_reflected_domain_global_physical_closure(
       MocPhysicalFieldEulerBoundaryPressureTarget,
     )
   ####
+  global_euler_pressure_target = ambient_pressure_target
   if ambient_pressure_target is not None and not isinstance(
     ambient_pressure_target,
     MocPhysicalFieldEulerBoundaryPressureTarget,
@@ -1624,6 +1643,21 @@ def solve_reflected_domain_global_physical_closure(
         ),
       )
     ####
+    if use_composed_source_pressure_target_for_global_euler:
+      global_euler_pressure_target = source_band.ambient_pressure_target
+      if global_euler_pressure_target is None:
+        return _closure_result(
+          status_type.GLOBAL_REMESH_FAILURE,
+          source_band,
+          None,
+          None,
+          message=(
+            'global physical closure retained a verified source target solve '
+            'but no complete source-band pressure target for the global '
+            'Euler ambient faces'
+          ),
+        )
+    ####
   try:
     resolved_handoff = (
       source_band.incoming_handoff
@@ -1716,7 +1750,7 @@ def solve_reflected_domain_global_physical_closure(
   try:
     global_euler = solve_reflected_domain_global_euler_shock_boundary(
       global_remesh,
-      ambient_pressure_target=ambient_pressure_target,
+      ambient_pressure_target=global_euler_pressure_target,
       branch=branch,
       position_tolerance_m=position_tolerance_m,
       invariant_tolerance=invariant_tolerance,

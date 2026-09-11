@@ -5,11 +5,14 @@ packet.  This module consumes that packet by re-solving the retained global
 closure for each declared compression-envelope candidate and selecting the
 candidate with the smallest measured target residual.
 
-This is deliberately a bounded research seam.  The target guides candidate
-selection; it is not yet imposed as a mixed-regime boundary condition inside
-the global equations.  The result therefore records fresh global solves and
-target residuals while keeping global-coupling, canonical-boundary, and
-production gates closed.
+This is deliberately a bounded research seam.  The default target-guided
+mode scores candidate selection without changing the source field.  An
+explicit opt-in mode consumes the target through the solver-owned ambient
+pressure path before a fresh global solve, with a second opt-in for the
+stricter target-geometry/tangent seam.  Neither mode is a mixed-regime
+boundary condition or a production claim: global-coupling, canonical-
+boundary, and promotion gates remain closed until the downstream field is
+iterated back and independently verified.
 """
 
 from __future__ import annotations
@@ -141,6 +144,9 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
 
   compression_envelope_skew: float
   closure: MocReflectedDomainGlobalPhysicalClosureResult | None
+  global_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
+  global_target_consumed: bool = False
+  global_target_geometry_consumed: bool = False
   target_pressure_reconciliation: (
     MocReflectedDomainGlobalFrontierTargetPressureReconciliationResult | None
   ) = None
@@ -177,6 +183,15 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
         'reconciliation or None'
       )
     ####
+    if self.global_target is not None and not isinstance(
+      self.global_target,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    ):
+      raise TypeError(
+        'global_target must be a '
+        'MocPhysicalFieldEulerBoundaryPressureTarget or None'
+      )
+    ####
     for name in (
       'target_coordinate_residuals_m',
       'target_tangent_residuals_rad',
@@ -201,10 +216,17 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
       'target_residuals_finite',
       'target_match_verified',
       'fresh_global_solve_attempted',
+      'global_target_consumed',
+      'global_target_geometry_consumed',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
       ####
+    ####
+    if self.global_target_geometry_consumed and not self.global_target_consumed:
+      raise ValueError(
+        'global_target_geometry_consumed requires global_target_consumed'
+      )
     ####
     if self.target_match_verified and not (
       self.target_coverage_verified and self.target_residuals_finite
@@ -255,6 +277,11 @@ class MocReflectedDomainGlobalFrontierTargetResolveCandidate:
   def as_report(self) -> dict[str, Any]:
     return {
       'compression_envelope_skew': self.compression_envelope_skew,
+      'global_target': (
+        None if self.global_target is None else self.global_target.as_report()
+      ),
+      'global_target_consumed': self.global_target_consumed,
+      'global_target_geometry_consumed': self.global_target_geometry_consumed,
       'global_closure_verified': self.global_closure_verified,
       'target_pressure_consumption_verified': (
         self.target_pressure_consumption_verified
@@ -310,6 +337,10 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
   target_match_verified: bool = False
   target_pressure_consumption_requested: bool = False
   target_pressure_consumption_verified: bool = False
+  global_target_consumption_requested: bool = False
+  global_target_consumption_verified: bool = False
+  global_target_geometry_consumption_requested: bool = False
+  global_target_geometry_consumed: bool = False
   global_coupling_verified: bool = False
   downstream_boundary_closure_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -371,6 +402,10 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
       'target_match_verified',
       'target_pressure_consumption_requested',
       'target_pressure_consumption_verified',
+      'global_target_consumption_requested',
+      'global_target_consumption_verified',
+      'global_target_geometry_consumption_requested',
+      'global_target_geometry_consumed',
       'global_coupling_verified',
       'downstream_boundary_closure_verified',
       'chain_promotion_blocked',
@@ -403,6 +438,24 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
         'target_pressure_consumption_verified requires an explicit request'
       )
     ####
+    if (
+      self.global_target_geometry_consumption_requested
+      and not self.global_target_consumption_requested
+    ):
+      raise ValueError(
+        'global target geometry consumption requires an explicit global '
+        'target consumption request'
+      )
+    ####
+    if self.global_target_geometry_consumed and not (
+      self.global_target_consumption_requested
+      and self.global_target_consumption_verified
+    ):
+      raise ValueError(
+        'global_target_geometry_consumed requires a verified global target '
+        'consumption request'
+      )
+    ####
     object.__setattr__(self, 'candidates', candidates)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -432,6 +485,14 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
         not self.target_pressure_consumption_requested
         or self.target_pressure_consumption_verified
       )
+      and (
+        not self.global_target_consumption_requested
+        or self.global_target_consumption_verified
+      )
+      and (
+        not self.global_target_geometry_consumption_requested
+        or self.global_target_geometry_consumed
+      )
       and self.selected_candidate is not None
       and self.selected_candidate.global_closure_verified
     )
@@ -455,6 +516,16 @@ class MocReflectedDomainGlobalFrontierTargetResolveResult:
       'target_pressure_consumption_verified': (
         self.target_pressure_consumption_verified
       ),
+      'global_target_consumption_requested': (
+        self.global_target_consumption_requested
+      ),
+      'global_target_consumption_verified': (
+        self.global_target_consumption_verified
+      ),
+      'global_target_geometry_consumption_requested': (
+        self.global_target_geometry_consumption_requested
+      ),
+      'global_target_geometry_consumed': self.global_target_geometry_consumed,
       'selected_candidate_index': self.selected_candidate_index,
       'selected_candidate': (
         None
@@ -587,6 +658,56 @@ def _measure_candidate_target(
 ####
 
 
+def _build_global_frontier_target(
+  request: MocReflectedDomainGlobalFrontierReconciliationRequest,
+) -> MocPhysicalFieldEulerBoundaryPressureTarget:
+  """Build the exact solver target carried by one frontier request."""
+
+  proposal_fingerprint = moc_reflected_domain_global_frontier_proposal_fingerprint(
+    request.proposal
+  )
+  return MocPhysicalFieldEulerBoundaryPressureTarget(
+    x_stations_m=request.target_x_stations_m,
+    static_pressure_Pa=request.target_static_pressure_Pa,
+    boundary_points_m=request.target_boundary_points_m,
+    tangent_rad=request.target_tangent_rad,
+    source_id=f'global-frontier-reconciliation-target:{proposal_fingerprint}',
+    model='research-global-frontier-target-consumer-v1',
+    source_closure_fingerprint=request.source_closure_fingerprint,
+    source_proposal_fingerprint=proposal_fingerprint,
+  )
+####
+
+
+def _global_frontier_target_consumption(
+  closure: MocReflectedDomainGlobalPhysicalClosureResult,
+  target: MocPhysicalFieldEulerBoundaryPressureTarget,
+) -> tuple[bool, bool]:
+  """Verify exact target lineage after a fresh global solve."""
+
+  source_band = closure.source_band
+  consumed_target = (
+    None if source_band is None else source_band.ambient_pressure_target
+  )
+  consumed = bool(
+    closure.source_pressure_target_consumed
+    and consumed_target is not None
+    and consumed_target.source_closure_fingerprint
+    == target.source_closure_fingerprint
+    and consumed_target.source_proposal_fingerprint
+    == target.source_proposal_fingerprint
+    and consumed_target.composition_overlay_source_id == target.source_id
+  )
+  geometry_consumed = bool(
+    consumed
+    and closure.source_pressure_target_geometry_consumed
+    and source_band is not None
+    and source_band.ambient_pressure_target_geometry_consumed
+  )
+  return consumed, geometry_consumed
+####
+
+
 def _candidate_ambient_pressure_target(
   closure: MocReflectedDomainGlobalPhysicalClosureResult,
 ) -> MocPhysicalFieldEulerBoundaryPressureTarget:
@@ -661,6 +782,8 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
   target_pressure_options: Mapping[str, Any] | None = None,
   compose_target_pressure_with_candidate_boundary: bool = False,
   target_pressure_composition_seam_tolerance_fraction: float = 0.25,
+  consume_target_in_global_closure: bool = False,
+  consume_target_geometry_in_global_closure: bool = False,
 ) -> MocReflectedDomainGlobalFrontierTargetResolveResult:
   """Fresh-solve bounded global candidates against one exact target packet.
 
@@ -676,7 +799,16 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
   candidate's complete ambient boundary is supplied as an explicit base
   profile and the partial frontier packet is overlaid only on its declared
   station interval.  This opt-in composition still remains fixed-front
-  research evidence.
+  research evidence.  When ``consume_target_in_global_closure`` is enabled,
+  each fresh candidate consumes the exact frontier target through the
+  solver-owned ambient pressure target path before the global remesh and
+  Euler solve.  When
+  ``consume_target_geometry_in_global_closure`` is also enabled, the stricter
+  target coordinates and tangents are consumed by the source-band seam too;
+  an unreachable geometry target remains a typed failure and never falls
+  back to pressure-only consumption.  These are real target-consumption
+  re-solves, but they remain research evidence until the downstream
+  mixed-regime field is iterated to a verified global fixed point.
   """
 
   if not isinstance(
@@ -835,6 +967,33 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       'consume_target_pressure must be a bool',
     )
   ####
+  if not isinstance(consume_target_in_global_closure, bool):
+    return _invalid_result(
+      MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
+      request,
+      source_closure,
+      'consume_target_in_global_closure must be a bool',
+    )
+  ####
+  if not isinstance(consume_target_geometry_in_global_closure, bool):
+    return _invalid_result(
+      MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
+      request,
+      source_closure,
+      'consume_target_geometry_in_global_closure must be a bool',
+    )
+  ####
+  if (
+    consume_target_geometry_in_global_closure
+    and not consume_target_in_global_closure
+  ):
+    return _invalid_result(
+      MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
+      request,
+      source_closure,
+      'target-geometry consumption requires consume_target_in_global_closure',
+    )
+  ####
   if not isinstance(compose_target_pressure_with_candidate_boundary, bool):
     return _invalid_result(
       MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
@@ -865,6 +1024,19 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       'target_pressure_options must be a mapping when supplied',
     )
   ####
+  global_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
+  if consume_target_in_global_closure:
+    try:
+      global_target = _build_global_frontier_target(request)
+    except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+      return _invalid_result(
+        MocReflectedDomainGlobalFrontierTargetResolveStatus.INVALID_INPUT,
+        request,
+        source_closure,
+        f'global frontier target construction failed: {error}',
+      )
+    ####
+  ####
   candidates: list[MocReflectedDomainGlobalFrontierTargetResolveCandidate] = []
   for skew in skews:
     try:
@@ -879,12 +1051,23 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
         sample_count=sample_count,
         branch=ShockBranch.WEAK,
         shock_angle_tolerance_rad=resolved_shock_angle_tolerance,
+        ambient_pressure_target=global_target,
+        consume_ambient_pressure_target_geometry=(
+          consume_target_geometry_in_global_closure
+        ),
+        ambient_pressure_target_geometry_tolerance_rad=(
+          resolved_tangent_tolerance
+        ),
+        use_composed_source_pressure_target_for_global_euler=(
+          consume_target_in_global_closure
+        ),
       )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       candidates.append(
         MocReflectedDomainGlobalFrontierTargetResolveCandidate(
           compression_envelope_skew=skew,
           closure=None,
+          global_target=global_target,
           fresh_global_solve_attempted=True,
           message=f'fresh global re-solve raised: {error}',
         )
@@ -892,10 +1075,18 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       continue
     ####
     if not fresh_closure.converged or not fresh_closure.physical_closure_verified:
+      target_consumed, target_geometry_consumed = (
+        _global_frontier_target_consumption(fresh_closure, global_target)
+        if global_target is not None
+        else (False, False)
+      )
       candidates.append(
         MocReflectedDomainGlobalFrontierTargetResolveCandidate(
           compression_envelope_skew=skew,
           closure=fresh_closure,
+          global_target=global_target,
+          global_target_consumed=target_consumed,
+          global_target_geometry_consumed=target_geometry_consumed,
           fresh_global_solve_attempted=True,
           message=(
             'fresh global re-solve retained a typed non-converged closure: '
@@ -920,10 +1111,18 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       tangent_tolerance_rad=resolved_tangent_tolerance,
       pressure_tolerance_fraction=resolved_pressure_tolerance,
     )
+    target_consumed, target_geometry_consumed = (
+      _global_frontier_target_consumption(fresh_closure, global_target)
+      if global_target is not None
+      else (False, False)
+    )
     candidates.append(
       MocReflectedDomainGlobalFrontierTargetResolveCandidate(
         compression_envelope_skew=skew,
         closure=fresh_closure,
+        global_target=global_target,
+        global_target_consumed=target_consumed,
+        global_target_geometry_consumed=target_geometry_consumed,
         target_coordinate_residuals_m=coordinate_residuals,
         target_tangent_residuals_rad=tangent_residuals,
         target_pressure_residuals_Pa=pressure_residuals,
@@ -971,6 +1170,16 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
     and fresh_invocation_verified
     and selected is not None
     and target_coverage_verified
+  )
+  global_target_consumption_verified = bool(
+    not consume_target_in_global_closure
+    or (
+      selected is not None
+      and selected.global_target_consumed
+    )
+  )
+  global_target_geometry_consumed = bool(
+    selected is not None and selected.global_target_geometry_consumed
   )
   target_pressure_consumption_verified = False
   target_pressure_message: str | None = None
@@ -1038,8 +1247,31 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
       'fresh global candidates did not produce a covered, locally verified '
       'boundary for the exact frontier target'
     )
+  elif (
+    consume_target_in_global_closure
+    and (
+      not global_target_consumption_verified
+      or (
+        consume_target_geometry_in_global_closure
+        and not global_target_geometry_consumed
+      )
+    )
+  ):
+    status = MocReflectedDomainGlobalFrontierTargetResolveStatus.FIDELITY_FAILURE
+    if not global_target_consumption_verified:
+      message = (
+        'the selected fresh global candidate did not retain exact '
+        'solver-owned frontier target pressure consumption; no target was '
+        'silently treated as consumed'
+      )
+    else:
+      message = (
+        'the selected fresh global candidate consumed frontier pressure but '
+        'did not retain the requested solver-owned target geometry/tangent '
+        'consumption; no geometry target was silently treated as consumed'
+      )
   elif target_match_verified and (
-    not consume_target_pressure or target_pressure_consumption_verified
+    (not consume_target_pressure or target_pressure_consumption_verified)
   ):
     status = (
       MocReflectedDomainGlobalFrontierTargetResolveStatus
@@ -1048,7 +1280,13 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
     message = (
       'fresh global closure candidates were measured against the exact '
       'frontier target and the selected candidate passed bounded research '
-      'tolerances; canonical global coupling remains open'
+      'tolerances'
+      + (
+        '; the exact target was consumed through the solver-owned global '
+        'ambient path; canonical mixed-regime coupling remains open'
+        if consume_target_in_global_closure
+        else '; canonical global coupling remains open'
+      )
     )
   elif target_match_verified and consume_target_pressure:
     status = MocReflectedDomainGlobalFrontierTargetResolveStatus.TARGET_PRESSURE_FAILURE
@@ -1077,6 +1315,12 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
     target_match_verified=target_match_verified,
     target_pressure_consumption_requested=consume_target_pressure,
     target_pressure_consumption_verified=target_pressure_consumption_verified,
+    global_target_consumption_requested=consume_target_in_global_closure,
+    global_target_consumption_verified=global_target_consumption_verified,
+    global_target_geometry_consumption_requested=(
+      consume_target_geometry_in_global_closure
+    ),
+    global_target_geometry_consumed=global_target_geometry_consumed,
     message=message,
   )
 ####
