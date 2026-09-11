@@ -6094,3 +6094,23 @@ This closes the local wiring between standardized Visualization artifacts and
 the provider-bound comparison intake.  The external gate remains pending
 because the physical feature outputs, provider scenario assets, and verified
 observation archives are still unavailable.
+
+### P3.5 installed-package release gate checkpoint — 2026-09-11
+
+The candidate at ``611ae93`` passes the offline package gate through
+``python3 scripts/check_build.py --offline``.  The check builds a fresh
+wheel, installs it into a new system-site-packages virtual environment without
+network access or dependency resolution, and runs ``tests/installed_smoke.py``.
+The smoke covers package-resource readability, checkout-path exclusion,
+public Visual/Signature/validation imports, the new visual-feature comparison
+symbols, representative provider evaluation, serialized artifacts, and all
+installed console entry points.  The wheel gate therefore closes local
+packaging evidence for this candidate without changing any product claim
+ceiling.
+
+The umbrella release remains deliberately red.  The current release audit
+still reports the missing provider-bound measurement outputs/scenario assets,
+missing validation archives, open canonical planar-MOC/free-boundary and
+physical shock-cell gates, and a release-freeze HEAD mismatch.  Those are
+real acceptance dependencies rather than package failures; no synthetic
+observations or historical freeze rewrite is permitted to clear them.
