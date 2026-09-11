@@ -570,6 +570,16 @@ from exhaust_plume.models.moc.euler_two_sided_moving_interface import (
   compute_moc_euler_two_sided_interface_normal_displacements,
   solve_euler_two_sided_moving_interface,
 )
+from exhaust_plume.models.moc.euler_two_sided_interface_law import (
+  MOC_EULER_TWO_SIDED_INTERFACE_LAW_OPERATOR_ID,
+  MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
+  MocEulerTwoSidedInterfaceLawStatus,
+  MocEulerTwoSidedInterfaceLawRequest,
+  MocEulerTwoSidedInterfaceLawResult,
+  build_solver_owned_euler_two_sided_interface_response,
+  make_solver_owned_euler_two_sided_interface_advance,
+  solve_euler_two_sided_moving_interface_with_solver_owned_law,
+)
 from exhaust_plume.models.moc.euler_two_sided_terminal_closure import (
   MocEulerTwoSidedTerminalClosureStatus,
   MocEulerTwoSidedTerminalClosureRequest,
@@ -1501,6 +1511,14 @@ __all__ = (
   'MocEulerTwoSidedMovingInterfaceResult',
   'compute_moc_euler_two_sided_interface_normal_displacements',
   'solve_euler_two_sided_moving_interface',
+  'MOC_EULER_TWO_SIDED_INTERFACE_LAW_OPERATOR_ID',
+  'MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID',
+  'MocEulerTwoSidedInterfaceLawStatus',
+  'MocEulerTwoSidedInterfaceLawRequest',
+  'MocEulerTwoSidedInterfaceLawResult',
+  'build_solver_owned_euler_two_sided_interface_response',
+  'make_solver_owned_euler_two_sided_interface_advance',
+  'solve_euler_two_sided_moving_interface_with_solver_owned_law',
   'MocEulerTwoSidedTerminalClosureStatus',
   'MocEulerTwoSidedTerminalClosureRequest',
   'MocEulerTwoSidedTerminalClosureResult',

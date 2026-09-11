@@ -16,6 +16,10 @@ from exhaust_plume.validation.moc_euler_two_sided_moving_interface import (
   MocEulerTwoSidedMovingInterfaceAuditStatus,
   measure_moc_euler_two_sided_moving_interface,
 )
+from exhaust_plume.validation.moc_euler_two_sided_interface_law import (
+  MocEulerTwoSidedInterfaceLawAuditStatus,
+  measure_moc_euler_two_sided_interface_law,
+)
 from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
   MocEulerTwoSidedFieldIterationRefinementCase,
   MocEulerTwoSidedFieldRefinementAuditStatus,
@@ -91,9 +95,13 @@ from exhaust_plume.models.moc import (
   MocEulerTwoSidedFieldIterationStatus,
   solve_euler_two_sided_field_iteration,
   MocEulerTwoSidedInterfaceResponse,
+  MocEulerTwoSidedInterfaceLawRequest,
+  MocEulerTwoSidedInterfaceLawStatus,
+  build_solver_owned_euler_two_sided_interface_response,
   MocEulerTwoSidedMovingInterfaceRequest,
   MocEulerTwoSidedMovingInterfaceStatus,
   solve_euler_two_sided_moving_interface,
+  solve_euler_two_sided_moving_interface_with_solver_owned_law,
   MocEulerTwoSidedTerminalClosureRequest,
   MocEulerTwoSidedTerminalClosureStatus,
   solve_euler_two_sided_terminal_closure,
@@ -1684,6 +1692,109 @@ def test_two_sided_moving_interface_requires_solver_owned_update_law():
   assert audit.initial_field_verified
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+
+
+def test_solver_owned_two_sided_interface_law_builds_research_response():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+
+  law_request = MocEulerTwoSidedInterfaceLawRequest(
+    source_band=closure.source_band,
+    reference_total_temperature_K=1500.0,
+    pseudo_time_step_s=1.0e-8,
+    maximum_normal_displacement_m=1.0e-3,
+    anchor_endpoint_samples=2,
+  )
+  law = build_solver_owned_euler_two_sided_interface_response(
+    result,
+    law_request,
+  )
+
+  assert law.status is MocEulerTwoSidedInterfaceLawStatus.RESPONSE_READY
+  assert law.response_ready
+  assert law.response is not None
+  assert law.source_lineage_verified
+  assert law.downstream_probe_verified
+  assert law.candidate_geometry_verified
+  assert law.companion_field_verified
+  assert law.endpoint_constraints_applied
+  assert law.interface_motion_verified
+  assert law.response.response_source == (
+    'solver-owned-two-sided-euler-rankine-front-response-v1'
+  )
+  assert law.response.law_id == law.response.response_source
+  assert law.response.next_shock_boundary is not law.response.prior_shock_boundary
+  assert law.response.next_companion_field.shock_boundary is (
+    law.response.next_shock_boundary
+  )
+  audit = measure_moc_euler_two_sided_interface_law(law)
+  assert audit.status is MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.request_verified
+  assert audit.current_field_verified
+  assert audit.source_lineage_verified
+  assert audit.downstream_probe_verified
+  assert audit.response_lineage_verified
+  assert audit.candidate_geometry_verified
+  assert audit.companion_field_verified
+  assert audit.endpoint_constraints_verified
+  assert audit.interface_motion_verified
+  assert audit.result_flags_verified
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  assert law.as_report()['chain_promotion_blocked']
+  assert law.as_report()['production_claim_allowed'] is False
+
+  tampered_response = replace(
+    law.response,
+    normal_displacements_m=(
+      law.response.normal_displacements_m[0] + 1.0e-4,
+      *law.response.normal_displacements_m[1:],
+    ),
+  )
+  tampered_audit = measure_moc_euler_two_sided_interface_law(
+    replace(law, response=tampered_response)
+  )
+  assert tampered_audit.status is (
+    MocEulerTwoSidedInterfaceLawAuditStatus.FLAG_FAILURE
+  )
+  assert not tampered_audit.converged
+  assert not tampered_audit.response_lineage_verified
+  assert tampered_audit.chain_promotion_blocked
+  assert tampered_audit.production_claim_allowed is False
+
+  moving = solve_euler_two_sided_moving_interface_with_solver_owned_law(
+    MocEulerTwoSidedMovingInterfaceRequest(
+      field_request=MocEulerTwoSidedFieldIterationRequest(
+        shock_boundary=shock_boundary,
+        companion_field=companion_field,
+        ambient_pressure_Pa=ambient_pressure,
+        maximum_field_iterations=3,
+      ),
+      maximum_interface_iterations=1,
+    ),
+    law_request,
+  )
+  assert moving.status is MocEulerTwoSidedMovingInterfaceStatus.ITERATION_LIMIT
+  assert len(moving.records) == 1
+  assert moving.records[0].response_lineage_verified
+  assert moving.records[0].interface_motion_verified
+  assert not moving.records[0].response_residuals_verified
+  assert moving.records[0].field_re_solve_verified
+  assert not moving.moving_interface_verified
+  assert moving.chain_promotion_blocked
+  assert moving.production_claim_allowed is False
 
 
 def test_two_sided_moving_interface_rejects_fixed_geometry_response():

@@ -4410,3 +4410,150 @@ mixed-regime/free-boundary closure, independent coupled refinement, physical
 shock-cell fitting, provider-bound Visualization/Signature/FPA validation,
 owner archives, and release tagging remain blocked until a solver-owned
 interface law supplies the missing physics and passes those gates.
+
+### Full product-suite execution board — 2026-09-10
+
+This is the current working board for the long-running goal.  It converts the
+historical checkpoints above into an ordered completion plan and keeps the
+three products separate from the solver lanes that feed them.
+
+#### Non-negotiable architecture rules
+
+1. Every result carries a model identity, fidelity, applicability domain,
+   validation level, and claim ceiling.  A higher-fidelity result may be used
+   as a comparison or an explicitly named downstream input; it may not mutate,
+   retrain, or silently promote a lower-fidelity provider.
+2. Visualization, Signature, and FPA consume standard contracts.  A geometry
+   bundle is not spectral radiance, a Signature result is not a resolved ray
+   field, and an FPA result is not a plume solver.
+3. Time and position are explicit axes.  A trajectory sample advances through
+   an immutable source/atmosphere/chemistry/optics state and records the
+   resolver that produced the model result.  A timestamp alone never changes
+   the physics.
+4. Missing coverage is represented as unavailable or masked.  No endpoint
+   hold, extrapolation, interpolation, or synthetic observation may close a
+   physical or validation gate.
+5. A locally converged research result remains research-only until its
+   independent audit, refinement ladder, cross-case evidence, and external
+   measurement-space comparison pass.
+
+#### Solver and product lanes
+
+| Lane | Intended consumers | Allowed claim | Promotion rule |
+| --- | --- | --- | --- |
+| `shock-cell-basic-v1` | Visualization; explicitly labelled approximate Signature source studies | Fast engineering geometry and named shock regions | Never feeds FPA or inherits high-fidelity claims |
+| `shock-cell-reduced-order-v1` | Visualization and calibration studies | Calibrated/reduced-order envelope only | Requires disjoint calibration/validation data; never treated as resolved MOC |
+| `straight-integral-v1` | Visualization; supporting source integrals | Straight top-hat/integral reference | Domain termination and approximation stay visible |
+| `washed-integral-v1` | Visualization; supporting curved plume studies | Curved/entraining engineering envelope | No automatic radiation, ray, or detector claim |
+| `planar-moc-primitives-v1` | Visualization; research Signature/ray comparisons | Research numerical field and projected comparison envelope | Requires canonical mixed-regime closure before physical-cell promotion |
+| Canonical physical MOC/Euler | Physical shock cells; physically grounded Signature source | Only after closure and refinement | Must pass solver-owned moving interface, independent audit, and external comparison |
+| Ray/Signature/FPA chain | Signature and FPA | Resolved radiometric/detector outputs at their own contract level | Each downstream stage retains source identity, masks, units, and measurement-space evidence |
+
+#### Work packages and exit gates
+
+**WP-0 — integration and contract control.** Keep the dedicated candidate
+branch clean and pushed, reconcile merged PR ancestry, maintain the public
+contract/schema fixtures, and refresh the lane manifest after every material
+slice.  Exit when focused tests, static checks, documentation checks, and
+contract-asset checks are green for the candidate commit.
+
+**WP-1 — solver-owned physical closure.** Replace the current callback-only
+moving-interface seam with an actual solver-owned response law.  The law must
+derive the interface update from a conservative two-sided field response and
+retain, at each accepted iterate, the shock jump, signed normal motion,
+entropy production/transport, mass/momentum/energy residuals, ambient and
+centerline conditions, and exact source lineage.  The first implementation
+must be research-only and fail closed if its response equations or coverage
+are unavailable.  Exit requires an independent audit and a strictly improving
+multi-resolution, multi-case ladder.  This is the current implementation
+package.
+
+**WP-2 — physical shock-cell fitting.** Fit the first and continued shock
+cells only from the accepted canonical field and solver-owned frontier.  Keep
+cell length, spacing, branch, uncertainty, and termination reason explicit.
+Diagnostic pressure-extrema spacing and planner mocks remain comparison
+evidence, not physical fits.  Exit requires disjoint observation cases and
+accepted first/continued-cell comparisons.
+
+**WP-3 — standardized Visualization.** Maintain exactly one bundle for each
+of the five model lanes.  Each bundle must support 3-D overview, XY/XZ/YZ
+projections, station and slice selection, channel plots, region/cell fields,
+named shock/ambient/centerline/frontier paths, masks, provenance, and a claim
+panel.  Physical parameters for shock diamonds/regions are shown only when
+the source model exposes them.  Exit requires the local five-lane gallery,
+deterministic serialization, and provider-bound overlays where data exists.
+
+**WP-4 — Signature.** Keep intrinsic spectral radiant intensity, source
+spectral radiance, ray transfer, atmospheric transfer, chemistry, and LTE
+bridges as distinct contracts.  Add/verify exact point queries and time/
+position-indexed tables over immutable trajectory samples.  Require explicit
+temperature, composition, populations, line data, optical path, wavelength,
+and angular provenance; do not infer chemistry or non-LTE physics.  Exit
+requires provider-bound comparisons in the declared spectral/radiometric
+measurement space.
+
+**WP-5 — FPA.** Consume only a resolved ray/Signature result through explicit
+camera, optics, pixel geometry, exposure, detector response, digitization,
+invalid-ray, and snapshot metadata contracts.  Produce deterministic
+expected-electron/expected-ADC views first; keep noise realizations and
+measured images separate.  Exit requires the camera/detector alignment
+archive, FPA observations, and pixel/ADC-space comparisons.
+
+**WP-6 — validation intake and release.** Acquire and verify the owner
+archives, member checksums, provenance, licenses, coordinate conventions,
+provider outputs, and disjoint calibration/validation assignments.  Refresh
+the exact-HEAD freeze, run the full test/lane/static/docs/public-contract/
+wheel/install matrix, inspect all claim ceilings, and set `release_ready`
+only when no physical, data, provider, or packaging blocker remains.  No tag
+or merge to `main` is authorized before this gate.
+
+#### Current order of execution
+
+1. Independently audit and refine the first WP-1 moving-interface law across
+   cases/resolutions; keep the typed callback seam as the failure boundary
+   until conservative residual, entropy, and ambient/centerline gates close.
+2. Run the coupled-field refinement and global-frontier reconciliation over
+   the accepted law; then bind WP-2 physical shock-cell fitting.
+3. In parallel, prepare the provider/data intake matrix for WP-3 through
+   WP-5, but do not substitute missing archives or synthetic provider
+   observations.
+4. Execute product-specific acceptance for Visualization, Signature/ray,
+   and FPA independently, preserving each lane's measurement space.
+5. Freeze the exact candidate, refresh manifests, package, and release only
+   after every gate is green.
+
+The current candidate is therefore a reviewable research/integration
+checkpoint, not a finished product release.  The next accepted code slice
+must close the conservative residual, entropy/ambient compatibility, and
+refinement evidence around the first solver-owned response law; it must not
+claim progress by treating that bounded research response, fixed geometry, or
+lower-fidelity result as canonical moving-interface closure.
+
+### WP-1 first solver-owned response checkpoint — 2026-09-10
+
+The first bounded response law is now implemented as
+``solver-owned-two-sided-euler-rankine-front-response-v1``.  It reconstructs
+dimensional primitive states from an explicit total-temperature/gas-constant
+scale, samples the retained downstream physical cells, derives a signed
+normal interface speed from the mass Rankine--Hugoniot relation, advances only
+interior shock samples, resamples the bounded upstream source band, refits an
+exact Euler-consistent shock with static-pressure inputs, and rebuilds an open
+companion characteristic strip.  The endpoint tangent is protected by
+retaining two samples at each endpoint; there is no endpoint correction or
+coverage extrapolation.
+
+An independent audit now repeats the source lineage, downstream field
+sampling, cell-normal construction, dimensional speed and flux channels,
+shock displacement, endpoint constraints, companion-field gates, and claim
+flags.  The focused regression includes a tamper rejection and confirms that
+the moving-interface driver consumes the response and completes an exact
+two-sided field re-solve.  The driver correctly remains at ``ITERATION_LIMIT``
+because the declared mass/momentum/energy residual tolerances are still open;
+this is research evidence, not canonical free-boundary closure or physical
+shock-cell promotion.
+
+The next WP-1 slice is therefore a conservative residual closure and
+refinement ladder across cases/resolutions, including a separate treatment of
+energy/entropy and ambient/centerline compatibility.  Until that evidence
+passes, the response law remains blocked from the canonical chain and from
+Visualization/Signature/FPA production claims.
