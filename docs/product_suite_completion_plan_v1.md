@@ -5846,3 +5846,22 @@ The next P2.2 gate is the canonical planar-MOC/free-boundary equation and its
 physical shock-cell-length comparison.  The five Visualization lanes,
 Signature/ray-transfer/FPA provider comparisons, validation archives, and
 release freeze remain open.
+
+### P2.2 strict downstream-global-downstream refinement checkpoint — 2026-09-11
+
+The disjoint global boundary-feedback refinement runner now exposes an
+opt-in ``require_terminal_global_downstream_recheck`` policy.  When enabled,
+each resolution/case must complete the strict ``downstream response -> fresh
+global boundary-conditioned solve -> fresh downstream response`` loop.  The
+case report, aggregate measurement, configuration fingerprint, and status
+selection retain separate required/verified flags, so a failed strict
+recheck remains visible instead of being treated as an ordinary local
+fixed-point pass.  The default research mode is unchanged.
+
+The focused strict regression passes, and the existing coarse/fine feedback
+refinement regressions still pass.  This closes the admission-policy seam for
+the global frontier ladder; it does not make the compression-envelope law a
+canonical mixed-regime free boundary, accept a physical shock-cell length, or
+open Signature/FPA/provider or release claims.  The next physics gate remains
+the canonical planar-MOC/free-boundary equation, followed by accepted physical
+length evidence and provider-bound validation.

@@ -13012,6 +13012,49 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_conver
     response_mode_identity_verified=False,
   )
   assert tampered_case.local_research_verified is False
+
+
+def test_global_coupled_boundary_condition_feedback_refinement_can_require_strict_downstream_recheck():
+  cases = tuple(
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase(
+      case_id=f'strict-source-{sample_count}',
+      regime='mixed-regime-research',
+      source_closure=_global_physical_closure_for_mixed_regime(sample_count),
+      resolution=resolution,
+      downstream_options={
+        'max_pseudo_iterations': 300,
+        'max_shape_iterations': 10,
+      },
+    )
+    for sample_count, resolution in (
+      (9, (9, 10, 5)),
+      (11, (11, 12, 6)),
+    )
+  )
+
+  run = (
+    run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_refinement(
+      cases,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      downstream_feedback_iterations=2,
+      require_terminal_global_downstream_recheck=True,
+    )
+  )
+
+  assert run.configuration['require_terminal_global_downstream_recheck'] is True
+  assert run.measurement.terminal_global_downstream_recheck_required is True
+  assert all(
+    case.terminal_global_downstream_recheck_required for case in run.cases
+  )
+  assert all(
+    case.run.terminal_global_downstream_recheck_required for case in run.cases
+  )
+  assert run.measurement.converged is (
+    run.measurement.terminal_global_downstream_recheck_verified
+    and all(case.local_research_verified for case in run.cases)
+  )
+  assert run.measurement.production_claim_allowed is False
 ####
 
 

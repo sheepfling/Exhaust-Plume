@@ -384,6 +384,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit
     | None
   ) = None
+  terminal_global_downstream_recheck_required: bool = False
+  terminal_global_downstream_recheck_verified: bool = False
   boundary_flux_audits: tuple[
     MocReflectedDomainCoupledEulerBoundaryFluxAudit, ...
   ] = ()
@@ -431,6 +433,21 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
         'terminal_fixed_point_audit must contain a typed terminal fixed-point '
         'audit or None'
       )
+    ####
+    for name in (
+      'terminal_global_downstream_recheck_required',
+      'terminal_global_downstream_recheck_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    if (
+      self.terminal_global_downstream_recheck_required
+      and not self.terminal_global_downstream_recheck_verified
+    ):
+      # The case may be retained as a typed failure, but it cannot be
+      # reported as locally verified when strict recheck was requested.
+      object.__setattr__(self, 'terminal_global_downstream_recheck_verified', False)
     ####
     audits = tuple(self.boundary_flux_audits)
     if any(
@@ -481,6 +498,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     return bool(
       self.run.research_feedback_completed
       and self.terminal_fixed_point_verified
+      and (
+        not self.terminal_global_downstream_recheck_required
+        or self.terminal_global_downstream_recheck_verified
+      )
       and self.source_lineage_verified
       and self.fresh_solver_invocations_verified
       and self.target_lineage_verified
@@ -509,6 +530,12 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       'response_signature': self.response_signature,
       'response_mode_identity': self.response_mode_identity,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
+      'terminal_global_downstream_recheck_required': (
+        self.terminal_global_downstream_recheck_required
+      ),
+      'terminal_global_downstream_recheck_verified': (
+        self.terminal_global_downstream_recheck_verified
+      ),
       'terminal_fixed_point_audit': (
         None
         if self.terminal_fixed_point_audit is None
@@ -562,6 +589,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
   response_mode_identity_verified: bool = False
   fidelity_isolation_verified: bool = False
   terminal_fixed_point_verified: bool = False
+  terminal_global_downstream_recheck_required: bool = False
+  terminal_global_downstream_recheck_verified: bool = False
   response_stability_verified: bool = False
   frame_extension_stability_verified: bool = False
   conservative_boundary_fluxes_verified: bool = False
@@ -621,6 +650,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       'response_mode_identity_verified',
       'fidelity_isolation_verified',
       'terminal_fixed_point_verified',
+      'terminal_global_downstream_recheck_required',
+      'terminal_global_downstream_recheck_verified',
       'response_stability_verified',
       'frame_extension_stability_verified',
       'conservative_boundary_fluxes_verified',
@@ -682,6 +713,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       and self.response_mode_identity_verified
       and self.fidelity_isolation_verified
       and self.terminal_fixed_point_verified
+      and (
+        not self.terminal_global_downstream_recheck_required
+        or self.terminal_global_downstream_recheck_verified
+      )
       and self.response_stability_verified
       and self.frame_extension_stability_verified
       and self.conservative_boundary_fluxes_verified
@@ -718,6 +753,12 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
         'response_mode_identity_verified': self.response_mode_identity_verified,
         'fidelity_isolation_verified': self.fidelity_isolation_verified,
         'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
+        'terminal_global_downstream_recheck_required': (
+          self.terminal_global_downstream_recheck_required
+        ),
+        'terminal_global_downstream_recheck_verified': (
+          self.terminal_global_downstream_recheck_verified
+        ),
         'response_stability_verified': self.response_stability_verified,
         'frame_extension_stability_verified': (
           self.frame_extension_stability_verified
@@ -902,6 +943,7 @@ def _measurement(
   *,
   response_stability_fraction: float,
   expected_response_mode_identity: tuple[str, ...],
+  terminal_global_downstream_recheck_required: bool,
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurement:
   case_ids = tuple(case.case_id for case in cases)
   fingerprints = tuple(case.source_closure_fingerprint for case in cases)
@@ -940,6 +982,13 @@ def _measurement(
   terminal_fixed_point = bool(
     cases and all(case.terminal_fixed_point_verified for case in cases)
   )
+  terminal_global_downstream_recheck = bool(
+    cases
+    and all(
+      case.terminal_global_downstream_recheck_verified
+      for case in cases
+    )
+  )
   response_stable, frame_stable, maximum_response, maximum_frame = (
     _adjacent_stability(
       cases,
@@ -961,6 +1010,10 @@ def _measurement(
     and mode_identity
     and fidelity
     and terminal_fixed_point
+    and (
+      not terminal_global_downstream_recheck_required
+      or terminal_global_downstream_recheck
+    )
     and response_stable
     and frame_stable
     and fluxes
@@ -1004,6 +1057,18 @@ def _measurement(
       message = (
         'one or more fresh boundary-feedback cases did not pass the terminal '
         'final-closure response audit'
+      )
+    elif (
+      terminal_global_downstream_recheck_required
+      and not terminal_global_downstream_recheck
+    ):
+      status = (
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
+        .TERMINAL_FIXED_POINT_FAILURE
+      )
+      message = (
+        'one or more fresh boundary-feedback cases did not pass the strict '
+        'downstream-global-downstream recheck'
       )
     else:
       status = (
@@ -1060,6 +1125,12 @@ def _measurement(
     response_mode_identity_verified=mode_identity,
     fidelity_isolation_verified=fidelity,
     terminal_fixed_point_verified=terminal_fixed_point,
+    terminal_global_downstream_recheck_required=(
+      terminal_global_downstream_recheck_required
+    ),
+    terminal_global_downstream_recheck_verified=(
+      terminal_global_downstream_recheck
+    ),
     response_stability_verified=response_stable,
     frame_extension_stability_verified=frame_stable,
     conservative_boundary_fluxes_verified=fluxes,
@@ -1080,6 +1151,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
   downstream_feedback_iterations: int = 2,
   maximum_frame_extension_m: float = 0.5,
   response_stability_fraction: float = 0.75,
+  require_terminal_global_downstream_recheck: bool = False,
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementRun:
   """Fresh-solve a disjoint source/mesh ladder through boundary feedback."""
 
@@ -1114,6 +1186,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
   if not isfinite(stability_fraction) or stability_fraction <= 0.0:
     raise ValueError('response_stability_fraction must be finite and positive')
   ####
+  if not isinstance(require_terminal_global_downstream_recheck, bool):
+    raise ValueError('require_terminal_global_downstream_recheck must be a bool')
+  ####
   configuration: dict[str, Any] = {
     'case_ids': tuple(case.case_id for case in requested_cases),
     'source_closure_fingerprints': fingerprints,
@@ -1123,6 +1198,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
     'downstream_feedback_iterations': int(downstream_feedback_iterations),
     'maximum_frame_extension_m': float(maximum_frame_extension_m),
     'response_stability_fraction': stability_fraction,
+    'require_terminal_global_downstream_recheck': (
+      require_terminal_global_downstream_recheck
+    ),
     'profile_policy': _GEOMETRY_POLICY,
     'response_mode_identity': _RESEARCH_RESPONSE_MODE_IDENTITY,
     'boundary_flux_policy': 'explicit-retained-state-audit-required-v1',
@@ -1157,12 +1235,23 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
       ),
       downstream_options=options,
       maximum_frame_extension_m=maximum_frame_extension_m,
+      require_terminal_global_downstream_recheck=(
+        require_terminal_global_downstream_recheck
+      ),
     )
-    terminal_fixed_point_audit = (
-      audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
-        feedback
+    terminal_fixed_point_audit = feedback.terminal_fixed_point_audit
+    if terminal_fixed_point_audit is None:
+      terminal_fixed_point_audit = (
+        audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_fixed_point(
+          feedback,
+          require_terminal_global_resolve=(
+            require_terminal_global_downstream_recheck
+          ),
+          require_terminal_global_downstream_recheck=(
+            require_terminal_global_downstream_recheck
+          ),
+        )
       )
-    )
     source_lineage = bool(
       feedback.source_closure is requested.source_closure
       and feedback.source_lineage_verified
@@ -1194,6 +1283,13 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
         response_signature=_response_signature(feedback),
         response_mode_identity=response_mode_identity,
         terminal_fixed_point_audit=terminal_fixed_point_audit,
+        terminal_global_downstream_recheck_required=(
+          require_terminal_global_downstream_recheck
+        ),
+        terminal_global_downstream_recheck_verified=bool(
+          terminal_fixed_point_audit is not None
+          and terminal_fixed_point_audit.terminal_global_downstream_recheck_verified
+        ),
         boundary_flux_audits=boundary_flux_audits,
         source_lineage_verified=source_lineage,
         fresh_solver_invocations_verified=bool(
@@ -1226,6 +1322,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
     retained_cases,
     response_stability_fraction=stability_fraction,
     expected_response_mode_identity=_RESEARCH_RESPONSE_MODE_IDENTITY,
+    terminal_global_downstream_recheck_required=(
+      require_terminal_global_downstream_recheck
+    ),
   )
   fidelity = bool(
     retained_cases and all(case.fidelity_isolation_verified for case in retained_cases)
