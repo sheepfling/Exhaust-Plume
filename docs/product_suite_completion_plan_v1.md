@@ -6076,3 +6076,21 @@ lane and benchmark, verify the declared operator crosswalk, and only then
 consider quantitative evidence.  Signature/ray measurement-space acceptance,
 FPA detector evidence, canonical physical closure, and release freeze remain
 separate gates.
+
+### P3.4 five-lane gallery intake wiring checkpoint — 2026-09-11
+
+The top-level five-lane model-gallery manifest now carries the visual-feature
+comparison intake directly.  It records the
+``exhaust-plume.visual-feature-series@1`` schema, the explicit
+``op.visual.feature-series.no-extrapolation-v1`` operator, all five lane
+identities, and the required source/frame/scenario/operator/validity/branch
+and uncertainty metadata.  The manifest remains navigation and completeness
+evidence: it does not merge geometry, provider observations, uncertainty, or
+claim ceilings across lanes.
+
+The gallery, visual-comparison, and provider-preflight focused tranche passes
+(``35 passed``), with Ruff, Pyright, compilation, and whitespace checks clean.
+This closes the local wiring between standardized Visualization artifacts and
+the provider-bound comparison intake.  The external gate remains pending
+because the physical feature outputs, provider scenario assets, and verified
+observation archives are still unavailable.

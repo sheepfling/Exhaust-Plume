@@ -26,6 +26,10 @@ from exhaust_plume.products.model_visualization import (
   ModelVisualizationLane,
   StandardizedModelVisualization,
 )
+from exhaust_plume.validation.visual_comparisons import (
+  VISUAL_FEATURE_COMPARISON_OPERATOR_ID,
+  VISUAL_FEATURE_SERIES_SCHEMA,
+)
 
 __all__ = (
   'MODEL_GALLERY_MANIFEST_SCHEMA',
@@ -226,6 +230,7 @@ class ModelVisualizationGallerySetManifest:
   schema: str
   lane_manifests: tuple[ModelVisualizationGalleryManifest, ...]
   guardrails: tuple[str, ...]
+  comparison_intake: dict[str, Any]
   manifest_path: Path
 
   def model_dump(self) -> dict[str, Any]:
@@ -252,6 +257,7 @@ class ModelVisualizationGallerySetManifest:
       'lane_ids': [lane['lane_id'] for lane in lanes],
       'lane_count': len(lanes),
       'lanes': lanes,
+      'comparison_intake': dict(self.comparison_intake),
       'guardrails': list(self.guardrails),
     }
   ####
@@ -750,6 +756,30 @@ def render_model_visualization_gallery_set(
       'the set manifest is navigation/completeness evidence and is not a merged physical result',
       'rendering a lane cannot promote a research, approximate, or unvalidated model',
     ),
+    comparison_intake={
+      'status': 'contract-ready-provider-data-pending',
+      'series_schema': VISUAL_FEATURE_SERIES_SCHEMA,
+      'comparison_operator_id': VISUAL_FEATURE_COMPARISON_OPERATOR_ID,
+      'lane_count': len(MODEL_VISUALIZATION_LANES),
+      'required_series_metadata': [
+        'feature_id',
+        'coordinate_id_and_unit',
+        'feature_unit',
+        'source_id_and_digest',
+        'scenario_id',
+        'coordinate_frame_id',
+        'measurement_space',
+        'operator_id',
+        'validity_mask',
+        'branch_ids_for_hysteretic_features',
+        'one_sigma_uncertainty_when_available',
+      ],
+      'guardrails': [
+        'each lane remains an independent bundle and claim ceiling',
+        'provider observations and output assets are not synthesized by the gallery',
+        'comparison requires explicit frame/operator/scenario compatibility',
+      ],
+    },
     manifest_path=output / 'model_gallery_set_manifest.json',
   )
   write_model_gallery_set_manifest(manifest)

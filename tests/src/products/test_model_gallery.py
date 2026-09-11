@@ -140,6 +140,11 @@ def test_model_gallery_set_renders_exactly_one_independent_bundle_per_lane(tmp_p
   assert manifest.schema == MODEL_GALLERY_SET_MANIFEST_SCHEMA
   assert payload['lane_count'] == 5
   assert payload['lane_ids'] == [lane.value for lane in ModelVisualizationLane]
+  assert payload['comparison_intake']['status'] == 'contract-ready-provider-data-pending'
+  assert payload['comparison_intake']['series_schema'] == 'exhaust-plume.visual-feature-series@1'
+  assert payload['comparison_intake']['comparison_operator_id'] == 'op.visual.feature-series.no-extrapolation-v1'
+  assert payload['comparison_intake']['lane_count'] == 5
+  assert 'coordinate_frame_id' in payload['comparison_intake']['required_series_metadata']
   assert len({lane['bundle_digest_sha256'] for lane in payload['lanes']}) == 5
   assert all(
     (tmp_path / 'all-five' / lane['manifest_path']).exists()
