@@ -382,6 +382,13 @@ from exhaust_plume.validation.moc_global_frontier_fresh_resolve_residual import 
   MocReflectedDomainGlobalFrontierFreshResolveResidualResult,
   run_reflected_domain_global_frontier_fresh_resolve_conservative_residual,
 )
+from exhaust_plume.validation.moc_global_frontier_fresh_resolve_residual_refinement import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_RESIDUAL_REFINEMENT_OPERATOR_ID,
+  MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementCase,
+  MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementStatus,
+  MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementMeasurement,
+  measure_moc_global_frontier_fresh_resolve_residual_refinement,
+)
 from exhaust_plume.validation.moc_global_frontier_target_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_REFINEMENT_OPERATOR_ID,
   MocReflectedDomainGlobalFrontierTargetRefinementStatus,
@@ -1176,6 +1183,11 @@ __all__ = (
   'MocReflectedDomainGlobalFrontierFreshResolveResidualStatus',
   'MocReflectedDomainGlobalFrontierFreshResolveResidualResult',
   'run_reflected_domain_global_frontier_fresh_resolve_conservative_residual',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_FRESH_RESOLVE_RESIDUAL_REFINEMENT_OPERATOR_ID',
+  'MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementCase',
+  'MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementStatus',
+  'MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementMeasurement',
+  'measure_moc_global_frontier_fresh_resolve_residual_refinement',
   'MOC_REFLECTED_DOMAIN_GLOBAL_FRONTIER_TARGET_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainGlobalFrontierTargetRefinementStatus',
   'MocReflectedDomainGlobalFrontierTargetRefinementStep',

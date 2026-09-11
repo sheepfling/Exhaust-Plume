@@ -71,6 +71,11 @@ from exhaust_plume.validation.moc_global_frontier_fresh_resolve_residual import 
   MocReflectedDomainGlobalFrontierFreshResolveResidualStatus,
   run_reflected_domain_global_frontier_fresh_resolve_conservative_residual,
 )
+from exhaust_plume.validation.moc_global_frontier_fresh_resolve_residual_refinement import (
+  MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementCase,
+  MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementStatus,
+  measure_moc_global_frontier_fresh_resolve_residual_refinement,
+)
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
   CharacteristicState,
@@ -11855,6 +11860,33 @@ def test_global_frontier_fresh_resolve_residual_admission_is_fail_closed():
   )
   assert result.converged_research_residual is False
   assert result.as_report()['claim_status'].startswith('research-only')
+  retained_count = len(
+    fresh.candidate_closure.global_euler.physical_field.field.ambient_boundary.points_m
+  )
+  refinement = measure_moc_global_frontier_fresh_resolve_residual_refinement(
+    (
+      MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementCase(
+        case_id='mixed-regime-a',
+        resolution_sample_count=retained_count,
+        result=result,
+      ),
+      MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementCase(
+        case_id='mixed-regime-b',
+        resolution_sample_count=retained_count,
+        result=result,
+      ),
+    )
+  )
+  assert refinement.status is (
+    MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementStatus
+    .CASE_FAILURE
+  )
+  assert refinement.converged is False
+  assert refinement.fresh_audit_verified == (True, True)
+  assert refinement.independent_residual_audit_verified == (False, False)
+  assert refinement.case_audits_verified is False
+  assert refinement.chain_promotion_blocked
+  assert refinement.production_claim_allowed is False
 ####
 
 

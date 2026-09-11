@@ -5567,6 +5567,27 @@ independently audited ladder may feed a bounded outer feedback experiment;
 until then, the current failure remains the correct product and physics
 boundary.
 
+### P2.2 fresh-frontier residual refinement-ladder checkpoint — 2026-09-11
+
+The fresh-frontier residual evidence now has a separate refinement operator,
+``op.moc.reflected-domain.global-frontier-fresh-resolve-residual-refinement-v1``.
+It accepts only typed residual-admission results, retains the source and
+candidate closure fingerprints, checks exact candidate identity through the
+two-sided handoff, enforces a common response mode and strictly increasing
+resolution within each case, and records initial/final norms plus final mass,
+normal-momentum, and energy channels.  A local ladder requires independent
+fresh/residual audits and strict per-channel nonincreasing and reducing
+behavior; cross-case convergence additionally requires at least three
+resolutions in at least two distinct closure families.
+
+The exercised mixed-regime evidence is measured through this operator and
+remains a typed ``CASE_FAILURE`` because its independent residual audit is
+not yet valid.  Reusing the same result does not satisfy a refinement claim,
+and no canonical/free-boundary, shock-cell, Signature/FPA, provider, or
+release gate is relaxed.  The next physics packet is to generate actual
+fresh solves at three increasing resolutions for at least two disjoint cases,
+then rerun this operator before any outer feedback is permitted.
+
 ### P2.2 exact-Euler conditioned perimeter closure checkpoint — 2026-09-11
 
 The exact-Euler frontier consumer now closes the conditioned physical field
