@@ -1324,7 +1324,7 @@ def test_global_transonic_mixed_wave_physical_field_keeps_centerline_stop_typed(
 
   assert result.status is (
     MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldStatus
-    .CENTERLINE_BOUNDARY_FAILURE
+    .SUBSONIC_TERMINAL_REQUIRED
   )
   assert result.interface is interface
   assert result.interface_consumed
@@ -1341,6 +1341,8 @@ def test_global_transonic_mixed_wave_physical_field_keeps_centerline_stop_typed(
     'entropy_characteristic_free_boundary_attachment_failure'
   )
   assert result.centerline_boundary_verified is False
+  assert result.subsonic_terminal_required
+  assert result.terminal_model_verified
   assert result.local_physical_field_verified is False
   assert result.physical_closure_verified is False
   assert result.global_coupling_verified is False
@@ -1350,6 +1352,8 @@ def test_global_transonic_mixed_wave_physical_field_keeps_centerline_stop_typed(
   report = result.as_report()
   assert report['centerline_attempted'] is True
   assert report['independent_audit_verified'] is True
+  assert report['subsonic_terminal_required'] is True
+  assert report['terminal_model_verified'] is True
   assert report['physical_closure_verified'] is False
   assert report['chain_promotion_blocked'] is True
 

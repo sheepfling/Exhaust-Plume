@@ -5212,10 +5212,29 @@ field/frontier lineage, the resolved sample count and tolerances, the nested
 physical-field result, and the independent audit.
 
 The canonical mixed-regime fixture reaches the solver's typed
-``CENTERLINE_BOUNDARY_FAILURE`` / ambient-attachment stop with the physical
+``SUBSONIC_TERMINAL_REQUIRED`` / ambient-attachment stop with the physical
 attempt and audit retained.  The focused mixed-wave suite passes (``8
 passed``), including a tampered-frontier regression.  This packet does not
 relax the remesh tolerance, infer a missing angle bracket, or promote the
 local field into a global closure: centerline/global feedback, physical
 shock-cell continuation, provider-bound validation, validation archives, and
 release gates remain open.
+
+### P2.2 typed subsonic-terminal admission checkpoint — 2026-09-11
+
+The mixed-wave physical-field wrapper now preserves the solver's more specific
+terminal outcome.  When the bounded ambient march reaches a valid
+Rankine--Hugoniot subsonic terminal, the wrapper reports
+``SUBSONIC_TERMINAL_REQUIRED`` and exposes independent
+``subsonic_terminal_required`` / ``terminal_model_verified`` evidence instead
+of flattening the stop into a generic centerline failure.  The retained
+terminal remains scalar and is never coerced into a supersonic
+``CharacteristicState``.
+
+The focused regression confirms the canonical case reaches this typed stop,
+retains the physical attempt and independent audit, and keeps physical
+closure, global coupling, chain promotion, and production claims disabled.
+This is a contract/provenance improvement only: an independently solved
+subsonic interior field, ambient/tangency closure, stable mixed-regime case
+ladder, accepted physical shock-cell lengths, provider-bound validation,
+validation archives, and release gates remain open.

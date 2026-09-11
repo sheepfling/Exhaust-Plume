@@ -72,6 +72,9 @@ class MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldStatus(
   UPSTREAM_FIELD_BOUNDARY = (
     'global-transonic-mixed-wave-upstream-field-boundary'
   )
+  SUBSONIC_TERMINAL_REQUIRED = (
+    'global-transonic-mixed-wave-subsonic-terminal-required'
+  )
   CENTERLINE_BOUNDARY_FAILURE = (
     'global-transonic-mixed-wave-centerline-boundary-failure'
   )
@@ -252,6 +255,36 @@ class MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldResult:
     return False
   ####
 
+  @property
+  def subsonic_terminal_required(self) -> bool:
+    """Whether the retained ambient march reached its typed subsonic seam."""
+
+    if self.physical_field is None or self.physical_field.physical_field is None:
+      return False
+    ####
+    attachment = self.physical_field.physical_field.ambient_attachment
+    return bool(
+      attachment is not None
+      and attachment.shock is not None
+      and attachment.shock.subsonic_terminal_required
+    )
+  ####
+
+  @property
+  def terminal_model_verified(self) -> bool:
+    """Whether the retained subsonic terminal has valid shock scalars."""
+
+    if self.physical_field is None or self.physical_field.physical_field is None:
+      return False
+    ####
+    attachment = self.physical_field.physical_field.ambient_attachment
+    return bool(
+      attachment is not None
+      and attachment.shock is not None
+      and attachment.shock.terminal_model_verified
+    )
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'model': MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_PHYSICAL_FIELD_OPERATOR_ID,
@@ -269,6 +302,8 @@ class MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldResult:
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'external_validation_required': self.external_validation_required,
+      'subsonic_terminal_required': self.subsonic_terminal_required,
+      'terminal_model_verified': self.terminal_model_verified,
       'interface_status': (
         None if self.interface is None else self.interface.status.value
       ),
@@ -378,6 +413,23 @@ def _audit_is_typed_and_consistent(
     MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
     .PATH_COVERAGE_FAILURE,
   )
+
+
+def _subsonic_terminal_required(
+  physical_field: MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryResult,
+) -> bool:
+  """Return whether the retained ambient march stopped at a subsonic seam."""
+
+  if physical_field.physical_field is None:
+    return False
+  ####
+  attachment = physical_field.physical_field.ambient_attachment
+  return bool(
+    attachment is not None
+    and attachment.shock is not None
+    and attachment.shock.subsonic_terminal_required
+  )
+####
 
 
 def solve_reflected_domain_global_transonic_mixed_wave_physical_field(
@@ -721,12 +773,20 @@ def solve_reflected_domain_global_transonic_mixed_wave_physical_field(
     MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
     .AMBIENT_ATTACHMENT_FAILURE
   ):
-    status = status_type.CENTERLINE_BOUNDARY_FAILURE
+    status = (
+      status_type.SUBSONIC_TERMINAL_REQUIRED
+      if _subsonic_terminal_required(physical_field)
+      else status_type.CENTERLINE_BOUNDARY_FAILURE
+    )
   elif physical_field.status is (
     MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
     .REFLECTED_FIELD_FAILURE
   ):
-    status = status_type.CENTERLINE_BOUNDARY_FAILURE
+    status = (
+      status_type.SUBSONIC_TERMINAL_REQUIRED
+      if _subsonic_terminal_required(physical_field)
+      else status_type.CENTERLINE_BOUNDARY_FAILURE
+    )
   elif (
     physical_field.status
     is MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryStatus
