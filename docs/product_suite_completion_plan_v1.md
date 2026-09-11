@@ -5321,3 +5321,22 @@ coupled solve.  The current interior-probe response therefore remains
 research-only, and canonical mixed-regime closure, accepted physical
 shock-cell lengths, provider-bound comparisons, validation archives, and
 release promotion remain open.
+
+### WP-0 post-signed-vector release audit — 2026-09-11
+
+After the signed residual-vector checkpoint, the current candidate
+``6cef3abae1d9fc77693ad4a5df3e0b46e5674c03`` was audited from a clean
+worktree.  The local product-lane validator remains ``local_status=passed``
+with ``external_status=comparison-pending``.  The release-manifest validator
+confirms a clean candidate and passing local functional checks, but the
+umbrella release remains ``release_ready=false`` with the same seven blockers:
+provider-bound comparisons, a disjoint reduced-order calibration/validation
+split, the separately named alignment archive, planar-MOC/free-boundary and
+physical first-cell closure, a current release freeze, and external provider
+acceptance.  No historical freeze was overwritten and no release tag is
+authorized by this audit.
+
+The next implementation packet is still the solver-owned coupled conservative
+residual/free-boundary solve.  The signed response vector is now available to
+that solver and independently auditable, but it is not itself a closure
+mechanism or a production Signature/FPA input.
