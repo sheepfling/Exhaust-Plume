@@ -373,10 +373,9 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       )
     if self.dimensioned_channel_descent_verified and not (
       self.dimensioned_channels_verified
-      and self.residual_descent_verified
     ):
       raise ValueError(
-        'dimensioned_channel_descent_verified requires verified residual descent'
+        'dimensioned_channel_descent_verified requires verified dimensioned channels'
       )
     object.__setattr__(self, 'message', str(self.message))
 

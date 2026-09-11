@@ -433,6 +433,11 @@ from exhaust_plume.validation.moc_global_boundary_state_joint_solve import (
   MocReflectedDomainGlobalBoundaryStateJointSolveStatus,
   run_reflected_domain_global_boundary_state_joint_solve,
 )
+from exhaust_plume.validation.moc_global_boundary_state_joint_refinement import (
+  MocReflectedDomainGlobalBoundaryStateJointRefinementCase,
+  MocReflectedDomainGlobalBoundaryStateJointRefinementStatus,
+  measure_moc_global_boundary_state_joint_refinement,
+)
 from exhaust_plume.validation.moc_global_boundary_state_outer_update import (
   MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus,
   run_reflected_domain_global_boundary_state_outer_update,
@@ -13254,6 +13259,87 @@ def test_global_boundary_state_joint_consumer_consumes_geometry_response_without
     'op.moc.reflected-domain.global-boundary-state-joint-solve-v1'
   )
   assert report['handoff_consumed'] is True
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_boundary_state_joint_refinement_covers_cases_and_resolutions():
+  cases = []
+  for case_id, skews in (
+    ('mixed-regime-baseline', (-0.75, 0.0)),
+    ('mixed-regime-shifted', (-0.75, -0.25)),
+  ):
+    for sample_count in (8, 9):
+      closure = _global_physical_closure_for_mixed_regime(
+        sample_count,
+        compression_envelope_skews=skews,
+      )
+      feedback = run_reflected_domain_global_boundary_state_feedback(
+        closure,
+        reference_total_temperature_K=1500.0,
+        downstream_feedback_iterations=2,
+        downstream_options={
+          'axial_station_count': 7,
+          'axial_cell_count': 8,
+          'transverse_cell_count': 4,
+          'max_pseudo_iterations': 400,
+          'max_shape_iterations': 12,
+        },
+        two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+      )
+      assert feedback.handoff is not None
+      joint = run_reflected_domain_global_boundary_state_joint_solve(
+        feedback.handoff
+      )
+      assert joint.status is (
+        MocReflectedDomainGlobalBoundaryStateJointSolveStatus
+        .CONVERGED_RESEARCH_JOINT_STATE_UPDATE
+      )
+      cases.append(
+        MocReflectedDomainGlobalBoundaryStateJointRefinementCase(
+          case_id=case_id,
+          resolution_sample_count=sample_count,
+          result=joint,
+        )
+      )
+  ####
+
+  measurement = measure_moc_global_boundary_state_joint_refinement(
+    tuple(cases)
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainGlobalBoundaryStateJointRefinementStatus
+    .CONVERGED_CROSS_CASE_REFINEMENT
+  )
+  assert measurement.converged
+  assert measurement.case_ids == (
+    'mixed-regime-baseline',
+    'mixed-regime-baseline',
+    'mixed-regime-shifted',
+    'mixed-regime-shifted',
+  )
+  assert measurement.resolution_sample_counts == (8, 9, 8, 9)
+  assert measurement.case_audits_verified
+  assert measurement.case_identity_verified
+  assert measurement.closure_identity_verified
+  assert measurement.resolution_order_verified
+  assert measurement.dimensioned_channels_verified
+  assert measurement.dimensioned_channel_descent_verified
+  assert measurement.residual_descent_verified
+  assert measurement.cross_case_verified
+  assert measurement.local_refinement_verified
+  assert measurement.refinement_convergence_verified
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.canonical_euler_verified is False
+  assert measurement.downstream_boundary_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.fidelity_flags_verified
+  report = measurement.as_report()
+  assert report['operator_id'] == (
+    'op.moc.reflected-domain.global-boundary-state-joint-refinement-v1'
+  )
   assert report['production_claim_allowed'] is False
 ####
 

@@ -2276,12 +2276,12 @@ def consume_reflected_domain_global_shock_geometry_response(
     source_frontier_total_pressure_Pa=float(frontier_total_pressure),
     source_frontier_verified=True,
     first_endpoint_tangent_residual_rad=(
-      refit.tangent_residuals_rad[0]
+      abs(refit.tangent_residuals_rad[0])
       if refit.tangent_residuals_rad
       else None
     ),
     last_endpoint_tangent_residual_rad=(
-      refit.tangent_residuals_rad[-1]
+      abs(refit.tangent_residuals_rad[-1])
       if refit.tangent_residuals_rad
       else None
     ),
