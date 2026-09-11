@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — checkpoint `40947c7`
+### Active execution card — code checkpoint `a510d73`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -87,29 +87,32 @@ research results only.  The outer global/coupled result, downstream boundary,
 canonical free-boundary, production shock-cell, provider-validation, and
 release flags remain closed.
 
-The next equation-level corrector has now been exercised as well.  It sends the
-fresh joint closure through a terminal downstream -> global -> downstream
-recheck and then invokes the complete signed conservative state solver.  The
-terminal boundary equations and response lineage pass.  The corrector now
-tightens any exploratory handoff to the strict accepted tolerances before
-measuring progress; the state solver retains three exact field-resolved
-attempts and the channel-aware line-search rejects worsening trials, but it
-remains non-converged.  This is the current physical stop, not a product or
-canonical-closure result.
+The equation-level corrector has now also been exercised.  It sends the fresh
+joint closure through a terminal downstream -> global -> downstream recheck
+and then invokes the complete signed conservative state solver.  The terminal
+boundary equations and response lineage pass.  The corrector tightens any
+exploratory handoff to the strict accepted tolerances before measuring
+progress, and now exposes a solver-owned shape-Jacobian mode: the mass-derived
+normal update plus bounded interior normal shape controls are probed with
+fresh exact field re-solves.  On the exercised case, two multi-control shape
+updates reduce the dominant normal-momentum residual while retaining mass and
+energy inside their declared strict bands.  The state remains non-converged;
+this is physical research evidence, not a product or canonical-closure result.
 
-The next implementation sprint is therefore a physically justified update law
-that improves the complete response after the terminal recheck:
+The next implementation sprint is therefore to finish and independently
+qualify the physically justified update law after the terminal recheck:
 
 1. Define the solver-owned mixed-regime/free-boundary state and its admissible
    transonic branch, including upstream frontier, downstream pressure and
    tangency, centerline reflection, entropy transport, and signed mass,
    normal-momentum, and energy residuals in one field solve.
-2. Replace the current non-converging terminal update direction with a
-   solver-owned update law that consumes the complete signed mass,
-   normal-momentum, and energy response in the actual downstream/global state
-   equations.  Every trial must carry source/proposal/field fingerprints,
-   retain its coordinate frame, use bounded updates, and be freshly re-solved
-   and independently remeasured.
+2. Extend the current solver-owned shape-Jacobian update law from research
+   descent to a complete conservative closure.  It must consume the complete
+   signed mass, normal-momentum, and energy response in the actual
+   downstream/global state equations.  Every trial must carry
+   source/proposal/field fingerprints, retain its coordinate frame, use
+   bounded anchored geometry controls, and be freshly re-solved and
+   independently remeasured.
 3. Admit a candidate only when all declared physical residuals descend or meet
    the stated convergence test.  A pressure overlay, compression-envelope
    skew, terminal patch, scalar mixed-regime reference, or longer axial window
@@ -392,8 +395,34 @@ The focused joint/corrector tranche passes (``3 passed``), with Ruff and
 compilation clean.  Canonical free-boundary coupling, physical shock-cell
 promotion, provider-bound Visualization/Signature/RAY/FPA validation, missing
 validation archives, and release readiness remain open.  The next physics
-slice is the update-law correction that turns this typed strict state failure
-into closure without weakening the equation or fidelity boundaries.
+slice is the shape-Jacobian update-law correction that turns this typed strict
+state failure into closure without weakening the equation or fidelity
+boundaries.
+
+### P2.2n anchored multi-control shape-Jacobian checkpoint — 2026-09-11
+
+The conservative residual request now has an explicit, opt-in
+``use_shape_jacobian_correction`` mode.  Its controls are solver-generated
+normal geometry vectors: the existing mass-derived kinematic direction and
+bounded local normal perturbations of the unconstrained interior shock
+samples.  Endpoint anchors, downstream ordering, centerline clearance, and a
+per-trial displacement budget are checked before any exact refit.  Each shape
+probe is sent through the exact Euler shock refit, companion strip, physical
+field re-solve, and signed residual measurement; the least-squares correction
+is then bounded and backtracked against the exact measured response.
+
+The strict channel gate now uses an explicit active-set interpretation: a
+channel already inside its declared tolerance must remain inside that band,
+while an open channel may not worsen and at least one open channel must
+decrease.  This does not widen any acceptance tolerance.  On the mixed-regime
+fixture, the shape mode accepts two exact multi-control updates and reduces
+the normal-momentum residual from the low-40-Pa range while mass and energy
+remain within their strict bands.  The state still stops as a typed
+``ITERATION_LIMIT`` before the ``0.01 Pa`` momentum target closes, so the
+canonical/global, physical shock-cell, provider-validation, and production
+gates remain false.  The regression test and static checks pass in commit
+``a510d73``.  The next physics task is to improve the control basis and
+equation-level closure, then repeat disjoint case and resolution audits.
 
 ## Execution sprints and stop conditions
 
