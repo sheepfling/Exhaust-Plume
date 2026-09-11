@@ -420,6 +420,10 @@ from exhaust_plume.validation.moc_global_boundary_state_outer_update import (
   MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus,
   run_reflected_domain_global_boundary_state_outer_update,
 )
+from exhaust_plume.validation.moc_global_boundary_state_profile_update import (
+  MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus,
+  run_reflected_domain_global_boundary_state_profile_update,
+)
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_refinement import (
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase,
   MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus,
@@ -12660,6 +12664,78 @@ def test_global_boundary_state_outer_update_changes_closure_but_keeps_descent_ga
   report = outer.as_report()
   assert report['operator_id'] == (
     'op.moc.reflected-domain.global-boundary-state-outer-update-v1'
+  )
+  assert report['updated_closure_fingerprint'] != report[
+    'source_closure_fingerprint'
+  ]
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_boundary_state_profile_update_changes_geometry_and_descends():
+  closure = _global_physical_closure_for_mixed_regime()
+
+  feedback = run_reflected_domain_global_boundary_state_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+  )
+  assert feedback.handoff is not None
+
+  update = run_reflected_domain_global_boundary_state_profile_update(
+    feedback.handoff,
+    compression_profile_step=0.25,
+    maximum_profile_steps=2,
+  )
+
+  assert update.status is (
+    MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus
+    .CONVERGED_RESEARCH_PROFILE_UPDATE
+  )
+  assert update.converged_research_profile_update
+  assert update.handoff_lineage_verified
+  assert update.profile_sweep_invoked
+  assert update.profile_sweep_verified
+  assert update.closure_lineage_verified
+  assert update.state_solver_invoked
+  assert update.state_lineage_verified
+  assert update.signed_residuals_verified
+  assert update.moving_state_verified
+  assert update.independent_residual_audit_verified
+  assert update.geometry_update_verified
+  assert update.residual_descent_verified
+  assert update.physical_profile_update_verified
+  assert update.source_closure is not None
+  assert update.updated_closure is not None
+  assert update.state_result is not None
+  assert update.conservative_residual_audit is not None
+  assert update.baseline_residual_norm is not None
+  assert update.refreshed_residual_norm is not None
+  assert update.refreshed_residual_norm < update.baseline_residual_norm
+  assert update.updated_closure is not update.source_closure
+  assert update.selected_trial_index is not None
+  assert any(trial.accepted for trial in update.trials)
+  selected = update.trials[update.selected_trial_index]
+  assert selected.geometry_changed
+  assert selected.closure_verified
+  assert selected.state_lineage_verified
+  assert selected.independent_residual_audit_verified
+  assert selected.residual_descent_verified
+  assert selected.accepted
+  assert update.state_result.global_physical_field_consumed
+  assert update.chain_promotion_blocked
+  assert update.production_claim_allowed is False
+  report = update.as_report()
+  assert report['operator_id'] == (
+    'op.moc.reflected-domain.global-boundary-state-profile-update-v1'
   )
   assert report['updated_closure_fingerprint'] != report[
     'source_closure_fingerprint'

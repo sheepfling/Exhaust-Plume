@@ -5794,3 +5794,31 @@ physically justified coupled update that changes the independently audited
 residual, followed by disjoint cases and resolution refinement.  Validation
 archives, provider-bound VIS/SIG/RAY/FPA comparisons, physical shock-cell
 lengths, and the release freeze remain open.
+
+### P2.2 solver-owned compression-profile response checkpoint — 2026-09-11
+
+The next update direction is now executable as
+``op.moc.reflected-domain.global-boundary-state-profile-update-v1``.  It takes
+the ready global boundary-state handoff, retains the exact source/target pair
+and amplitude bracket from the selected remesh, and sweeps only the explicit
+solver-owned compression-envelope skew.  Every candidate is a fresh global
+physical closure followed by a fresh conservative moving-interface solve;
+there is no target-frame replay, residual interpolation, tolerance relaxation,
+or projection of the prior downstream field onto a changed shock.
+
+On the mixed-regime research handoff, the accepted candidate changes the exact
+shock geometry and lowers the independently audited normalized residual from
+the retained ``0.217711771324`` baseline.  Candidate reports retain the skew,
+closure fingerprint, geometry-change proof, exact state-request identity,
+signed mass/normal-momentum/energy channels, independent residual audit, and
+strict-descent decision.  The result remains explicitly research-only because
+the compression envelope is still a boundary-condition research family, not a
+canonical reflected/mixed-regime free-boundary law; canonical coupling,
+refinement, shock-cell promotion, Signature/FPA production, external
+validation, and release remain blocked.
+
+The focused profile-update regression passes.  The next gate is disjoint
+case/refinement evidence for this update direction, followed by closure of the
+canonical planar-MOC/free-boundary equation and physical shock-cell-length
+comparisons.  Validation archives, provider-bound VIS/SIG/RAY/FPA comparisons,
+and the release freeze remain open.
