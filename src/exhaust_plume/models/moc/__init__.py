@@ -600,6 +600,7 @@ from exhaust_plume.models.moc.euler_two_sided_interface_law import (
   solve_euler_two_sided_moving_interface_with_solver_owned_law,
 )
 from exhaust_plume.models.moc.euler_two_sided_conservative_residual_solve import (
+  MocEulerTwoSidedShapeControlFamily,
   MocEulerTwoSidedConservativeResidualSolveStatus,
   MocEulerTwoSidedConservativeResidualSolveRequest,
   MocEulerTwoSidedConservativeResidualSolveIteration,
@@ -1563,6 +1564,7 @@ __all__ = (
   'make_solver_owned_euler_two_sided_interface_advance',
   'solve_euler_two_sided_moving_interface_with_solver_owned_law',
   'MocEulerTwoSidedConservativeResidualSolveStatus',
+  'MocEulerTwoSidedShapeControlFamily',
   'MocEulerTwoSidedConservativeResidualSolveRequest',
   'MocEulerTwoSidedConservativeResidualSolveIteration',
   'MocEulerTwoSidedConservativeResidualSolveResult',

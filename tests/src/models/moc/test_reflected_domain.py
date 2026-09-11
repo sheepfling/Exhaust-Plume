@@ -135,6 +135,7 @@ from exhaust_plume.models.moc import (
   MocEulerTwoSidedFieldIterationStatus,
   solve_euler_two_sided_field_iteration,
   MocEulerTwoSidedInterfaceResponse,
+  MocEulerTwoSidedShapeControlFamily,
   MocEulerTwoSidedConservativeResidualSolveStatus,
   MocEulerTwoSidedInterfaceLawRequest,
   MocEulerTwoSidedInterfaceLawStatus,
@@ -3066,6 +3067,112 @@ def test_global_shape_jacobian_corrector_keeps_active_channels_strict():
   report = result.as_report()['conservative_residual_result']
   assert report['request']['use_shape_jacobian_correction']
   assert report['shape_jacobian_correction_verified']
+####
+
+
+def test_global_smooth_shape_jacobian_preserves_anchored_front_contract():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_two_sided_moving_interface(
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_field_iterations=3,
+      maximum_interface_iterations=1,
+      use_conservative_residual_line_search=True,
+      require_conservative_flux_closure=True,
+      require_dimensioned_conservative_channel_descent=True,
+      normal_momentum_tolerance_Pa=1.0e-2,
+      use_conservative_residual_directional_correction=False,
+      use_conservative_residual_shape_jacobian_correction=True,
+      maximum_shape_controls=8,
+      maximum_residual_backtracks=2,
+      shape_control_family=(
+        MocEulerTwoSidedShapeControlFamily.SMOOTH_ANCHORED_NORMAL
+      ),
+    )
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+    .MOVING_INTERFACE_FAILURE
+  )
+  assert result.conservative_residual_result is not None
+  residual = result.conservative_residual_result
+  assert residual.shape_jacobian_correction_verified
+  assert residual.records
+  for record in residual.records:
+    assert record.shape_jacobian_verified
+    assert record.shape_control_names
+    assert any(
+      name.startswith('smooth-anchored-normal-shape-')
+      for name in record.shape_control_names
+    )
+    assert not any(
+      name.startswith('interior-normal-shape-')
+      for name in record.shape_control_names
+    )
+    assert record.next_field_iteration is not None
+    before_boundary = record.field_iteration.shock_boundary
+    after_boundary = record.next_field_iteration.shock_boundary
+    assert before_boundary is not None
+    assert after_boundary is not None
+    for index in (0, 1, -2, -1):
+      assert after_boundary.shock_points_m[index] == pytest.approx(
+        before_boundary.shock_points_m[index]
+      )
+    ####
+  ####
+  assert residual.production_claim_allowed is False
+  report = result.as_report()['conservative_residual_result']
+  assert report['request']['shape_control_family'] == (
+    'smooth-anchored-normal-v1'
+  )
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_front_limit_conservative_residual_closes_without_promotion():
+  """The zero-offset front-limit is strict local evidence, not global closure."""
+
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_two_sided_moving_interface(
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_field_iterations=3,
+      maximum_interface_iterations=3,
+      downstream_probe_fraction=0.0,
+      require_interface_motion=False,
+      allow_stationary_equilibrium=True,
+      require_terminal_fixed_point=True,
+      use_conservative_residual_line_search=True,
+      require_conservative_flux_closure=True,
+      require_dimensioned_conservative_channel_descent=True,
+      normal_momentum_tolerance_Pa=1.0e-2,
+      use_conservative_residual_directional_correction=False,
+      use_conservative_residual_shape_jacobian_correction=True,
+      maximum_shape_controls=8,
+      maximum_residual_backtracks=2,
+    )
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+    .CONVERGED_RESEARCH_INTERFACE
+  )
+  assert result.conservative_residual_result is not None
+  residual = result.conservative_residual_result
+  assert residual.converged
+  assert residual.terminal_fixed_point_verified
+  assert residual.final_response is not None
+  assert residual.final_response.maximum_mass_flux_residual_kg_m2_s <= 1.0e-3
+  assert residual.final_response.maximum_normal_momentum_residual_Pa <= 1.0e-2
+  assert residual.final_response.maximum_energy_flux_residual_W_m2 <= 1.0e-1
+  assert result.conservative_residual_audit is not None
+  assert result.conservative_residual_audit.converged
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
 ####
 
 

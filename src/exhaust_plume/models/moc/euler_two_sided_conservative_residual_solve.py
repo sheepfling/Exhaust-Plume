@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import hypot, isfinite, sqrt
+from math import hypot, isfinite, pi, sin, sqrt
 from typing import Any
 
 import numpy as np
@@ -41,6 +41,7 @@ from exhaust_plume.models.moc.euler_two_sided_moving_interface import (
 
 __all__ = (
   'MocEulerTwoSidedConservativeResidualSolveStatus',
+  'MocEulerTwoSidedShapeControlFamily',
   'MocEulerTwoSidedConservativeResidualSolveRequest',
   'MocEulerTwoSidedConservativeResidualSolveIteration',
   'MocEulerTwoSidedConservativeResidualSolveResult',
@@ -65,6 +66,15 @@ class MocEulerTwoSidedConservativeResidualSolveStatus(str, Enum):
   FIELD_RESOLVE_FAILURE = 'two-sided-conservative-field-resolve-failure'
   LINE_SEARCH_FAILURE = 'two-sided-conservative-line-search-failure'
   ITERATION_LIMIT = 'two-sided-conservative-iteration-limit'
+####
+
+
+class MocEulerTwoSidedShapeControlFamily(str, Enum):
+  """Bounded normal-shape bases available to the research corrector."""
+
+  POINTWISE_NORMAL = 'pointwise-normal-v1'
+  SMOOTH_ANCHORED_NORMAL = 'smooth-anchored-normal-v1'
+  HYBRID_ANCHORED_NORMAL = 'hybrid-anchored-normal-v1'
 ####
 
 
@@ -134,6 +144,9 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
   shape_jacobian_probe_fraction: float = 0.25
   maximum_shape_controls: int = 8
   maximum_shape_step_fraction: float = 1.0
+  shape_control_family: MocEulerTwoSidedShapeControlFamily = (
+    MocEulerTwoSidedShapeControlFamily.POINTWISE_NORMAL
+  )
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -201,6 +214,14 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
     if not isinstance(self.use_shape_jacobian_correction, bool):
       raise TypeError('use_shape_jacobian_correction must be a bool')
     ####
+    if not isinstance(
+      self.shape_control_family,
+      MocEulerTwoSidedShapeControlFamily,
+    ):
+      raise TypeError(
+        'shape_control_family must be a MocEulerTwoSidedShapeControlFamily'
+      )
+    ####
     if (
       isinstance(self.maximum_shape_controls, bool)
       or not isinstance(self.maximum_shape_controls, int)
@@ -254,6 +275,7 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
       'shape_jacobian_probe_fraction': self.shape_jacobian_probe_fraction,
       'maximum_shape_controls': self.maximum_shape_controls,
       'maximum_shape_step_fraction': self.maximum_shape_step_fraction,
+      'shape_control_family': self.shape_control_family.value,
       'production_claim_allowed': False,
     }
   ####
@@ -526,6 +548,68 @@ def _shape_control_vectors(
   if local_budget <= 0:
     return tuple(controls)
   ####
+  maximum_probe = (
+    request.law_request.maximum_normal_displacement_m
+    * request.shape_jacobian_probe_fraction
+  )
+  tolerance = request.moving_request.position_tolerance_m
+  family = request.shape_control_family
+  if family in (
+    MocEulerTwoSidedShapeControlFamily.SMOOTH_ANCHORED_NORMAL,
+    MocEulerTwoSidedShapeControlFamily.HYBRID_ANCHORED_NORMAL,
+  ):
+    # Parameterize the basis by the exact arclength of the retained shock.
+    # The two anchor blocks remain zero, while the low-order sine modes vary
+    # continuously across the free portion and cannot inject a pointwise
+    # saw-tooth into an otherwise smooth front.
+    left_anchor = anchor_count - 1
+    right_anchor = sample_count - anchor_count
+    arclength = [0.0]
+    for first, second in zip(points, points[1:]):
+      spacing = hypot(second[0] - first[0], second[1] - first[1])
+      if not isfinite(spacing) or spacing <= 0.0:
+        raise ValueError('shape correction encountered a degenerate shock spacing')
+      ####
+      arclength.append(arclength[-1] + spacing)
+    ####
+    basis_length = arclength[right_anchor] - arclength[left_anchor]
+    minimum_spacing = min(
+      arclength[index + 1] - arclength[index]
+      for index in range(left_anchor, right_anchor)
+    )
+    probe_scale = min(maximum_probe, 0.1 * minimum_spacing)
+    smooth_count = min(3, local_budget)
+    if (
+      isfinite(basis_length)
+      and basis_length > 0.0
+      and isfinite(probe_scale)
+      and probe_scale > 2.0 * tolerance
+    ):
+      for mode in range(1, smooth_count + 1):
+        vector = [(0.0, 0.0) for _ in points]
+        for index in interior_indices:
+          coordinate = (
+            arclength[index] - arclength[left_anchor]
+          ) / basis_length
+          weight = sin(mode * pi * coordinate)
+          vector[index] = (
+            probe_scale * weight * normals[index][0],
+            probe_scale * weight * normals[index][1],
+          )
+        ####
+        controls.append(
+          (f'smooth-anchored-normal-shape-{mode}', tuple(vector))
+        )
+      ####
+      local_budget -= smooth_count
+    ####
+    if family is MocEulerTwoSidedShapeControlFamily.SMOOTH_ANCHORED_NORMAL:
+      return tuple(controls)
+    ####
+  ####
+  if local_budget <= 0:
+    return tuple(controls)
+  ####
   if len(interior_indices) > local_budget:
     selected: list[int] = []
     for slot in range(local_budget):
@@ -539,11 +623,6 @@ def _shape_control_vectors(
     ####
     interior_indices = selected
   ####
-  maximum_probe = (
-    request.law_request.maximum_normal_displacement_m
-    * request.shape_jacobian_probe_fraction
-  )
-  tolerance = request.moving_request.position_tolerance_m
   for index in interior_indices:
     left_spacing = hypot(
       points[index][0] - points[index - 1][0],

@@ -32,6 +32,7 @@ from exhaust_plume.models.moc.euler_two_sided_interface_law import (
   solve_euler_two_sided_moving_interface_with_solver_owned_law,
 )
 from exhaust_plume.models.moc.euler_two_sided_conservative_residual_solve import (
+  MocEulerTwoSidedShapeControlFamily,
   MocEulerTwoSidedConservativeResidualSolveRequest,
   MocEulerTwoSidedConservativeResidualSolveResult,
   solve_euler_two_sided_conservative_residual,
@@ -52,6 +53,7 @@ from exhaust_plume.util.aero.shock_validity import ShockBranch
 __all__ = (
   'MOC_GLOBAL_TWO_SIDED_MOVING_INTERFACE_OPERATOR_ID',
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus',
+  'MocEulerTwoSidedShapeControlFamily',
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest',
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceResult',
   'solve_reflected_domain_global_two_sided_moving_interface',
@@ -173,6 +175,9 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
   shape_jacobian_probe_fraction: float = 0.25
   maximum_shape_controls: int = 8
   maximum_shape_step_fraction: float = 1.0
+  shape_control_family: MocEulerTwoSidedShapeControlFamily = (
+    MocEulerTwoSidedShapeControlFamily.POINTWISE_NORMAL
+  )
   source: str = 'solver-owned-global-two-sided-moving-interface-request-v1'
 
   def __post_init__(self) -> None:
@@ -324,6 +329,14 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
         'use_conservative_residual_shape_jacobian_correction must be a bool'
       )
     ####
+    if not isinstance(
+      self.shape_control_family,
+      MocEulerTwoSidedShapeControlFamily,
+    ):
+      raise TypeError(
+        'shape_control_family must be a MocEulerTwoSidedShapeControlFamily'
+      )
+    ####
     if (
       isinstance(self.maximum_shape_controls, bool)
       or not isinstance(self.maximum_shape_controls, int)
@@ -419,6 +432,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'shape_jacobian_probe_fraction': self.shape_jacobian_probe_fraction,
       'maximum_shape_controls': self.maximum_shape_controls,
       'maximum_shape_step_fraction': self.maximum_shape_step_fraction,
+      'shape_control_family': self.shape_control_family.value,
       'source': self.source,
       'chain_promotion_blocked': True,
       'production_claim_allowed': False,
@@ -905,6 +919,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
           shape_jacobian_probe_fraction=request.shape_jacobian_probe_fraction,
           maximum_shape_controls=request.maximum_shape_controls,
           maximum_shape_step_fraction=request.maximum_shape_step_fraction,
+          shape_control_family=request.shape_control_family,
         )
       )
     else:

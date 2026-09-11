@@ -6533,3 +6533,37 @@ missing validation archives, open canonical planar-MOC/free-boundary and
 physical shock-cell gates, and a release-freeze HEAD mismatch.  Those are
 real acceptance dependencies rather than package failures; no synthetic
 observations or historical freeze rewrite is permitted to clear them.
+
+### P3.6 anchored-shape and front-limit closure checkpoint — 2026-09-11
+
+The conservative two-sided research corrector now exposes an explicit
+``MocEulerTwoSidedShapeControlFamily`` contract.  The existing pointwise
+normal basis remains the compatibility default; a bounded low-order
+``smooth-anchored-normal-v1`` basis parameterizes the exact retained shock by
+arclength, leaves the configured endpoint anchor blocks unchanged, and
+perturbs geometry only through fresh shock/companion/physical-field
+re-solves.  A hybrid family is available for diagnostics, and the selected
+family is serialized into both the residual and global moving-interface
+request reports.
+
+The focused regression verifies that smooth probes retain the anchored,
+monotone geometry contract and remain research-only.  The exercised moving
+interior-probe case still stops at a typed iteration limit; the smooth basis
+does not clear the strict normal-momentum residual, so it is not used to
+promote the lane.
+
+Separately, an explicit zero-offset front-limit configuration
+(``downstream_probe_fraction=0`` with stationary equilibrium allowed) now has
+a focused regression showing exact local closure of the signed mass,
+normal-momentum, energy, independent residual audit, and terminal fixed-point
+checks.  This is a useful solver-owned front-limit result for a stationary
+snapshot, not a canonical global/free-boundary result: global coupling,
+downstream boundary closure, shock-cell-chain promotion, external validation,
+and production claims remain false.
+
+The three focused shape/front-limit regressions pass, with Ruff and Python
+compilation clean.  The next physics slice is to consume the signed
+downstream response in the actual global/free-boundary equation while
+preserving these two distinct modes: front-limit local closure may not be
+used to mask the unresolved moving-boundary overlap, and smooth geometry
+controls may not be treated as pressure or state overlays.
