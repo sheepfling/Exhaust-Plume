@@ -41,15 +41,28 @@ from exhaust_plume.validation.moc_global_boundary_state_feedback import (
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_UPDATE_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_REFINEMENT_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_CROSS_CASE_OPERATOR_ID',
   'MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus',
   'MocReflectedDomainGlobalBoundaryStateProfileTrial',
   'MocReflectedDomainGlobalBoundaryStateProfileUpdateResult',
+  'MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus',
+  'MocReflectedDomainGlobalBoundaryStateProfileCase',
+  'MocReflectedDomainGlobalBoundaryStateProfileRefinementCase',
+  'MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement',
+  'run_reflected_domain_global_boundary_state_profile_refinement',
   'run_reflected_domain_global_boundary_state_profile_update',
 )
 
 
 MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_UPDATE_OPERATOR_ID = (
   'op.moc.reflected-domain.global-boundary-state-profile-update-v1'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_REFINEMENT_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-boundary-state-profile-refinement-v1'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_CROSS_CASE_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-boundary-state-profile-cross-case-v1'
 )
 
 
@@ -77,6 +90,30 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus(str, Enum):
   )
   RESIDUAL_DESCENT_FAILURE = (
     'global-boundary-state-profile-update-residual-descent-failure'
+  )
+
+
+class MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus(str, Enum):
+  """Typed outcomes of disjoint profile-update refinement evidence."""
+
+  CONVERGED_RESEARCH_CROSS_CASE = (
+    'converged-research-global-boundary-state-profile-cross-case'
+  )
+  INVALID_INPUT = 'invalid_input'
+  CASE_BINDING_FAILURE = (
+    'global-boundary-state-profile-refinement-case-binding-failure'
+  )
+  RESOLUTION_FAILURE = (
+    'global-boundary-state-profile-refinement-resolution-failure'
+  )
+  UPDATE_FAILURE = (
+    'global-boundary-state-profile-refinement-update-failure'
+  )
+  STABILITY_FAILURE = (
+    'global-boundary-state-profile-refinement-stability-failure'
+  )
+  FIDELITY_FAILURE = (
+    'global-boundary-state-profile-refinement-fidelity-failure'
   )
 
 
@@ -452,6 +489,296 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
     }
 
 
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalBoundaryStateProfileCase:
+  """One disjoint handoff and source resolution for profile refinement."""
+
+  case_id: str
+  regime: str
+  handoff: MocReflectedDomainGlobalBoundaryStateFeedbackHandoff
+  resolution_sample_count: int
+
+  def __post_init__(self) -> None:
+    case_id = str(self.case_id)
+    regime = str(self.regime)
+    if not case_id or not regime:
+      raise ValueError('case_id and regime must be non-empty')
+    if not isinstance(
+      self.handoff,
+      MocReflectedDomainGlobalBoundaryStateFeedbackHandoff,
+    ):
+      raise TypeError('handoff must be a typed global boundary-state handoff')
+    if (
+      isinstance(self.resolution_sample_count, bool)
+      or not isinstance(self.resolution_sample_count, int)
+      or self.resolution_sample_count < 3
+    ):
+      raise ValueError('resolution_sample_count must be an integer >= 3')
+    object.__setattr__(self, 'case_id', case_id)
+    object.__setattr__(self, 'regime', regime)
+
+  @property
+  def source_closure(self) -> MocReflectedDomainGlobalPhysicalClosureResult:
+    return self.handoff.boundary_feedback_run.final_closure
+
+  @property
+  def source_closure_fingerprint(self) -> str:
+    return _fingerprint(self.source_closure)
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'case_id': self.case_id,
+      'regime': self.regime,
+      'resolution_sample_count': self.resolution_sample_count,
+      'source_closure_fingerprint': self.source_closure_fingerprint,
+      'handoff': self.handoff.as_report(),
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalBoundaryStateProfileRefinementCase:
+  """One retained profile update and its independent case gates."""
+
+  case: MocReflectedDomainGlobalBoundaryStateProfileCase
+  result: MocReflectedDomainGlobalBoundaryStateProfileUpdateResult
+  source_lineage_verified: bool = False
+  fresh_update_invocations_verified: bool = False
+  geometry_update_verified: bool = False
+  residual_descent_verified: bool = False
+  independent_residual_audit_verified: bool = False
+  fidelity_isolation_verified: bool = False
+  residual_reduction_fraction: float | None = None
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.case,
+      MocReflectedDomainGlobalBoundaryStateProfileCase,
+    ):
+      raise TypeError('case must be a typed profile refinement case')
+    if not isinstance(
+      self.result,
+      MocReflectedDomainGlobalBoundaryStateProfileUpdateResult,
+    ):
+      raise TypeError('result must be a typed profile update result')
+    if self.residual_reduction_fraction is not None:
+      reduction = float(self.residual_reduction_fraction)
+      if not isfinite(reduction) or reduction < 0.0:
+        raise ValueError(
+          'residual_reduction_fraction must be finite and nonnegative'
+        )
+      object.__setattr__(self, 'residual_reduction_fraction', reduction)
+    for name in (
+      'source_lineage_verified',
+      'fresh_update_invocations_verified',
+      'geometry_update_verified',
+      'residual_descent_verified',
+      'independent_residual_audit_verified',
+      'fidelity_isolation_verified',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def local_research_verified(self) -> bool:
+    return bool(
+      self.result.converged_research_profile_update
+      and self.source_lineage_verified
+      and self.fresh_update_invocations_verified
+      and self.geometry_update_verified
+      and self.residual_descent_verified
+      and self.independent_residual_audit_verified
+      and self.fidelity_isolation_verified
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'case': self.case.as_report(),
+      'source_closure_fingerprint': self.case.source_closure_fingerprint,
+      'local_research_verified': self.local_research_verified,
+      'source_lineage_verified': self.source_lineage_verified,
+      'fresh_update_invocations_verified': (
+        self.fresh_update_invocations_verified
+      ),
+      'geometry_update_verified': self.geometry_update_verified,
+      'residual_descent_verified': self.residual_descent_verified,
+      'independent_residual_audit_verified': (
+        self.independent_residual_audit_verified
+      ),
+      'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'residual_reduction_fraction': self.residual_reduction_fraction,
+      'result': self.result.as_report(),
+      'message': self.message,
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
+  """Aggregate disjoint-case and increasing-resolution profile evidence."""
+
+  status: MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+  cases: tuple[
+    MocReflectedDomainGlobalBoundaryStateProfileRefinementCase, ...
+  ] = ()
+  case_ids: tuple[str, ...] = ()
+  source_closure_fingerprints: tuple[str, ...] = ()
+  resolution_sample_counts: tuple[int, ...] = ()
+  response_mode_identity: tuple[str, ...] = ()
+  resolution_order_verified: bool = False
+  distinct_cases_verified: bool = False
+  distinct_source_closures_verified: bool = False
+  case_bindings_verified: bool = False
+  fresh_update_invocations_verified: bool = False
+  geometry_updates_verified: bool = False
+  strict_residual_descent_verified: bool = False
+  independent_residual_audits_verified: bool = False
+  residuals_finite: bool = False
+  fidelity_isolation_verified: bool = False
+  minimum_residual_reduction_fraction: float | None = None
+  maximum_residual_reduction_fraction: float | None = None
+  external_validation_required: bool = True
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  operator_id: str = (
+    MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_CROSS_CASE_OPERATOR_ID
+  )
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus,
+    ):
+      raise TypeError('status must be a typed profile-refinement status')
+    cases = tuple(self.cases)
+    ids = tuple(str(value) for value in self.case_ids)
+    fingerprints = tuple(str(value) for value in self.source_closure_fingerprints)
+    resolutions = tuple(int(value) for value in self.resolution_sample_counts)
+    if not (len(cases) == len(ids) == len(fingerprints) == len(resolutions)):
+      raise ValueError('profile refinement case metadata must align')
+    if any(
+      not isinstance(
+        case,
+        MocReflectedDomainGlobalBoundaryStateProfileRefinementCase,
+      )
+      for case in cases
+    ):
+      raise TypeError('cases must contain typed profile refinement cases')
+    if len(set(ids)) != len(ids):
+      raise ValueError('profile refinement case IDs must be unique')
+    if len(set(fingerprints)) != len(fingerprints):
+      raise ValueError('profile refinement source closures must be distinct')
+    if any(value < 3 for value in resolutions):
+      raise ValueError('profile refinement resolutions must be >= 3')
+    mode_identity = tuple(str(value) for value in self.response_mode_identity)
+    if any(not value for value in mode_identity):
+      raise ValueError('response_mode_identity values must be non-empty')
+    for name in (
+      'resolution_order_verified',
+      'distinct_cases_verified',
+      'distinct_source_closures_verified',
+      'case_bindings_verified',
+      'fresh_update_invocations_verified',
+      'geometry_updates_verified',
+      'strict_residual_descent_verified',
+      'independent_residual_audits_verified',
+      'residuals_finite',
+      'fidelity_isolation_verified',
+      'external_validation_required',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.minimum_residual_reduction_fraction is not None:
+      minimum = float(self.minimum_residual_reduction_fraction)
+      if not isfinite(minimum) or minimum < 0.0:
+        raise ValueError('minimum residual reduction must be finite and nonnegative')
+      object.__setattr__(self, 'minimum_residual_reduction_fraction', minimum)
+    if self.maximum_residual_reduction_fraction is not None:
+      maximum = float(self.maximum_residual_reduction_fraction)
+      if not isfinite(maximum) or maximum < 0.0:
+        raise ValueError('maximum residual reduction must be finite and nonnegative')
+      object.__setattr__(self, 'maximum_residual_reduction_fraction', maximum)
+    if not self.chain_promotion_blocked or self.production_claim_allowed:
+      raise ValueError('profile refinement must remain promotion-blocked')
+    if not self.external_validation_required:
+      raise ValueError('profile refinement must retain external validation')
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'case_ids', ids)
+    object.__setattr__(self, 'source_closure_fingerprints', fingerprints)
+    object.__setattr__(self, 'resolution_sample_counts', resolutions)
+    object.__setattr__(self, 'response_mode_identity', mode_identity)
+    object.__setattr__(self, 'operator_id', str(self.operator_id))
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+      .CONVERGED_RESEARCH_CROSS_CASE
+      and len(self.cases) >= 2
+      and self.resolution_order_verified
+      and self.distinct_cases_verified
+      and self.distinct_source_closures_verified
+      and self.case_bindings_verified
+      and self.fresh_update_invocations_verified
+      and self.geometry_updates_verified
+      and self.strict_residual_descent_verified
+      and self.independent_residual_audits_verified
+      and self.residuals_finite
+      and self.fidelity_isolation_verified
+      and self.external_validation_required
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+      and all(case.local_research_verified for case in self.cases)
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'operator_id': self.operator_id,
+      'refinement_operator_id': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_REFINEMENT_OPERATOR_ID
+      ),
+      'status': self.status.value,
+      'converged': self.converged,
+      'case_ids': self.case_ids,
+      'source_closure_fingerprints': self.source_closure_fingerprints,
+      'resolution_sample_counts': self.resolution_sample_counts,
+      'response_mode_identity': self.response_mode_identity,
+      'resolution_order_verified': self.resolution_order_verified,
+      'distinct_cases_verified': self.distinct_cases_verified,
+      'distinct_source_closures_verified': self.distinct_source_closures_verified,
+      'case_bindings_verified': self.case_bindings_verified,
+      'fresh_update_invocations_verified': self.fresh_update_invocations_verified,
+      'geometry_updates_verified': self.geometry_updates_verified,
+      'strict_residual_descent_verified': self.strict_residual_descent_verified,
+      'independent_residual_audits_verified': (
+        self.independent_residual_audits_verified
+      ),
+      'residuals_finite': self.residuals_finite,
+      'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'minimum_residual_reduction_fraction': (
+        self.minimum_residual_reduction_fraction
+      ),
+      'maximum_residual_reduction_fraction': (
+        self.maximum_residual_reduction_fraction
+      ),
+      'external_validation_required': True,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+      'cases': tuple(case.as_report() for case in self.cases),
+      'claim_status': (
+        'research-only disjoint global profile-update evidence; canonical '
+        'free-boundary closure, shock-cell promotion, Signature/FPA production, '
+        'external validation, and release remain open'
+      ),
+      'message': self.message,
+    }
+
+
 def _result(
   status: MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus,
   handoff: MocReflectedDomainGlobalBoundaryStateFeedbackHandoff | None,
@@ -464,6 +791,259 @@ def _result(
     message=message,
     **kwargs,
   )
+
+
+def _refinement_measurement(
+  status: MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus,
+  message: str,
+  **kwargs: Any,
+) -> MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
+  return MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement(
+    status=status,
+    message=message,
+    **kwargs,
+  )
+
+
+def run_reflected_domain_global_boundary_state_profile_refinement(
+  cases: Sequence[MocReflectedDomainGlobalBoundaryStateProfileCase],
+  *,
+  compression_profile_step: float = 0.25,
+  maximum_profile_steps: int = 2,
+) -> MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
+  """Run the same bounded profile policy on disjoint cases and resolutions.
+
+  The caller supplies only already verified handoffs and their source
+  resolutions.  Profile controls are owned by this runner and must be
+  identical across cases.  Every case is solved afresh; reusing one profile
+  result to manufacture refinement evidence is not permitted.
+  """
+
+  try:
+    resolved_cases = tuple(cases)
+  except TypeError:
+    return _refinement_measurement(
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus.INVALID_INPUT,
+      'cases must be an iterable of typed profile refinement cases',
+    )
+  if len(resolved_cases) < 2:
+    return _refinement_measurement(
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus.INVALID_INPUT,
+      'profile refinement requires at least two disjoint cases',
+    )
+  if any(
+    not isinstance(case, MocReflectedDomainGlobalBoundaryStateProfileCase)
+    for case in resolved_cases
+  ):
+    return _refinement_measurement(
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus.INVALID_INPUT,
+      'cases must contain typed profile refinement cases',
+    )
+  try:
+    step = float(compression_profile_step)
+    if not isfinite(step) or step <= 0.0 or step > 1.0:
+      raise ValueError('compression_profile_step must be finite in (0, 1]')
+    if (
+      isinstance(maximum_profile_steps, bool)
+      or not isinstance(maximum_profile_steps, int)
+      or maximum_profile_steps < 1
+    ):
+      raise ValueError('maximum_profile_steps must be a positive integer')
+  except (TypeError, ValueError) as error:
+    return _refinement_measurement(
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus.INVALID_INPUT,
+      f'profile refinement setup failed: {error}',
+    )
+  ####
+
+  case_ids = tuple(case.case_id for case in resolved_cases)
+  fingerprints = tuple(
+    case.source_closure_fingerprint for case in resolved_cases
+  )
+  resolutions = tuple(
+    case.resolution_sample_count for case in resolved_cases
+  )
+  distinct_cases = len(set(case_ids)) == len(case_ids)
+  distinct_sources = len(set(fingerprints)) == len(fingerprints)
+  resolution_order = all(
+    previous < current
+    for previous, current in zip(resolutions, resolutions[1:])
+  )
+  mode_identity = (
+    'profile-policy=solver-owned-symmetric-skew-sweep-v1',
+    f'compression_profile_step={step:.12g}',
+    f'maximum_profile_steps={maximum_profile_steps}',
+    'candidate_closure=exact-global-physical-re-solve-v1',
+    'candidate_state=exact-global-two-sided-re-solve-v1',
+  )
+  if not distinct_cases or not distinct_sources:
+    return _refinement_measurement(
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+      .CASE_BINDING_FAILURE,
+      'profile refinement requires unique case IDs and distinct source closure fingerprints',
+      response_mode_identity=mode_identity,
+      distinct_cases_verified=distinct_cases,
+      distinct_source_closures_verified=distinct_sources,
+      resolution_order_verified=resolution_order,
+    )
+  if not resolution_order:
+    return _refinement_measurement(
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+      .RESOLUTION_FAILURE,
+      'profile refinement resolutions must be strictly increasing',
+      response_mode_identity=mode_identity,
+      distinct_cases_verified=True,
+      distinct_source_closures_verified=True,
+      resolution_order_verified=False,
+    )
+  ####
+
+  retained_cases: list[
+    MocReflectedDomainGlobalBoundaryStateProfileRefinementCase
+  ] = []
+  for case in resolved_cases:
+    result = run_reflected_domain_global_boundary_state_profile_update(
+      case.handoff,
+      compression_profile_step=step,
+      maximum_profile_steps=maximum_profile_steps,
+    )
+    source = case.source_closure
+    source_lineage = bool(
+      result.handoff_lineage_verified
+      and result.source_closure is source
+      and result.source_closure is case.handoff.boundary_feedback_run.final_closure
+      and result.as_report()['source_closure_fingerprint']
+      == case.source_closure_fingerprint
+    )
+    fresh_update = bool(
+      result.profile_sweep_invoked
+      and result.profile_sweep_verified
+      and result.trials
+      and all(
+        trial.candidate_closure is not None
+        and trial.closure_fingerprint is not None
+        and trial.closure_fingerprint != case.source_closure_fingerprint
+        and trial.candidate_closure is not source
+        and trial.closure_verified
+        for trial in result.trials
+      )
+    )
+    fidelity = bool(
+      result.chain_promotion_blocked
+      and not result.production_claim_allowed
+      and result.state_request is not None
+      and result.state_request.consume_global_physical_field_for_downstream_probes
+      and result.updated_closure is not None
+      and result.updated_closure is not source
+    )
+    reduction: float | None = None
+    if (
+      result.baseline_residual_norm is not None
+      and result.refreshed_residual_norm is not None
+      and result.baseline_residual_norm > 0.0
+      and isfinite(result.baseline_residual_norm)
+      and isfinite(result.refreshed_residual_norm)
+    ):
+      reduction = (
+        result.baseline_residual_norm - result.refreshed_residual_norm
+      ) / result.baseline_residual_norm
+      reduction = max(0.0, reduction)
+    retained_cases.append(
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementCase(
+        case=case,
+        result=result,
+        source_lineage_verified=source_lineage,
+        fresh_update_invocations_verified=fresh_update,
+        geometry_update_verified=result.geometry_update_verified,
+        residual_descent_verified=result.residual_descent_verified,
+        independent_residual_audit_verified=(
+          result.independent_residual_audit_verified
+        ),
+        fidelity_isolation_verified=fidelity,
+        residual_reduction_fraction=reduction,
+        message=(
+          'case retained a fresh exact profile closure and independently '
+          'audited strict residual descent'
+          if result.converged_research_profile_update
+          else 'case did not pass the complete profile-update evidence bundle'
+        ),
+      )
+    )
+  ####
+
+  retained = tuple(retained_cases)
+  reductions = tuple(
+    case.residual_reduction_fraction
+    for case in retained
+    if case.residual_reduction_fraction is not None
+  )
+  residuals_finite = bool(
+    len(reductions) == len(retained)
+    and all(isfinite(value) and value > 0.0 for value in reductions)
+  )
+  common = dict(
+    cases=retained,
+    case_ids=case_ids,
+    source_closure_fingerprints=fingerprints,
+    resolution_sample_counts=resolutions,
+    response_mode_identity=mode_identity,
+    resolution_order_verified=True,
+    distinct_cases_verified=True,
+    distinct_source_closures_verified=True,
+    case_bindings_verified=all(case.source_lineage_verified for case in retained),
+    fresh_update_invocations_verified=all(
+      case.fresh_update_invocations_verified for case in retained
+    ),
+    geometry_updates_verified=all(
+      case.geometry_update_verified for case in retained
+    ),
+    strict_residual_descent_verified=all(
+      case.residual_descent_verified for case in retained
+    ),
+    independent_residual_audits_verified=all(
+      case.independent_residual_audit_verified for case in retained
+    ),
+    residuals_finite=residuals_finite,
+    fidelity_isolation_verified=all(
+      case.fidelity_isolation_verified for case in retained
+    ),
+    minimum_residual_reduction_fraction=(
+      min(reductions) if reductions else None
+    ),
+    maximum_residual_reduction_fraction=(
+      max(reductions) if reductions else None
+    ),
+  )
+  if all(case.local_research_verified for case in retained):
+    return _refinement_measurement(
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+      .CONVERGED_RESEARCH_CROSS_CASE,
+      'disjoint profile-update cases passed fresh closure, geometry, audit, '
+      'and strict-descent gates; external validation and promotion remain open',
+      **common,
+    )
+  if not common['fresh_update_invocations_verified']:
+    status = (
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+      .UPDATE_FAILURE
+    )
+    message = 'one or more cases did not retain a fresh profile-update sweep'
+  elif not common['fidelity_isolation_verified']:
+    status = (
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+      .FIDELITY_FAILURE
+    )
+    message = 'one or more cases did not retain the required fidelity isolation gates'
+  else:
+    status = (
+      MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+      .STABILITY_FAILURE
+    )
+    message = (
+      'one or more disjoint profile-update cases failed geometry, independent '
+      'audit, or strict-descent evidence'
+    )
+  return _refinement_measurement(status, message, **common)
 
 
 def run_reflected_domain_global_boundary_state_profile_update(

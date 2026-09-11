@@ -442,9 +442,16 @@ from exhaust_plume.validation.moc_global_boundary_state_outer_update import (
 )
 from exhaust_plume.validation.moc_global_boundary_state_profile_update import (
   MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_UPDATE_OPERATOR_ID,
+  MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_REFINEMENT_OPERATOR_ID,
+  MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_CROSS_CASE_OPERATOR_ID,
   MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus,
   MocReflectedDomainGlobalBoundaryStateProfileTrial,
   MocReflectedDomainGlobalBoundaryStateProfileUpdateResult,
+  MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus,
+  MocReflectedDomainGlobalBoundaryStateProfileCase,
+  MocReflectedDomainGlobalBoundaryStateProfileRefinementCase,
+  MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement,
+  run_reflected_domain_global_boundary_state_profile_refinement,
   run_reflected_domain_global_boundary_state_profile_update,
 )
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_refinement import (
@@ -1253,9 +1260,16 @@ __all__ = (
   'MocReflectedDomainGlobalBoundaryStateOuterUpdateResult',
   'run_reflected_domain_global_boundary_state_outer_update',
   'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_UPDATE_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_REFINEMENT_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_BOUNDARY_STATE_PROFILE_CROSS_CASE_OPERATOR_ID',
   'MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus',
   'MocReflectedDomainGlobalBoundaryStateProfileTrial',
   'MocReflectedDomainGlobalBoundaryStateProfileUpdateResult',
+  'MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus',
+  'MocReflectedDomainGlobalBoundaryStateProfileCase',
+  'MocReflectedDomainGlobalBoundaryStateProfileRefinementCase',
+  'MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement',
+  'run_reflected_domain_global_boundary_state_profile_refinement',
   'run_reflected_domain_global_boundary_state_profile_update',
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_BOUNDARY_CONDITION_FEEDBACK_CROSS_CASE_REFINEMENT_OPERATOR_ID',

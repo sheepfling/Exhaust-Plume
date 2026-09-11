@@ -5822,3 +5822,27 @@ case/refinement evidence for this update direction, followed by closure of the
 canonical planar-MOC/free-boundary equation and physical shock-cell-length
 comparisons.  Validation archives, provider-bound VIS/SIG/RAY/FPA comparisons,
 and the release freeze remain open.
+
+### P2.2 disjoint profile-update refinement checkpoint — 2026-09-11
+
+The profile response now has a separate refinement operator,
+``op.moc.reflected-domain.global-boundary-state-profile-refinement-v1``, with
+the cross-case report identity
+``op.moc.reflected-domain.global-boundary-state-profile-cross-case-v1``.  It
+requires at least two typed handoffs, unique case IDs, distinct source-closure
+fingerprints, and strictly increasing source resolutions.  It applies one
+identical solver-owned symmetric skew-sweep policy to every case and rejects
+reused candidate results, profile injection, or production flags.
+
+The new regression runs fresh 7- and 9-sample mixed-regime source closures.
+Both cases retain fresh exact global profile/state solves, changed shock
+geometry, signed conservative channels, independent residual audits, and strict
+residual descent.  The aggregate measurement passes its disjoint-case and
+resolution-order gates while retaining the external-validation requirement and
+promotion block.  This is research evidence for update stability, not a
+canonical free-boundary or product-validation claim.
+
+The next P2.2 gate is the canonical planar-MOC/free-boundary equation and its
+physical shock-cell-length comparison.  The five Visualization lanes,
+Signature/ray-transfer/FPA provider comparisons, validation archives, and
+release freeze remain open.

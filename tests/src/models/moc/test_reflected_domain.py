@@ -421,7 +421,10 @@ from exhaust_plume.validation.moc_global_boundary_state_outer_update import (
   run_reflected_domain_global_boundary_state_outer_update,
 )
 from exhaust_plume.validation.moc_global_boundary_state_profile_update import (
+  MocReflectedDomainGlobalBoundaryStateProfileCase,
+  MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus,
   MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus,
+  run_reflected_domain_global_boundary_state_profile_refinement,
   run_reflected_domain_global_boundary_state_profile_update,
 )
 from exhaust_plume.validation.moc_global_coupled_boundary_condition_feedback_refinement import (
@@ -12740,6 +12743,78 @@ def test_global_boundary_state_profile_update_changes_geometry_and_descends():
   assert report['updated_closure_fingerprint'] != report[
     'source_closure_fingerprint'
   ]
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_boundary_state_profile_refinement_requires_fresh_disjoint_cases():
+  cases = []
+  for sample_count in (7, 9):
+    closure = _global_physical_closure_for_mixed_regime(sample_count)
+    feedback = run_reflected_domain_global_boundary_state_feedback(
+      closure,
+      reference_total_temperature_K=1500.0,
+      downstream_feedback_iterations=2,
+      downstream_options={
+        'axial_station_count': 7,
+        'axial_cell_count': 8,
+        'transverse_cell_count': 4,
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+      two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+    )
+    assert feedback.handoff is not None
+    cases.append(
+      MocReflectedDomainGlobalBoundaryStateProfileCase(
+        case_id=f'mixed-profile-{sample_count}',
+        regime='mixed-regime-research',
+        handoff=feedback.handoff,
+        resolution_sample_count=sample_count,
+      )
+    )
+  ####
+
+  measurement = run_reflected_domain_global_boundary_state_profile_refinement(
+    tuple(cases),
+    compression_profile_step=0.25,
+    maximum_profile_steps=2,
+  )
+
+  assert measurement.status is (
+    MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
+    .CONVERGED_RESEARCH_CROSS_CASE
+  )
+  assert measurement.converged
+  assert measurement.case_ids == ('mixed-profile-7', 'mixed-profile-9')
+  assert measurement.resolution_sample_counts == (7, 9)
+  assert measurement.resolution_order_verified
+  assert measurement.distinct_cases_verified
+  assert measurement.distinct_source_closures_verified
+  assert measurement.case_bindings_verified
+  assert measurement.fresh_update_invocations_verified
+  assert measurement.geometry_updates_verified
+  assert measurement.strict_residual_descent_verified
+  assert measurement.independent_residual_audits_verified
+  assert measurement.residuals_finite
+  assert measurement.fidelity_isolation_verified
+  assert measurement.minimum_residual_reduction_fraction is not None
+  assert measurement.minimum_residual_reduction_fraction > 0.0
+  assert measurement.maximum_residual_reduction_fraction is not None
+  assert measurement.maximum_residual_reduction_fraction >= (
+    measurement.minimum_residual_reduction_fraction
+  )
+  assert measurement.external_validation_required
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert all(case.local_research_verified for case in measurement.cases)
+  report = measurement.as_report()
+  assert report['operator_id'] == (
+    'op.moc.reflected-domain.global-boundary-state-profile-cross-case-v1'
+  )
+  assert report['refinement_operator_id'] == (
+    'op.moc.reflected-domain.global-boundary-state-profile-refinement-v1'
+  )
   assert report['production_claim_allowed'] is False
 ####
 
