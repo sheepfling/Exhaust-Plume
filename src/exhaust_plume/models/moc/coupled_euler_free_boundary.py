@@ -2088,6 +2088,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'solver-owned moving mixed-regime two-sided mode requires the '
           'independently audited two-sided shock-boundary handoff'
         )
+      if two_sided_moving_regime_mode and (
+        handoff.two_sided_companion_field is None
+        or not handoff.two_sided_companion_field_verified
+      ):
+        raise ValueError(
+          'solver-owned moving mixed-regime two-sided mode requires the '
+          'independently audited open companion-field handoff'
+        )
     ####
     continuation_mode = self.inlet_boundary_mode in (
       MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -2545,6 +2553,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None
   moving_mixed_regime_interface_consumed: bool = False
   two_sided_shock_boundary_consumed: bool = False
+  two_sided_companion_field_consumed: bool = False
   inlet_boundary_states_consumed: bool = False
   initial_state_source: str | None = None
   initial_state_field_bound: bool = False
@@ -3054,6 +3063,11 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'two_sided_shock_boundary_consumed must be a bool'
       )
     ####
+    if not isinstance(self.two_sided_companion_field_consumed, bool):
+      raise TypeError(
+        'two_sided_companion_field_consumed must be a bool'
+      )
+    ####
     if not isinstance(self.inlet_boundary_states_consumed, bool):
       raise TypeError('inlet_boundary_states_consumed must be a bool')
     ####
@@ -3468,6 +3482,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'two_sided_shock_boundary_consumed': (
         self.two_sided_shock_boundary_consumed
+      ),
+      'two_sided_companion_field_consumed': (
+        self.two_sided_companion_field_consumed
       ),
       'inlet_boundary_states_consumed': self.inlet_boundary_states_consumed,
       'initial_state_source': self.initial_state_source,
@@ -5615,6 +5632,20 @@ def _prepare_moving_mixed_regime_inlet(
       'audited two-sided shock-boundary handoff'
     )
   ####
+  if (
+    request.inlet_boundary_mode
+    is MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+    and (
+      moving_interface.two_sided_companion_field is None
+      or not moving_interface.two_sided_companion_field_verified
+    )
+  ):
+    raise RuntimeError(
+      'two-sided moving mixed-regime field mode requires the independently '
+      'audited open companion-field handoff'
+    )
+  ####
   handoff = moving_interface.request
   x_tolerance = max(1.0e-10, 1.0e-8 * max(abs(x_start), 1.0))
   y_tolerance = max(1.0e-10, 1.0e-8 * max(abs(inlet_height), 1.0))
@@ -6243,6 +6274,14 @@ def _result_from_field(
       and moving_mixed_regime_interface is not None
       and moving_mixed_regime_interface.two_sided_shock_boundary is not None
       and moving_mixed_regime_interface.two_sided_shock_boundary_verified
+    ),
+    two_sided_companion_field_consumed=bool(
+      request.inlet_boundary_mode
+      is MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+      and moving_mixed_regime_interface is not None
+      and moving_mixed_regime_interface.two_sided_companion_field is not None
+      and moving_mixed_regime_interface.two_sided_companion_field_verified
     ),
     initial_state_source=initial_state_source,
     initial_state_field_bound=initial_state_field_bound,

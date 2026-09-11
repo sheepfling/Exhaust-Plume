@@ -1687,6 +1687,9 @@ def _moc_field_from_result(result: object) -> tuple[object | None, object]:
     for attribute in (
       'candidate_field',
       'physical_field',
+      'final_physical_field',
+      'final_source_strip',
+      'initial_companion_field',
       'global_euler',
       'closure',
       'field',
@@ -1836,6 +1839,10 @@ def _moc_solver_evidence(result: object) -> tuple[object | None, object | None]:
     physical_field = getattr(candidate, 'physical_field', None)
     if physical_field is not None:
       candidates.append(physical_field)
+    ####
+    final_physical_field = getattr(candidate, 'final_physical_field', None)
+    if final_physical_field is not None:
+      candidates.append(final_physical_field)
     ####
   ####
   shock_curve: object | None = None
@@ -2351,6 +2358,18 @@ def _moc_visualization(
     mixed_regime_reference = result
   ####
   mixed_regime_overlay_warnings: list[str] = []
+  two_sided_visual_warnings: list[str] = []
+  two_sided_field_iteration = bool(
+    hasattr(result, 'records')
+    and hasattr(result, 'final_physical_field')
+    and hasattr(result, 'final_source_strip')
+    and hasattr(result, 'fixed_point_converged')
+  )
+  two_sided_source_strip = (
+    getattr(result, 'final_source_strip', None)
+    if two_sided_field_iteration
+    else None
+  )
   boundary_specs = (
     ('moc-shock-boundary', 'fitted shock boundary', getattr(field, 'shock_boundary_points_m', ())),
     ('moc-ambient-boundary', 'ambient-pressure boundary', getattr(field, 'ambient_boundary_points_m', ())),
@@ -2366,6 +2385,36 @@ def _moc_visualization(
       path = _path3(path_id, semantic, points)
       if path is not None:
         paths.append(path)
+      ####
+    ####
+  ####
+  if two_sided_source_strip is not None:
+    try:
+      terminal_trace = _finite_path(
+        getattr(two_sided_source_strip, 'terminal_trace_points_m', ())
+      )
+    except (TypeError, ValueError, IndexError):
+      terminal_trace = ()
+      two_sided_visual_warnings.append(
+        'two-sided terminal trace has invalid geometry and remains unavailable'
+      )
+    ####
+    if len(terminal_trace) < 2:
+      two_sided_visual_warnings.append(
+        'two-sided terminal trace has fewer than two samples and remains unavailable'
+      )
+    else:
+      terminal_path = _path3(
+        'moc-two-sided-terminal-trace',
+        (
+          'retained open two-sided exact-Euler terminal characteristic trace; '
+          'research-only and not a closed free boundary'
+        ),
+        terminal_trace,
+      )
+      if terminal_path is not None:
+        paths.append(terminal_path)
+        all_points.extend(terminal_trace)
       ####
     ####
   ####
@@ -4170,6 +4219,63 @@ def _moc_visualization(
     ####
   ####
   diagnostics.update(solver_diagnostics)
+  if two_sided_field_iteration:
+    diagnostics['two_sided_field_iteration'] = True
+    status = getattr(result, 'status', '')
+    diagnostics['two_sided_field_iteration_status'] = str(
+      getattr(status, 'value', status)
+    )
+    for name in (
+      'fixed_point_converged',
+      'field_iteration_verified',
+      'canonical_free_boundary_verified',
+      'canonical_euler_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      value = getattr(result, name, None)
+      if isinstance(value, bool):
+        diagnostics[f'two_sided_{name}'] = value
+      ####
+    ####
+    diagnostics['two_sided_iteration_count'] = int(
+      len(getattr(result, 'records', ()))
+    )
+    physical = getattr(result, 'final_physical_field', None)
+    if physical is not None:
+      physical_status = getattr(physical, 'status', '')
+      diagnostics['two_sided_final_physical_field_status'] = str(
+        getattr(physical_status, 'value', physical_status)
+      )
+      maximum_entropy = getattr(physical, 'maximum_entropy_residual', None)
+      if maximum_entropy is not None and isfinite(float(maximum_entropy)):
+        diagnostics['two_sided_maximum_entropy_residual'] = float(maximum_entropy)
+      ####
+    ####
+    strip = two_sided_source_strip
+    if strip is not None:
+      strip_status = getattr(strip, 'status', '')
+      diagnostics['two_sided_terminal_trace_status'] = str(
+        getattr(strip_status, 'value', strip_status)
+      )
+      diagnostics['two_sided_terminal_trace_sample_count'] = int(
+        len(getattr(strip, 'terminal_trace_points_m', ()))
+      )
+      trace_validation = getattr(strip, 'terminal_trace_validation', None)
+      if trace_validation is not None:
+        diagnostics['two_sided_terminal_trace_verified'] = bool(
+          getattr(trace_validation, 'converged', False)
+        )
+      for name in (
+        'maximum_geometry_residual_m',
+        'maximum_absolute_invariant_residual',
+      ):
+        value = getattr(strip, name, None)
+        if value is not None and isfinite(float(value)):
+          diagnostics[f'two_sided_terminal_{name}'] = float(value)
+      ####
+    ####
+  ####
   if isinstance(gates, Mapping):
     for key, value in gates.items():
       diagnostics[f'gate_{key}'] = bool(value)
@@ -4181,6 +4287,7 @@ def _moc_visualization(
     'MOC production promotion remains blocked until canonical closure, refinement, and external validation gates pass',
     *solver_warnings,
     *mixed_regime_overlay_warnings,
+    *two_sided_visual_warnings,
     *production_fit_overlay_warnings,
   ]
   if production_fit_result:
@@ -4214,6 +4321,13 @@ def _moc_visualization(
       'front-aligned conservative reconciliation is a fixed-front research '
       'consumer; residual heat maps do not establish global placement, '
       'refinement convergence, or production shock-cell validity'
+    )
+  ####
+  if two_sided_field_iteration:
+    warnings.append(
+      'two-sided exact-Euler field and terminal-trace overlays are bounded '
+      'research evidence; the shock geometry is fixed, moving/free-boundary '
+      'feedback is unresolved, and production claims remain blocked'
     )
   ####
   if target_pressure_reconciliation:
@@ -4332,6 +4446,8 @@ def _moc_visualization(
     model_id = 'planar-moc-physical-field-euler-reconciliation'
   elif coupled_euler:
     model_id = 'planar-moc-coupled-euler-free-boundary'
+  elif two_sided_field_iteration:
+    model_id = 'planar-moc-two-sided-euler-field-iteration'
   elif production_fit_result:
     model_id = 'planar-moc-production-shock-cell-fit'
   elif mixed_regime_reference is not None:
@@ -4389,6 +4505,11 @@ def _moc_visualization(
     )
   elif reconciled_euler:
     claim_note = 'front-aligned conservative physical-field reconciliation retained for research visualization'
+  elif two_sided_field_iteration:
+    claim_note = (
+      'two-sided exact-Euler field iteration and open terminal trace retained '
+      'for research visualization; moving/free-boundary closure remains open'
+    )
   elif coupled_euler:
     claim_note = 'coupled constant-gamma Euler/free-boundary field retained for research visualization'
   else:

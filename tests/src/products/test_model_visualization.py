@@ -635,6 +635,71 @@ def test_moc_global_euler_visualization_exposes_solver_owned_shock_parameters() 
 ####
 
 
+def test_two_sided_euler_iteration_visualization_exposes_terminal_trace() -> None:
+  curve = SimpleNamespace(
+    shock_points_m=((0.5, 0.4), (1.0, 0.3), (1.5, 0.15), (2.0, 0.0)),
+    shock_angles_rad=(0.1, 0.15, 0.2, 0.25),
+    beta_rad=(0.4, 0.42, 0.44, 0.46),
+    target_downstream_flow_angles_rad=(0.0, 0.01, 0.02, 0.03),
+    upstream_static_pressure_Pa=(200_000.0, 190_000.0, 180_000.0, 170_000.0),
+    downstream_static_pressure_Pa=(160_000.0, 152_000.0, 144_000.0, 136_000.0),
+    upstream_total_pressure_Pa=(220_000.0, 209_000.0, 198_000.0, 187_000.0),
+    downstream_total_pressure_Pa=(198_000.0, 188_100.0, 178_200.0, 168_300.0),
+    shock_jump_mass_residuals=(1.0e-9, 2.0e-9, 3.0e-9, 4.0e-9),
+    shock_jump_momentum_residuals=(2.0e-9, 3.0e-9, 4.0e-9, 5.0e-9),
+    shock_jump_energy_residuals=(3.0e-9, 4.0e-9, 5.0e-9, 6.0e-9),
+    tangent_residuals_rad=(1.0e-10, 2.0e-10, 3.0e-10, 4.0e-10),
+    orientation='mixed-characteristic-boundary',
+  )
+  physical = SimpleNamespace(
+    status='converged-euler-ambient-closed-physical-field',
+    shock_boundary=curve,
+    field=_MocField(),
+    maximum_entropy_residual=2.0e-12,
+  )
+  strip = SimpleNamespace(
+    status='converged-open',
+    terminal_trace_points_m=((1.5, 0.2), (1.75, 0.1), (2.0, 0.0)),
+    terminal_trace_validation=SimpleNamespace(converged=True),
+    maximum_geometry_residual_m=1.0e-12,
+    maximum_absolute_invariant_residual=2.0e-12,
+  )
+  result = SimpleNamespace(
+    status='converged-two-sided-euler-field-iteration',
+    records=(SimpleNamespace(), SimpleNamespace()),
+    final_physical_field=physical,
+    final_source_strip=strip,
+    fixed_point_converged=True,
+    field_iteration_verified=True,
+    canonical_free_boundary_verified=False,
+    canonical_euler_verified=False,
+    physical_closure_verified=False,
+    state_sampling_available=True,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+  )
+
+  bundle = standardize_model_visualization(
+    result,
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-two-sided-euler-field-iteration'
+  assert 'moc-two-sided-terminal-trace' in {
+    path.path_id for path in bundle.paths
+  }
+  assert bundle.diagnostics['two_sided_field_iteration'] is True
+  assert bundle.diagnostics['two_sided_fixed_point_converged'] is True
+  assert bundle.diagnostics['two_sided_field_iteration_verified'] is True
+  assert bundle.diagnostics['two_sided_terminal_trace_verified'] is True
+  assert bundle.diagnostics['two_sided_iteration_count'] == 2
+  assert bundle.claims.production_claim_allowed is False
+  assert any('two-sided exact-Euler field' in warning for warning in bundle.warnings)
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_physical_field_euler_reconciliation_visualization_exposes_residual_field() -> None:
   gamma = 1.4
   source_field = SimpleNamespace(

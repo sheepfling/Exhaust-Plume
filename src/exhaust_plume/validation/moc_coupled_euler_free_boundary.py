@@ -258,6 +258,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   MOVING_MIXED_REGIME_TWO_SIDED_BOUNDARY_FAILURE = (
     'coupled-euler-audit-moving-mixed-regime-two-sided-boundary-failure'
   )
+  MOVING_MIXED_REGIME_TWO_SIDED_COMPANION_FIELD_FAILURE = (
+    'coupled-euler-audit-moving-mixed-regime-two-sided-companion-field-failure'
+  )
   FLAG_FAILURE = 'coupled-euler-audit-promotion-flag-failure'
 ####
 
@@ -307,6 +310,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   physical_field_neighbor_profiles_verified: bool = False
   moving_mixed_regime_interface_verified: bool = False
   two_sided_shock_boundary_verified: bool = False
+  two_sided_companion_field_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -402,6 +406,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'physical_field_neighbor_profiles_verified',
       'moving_mixed_regime_interface_verified',
       'two_sided_shock_boundary_verified',
+      'two_sided_companion_field_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -538,6 +543,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
         )
         or self.two_sided_shock_boundary_verified
       )
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.inlet_boundary_mode
+          is MocReflectedDomainCoupledEulerInletBoundaryMode
+          .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+        )
+        or self.two_sided_companion_field_verified
+      )
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
@@ -641,6 +656,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       ),
       'two_sided_shock_boundary_verified': (
         self.two_sided_shock_boundary_verified
+      ),
+      'two_sided_companion_field_verified': (
+        self.two_sided_companion_field_verified
       ),
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
@@ -2734,6 +2752,7 @@ def _audit_field(
   ####
   moving_mixed_regime_interface_verified = True
   two_sided_shock_boundary_verified = True
+  two_sided_companion_field_verified = True
   moving_mixed_regime_inlet_states: tuple[np.ndarray, ...] | None = None
   moving_mixed_regime_mode = request.inlet_boundary_mode in (
     MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -2782,6 +2801,19 @@ def _audit_field(
         raise ValueError(
           'two-sided moving mixed-regime field mode requires the independently '
           'audited two-sided shock-boundary handoff'
+        )
+      two_sided_companion_field_verified = bool(
+        moving_interface.two_sided_companion_field is not None
+        and moving_interface.two_sided_companion_field_verified
+        and moving_interface.two_sided_companion_field.converged
+        and moving_interface.two_sided_companion_field.chain_promotion_blocked
+        and not moving_interface.two_sided_companion_field.physical_closure_verified
+        and not moving_interface.two_sided_companion_field.production_claim_allowed
+      )
+      if not two_sided_companion_field_verified:
+        raise ValueError(
+          'two-sided moving mixed-regime field mode requires the independently '
+          'audited open companion-field handoff'
         )
     ####
     moving_samples = {
@@ -3246,6 +3278,7 @@ def _audit_field(
       moving_mixed_regime_interface_verified
     ),
     'two_sided_shock_boundary_verified': two_sided_shock_boundary_verified,
+    'two_sided_companion_field_verified': two_sided_companion_field_verified,
     'moving_mixed_regime_inlet_states': moving_mixed_regime_inlet_states,
   }
 ####
@@ -3537,6 +3570,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   two_sided_shock_boundary_verified = bool(
     raw['two_sided_shock_boundary_verified']
   )
+  two_sided_companion_field_verified = bool(
+    raw['two_sided_companion_field_verified']
+  )
   if moving_mixed_regime_mode:
     expected_moving_inlet = raw['moving_mixed_regime_inlet_states']
     reported_moving_inlet = np.asarray(
@@ -3567,6 +3603,13 @@ def measure_reflected_domain_coupled_euler_free_boundary(
         and candidate.moving_mixed_regime_interface.two_sided_shock_boundary is not None
         and candidate.moving_mixed_regime_interface.two_sided_shock_boundary_verified
         and candidate.two_sided_shock_boundary_consumed
+      )
+      two_sided_companion_field_verified = bool(
+        two_sided_companion_field_verified
+        and candidate.moving_mixed_regime_interface is not None
+        and candidate.moving_mixed_regime_interface.two_sided_companion_field is not None
+        and candidate.moving_mixed_regime_interface.two_sided_companion_field_verified
+        and candidate.two_sided_companion_field_consumed
       )
   physical_field_inlet_seam_verified = True
   if candidate.request.physical_field_continuation_profile is not None:
@@ -3768,6 +3811,18 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     message = (
       'candidate did not retain consumption of the independently audited '
       'two-sided moving-interface shock boundary'
+    )
+  elif (
+    two_sided_moving_regime_mode
+    and not two_sided_companion_field_verified
+  ):
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .MOVING_MIXED_REGIME_TWO_SIDED_COMPANION_FIELD_FAILURE
+    )
+    message = (
+      'candidate did not retain consumption of the independently audited '
+      'open two-sided companion field'
     )
   elif not moving_mixed_regime_interface_verified:
     status = (
@@ -3973,6 +4028,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       moving_mixed_regime_interface_verified
     ),
     two_sided_shock_boundary_verified=two_sided_shock_boundary_verified,
+    two_sided_companion_field_verified=two_sided_companion_field_verified,
     control_section_compatibility_verified=(
       control_section_compatibility_verified
     ),

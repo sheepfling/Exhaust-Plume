@@ -553,6 +553,25 @@ from exhaust_plume.models.moc.euler_physical_field import (
   MocEulerAmbientPhysicalFieldResult,
   assemble_euler_ambient_physical_field,
 )
+from exhaust_plume.models.moc.euler_two_sided_field_iteration import (
+  MocEulerTwoSidedFieldIterationStatus,
+  MocEulerTwoSidedFieldIterationRequest,
+  MocEulerTwoSidedFieldIterationRecord,
+  MocEulerTwoSidedFieldIterationResult,
+  solve_euler_two_sided_field_iteration,
+)
+from exhaust_plume.models.moc.euler_two_sided_terminal_closure import (
+  MocEulerTwoSidedTerminalClosureStatus,
+  MocEulerTwoSidedTerminalClosureRequest,
+  MocEulerTwoSidedTerminalClosureResult,
+  solve_euler_two_sided_terminal_closure,
+)
+from exhaust_plume.models.moc.euler_two_sided_terminal_refinement import (
+  MocEulerTwoSidedTerminalRefinementStatus,
+  MocEulerTwoSidedTerminalRefinementRequest,
+  MocEulerTwoSidedTerminalRefinementResult,
+  refine_euler_two_sided_terminal_closure,
+)
 from exhaust_plume.models.moc.euler_first_wedge_remesh import (
   MocEulerAmbientFirstWedgeRemeshStatus,
   MocEulerAmbientFirstWedgeCellSample,
@@ -1459,6 +1478,19 @@ __all__ = (
   'MocEulerAmbientPhysicalFieldStatus',
   'MocEulerAmbientPhysicalFieldResult',
   'assemble_euler_ambient_physical_field',
+  'MocEulerTwoSidedFieldIterationStatus',
+  'MocEulerTwoSidedFieldIterationRequest',
+  'MocEulerTwoSidedFieldIterationRecord',
+  'MocEulerTwoSidedFieldIterationResult',
+  'solve_euler_two_sided_field_iteration',
+  'MocEulerTwoSidedTerminalClosureStatus',
+  'MocEulerTwoSidedTerminalClosureRequest',
+  'MocEulerTwoSidedTerminalClosureResult',
+  'solve_euler_two_sided_terminal_closure',
+  'MocEulerTwoSidedTerminalRefinementStatus',
+  'MocEulerTwoSidedTerminalRefinementRequest',
+  'MocEulerTwoSidedTerminalRefinementResult',
+  'refine_euler_two_sided_terminal_closure',
   'MocEulerAmbientFirstWedgeRemeshStatus',
   'MocEulerAmbientFirstWedgeCellSample',
   'MocEulerAmbientFirstWedgeRemeshResult',

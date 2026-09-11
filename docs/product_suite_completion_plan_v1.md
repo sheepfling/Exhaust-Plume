@@ -3384,11 +3384,13 @@ and a bounded research continuation, not canonical closure.
 
 This is the active order of work for completing the suite.  The dedicated
 branch remains the integration candidate; ``main`` is not the working branch.
-The latest committed candidate is clean and published, including this
-execution board.  Each item below is a
-separate vertical slice with its contract, focused tests, evidence note, and
-static checks.  A later item may consume an earlier item only through its
-declared contract and claim ceiling.
+The current branch contains the verified but uncommitted P2.2e--P2.2l
+two-sided research tranche; it is not a release candidate and must not be
+described as a clean published candidate until that tranche is committed and
+the release matrix is rerun.  Each item below is a separate vertical slice
+with its contract, focused tests, evidence note, and static checks.  A later
+item may consume an earlier item only through its declared contract and claim
+ceiling.
 
 1. **P2.2d — close the canonical mixed-regime physics seam.** Consume the
    solver-owned signed shock/expansion interface law inside a joint iteration
@@ -4158,3 +4160,222 @@ fit, Signature/FPA promotion, provider comparison, owner archive, or release
 freeze.  The next physics tranche remains solver-owned two-sided field
 iteration followed by residual/refinement closure and the product-lane
 validation gates.
+
+### P2.2e two-sided companion-field consumer checkpoint — 2026-09-09
+
+The coupled-Euler two-sided research mode now requires the exact open
+companion characteristic strip in addition to the independently audited
+two-sided Euler shock curve.  Request construction and the pre-field inlet
+consumer reject shock-only two-sided seams; the result retains a separate
+``two_sided_companion_field_consumed`` flag, and the independent coupled-field
+audit rechecks that the converged open strip, its non-promotion flags, and its
+consumption lineage are all present.  A tampered result receives the typed
+``coupled-euler-audit-moving-mixed-regime-two-sided-companion-field-failure``
+stop.
+
+The focused two-sided consumer regression passes 3 tests and the complete
+reflected-domain regression passes 161 tests; Ruff and Python compilation are
+clean.  This is a stricter solver-owned prerequisite and lineage checkpoint,
+not the moving-front/free-boundary iteration itself: the open strip is not
+yet mapped into a converged two-sided field update, and centerline/ambient
+feedback, entropy closure, disjoint refinement, physical shock-cell fitting,
+provider-bound VIS/SIG/RAY/FPA validation, owner archives, and release freeze
+remain blocked.
+
+### P2.2f two-sided exact-Euler field iteration checkpoint — 2026-09-09
+
+The higher-fidelity research lane now has an explicit
+``MocEulerTwoSidedFieldIterationRequest`` / ``Result`` contract.  It consumes
+the verified open companion-field frontier, assembles the bounded exact-Euler
+ambient/centerline physical field, projects only its typed open
+shock/ambient terminal trace, and feeds that retained trace into the next
+iteration.  The implementation does not reinterpret the marched ambient
+boundary as a companion strip, interpolate a missing geometry seam, or fall
+back to a lower-fidelity solver.  Each iteration retains the physical-field
+result, source-strip result, incoming/outgoing sample counts, and independent
+coordinate/state/pressure residuals.
+
+The global reflected physical-field fixture reaches a two-pass terminal-trace
+fixed point (the initial 9-sample companion frontier produces a 10-sample
+trace, and the next pass reproduces that trace exactly).  A one-iteration
+case remains typed ``ITERATION_LIMIT`` while retaining the bounded field and
+keeping chain promotion and production claims blocked.  The focused iteration
+regression passes 2 tests and the complete reflected-domain regression passes
+163 tests; Ruff, Python compilation, and the full Pyright check are clean.
+The package/build smoke check also includes the new solver module.  This is a
+local research fixed-point checkpoint only: it
+does not move or solve the shock/interface geometry, prove conservative
+cell residuals or refinement, establish a physical shock-cell length, bind
+provider validation, or authorize canonical Visualization, Signature, FPA,
+or release claims.  The next physics tranche is independent physical-field
+residual/refinement evidence followed by a genuinely coupled moving-front
+update.
+
+### P2.2g independent two-sided field-iteration audit checkpoint — 2026-09-09
+
+The two-sided iteration now has an independent validation operator.  The
+audit remeasures the retained open companion strip, re-audits every bounded
+physical field through the existing shock/cell/topology checks, validates each
+open terminal trace, recomputes coordinate/state/pressure handoff residuals,
+and verifies exact sequential record lineage and promotion flags.  A tampered
+fixed-point record receives a typed residual failure rather than inheriting
+the solver's success flag.
+
+The audit deliberately accepts local shock, topology, conservative-cell, and
+physical-closure evidence while reporting
+``entropy_lineage_verified=false`` for the current variable-entropy research
+handoff.  This preserves the hard chain-promotion stop and keeps canonical
+free-boundary/Euler claims false.  The focused two-sided iteration and audit
+regression passes 4 tests; Ruff, Python compilation, and Pyright are clean.
+This checkpoint strengthens evidence for the research lane but does not yet
+provide entropy closure, a moving-front solve, refinement convergence,
+physical shock-cell length, provider-bound validation, or release promotion.
+
+### P2.2h two-sided entropy-aware terminal-field checkpoint — 2026-09-10
+
+The converged two-sided field iteration now feeds a distinct
+``MocEulerTwoSidedTerminalClosureRequest``.  That contract runs the retained
+solver-owned terminal sequence: characteristic terminal-wedge reflection,
+entropy-carry pressure-lineage adjustment, and the four-triangle internal
+characteristic field.  On the current global fixture it reaches a local
+internal field with four cells, maximum entropy-compatibility residual
+``2.31e-13``, and maximum local cell-Euler residual ``1.54e-5``.  The wrapper
+retains each intermediate result and rejects incomplete field iterations
+before any terminal solve is attempted.
+
+The independent terminal-closure audit re-runs the field-iteration audit and
+the existing terminal-wedge, entropy-carry, and internal-field validators;
+tampering a component flag produces a typed flag failure.  The two-sided
+regression now passes 11 tests; Ruff, Python compilation, and Pyright are
+clean.  This is a solver-owned local terminal field, not global physical
+closure: ``physical_closure_verified=false``, chain promotion remains blocked,
+and moving-front coupling, refinement, external validation, Signature/FPA
+binding, and release gates remain open.
+
+### P2.2i two-sided terminal continuation-ladder checkpoint — 2026-09-10
+
+The local terminal field now has a distinct refinement contract,
+``MocEulerTwoSidedTerminalRefinementRequest`` / ``Result``.  It consumes the
+exact terminal-closure object and runs solver-owned variable-entropy
+continuation at declared cycle counts ``(2, 3, 4)``.  The current fixture
+produces independently retained continuation topologies of ``3, 5, 7`` cells;
+each level remains locally consistent, below the declared ``1e-2`` cell-Euler
+residual tolerance, and chain promotion remains blocked.  The ladder does not
+call an increased boundary sample count “refinement”: it requires internal
+cell growth and separately records non-increasing and strictly decreasing
+residual evidence.
+
+The independent ladder audit re-runs the terminal-closure audit and every
+continuation audit, verifies exact cycle-level lineage, recomputes cell counts
+and residual trends, and rejects tampered trend flags.  The focused two-sided
+regression passes 14 tests; Ruff, Python compilation, and the independent audit
+tests are clean.  On this case the residual is effectively stable across the
+ladder (approximately ``1.069e-3`` at each level), so
+``residual_reduction_verified=false`` and
+``refinement_convergence_verified=false`` remain explicit.  This is useful
+research evidence but not refinement convergence, canonical closure, a
+physical shock-cell fit, Signature/FPA validation, or release evidence.
+
+### P2.2j cross-resolution two-sided physical-field refinement checkpoint — 2026-09-10
+
+The two-sided research lane now has an explicit cross-case measurement,
+``MocEulerTwoSidedFieldIterationRefinementCase`` and
+``measure_moc_euler_two_sided_field_refinement``.  It consumes separately
+solved, exact field-iteration results at declared companion-frontier sample
+counts, independently re-audits every fixed point and physical field, and
+requires both internal cell growth and a non-increasing conservative residual
+trend.  A case cannot be ordered by an inferred array length: its declared
+resolution must match the exact retained companion handoff.
+
+For the current global fixture, the ``(5, 9, 13)`` ladder independently
+reproduces physical-field cell counts ``(19, 53, 103)`` and maximum cell-Euler
+residuals ``(5.856e-4, 3.626e-4, 2.900e-4)``.  The local refinement evidence
+therefore passes, while the independent audits continue to report
+``entropy_lineage_verified=false``.  The measurement records
+``refinement_convergence_verified=false`` until the entropy lineage is closed;
+canonical reflected-field closure, shock-cell fitting, and product promotion
+remain blocked.  Reversed resolution order and weakened case flags receive
+typed failures.  The focused cross-resolution suite passes 3 tests; the next
+physics gate is solver-owned entropy closure followed by a true coupled
+mixed-regime/free-boundary refinement acceptance.
+
+### P2.2k variable-entropy source-lineage audit checkpoint — 2026-09-10
+
+The two-sided exact-Euler research lane now has an independent
+``op.moc.euler-variable-entropy-lineage-audit`` operator.  It does not reuse
+the legacy uniform-``p0`` diagnostic.  Instead it rederives sample-by-sample
+shock geometry/state/total-pressure lineage, matches the solver-produced
+ambient perimeter, verifies each interior characteristic node against its
+retained ``C-`` source pressure, and checks that all cell samples remain
+finite and positive.  A tampered post-shock pressure is rejected as a typed
+shock-lineage failure.
+
+The two-sided field-iteration audit now requires this variable-entropy
+lineage gate for local consistency.  The ``(5, 9, 13)`` cross-resolution
+ladder therefore reports ``entropy_lineage_verified=true`` and
+``refinement_convergence_verified=true`` while preserving
+``physical_closure_verified=false``, ``chain_promotion_blocked=true``, and
+``production_claim_allowed=false``.  The legacy ambient physical-field audit
+continues to expose its uniform-``p0`` result separately, so this change does
+not relabel the older diagnostic or promote a lower-fidelity result into the
+canonical field.
+
+The focused two-sided regression passes 17 tests, including positive and
+tampered entropy-lineage cases; Ruff and Python compilation are clean.  This
+checkpoint closes variable shock-pressure source accounting for the bounded
+research field.  It does not close the moving/free-boundary feedback solve,
+canonical mixed-regime Euler closure, physical shock-cell length acceptance,
+provider-bound Visualization/Signature/FPA validation, missing owner archives,
+or release freeze.  The next physics gate is a coupled entropy-transport
+residual and cross-resolution acceptance that is independent of this
+boundary/source-lineage audit.
+
+### P2.2l cross-resolution entropy-advection refinement checkpoint — 2026-09-10
+
+The research lane now exposes a separate
+``op.moc.euler-two-sided-entropy-refinement-audit`` operator.  It consumes the
+fresh two-sided field-iteration cases, independently re-runs their iteration
+and variable-entropy lineage audits, and measures normalized
+``u · grad(log(p0))`` on every retained physical cell (quadrilaterals are
+triangulated for the measurement).  It requires a finite bounded residual,
+non-increasing residuals, and strict coarse-to-fine reduction; it does not
+reuse the conservative-cell residual as an entropy surrogate.
+
+For the current ``(5, 9, 13)`` ladder, the maximum entropy-advection residuals
+are ``(1.279e-4, 3.440e-5, 2.410e-5)`` against a declared research tolerance
+of ``1e-3``.  The independent entropy-refinement measurement therefore
+converges locally while retaining ``physical_closure_verified=false``,
+``chain_promotion_blocked=true``, and ``production_claim_allowed=false``.
+Reversed resolution order remains a typed failure.  The focused two-sided
+regression passes 3 tests for this tranche; Ruff and Python compilation are
+clean.
+
+This closes only a bounded entropy-advection evidence layer over the current
+physical mesh.  The canonical reflected/mixed-regime free-boundary feedback,
+solver-owned downstream boundary, physical shock-cell length comparison,
+provider-bound Visualization/Signature/FPA validation, missing owner archives,
+and release freeze remain open.  The next physics gate is coupling this
+residual to a genuinely iterated moving/free-boundary solve and accepting a
+stable canonical resolution ladder.
+
+### Visualization of the two-sided exact-Euler research field checkpoint — 2026-09-10
+
+The renderer-neutral planar-MOC adapter now discovers the retained
+``final_physical_field`` and ``final_source_strip`` from the two-sided exact-
+Euler field-iteration result.  It exposes the solver-owned shock, ambient, and
+centerline paths, adds the open terminal characteristic trace as a distinct
+research path, and records the iteration status, fixed-point evidence,
+terminal-trace audit, entropy residual, and promotion flags in the standard
+bundle diagnostics.  Invalid or undersampled terminal geometry remains
+omitted with a warning; no interpolation or synthetic boundary is created.
+
+The bundle identifies itself as
+``planar-moc-two-sided-euler-field-iteration`` and retains
+``RESEARCH_ONLY``/``production_claim_allowed=false``.  The focused test,
+complete model-visualization suite (15 tests), provider/gallery regression
+(20 tests), Ruff, Pyright, and bytecode checks pass.  This closes the missing
+visual evidence surface for the current research field only; it does not
+promote the fixed shock geometry, close moving/free-boundary feedback, accept
+physical shock-cell lengths, or satisfy provider-bound product validation and
+release gates.  The next physics slice remains the solver-owned moving
+interface/free-boundary iteration.

@@ -8,6 +8,27 @@ import pytest
 
 import exhaust_plume.models.moc.coupled_euler_free_boundary as coupled_euler
 import exhaust_plume.validation.moc_global_coupled_downstream_feedback as downstream_feedback
+from exhaust_plume.validation.moc_euler_two_sided_field_iteration import (
+  MocEulerTwoSidedFieldIterationAuditStatus,
+  measure_moc_euler_two_sided_field_iteration,
+)
+from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
+  MocEulerTwoSidedFieldIterationRefinementCase,
+  MocEulerTwoSidedFieldRefinementAuditStatus,
+  measure_moc_euler_two_sided_field_refinement,
+)
+from exhaust_plume.validation.moc_euler_variable_entropy_lineage import (
+  MocEulerVariableEntropyLineageAuditStatus,
+  measure_moc_euler_variable_entropy_lineage,
+)
+from exhaust_plume.validation.moc_euler_two_sided_entropy_refinement import (
+  MocEulerTwoSidedEntropyRefinementAuditStatus,
+  measure_moc_euler_two_sided_entropy_refinement,
+)
+from exhaust_plume.validation.moc_euler_two_sided_terminal_closure import (
+  MocEulerTwoSidedTerminalClosureAuditStatus,
+  measure_moc_euler_two_sided_terminal_closure,
+)
 from exhaust_plume.validation.moc_global_frontier_target_resolve import (
   MocReflectedDomainGlobalFrontierTargetResolveStatus,
   run_reflected_domain_global_frontier_target_guided_resolve,
@@ -60,6 +81,17 @@ from exhaust_plume.models.moc import (
   MocMovingMixedRegimeInterfaceRequest,
   build_moc_terminal_conservative_boundary_sample,
   fit_euler_consistent_shock_boundary,
+  solve_euler_ambient_companion_boundary_reference,
+  assemble_euler_consistent_companion_characteristic_strip,
+  MocEulerTwoSidedFieldIterationRequest,
+  MocEulerTwoSidedFieldIterationStatus,
+  solve_euler_two_sided_field_iteration,
+  MocEulerTwoSidedTerminalClosureRequest,
+  MocEulerTwoSidedTerminalClosureStatus,
+  solve_euler_two_sided_terminal_closure,
+  MocEulerTwoSidedTerminalRefinementRequest,
+  MocEulerTwoSidedTerminalRefinementStatus,
+  refine_euler_two_sided_terminal_closure,
   solve_moc_transonic_shock_geometry,
   MocPhysicalFieldContinuationProfileRequest,
   MocPhysicalFieldContinuationProfileStatus,
@@ -537,6 +569,54 @@ def _global_physical_closure_for_mixed_regime(sample_count: int = 9):
 ####
 
 
+def _two_sided_field_iteration_fixture():
+  closure = _global_physical_closure_for_mixed_regime()
+  assert closure.global_euler is not None
+  shock_boundary = closure.global_euler.shock_boundary
+  ambient_pressure = closure.source_band.ambient_pressure_Pa
+  assert shock_boundary is not None
+  companion_boundary = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.5,
+  )
+  assert companion_boundary.converged
+  companion_field = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion_boundary.samples,
+  )
+  assert companion_field.converged
+  return shock_boundary, companion_field, ambient_pressure
+
+
+def _two_sided_field_iteration_for_resolution(sample_count: int):
+  closure = _global_physical_closure_for_mixed_regime(sample_count)
+  assert closure.global_euler is not None
+  shock_boundary = closure.global_euler.shock_boundary
+  ambient_pressure = closure.source_band.ambient_pressure_Pa
+  assert shock_boundary is not None
+  companion_boundary = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.5,
+  )
+  assert companion_boundary.converged
+  companion_field = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion_boundary.samples,
+  )
+  assert companion_field.converged
+  return solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+####
+
+
 def _moving_interface_for_coupled_field(
   *,
   include_inputs: bool = False,
@@ -593,6 +673,7 @@ def _moving_interface_for_coupled_field(
     for index in range(sample_count)
   )
   two_sided_boundary = None
+  two_sided_companion_boundary = ()
   if include_two_sided_boundary:
     points = (
       (cross_section_x - 0.2, lower_y + 0.08),
@@ -628,6 +709,13 @@ def _moving_interface_for_coupled_field(
       (tangent_angle + compression.beta_rad - turn,) * len(points),
     )
     assert two_sided_boundary.local_euler_verified
+    companion = solve_euler_ambient_companion_boundary_reference(
+      two_sided_boundary,
+      100_000.0,
+      separation_m=0.5,
+    )
+    assert companion.converged
+    two_sided_companion_boundary = companion.samples
   moving_request = MocMovingMixedRegimeInterfaceRequest(
     terminal_geometry=geometry,
     interface_points_m=(
@@ -640,6 +728,7 @@ def _moving_interface_for_coupled_field(
     upper_y_m=upper_y,
     sample_count=sample_count,
     two_sided_shock_boundary=two_sided_boundary,
+    two_sided_companion_boundary=two_sided_companion_boundary,
   )
   moving_result = prepare_moc_moving_mixed_regime_interface(moving_request)
   if include_inputs:
@@ -1381,6 +1470,8 @@ def test_coupled_field_consumes_two_sided_moving_interface_as_distinct_research_
   )
   assert moving_result.two_sided_shock_boundary is not None
   assert moving_result.two_sided_shock_boundary_verified
+  assert moving_result.two_sided_companion_field is not None
+  assert moving_result.two_sided_companion_field_verified
 
   request = build_reflected_domain_coupled_euler_free_boundary_request(
     mixed_request,
@@ -1404,15 +1495,511 @@ def test_coupled_field_consumes_two_sided_moving_interface_as_distinct_research_
   )
   assert result.conservative_states_by_cell
   assert result.two_sided_shock_boundary_consumed
+  assert result.two_sided_companion_field_consumed
   assert result.moving_mixed_regime_interface_consumed
   assert result.production_claim_allowed is False
   assert result.chain_promotion_blocked
 
   audit = measure_reflected_domain_coupled_euler_free_boundary(result)
   assert audit.two_sided_shock_boundary_verified
+  assert audit.two_sided_companion_field_verified
   assert audit.moving_mixed_regime_interface_verified
   assert audit.production_claim_allowed is False
   assert audit.chain_promotion_blocked
+
+
+def test_two_sided_euler_field_iteration_reaches_terminal_trace_fixed_point():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  request = MocEulerTwoSidedFieldIterationRequest(
+    shock_boundary=shock_boundary,
+    companion_field=companion_field,
+    ambient_pressure_Pa=ambient_pressure,
+    maximum_field_iterations=3,
+  )
+
+  result = solve_euler_two_sided_field_iteration(request)
+
+  assert result.status is MocEulerTwoSidedFieldIterationStatus.CONVERGED_FIXED_POINT
+  assert result.converged
+  assert result.fixed_point_converged
+  assert result.field_iteration_verified
+  assert result.bounded_physical_field_verified
+  assert len(result.records) == 2
+  assert result.records[0].incoming_handoff_sample_count == 9
+  assert result.records[0].outgoing_handoff_sample_count == 10
+  assert not result.records[0].fixed_point_converged
+  assert result.records[1].fixed_point_converged
+  assert result.terminal_trace_handoff
+  assert not result.canonical_free_boundary_verified
+  assert not result.canonical_euler_verified
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+
+def test_two_sided_euler_field_iteration_keeps_promotion_blocked_at_iteration_limit():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  request = MocEulerTwoSidedFieldIterationRequest(
+    shock_boundary=shock_boundary,
+    companion_field=companion_field,
+    ambient_pressure_Pa=ambient_pressure,
+    maximum_field_iterations=1,
+  )
+
+  result = solve_euler_two_sided_field_iteration(request)
+
+  assert result.status is MocEulerTwoSidedFieldIterationStatus.ITERATION_LIMIT
+  assert not result.converged
+  assert not result.fixed_point_converged
+  assert not result.field_iteration_verified
+  assert result.bounded_physical_field_verified
+  assert result.final_source_strip is not None
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+
+def test_two_sided_euler_field_iteration_has_independent_research_audit():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  result = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+
+  audit = measure_moc_euler_two_sided_field_iteration(result)
+
+  assert audit.status is MocEulerTwoSidedFieldIterationAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.request_verified
+  assert audit.companion_field_verified
+  assert audit.record_lineage_verified
+  assert audit.physical_field_local_gates_verified
+  assert audit.source_strip_verified
+  assert audit.handoff_residuals_verified
+  assert audit.fixed_point_verified
+  assert audit.field_iteration_verified
+  assert audit.entropy_lineage_verified
+  assert audit.canonical_free_boundary_verified is False
+  assert audit.canonical_euler_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  assert result.final_physical_field is not None
+  entropy_audit = measure_moc_euler_variable_entropy_lineage(
+    result.final_physical_field
+  )
+  assert entropy_audit.status is (
+    MocEulerVariableEntropyLineageAuditStatus.CONVERGED_LOCAL_AUDIT
+  )
+  assert entropy_audit.local_consistency_verified
+  assert entropy_audit.variable_entropy_lineage_verified
+  assert entropy_audit.maximum_shock_pressure_log_residual == pytest.approx(0.0)
+
+  assert result.final_physical_field.field is not None
+  tampered_field = replace(
+    result.final_physical_field.field,
+    post_shock_boundary_total_pressure_Pa=(
+      result.final_physical_field.field.post_shock_boundary_total_pressure_Pa[0]
+      * 1.001,
+      *result.final_physical_field.field.post_shock_boundary_total_pressure_Pa[1:],
+    ),
+  )
+  tampered_entropy_audit = measure_moc_euler_variable_entropy_lineage(
+    replace(result.final_physical_field, field=tampered_field)
+  )
+  assert tampered_entropy_audit.status is (
+    MocEulerVariableEntropyLineageAuditStatus.SHOCK_LINEAGE_FAILURE
+  )
+  assert not tampered_entropy_audit.variable_entropy_lineage_verified
+
+
+def test_two_sided_euler_field_iteration_audit_rejects_tampered_fixed_point_record():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  result = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+  tampered_record = replace(result.records[-1], fixed_point_converged=False)
+  tampered = replace(result, records=(*result.records[:-1], tampered_record))
+
+  audit = measure_moc_euler_two_sided_field_iteration(tampered)
+
+  assert audit.status is MocEulerTwoSidedFieldIterationAuditStatus.RESIDUAL_FAILURE
+  assert not audit.converged
+  assert not audit.handoff_residuals_verified
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_two_sided_field_refinement_reduces_physical_cell_residual_across_cases():
+  cases = tuple(
+    MocEulerTwoSidedFieldIterationRefinementCase(
+      resolution_sample_count=sample_count,
+      result=_two_sided_field_iteration_for_resolution(sample_count),
+    )
+    for sample_count in (5, 9, 13)
+  )
+
+  measurement = measure_moc_euler_two_sided_field_refinement(cases)
+
+  assert measurement.status is (
+    MocEulerTwoSidedFieldRefinementAuditStatus
+    .CONVERGED_LOCAL_REFINEMENT
+  )
+  assert measurement.converged
+  assert measurement.local_consistency_verified
+  assert measurement.resolution_sample_counts == (5, 9, 13)
+  assert measurement.physical_field_cell_counts == (19, 53, 103)
+  assert measurement.case_audits_verified
+  assert measurement.cell_growth_verified
+  assert measurement.residuals_verified
+  assert measurement.residual_nonincreasing_verified
+  assert measurement.residual_reduction_verified
+  assert measurement.entropy_lineage_verified
+  assert measurement.local_refinement_verified
+  assert measurement.refinement_convergence_verified
+  assert measurement.physical_closure_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+  entropy_measurement = measure_moc_euler_two_sided_entropy_refinement(cases)
+  assert entropy_measurement.status is (
+    MocEulerTwoSidedEntropyRefinementAuditStatus
+    .CONVERGED_LOCAL_REFINEMENT
+  )
+  assert entropy_measurement.converged
+  assert entropy_measurement.local_consistency_verified
+  assert entropy_measurement.resolution_sample_counts == (5, 9, 13)
+  assert entropy_measurement.variable_entropy_lineage_verified
+  assert entropy_measurement.residuals_verified
+  assert entropy_measurement.residual_nonincreasing_verified
+  assert entropy_measurement.residual_reduction_verified
+  assert entropy_measurement.entropy_transport_convergence_verified
+  assert entropy_measurement.maximum_entropy_advection_residuals[0] == pytest.approx(
+    1.279291561268235e-4,
+  )
+  assert entropy_measurement.maximum_entropy_advection_residuals[-1] == pytest.approx(
+    2.4103556815956583e-5,
+  )
+  assert entropy_measurement.physical_closure_verified is False
+  assert entropy_measurement.chain_promotion_blocked
+  assert entropy_measurement.production_claim_allowed is False
+
+
+def test_two_sided_field_refinement_requires_strict_resolution_order():
+  cases = tuple(
+    MocEulerTwoSidedFieldIterationRefinementCase(
+      resolution_sample_count=sample_count,
+      result=_two_sided_field_iteration_for_resolution(sample_count),
+    )
+    for sample_count in (5, 9)
+  )
+
+  measurement = measure_moc_euler_two_sided_field_refinement(cases[::-1])
+
+  assert measurement.status is (
+    MocEulerTwoSidedFieldRefinementAuditStatus.RESOLUTION_ORDER_FAILURE
+  )
+  assert not measurement.converged
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+  entropy_measurement = measure_moc_euler_two_sided_entropy_refinement(
+    cases[::-1]
+  )
+  assert entropy_measurement.status is (
+    MocEulerTwoSidedEntropyRefinementAuditStatus
+    .RESOLUTION_ORDER_FAILURE
+  )
+  assert not entropy_measurement.converged
+  assert entropy_measurement.chain_promotion_blocked
+
+
+def test_two_sided_field_refinement_rejects_weakened_case_flags():
+  results = tuple(
+    _two_sided_field_iteration_for_resolution(sample_count)
+    for sample_count in (5, 9)
+  )
+  tampered = replace(results[-1], chain_promotion_blocked=False)
+  cases = (
+    MocEulerTwoSidedFieldIterationRefinementCase(5, results[0]),
+    MocEulerTwoSidedFieldIterationRefinementCase(9, tampered),
+  )
+
+  measurement = measure_moc_euler_two_sided_field_refinement(cases)
+
+  assert measurement.status is (
+    MocEulerTwoSidedFieldRefinementAuditStatus.CASE_FAILURE
+  )
+  assert not measurement.converged
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+
+def test_two_sided_terminal_closure_reaches_entropy_aware_internal_field():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  field_iteration = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+
+  result = solve_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalClosureRequest(field_iteration=field_iteration)
+  )
+
+  assert result.status is MocEulerTwoSidedTerminalClosureStatus.CONVERGED_INTERNAL_FIELD
+  assert result.converged
+  assert result.local_consistency_verified
+  assert result.terminal_geometry_verified
+  assert result.entropy_carry_verified
+  assert result.internal_characteristic_field_verified
+  assert result.internal_field is not None
+  assert result.internal_field.cell_count == 4
+  assert result.internal_field.maximum_entropy_compatibility_residual is not None
+  assert result.internal_field.maximum_entropy_compatibility_residual < 1.0e-8
+  assert result.internal_field.maximum_cell_euler_residual is not None
+  assert result.internal_field.maximum_cell_euler_residual < 1.0e-2
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+
+def test_two_sided_terminal_closure_rejects_incomplete_field_iteration():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  incomplete = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=1,
+    )
+  )
+
+  with pytest.raises(ValueError, match='converged.*field iteration'):
+    MocEulerTwoSidedTerminalClosureRequest(field_iteration=incomplete)
+
+
+def test_two_sided_terminal_closure_has_independent_component_audit():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  field_iteration = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+  result = solve_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalClosureRequest(field_iteration=field_iteration)
+  )
+
+  audit = measure_moc_euler_two_sided_terminal_closure(result)
+
+  assert audit.status is MocEulerTwoSidedTerminalClosureAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.request_verified
+  assert audit.field_iteration_verified
+  assert audit.terminal_geometry_verified
+  assert audit.entropy_carry_verified
+  assert audit.internal_characteristic_field_verified
+  assert audit.component_audits_verified
+  assert audit.physical_closure_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_two_sided_terminal_closure_audit_rejects_tampered_component_flag():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  field_iteration = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+  result = solve_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalClosureRequest(field_iteration=field_iteration)
+  )
+  tampered = replace(result, internal_characteristic_field_verified=False)
+
+  audit = measure_moc_euler_two_sided_terminal_closure(tampered)
+
+  assert audit.status is MocEulerTwoSidedTerminalClosureAuditStatus.FLAG_FAILURE
+  assert not audit.converged
+  assert audit.component_audits_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_two_sided_terminal_refinement_grows_solver_owned_continuation_ladder():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  field_iteration = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+  terminal = solve_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalClosureRequest(field_iteration=field_iteration)
+  )
+
+  result = refine_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalRefinementRequest(
+      terminal_closure=terminal,
+      cycle_counts=(2, 3, 4),
+    )
+  )
+
+  assert result.status is MocEulerTwoSidedTerminalRefinementStatus.CONVERGED_LOCAL_LADDER
+  assert result.converged
+  assert result.local_consistency_verified
+  assert result.cycle_counts == (2, 3, 4)
+  assert result.cell_counts == (3, 5, 7)
+  assert result.cell_growth_verified
+  assert result.residuals_verified
+  assert result.residual_nonincreasing_verified
+  assert result.residual_reduction_verified is False
+  assert result.refinement_convergence_verified is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+
+def test_two_sided_terminal_refinement_has_independent_ladder_audit():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  field_iteration = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+  terminal = solve_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalClosureRequest(field_iteration=field_iteration)
+  )
+  result = refine_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalRefinementRequest(terminal_closure=terminal)
+  )
+
+  from exhaust_plume.validation.moc_euler_two_sided_terminal_refinement import (
+    MocEulerTwoSidedTerminalRefinementAuditStatus,
+    measure_moc_euler_two_sided_terminal_refinement,
+  )
+
+  audit = measure_moc_euler_two_sided_terminal_refinement(result)
+
+  assert audit.status is MocEulerTwoSidedTerminalRefinementAuditStatus.CONVERGED_LOCAL_AUDIT
+  assert audit.converged
+  assert audit.local_consistency_verified
+  assert audit.request_verified
+  assert audit.terminal_closure_verified
+  assert audit.continuation_audits_verified
+  assert audit.cell_growth_verified
+  assert audit.residuals_verified
+  assert audit.residual_nonincreasing_verified
+  assert audit.residual_reduction_verified is False
+  assert audit.refinement_convergence_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_two_sided_terminal_refinement_audit_rejects_tampered_trend_flag():
+  shock_boundary, companion_field, ambient_pressure = (
+    _two_sided_field_iteration_fixture()
+  )
+  field_iteration = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+  terminal = solve_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalClosureRequest(field_iteration=field_iteration)
+  )
+  result = refine_euler_two_sided_terminal_closure(
+    MocEulerTwoSidedTerminalRefinementRequest(terminal_closure=terminal)
+  )
+  tampered = replace(result, residual_reduction_verified=True)
+
+  from exhaust_plume.validation.moc_euler_two_sided_terminal_refinement import (
+    MocEulerTwoSidedTerminalRefinementAuditStatus,
+    measure_moc_euler_two_sided_terminal_refinement,
+  )
+
+  audit = measure_moc_euler_two_sided_terminal_refinement(tampered)
+
+  assert audit.status is MocEulerTwoSidedTerminalRefinementAuditStatus.FLAG_FAILURE
+  assert not audit.converged
+  assert audit.residual_reduction_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+
+def test_coupled_field_audit_rejects_unconsumed_two_sided_companion_field():
+  mixed_request, moving_result = _moving_interface_for_coupled_field(
+    include_two_sided_boundary=True,
+  )
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=4,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    outlet_static_pressure_Pa=mixed_request.ambient_pressure_Pa,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+    ),
+    moving_mixed_regime_interface=moving_result,
+  )
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+  tampered = replace(result, two_sided_companion_field_consumed=False)
+
+  audit = measure_reflected_domain_coupled_euler_free_boundary(tampered)
+
+  assert audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .MOVING_MIXED_REGIME_TWO_SIDED_COMPANION_FIELD_FAILURE
+  )
+  assert not audit.local_consistency_verified
 
 
 def test_coupled_field_two_sided_mode_rejects_one_sided_moving_seam():

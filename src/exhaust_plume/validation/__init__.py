@@ -603,6 +603,43 @@ from exhaust_plume.validation.moc_euler import (
   MocEulerPostShockFieldChainAudit,
   measure_moc_euler_post_shock_field_chain,
 )
+from exhaust_plume.validation.moc_euler_two_sided_field_iteration import (
+  MOC_EULER_TWO_SIDED_FIELD_ITERATION_AUDIT_OPERATOR_ID,
+  MocEulerTwoSidedFieldIterationAuditStatus,
+  MocEulerTwoSidedFieldIterationAudit,
+  measure_moc_euler_two_sided_field_iteration,
+)
+from exhaust_plume.validation.moc_euler_variable_entropy_lineage import (
+  MOC_EULER_VARIABLE_ENTROPY_LINEAGE_AUDIT_OPERATOR_ID,
+  MocEulerVariableEntropyLineageAuditStatus,
+  MocEulerVariableEntropyLineageAudit,
+  measure_moc_euler_variable_entropy_lineage,
+)
+from exhaust_plume.validation.moc_euler_two_sided_entropy_refinement import (
+  MOC_EULER_TWO_SIDED_ENTROPY_REFINEMENT_AUDIT_OPERATOR_ID,
+  MocEulerTwoSidedEntropyRefinementAuditStatus,
+  MocEulerTwoSidedEntropyRefinementMeasurement,
+  measure_moc_euler_two_sided_entropy_refinement,
+)
+from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
+  MOC_EULER_TWO_SIDED_FIELD_REFINEMENT_AUDIT_OPERATOR_ID,
+  MocEulerTwoSidedFieldIterationRefinementCase,
+  MocEulerTwoSidedFieldRefinementAuditStatus,
+  MocEulerTwoSidedFieldRefinementMeasurement,
+  measure_moc_euler_two_sided_field_refinement,
+)
+from exhaust_plume.validation.moc_euler_two_sided_terminal_closure import (
+  MOC_EULER_TWO_SIDED_TERMINAL_CLOSURE_AUDIT_OPERATOR_ID,
+  MocEulerTwoSidedTerminalClosureAuditStatus,
+  MocEulerTwoSidedTerminalClosureAudit,
+  measure_moc_euler_two_sided_terminal_closure,
+)
+from exhaust_plume.validation.moc_euler_two_sided_terminal_refinement import (
+  MOC_EULER_TWO_SIDED_TERMINAL_REFINEMENT_AUDIT_OPERATOR_ID,
+  MocEulerTwoSidedTerminalRefinementAuditStatus,
+  MocEulerTwoSidedTerminalRefinementAudit,
+  measure_moc_euler_two_sided_terminal_refinement,
+)
 from exhaust_plume.validation.moc_euler_refinement import (
   MOC_EULER_AMBIENT_PHYSICAL_FIELD_REFINEMENT_OPERATOR_ID,
   MocEulerAmbientPhysicalFieldRefinementStatus,
@@ -1444,6 +1481,31 @@ __all__ = (
   'review_moc_shock_cell_external_promotion',
   'measure_moc_physical_field_euler_audit',
   'measure_moc_euler_ambient_physical_field',
+  'MOC_EULER_VARIABLE_ENTROPY_LINEAGE_AUDIT_OPERATOR_ID',
+  'MocEulerVariableEntropyLineageAuditStatus',
+  'MocEulerVariableEntropyLineageAudit',
+  'measure_moc_euler_variable_entropy_lineage',
+  'MOC_EULER_TWO_SIDED_ENTROPY_REFINEMENT_AUDIT_OPERATOR_ID',
+  'MocEulerTwoSidedEntropyRefinementAuditStatus',
+  'MocEulerTwoSidedEntropyRefinementMeasurement',
+  'measure_moc_euler_two_sided_entropy_refinement',
+  'MOC_EULER_TWO_SIDED_FIELD_ITERATION_AUDIT_OPERATOR_ID',
+  'MocEulerTwoSidedFieldIterationAuditStatus',
+  'MocEulerTwoSidedFieldIterationAudit',
+  'measure_moc_euler_two_sided_field_iteration',
+  'MOC_EULER_TWO_SIDED_FIELD_REFINEMENT_AUDIT_OPERATOR_ID',
+  'MocEulerTwoSidedFieldIterationRefinementCase',
+  'MocEulerTwoSidedFieldRefinementAuditStatus',
+  'MocEulerTwoSidedFieldRefinementMeasurement',
+  'measure_moc_euler_two_sided_field_refinement',
+  'MOC_EULER_TWO_SIDED_TERMINAL_CLOSURE_AUDIT_OPERATOR_ID',
+  'MocEulerTwoSidedTerminalClosureAuditStatus',
+  'MocEulerTwoSidedTerminalClosureAudit',
+  'measure_moc_euler_two_sided_terminal_closure',
+  'MOC_EULER_TWO_SIDED_TERMINAL_REFINEMENT_AUDIT_OPERATOR_ID',
+  'MocEulerTwoSidedTerminalRefinementAuditStatus',
+  'MocEulerTwoSidedTerminalRefinementAudit',
+  'measure_moc_euler_two_sided_terminal_refinement',
   'MOC_EULER_COMPANION_FIELD_AUDIT_OPERATOR_ID',
   'MocEulerCompanionFieldAuditStatus',
   'MocEulerCompanionFieldAudit',
