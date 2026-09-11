@@ -150,15 +150,16 @@ correction fraction, and displacement bound are serialized on the typed
 profile; the source remains research-only.
 
 The direct signed-geometry profile is consumed by a fresh local coupled-Euler
-solve with exact source/frame lineage.  The opt-in feedback runner also
-requires the explicit response time and records the signed-geometry source;
-on the exercised mixed-regime case its combined pressure-plus-geometry outer
-ladder fails closed when the second fresh field does not pass the local solver
-gate.  That failure is retained as evidence: it is not converted into a
-residual-descent claim, a global-coupling claim, or a production input.
-The focused pressure/geometry consumer and feedback regressions pass
-(``3 passed``), with Ruff and bytecode checks clean.  Strict residual descent
-across the combined outer loop, the canonical planar-MOC/free-boundary
+solve with exact source/frame lineage.  When the feedback runner uses both
+signed pressure and signed geometry, two fresh local fields pass and the
+runner independently verifies strict decrease of the maximum normal-velocity
+response (about ``18.16`` to ``4.17`` on the exercised case).  The global /
+coupled overlap residual gate remains open, so the typed run is still a
+research response failure rather than a global-coupling or production claim.
+The runner rejects a missing response time and the profile rejects excessive
+motion; no unstable step is clipped or promoted.  The full downstream
+regression passes (``21 passed``), with Ruff and bytecode checks clean.
+Conservative mass/energy descent, the canonical planar-MOC/free-boundary
 equation, disjoint case/refinement evidence, provider-bound product
 comparisons, validation archives, physical shock-cell lengths, and release
 freeze remain open.

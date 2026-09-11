@@ -8674,12 +8674,15 @@ def test_global_coupled_downstream_feedback_consumes_signed_geometry_response():
     transverse_cell_count=4,
     max_pseudo_iterations=400,
     max_shape_iterations=12,
+    use_signed_free_boundary_pressure_response=True,
     signed_normal_response_time_s=1.0e-6,
     use_signed_free_boundary_geometry_response=True,
   )
 
   assert len(run.iterations) == 2
   assert run.fresh_solver_invocation_verified
+  assert run.local_coupled_field_verified
+  assert run.configuration['use_signed_free_boundary_pressure_response'] is True
   assert run.configuration['use_signed_free_boundary_geometry_response'] is True
   assert run.configuration['signed_normal_response_time_s'] == pytest.approx(
     1.0e-6
@@ -8693,9 +8696,12 @@ def test_global_coupled_downstream_feedback_consumes_signed_geometry_response():
   )
   assert second.input_geometry_profile == first.next_geometry_profile
   assert first.result.local_coupled_field_verified
-  assert second.result.local_coupled_field_verified is False
-  assert second.result.status is (
-    MocReflectedDomainGlobalCoupledDownstreamStatus.COUPLED_SOLVER_FAILURE
+  assert second.result.local_coupled_field_verified
+  assert run.normal_velocity_residual_descent_required
+  assert run.normal_velocity_residual_descent_verified
+  assert run.response_residuals_verified is False
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.RESPONSE_FAILURE
   )
   assert run.global_coupling_verified is False
   assert run.downstream_boundary_closure_verified is False

@@ -1,4 +1,4 @@
-"""Research-only downstream pressure-feedback iteration evidence.
+"""Research-only downstream pressure/geometry-feedback iteration evidence.
 
 The boundary-pressure consumer can now apply a measured downstream response to
 another coupled solve.  This module makes that handoff repeatable across fresh
@@ -443,6 +443,8 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
   response_lineage_verified: bool = False
   response_channels_finite: bool = False
   response_coverage_verified: bool = False
+  normal_velocity_residual_descent_required: bool = False
+  normal_velocity_residual_descent_verified: bool = False
   response_residuals_verified: bool = False
   boundary_trace_verified: bool = False
   local_coupled_field_verified: bool = False
@@ -520,6 +522,8 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'response_lineage_verified',
       'response_channels_finite',
       'response_coverage_verified',
+      'normal_velocity_residual_descent_required',
+      'normal_velocity_residual_descent_verified',
       'response_residuals_verified',
       'boundary_trace_verified',
       'local_coupled_field_verified',
@@ -571,6 +575,10 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       and self.response_lineage_verified
       and self.response_channels_finite
       and self.response_coverage_verified
+      and (
+        not self.normal_velocity_residual_descent_required
+        or self.normal_velocity_residual_descent_verified
+      )
       and self.response_residuals_verified
       and self.boundary_trace_verified
       and self.local_coupled_field_verified
@@ -634,6 +642,12 @@ class MocReflectedDomainGlobalCoupledDownstreamFeedbackRun:
       'response_lineage_verified': self.response_lineage_verified,
       'response_channels_finite': self.response_channels_finite,
       'response_coverage_verified': self.response_coverage_verified,
+      'normal_velocity_residual_descent_required': (
+        self.normal_velocity_residual_descent_required
+      ),
+      'normal_velocity_residual_descent_verified': (
+        self.normal_velocity_residual_descent_verified
+      ),
       'response_residuals_verified': self.response_residuals_verified,
       'boundary_trace_verified': self.boundary_trace_verified,
       'upstream_feedback_proposal_verified': (
@@ -779,6 +793,50 @@ def _maximum_profile_update(
 ####
 
 
+def _strict_normal_velocity_residual_descent(
+  before: float,
+  after: float,
+) -> bool:
+  """Require a finite, strictly smaller fresh normal-response residual."""
+
+  before_value = float(before)
+  after_value = float(after)
+  return bool(
+    isfinite(before_value)
+    and isfinite(after_value)
+    and before_value >= 0.0
+    and after_value >= 0.0
+    and after_value < before_value
+  )
+####
+
+
+def _normal_velocity_residual_descent_verified(
+  iterations: tuple[MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration, ...],
+  *,
+  required: bool,
+) -> bool:
+  """Audit strict descent across consecutive fresh downstream responses."""
+
+  if not required:
+    return True
+  ####
+  responses = tuple(
+    item.response for item in iterations if item.response is not None
+  )
+  if len(responses) < 2:
+    return False
+  ####
+  return all(
+    _strict_normal_velocity_residual_descent(
+      before.maximum_normal_velocity_residual_m_s,
+      after.maximum_normal_velocity_residual_m_s,
+    )
+    for before, after in zip(responses, responses[1:])
+  )
+####
+
+
 def _status_for_run(
   *,
   iterations: tuple[MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration, ...],
@@ -792,6 +850,8 @@ def _status_for_run(
   response_lineage_verified: bool,
   response_channels_finite: bool,
   response_coverage_verified: bool,
+  normal_velocity_residual_descent_required: bool,
+  normal_velocity_residual_descent_verified: bool,
   response_residuals_verified: bool,
   boundary_trace_verified: bool,
   local_coupled_field_verified: bool,
@@ -858,6 +918,16 @@ def _status_for_run(
       MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.RESPONSE_FAILURE,
       'the independently measured downstream response is incomplete or '
       'cannot be tied to the solver-retained response',
+    )
+  ####
+  if (
+    normal_velocity_residual_descent_required
+    and not normal_velocity_residual_descent_verified
+  ):
+    return (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus.RESPONSE_FAILURE,
+      'signed geometry feedback did not produce strict fresh normal-velocity '
+      'residual descent; no profile step was promoted',
     )
   ####
   if not pressure_update_convergence_verified:
@@ -1005,6 +1075,11 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     'signed_normal_response_time_s': response_time,
     'geometry_correction_fraction': geometry_fraction,
     'signed_normal_max_displacement_fraction': maximum_geometry_fraction,
+    'normal_velocity_residual_descent_policy': (
+      'strict-fresh-response-descent-required-v1'
+      if use_signed_free_boundary_geometry_response
+      else 'not-required-for-selected-geometry-response-mode-v1'
+    ),
     'pressure_update_tolerance_Pa': update_tolerance,
     'position_tolerance_m': position_tolerance,
     'ambient_pressure_Pa': ambient_pressure_Pa,
@@ -1461,6 +1536,15 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     retained_iterations
     and all(item.response_coverage_verified for item in retained_iterations)
   )
+  normal_velocity_residual_descent_required = bool(
+    use_signed_free_boundary_geometry_response
+  )
+  normal_velocity_residual_descent_verified = (
+    _normal_velocity_residual_descent_verified(
+      retained_iterations,
+      required=normal_velocity_residual_descent_required,
+    )
+  )
   response_residuals_verified = bool(
     retained_iterations
     and all(item.response_residuals_verified for item in retained_iterations)
@@ -1502,6 +1586,12 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     response_lineage_verified=response_lineage_verified,
     response_channels_finite=response_channels_finite,
     response_coverage_verified=response_coverage_verified,
+    normal_velocity_residual_descent_required=(
+      normal_velocity_residual_descent_required
+    ),
+    normal_velocity_residual_descent_verified=(
+      normal_velocity_residual_descent_verified
+    ),
     response_residuals_verified=response_residuals_verified,
     boundary_trace_verified=boundary_trace_verified,
     local_coupled_field_verified=local_coupled_field_verified,
@@ -1534,6 +1624,12 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     response_lineage_verified=response_lineage_verified,
     response_channels_finite=response_channels_finite,
     response_coverage_verified=response_coverage_verified,
+    normal_velocity_residual_descent_required=(
+      normal_velocity_residual_descent_required
+    ),
+    normal_velocity_residual_descent_verified=(
+      normal_velocity_residual_descent_verified
+    ),
     response_residuals_verified=response_residuals_verified,
     boundary_trace_verified=boundary_trace_verified,
     local_coupled_field_verified=local_coupled_field_verified,
