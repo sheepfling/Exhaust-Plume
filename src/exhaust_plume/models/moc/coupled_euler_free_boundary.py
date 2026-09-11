@@ -1626,6 +1626,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None
   moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None
+  require_conservative_moving_interface_flux_closure: bool = False
   # Optional explicit entropy/mixing closure law.  The concrete profile lives
   # in the validation lane; the solver consumes its structural contract.
   entropy_closure_profile: Any | None = None
@@ -1978,6 +1979,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'MocMovingMixedRegimeInterfaceResult or None'
       )
     ####
+    if not isinstance(
+      self.require_conservative_moving_interface_flux_closure,
+      bool,
+    ):
+      raise TypeError(
+        'require_conservative_moving_interface_flux_closure must be a bool'
+      )
+    ####
     if self.entropy_closure_profile is not None:
       _entropy_closure_profile_fields(
         self.entropy_closure_profile,
@@ -2047,6 +2056,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         'moving_mixed_regime_interface, and other inlet modes must not supply it'
       )
     ####
+    if (
+      self.require_conservative_moving_interface_flux_closure
+      and not moving_mixed_regime_mode
+    ):
+      raise ValueError(
+        'require_conservative_moving_interface_flux_closure requires a '
+        'solver-owned moving mixed-regime inlet mode'
+      )
+    ####
     if moving_mixed_regime_mode:
       handoff = self.moving_mixed_regime_interface
       assert handoff is not None
@@ -2095,6 +2113,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         raise ValueError(
           'solver-owned moving mixed-regime two-sided mode requires the '
           'independently audited open companion-field handoff'
+        )
+      if self.require_conservative_moving_interface_flux_closure and not (
+        handoff.request.two_sided_moving_interface_conservative_flux_verified
+        and handoff.request.two_sided_moving_interface_response_source
+        and handoff.request.two_sided_moving_interface_law_id
+      ):
+        raise ValueError(
+          'strict moving-interface consumer mode requires the typed '
+          'conservative-flux response/law handoff; no downgrade to the '
+          'research-only moving seam is allowed'
         )
     ####
     continuation_mode = self.inlet_boundary_mode in (
@@ -2305,6 +2333,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         if self.moving_mixed_regime_interface is None
         else self.moving_mixed_regime_interface.as_report()
       ),
+      'require_conservative_moving_interface_flux_closure': (
+        self.require_conservative_moving_interface_flux_closure
+      ),
       'entropy_closure_profile': (
         None
         if self.entropy_closure_profile is None
@@ -2374,6 +2405,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
   moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None,
+  require_conservative_moving_interface_flux_closure: bool = False,
   entropy_closure_profile: Any | None = None,
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
@@ -2436,6 +2468,9 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     physical_field_continuation_profile=physical_field_continuation_profile,
     physical_field_shock_front_condition=physical_field_shock_front_condition,
     moving_mixed_regime_interface=moving_mixed_regime_interface,
+    require_conservative_moving_interface_flux_closure=(
+      require_conservative_moving_interface_flux_closure
+    ),
     entropy_closure_profile=entropy_closure_profile,
     free_boundary_pressure_profile_Pa=free_boundary_pressure_profile_Pa,
     free_boundary_pressure_profile_x_stations_m=(
@@ -3956,6 +3991,7 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
     MocPhysicalFieldShockFrontConditionResult | None
   ) = None,
   moving_mixed_regime_interface: MocMovingMixedRegimeInterfaceResult | None = None,
+  require_conservative_moving_interface_flux_closure: bool = False,
   entropy_closure_profile: Any | None = None,
   free_boundary_pressure_profile_Pa: tuple[float, ...] | None = None,
   free_boundary_pressure_profile_x_stations_m: tuple[float, ...] | None = None,
@@ -4010,6 +4046,9 @@ def solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request
       physical_field_continuation_profile=physical_field_continuation_profile,
       physical_field_shock_front_condition=physical_field_shock_front_condition,
       moving_mixed_regime_interface=moving_mixed_regime_interface,
+      require_conservative_moving_interface_flux_closure=(
+        require_conservative_moving_interface_flux_closure
+      ),
       entropy_closure_profile=entropy_closure_profile,
       free_boundary_pressure_profile_Pa=free_boundary_pressure_profile_Pa,
       free_boundary_pressure_profile_x_stations_m=(
@@ -5616,6 +5655,17 @@ def _prepare_moving_mixed_regime_inlet(
     raise RuntimeError(
       'moving mixed-regime field mode requires an independently verified, '
       'complete conservative cross-section; no extrapolation or fallback was used'
+    )
+  ####
+  if request.require_conservative_moving_interface_flux_closure and not (
+    moving_interface.request.two_sided_moving_interface_conservative_flux_verified
+    and moving_interface.request.two_sided_moving_interface_response_source
+    and moving_interface.request.two_sided_moving_interface_law_id
+  ):
+    raise RuntimeError(
+      'strict moving-interface consumer mode requires the typed conservative-'
+      'flux response/law handoff; no downgrade to the research-only moving '
+      'seam was used'
     )
   ####
   if (

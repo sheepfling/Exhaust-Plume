@@ -4823,3 +4823,20 @@ solver-to-coupled-consumer lineage seam only.  The downstream subsonic/
 free-boundary solve, global feedback, refinement, physical shock-cell fits,
 provider-bound product comparisons, owner archives, and release tag remain
 blocked.
+
+### WP-1 strict moving-interface consumer-audit checkpoint — 2026-09-10
+
+The coupled-field consumer now exposes an explicit
+``require_conservative_moving_interface_flux_closure`` policy.  When enabled,
+request construction and inlet preparation require the typed response source,
+law identity, and strict conservative-flux evidence carried by the moving
+interface; the coupled lane cannot silently downgrade that handoff to the
+research-only seam.  The independent coupled-field audit rechecks the same
+metadata and reports a typed strict-conservative-flux failure if a candidate
+is tampered after construction.
+
+The default research mode remains unchanged for older non-strict fixtures and
+continues to block chain promotion and production claims.  This checkpoint
+closes a consumer-policy and audit-integrity seam only; the canonical moving
+free-boundary closure, physical shock-cell fits, provider-bound comparisons,
+validation archives, release freeze, and production tag remain open.

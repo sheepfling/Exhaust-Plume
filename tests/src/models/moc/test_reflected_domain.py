@@ -1590,9 +1590,58 @@ def test_coupled_field_consumes_two_sided_moving_interface_as_distinct_research_
   audit = measure_reflected_domain_coupled_euler_free_boundary(result)
   assert audit.two_sided_shock_boundary_verified
   assert audit.two_sided_companion_field_verified
+  assert audit.conservative_moving_interface_flux_verified
   assert audit.moving_mixed_regime_interface_verified
   assert audit.production_claim_allowed is False
   assert audit.chain_promotion_blocked
+
+
+def test_coupled_field_rejects_strict_consumer_without_strict_handoff():
+  mixed_request, moving_result = _moving_interface_for_coupled_field(
+    include_two_sided_boundary=True,
+  )
+
+  with pytest.raises(ValueError, match='strict moving-interface consumer'):
+    build_reflected_domain_coupled_euler_free_boundary_request(
+      mixed_request,
+      reference_total_temperature_K=1500.0,
+      transverse_cell_count=4,
+      inlet_boundary_mode=(
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_MOVING_MIXED_REGIME_TWO_SIDED_FIELD
+      ),
+      moving_mixed_regime_interface=moving_result,
+      require_conservative_moving_interface_flux_closure=True,
+    )
+
+
+def test_coupled_field_audit_rejects_tampered_strict_consumer_without_handoff():
+  mixed_request, moving_result = _moving_interface_for_coupled_field()
+  request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+    axial_cell_count=4,
+    transverse_cell_count=4,
+    max_pseudo_iterations=20,
+    max_shape_iterations=1,
+    outlet_static_pressure_Pa=mixed_request.ambient_pressure_Pa,
+    inlet_boundary_mode=(
+      MocReflectedDomainCoupledEulerInletBoundaryMode
+      .SOLVER_OWNED_MOVING_MIXED_REGIME_SUBSONIC_FIELD
+    ),
+    moving_mixed_regime_interface=moving_result,
+  )
+  result = solve_reflected_domain_coupled_euler_free_boundary(request)
+
+  object.__setattr__(request, 'require_conservative_moving_interface_flux_closure', True)
+  audit = measure_reflected_domain_coupled_euler_free_boundary(result)
+
+  assert audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .MOVING_MIXED_REGIME_STRICT_CONSERVATIVE_FLUX_FAILURE
+  )
+  assert not audit.conservative_moving_interface_flux_verified
+  assert not audit.local_consistency_verified
 
 
 def test_two_sided_euler_field_iteration_reaches_terminal_trace_fixed_point():

@@ -261,6 +261,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   MOVING_MIXED_REGIME_TWO_SIDED_COMPANION_FIELD_FAILURE = (
     'coupled-euler-audit-moving-mixed-regime-two-sided-companion-field-failure'
   )
+  MOVING_MIXED_REGIME_STRICT_CONSERVATIVE_FLUX_FAILURE = (
+    'coupled-euler-audit-moving-mixed-regime-strict-conservative-flux-failure'
+  )
   FLAG_FAILURE = 'coupled-euler-audit-promotion-flag-failure'
 ####
 
@@ -311,6 +314,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   moving_mixed_regime_interface_verified: bool = False
   two_sided_shock_boundary_verified: bool = False
   two_sided_companion_field_verified: bool = False
+  conservative_moving_interface_flux_verified: bool = False
   control_section_compatibility_verified: bool = False
   control_section_pressure_jump_Pa: float | None = None
   control_section_pressure_jump_fraction: float | None = None
@@ -407,6 +411,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'moving_mixed_regime_interface_verified',
       'two_sided_shock_boundary_verified',
       'two_sided_companion_field_verified',
+      'conservative_moving_interface_flux_verified',
       'control_section_compatibility_verified',
       'entropy_report_verified',
       'entropy_production_map_verified',
@@ -553,6 +558,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
         )
         or self.two_sided_companion_field_verified
       )
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.require_conservative_moving_interface_flux_closure
+        )
+        or self.conservative_moving_interface_flux_verified
+      )
       and self.control_section_compatibility_verified
       and self.entropy_report_verified
       and self.entropy_production_map_verified
@@ -659,6 +672,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       ),
       'two_sided_companion_field_verified': (
         self.two_sided_companion_field_verified
+      ),
+      'conservative_moving_interface_flux_verified': (
+        self.conservative_moving_interface_flux_verified
       ),
       'control_section_compatibility_verified': (
         self.control_section_compatibility_verified
@@ -2753,6 +2769,7 @@ def _audit_field(
   moving_mixed_regime_interface_verified = True
   two_sided_shock_boundary_verified = True
   two_sided_companion_field_verified = True
+  conservative_moving_interface_flux_verified = True
   moving_mixed_regime_inlet_states: tuple[np.ndarray, ...] | None = None
   moving_mixed_regime_mode = request.inlet_boundary_mode in (
     MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -2785,6 +2802,14 @@ def _audit_field(
       moving_interface.boundary_seam_verified
       and moving_interface_audit.converged
       and moving_interface.complete_cross_section_coverage
+    )
+    conservative_moving_interface_flux_verified = bool(
+      not request.require_conservative_moving_interface_flux_closure
+      or (
+        moving_interface.request.two_sided_moving_interface_conservative_flux_verified
+        and moving_interface.request.two_sided_moving_interface_response_source
+        and moving_interface.request.two_sided_moving_interface_law_id
+      )
     )
     if not moving_mixed_regime_interface_verified:
       raise ValueError(
@@ -3279,6 +3304,9 @@ def _audit_field(
     ),
     'two_sided_shock_boundary_verified': two_sided_shock_boundary_verified,
     'two_sided_companion_field_verified': two_sided_companion_field_verified,
+    'conservative_moving_interface_flux_verified': (
+      conservative_moving_interface_flux_verified
+    ),
     'moving_mixed_regime_inlet_states': moving_mixed_regime_inlet_states,
   }
 ####
@@ -3573,6 +3601,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   two_sided_companion_field_verified = bool(
     raw['two_sided_companion_field_verified']
   )
+  conservative_moving_interface_flux_verified = bool(
+    raw['conservative_moving_interface_flux_verified']
+  )
   if moving_mixed_regime_mode:
     expected_moving_inlet = raw['moving_mixed_regime_inlet_states']
     reported_moving_inlet = np.asarray(
@@ -3776,6 +3807,18 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   if not promotion_flags_verified:
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.FLAG_FAILURE
     message = 'candidate promotion flags do not retain the research-only stop'
+  elif (
+    candidate.request.require_conservative_moving_interface_flux_closure
+    and not conservative_moving_interface_flux_verified
+  ):
+    status = (
+      MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+      .MOVING_MIXED_REGIME_STRICT_CONSERVATIVE_FLUX_FAILURE
+    )
+    message = (
+      'candidate strict moving-interface consumer did not retain the typed '
+      'conservative-flux response/law handoff'
+    )
   elif not free_boundary_geometry_profile_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -4029,6 +4072,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     ),
     two_sided_shock_boundary_verified=two_sided_shock_boundary_verified,
     two_sided_companion_field_verified=two_sided_companion_field_verified,
+    conservative_moving_interface_flux_verified=(
+      conservative_moving_interface_flux_verified
+    ),
     control_section_compatibility_verified=(
       control_section_compatibility_verified
     ),
