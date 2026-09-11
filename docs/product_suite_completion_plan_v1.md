@@ -4858,3 +4858,62 @@ existing typed handoff adapter.  This closes a response-to-re-solve admission
 seam only; genuinely moving momentum closure, canonical free-boundary
 feedback, entropy/ambient/centerline closure, physical shock-cell fits,
 provider validation, archives, and release promotion remain open.
+
+### Execution plan refresh — 2026-09-10
+
+The long-running goal remains active on the dedicated branch
+``work/washed-integral-visual``.  ``main`` is still the integration reference;
+it is not the place for exploratory fidelity changes.  Each packet below is a
+small, reviewable merge unit and must preserve the stricter claim ceiling when
+resolving conflicts.
+
+The remaining work is deliberately split into two parallel tracks:
+
+1. **Physics track — unblock the canonical field.** Implement the actual
+   solver-owned mixed-regime/downstream response and global re-solve, then
+   independently audit the retained field, frontier, shock geometry, ambient
+   attachment, centerline reflection, entropy transport, and Euler residuals.
+   Run the same request through a multi-resolution, multi-case ladder.  A
+   bounded compression envelope, scalar response, or locally converged
+   research field cannot satisfy this packet.
+2. **Evidence track — prepare, never fabricate, external acceptance.** Keep
+   the provider-bound evidence schema, asset manifest, operator crosswalk, and
+   calibration/validation split ready for the owner-supplied archives and
+   provider outputs.  The raw Version 8 ZIP and the separately named alignment
+   archive are still absent, so this track may improve gates and intake tools
+   but may not mark an external comparison accepted from synthetic fixtures.
+
+The next packets are:
+
+| Order | Packet | Deliverable | Stop condition |
+| --- | --- | --- | --- |
+| 1 | `P2.2` canonical mixed-regime consumer | Solver-owned downstream response, global fixed-point re-solve, independent audit, and stable case/resolution ladder | Any response still relies on caller-selected scalar/compression fallback, open Euler residuals, or mixed response modes |
+| 2 | `P3.1` physical first-cell fit | First-cell length/uncertainty derived only from the closed field/frontier, with an independent measurement record | Canonical closure or accepted physical observations are missing |
+| 3 | `P3.2` continued shock-cell chain | Continued cells and production fitting from the same accepted field, with disjoint reduced-order calibration/validation where applicable | Pressure-extrema spacing is the only evidence or a lower-fidelity lane is being promoted |
+| 4 | `P4.1` provider intake execution | Verify archive/member digests, bind provider snapshots and measurement spaces, execute VIS/SIG/RAY/FPA comparisons, and attach uncertainty/coverage | Any source, scenario, operator, frame, or calibration/validation identity is unresolved |
+| 5 | `P5.1` release candidate | Refresh exact-HEAD freeze, run full tests/static/docs/contracts/wheel smoke, and obtain `release_ready=true` | Any physical, provider, archive, split, package, or freeze gate is open |
+
+The acceptance boundary is now explicit in the provider comparison planner:
+each comparison declares a required measurement space, and an accepted
+provider-bound record must match it exactly.  For example, intrinsic
+``J_lambda`` cannot satisfy a sensor-space radiance or relative-shape
+comparison merely because the metric names are similar.  The focused
+provider-comparison suite passes 17 tests; this is a fail-closed governance
+improvement, not external validation.
+
+Product completion is evaluated independently:
+
+- **Visualization:** all five standardized bundles and renderer-neutral views
+  are locally complete; provider-bound geometry/feature comparisons and
+  supplied uncertainty overlays remain open.
+- **Signature:** the local table, gray/LTE engineering, mission-time, angular,
+  and point-query paths are available; source-bound resolved radiation and
+  provider-bound sensor/relative-shape comparisons remain open.
+- **FPA:** the deterministic ray-to-pixel, detector, expected-electron, ADC,
+  and visualization chain is available; camera/detector observations and
+  measured-image acceptance remain open.
+
+The branch is allowed to accumulate research and evidence-plumbing commits,
+but no lane is promoted, no lower-fidelity solver is mutated into a higher-
+fidelity solver, and no release tag is created until the gates above and the
+release manifest are green.

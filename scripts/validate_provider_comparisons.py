@@ -742,6 +742,7 @@ def _comparison(
     benchmark_id: str,
     alignment_id: str,
     measurement_operator_id: str,
+    measurement_space: str,
     metric_ids: list[str],
     observed_data: Mapping[str, Any],
     available_provider_outputs: list[str],
@@ -755,6 +756,7 @@ def _comparison(
     'benchmark_id': benchmark_id,
     'alignment_id': alignment_id,
     'measurement_operator_id': measurement_operator_id,
+    'required_measurement_space': measurement_space,
     'metric_ids': metric_ids,
     'observed_data': dict(observed_data),
     'available_provider_outputs': available_provider_outputs,
@@ -805,6 +807,7 @@ def build_comparison_plan(
       benchmark_id='RP-HOTWAKE-001',
       alignment_id='MVP-A-061',
       measurement_operator_id='operator.extract.sectioned_tube_mach_disk_position',
+      measurement_space='physical-geometry',
       metric_ids=['metric.geometry.mach_disk_position_rmse'],
       observed_data=observations['RP-HOTWAKE-001']['mach_disk_relation'],
       available_provider_outputs=visual_outputs,
@@ -818,6 +821,7 @@ def build_comparison_plan(
       benchmark_id='RP-BSUV2-001',
       alignment_id='MVP-A-043',
       measurement_operator_id='operator.sensor.bsuv2_los_fov',
+      measurement_space='sensor-space-radiance',
       metric_ids=['metric.signature.log_spectral_rmse'],
       observed_data=observations['RP-BSUV2-001']['spectral_radiance'],
       available_provider_outputs=signature_outputs,
@@ -836,6 +840,7 @@ def build_comparison_plan(
       benchmark_id='RP-EMAP-RAD-001',
       alignment_id='MVP-A-064',
       measurement_operator_id='operator.spectrum.peak_normalize_after_sensor_sampling',
+      measurement_space='relative-shape',
       metric_ids=['metric.signature.relative_shape_rmse', 'metric.signature.band_location_error'],
       observed_data=observations['RP-EMAP-RAD-001']['uvvis_relative_spectrum'],
       available_provider_outputs=signature_outputs,
@@ -854,6 +859,7 @@ def build_comparison_plan(
       benchmark_id='RP-EMAP-RAD-001',
       alignment_id='MVP-A-066',
       measurement_operator_id='operator.spectrum.peak_normalize_after_sensor_sampling',
+      measurement_space='relative-shape',
       metric_ids=['metric.signature.relative_shape_rmse', 'metric.signature.band_location_error'],
       observed_data=observations['RP-EMAP-RAD-001']['ftir_relative_envelopes'],
       available_provider_outputs=signature_outputs,
@@ -872,6 +878,7 @@ def build_comparison_plan(
       benchmark_id='RP-ALSI-001',
       alignment_id='MVP-A-073',
       measurement_operator_id='operator.sensor.alsi_thermal_band',
+      measurement_space='band-integrated-radiance',
       metric_ids=['metric.signature.band_power_relative_error', 'metric.signature.composition_trend'],
       observed_data=observations['RP-ALSI-001']['thermal_comparison'],
       available_provider_outputs=signature_outputs,
@@ -889,6 +896,7 @@ def build_comparison_plan(
       benchmark_id='RP-BSUV2-001',
       alignment_id='MVP-A-044',
       measurement_operator_id='operator.sensor.bsuv2_los_fov',
+      measurement_space='sensor-space-radiance',
       metric_ids=['metric.ray.sensor_space_log_rmse'],
       observed_data=observations['RP-BSUV2-001']['spectral_radiance'],
       available_provider_outputs=ray_outputs,
@@ -906,6 +914,7 @@ def build_comparison_plan(
       benchmark_id='RP-EMAP-RAD-001',
       alignment_id='MVP-A-065',
       measurement_operator_id='operator.spectrum.peak_normalize_after_los_transfer',
+      measurement_space='relative-shape',
       metric_ids=['metric.ray.relative_spectral_shape_rmse'],
       observed_data=observations['RP-EMAP-RAD-001']['uvvis_relative_spectrum'],
       available_provider_outputs=ray_outputs,
@@ -923,6 +932,7 @@ def build_comparison_plan(
       benchmark_id='RP-EMAP-RAD-001',
       alignment_id='MVP-A-067',
       measurement_operator_id='operator.spectrum.peak_normalize_after_los_transfer',
+      measurement_space='relative-shape',
       metric_ids=['metric.ray.relative_spectral_shape_rmse'],
       observed_data=observations['RP-EMAP-RAD-001']['ftir_relative_envelopes'],
       available_provider_outputs=ray_outputs,
@@ -940,6 +950,7 @@ def build_comparison_plan(
       benchmark_id='RP-EMAP-RAD-001',
       alignment_id='MVP-A-068',
       measurement_operator_id='operator.surface.gardon_band_integral',
+      measurement_space='surface-band-flux',
       metric_ids=['metric.ray.surface_flux_log_rmse'],
       observed_data=observations['RP-EMAP-RAD-001']['gardon_time_history'],
       available_provider_outputs=ray_outputs,
@@ -958,6 +969,7 @@ def build_comparison_plan(
       benchmark_id='RP-ALSI-001',
       alignment_id='MVP-A-074',
       measurement_operator_id='operator.image.integrate_alsi_band_and_area',
+      measurement_space='band-integrated-projected-power',
       metric_ids=['metric.ray.band_radiance_relative_error'],
       observed_data=observations['RP-ALSI-001']['thermal_comparison'],
       available_provider_outputs=ray_outputs,
@@ -1028,6 +1040,13 @@ def build_comparison_plan(
     comparison['evidence_status'] = evidence.status.value
     comparison['provider_bound_evidence'] = evidence.model_dump(mode='json')
     if evidence.status is ComparisonEvidenceStatus.ACCEPTED:
+      if evidence.measurement_space != comparison['required_measurement_space']:
+        raise ValueError(
+          'accepted provider-bound evidence measurement_space must match '
+          f"comparison {comparison['comparison_id']} requirement "
+          f"{comparison['required_measurement_space']!r}"
+        )
+      ####
       comparison['comparison_status'] = 'accepted'
       comparison['claim_status'] = 'accepted'
     elif evidence.status is ComparisonEvidenceStatus.DIAGNOSTIC:

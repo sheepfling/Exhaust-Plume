@@ -226,6 +226,20 @@ def test_provider_bound_evidence_must_bind_to_a_compared_provider() -> None:
 ####
 
 
+def test_accepted_provider_bound_evidence_must_match_measurement_space() -> None:
+  evidence = _accepted_spectral_evidence().model_copy(
+    update={'measurement_space': 'intrinsic-radiant-intensity'}
+  )
+  with pytest.raises(ValueError, match='measurement_space must match comparison'):
+    build_comparison_plan(
+      observations=_observations(),
+      providers=_providers(),
+      operator_crosswalk_status='complete-scoped',
+      provider_bound_evidence={'SIG-MVP-A-064': evidence},
+    )
+  ####
+
+
 def test_provider_bound_evidence_document_loads_by_claim_id(tmp_path) -> None:
   evidence = _accepted_spectral_evidence()
   path = tmp_path / 'provider-evidence.json'
