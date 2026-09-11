@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `16f4598` (code checkpoint `000ab04`); full suite is green on the behavior candidate and exact-`HEAD` release-path checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `e923572` (anchored-shape/front-limit checkpoint); the reflected-domain suite is green at 219 tests and the local static/contract checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -6536,7 +6536,8 @@ observations or historical freeze rewrite is permitted to clear them.
 
 ### P3.6 anchored-shape and front-limit closure checkpoint — 2026-09-11
 
-The conservative two-sided research corrector now exposes an explicit
+The committed implementation checkpoint is ``e923572``.  The conservative
+two-sided research corrector now exposes an explicit
 ``MocEulerTwoSidedShapeControlFamily`` contract.  The existing pointwise
 normal basis remains the compatibility default; a bounded low-order
 ``smooth-anchored-normal-v1`` basis parameterizes the exact retained shock by
