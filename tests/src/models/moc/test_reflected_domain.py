@@ -9468,6 +9468,16 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   assert result.centerline_condition_verified
   assert result.maximum_centerline_normal_velocity_residual_m_s is not None
   assert result.maximum_centerline_normal_velocity_residual_fraction is not None
+  assert result.free_boundary_signed_pressure_residuals_Pa == pytest.approx(
+    tuple(
+      pressure - compatible_request.ambient_pressure_Pa
+      for pressure in result.free_boundary_adjacent_static_pressure_Pa
+    )
+  )
+  assert tuple(
+    abs(value)
+    for value in result.free_boundary_signed_normal_velocity_residuals_m_s
+  ) == pytest.approx(result.free_boundary_normal_velocity_residuals_m_s)
   assert result.entropy_transport_verified
   assert result.subsonic_pressure_budget is not None
   assert result.subsonic_pressure_budget.status is (
@@ -9556,6 +9566,20 @@ def test_global_coupled_euler_free_boundary_converges_only_for_compatible_resear
   )
   assert not tampered_audit.centerline_report_verified
   assert not tampered_audit.local_consistency_verified
+  signed_tampered = replace(
+    result,
+    free_boundary_signed_pressure_residuals_Pa=tuple(
+      -value if abs(value) > 1.0e-12 else 1.0
+      for value in result.free_boundary_signed_pressure_residuals_Pa
+    ),
+  )
+  signed_tampered_audit = measure_reflected_domain_coupled_euler_free_boundary(
+    signed_tampered
+  )
+  assert signed_tampered_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
+  )
+  assert not signed_tampered_audit.free_boundary_report_verified
 ####
 
 

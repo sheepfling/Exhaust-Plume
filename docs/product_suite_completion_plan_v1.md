@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Local branch is clean at `e9a28d5`; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch; current checkpoint is the signed-residual response slice; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -72,6 +72,26 @@ radiance claim; and the FPA remains a downstream adapter until its camera and
 detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
+
+### P2.2d signed boundary-response checkpoint — 2026-09-11
+
+The coupled Euler/free-boundary result now retains both the unsigned
+diagnostics and the solver-owned signed response at every outer boundary
+column: adjacent static pressure minus its target, plus the signed velocity
+normal to the outward top face.  Previously only magnitudes survived the
+result boundary, so a future global/downstream corrector could measure a
+residual but could not tell which direction to move the boundary.  The
+independent coupled-field audit now rederives and verifies both signed
+vectors, including typed rejection of a sign-tampered report.
+
+This is response-contract infrastructure for the next joint physical solve;
+it does not claim that the current pressure/tangency iteration is canonical,
+does not alter any promotion flag, and does not permit a shock-cell fit to
+consume the field.  The focused coupled-Euler/free-boundary and global
+downstream regressions pass (25 tests in the broader selection).  The next
+physics slice is to consume these signed responses in a bounded, solver-owned
+interface/free-boundary corrector with fresh field re-solves and independent
+mass, normal-momentum, energy, entropy, ambient, and centerline audits.
 
 ## Execution sprints and stop conditions
 

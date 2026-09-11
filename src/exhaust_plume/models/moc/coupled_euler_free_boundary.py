@@ -2517,7 +2517,12 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   residual_history: tuple[float, ...] = ()
   shape_residual_history_m: tuple[float, ...] = ()
   free_boundary_pressure_residuals_Pa: tuple[float, ...] = ()
+  # Signed residuals are retained for solver-owned boundary response.  A
+  # positive pressure residual means the adjacent interior pressure is above
+  # its target; the normal-velocity sign follows the outward top-face normal.
+  free_boundary_signed_pressure_residuals_Pa: tuple[float, ...] = ()
   free_boundary_normal_velocity_residuals_m_s: tuple[float, ...] = ()
+  free_boundary_signed_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   centerline_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   free_boundary_pressure_profile_consumed: bool = False
   free_boundary_geometry_profile_consumed: bool = False
@@ -2636,7 +2641,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'residual_history',
       'shape_residual_history_m',
       'free_boundary_pressure_residuals_Pa',
+      'free_boundary_signed_pressure_residuals_Pa',
       'free_boundary_normal_velocity_residuals_m_s',
+      'free_boundary_signed_normal_velocity_residuals_m_s',
       'centerline_normal_velocity_residuals_m_s',
     ):
       values = tuple(float(value) for value in getattr(self, name))
@@ -2676,6 +2683,21 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
           'centerline_normal_velocity_residuals_m_s must contain one value '
           'per axial cell column'
         )
+      ####
+    ####
+    if self.request is not None:
+      for name in (
+        'free_boundary_pressure_residuals_Pa',
+        'free_boundary_signed_pressure_residuals_Pa',
+        'free_boundary_normal_velocity_residuals_m_s',
+        'free_boundary_signed_normal_velocity_residuals_m_s',
+      ):
+        values = getattr(self, name)
+        if values and len(values) != self.request.axial_cell_count:
+          raise ValueError(
+            f'{name} must contain one value per axial cell column'
+          )
+        ####
       ####
     ####
     for name in ('free_boundary_points_m', 'cell_centers_m'):
@@ -3274,6 +3296,12 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
         'entropy_closure_total_pressure_residuals_Pa': (
           self.entropy_closure_total_pressure_residuals_Pa
         ),
+        'free_boundary_signed_pressure_residuals_Pa': (
+          self.free_boundary_signed_pressure_residuals_Pa
+        ),
+        'free_boundary_signed_normal_velocity_residuals_m_s': (
+          self.free_boundary_signed_normal_velocity_residuals_m_s
+        ),
         'centerline_normal_velocity_residuals_m_s': (
           self.centerline_normal_velocity_residuals_m_s
         ),
@@ -3358,8 +3386,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       'free_boundary_pressure_residuals_Pa': (
         self.free_boundary_pressure_residuals_Pa
       ),
+      'free_boundary_signed_pressure_residuals_Pa': (
+        self.free_boundary_signed_pressure_residuals_Pa
+      ),
       'free_boundary_normal_velocity_residuals_m_s': (
         self.free_boundary_normal_velocity_residuals_m_s
+      ),
+      'free_boundary_signed_normal_velocity_residuals_m_s': (
+        self.free_boundary_signed_normal_velocity_residuals_m_s
       ),
       'centerline_normal_velocity_residuals_m_s': (
         self.centerline_normal_velocity_residuals_m_s
@@ -6221,8 +6255,15 @@ def _result_from_field(
       float(abs(value - target))
       for value, target in zip(top_pressures, pressure_targets, strict=True)
     ),
+    free_boundary_signed_pressure_residuals_Pa=tuple(
+      float(value - target)
+      for value, target in zip(top_pressures, pressure_targets, strict=True)
+    ),
     free_boundary_normal_velocity_residuals_m_s=tuple(
       float(abs(value)) for value in top_normal_velocities
+    ),
+    free_boundary_signed_normal_velocity_residuals_m_s=tuple(
+      float(value) for value in top_normal_velocities
     ),
     centerline_normal_velocity_residuals_m_s=tuple(
       float(abs(value)) for value in centerline_normal_velocities

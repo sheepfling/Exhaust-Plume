@@ -3757,8 +3757,20 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       atol=1.0e-8,
     )
     and np.allclose(
+      np.asarray(candidate.free_boundary_signed_pressure_residuals_Pa),
+      pressure - pressure_targets,
+      rtol=3.0e-6,
+      atol=1.0e-8,
+    )
+    and np.allclose(
       np.asarray(candidate.free_boundary_normal_velocity_residuals_m_s),
       np.abs(normal_velocity),
+      rtol=3.0e-6,
+      atol=1.0e-8,
+    )
+    and np.allclose(
+      np.asarray(candidate.free_boundary_signed_normal_velocity_residuals_m_s),
+      normal_velocity,
       rtol=3.0e-6,
       atol=1.0e-8,
     )
