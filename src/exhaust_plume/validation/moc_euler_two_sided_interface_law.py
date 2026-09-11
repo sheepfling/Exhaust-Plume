@@ -18,6 +18,7 @@ from typing import Any
 
 from exhaust_plume.models.moc.euler_two_sided_interface_law import (
   MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
+  MocEulerTwoSidedInterfaceLawStatus,
   MocEulerTwoSidedInterfaceLawResult,
 )
 from exhaust_plume.models.moc.euler_two_sided_moving_interface import (
@@ -49,6 +50,9 @@ class MocEulerTwoSidedInterfaceLawAuditStatus(str, Enum):
   RESPONSE_FAILURE = 'two-sided-interface-law-audit-response-failure'
   GEOMETRY_FAILURE = 'two-sided-interface-law-audit-geometry-failure'
   COMPANION_FIELD_FAILURE = 'two-sided-interface-law-audit-companion-field-failure'
+  CONSERVATIVE_FLUX_FAILURE = (
+    'two-sided-interface-law-audit-conservative-flux-failure'
+  )
   FLAG_FAILURE = 'two-sided-interface-law-audit-flag-failure'
 
 
@@ -68,6 +72,8 @@ class MocEulerTwoSidedInterfaceLawAudit:
   endpoint_constraints_verified: bool
   interface_motion_verified: bool
   stationary_equilibrium_candidate: bool
+  conservative_flux_closure_required: bool
+  conservative_flux_closure_verified: bool
   result_flags_verified: bool
   canonical_free_boundary_verified: bool
   canonical_euler_verified: bool
@@ -102,6 +108,8 @@ class MocEulerTwoSidedInterfaceLawAudit:
       'endpoint_constraints_verified',
       'interface_motion_verified',
       'stationary_equilibrium_candidate',
+      'conservative_flux_closure_required',
+      'conservative_flux_closure_verified',
       'result_flags_verified',
       'canonical_free_boundary_verified',
       'canonical_euler_verified',
@@ -155,6 +163,10 @@ class MocEulerTwoSidedInterfaceLawAudit:
         self.interface_motion_verified
         or self.stationary_equilibrium_candidate
       )
+      and (
+        not self.conservative_flux_closure_required
+        or self.conservative_flux_closure_verified
+      )
       and self.result_flags_verified
       and not self.canonical_free_boundary_verified
       and not self.canonical_euler_verified
@@ -180,6 +192,12 @@ class MocEulerTwoSidedInterfaceLawAudit:
       'endpoint_constraints_verified': self.endpoint_constraints_verified,
       'interface_motion_verified': self.interface_motion_verified,
       'stationary_equilibrium_candidate': self.stationary_equilibrium_candidate,
+      'conservative_flux_closure_required': (
+        self.conservative_flux_closure_required
+      ),
+      'conservative_flux_closure_verified': (
+        self.conservative_flux_closure_verified
+      ),
       'result_flags_verified': self.result_flags_verified,
       'canonical_free_boundary_verified': False,
       'canonical_euler_verified': False,
@@ -219,6 +237,8 @@ def _failure(
   endpoint_constraints_verified: bool = False,
   interface_motion_verified: bool = False,
   stationary_equilibrium_candidate: bool = False,
+  conservative_flux_closure_required: bool = False,
+  conservative_flux_closure_verified: bool = False,
   result_flags_verified: bool = False,
   maximum_interface_normal_speed_m_s: float = 0.0,
   maximum_normal_displacement_m: float = 0.0,
@@ -239,6 +259,8 @@ def _failure(
     endpoint_constraints_verified=endpoint_constraints_verified,
     interface_motion_verified=interface_motion_verified,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
+    conservative_flux_closure_required=conservative_flux_closure_required,
+    conservative_flux_closure_verified=conservative_flux_closure_verified,
     result_flags_verified=result_flags_verified,
     canonical_free_boundary_verified=False,
     canonical_euler_verified=False,
@@ -498,13 +520,25 @@ def measure_moc_euler_two_sided_interface_law(
   ####
   response = result.response
   if response is None:
+    status = (
+      MocEulerTwoSidedInterfaceLawAuditStatus.CONSERVATIVE_FLUX_FAILURE
+      if request.require_conservative_flux_closure
+      and result.status is MocEulerTwoSidedInterfaceLawStatus.CONSERVATIVE_FLUX_FAILURE
+      else MocEulerTwoSidedInterfaceLawAuditStatus.RESPONSE_FAILURE
+    )
     return _failure(
-      MocEulerTwoSidedInterfaceLawAuditStatus.RESPONSE_FAILURE,
-      'interface-law result retained no response packet',
+      status,
+      (
+        'strict conservative-flux admission rejected the interface response'
+        if status
+        is MocEulerTwoSidedInterfaceLawAuditStatus.CONSERVATIVE_FLUX_FAILURE
+        else 'interface-law result retained no response packet'
+      ),
       result_status=result.status.value,
       request_verified=True,
       current_field_verified=True,
       source_lineage_verified=True,
+      conservative_flux_closure_required=request.require_conservative_flux_closure,
     )
   ####
   sample_count = len(current.shock_boundary.shock_points_m)
@@ -652,6 +686,14 @@ def measure_moc_euler_two_sided_interface_law(
       for actual, expected in zip(response.energy_flux_residuals_W_m2, expected_energy, strict=True)
     )
   )
+  conservative_flux_closure_verified = bool(
+    max(expected_mass, default=float('inf'))
+    <= request.mass_flux_tolerance_kg_m2_s
+    and max(expected_momentum, default=float('inf'))
+    <= request.normal_momentum_tolerance_Pa
+    and max(expected_energy, default=float('inf'))
+    <= request.energy_flux_tolerance_W_m2
+  )
   if not downstream_probe_verified:
     return _failure(
       MocEulerTwoSidedInterfaceLawAuditStatus.DOWNSTREAM_PROBE_FAILURE,
@@ -751,12 +793,18 @@ def measure_moc_euler_two_sided_interface_law(
     and result.interface_motion_verified == interface_motion_verified
     and result.stationary_equilibrium_candidate
     == stationary_equilibrium_candidate
+    and result.conservative_flux_closure_verified
+    == conservative_flux_closure_verified
     and result.response_ready == bool(
       response_lineage_verified
       and candidate_geometry_verified
       and companion_field_verified
       and endpoint_constraints_verified
       and (interface_motion_verified or stationary_equilibrium_candidate)
+      and (
+        not request.require_conservative_flux_closure
+        or conservative_flux_closure_verified
+      )
     )
     and result.as_report()['chain_promotion_blocked'] is True
     and result.as_report()['production_claim_allowed'] is False
@@ -767,12 +815,17 @@ def measure_moc_euler_two_sided_interface_law(
     and companion_field_verified
     and endpoint_constraints_verified
     and (interface_motion_verified or stationary_equilibrium_candidate)
+    and (
+      not request.require_conservative_flux_closure
+      or conservative_flux_closure_verified
+    )
   )
-  status = (
-    MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
-    if expected_ready and result_flags_verified
-    else MocEulerTwoSidedInterfaceLawAuditStatus.FLAG_FAILURE
-  )
+  if expected_ready and result_flags_verified:
+    status = MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
+  elif request.require_conservative_flux_closure and not conservative_flux_closure_verified:
+    status = MocEulerTwoSidedInterfaceLawAuditStatus.CONSERVATIVE_FLUX_FAILURE
+  else:
+    status = MocEulerTwoSidedInterfaceLawAuditStatus.FLAG_FAILURE
   return _failure(
     status,
     (
@@ -793,6 +846,8 @@ def measure_moc_euler_two_sided_interface_law(
     endpoint_constraints_verified=endpoint_constraints_verified,
     interface_motion_verified=interface_motion_verified,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
+    conservative_flux_closure_required=request.require_conservative_flux_closure,
+    conservative_flux_closure_verified=conservative_flux_closure_verified,
     result_flags_verified=result_flags_verified,
     maximum_interface_normal_speed_m_s=max(
       (abs(value) for value in expected_speeds),

@@ -82,6 +82,9 @@ class MocEulerTwoSidedInterfaceLawStatus(str, Enum):
   SHOCK_FIT_FAILURE = 'two-sided-interface-law-shock-fit-failure'
   COMPANION_BOUNDARY_FAILURE = 'two-sided-interface-law-companion-boundary-failure'
   COMPANION_FIELD_FAILURE = 'two-sided-interface-law-companion-field-failure'
+  CONSERVATIVE_FLUX_FAILURE = (
+    'two-sided-interface-law-conservative-flux-failure'
+  )
   NO_INTERFACE_MOTION = 'two-sided-interface-law-no-interface-motion'
 
 
@@ -223,6 +226,13 @@ class MocEulerTwoSidedInterfaceLawRequest:
   source_state_tolerance: float = 1.0e-6
   source_pressure_tolerance: float = 1.0e-8
   residual_tolerance: float = 1.0e-8
+  # Interior cell probes are a research response.  A caller that wants to
+  # admit the response to a conservative interface solve must opt in and
+  # satisfy all three dimensional Rankine--Hugoniot channels independently.
+  require_conservative_flux_closure: bool = False
+  mass_flux_tolerance_kg_m2_s: float = 1.0e-3
+  normal_momentum_tolerance_Pa: float = 1.0e-2
+  energy_flux_tolerance_W_m2: float = 1.0e-1
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -252,8 +262,14 @@ class MocEulerTwoSidedInterfaceLawRequest:
       'source_state_tolerance',
       'source_pressure_tolerance',
       'residual_tolerance',
+      'mass_flux_tolerance_kg_m2_s',
+      'normal_momentum_tolerance_Pa',
+      'energy_flux_tolerance_W_m2',
     ):
       object.__setattr__(self, name, _positive_float(getattr(self, name), name))
+    ####
+    if not isinstance(self.require_conservative_flux_closure, bool):
+      raise TypeError('require_conservative_flux_closure must be a bool')
     ####
     object.__setattr__(self, 'relaxation', _bounded_fraction(self.relaxation, 'relaxation'))
     object.__setattr__(
@@ -301,6 +317,10 @@ class MocEulerTwoSidedInterfaceLawRequest:
       'source_state_tolerance': self.source_state_tolerance,
       'source_pressure_tolerance': self.source_pressure_tolerance,
       'residual_tolerance': self.residual_tolerance,
+      'require_conservative_flux_closure': self.require_conservative_flux_closure,
+      'mass_flux_tolerance_kg_m2_s': self.mass_flux_tolerance_kg_m2_s,
+      'normal_momentum_tolerance_Pa': self.normal_momentum_tolerance_Pa,
+      'energy_flux_tolerance_W_m2': self.energy_flux_tolerance_W_m2,
       'production_claim_allowed': False,
     }
   ####
@@ -327,6 +347,7 @@ class MocEulerTwoSidedInterfaceLawResult:
   endpoint_constraints_applied: bool = False
   interface_motion_verified: bool = False
   stationary_equilibrium_candidate: bool = False
+  conservative_flux_closure_verified: bool = False
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -403,6 +424,7 @@ class MocEulerTwoSidedInterfaceLawResult:
       'endpoint_constraints_applied',
       'interface_motion_verified',
       'stationary_equilibrium_candidate',
+      'conservative_flux_closure_verified',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
@@ -417,6 +439,10 @@ class MocEulerTwoSidedInterfaceLawResult:
       or not (
         self.interface_motion_verified
         or self.stationary_equilibrium_candidate
+      )
+      or (
+        self.request.require_conservative_flux_closure
+        and not self.conservative_flux_closure_verified
       )
     ):
       raise ValueError(
@@ -458,6 +484,9 @@ class MocEulerTwoSidedInterfaceLawResult:
       'endpoint_constraints_applied': self.endpoint_constraints_applied,
       'interface_motion_verified': self.interface_motion_verified,
       'stationary_equilibrium_candidate': self.stationary_equilibrium_candidate,
+      'conservative_flux_closure_verified': (
+        self.conservative_flux_closure_verified
+      ),
       'probe_points_m': self.probe_points_m,
       'probe_normals': self.probe_normals,
       'interface_normal_speeds_m_s': self.interface_normal_speeds_m_s,
@@ -928,6 +957,37 @@ def build_solver_owned_euler_two_sided_interface_response(
       ),
     )
   ####
+  conservative_flux_closure_verified = bool(
+    max(mass_residuals, default=float('inf'))
+    <= request.mass_flux_tolerance_kg_m2_s
+    and max(momentum_residuals, default=float('inf'))
+    <= request.normal_momentum_tolerance_Pa
+    and max(energy_residuals, default=float('inf'))
+    <= request.energy_flux_tolerance_W_m2
+  )
+  if (
+    request.require_conservative_flux_closure
+    and not conservative_flux_closure_verified
+  ):
+    return _failure(
+      MocEulerTwoSidedInterfaceLawStatus.CONSERVATIVE_FLUX_FAILURE,
+      'solver-owned interface response did not satisfy all declared '
+      'mass, normal-momentum, and energy Rankine--Hugoniot tolerances; '
+      'no geometry update was admitted',
+      request=request,
+      current_field_iteration=current_field_iteration,
+      source_lineage_verified=True,
+      downstream_probe_verified=True,
+      probe_points_m=tuple(probe.probe_point_m for probe in probes),
+      probe_normals=tuple((probe.normal_x, probe.normal_y) for probe in probes),
+      interface_normal_speeds_m_s=tuple(speeds),
+      downstream_probe_states=tuple(probe.state for probe in probes),
+      downstream_probe_total_pressure_Pa=tuple(
+        probe.total_pressure_Pa for probe in probes
+      ),
+      conservative_flux_closure_verified=False,
+    )
+  ####
   points = tuple(next_points)
   geometry_valid = bool(
     len(points) >= 3
@@ -1170,6 +1230,7 @@ def build_solver_owned_euler_two_sided_interface_response(
     endpoint_constraints_applied=True,
     interface_motion_verified=motion_verified,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
+    conservative_flux_closure_verified=conservative_flux_closure_verified,
     message=(
       'solver-owned Rankine--Hugoniot front response built from the retained '
       'upstream source band and downstream physical cell probes; the regenerated '

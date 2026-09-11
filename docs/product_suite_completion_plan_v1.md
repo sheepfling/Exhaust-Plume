@@ -4786,3 +4786,19 @@ equilibrium case passes as research evidence.  Canonical free-boundary,
 physical shock-cell, Signature/FPA, external-validation, and production gates
 remain closed.  The next WP-1 slice is still the conservative moving-front
 closure itself, not a weaker interpretation of this audit.
+
+### WP-1 strict conservative-flux admission checkpoint — 2026-09-10
+
+The solver-owned interface-law request now exposes an explicit
+``require_conservative_flux_closure`` policy with separate dimensional mass,
+normal-momentum, and energy tolerances.  When enabled, an interior downstream
+cell probe is rejected before any shock geometry update unless all three
+Rankine--Hugoniot channels pass.  The independent law audit remeasures and
+reports the same admission gate.  The existing research mode remains
+available for sensitivity/refinement evidence, but it cannot be mistaken for
+a conservative interface solve.
+
+The focused regression rejects the current interior probe at the strict
+momentum tolerance and accepts the retained post-shock front-limit stationary
+case.  This closes an admission-control gap; it does not supply the missing
+unsteady downstream field or canonical moving/free-boundary closure.

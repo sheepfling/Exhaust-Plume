@@ -1824,6 +1824,30 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
 
+  strict_interior_law = build_solver_owned_euler_two_sided_interface_response(
+    result,
+    replace(
+      law_request,
+      require_conservative_flux_closure=True,
+      normal_momentum_tolerance_Pa=1.0e-6,
+    ),
+  )
+  assert strict_interior_law.status is (
+    MocEulerTwoSidedInterfaceLawStatus.CONSERVATIVE_FLUX_FAILURE
+  )
+  assert strict_interior_law.response is None
+  assert strict_interior_law.conservative_flux_closure_verified is False
+  strict_interior_audit = measure_moc_euler_two_sided_interface_law(
+    strict_interior_law
+  )
+  assert strict_interior_audit.status is (
+    MocEulerTwoSidedInterfaceLawAuditStatus.CONSERVATIVE_FLUX_FAILURE
+  )
+  assert strict_interior_audit.conservative_flux_closure_required
+  assert strict_interior_audit.conservative_flux_closure_verified is False
+  assert strict_interior_audit.chain_promotion_blocked
+  assert strict_interior_audit.production_claim_allowed is False
+
   center_probe_law = build_solver_owned_euler_two_sided_interface_response(
     result,
     replace(law_request, downstream_probe_fraction=0.5),
@@ -1976,6 +2000,26 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   )
   assert stationary_law_audit.local_consistency_verified
   assert stationary_law_audit.stationary_equilibrium_candidate
+
+  strict_stationary_law = build_solver_owned_euler_two_sided_interface_response(
+    result,
+    replace(
+      law_request,
+      downstream_probe_fraction=0.0,
+      require_conservative_flux_closure=True,
+    ),
+  )
+  assert strict_stationary_law.status is MocEulerTwoSidedInterfaceLawStatus.RESPONSE_READY
+  assert strict_stationary_law.conservative_flux_closure_verified
+  strict_stationary_audit = measure_moc_euler_two_sided_interface_law(
+    strict_stationary_law
+  )
+  assert strict_stationary_audit.status is (
+    MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
+  )
+  assert strict_stationary_audit.local_consistency_verified
+  assert strict_stationary_audit.conservative_flux_closure_required
+  assert strict_stationary_audit.conservative_flux_closure_verified
 
   stationary_moving = solve_euler_two_sided_moving_interface_with_solver_owned_law(
     MocEulerTwoSidedMovingInterfaceRequest(
