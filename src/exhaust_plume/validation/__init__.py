@@ -615,6 +615,12 @@ from exhaust_plume.validation.moc_euler_two_sided_moving_interface import (
   MocEulerTwoSidedMovingInterfaceAudit,
   measure_moc_euler_two_sided_moving_interface,
 )
+from exhaust_plume.validation.moc_euler_two_sided_interface_field_joint_closure import (
+  MOC_EULER_TWO_SIDED_INTERFACE_FIELD_JOINT_CLOSURE_AUDIT_OPERATOR_ID,
+  MocEulerTwoSidedInterfaceFieldJointClosureAuditStatus,
+  MocEulerTwoSidedInterfaceFieldJointClosureAudit,
+  measure_moc_euler_two_sided_interface_field_joint_closure,
+)
 from exhaust_plume.validation.moc_euler_two_sided_interface_law import (
   MOC_EULER_TWO_SIDED_INTERFACE_LAW_AUDIT_OPERATOR_ID,
   MocEulerTwoSidedInterfaceLawAuditStatus,
@@ -1516,6 +1522,10 @@ __all__ = (
   'MocEulerTwoSidedMovingInterfaceAuditStatus',
   'MocEulerTwoSidedMovingInterfaceAudit',
   'measure_moc_euler_two_sided_moving_interface',
+  'MOC_EULER_TWO_SIDED_INTERFACE_FIELD_JOINT_CLOSURE_AUDIT_OPERATOR_ID',
+  'MocEulerTwoSidedInterfaceFieldJointClosureAuditStatus',
+  'MocEulerTwoSidedInterfaceFieldJointClosureAudit',
+  'measure_moc_euler_two_sided_interface_field_joint_closure',
   'MOC_EULER_TWO_SIDED_INTERFACE_LAW_AUDIT_OPERATOR_ID',
   'MocEulerTwoSidedInterfaceLawAuditStatus',
   'MocEulerTwoSidedInterfaceLawAudit',

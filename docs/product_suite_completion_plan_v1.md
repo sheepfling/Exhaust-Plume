@@ -4582,3 +4582,28 @@ audit.  This is a declared research convergence at the current resolution;
 the strict default tolerance remains open, and canonical free-boundary,
 entropy/ambient/centerline closure, physical shock-cell fitting, provider
 validation, and production promotion remain blocked.
+
+### WP-1 joint interface/field evidence checkpoint — 2026-09-10
+
+The moving-interface seam now has a separate
+``op.moc.euler-two-sided-interface-field-joint-closure-audit`` operator.  It
+independently composes the moving-response audit, the final exact two-sided
+field-iteration audit, the ambient physical-field/cell audit, and the
+variable-entropy lineage/transport audit.  It also remeasures the shock-to-
+centerline seam from the retained physical field, including the centerline
+geometry and ``K-`` invariant at the shock endpoint.
+
+The current explicit research case passes this joint audit at the declared
+``100 Pa`` normal-momentum tolerance: the measured residual is ``41.663 Pa``,
+the centerline seam invariant residual is ``0``, and the maximum normalized
+entropy-advection residual is ``3.440e-5`` against ``1e-3``.  The ambient
+physical-field audit remains correctly classified as an entropy-promotion
+stop because it uses a variable downstream total-pressure profile; the joint
+operator accepts the independent variable-entropy transport evidence without
+silently relabelling that stop as production closure.
+
+This closes a local evidence-accounting seam around the bounded research
+response and exact field re-solve.  It does not close the strict default
+momentum tolerance, solver-owned canonical free-boundary feedback, stable
+multi-case physical refinement, accepted shock-cell lengths, provider-bound
+product validation, owner archives, or release tagging.

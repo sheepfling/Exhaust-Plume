@@ -16,6 +16,10 @@ from exhaust_plume.validation.moc_euler_two_sided_moving_interface import (
   MocEulerTwoSidedMovingInterfaceAuditStatus,
   measure_moc_euler_two_sided_moving_interface,
 )
+from exhaust_plume.validation.moc_euler_two_sided_interface_field_joint_closure import (
+  MocEulerTwoSidedInterfaceFieldJointClosureAuditStatus,
+  measure_moc_euler_two_sided_interface_field_joint_closure,
+)
 from exhaust_plume.validation.moc_euler_two_sided_interface_law import (
   MocEulerTwoSidedInterfaceLawAuditStatus,
   measure_moc_euler_two_sided_interface_law,
@@ -1860,6 +1864,17 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert moving.chain_promotion_blocked
   assert moving.production_claim_allowed is False
 
+  incomplete_joint_audit = (
+    measure_moc_euler_two_sided_interface_field_joint_closure(moving)
+  )
+  assert incomplete_joint_audit.status is (
+    MocEulerTwoSidedInterfaceFieldJointClosureAuditStatus
+    .MOVING_INTERFACE_FAILURE
+  )
+  assert not incomplete_joint_audit.converged
+  assert incomplete_joint_audit.chain_promotion_blocked
+  assert incomplete_joint_audit.production_claim_allowed is False
+
   research_moving = solve_euler_two_sided_moving_interface_with_solver_owned_law(
     MocEulerTwoSidedMovingInterfaceRequest(
       field_request=MocEulerTwoSidedFieldIterationRequest(
@@ -1892,6 +1907,32 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert research_moving_audit.canonical_euler_verified is False
   assert research_moving_audit.chain_promotion_blocked
   assert research_moving_audit.production_claim_allowed is False
+
+  joint_audit = measure_moc_euler_two_sided_interface_field_joint_closure(
+    research_moving
+  )
+  assert joint_audit.status is (
+    MocEulerTwoSidedInterfaceFieldJointClosureAuditStatus
+    .CONVERGED_RESEARCH_JOINT_CLOSURE
+  )
+  assert joint_audit.converged
+  assert joint_audit.local_consistency_verified
+  assert joint_audit.moving_interface_verified
+  assert joint_audit.response_lineage_verified
+  assert joint_audit.field_re_solve_verified
+  assert joint_audit.field_iteration_verified
+  assert joint_audit.physical_field_verified
+  assert joint_audit.centerline_boundary_verified
+  assert joint_audit.entropy_transport_verified
+  assert joint_audit.ambient_boundary_verified
+  assert joint_audit.momentum_residual_verified
+  assert joint_audit.maximum_normal_momentum_residual_Pa <= 100.0
+  assert joint_audit.maximum_entropy_advection_residual is not None
+  assert joint_audit.maximum_entropy_advection_residual <= 1.0e-3
+  assert joint_audit.canonical_free_boundary_verified is False
+  assert joint_audit.canonical_euler_verified is False
+  assert joint_audit.chain_promotion_blocked
+  assert joint_audit.production_claim_allowed is False
 
 
 def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():
