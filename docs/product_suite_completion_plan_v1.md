@@ -5595,6 +5595,15 @@ downstream residual admission still fails its independent audit at the
 passing resolutions, so this is a resolution-sensitivity record rather than
 refinement convergence or a production-quality closure result.
 
+A bounded residual-policy probe reinforces the same boundary.  At the loose
+normal-momentum budget the conservative residual audit passes with zero
+accepted updates, so the strict-admission adapter correctly rejects it for
+lack of descent.  At tighter budgets the line search records no verified
+decrease and the independent audit fails.  Increasing the iteration budget
+alone did not change either outcome; the next solver packet therefore needs a
+new physically justified correction/free-boundary update, not a looser
+tolerance or a no-op convergence declaration.
+
 ### P2.2 exact-Euler conditioned perimeter closure checkpoint — 2026-09-11
 
 The exact-Euler frontier consumer now closes the conditioned physical field
