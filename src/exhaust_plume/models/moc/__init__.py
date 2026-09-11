@@ -589,6 +589,13 @@ from exhaust_plume.models.moc.euler_two_sided_interface_law import (
   make_solver_owned_euler_two_sided_interface_advance,
   solve_euler_two_sided_moving_interface_with_solver_owned_law,
 )
+from exhaust_plume.models.moc.euler_two_sided_conservative_residual_solve import (
+  MocEulerTwoSidedConservativeResidualSolveStatus,
+  MocEulerTwoSidedConservativeResidualSolveRequest,
+  MocEulerTwoSidedConservativeResidualSolveIteration,
+  MocEulerTwoSidedConservativeResidualSolveResult,
+  solve_euler_two_sided_conservative_residual,
+)
 from exhaust_plume.models.moc.euler_two_sided_terminal_closure import (
   MocEulerTwoSidedTerminalClosureStatus,
   MocEulerTwoSidedTerminalClosureRequest,
@@ -1535,6 +1542,11 @@ __all__ = (
   'build_solver_owned_euler_two_sided_interface_response',
   'make_solver_owned_euler_two_sided_interface_advance',
   'solve_euler_two_sided_moving_interface_with_solver_owned_law',
+  'MocEulerTwoSidedConservativeResidualSolveStatus',
+  'MocEulerTwoSidedConservativeResidualSolveRequest',
+  'MocEulerTwoSidedConservativeResidualSolveIteration',
+  'MocEulerTwoSidedConservativeResidualSolveResult',
+  'solve_euler_two_sided_conservative_residual',
   'MocEulerTwoSidedTerminalClosureStatus',
   'MocEulerTwoSidedTerminalClosureRequest',
   'MocEulerTwoSidedTerminalClosureResult',

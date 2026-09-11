@@ -5340,3 +5340,26 @@ The next implementation packet is still the solver-owned coupled conservative
 residual/free-boundary solve.  The signed response vector is now available to
 that solver and independently auditable, but it is not itself a closure
 mechanism or a production Signature/FPA input.
+
+### P2.2 solver-owned signed-residual line-search checkpoint — 2026-09-11
+
+The next physics packet is now implemented as an opt-in solver-owned
+``solve_euler_two_sided_conservative_residual`` consumer.  Each trial starts
+from an exact two-sided field, builds the complete signed mass,
+normal-momentum, and energy response, proposes a front/companion update, and
+performs a fresh exact field re-solve before measuring the candidate.  A
+bounded backtracking line search admits only a descending dimensionless RMS
+norm, and every accepted trial retains its response, next field, descent
+decision, and field re-solve evidence.  The global reflected-domain adapter
+can consume this path without changing the existing moving-interface default.
+
+The focused global regression and the complete reflected-domain suite pass
+(``192 passed``), with Ruff, Pyright, bytecode compilation, and whitespace
+checks clean.  On the canonical mixed-regime fixture, the strict research
+test records a genuine norm descent after an exact field re-solve, while the
+declared tight momentum tolerance correctly prevents a false convergence
+claim.  This is a solver mechanism and provenance improvement, not canonical
+closure: the residual consumer remains research-only and promotion-blocked;
+independent global/free-boundary audits, multi-case/multi-resolution physical
+closure, accepted shock-cell fits, provider comparisons, validation archives,
+and the release freeze remain open.

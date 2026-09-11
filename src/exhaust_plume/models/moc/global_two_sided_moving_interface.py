@@ -28,6 +28,11 @@ from exhaust_plume.models.moc.euler_two_sided_interface_law import (
   MocEulerTwoSidedInterfaceLawRequest,
   solve_euler_two_sided_moving_interface_with_solver_owned_law,
 )
+from exhaust_plume.models.moc.euler_two_sided_conservative_residual_solve import (
+  MocEulerTwoSidedConservativeResidualSolveRequest,
+  MocEulerTwoSidedConservativeResidualSolveResult,
+  solve_euler_two_sided_conservative_residual,
+)
 from exhaust_plume.models.moc.euler_two_sided_moving_interface import (
   MocEulerTwoSidedMovingInterfaceRequest,
   MocEulerTwoSidedMovingInterfaceResult,
@@ -133,6 +138,12 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
   allow_stationary_equilibrium: bool = False
   require_conservative_flux_closure: bool = False
   require_terminal_fixed_point: bool = False
+  use_conservative_residual_line_search: bool = False
+  maximum_residual_backtracks: int = 5
+  residual_backtrack_factor: float = 0.5
+  minimum_residual_step_fraction: float = 1.0e-2
+  minimum_residual_descent_fraction: float = 1.0e-6
+  require_strict_residual_descent: bool = True
   source: str = 'solver-owned-global-two-sided-moving-interface-request-v1'
 
   def __post_init__(self) -> None:
@@ -167,6 +178,24 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'energy_flux_tolerance_W_m2',
     ):
       object.__setattr__(self, name, _positive_float(getattr(self, name), name))
+    ####
+    if (
+      isinstance(self.maximum_residual_backtracks, bool)
+      or not isinstance(self.maximum_residual_backtracks, int)
+      or self.maximum_residual_backtracks < 1
+    ):
+      raise ValueError('maximum_residual_backtracks must be a positive integer')
+    ####
+    for name in (
+      'residual_backtrack_factor',
+      'minimum_residual_step_fraction',
+      'minimum_residual_descent_fraction',
+    ):
+      value = _bounded_fraction(getattr(self, name), name)
+      if name == 'residual_backtrack_factor' and value >= 1.0:
+        raise ValueError('residual_backtrack_factor must be less than one')
+      ####
+      object.__setattr__(self, name, value)
     ####
     seed_angle = float(self.companion_seed_flow_angle_rad)
     if not isfinite(seed_angle):
@@ -221,6 +250,11 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
     ####
+    if not isinstance(self.use_conservative_residual_line_search, bool):
+      raise TypeError('use_conservative_residual_line_search must be a bool')
+    if not isinstance(self.require_strict_residual_descent, bool):
+      raise TypeError('require_strict_residual_descent must be a bool')
+    ####
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
@@ -264,6 +298,16 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'allow_stationary_equilibrium': self.allow_stationary_equilibrium,
       'require_conservative_flux_closure': self.require_conservative_flux_closure,
       'require_terminal_fixed_point': self.require_terminal_fixed_point,
+      'use_conservative_residual_line_search': (
+        self.use_conservative_residual_line_search
+      ),
+      'maximum_residual_backtracks': self.maximum_residual_backtracks,
+      'residual_backtrack_factor': self.residual_backtrack_factor,
+      'minimum_residual_step_fraction': self.minimum_residual_step_fraction,
+      'minimum_residual_descent_fraction': (
+        self.minimum_residual_descent_fraction
+      ),
+      'require_strict_residual_descent': self.require_strict_residual_descent,
       'source': self.source,
       'chain_promotion_blocked': True,
       'production_claim_allowed': False,
@@ -281,6 +325,9 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
   companion_boundary: MocEulerAmbientCompanionBoundaryResult | None = None
   companion_field: MocEulerCompanionFieldResult | None = None
   moving_result: MocEulerTwoSidedMovingInterfaceResult | None = None
+  conservative_residual_result: (
+    MocEulerTwoSidedConservativeResidualSolveResult | None
+  ) = None
   moving_audit: Any | None = None
   joint_audit: Any | None = None
   moving_fixed_point_audit: Any | None = None
@@ -325,6 +372,15 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
     ):
       raise TypeError('moving_result must be a typed moving-interface result or None')
     ####
+    if self.conservative_residual_result is not None and not isinstance(
+      self.conservative_residual_result,
+      MocEulerTwoSidedConservativeResidualSolveResult,
+    ):
+      raise TypeError(
+        'conservative_residual_result must be a typed residual-solve result '
+        'or None'
+      )
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -344,12 +400,20 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
       self.status
       is MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
       .CONVERGED_RESEARCH_INTERFACE
-      and self.moving_result is not None
-      and self.moving_result.converged
-      and self.moving_audit is not None
-      and bool(getattr(self.moving_audit, 'converged', False))
-      and self.joint_audit is not None
-      and bool(getattr(self.joint_audit, 'converged', False))
+      and (
+        (
+          self.moving_result is not None
+          and self.moving_result.converged
+          and self.moving_audit is not None
+          and bool(getattr(self.moving_audit, 'converged', False))
+          and self.joint_audit is not None
+          and bool(getattr(self.joint_audit, 'converged', False))
+        )
+        or (
+          self.conservative_residual_result is not None
+          and self.conservative_residual_result.converged
+        )
+      )
     )
   ####
 
@@ -389,6 +453,11 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
       ),
       'moving_result': (
         None if self.moving_result is None else self.moving_result.as_report()
+      ),
+      'conservative_residual_result': (
+        None
+        if self.conservative_residual_result is None
+        else self.conservative_residual_result.as_report()
       ),
       'moving_audit': (
         None
@@ -608,10 +677,28 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       require_conservative_flux_closure=request.require_conservative_flux_closure,
       require_terminal_fixed_point=request.require_terminal_fixed_point,
     )
-    moving_result = solve_euler_two_sided_moving_interface_with_solver_owned_law(
-      moving_request,
-      law_request,
-    )
+    moving_result: MocEulerTwoSidedMovingInterfaceResult | None = None
+    conservative_residual_result: (
+      MocEulerTwoSidedConservativeResidualSolveResult | None
+    ) = None
+    if request.use_conservative_residual_line_search:
+      conservative_residual_result = solve_euler_two_sided_conservative_residual(
+        MocEulerTwoSidedConservativeResidualSolveRequest(
+          moving_request=moving_request,
+          law_request=law_request,
+          maximum_iterations=request.maximum_interface_iterations,
+          maximum_backtracks=request.maximum_residual_backtracks,
+          backtrack_factor=request.residual_backtrack_factor,
+          minimum_step_fraction=request.minimum_residual_step_fraction,
+          minimum_descent_fraction=request.minimum_residual_descent_fraction,
+          require_strict_descent=request.require_strict_residual_descent,
+        )
+      )
+    else:
+      moving_result = solve_euler_two_sided_moving_interface_with_solver_owned_law(
+        moving_request,
+        law_request,
+      )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.MOVING_INTERFACE_FAILURE,
@@ -622,6 +709,39 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       companion_field=companion_field,
     )
   ####
+  if request.use_conservative_residual_line_search:
+    assert conservative_residual_result is not None
+    if not conservative_residual_result.converged:
+      return _failure(
+        MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.MOVING_INTERFACE_FAILURE,
+        request,
+        'global two-sided conservative residual line-search retained a typed '
+        f'non-converged result: {conservative_residual_result.message}',
+        shock_boundary=shock_boundary,
+        companion_boundary=companion_boundary,
+        companion_field=companion_field,
+        conservative_residual_result=conservative_residual_result,
+      )
+    ####
+    return MocReflectedDomainGlobalTwoSidedMovingInterfaceResult(
+      status=(
+        MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+        .CONVERGED_RESEARCH_INTERFACE
+      ),
+      request=request,
+      shock_boundary=shock_boundary,
+      companion_boundary=companion_boundary,
+      companion_field=companion_field,
+      conservative_residual_result=conservative_residual_result,
+      message=(
+        'global closure fed the solver-owned signed conservative residual '
+        'line-search and exact field re-solves; the result is research-only '
+        'and independent canonical mixed-regime/free-boundary audits remain '
+        'required'
+      ),
+    )
+  ####
+  assert moving_result is not None
   try:
     from exhaust_plume.validation.moc_euler_two_sided_interface_field_joint_closure import (
       measure_moc_euler_two_sided_interface_field_joint_closure,

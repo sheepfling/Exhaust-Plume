@@ -2544,6 +2544,41 @@ def test_global_closure_binds_exact_two_sided_moving_interface_ladder():
   assert strict.moving_result.production_claim_allowed is False
 
 
+def test_global_closure_can_consume_signed_conservative_residual_line_search():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_two_sided_moving_interface(
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_field_iterations=3,
+      maximum_interface_iterations=1,
+      use_conservative_residual_line_search=True,
+      maximum_residual_backtracks=2,
+      normal_momentum_tolerance_Pa=1.0e-2,
+    )
+  )
+
+  assert result.conservative_residual_result is not None
+  residual = result.conservative_residual_result
+  assert result.moving_result is None
+  assert result.converged is False
+  assert residual.residual_vector_verified
+  assert residual.records
+  record = residual.records[0]
+  assert record.accepted
+  assert record.field_re_solve_verified
+  assert record.residual_norm_after is not None
+  assert record.residual_norm_before is not None
+  assert record.residual_norm_after < record.residual_norm_before
+  assert residual.production_claim_allowed is False
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()['conservative_residual_result']
+  assert report['solver_id'] == (
+    'op.moc.euler-two-sided-conservative-residual-line-search-v1'
+  )
+
 def test_global_two_sided_stationary_interface_is_an_explicit_strict_mode():
   closure = _global_physical_closure_for_mixed_regime()
   request = MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
