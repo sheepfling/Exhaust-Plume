@@ -79,6 +79,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus(str, Enum):
   GLOBAL_PHYSICAL_FIELD_FAILURE = 'global-two-sided-global-physical-field-failure'
   MOVING_INTERFACE_FAILURE = 'global-two-sided-moving-interface-failure'
   INDEPENDENT_AUDIT_FAILURE = 'global-two-sided-independent-audit-failure'
+####
 
 
 def _positive_float(value: object, name: str) -> float:
@@ -258,7 +259,6 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
         allow_zero=True,
       ),
     )
-    ####
     for name, minimum in (
       ('maximum_field_iterations', 1),
       ('maximum_boundary_iterations', 1),
@@ -267,6 +267,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
         raise ValueError(f'{name} must be an integer greater than or equal to {minimum}')
+      ####
     ####
     if (
       isinstance(self.anchor_endpoint_samples, bool)
@@ -283,9 +284,11 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if not isinstance(self.use_conservative_residual_line_search, bool):
       raise TypeError('use_conservative_residual_line_search must be a bool')
+    ####
     if not isinstance(
       self.consume_global_physical_field_for_downstream_probes,
       bool,
@@ -293,8 +296,10 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       raise TypeError(
         'consume_global_physical_field_for_downstream_probes must be a bool'
       )
+    ####
     if not isinstance(self.require_strict_residual_descent, bool):
       raise TypeError('require_strict_residual_descent must be a bool')
+    ####
     if not isinstance(
       self.require_dimensioned_conservative_channel_descent,
       bool,
@@ -302,6 +307,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       raise TypeError(
         'require_dimensioned_conservative_channel_descent must be a bool'
       )
+    ####
     if not isinstance(
       self.use_conservative_residual_directional_correction,
       bool,
@@ -309,6 +315,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       raise TypeError(
         'use_conservative_residual_directional_correction must be a bool'
       )
+    ####
     if not isinstance(
       self.use_conservative_residual_shape_jacobian_correction,
       bool,
@@ -316,12 +323,14 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       raise TypeError(
         'use_conservative_residual_shape_jacobian_correction must be a bool'
       )
+    ####
     if (
       isinstance(self.maximum_shape_controls, bool)
       or not isinstance(self.maximum_shape_controls, int)
       or self.maximum_shape_controls < 1
     ):
       raise ValueError('maximum_shape_controls must be a positive integer')
+    ####
     object.__setattr__(
       self,
       'shape_jacobian_probe_fraction',
@@ -338,7 +347,6 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
         'maximum_shape_step_fraction',
       ),
     )
-    ####
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
@@ -416,6 +424,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'production_claim_allowed': False,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -608,6 +617,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -643,14 +653,20 @@ def _global_physical_field_was_consumed(
       for record in moving_result.records
       if record.response is not None
     )
+  ####
   if conservative_residual_result is not None:
     if conservative_residual_result.final_response is not None:
       responses.append(conservative_residual_result.final_response)
+    ####
     for record in conservative_residual_result.records:
       if record.response is not None:
         responses.append(record.response)
+      ####
       if record.measured_response is not None:
         responses.append(record.measured_response)
+      ####
+    ####
+  ####
   return any(
     bool(
       getattr(response, 'downstream_field_lineage_verified', False)
@@ -659,9 +675,9 @@ def _global_physical_field_was_consumed(
     )
     for response in responses
   )
-
-
 ####
+
+
 
 
 def solve_reflected_domain_global_two_sided_moving_interface(
@@ -896,6 +912,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
         moving_request,
         law_request,
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.MOVING_INTERFACE_FAILURE,
@@ -1105,6 +1122,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       'research-only and cannot promote a canonical free boundary or chain'
     ),
   )
+####
 
 
 def solve_reflected_domain_global_two_sided_stationary_interface(
@@ -1187,3 +1205,4 @@ def solve_reflected_domain_global_two_sided_stationary_interface(
     )
   ####
   return result
+####

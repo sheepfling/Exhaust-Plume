@@ -988,6 +988,7 @@ class MocPhysicalPostShockFieldResult:
       cached = self._default_cell_samples_cache
       if cached is not None:
         return cached
+      ####
     ####
     sources: list[
       tuple[tuple[float, float], CharacteristicState, float | None]

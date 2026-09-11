@@ -2086,6 +2086,7 @@ def _solve_geometry_targeted_boundary_point(
         else:
           bracket_lower = midpoint
           bracket_evaluation = midpoint_evaluation
+        ####
       ####
     ####
     previous_x = x_value
@@ -3294,7 +3295,6 @@ def solve_reflected_domain_alternating_source(
     )
     else None
   )
-  ####
   try:
     seed_pressure = (
       float(outer_seed_total_pressure_Pa)
@@ -3623,6 +3623,7 @@ def solve_reflected_domain_alternating_source(
         'ambient_pressure_target must match ambient_pressure_Pa at the retained outer seed station',
       )
     ####
+  ####
 
   def solve_profiled_boundary_point(
     axis_state: CharacteristicState,
@@ -3881,6 +3882,7 @@ def solve_reflected_domain_alternating_source(
       pressure_tolerance=resolved_pressure_tolerance,
       tangent_tolerance=resolved_pressure_tolerance,
     )
+  ####
   if not ambient_boundary.converged:
     return failure(
       MocReflectedDomainAlternatingSourceStatus.BOUNDARY_FAILURE,

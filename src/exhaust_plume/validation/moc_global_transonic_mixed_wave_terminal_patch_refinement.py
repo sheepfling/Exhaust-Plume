@@ -131,6 +131,7 @@ def _audit_maximum_residual(
   )
   if not values or not all(isfinite(float(value)) for value in values):
     return float('inf')
+  ####
   return max(float(value) for value in values)
 ####
 
@@ -519,6 +520,7 @@ def run_reflected_domain_global_transonic_mixed_wave_terminal_patch_refinement(
   ):
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
       raise ValueError(f'{name} must be a positive integer')
+    ####
   ####
 
   source_fingerprint = case.source_fingerprint

@@ -128,6 +128,7 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementCase:
     ####
     object.__setattr__(self, 'case_id', case_id)
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,9 +240,12 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementMeasurement:
       for value in values:
         if value is None:
           continue
+        ####
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must contain finite nonnegative values')
+        ####
+      ####
     ####
     for name, values in (
       ('fresh_audit_verified', fresh_audits),
@@ -250,6 +254,7 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementMeasurement:
     ):
       if any(not isinstance(value, bool) for value in values):
         raise TypeError(f'{name} must contain bool values')
+      ####
     ####
     for name in (
       'case_audits_verified',
@@ -271,6 +276,7 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     tolerance = float(self.refinement_tolerance)
     if not isfinite(tolerance) or tolerance <= 0.0:
@@ -361,6 +367,7 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementMeasurement:
       'cases': tuple(case.result.as_report() for case in self.cases),
       'message': self.message,
     }
+  ####
 ####
 
 
@@ -436,6 +443,7 @@ def _grouped_indices(
   grouped: dict[str, list[int]] = {}
   for index, case in enumerate(cases):
     grouped.setdefault(case.case_id, []).append(index)
+  ####
   return grouped
 ####
 
@@ -616,7 +624,6 @@ def measure_moc_global_frontier_fresh_resolve_residual_refinement(
   energy = tuple(None if metric is None else metric[2] for metric in metrics)
   response_modes = tuple(_response_mode_id(case) for case in case_values)
   fresh_audits = tuple(case.result.fresh_audit_verified for case in case_values)
-  ####
   case_audits_verified = bool(
     all(
       case.result.converged_research_residual
@@ -728,7 +735,6 @@ def measure_moc_global_frontier_fresh_resolve_residual_refinement(
     and len(grouped) >= 2
     and len(set(group_source_fingerprints)) == len(group_source_fingerprints)
   )
-  ####
   status_type = (
     MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementStatus
   )

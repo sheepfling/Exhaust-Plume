@@ -47,6 +47,7 @@ class MocEulerTwoSidedMovingInterfaceFixedPointAuditStatus(str, Enum):
     STABILITY_FAILURE = "two_sided_moving_interface_fixed_point_stability_failure"
     MOTION_FAILURE = "two_sided_moving_interface_fixed_point_motion_failure"
     PROMOTION_FAILURE = "two_sided_moving_interface_fixed_point_promotion_failure"
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +112,7 @@ class MocEulerTwoSidedMovingInterfaceFixedPointAudit:
         ):
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be a bool")
+            ####
         ####
         for name in (
             "maximum_normal_update_change_m",
@@ -151,14 +153,14 @@ class MocEulerTwoSidedMovingInterfaceFixedPointAudit:
         ####
         object.__setattr__(self, "operator_id", operator_id)
         object.__setattr__(self, "message", str(self.message))
-
     ####
+
 
     @property
     def converged(self) -> bool:
         return self.status is (MocEulerTwoSidedMovingInterfaceFixedPointAuditStatus.CONVERGED_RESEARCH_FIXED_POINT)
-
     ####
+
 
     @property
     def local_consistency_verified(self) -> bool:
@@ -177,8 +179,8 @@ class MocEulerTwoSidedMovingInterfaceFixedPointAudit:
             and self.chain_promotion_blocked
             and not self.production_claim_allowed
         )
-
     ####
+
 
     def as_report(self) -> dict[str, object]:
         return {
@@ -212,11 +214,11 @@ class MocEulerTwoSidedMovingInterfaceFixedPointAudit:
             "energy_residual_change_tolerance_W_m2": (self.energy_residual_change_tolerance_W_m2),
             "message": self.message,
         }
-
     ####
-
-
 ####
+
+
+
 
 
 def _failure(
@@ -272,15 +274,18 @@ def _failure(
         energy_residual_change_tolerance_W_m2=energy_residual_change_tolerance_W_m2,
         message=message,
     )
+####
 
 
 def _maximum_absolute_difference(first: tuple[float, ...], second: tuple[float, ...]) -> float:
     if len(first) != len(second):
         raise ValueError("fixed-point response channels must have equal lengths")
+    ####
     return max(
         (abs(float(left) - float(right)) for left, right in zip(first, second, strict=True)),
         default=0.0,
     )
+####
 
 
 def _response_is_finite(response: MocEulerTwoSidedInterfaceResponse) -> bool:
@@ -297,6 +302,7 @@ def _response_is_finite(response: MocEulerTwoSidedInterfaceResponse) -> bool:
     )
     for value in values
   )
+####
 
 
 def measure_moc_euler_two_sided_moving_interface_fixed_point(
@@ -425,7 +431,6 @@ def measure_moc_euler_two_sided_moving_interface_fixed_point(
     record_lineage_verified = bool(record_lineage_verified and all(record.next_field_iteration is not None for record in records))
     response_lineage_verified = bool(response_lineage_verified and all(record.response is not None for record in records))
     response_residuals_verified = bool(response_residuals_verified and result.response_residuals_verified and all(record.response is not None for record in records))
-    ####
     maximum_update_change = 0.0
     maximum_mass_change = 0.0
     maximum_momentum_change = 0.0
@@ -471,6 +476,7 @@ def measure_moc_euler_two_sided_moving_interface_fixed_point(
             )
         except (ArithmeticError, FloatingPointError, TypeError, ValueError):
             response_stability_verified = False
+        ####
     ####
     final_response = response_values[-1] if response_values else None
     maximum_final_update = 0.0 if final_response is None else max((abs(value) for value in final_response.normal_displacements_m), default=0.0)
@@ -530,3 +536,4 @@ def measure_moc_euler_two_sided_moving_interface_fixed_point(
         )
     ####
     return _failure(status, message, **common)
+####

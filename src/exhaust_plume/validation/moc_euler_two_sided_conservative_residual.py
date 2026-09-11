@@ -59,6 +59,7 @@ class MocEulerTwoSidedConservativeResidualAuditStatus(str, Enum):
   )
   ITERATION_LIMIT = 'two-sided-conservative-residual-audit-iteration-limit'
   PROMOTION_FAILURE = 'two-sided-conservative-residual-audit-promotion-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +118,7 @@ class MocEulerTwoSidedConservativeResidualAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in (
       'initial_residual_norm',
@@ -125,6 +127,7 @@ class MocEulerTwoSidedConservativeResidualAudit:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
@@ -136,7 +139,6 @@ class MocEulerTwoSidedConservativeResidualAudit:
       raise ValueError('maximum_residual_norm_mismatch must be finite and nonnegative')
     ####
     object.__setattr__(self, 'maximum_residual_norm_mismatch', mismatch)
-    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('conservative residual audits must remain promotion-blocked')
     ####
@@ -146,6 +148,7 @@ class MocEulerTwoSidedConservativeResidualAudit:
     ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -153,6 +156,7 @@ class MocEulerTwoSidedConservativeResidualAudit:
       MocEulerTwoSidedConservativeResidualAuditStatus
       .CONVERGED_RESEARCH_AUDIT
     )
+  ####
 
   @property
   def local_consistency_verified(self) -> bool:
@@ -170,6 +174,7 @@ class MocEulerTwoSidedConservativeResidualAudit:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -200,6 +205,8 @@ class MocEulerTwoSidedConservativeResidualAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -241,6 +248,7 @@ def _failure(
     maximum_residual_norm_mismatch=maximum_residual_norm_mismatch,
     message=message,
   )
+####
 
 
 def _field_verified(field: MocEulerTwoSidedFieldIterationResult) -> bool:
@@ -249,6 +257,7 @@ def _field_verified(field: MocEulerTwoSidedFieldIterationResult) -> bool:
     and field.final_physical_field is not None
     and field.final_physical_field.physical_field_verified
   )
+####
 
 
 def _scaled_vector(
@@ -258,9 +267,11 @@ def _scaled_vector(
   request = result.request
   if request is None:
     raise ValueError('residual result did not retain its request')
+  ####
   moving = request.moving_request
   if not response.signed_residuals_available:
     raise ValueError('response did not retain all signed residual channels')
+  ####
   mass = response.signed_mass_flux_residuals_kg_m2_s
   momentum = response.signed_normal_momentum_residuals_Pa
   energy = response.signed_energy_flux_residuals_W_m2
@@ -269,6 +280,7 @@ def _scaled_vector(
   assert energy is not None
   if not len(mass) == len(momentum) == len(energy) or not mass:
     raise ValueError('signed residual channels are not aligned and non-empty')
+  ####
   values: list[float] = []
   for mass_value, momentum_value, energy_value in zip(
     mass,
@@ -283,24 +295,29 @@ def _scaled_vector(
         float(energy_value) / moving.energy_flux_tolerance_W_m2,
       )
     )
+  ####
   if any(not isfinite(value) for value in values):
     raise ValueError('scaled residual vector is non-finite')
   ####
   return tuple(values)
+####
 
 
 def _norm(values: tuple[float, ...]) -> float:
   if not values:
     raise ValueError('residual vector must be non-empty')
+  ####
   value = sqrt(sum(item * item for item in values) / len(values))
   if not isfinite(value):
     raise ValueError('residual norm is non-finite')
   ####
   return value
+####
 
 
 def _close(first: float, second: float) -> bool:
   return bool(abs(first - second) <= 1.0e-8 * max(1.0, abs(first), abs(second)))
+####
 
 
 def _points_match(
@@ -315,6 +332,7 @@ def _points_match(
       for left, right in zip(first, second, strict=True)
     )
   )
+####
 
 
 def _measure(
@@ -331,6 +349,7 @@ def _measure(
   ####
   _scaled_vector(response_result.response, result)
   return response_result.response
+####
 
 
 def _directional_step(
@@ -349,6 +368,7 @@ def _directional_step(
   denominator = sum(value * value for value in derivative)
   if not isfinite(denominator) or denominator <= 1.0e-24:
     return None
+  ####
   numerator = sum(
     left * slope for left, slope in zip(current, derivative, strict=True)
   )
@@ -357,6 +377,7 @@ def _directional_step(
     return None
   ####
   return min(maximum_fraction, raw)
+####
 
 
 def _trial(
@@ -388,6 +409,7 @@ def _trial(
   ####
   if field.request is None:
     raise ValueError('trial field did not retain a field request')
+  ####
   next_request = replace(
     field.request,
     shock_boundary=trial_response.next_shock_boundary,
@@ -403,6 +425,7 @@ def _trial(
   measured = _measure(next_field, trial_request, result)
   vector = _scaled_vector(measured, result)
   return trial_response, next_field, measured, _norm(vector), vector
+####
 
 
 def measure_moc_euler_two_sided_conservative_residual(
@@ -515,6 +538,7 @@ def measure_moc_euler_two_sided_conservative_residual(
       current_norm = _norm(current_vector)
       if record.residual_norm_before is None:
         raise ValueError('record did not retain residual_norm_before')
+      ####
       maximum_mismatch = max(
         maximum_mismatch,
         abs(current_norm - record.residual_norm_before),
@@ -557,12 +581,14 @@ def measure_moc_euler_two_sided_conservative_residual(
       measured_norm = _norm(measured_vector)
       if record.residual_norm_after is None:
         raise ValueError('record did not retain residual_norm_after')
+      ####
       maximum_mismatch = max(
         maximum_mismatch,
         abs(measured_norm - record.residual_norm_after),
       )
       if not _close(measured_norm, record.residual_norm_after):
         raise ValueError('record residual_norm_after disagreed with remeasurement')
+      ####
       if not measured_norm < current_norm:
         raise ValueError('accepted record did not strictly descend independently')
       ####
@@ -571,11 +597,11 @@ def measure_moc_euler_two_sided_conservative_residual(
       field_re_solve_verified = field_re_solve_verified and bool(
         record.field_re_solve_verified and _field_verified(next_field)
       )
-      ####
       if record.directional_jacobian_verified:
         probe_fraction = record.jacobian_probe_step_fraction
         if probe_fraction is None or record.jacobian_probe_residual_norm is None:
           raise ValueError('directional record omitted its Jacobian probe evidence')
+        ####
         probe = _trial(
           current,
           request.law_request,
@@ -586,6 +612,7 @@ def measure_moc_euler_two_sided_conservative_residual(
         probe_norm = probe[3]
         if not _close(probe_norm, record.jacobian_probe_residual_norm):
           raise ValueError('directional Jacobian probe norm disagreed')
+        ####
         expected_step = _directional_step(
           current_vector,
           probe[4],
@@ -594,8 +621,10 @@ def measure_moc_euler_two_sided_conservative_residual(
         )
         if expected_step is None or record.directional_step_fraction is None:
           raise ValueError('directional record omitted its computed step')
+        ####
         if not _close(expected_step, record.directional_step_fraction):
           raise ValueError('directional least-squares step disagreed')
+        ####
       else:
         directional_verified = directional_verified and not (
           request.use_directional_residual_correction
@@ -621,6 +650,7 @@ def measure_moc_euler_two_sided_conservative_residual(
         initial_residual_norm=initial_norm,
         maximum_residual_norm_mismatch=maximum_mismatch,
       )
+    ####
   ####
   try:
     final_response = _measure(current, request.law_request, result)
@@ -692,7 +722,6 @@ def measure_moc_euler_two_sided_conservative_residual(
     final_residual_norm=final_norm,
     maximum_residual_norm_mismatch=maximum_mismatch,
   )
-  ####
   if result.status is not (
     MocEulerTwoSidedConservativeResidualSolveStatus
     .CONVERGED_RESEARCH_RESIDUAL
@@ -732,3 +761,4 @@ def measure_moc_euler_two_sided_conservative_residual(
     ),
     **common,
   )
+####

@@ -416,6 +416,7 @@ class MocReflectedDomainMixedRegimeBoundaryRequest:
         raise ValueError(
           'control_section was altered or is not bound to the entropy handoff'
         )
+      ####
     else:
       contract_source = str(contract_source)
       if not contract_source:
@@ -464,7 +465,6 @@ class MocReflectedDomainMixedRegimeBoundaryRequest:
         )
       ####
       object.__setattr__(self, 'perimeter_contract_source', contract_source)
-    ####
     ####
     source = str(self.source)
     if not source:
@@ -994,6 +994,7 @@ def build_reflected_domain_mixed_regime_boundary_request_from_perimeter(
   ):
     if not isfinite(float(value)) or float(value) <= 0.0:
       raise ValueError(f'{name} must be finite and positive')
+    ####
   ####
   source_name = str(source)
   if not source_name:

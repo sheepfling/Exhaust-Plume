@@ -89,10 +89,12 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveStatus(str, Enum):
   RESIDUAL_DESCENT_FAILURE = (
     'global-boundary-state-joint-residual-descent-failure'
   )
+####
 
 
 def _fingerprint(closure: MocReflectedDomainGlobalPhysicalClosureResult) -> str:
   return moc_reflected_domain_global_physical_closure_fingerprint(closure)
+####
 
 
 def _response(
@@ -100,12 +102,15 @@ def _response(
 ) -> MocEulerTwoSidedInterfaceResponse | None:
   if result is None or result.conservative_residual_result is None:
     return None
+  ####
   return result.conservative_residual_result.final_response
+####
 
 
 def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) -> bool:
   if response is None or not response.signed_residuals_available:
     return False
+  ####
   channels = (
     response.signed_mass_flux_residuals_kg_m2_s,
     response.signed_normal_momentum_residuals_Pa,
@@ -116,6 +121,7 @@ def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) 
     all(channel for channel in channels)
     and all(isfinite(value) for channel in channels for value in channel)
   )
+####
 
 
 def _dimensioned_channel_maxima(
@@ -126,6 +132,7 @@ def _dimensioned_channel_maxima(
 
   if response is None or request is None or not response.signed_residuals_available:
     return None
+  ####
   channels = (
     response.signed_mass_flux_residuals_kg_m2_s,
     response.signed_normal_momentum_residuals_Pa,
@@ -138,18 +145,23 @@ def _dimensioned_channel_maxima(
   )
   if any(channel is None for channel in channels):
     return None
+  ####
   assert all(channel is not None for channel in channels)
   if not (len(channels[0]) == len(channels[1]) == len(channels[2])):
     return None
+  ####
   if any(not isfinite(float(value)) or value <= 0.0 for value in tolerances):
     return None
+  ####
   maxima = tuple(
     max((abs(float(value)) / tolerance for value in channel), default=float('inf'))
     for channel, tolerance in zip(channels, tolerances, strict=True)
   )
   if any(not isfinite(value) for value in maxima):
     return None
+  ####
   return maxima
+####
 
 
 def _dimensioned_channel_descent(
@@ -160,6 +172,7 @@ def _dimensioned_channel_descent(
 
   if before is None or after is None:
     return False
+  ####
   numerical_tolerance = 1.0e-12
   nonincreasing = all(
     next_value
@@ -172,13 +185,16 @@ def _dimensioned_channel_descent(
     for current_value, next_value in zip(before, after, strict=True)
   )
   return bool(nonincreasing and strict)
+####
 
 
 def _options(value: Mapping[str, Any] | None) -> dict[str, Any]:
   if value is None:
     return {'consume_target_geometry': True}
+  ####
   if not isinstance(value, Mapping):
     raise TypeError('boundary_condition_options must be a mapping when supplied')
+  ####
   resolved = dict(value)
   reserved = ('request', 'source_closure', 'base_target')
   collisions = tuple(key for key in reserved if key in resolved)
@@ -187,12 +203,15 @@ def _options(value: Mapping[str, Any] | None) -> dict[str, Any]:
       'boundary_condition_options cannot override positional controls: '
       f'{", ".join(collisions)}'
     )
+  ####
   if resolved.get('consume_target_geometry', True) is not True:
     raise ValueError(
       'joint boundary-state consumption requires consume_target_geometry=True'
     )
+  ####
   resolved['consume_target_geometry'] = True
   return resolved
+####
 
 
 def _strict_descent(
@@ -202,11 +221,15 @@ def _strict_descent(
 ) -> bool:
   if not isfinite(before) or not isfinite(after):
     return False
+  ####
   if not isfinite(minimum_fraction) or minimum_fraction < 0.0:
     return False
+  ####
   if before <= 0.0:
     return after < before
+  ####
   return after < before * (1.0 - minimum_fraction)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,56 +280,67 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       MocReflectedDomainGlobalBoundaryStateJointSolveStatus,
     ):
       raise TypeError('status must be a typed joint-solve status')
+    ####
     if self.handoff is not None and not isinstance(
       self.handoff,
       MocReflectedDomainGlobalBoundaryStateFeedbackHandoff,
     ):
       raise TypeError('handoff must be typed or None')
+    ####
     if self.source_closure is not None and not isinstance(
       self.source_closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('source_closure must be typed or None')
+    ####
     if self.frontier_request is not None and not isinstance(
       self.frontier_request,
       MocReflectedDomainGlobalFrontierReconciliationRequest,
     ):
       raise TypeError('frontier_request must be typed or None')
+    ####
     if self.consumed_target is not None and not isinstance(
       self.consumed_target,
       MocPhysicalFieldEulerBoundaryPressureTarget,
     ):
       raise TypeError('consumed_target must be typed or None')
+    ####
     if self.boundary_condition is not None and not isinstance(
       self.boundary_condition,
       MocReflectedDomainGlobalFrontierBoundaryConditionResult,
     ):
       raise TypeError('boundary_condition must be typed or None')
+    ####
     if self.state_request is not None and not isinstance(
       self.state_request,
       MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
     ):
       raise TypeError('state_request must be typed or None')
+    ####
     if self.state_result is not None and not isinstance(
       self.state_result,
       MocReflectedDomainGlobalTwoSidedMovingInterfaceResult,
     ):
       raise TypeError('state_result must be typed or None')
+    ####
     if self.conservative_residual_audit is not None and not isinstance(
       self.conservative_residual_audit,
       MocEulerTwoSidedConservativeResidualAudit,
     ):
       raise TypeError('conservative_residual_audit must be typed or None')
+    ####
     if self.shock_geometry_response is not None and not isinstance(
       self.shock_geometry_response,
       MocEulerShockBoundaryCurveResult,
     ):
       raise TypeError('shock_geometry_response must be typed or None')
+    ####
     if self.geometry_response_closure is not None and not isinstance(
       self.geometry_response_closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('geometry_response_closure must be typed or None')
+    ####
     for name in (
       'baseline_dimensioned_channel_maxima',
       'refreshed_dimensioned_channel_maxima',
@@ -317,7 +351,9 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
         or any(not isfinite(value) or value < 0.0 for value in values)
       ):
         raise ValueError(f'{name} must contain three finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'handoff_lineage_verified',
       'global_consumer_invoked',
@@ -343,17 +379,24 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or self.downstream_boundary_closure_verified:
       raise ValueError('joint research state solve cannot claim canonical coupling')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('joint research state solve must remain promotion-blocked')
+    ####
     for name in ('baseline_residual_norm', 'refreshed_residual_norm'):
       value = getattr(self, name)
       if value is not None:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     if self.status is (
       MocReflectedDomainGlobalBoundaryStateJointSolveStatus
       .CONVERGED_RESEARCH_JOINT_STATE_UPDATE
@@ -363,6 +406,7 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       and self.residual_descent_verified
     ):
       raise ValueError('converged joint update must pass consumption and descent gates')
+    ####
     if self.dimensioned_channels_verified and not (
       len(self.baseline_dimensioned_channel_maxima) == 3
       and len(self.refreshed_dimensioned_channel_maxima) == 3
@@ -371,13 +415,16 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
         'dimensioned_channels_verified requires three baseline and refreshed '
         'channel maxima'
       )
+    ####
     if self.dimensioned_channel_descent_verified and not (
       self.dimensioned_channels_verified
     ):
       raise ValueError(
         'dimensioned_channel_descent_verified requires verified dimensioned channels'
       )
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged_research_joint_update(self) -> bool:
@@ -389,6 +436,7 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       and self.joint_state_update_verified
       and self.residual_descent_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -471,6 +519,8 @@ class MocReflectedDomainGlobalBoundaryStateJointSolveResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _result(
@@ -485,6 +535,7 @@ def _result(
     message=message,
     **kwargs,
   )
+####
 
 
 def _handoff_inputs(
@@ -499,39 +550,52 @@ def _handoff_inputs(
   run = handoff.boundary_feedback_run
   if not run.iterations:
     raise ValueError('handoff retained no boundary feedback iteration')
+  ####
   iteration = run.iterations[-1]
   if iteration.proposal is not handoff.proposal:
     raise ValueError('handoff proposal is not the final retained proposal')
+  ####
   request = iteration.frontier_request
   if request is None or not request.lineage_verified:
     raise ValueError('handoff retained no lineage-verified frontier request')
+  ####
   source = iteration.source_closure
   if request.source_closure_fingerprint != _fingerprint(source):
     raise ValueError('frontier request source fingerprint does not match iteration')
+  ####
   proposal_fingerprint = moc_reflected_domain_global_frontier_proposal_fingerprint(
     handoff.proposal
   )
   if request.source_proposal_fingerprint != proposal_fingerprint:
     raise ValueError('frontier request proposal fingerprint does not match handoff')
+  ####
   target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
   if iteration.frame_extension is not None:
     target = iteration.frame_extension.extended_target
+  ####
   if target is None:
     target = iteration.base_target
+  ####
   if target is None:
     raise ValueError('handoff retained no exact target frame for the joint consumer')
+  ####
   if (
     target.source_closure_fingerprint != _fingerprint(source)
     or target.source_proposal_fingerprint != proposal_fingerprint
   ):
     raise ValueError('extended target does not retain exact source/proposal lineage')
+  ####
   if run.final_closure is not iteration.next_closure:
     raise ValueError('handoff final closure is not the iteration output closure')
+  ####
   if _fingerprint(run.final_closure) != handoff.state_source_closure_fingerprint:
     raise ValueError('handoff state closure fingerprint does not match final closure')
+  ####
   if not handoff.ready_for_joint_global_resolve:
     raise ValueError('handoff is not ready for joint global consumption')
+  ####
   return source, request, target
+####
 
 
 def run_reflected_domain_global_boundary_state_joint_solve(
@@ -557,11 +621,13 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       None,
       'handoff must be a typed global boundary-state feedback handoff',
     )
+  ####
   try:
     options = _options(boundary_condition_options)
     resolved_consumer_id = str(consumer_id)
     if not resolved_consumer_id:
       raise ValueError('consumer_id must be non-empty')
+    ####
     source, request, target = _handoff_inputs(handoff)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _result(
@@ -569,6 +635,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       handoff,
       f'joint handoff setup failed closed: {error}',
     )
+  ####
 
   try:
     boundary_condition = run_reflected_domain_global_frontier_boundary_conditioned_resolve(
@@ -588,6 +655,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       handoff_lineage_verified=True,
       global_consumer_invoked=True,
     )
+  ####
   candidate = boundary_condition.conditioned_closure
   candidate_fingerprint = None if candidate is None else _fingerprint(candidate)
   target_consumed = bool(
@@ -629,6 +697,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       target_consumption_verified=target_consumed,
       target_geometry_consumption_verified=target_geometry_consumed,
     )
+  ####
   assert candidate is not None
   initial_response = _response(handoff.two_sided_result)
   geometry_response = (
@@ -651,6 +720,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       target_consumption_verified=target_consumed,
       target_geometry_consumption_verified=target_geometry_consumed,
     )
+  ####
   try:
     geometry_response_closure = (
       consume_reflected_domain_global_shock_geometry_response(
@@ -674,6 +744,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       target_consumption_verified=target_consumed,
       target_geometry_consumption_verified=target_geometry_consumed,
     )
+  ####
   corrected_global_euler = geometry_response_closure.global_euler
   shock_geometry_response_consumed = bool(
     geometry_response_closure.converged
@@ -713,6 +784,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       shock_geometry_response_consumed=shock_geometry_response_consumed,
       shock_geometry_response_lineage_verified=shock_geometry_response_lineage_verified,
     )
+  ####
   fresh_global_with_geometry = bool(
     fresh_global
     and shock_geometry_response_consumed
@@ -753,6 +825,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       state_solver_invoked=True,
       baseline_residual_norm=baseline_norm,
     )
+  ####
   residual = state_result.conservative_residual_result
   audit = state_result.conservative_residual_audit
   response = _response(state_result)
@@ -830,6 +903,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       independent_residual_audit_verified=independent_audit,
       baseline_residual_norm=baseline_norm,
     )
+  ####
   descent = _strict_descent(
     baseline_norm,
     float(refreshed_norm),
@@ -904,6 +978,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       'channel audit gate',
       **common,
     )
+  ####
   if not descent:
     return _result(
       MocReflectedDomainGlobalBoundaryStateJointSolveStatus.RESIDUAL_DESCENT_FAILURE,
@@ -913,6 +988,7 @@ def run_reflected_domain_global_boundary_state_joint_solve(
       f'retained baseline ({baseline_norm:.12g} -> {float(refreshed_norm):.12g})',
       **common,
     )
+  ####
   return _result(
     MocReflectedDomainGlobalBoundaryStateJointSolveStatus
     .CONVERGED_RESEARCH_JOINT_STATE_UPDATE,
@@ -922,3 +998,4 @@ def run_reflected_domain_global_boundary_state_joint_solve(
     'production gates remain closed',
     **common,
   )
+####

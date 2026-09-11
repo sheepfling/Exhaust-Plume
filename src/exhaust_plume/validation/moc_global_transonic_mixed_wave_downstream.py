@@ -96,6 +96,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus(str, Enum):
   ADDITIONAL_ENTROPY_REQUIRED = (
     'mixed-wave-downstream-additional-entropy-required'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,6 +377,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -445,6 +447,7 @@ def _failure(
     ),
     message=message,
   )
+####
 
 
 def _build_control_section(
@@ -503,6 +506,7 @@ def _build_control_section(
     normal_angle_rad=0.0,
     source=f'{contract_source}:control-section',
   )
+####
 
 
 def solve_reflected_domain_global_transonic_mixed_wave_downstream(
@@ -671,6 +675,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
         'transonic_placement_post_shock_fraction must lie strictly between '
         'zero and one'
       )
+    ####
   except (TypeError, ValueError):
     return _failure(
       MocReflectedDomainGlobalTransonicMixedWaveDownstreamStatus.INVALID_INPUT,
@@ -852,6 +857,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
         entropy_handoff_verified=entropy_handoff_verified,
         control_section_verified=control_section_verified,
       )
+    ####
   else:
     try:
       transonic_interface_placement = (
@@ -918,6 +924,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     interface_placement_coverage_verified = bool(
       interface_placement_coverage.joint_interface_coverage_verified
     )
+  ####
   try:
     field = solve_reflected_domain_coupled_euler_free_boundary_from_mixed_regime_request(
       request,
@@ -1037,6 +1044,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
       f'{interface_placement_coverage.message}; no boundary extension or '
       'extrapolation was used.'
     )
+  ####
   if additional_entropy_required:
     assert subsonic_pressure_budget is not None
     message = (
@@ -1077,6 +1085,8 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
         'exact mixed-wave shock and ambient traces do not cover the selected '
         f'placement; the result remains research-only.{coverage_message}'
       )
+    ####
+  ####
   return MocReflectedDomainGlobalTransonicMixedWaveDownstreamResult(
     status=status,
     closure=closure,
@@ -1109,3 +1119,4 @@ def solve_reflected_domain_global_transonic_mixed_wave_downstream(
     downstream_field_local_closure_verified=field_verified,
     message=message,
   )
+####

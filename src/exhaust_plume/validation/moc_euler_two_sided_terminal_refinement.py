@@ -43,6 +43,7 @@ class MocEulerTwoSidedTerminalRefinementAuditStatus(str, Enum):
   LEVEL_FAILURE = 'two_sided_terminal_refinement_audit_level_failure'
   RESIDUAL_FAILURE = 'two_sided_terminal_refinement_audit_residual_failure'
   FLAG_FAILURE = 'two_sided_terminal_refinement_audit_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +126,7 @@ class MocEulerTwoSidedTerminalRefinementAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.physical_closure_verified:
       raise ValueError('terminal refinement audit cannot claim physical closure')

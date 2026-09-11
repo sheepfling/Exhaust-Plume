@@ -73,6 +73,7 @@ class MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus(str, Enum):
   PROMOTION_FAILURE = (
     'global-two-sided-moving-interface-fixed-point-refinement-promotion-failure'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +178,7 @@ class MocGlobalTwoSidedMovingInterfaceFixedPointRefinementMeasurement:
     ):
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
     ####
     for name in (
       'case_audits_verified',
@@ -194,6 +196,7 @@ class MocGlobalTwoSidedMovingInterfaceFixedPointRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.canonical_free_boundary_verified or self.canonical_euler_verified:
       raise ValueError('strict fixed-point refinement cannot claim canonical closure')
@@ -268,6 +271,8 @@ class MocGlobalTwoSidedMovingInterfaceFixedPointRefinementMeasurement:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _maximum_terminal_momentum_residual(
@@ -276,10 +281,13 @@ def _maximum_terminal_momentum_residual(
   moving = result.moving_result
   if moving is None or not moving.records:
     return 0.0
+  ####
   response = moving.records[-1].response
   if response is None:
     return 0.0
+  ####
   return max(response.normal_momentum_residuals_Pa, default=0.0)
+####
 
 
 def _failure(
@@ -316,6 +324,7 @@ def _failure(
     refinement_tolerance=float(kwargs.get('refinement_tolerance', 1.0e-8)),
     message=message,
   )
+####
 
 
 def measure_moc_global_two_sided_moving_interface_fixed_point_refinement(
@@ -476,7 +485,6 @@ def measure_moc_global_two_sided_moving_interface_fixed_point_refinement(
     momentum=momentum,
     refinement_tolerance=tolerance,
   )
-  ####
   if not case_audits_verified:
     status = (
       MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus.CASE_FAILURE
@@ -535,3 +543,4 @@ def measure_moc_global_two_sided_moving_interface_fixed_point_refinement(
     )
   ####
   return _failure(status, message, **common)
+####

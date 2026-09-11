@@ -527,7 +527,6 @@ def audit_reflected_domain_global_frontier_fresh_resolve(
       )
     )
   )
-  ####
   if not target_packet_verified:
     status = MocReflectedDomainGlobalFrontierFreshResolveAuditStatus.TARGET_PACKET_FAILURE
     message = 'result target does not match the independently rebuilt target'

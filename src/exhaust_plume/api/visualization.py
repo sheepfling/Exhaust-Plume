@@ -94,6 +94,7 @@ class VisualizationSourceContext:
     ):
       if not getattr(self, name):
         raise ValueError(f'visualization source context {name} must not be empty')
+      ####
     ####
     if len(self.content_sha256) != 64 or any(
       character not in '0123456789abcdef'
@@ -259,6 +260,7 @@ class SectionedTubeGeometrySeries:
     object.__setattr__(self, 'semi_axis_2_m', tuple(float(value) for value in self.semi_axis_2_m))
     if self.source_context is not None and self.source_context.frame_id != self.frame_id:
       raise ValueError('geometry source context must use the geometry frame')
+    ####
   ####
 ####
 
@@ -310,6 +312,7 @@ class SectionedTubeChannelLine:
     )
     if self.source_context is not None and self.source_context.frame_id != self.frame_id:
       raise ValueError('channel source context must use the channel frame')
+    ####
   ####
 ####
 
@@ -406,6 +409,7 @@ class SectionedTubeRenderMesh:
     object.__setattr__(self, 'feature_channels', tuple(self.feature_channels))
     if self.source_context is not None and self.source_context.frame_id != self.frame_id:
       raise ValueError('mesh source context must use the mesh frame')
+    ####
   ####
 
   @property
@@ -695,6 +699,7 @@ class SpectralRadiantIntensityGrid:
     object.__setattr__(self, 'uncertainty', dict(self.uncertainty))
     if self.source_context is not None and self.source_context.frame_id != self.frame_id:
       raise ValueError('spectral-intensity source context must use the grid frame')
+    ####
   ####
 ####
 
@@ -731,6 +736,7 @@ class SpectralRadiantIntensityLine:
     object.__setattr__(self, 'validity_mask', tuple(self.validity_mask))
     if self.source_context is not None and self.source_context.frame_id != self.frame_id:
       raise ValueError('spectral-intensity line source context must use the line frame')
+    ####
   ####
 ####
 
@@ -850,6 +856,7 @@ class SpectralRayTransferLine:
     object.__setattr__(self, 'validity_mask', tuple(self.validity_mask))
     if self.source_context is not None and self.source_context.frame_id != self.frame_id:
       raise ValueError('ray-transfer line source context must use the line frame')
+    ####
   ####
 ####
 
@@ -1006,6 +1013,7 @@ class PlumeFluxSectionGlyph:
     )
     if self.source_context is not None and self.source_context.frame_id != self.frame_id:
       raise ValueError('flux glyph source context must use the glyph frame')
+    ####
   ####
 ####
 

@@ -1321,6 +1321,7 @@ def _independent_placement_geometry(
       for candidate in candidates
       if candidate >= minimum_x - request.position_tolerance_m
     )
+  ####
   if not candidates:
     raise ValueError(
       'field retained no post-shock cross-section candidates after the '

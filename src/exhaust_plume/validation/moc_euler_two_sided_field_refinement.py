@@ -81,6 +81,7 @@ class MocEulerTwoSidedFieldRefinementAuditStatus(str, Enum):
   CELL_GROWTH_FAILURE = 'two_sided_field_refinement_cell_growth_failure'
   RESIDUAL_FAILURE = 'two_sided_field_refinement_residual_failure'
   FLAG_FAILURE = 'two_sided_field_refinement_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +186,7 @@ class MocEulerTwoSidedFieldRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in ('refinement_tolerance', 'cell_residual_tolerance'):
       value = float(getattr(self, name))

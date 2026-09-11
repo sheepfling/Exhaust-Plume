@@ -57,6 +57,7 @@ class MocEulerTwoSidedMovingInterfaceAuditStatus(str, Enum):
     'two_sided_moving_interface_audit_conservative_flux_failure'
   )
   ITERATION_LIMIT = 'two_sided_moving_interface_audit_iteration_limit'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +129,7 @@ class MocEulerTwoSidedMovingInterfaceAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in (
       'maximum_normal_displacement_m',
@@ -282,6 +284,7 @@ def _failure(
     maximum_energy_flux_residual_W_m2=maximum_energy_flux_residual_W_m2,
     message=message,
   )
+####
 
 
 def _field_request_lineage_verified(
@@ -319,6 +322,7 @@ def _field_request_lineage_verified(
       for name in scalar_fields
     )
   )
+####
 
 
 def _response_measurements(
@@ -382,6 +386,7 @@ def _response_measurements(
     maximum_momentum,
     maximum_energy,
   )
+####
 
 
 def measure_moc_euler_two_sided_moving_interface(
@@ -624,6 +629,7 @@ def measure_moc_euler_two_sided_moving_interface(
       failure_status = MocEulerTwoSidedMovingInterfaceAuditStatus.FLAG_FAILURE
       failure_message = 'moving-interface record flags did not match independently remeasured evidence'
       break
+    ####
   ####
   final_lineage = bool(result.final_field_iteration is current)
   record_lineage_verified = record_lineage_verified and final_lineage
@@ -696,6 +702,7 @@ def measure_moc_euler_two_sided_moving_interface(
     else:
       failure_status = MocEulerTwoSidedMovingInterfaceAuditStatus.RESPONSE_FAILURE
       failure_message = 'moving-interface ladder did not produce a locally converged response sequence'
+    ####
   ####
   return _failure(
     failure_status,
@@ -720,3 +727,4 @@ def measure_moc_euler_two_sided_moving_interface(
     maximum_normal_momentum_residual_Pa=maximum_momentum,
     maximum_energy_flux_residual_W_m2=maximum_energy,
   )
+####

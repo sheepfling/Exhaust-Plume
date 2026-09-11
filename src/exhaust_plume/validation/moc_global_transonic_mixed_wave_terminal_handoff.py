@@ -82,6 +82,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffStatus(
   GEOMETRY_BINDING_FAILURE = (
     'global-transonic-mixed-wave-terminal-geometry-binding-failure'
   )
+####
 
 
 class MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffAuditStatus(
@@ -110,6 +111,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffAuditStatus(
   CLAIM_FLAG_FAILURE = (
     'global-transonic-mixed-wave-terminal-scalar-handoff-claim-flag-failure'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +162,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffRequest:
       ),
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -295,6 +298,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffResult:
       ),
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -414,6 +418,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalHandoffAudit:
       'message': self.message,
     }
   ####
+####
 
 
 def _wrapped_angle_residual(first_angle_rad: float, second_angle_rad: float) -> float:
@@ -423,20 +428,25 @@ def _wrapped_angle_residual(first_angle_rad: float, second_angle_rad: float) -> 
       cos(first_angle_rad - second_angle_rad),
     )
   )
+####
 
 
 def _scalar_residual(actual: float, expected: float) -> float:
   return abs(float(actual) - float(expected)) / max(1.0, abs(float(expected)))
+####
 
 
 def _pressure_residual(actual: float, expected: float) -> float:
   return abs(float(actual) - float(expected))
+####
 
 
 def _terminal_from_probe(candidate: MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeResult):
   if candidate.terminal_patch_shock_probe is None:
     return None
+  ####
   return candidate.terminal_patch_shock_probe.shock.normal_shock_terminal
+####
 
 
 def _state_residuals(
@@ -474,6 +484,7 @@ def _state_residuals(
     ),
   )
   return max(scalar_residuals), max(pressure_residuals)
+####
 
 
 def _shock_state_from_terminal(
@@ -491,6 +502,7 @@ def _shock_state_from_terminal(
     upstream_mach=float(upstream.mach),
     upstream_flow_angle_rad=float(upstream.theta_rad),
   )
+####
 
 
 def _geometry_request(
@@ -508,6 +520,7 @@ def _geometry_request(
     normal_alignment_tolerance_rad=request.normal_alignment_tolerance_rad,
     flux_tolerance=request.flux_tolerance,
   )
+####
 
 
 def _invalid_result(
@@ -533,6 +546,7 @@ def _invalid_result(
     maximum_pressure_residual_Pa=maximum_pressure_residual_Pa,
     message=message,
   )
+####
 
 
 def build_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
@@ -674,6 +688,7 @@ def build_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
       'field closure and coupled-inlet placement remain open'
     ),
   )
+####
 
 
 def _shock_state_matches(
@@ -712,6 +727,7 @@ def _shock_state_matches(
     ####
   ####
   return reported.source == expected.source
+####
 
 
 def _geometry_matches(
@@ -750,6 +766,7 @@ def _geometry_matches(
       strict=True,
     )
   )
+####
 
 
 def _audit_failure(
@@ -765,6 +782,7 @@ def _audit_failure(
     message=message,
     **kwargs,
   )
+####
 
 
 def measure_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
@@ -946,3 +964,4 @@ def measure_reflected_domain_global_transonic_mixed_wave_terminal_handoff(
       'exact retained geometry; two-dimensional closure remains open'
     ),
   )
+####

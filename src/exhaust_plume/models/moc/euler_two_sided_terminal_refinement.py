@@ -38,6 +38,7 @@ class MocEulerTwoSidedTerminalRefinementStatus(str, Enum):
   TERMINAL_CLOSURE_REQUIRED = 'two_sided_terminal_refinement_closure_required'
   LEVEL_FAILURE = 'two_sided_terminal_refinement_level_failure'
   CONTINUATION_FAILURE = 'two_sided_terminal_refinement_continuation_failure'
+####
 
 
 def _positive_float(value: Any, name: str) -> float:
@@ -254,6 +255,7 @@ class MocEulerTwoSidedTerminalRefinementResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.physical_closure_verified:
       raise ValueError('terminal refinement cannot claim physical closure')

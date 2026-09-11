@@ -238,6 +238,7 @@ def test_accepted_provider_bound_evidence_must_match_measurement_space() -> None
       provider_bound_evidence={'SIG-MVP-A-064': evidence},
     )
   ####
+####
 
 
 def test_provider_bound_evidence_document_loads_by_claim_id(tmp_path) -> None:
@@ -422,6 +423,7 @@ def test_provider_bound_asset_manifest_rejects_tampered_file(tmp_path) -> None:
       asset_root=asset_root,
       asset_manifest_path=manifest,
     )
+  ####
 ####
 
 

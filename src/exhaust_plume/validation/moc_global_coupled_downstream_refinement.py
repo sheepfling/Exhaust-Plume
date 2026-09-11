@@ -178,6 +178,7 @@ class MocReflectedDomainGlobalCoupledDownstreamRefinementCase:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.boundary_target is not None and not isinstance(
       self.boundary_target,

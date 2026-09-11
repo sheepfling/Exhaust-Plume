@@ -67,6 +67,7 @@ class MocEulerTwoSidedInterfaceLawRefinementCase:
         raise ValueError(
           'resolution_sample_count must match the exact current shock sample count'
         )
+      ####
     ####
     object.__setattr__(self, 'case_id', case_id)
   ####
@@ -92,6 +93,7 @@ class MocEulerTwoSidedInterfaceLawRefinementStatus(str, Enum):
   )
   RESIDUAL_FAILURE = 'two-sided-interface-law-refinement-residual-failure'
   FLAG_FAILURE = 'two-sided-interface-law-refinement-flag-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,6 +189,7 @@ class MocEulerTwoSidedInterfaceLawRefinementMeasurement:
     ):
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
     ####
     for name in (
       'case_audits_verified',
@@ -209,6 +212,7 @@ class MocEulerTwoSidedInterfaceLawRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in (
       'refinement_tolerance',
@@ -389,6 +393,7 @@ def _failure(
     energy_residual_tolerance_W_m2=energy_residual_tolerance_W_m2,
     message=message,
   )
+####
 
 
 def _case_signature(
@@ -415,6 +420,7 @@ def _case_signature(
       downstream.mach,
     )
   )
+####
 
 
 def _response_mode_signature(
@@ -440,6 +446,7 @@ def _response_mode_signature(
     request.branch.value,
     response.stationary_equilibrium_candidate,
   )
+####
 
 
 def measure_moc_euler_two_sided_interface_law_refinement(
@@ -517,6 +524,7 @@ def measure_moc_euler_two_sided_interface_law_refinement(
   grouped_indices: dict[str, list[int]] = {}
   for index, case_id in enumerate(case_ids):
     grouped_indices.setdefault(case_id, []).append(index)
+  ####
   resolution_order_verified = all(
     all(
       resolutions[right] > resolutions[left]
@@ -664,3 +672,4 @@ def measure_moc_euler_two_sided_interface_law_refinement(
     mass_residual_tolerance_kg_m2_s=mass_tolerance,
     energy_residual_tolerance_W_m2=energy_tolerance,
   )
+####

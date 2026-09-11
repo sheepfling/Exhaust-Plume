@@ -73,6 +73,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeStatus(str, Enum):
   SHOCK_PROBE_FAILURE = (
     'global-transonic-mixed-wave-terminal-shock-probe-failure'
   )
+####
 
 
 class MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeAuditStatus(
@@ -95,6 +96,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeAuditStatus(
   CLAIM_FLAG_FAILURE = (
     'global-transonic-mixed-wave-terminal-probe-claim-flag-failure'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,6 +271,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeResult:
       ),
     }
   ####
+####
 
 
 def _state_residual(
@@ -285,6 +288,7 @@ def _state_residual(
     abs(float(getattr(actual, 'gamma')) - float(getattr(expected, 'gamma'))),
   )
   return max(values)
+####
 
 
 def _boundary_sample_residual(
@@ -295,6 +299,7 @@ def _boundary_sample_residual(
     _state_residual(actual.state, expected.state),
     abs(actual.total_pressure_Pa - expected.total_pressure_Pa),
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,6 +442,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeAudit:
       'message': self.message,
     }
   ####
+####
 
 
 def _audit_failure(
@@ -452,6 +458,7 @@ def _audit_failure(
     message=message,
     **kwargs,
   )
+####
 
 
 def measure_reflected_domain_global_transonic_mixed_wave_terminal_probe(
@@ -513,6 +520,7 @@ def measure_reflected_domain_global_transonic_mixed_wave_terminal_probe(
       )
       trace_state_residuals.append(state_residual)
       trace_pressure_residuals.append(pressure_residual)
+    ####
   ####
   input_trace_verified = bool(
     patch.input_trace_validation is not None
@@ -535,7 +543,6 @@ def measure_reflected_domain_global_transonic_mixed_wave_terminal_probe(
       )
     )
   )
-  ####
   if not input_trace_verified:
     return _audit_failure(
       MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeAuditStatus
@@ -814,6 +821,7 @@ def measure_reflected_domain_global_transonic_mixed_wave_terminal_probe(
       'flags; downstream subsonic physics remains open'
     ),
   )
+####
 
 
 def _failure(
@@ -841,6 +849,7 @@ def _failure(
     maximum_segment_iterations=maximum_segment_iterations,
     message=message,
   )
+####
 
 
 def probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation(
@@ -1070,3 +1079,4 @@ def probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation(
       'physical closure or chain promotion'
     ),
   )
+####

@@ -170,7 +170,6 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult:
       raise ValueError('downstream_flow_angles_rad must be finite')
     ####
     object.__setattr__(self, 'downstream_flow_angles_rad', angles)
-    ####
     for name, expected_type in (
       ('mixed_wave_path', MocMixedWavePathResult),
       ('shock', MocFreeBoundaryShockResult),
@@ -574,6 +573,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_interface(
           message=f'{name} must be finite and positive when supplied',
         )
       ####
+    ####
   ####
   if not isinstance(
     source_field,
@@ -852,6 +852,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_interface(
         angle_law_verified=angle_law_verified,
         message=f'retained shock fit raised: {error}',
       )
+    ####
   ####
   shock_fit_verified = bool(shock_fit.converged)
   shock_geometry_verified = bool(
@@ -1093,8 +1094,10 @@ def solve_reflected_domain_global_transonic_mixed_wave_interface(
           ' optional scalar subsonic reference did not close: '
           f'{subsonic_reference.message}'
         )
+      ####
     except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
       reference_message = f' optional scalar subsonic reference raised: {error}'
+    ####
   ####
   return MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult(
     status=status_type.CONVERGED_RESEARCH_TERMINAL,

@@ -92,6 +92,7 @@ def load_manifest(path: Path = MANIFEST_PATH) -> dict[str, Any]:
         raise ValueError(
           f'archives[{index}].retrieval.status must be non-empty'
         )
+      ####
     ####
     observed_ids.append(archive_id)
   ####
@@ -108,6 +109,8 @@ def load_manifest(path: Path = MANIFEST_PATH) -> dict[str, Any]:
         raise ValueError(
           f'archives[{index}] ({archive_id}) must name {expected_filename!r}'
         )
+      ####
+    ####
   ####
   return payload
 ####

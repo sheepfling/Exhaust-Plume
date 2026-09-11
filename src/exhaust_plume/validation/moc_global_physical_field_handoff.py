@@ -48,6 +48,7 @@ class MocReflectedDomainGlobalPhysicalFieldHandoffAuditStatus(str, Enum):
     FIELD_LINEAGE_FAILURE = "global-physical-field-handoff-field-lineage-failure"
     CROSS_SECTION_LINEAGE_FAILURE = "global-physical-field-handoff-cross-section-lineage-failure"
     COUPLED_PROFILE_LINEAGE_FAILURE = "global-physical-field-handoff-coupled-profile-lineage-failure"
+####
 
 
 def _point_residual(
@@ -55,6 +56,7 @@ def _point_residual(
     second: tuple[float, float],
 ) -> float:
     return hypot(first[0] - second[0], first[1] - second[1])
+####
 
 
 def _failure(
@@ -82,6 +84,7 @@ def _failure(
         maximum_cross_section_point_residual_m=maximum_cross_section_point_residual_m,
         message=message,
     )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,11 +108,13 @@ class MocReflectedDomainGlobalPhysicalFieldHandoffAudit:
             MocReflectedDomainGlobalPhysicalFieldHandoffAuditStatus,
         ):
             raise TypeError("status must be a typed handoff-audit status")
+        ####
         if self.handoff is not None and not isinstance(
             self.handoff,
             MocReflectedDomainGlobalPhysicalFieldHandoff,
         ):
             raise TypeError("handoff must be a MocReflectedDomainGlobalPhysicalFieldHandoff or None")
+        ####
         for name in (
             "source_field_identity_verified",
             "cross_section_lineage_verified",
@@ -117,16 +122,22 @@ class MocReflectedDomainGlobalPhysicalFieldHandoffAudit:
         ):
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be a bool")
+            ####
+        ####
         if self.maximum_cross_section_point_residual_m is not None:
             residual = float(self.maximum_cross_section_point_residual_m)
             if not isfinite(residual) or residual < 0.0:
                 raise ValueError("maximum_cross_section_point_residual_m must be finite and nonnegative")
+            ####
             object.__setattr__(self, "maximum_cross_section_point_residual_m", residual)
+        ####
         object.__setattr__(self, "message", str(self.message))
+    ####
 
     @property
     def converged(self) -> bool:
         return self.status is (MocReflectedDomainGlobalPhysicalFieldHandoffAuditStatus.VERIFIED)
+    ####
 
     @property
     def research_evidence_verified(self) -> bool:
@@ -147,6 +158,7 @@ class MocReflectedDomainGlobalPhysicalFieldHandoffAudit:
             and self.handoff.chain_promotion_blocked
             and not self.handoff.production_claim_allowed
         )
+    ####
 
     def as_report(self) -> dict[str, Any]:
         return {
@@ -164,6 +176,8 @@ class MocReflectedDomainGlobalPhysicalFieldHandoffAudit:
             "claim_status": ("research-only-shared-global-physical-field-handoff-audit; downstream free-boundary closure, refinement, external validation, and production claims remain blocked"),
             "message": self.message,
         }
+    ####
+####
 
 
 def measure_moc_reflected_domain_global_physical_field_handoff(
@@ -312,3 +326,4 @@ def measure_moc_reflected_domain_global_physical_field_handoff(
         maximum_cross_section_point_residual_m=maximum_point_residual,
         message=("placement, continuation, and shock-front components were independently remeasured and retain one exact physical field and cross-section"),
     )
+####

@@ -204,6 +204,8 @@ def _sha256_file(path: Path) -> str:
     with path.open('rb') as stream:
       for chunk in iter(lambda: stream.read(1024 * 1024), b''):
         digest.update(chunk)
+      ####
+    ####
   except OSError as error:
     raise ValueError(f'could not read provider-bound asset {path}: {error}') from error
   ####
@@ -350,8 +352,10 @@ def verify_provider_bound_evidence_assets(
     details = []
     if missing:
       details.append(f'missing bindings: {missing!r}')
+    ####
     if unexpected:
       details.append(f'unexpected bindings: {unexpected!r}')
+    ####
     raise ValueError('provider asset manifest bindings do not match evidence: ' + '; '.join(details))
   ####
   root = asset_root.resolve()
@@ -1251,6 +1255,7 @@ def build_provider_comparison_preflight(
           },
         })
         return report
+      ####
     ####
   elif provider_asset_root is not None or provider_asset_manifest_path is not None:
     report.update({

@@ -1379,6 +1379,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
               position_tolerance_m=position_tolerance,
             )
           )
+        ####
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         stop_reason = f'pressure feedback profile construction failed: {error}'
       ####
@@ -1391,6 +1392,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
               'signed_normal_response_time_s is required for signed geometry '
               'feedback'
             )
+          ####
           next_geometry_profile = (
             build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile(
               closure,
@@ -1409,6 +1411,7 @@ def run_reflected_domain_global_coupled_downstream_feedback(
               position_tolerance_m=position_tolerance,
             )
           )
+        ####
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         stop_reason = (
           stop_reason

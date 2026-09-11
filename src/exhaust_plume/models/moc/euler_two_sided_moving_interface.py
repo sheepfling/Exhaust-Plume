@@ -70,6 +70,7 @@ class MocEulerTwoSidedMovingInterfaceStatus(str, Enum):
   )
   FIELD_RESOLVE_FAILURE = 'two_sided_moving_interface_field_resolve_failure'
   ITERATION_LIMIT = 'two_sided_moving_interface_iteration_limit'
+####
 
 
 def _positive_float(value: Any, name: str) -> float:
@@ -82,6 +83,7 @@ def _positive_float(value: Any, name: str) -> float:
     raise ValueError(f'{name} must be finite and positive')
   ####
   return numeric
+####
 
 
 def _finite_residuals(
@@ -93,6 +95,7 @@ def _finite_residuals(
     raise ValueError(f'{name} must contain finite nonnegative values')
   ####
   return residuals
+####
 
 
 def compute_moc_euler_two_sided_interface_normal_displacements(
@@ -153,6 +156,7 @@ def compute_moc_euler_two_sided_interface_normal_displacements(
     displacements.append(float(displacement))
   ####
   return tuple(displacements)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -477,6 +481,7 @@ class MocEulerTwoSidedMovingInterfaceRequest:
     if not isinstance(self.require_terminal_fixed_point, bool):
       raise TypeError('require_terminal_fixed_point must be a bool')
     ####
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -553,6 +558,7 @@ class MocEulerTwoSidedMovingInterfaceIterationRecord:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -639,6 +645,7 @@ class MocEulerTwoSidedMovingInterfaceResult:
         raise TypeError(
           f'{name} must be a MocEulerTwoSidedFieldIterationResult or None'
         )
+      ####
     ####
     for name in (
       'moving_interface_verified',
@@ -658,6 +665,7 @@ class MocEulerTwoSidedMovingInterfaceResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.canonical_free_boundary_verified or self.canonical_euler_verified:
       raise ValueError(
@@ -822,6 +830,7 @@ def _failure(
     terminal_fixed_point_verified=terminal_fixed_point_verified,
     message=message,
   )
+####
 
 
 def _response_lineage_and_motion(
@@ -870,6 +879,7 @@ def _response_lineage_and_motion(
     )
   ####
   return True, moved, 'solver-owned shock geometry moved and was independently remeasured'
+####
 
 
 def _response_residuals_verified(
@@ -884,6 +894,7 @@ def _response_residuals_verified(
     and response.maximum_energy_flux_residual_W_m2
     <= request.energy_flux_tolerance_W_m2
   )
+####
 
 
 def _response_conservative_flux_verified(
@@ -894,6 +905,7 @@ def _response_conservative_flux_verified(
     _response_residuals_verified(response, request)
     and response.conservative_flux_closure_verified
   )
+####
 
 
 def solve_euler_two_sided_moving_interface(
@@ -1192,6 +1204,7 @@ def solve_euler_two_sided_moving_interface(
         current_request = next_request
         current_field = next_field
         continue
+      ####
       motion_seen = bool(
         any(record.interface_motion_verified for record in records)
       )
@@ -1212,6 +1225,7 @@ def solve_euler_two_sided_moving_interface(
           stationary_equilibrium_verified=False,
           terminal_fixed_point_verified=terminal_fixed_point_verified,
         )
+      ####
       return MocEulerTwoSidedMovingInterfaceResult(
         status=(
           MocEulerTwoSidedMovingInterfaceStatus
@@ -1283,3 +1297,4 @@ def solve_euler_two_sided_moving_interface(
       for record in records
     )),
   )
+####

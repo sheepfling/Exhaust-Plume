@@ -65,6 +65,7 @@ class MocEulerTwoSidedConservativeResidualSolveStatus(str, Enum):
   FIELD_RESOLVE_FAILURE = 'two-sided-conservative-field-resolve-failure'
   LINE_SEARCH_FAILURE = 'two-sided-conservative-line-search-failure'
   ITERATION_LIMIT = 'two-sided-conservative-iteration-limit'
+####
 
 
 def _positive_float(value: Any, name: str) -> float:
@@ -77,6 +78,7 @@ def _positive_float(value: Any, name: str) -> float:
     raise ValueError(f'{name} must be finite and positive')
   ####
   return numeric
+####
 
 
 def _bounded_fraction(value: Any, name: str) -> float:
@@ -85,6 +87,7 @@ def _bounded_fraction(value: Any, name: str) -> float:
     raise ValueError(f'{name} must be no greater than one')
   ####
   return numeric
+####
 
 
 def _bounded_directional_step_fraction(value: Any, name: str) -> float:
@@ -95,6 +98,7 @@ def _bounded_directional_step_fraction(value: Any, name: str) -> float:
     raise ValueError(f'{name} must be no greater than sixteen')
   ####
   return numeric
+####
 
 
 def _nonnegative_float(value: Any, name: str) -> float:
@@ -107,6 +111,7 @@ def _nonnegative_float(value: Any, name: str) -> float:
     raise ValueError(f'{name} must be finite and nonnegative')
   ####
   return numeric
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,9 +173,9 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
         'minimum_descent_fraction',
       ),
     )
-    ####
     if not isinstance(self.require_strict_descent, bool):
       raise TypeError('require_strict_descent must be a bool')
+    ####
     if not isinstance(self.require_dimensioned_channel_descent, bool):
       raise TypeError('require_dimensioned_channel_descent must be a bool')
     ####
@@ -193,15 +198,16 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
         'maximum_directional_step_fraction',
       ),
     )
-    ####
     if not isinstance(self.use_shape_jacobian_correction, bool):
       raise TypeError('use_shape_jacobian_correction must be a bool')
+    ####
     if (
       isinstance(self.maximum_shape_controls, bool)
       or not isinstance(self.maximum_shape_controls, int)
       or self.maximum_shape_controls < 1
     ):
       raise ValueError('maximum_shape_controls must be a positive integer')
+    ####
     object.__setattr__(
       self,
       'shape_jacobian_probe_fraction',
@@ -218,10 +224,10 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
         'maximum_shape_step_fraction',
       ),
     )
-    ####
     if self.law_request.source_band is None:
       raise ValueError('law_request must retain a source band')
     ####
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -250,6 +256,8 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
       'maximum_shape_step_fraction': self.maximum_shape_step_fraction,
       'production_claim_allowed': False,
     }
+  ####
+####
 
 
 def _scaled_residual_vector(
@@ -260,6 +268,7 @@ def _scaled_residual_vector(
 
   if not response.signed_residuals_available:
     raise ValueError('response did not retain the complete signed residual vector')
+  ####
   signed_mass = response.signed_mass_flux_residuals_kg_m2_s
   signed_momentum = response.signed_normal_momentum_residuals_Pa
   signed_energy = response.signed_energy_flux_residuals_W_m2
@@ -268,8 +277,10 @@ def _scaled_residual_vector(
   assert signed_energy is not None
   if not (len(signed_mass) == len(signed_momentum) == len(signed_energy)):
     raise ValueError('signed residual channels are not aligned')
+  ####
   if not signed_mass:
     raise ValueError('signed residual vector is empty')
+  ####
   terms: list[float] = []
   for mass, momentum, energy in zip(
     signed_mass,
@@ -284,10 +295,12 @@ def _scaled_residual_vector(
         float(energy) / request.energy_flux_tolerance_W_m2,
       )
     )
+  ####
   if any(not isfinite(term) for term in terms):
     raise ValueError('scaled conservative residual vector is non-finite')
   ####
   return tuple(terms)
+####
 
 
 def _residual_norm(
@@ -302,6 +315,7 @@ def _residual_norm(
     raise ValueError('conservative residual norm is non-finite')
   ####
   return value
+####
 
 
 def _residuals_verified(
@@ -316,6 +330,7 @@ def _residuals_verified(
     and response.maximum_energy_flux_residual_W_m2
     <= request.energy_flux_tolerance_W_m2
   )
+####
 
 
 def _dimensioned_channel_maxima(
@@ -326,6 +341,7 @@ def _dimensioned_channel_maxima(
 
   if not response.signed_residuals_available:
     return None
+  ####
   channels = (
     response.signed_mass_flux_residuals_kg_m2_s,
     response.signed_normal_momentum_residuals_Pa,
@@ -338,9 +354,11 @@ def _dimensioned_channel_maxima(
   )
   if any(channel is None for channel in channels):
     return None
+  ####
   assert all(channel is not None for channel in channels)
   if not (len(channels[0]) == len(channels[1]) == len(channels[2])):
     return None
+  ####
   maxima = tuple(
     max(
       (abs(float(value)) / tolerance for value in channel),
@@ -350,7 +368,9 @@ def _dimensioned_channel_maxima(
   )
   if any(not isfinite(value) for value in maxima):
     return None
+  ####
   return maxima
+####
 
 
 def _dimensioned_channel_descent(
@@ -368,6 +388,7 @@ def _dimensioned_channel_descent(
 
   if before is None or after is None:
     return False
+  ####
   numerical_tolerance = 1.0e-12
   closed_limit = 1.0 + numerical_tolerance
   nonincreasing = all(
@@ -386,6 +407,7 @@ def _dimensioned_channel_descent(
     for current_value, next_value in zip(before, after, strict=True)
   )
   return bool(nonincreasing and (strict or all(value <= closed_limit for value in after)))
+####
 
 
 def _directional_least_squares_step(
@@ -419,6 +441,7 @@ def _directional_least_squares_step(
     return None
   ####
   return min(maximum_step_fraction, raw_step)
+####
 
 
 def _shock_normals(
@@ -428,6 +451,7 @@ def _shock_normals(
 
   if len(points) < 2:
     raise ValueError('shape correction requires at least two shock points')
+  ####
   normals: list[tuple[float, float]] = []
   for index in range(len(points)):
     if index == 0:
@@ -436,14 +460,17 @@ def _shock_normals(
       start, end = points[-2], points[-1]
     else:
       start, end = points[index - 1], points[index + 1]
+    ####
     tangent_x = end[0] - start[0]
     tangent_y = end[1] - start[1]
     length = hypot(tangent_x, tangent_y)
     if not isfinite(length) or length <= 0.0:
       raise ValueError('shape correction encountered a degenerate shock tangent')
+    ####
     normals.append((-tangent_y / length, tangent_x / length))
   ####
   return tuple(normals)
+####
 
 
 def _shape_control_vectors(
@@ -498,6 +525,7 @@ def _shape_control_vectors(
   local_budget = request.maximum_shape_controls - len(controls)
   if local_budget <= 0:
     return tuple(controls)
+  ####
   if len(interior_indices) > local_budget:
     selected: list[int] = []
     for slot in range(local_budget):
@@ -507,6 +535,8 @@ def _shape_control_vectors(
       index = interior_indices[candidate]
       if index not in selected:
         selected.append(index)
+      ####
+    ####
     interior_indices = selected
   ####
   maximum_probe = (
@@ -535,6 +565,7 @@ def _shape_control_vectors(
     controls.append((f'interior-normal-shape-{index}', tuple(vector)))
   ####
   return tuple(controls)
+####
 
 
 def _apply_shape_controls(
@@ -544,15 +575,19 @@ def _apply_shape_controls(
 ) -> tuple[tuple[float, float], ...]:
   if len(controls) != len(coefficients):
     raise ValueError('shape controls and coefficients are misaligned')
+  ####
   updated = [[float(point[0]), float(point[1])] for point in points]
   for coefficient, (_name, vector) in zip(coefficients, controls, strict=True):
     if not isfinite(coefficient):
       raise ValueError('shape correction coefficient is non-finite')
+    ####
     for index, (delta_x, delta_y) in enumerate(vector):
       updated[index][0] += coefficient * delta_x
       updated[index][1] += coefficient * delta_y
+    ####
   ####
   return tuple((point[0], point[1]) for point in updated)
+####
 
 
 def _shape_jacobian_coefficients(
@@ -578,8 +613,10 @@ def _shape_jacobian_coefficients(
     target = -np.asarray(current_vector, dtype=float)
     if matrix.ndim != 2 or matrix.shape[1] != len(probe_vectors):
       return (), False
+    ####
     if not np.isfinite(matrix).all() or not np.isfinite(target).all():
       return (), False
+    ####
     coefficients, _residuals, rank, singular_values = np.linalg.lstsq(
       matrix,
       target,
@@ -590,8 +627,10 @@ def _shape_jacobian_coefficients(
   ####
   if int(rank) < 1 or not np.isfinite(coefficients).all():
     return (), False
+  ####
   if singular_values.size and not np.isfinite(singular_values).all():
     return (), False
+  ####
   bounded = np.clip(
     coefficients,
     -maximum_step_fraction,
@@ -601,6 +640,7 @@ def _shape_jacobian_coefficients(
     return (), False
   ####
   return tuple(float(value) for value in bounded), True
+####
 
 
 def _field_verified(field: MocEulerTwoSidedFieldIterationResult) -> bool:
@@ -609,6 +649,7 @@ def _field_verified(field: MocEulerTwoSidedFieldIterationResult) -> bool:
     and field.final_physical_field is not None
     and field.final_physical_field.physical_field_verified
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -704,6 +745,7 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
           'jacobian_probe_step_fraction',
         ),
       )
+    ####
     if self.jacobian_probe_residual_norm is not None:
       object.__setattr__(
         self,
@@ -713,6 +755,7 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
           'jacobian_probe_residual_norm',
         ),
       )
+    ####
     if self.directional_step_fraction is not None:
       object.__setattr__(
         self,
@@ -722,40 +765,45 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
           'directional_step_fraction',
         ),
       )
+    ####
     if not isinstance(self.directional_jacobian_verified, bool):
       raise TypeError('directional_jacobian_verified must be a bool')
     ####
     if not isinstance(self.shape_jacobian_verified, bool):
       raise TypeError('shape_jacobian_verified must be a bool')
+    ####
     shape_names = tuple(str(name) for name in self.shape_control_names)
     shape_norms = tuple(float(value) for value in self.shape_probe_residual_norms)
     if len(shape_names) != len(shape_norms):
       raise ValueError(
         'shape_control_names and shape_probe_residual_norms must align'
       )
+    ####
     if any(not name for name in shape_names):
       raise ValueError('shape_control_names must be non-empty')
+    ####
     if any(not isfinite(value) or value < 0.0 for value in shape_norms):
       raise ValueError(
         'shape_probe_residual_norms must contain finite nonnegative values'
       )
+    ####
     if self.shape_step_norm is not None:
       object.__setattr__(
         self,
         'shape_step_norm',
         _nonnegative_float(self.shape_step_norm, 'shape_step_norm'),
       )
+    ####
     object.__setattr__(self, 'shape_control_names', shape_names)
     object.__setattr__(self, 'shape_probe_residual_norms', shape_norms)
-    ####
     object.__setattr__(self, 'step_source', step_source)
-    ####
     for name in ('residual_descent_verified', 'accepted', 'field_re_solve_verified'):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
       ####
     ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -790,6 +838,8 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -842,6 +892,7 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
           f'{name} must be a MocEulerTwoSidedFieldIterationResult or None'
         )
       ####
+    ####
     if self.final_response is not None and not isinstance(
       self.final_response,
       MocEulerTwoSidedInterfaceResponse,
@@ -907,6 +958,7 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
     ####
     object.__setattr__(self, 'records', records)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -914,6 +966,7 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
       MocEulerTwoSidedConservativeResidualSolveStatus
       .CONVERGED_RESEARCH_RESIDUAL
     )
+  ####
 
   def as_report(self) -> dict[str, object]:
     return {
@@ -958,6 +1011,8 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -999,6 +1054,7 @@ def _failure(
     production_claim_allowed=False,
     message=message,
   )
+####
 
 
 def _law_result(
@@ -1018,6 +1074,7 @@ def _law_result(
     field,
     measurement_request,
   )
+####
 
 
 def solve_euler_two_sided_conservative_residual(
@@ -1060,6 +1117,7 @@ def solve_euler_two_sided_conservative_residual(
     initial_law = _law_result(initial, request.law_request)
     if initial_law.response is None:
       raise ValueError(initial_law.message)
+    ####
     initial_response = initial_law.response
     initial_norm = _residual_norm(initial_response, request.moving_request)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -1079,7 +1137,6 @@ def solve_euler_two_sided_conservative_residual(
   field_re_solve_verified = True
   directional_correction_seen = False
   shape_correction_seen = False
-  ####
   for iteration_index in range(request.maximum_iterations):
     full_response_result = _law_result(current, request.law_request)
     full_response = full_response_result.response
@@ -1215,6 +1272,7 @@ def solve_euler_two_sided_conservative_residual(
       ####
       if current.request is None:
         raise ValueError('current field iteration retained no typed request')
+      ####
       next_request = replace(
         current.request,
         shock_boundary=trial_response.next_shock_boundary,
@@ -1244,6 +1302,7 @@ def solve_euler_two_sided_conservative_residual(
         after,
         measured_vector,
       )
+    ####
 
     def evaluate_step(
       step_fraction: float,
@@ -1299,6 +1358,7 @@ def solve_euler_two_sided_conservative_residual(
         after,
         measured_vector,
       )
+    ####
 
     def is_descent(
       after: float,
@@ -1317,6 +1377,7 @@ def solve_euler_two_sided_conservative_residual(
         # A closed residual vector is admissible even when the final
         # backtracked movement is below numerical descent resolution.
         descent = True
+      ####
       if request.require_dimensioned_channel_descent and not (
         _dimensioned_channel_descent(
           _dimensioned_channel_maxima(
@@ -1331,12 +1392,15 @@ def solve_euler_two_sided_conservative_residual(
         or _residuals_verified(measured_response, request.moving_request)
       ):
         descent = False
+      ####
       return descent
+    ####
 
     if request.use_shape_jacobian_correction:
       try:
         if current.shock_boundary is None:
           raise ValueError('current field retained no shock boundary')
+        ####
         shape_controls = _shape_control_vectors(
           current,
           full_response,
@@ -1345,6 +1409,7 @@ def solve_euler_two_sided_conservative_residual(
         shape_control_names = tuple(name for name, _vector in shape_controls)
         if not shape_controls:
           raise ValueError('no admissible interior shape controls were available')
+        ####
         current_points = tuple(current.shock_boundary.shock_points_m)
         shape_probe_vectors: list[tuple[float, ...]] = []
         probe_norms: list[float] = []
@@ -1357,6 +1422,7 @@ def solve_euler_two_sided_conservative_residual(
           probe = evaluate_geometry(probe_points)
           shape_probe_vectors.append(probe[4])
           probe_norms.append(probe[3])
+        ####
         shape_probe_residual_norms = tuple(probe_norms)
         shape_coefficients, shape_jacobian_verified = _shape_jacobian_coefficients(
           full_vector,
@@ -1384,6 +1450,7 @@ def solve_euler_two_sided_conservative_residual(
                 f'{error}'
               )
               continue
+            ####
             if is_descent(shape_trial[3], shape_trial[2], full_response):
               accepted = True
               accepted_field = shape_trial[1]
@@ -1397,16 +1464,20 @@ def solve_euler_two_sided_conservative_residual(
               accepted_backtracks = shape_backtrack
               accepted_step_source = 'multi-control-shape-jacobian-correction'
               break
+            ####
             last_message = (
               'multi-control shape correction did not descend the conservative '
               f'residual norm ({shape_trial[3]:.6g} from {full_norm:.6g})'
             )
+          ####
+        ####
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         shape_jacobian_verified = False
         shape_control_names = ()
         shape_probe_residual_norms = ()
         shape_step_norm = None
         last_message = f'multi-control shape correction failed: {error}'
+      ####
     ####
     if request.use_directional_residual_correction and not accepted:
       try:
@@ -1441,12 +1512,16 @@ def solve_euler_two_sided_conservative_residual(
               f'conservative residual norm ({directional_candidate[3]:.6g} '
               f'from {full_norm:.6g})'
             )
+          ####
+        ####
       except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
         last_message = f'directional residual correction failed: {error}'
+      ####
     ####
     for backtrack_count in range(request.maximum_backtracks + 1):
       if accepted:
         break
+      ####
       step_fraction = request.backtrack_factor**backtrack_count
       if step_fraction < request.minimum_step_fraction:
         break
@@ -1579,3 +1654,4 @@ def solve_euler_two_sided_conservative_residual(
     directional_residual_correction_verified=directional_correction_seen,
     shape_jacobian_correction_verified=shape_correction_seen,
   )
+####

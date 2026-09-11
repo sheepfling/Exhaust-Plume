@@ -89,6 +89,7 @@ class MocEulerTwoSidedInterfaceLawStatus(str, Enum):
     'two-sided-interface-law-conservative-flux-failure'
   )
   NO_INTERFACE_MOTION = 'two-sided-interface-law-no-interface-motion'
+####
 
 
 def _positive_float(value: Any, name: str) -> float:
@@ -101,6 +102,7 @@ def _positive_float(value: Any, name: str) -> float:
     raise ValueError(f'{name} must be finite and positive')
   ####
   return numeric
+####
 
 
 def _bounded_fraction(
@@ -113,10 +115,12 @@ def _bounded_fraction(
   if not isfinite(numeric) or (numeric < 0.0 if allow_zero else numeric <= 0.0):
     qualifier = 'nonnegative' if allow_zero else 'positive'
     raise ValueError(f'{name} must be finite and {qualifier}')
+  ####
   if numeric > 1.0:
     raise ValueError(f'{name} must be no greater than one')
   ####
   return numeric
+####
 
 
 def _primitive(
@@ -167,6 +171,7 @@ def _primitive(
     raise ValueError('dimensional primitive reconstruction was nonphysical')
   ####
   return values
+####
 
 
 def _point_matches(
@@ -178,6 +183,7 @@ def _point_matches(
     abs(first[0] - second[0]) <= tolerance_m
     and abs(first[1] - second[1]) <= tolerance_m
   )
+####
 
 
 def _cell_centroid(
@@ -191,6 +197,7 @@ def _cell_centroid(
     sum(point[0] for point in vertices) / count,
     sum(point[1] for point in vertices) / count,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,6 +208,7 @@ class _DownstreamProbe:
   normal_y: float
   state: Any
   total_pressure_Pa: float
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,7 +286,6 @@ class MocEulerTwoSidedInterfaceLawRequest:
       raise ValueError('downstream_physical_field_source must be non-empty')
     ####
     object.__setattr__(self, 'downstream_physical_field_source', downstream_source)
-    ####
     if not isinstance(self.branch, ShockBranch):
       raise TypeError('branch must be a ShockBranch')
     ####
@@ -311,7 +318,6 @@ class MocEulerTwoSidedInterfaceLawRequest:
         allow_zero=True,
       ),
     )
-    ####
     seed_angle = float(self.companion_seed_flow_angle_rad)
     if not isfinite(seed_angle):
       raise ValueError('companion_seed_flow_angle_rad must be finite')
@@ -340,6 +346,7 @@ class MocEulerTwoSidedInterfaceLawRequest:
         raise ValueError(
           'geometry_override_points_m must retain at least three samples'
         )
+      ####
       if any(
         not all(isfinite(value) for value in point)
         for point in normalized_geometry
@@ -355,6 +362,7 @@ class MocEulerTwoSidedInterfaceLawRequest:
     if self.source_band.ambient_pressure_Pa is None:
       raise ValueError('source_band must retain an ambient pressure')
     ####
+  ####
   def as_report(self) -> dict[str, object]:
     return {
       'operator_id': MOC_EULER_TWO_SIDED_INTERFACE_LAW_OPERATOR_ID,
@@ -494,6 +502,7 @@ class MocEulerTwoSidedInterfaceLawResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     downstream_source = str(self.downstream_field_source)
     if not downstream_source:
@@ -606,6 +615,7 @@ def _failure(
     message=message,
     **values,
   )
+####
 
 
 def _source_sample(
@@ -627,6 +637,7 @@ def _source_sample(
     raise ValueError('solver-owned upstream source band returned a nonphysical pressure')
   ####
   return state, pressure_value
+####
 
 
 def _source_static_pressure(
@@ -654,6 +665,7 @@ def _source_static_pressure(
     )
   ####
   return pressure_value
+####
 
 
 def _source_lineage(
@@ -694,6 +706,7 @@ def _source_lineage(
     ####
   ####
   return True
+####
 
 
 def _front_limit_state_compatible(
@@ -714,6 +727,7 @@ def _front_limit_state_compatible(
     <= request.source_pressure_tolerance
     * max(1.0, abs(upstream_pressure), abs(downstream_pressure))
   )
+####
 
 
 def _geometry_override_is_valid(
@@ -739,6 +753,7 @@ def _geometry_override_is_valid(
     if index < anchor_count or index >= len(points) - anchor_count:
       if max(abs(point[0] - prior[0]), abs(point[1] - prior[1])) > tolerance:
         return False
+      ####
     ####
     if hypot(point[0] - prior[0], point[1] - prior[1]) > (
       request.maximum_normal_displacement_m + tolerance
@@ -752,6 +767,7 @@ def _geometry_override_is_valid(
         or point[1] > previous[1] + tolerance
       ):
         return False
+      ####
     ####
   ####
   centerline_y = (
@@ -760,6 +776,7 @@ def _geometry_override_is_valid(
     else 0.0
   )
   return bool(points[-1][1] >= centerline_y - tolerance)
+####
 
 
 def _probe_downstream_field(
@@ -803,6 +820,7 @@ def _probe_downstream_field(
       and any(_point_matches(vertex, edge_end, request.position_tolerance_m) for vertex in vertices)
     ):
       cell_candidates.append(vertices)
+    ####
   ####
   if len(cell_candidates) != 1:
     raise ValueError(
@@ -829,6 +847,7 @@ def _probe_downstream_field(
         'exact front-limit response requires retained post-shock boundary '
         'state and pressure samples'
       )
+    ####
     probe_point = point_m
     state = field.post_shock_boundary_states[index]
     pressure = field.post_shock_boundary_total_pressure_Pa[index]
@@ -845,6 +864,7 @@ def _probe_downstream_field(
       probe_point,
       position_tolerance_m=max(1.0e-10, request.position_tolerance_m * 0.1),
     )
+  ####
   if state is None or pressure is None:
     raise ValueError(
       f'downstream physical field does not sample the shock probe at {index}'
@@ -862,6 +882,7 @@ def _probe_downstream_field(
     state=state,
     total_pressure_Pa=pressure_value,
   )
+####
 
 
 def build_solver_owned_euler_two_sided_interface_response(
@@ -952,6 +973,7 @@ def build_solver_owned_euler_two_sided_interface_response(
     else:
       downstream_field_source = 'solver-owned-two-sided-field-re-solve'
     ####
+  ####
   if field is None:
     return _failure(
       MocEulerTwoSidedInterfaceLawStatus.DOWNSTREAM_FIELD_REQUIRED,
@@ -997,6 +1019,7 @@ def build_solver_owned_euler_two_sided_interface_response(
           request,
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocEulerTwoSidedInterfaceLawStatus.DOWNSTREAM_PROBE_FAILURE,
@@ -1056,12 +1079,14 @@ def build_solver_owned_euler_two_sided_interface_response(
           )
         ):
           raise ValueError(f'shock density jump is too small at sample {index}')
+        ####
         speed = 0.0
       else:
         speed = (
           downstream_density * downstream_normal_velocity
           - upstream_density * upstream_normal_velocity
         ) / density_jump
+      ####
       if not isfinite(speed):
         raise ValueError(f'interface normal speed is non-finite at sample {index}')
       ####
@@ -1087,7 +1112,6 @@ def build_solver_owned_euler_two_sided_interface_response(
       mass_residuals.append(abs(signed_mass_residual))
       momentum_residuals.append(abs(signed_momentum_residual))
       energy_residuals.append(abs(signed_energy_residual))
-      ####
       speeds.append(speed)
       if index < request.anchor_endpoint_samples or index >= len(probes) - request.anchor_endpoint_samples:
         displacement = 0.0
@@ -1097,12 +1121,14 @@ def build_solver_owned_euler_two_sided_interface_response(
           -request.maximum_normal_displacement_m,
           min(request.maximum_normal_displacement_m, displacement),
         )
+      ####
       next_points.append(
         (
           point[0] + displacement * probe.normal_x,
           point[1] + displacement * probe.normal_y,
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocEulerTwoSidedInterfaceLawStatus.DOWNSTREAM_PROBE_FAILURE,
@@ -1178,6 +1204,8 @@ def build_solver_owned_euler_two_sided_interface_response(
         downstream_field_source=downstream_field_source,
         downstream_field_lineage_verified=downstream_field_lineage_verified,
       )
+    ####
+  ####
   geometry_valid = bool(
     len(points) >= 3
     and all(
@@ -1441,6 +1469,7 @@ def build_solver_owned_euler_two_sided_interface_response(
       'field re-solve'
     ),
   )
+####
 
 
 def make_solver_owned_euler_two_sided_interface_advance(
@@ -1468,6 +1497,7 @@ def make_solver_owned_euler_two_sided_interface_advance(
   ####
 
   return advance
+####
 
 
 def solve_euler_two_sided_moving_interface_with_solver_owned_law(
@@ -1489,3 +1519,4 @@ def solve_euler_two_sided_moving_interface_with_solver_owned_law(
     moving_request,
     advance_interface=advance,
   )
+####

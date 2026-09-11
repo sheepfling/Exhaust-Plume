@@ -91,6 +91,7 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus(str, Enum):
   RESIDUAL_DESCENT_FAILURE = (
     'global-boundary-state-profile-update-residual-descent-failure'
   )
+####
 
 
 class MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus(str, Enum):
@@ -115,10 +116,12 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus(str, Enum):
   FIDELITY_FAILURE = (
     'global-boundary-state-profile-refinement-fidelity-failure'
   )
+####
 
 
 def _fingerprint(closure: MocReflectedDomainGlobalPhysicalClosureResult) -> str:
   return moc_reflected_domain_global_physical_closure_fingerprint(closure)
+####
 
 
 def _response(
@@ -126,12 +129,15 @@ def _response(
 ) -> MocEulerTwoSidedInterfaceResponse | None:
   if result is None or result.conservative_residual_result is None:
     return None
+  ####
   return result.conservative_residual_result.final_response
+####
 
 
 def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) -> bool:
   if response is None or not response.signed_residuals_available:
     return False
+  ####
   channels = (
     response.signed_mass_flux_residuals_kg_m2_s,
     response.signed_normal_momentum_residuals_Pa,
@@ -142,16 +148,21 @@ def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) 
     all(channel for channel in channels)
     and all(isfinite(value) for channel in channels for value in channel)
   )
+####
 
 
 def _strict_descent(before: float, after: float, minimum_fraction: float) -> bool:
   if not isfinite(before) or not isfinite(after):
     return False
+  ####
   if not isfinite(minimum_fraction) or minimum_fraction < 0.0:
     return False
+  ####
   if before <= 0.0:
     return after < before
+  ####
   return after < before * (1.0 - minimum_fraction)
+####
 
 
 def _geometry_changed(
@@ -163,16 +174,19 @@ def _geometry_changed(
   candidate_euler = candidate.global_euler
   if source_euler is None or candidate_euler is None:
     return False
+  ####
   source_points = tuple(source_euler.remeshed_shock_points_m)
   candidate_points = tuple(candidate_euler.remeshed_shock_points_m)
   if len(source_points) != len(candidate_points) or not source_points:
     return False
+  ####
   return bool(
     max(
       hypot(first[0] - second[0], first[1] - second[1])
       for first, second in zip(source_points, candidate_points, strict=True)
     ) > tolerance_m
   )
+####
 
 
 def _candidate_skews(
@@ -190,11 +204,16 @@ def _candidate_skews(
   for value in values:
     if not isfinite(value) or abs(value) > 1.0:
       raise ValueError('candidate compression-envelope skews must be finite in [-1, 1]')
+    ####
     if abs(value - current) <= 1.0e-12:
       continue
+    ####
     if not any(abs(value - retained) <= 1.0e-12 for retained in result):
       result.append(value)
+    ####
+  ####
   return tuple(result)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,6 +242,7 @@ class MocReflectedDomainGlobalBoundaryStateProfileTrial:
     skew = float(self.compression_envelope_skew)
     if not isfinite(skew) or abs(skew) > 1.0:
       raise ValueError('compression_envelope_skew must be finite and within [-1, 1]')
+    ####
     object.__setattr__(self, 'compression_envelope_skew', skew)
     for name, expected_type in (
       ('candidate_closure', MocReflectedDomainGlobalPhysicalClosureResult),
@@ -236,14 +256,20 @@ class MocReflectedDomainGlobalBoundaryStateProfileTrial:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected_type):
         raise TypeError(f'{name} must be typed or None')
+      ####
+    ####
     if self.residual_norm is not None:
       residual = float(self.residual_norm)
       if not isfinite(residual) or residual < 0.0:
         raise ValueError('residual_norm must be finite and nonnegative')
+      ####
       object.__setattr__(self, 'residual_norm', residual)
+    ####
     if self.closure_fingerprint is not None:
       if not isinstance(self.closure_fingerprint, str) or len(self.closure_fingerprint) != 64:
         raise ValueError('closure_fingerprint must be a SHA-256 digest when supplied')
+      ####
+    ####
     for name in (
       'geometry_changed',
       'closure_verified',
@@ -257,6 +283,8 @@ class MocReflectedDomainGlobalBoundaryStateProfileTrial:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.accepted and not (
       self.geometry_changed
       and self.closure_verified
@@ -267,7 +295,9 @@ class MocReflectedDomainGlobalBoundaryStateProfileTrial:
       and self.residual_descent_verified
     ):
       raise ValueError('accepted profile trials must pass every retained gate')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -303,6 +333,8 @@ class MocReflectedDomainGlobalBoundaryStateProfileTrial:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -344,6 +376,7 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
       MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus,
     ):
       raise TypeError('status must be a typed profile-update status')
+    ####
     for name, expected_type in (
       ('handoff', MocReflectedDomainGlobalBoundaryStateFeedbackHandoff),
       ('source_closure', MocReflectedDomainGlobalPhysicalClosureResult),
@@ -358,12 +391,15 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected_type):
         raise TypeError(f'{name} must be typed or None')
+      ####
+    ####
     trials = tuple(self.trials)
     if any(
       not isinstance(trial, MocReflectedDomainGlobalBoundaryStateProfileTrial)
       for trial in trials
     ):
       raise TypeError('trials must contain typed profile trials')
+    ####
     object.__setattr__(self, 'trials', trials)
     if self.selected_trial_index is not None and (
       isinstance(self.selected_trial_index, bool)
@@ -372,6 +408,7 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
       or self.selected_trial_index >= len(trials)
     ):
       raise ValueError('selected_trial_index must select a retained trial')
+    ####
     for name in (
       'baseline_residual_norm',
       'refreshed_residual_norm',
@@ -386,10 +423,14 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
           name.endswith('skew') and abs(numeric) > 1.0
         ):
           raise ValueError(f'{name} is outside its finite domain')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     skews = tuple(float(value) for value in self.candidate_compression_envelope_skews)
     if any(not isfinite(value) or abs(value) > 1.0 for value in skews):
       raise ValueError('candidate skews must be finite values within [-1, 1]')
+    ####
     object.__setattr__(self, 'candidate_compression_envelope_skews', skews)
     for name in (
       'handoff_lineage_verified',
@@ -409,8 +450,11 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('profile updates must remain promotion-blocked')
+    ####
     if self.status is (
       MocReflectedDomainGlobalBoundaryStateProfileUpdateStatus
       .CONVERGED_RESEARCH_PROFILE_UPDATE
@@ -420,7 +464,9 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
       and self.residual_descent_verified
     ):
       raise ValueError('converged profile updates must pass geometry and descent gates')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged_research_profile_update(self) -> bool:
@@ -432,6 +478,7 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
       and self.geometry_update_verified
       and self.residual_descent_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -487,6 +534,8 @@ class MocReflectedDomainGlobalBoundaryStateProfileUpdateResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -503,27 +552,33 @@ class MocReflectedDomainGlobalBoundaryStateProfileCase:
     regime = str(self.regime)
     if not case_id or not regime:
       raise ValueError('case_id and regime must be non-empty')
+    ####
     if not isinstance(
       self.handoff,
       MocReflectedDomainGlobalBoundaryStateFeedbackHandoff,
     ):
       raise TypeError('handoff must be a typed global boundary-state handoff')
+    ####
     if (
       isinstance(self.resolution_sample_count, bool)
       or not isinstance(self.resolution_sample_count, int)
       or self.resolution_sample_count < 3
     ):
       raise ValueError('resolution_sample_count must be an integer >= 3')
+    ####
     object.__setattr__(self, 'case_id', case_id)
     object.__setattr__(self, 'regime', regime)
+  ####
 
   @property
   def source_closure(self) -> MocReflectedDomainGlobalPhysicalClosureResult:
     return self.handoff.boundary_feedback_run.final_closure
+  ####
 
   @property
   def source_closure_fingerprint(self) -> str:
     return _fingerprint(self.source_closure)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -533,6 +588,8 @@ class MocReflectedDomainGlobalBoundaryStateProfileCase:
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'handoff': self.handoff.as_report(),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -556,18 +613,22 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementCase:
       MocReflectedDomainGlobalBoundaryStateProfileCase,
     ):
       raise TypeError('case must be a typed profile refinement case')
+    ####
     if not isinstance(
       self.result,
       MocReflectedDomainGlobalBoundaryStateProfileUpdateResult,
     ):
       raise TypeError('result must be a typed profile update result')
+    ####
     if self.residual_reduction_fraction is not None:
       reduction = float(self.residual_reduction_fraction)
       if not isfinite(reduction) or reduction < 0.0:
         raise ValueError(
           'residual_reduction_fraction must be finite and nonnegative'
         )
+      ####
       object.__setattr__(self, 'residual_reduction_fraction', reduction)
+    ####
     for name in (
       'source_lineage_verified',
       'fresh_update_invocations_verified',
@@ -578,7 +639,10 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementCase:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def local_research_verified(self) -> bool:
@@ -591,6 +655,7 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementCase:
       and self.independent_residual_audit_verified
       and self.fidelity_isolation_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -611,6 +676,8 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementCase:
       'result': self.result.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -651,12 +718,14 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
       MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus,
     ):
       raise TypeError('status must be a typed profile-refinement status')
+    ####
     cases = tuple(self.cases)
     ids = tuple(str(value) for value in self.case_ids)
     fingerprints = tuple(str(value) for value in self.source_closure_fingerprints)
     resolutions = tuple(int(value) for value in self.resolution_sample_counts)
     if not (len(cases) == len(ids) == len(fingerprints) == len(resolutions)):
       raise ValueError('profile refinement case metadata must align')
+    ####
     if any(
       not isinstance(
         case,
@@ -665,15 +734,20 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
       for case in cases
     ):
       raise TypeError('cases must contain typed profile refinement cases')
+    ####
     if len(set(ids)) != len(ids):
       raise ValueError('profile refinement case IDs must be unique')
+    ####
     if len(set(fingerprints)) != len(fingerprints):
       raise ValueError('profile refinement source closures must be distinct')
+    ####
     if any(value < 3 for value in resolutions):
       raise ValueError('profile refinement resolutions must be >= 3')
+    ####
     mode_identity = tuple(str(value) for value in self.response_mode_identity)
     if any(not value for value in mode_identity):
       raise ValueError('response_mode_identity values must be non-empty')
+    ####
     for name in (
       'resolution_order_verified',
       'distinct_cases_verified',
@@ -691,20 +765,28 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.minimum_residual_reduction_fraction is not None:
       minimum = float(self.minimum_residual_reduction_fraction)
       if not isfinite(minimum) or minimum < 0.0:
         raise ValueError('minimum residual reduction must be finite and nonnegative')
+      ####
       object.__setattr__(self, 'minimum_residual_reduction_fraction', minimum)
+    ####
     if self.maximum_residual_reduction_fraction is not None:
       maximum = float(self.maximum_residual_reduction_fraction)
       if not isfinite(maximum) or maximum < 0.0:
         raise ValueError('maximum residual reduction must be finite and nonnegative')
+      ####
       object.__setattr__(self, 'maximum_residual_reduction_fraction', maximum)
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('profile refinement must remain promotion-blocked')
+    ####
     if not self.external_validation_required:
       raise ValueError('profile refinement must retain external validation')
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'case_ids', ids)
     object.__setattr__(self, 'source_closure_fingerprints', fingerprints)
@@ -712,6 +794,7 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
     object.__setattr__(self, 'response_mode_identity', mode_identity)
     object.__setattr__(self, 'operator_id', str(self.operator_id))
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -735,6 +818,7 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
       and not self.production_claim_allowed
       and all(case.local_research_verified for case in self.cases)
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -777,6 +861,8 @@ class MocReflectedDomainGlobalBoundaryStateProfileRefinementMeasurement:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _result(
@@ -791,6 +877,7 @@ def _result(
     message=message,
     **kwargs,
   )
+####
 
 
 def _refinement_measurement(
@@ -803,6 +890,7 @@ def _refinement_measurement(
     message=message,
     **kwargs,
   )
+####
 
 
 def run_reflected_domain_global_boundary_state_profile_refinement(
@@ -826,11 +914,13 @@ def run_reflected_domain_global_boundary_state_profile_refinement(
       MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus.INVALID_INPUT,
       'cases must be an iterable of typed profile refinement cases',
     )
+  ####
   if len(resolved_cases) < 2:
     return _refinement_measurement(
       MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus.INVALID_INPUT,
       'profile refinement requires at least two disjoint cases',
     )
+  ####
   if any(
     not isinstance(case, MocReflectedDomainGlobalBoundaryStateProfileCase)
     for case in resolved_cases
@@ -839,16 +929,19 @@ def run_reflected_domain_global_boundary_state_profile_refinement(
       MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus.INVALID_INPUT,
       'cases must contain typed profile refinement cases',
     )
+  ####
   try:
     step = float(compression_profile_step)
     if not isfinite(step) or step <= 0.0 or step > 1.0:
       raise ValueError('compression_profile_step must be finite in (0, 1]')
+    ####
     if (
       isinstance(maximum_profile_steps, bool)
       or not isinstance(maximum_profile_steps, int)
       or maximum_profile_steps < 1
     ):
       raise ValueError('maximum_profile_steps must be a positive integer')
+    ####
   except (TypeError, ValueError) as error:
     return _refinement_measurement(
       MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus.INVALID_INPUT,
@@ -886,6 +979,7 @@ def run_reflected_domain_global_boundary_state_profile_refinement(
       distinct_source_closures_verified=distinct_sources,
       resolution_order_verified=resolution_order,
     )
+  ####
   if not resolution_order:
     return _refinement_measurement(
       MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
@@ -948,6 +1042,7 @@ def run_reflected_domain_global_boundary_state_profile_refinement(
         result.baseline_residual_norm - result.refreshed_residual_norm
       ) / result.baseline_residual_norm
       reduction = max(0.0, reduction)
+    ####
     retained_cases.append(
       MocReflectedDomainGlobalBoundaryStateProfileRefinementCase(
         case=case,
@@ -1022,6 +1117,7 @@ def run_reflected_domain_global_boundary_state_profile_refinement(
       'and strict-descent gates; external validation and promotion remain open',
       **common,
     )
+  ####
   if not common['fresh_update_invocations_verified']:
     status = (
       MocReflectedDomainGlobalBoundaryStateProfileRefinementStatus
@@ -1043,7 +1139,9 @@ def run_reflected_domain_global_boundary_state_profile_refinement(
       'one or more disjoint profile-update cases failed geometry, independent '
       'audit, or strict-descent evidence'
     )
+  ####
   return _refinement_measurement(status, message, **common)
+####
 
 
 def run_reflected_domain_global_boundary_state_profile_update(
@@ -1074,40 +1172,51 @@ def run_reflected_domain_global_boundary_state_profile_update(
       None,
       'handoff must be a typed global boundary-state feedback handoff',
     )
+  ####
   try:
     if not handoff.ready_for_joint_global_resolve:
       raise ValueError('handoff is not ready for global profile consumption')
+    ####
     source = handoff.boundary_feedback_run.final_closure
     if _fingerprint(source) != handoff.state_source_closure_fingerprint:
       raise ValueError('handoff state fingerprint does not match its final closure')
+    ####
     if source.global_remesh is None or source.global_euler is None:
       raise ValueError('handoff closure did not retain a global remesh and Euler field')
+    ####
     selected = source.global_remesh.selected_attempt
     if selected is None or selected.first_cell_result.compression_amplitude_bracket is None:
       raise ValueError('handoff closure did not retain a selected amplitude bracket')
+    ####
     if selected.first_cell_result.selected_physical_field is None:
       raise ValueError('handoff closure did not retain a selected physical field')
+    ####
     current_skew = float(selected.compression_envelope_skew)
     profile_step = float(compression_profile_step)
     if not isfinite(profile_step) or profile_step <= 0.0 or profile_step > 1.0:
       raise ValueError('compression_profile_step must be finite in (0, 1]')
+    ####
     if (
       isinstance(maximum_profile_steps, bool)
       or not isinstance(maximum_profile_steps, int)
       or maximum_profile_steps < 1
     ):
       raise ValueError('maximum_profile_steps must be a positive integer')
+    ####
     if not isinstance(branch, ShockBranch):
       raise ValueError('branch must be a ShockBranch')
+    ####
     closure_tolerance = float(closure_tolerance_m)
     if not isfinite(closure_tolerance) or closure_tolerance <= 0.0:
       raise ValueError('closure_tolerance_m must be finite and positive')
+    ####
     if (
       isinstance(maximum_boundary_iterations, bool)
       or not isinstance(maximum_boundary_iterations, int)
       or maximum_boundary_iterations < 1
     ):
       raise ValueError('maximum_boundary_iterations must be a positive integer')
+    ####
     candidates = _candidate_skews(
       current_skew,
       profile_step,
@@ -1116,18 +1225,22 @@ def run_reflected_domain_global_boundary_state_profile_update(
     )
     if not candidates:
       raise ValueError('profile update requires at least one skew distinct from the source')
+    ####
     baseline = float(handoff.final_residual_norm)
     base_request = handoff.two_sided_result.request
     if base_request is None:
       raise ValueError('handoff did not retain its two-sided request')
+    ####
     source_band = source.source_band
     if source_band is None:
       raise ValueError('handoff closure did not retain its source band')
+    ####
     selected_field = selected.first_cell_result.selected_physical_field
     amplitude_bracket = selected.first_cell_result.compression_amplitude_bracket
     sample_count = int(selected_field.sample_count)
     if sample_count < 3:
       raise ValueError('selected physical field did not retain a valid sample count')
+    ####
     position_tolerance = float(selected_field.position_tolerance_m)
     shock_angle_tolerance = float(selected_field.shock_angle_tolerance_rad)
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -1136,6 +1249,7 @@ def run_reflected_domain_global_boundary_state_profile_update(
       handoff,
       f'profile-update handoff setup failed closed: {error}',
     )
+  ####
 
   trials: list[MocReflectedDomainGlobalBoundaryStateProfileTrial] = []
   state_solver_invoked = False
@@ -1174,6 +1288,7 @@ def run_reflected_domain_global_boundary_state_profile_update(
         )
       )
       continue
+    ####
     any_closure = True
     candidate_fingerprint = _fingerprint(candidate)
     closure_verified = bool(
@@ -1202,6 +1317,7 @@ def run_reflected_domain_global_boundary_state_profile_update(
         )
       )
       continue
+    ####
     state_request = replace(
       base_request,
       closure=candidate,
@@ -1230,6 +1346,7 @@ def run_reflected_domain_global_boundary_state_profile_update(
         )
       )
       continue
+    ####
     residual_result = state_result.conservative_residual_result
     audit = state_result.conservative_residual_audit
     response = _response(state_result)
@@ -1314,6 +1431,7 @@ def run_reflected_domain_global_boundary_state_profile_update(
       accepted_trials,
       key=lambda item: float(item[1].residual_norm),
     )
+  ####
   profile_sweep_verified = bool(
     len(trials) == len(candidates)
     and any_closure
@@ -1385,4 +1503,6 @@ def run_reflected_domain_global_boundary_state_profile_update(
       'candidate profile closures changed or re-solved the physical state, but '
       'none changed geometry and strictly reduced the retained residual'
     )
+  ####
   return _result(status, handoff, message, **common)
+####

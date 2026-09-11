@@ -813,6 +813,7 @@ def _entropy_closure_relaxation_state(
     ),
     dtype=float,
   )
+####
 
 
 def _ambient_entrainment_profile_fields(
@@ -837,6 +838,7 @@ def _ambient_entrainment_profile_fields(
     temperatures = tuple(temperature for _ in range(axial_cell_count))
   else:
     temperatures = tuple(float(value) for value in temperature_profile)
+  ####
   velocity_profile = getattr(profile, 'ambient_velocity_m_s_by_station', None)
   if velocity_profile is None:
     velocity = tuple(float(value) for value in profile.ambient_velocity_m_s)
@@ -846,6 +848,7 @@ def _ambient_entrainment_profile_fields(
       tuple(float(component) for component in value)
       for value in velocity_profile
     )
+  ####
   fractions = tuple(
     float(value) for value in profile.entrainment_fraction_by_station
   )
@@ -853,21 +856,27 @@ def _ambient_entrainment_profile_fields(
     not isfinite(value) or value <= 0.0 for value in temperatures
   ):
     raise ValueError('audited ambient entrainment temperature is invalid')
+  ####
   if len(velocities) != axial_cell_count or any(
     len(value) != 2 or any(not isfinite(component) for component in value)
     for value in velocities
   ):
     raise ValueError('audited ambient entrainment velocity is invalid')
+  ####
   if len(fractions) != axial_cell_count:
     raise ValueError('audited ambient entrainment fractions are not aligned')
+  ####
   if any(
     not isfinite(value) or not 0.0 <= value <= 1.0 for value in fractions
   ):
     raise ValueError('audited ambient entrainment fractions are out of bounds')
+  ####
   ambient_pressure = float(ambient_pressure)
   if not isfinite(ambient_pressure) or ambient_pressure <= 0.0:
     raise ValueError('audited ambient entrainment pressure is invalid')
+  ####
   return temperatures, velocities, fractions
+####
 
 
 def _entropy_closure_source_state(
@@ -914,6 +923,7 @@ def _entropy_closure_source_state(
   )
   _primitive(mixed_state, gamma, gas_constant)
   return mixed_state
+####
 
 
 def _total_pressure_from_state(
@@ -932,6 +942,7 @@ def _total_pressure_from_state(
     * (1.0 + 0.5 * (gamma - 1.0) * mach * mach)
     ** (gamma / (gamma - 1.0))
   )
+####
 
 
 def _audit_entropy_closure_profile(
@@ -2827,6 +2838,7 @@ def _audit_field(
           'two-sided moving mixed-regime field mode requires the independently '
           'audited two-sided shock-boundary handoff'
         )
+      ####
       two_sided_companion_field_verified = bool(
         moving_interface.two_sided_companion_field is not None
         and moving_interface.two_sided_companion_field_verified
@@ -2840,6 +2852,7 @@ def _audit_field(
           'two-sided moving mixed-regime field mode requires the independently '
           'audited open companion-field handoff'
         )
+      ####
     ####
     moving_samples = {
       sample.index: sample for sample in moving_interface.boundary_samples
@@ -2860,7 +2873,7 @@ def _audit_field(
         gamma,
         request.gas_constant_J_kgK,
       )
-      ####
+    ####
   ####
   transonic_shock_geometry_verified, geometry_override_states = (
     _audit_transonic_shock_geometry(candidate)
@@ -2884,6 +2897,7 @@ def _audit_field(
     transonic_shock_state_compatibility_verified = (
       _audit_transonic_shock_state_compatibility(candidate)
     )
+  ####
   if not transonic_frontier_compatibility_verified:
     raise ValueError(
       'audited scalar/global-frontier transonic compatibility does not match '
@@ -2971,6 +2985,7 @@ def _audit_field(
       raise ValueError(
         'audited entropy closure relaxation fraction is out of bounds'
       )
+    ####
     ambient_entrainment_fields = _ambient_entrainment_profile_fields(
       entropy_profile,
       mixed.ambient_pressure_Pa,
@@ -3642,6 +3657,8 @@ def measure_reflected_domain_coupled_euler_free_boundary(
         and candidate.moving_mixed_regime_interface.two_sided_companion_field_verified
         and candidate.two_sided_companion_field_consumed
       )
+    ####
+  ####
   physical_field_inlet_seam_verified = True
   if candidate.request.physical_field_continuation_profile is not None:
     expected_inlet = raw['physical_field_continuation_inlet_states']
@@ -3734,6 +3751,7 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     entropy_closure_profile_verified = False
     maximum_entropy_closure_residual = None
+  ####
   maxima = tuple(float(np.max(recomputed[..., index])) for index in range(_CHANNEL_COUNT))
   residuals_verified = maxima[4] <= candidate.request.euler_residual_tolerance
   pressure = np.asarray(raw['top_pressure'], dtype=float)

@@ -2342,6 +2342,7 @@ def _field_cross_section_candidates(
       for candidate in candidates
       if candidate >= minimum_x - request.position_tolerance_m
     )
+  ####
   if not candidates:
     raise ValueError(
       'physical field has no retained interior cross-section after the '

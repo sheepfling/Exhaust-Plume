@@ -1270,6 +1270,7 @@ def run_reflected_domain_global_frontier_target_guided_resolve(
         'did not retain the requested solver-owned target geometry/tangent '
         'consumption; no geometry target was silently treated as consumed'
       )
+    ####
   elif target_match_verified and (
     (not consume_target_pressure or target_pressure_consumption_verified)
   ):

@@ -1533,6 +1533,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     raise ValueError(
       'boundary_condition_options.consume_target_geometry must be a bool'
     )
+  ####
   configuration: dict[str, Any] = {
     'source_closure_fingerprint': (
       moc_reflected_domain_global_physical_closure_fingerprint(closure)
@@ -2677,6 +2678,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
           if final_frame_negotiation is not None:
             terminal_global_frame_negotiation = final_frame_negotiation
           ####
+        ####
       ####
       terminal_global_frame_extension_verified = bool(
         terminal_global_frame_negotiation is not None
@@ -2798,6 +2800,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
           'global downstream recheck',
           **common_values,
         )
+      ####
       if conditioned_closure is None or not conditioned_closure.physical_closure_verified:
         return result(
           MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointStatus
@@ -2806,6 +2809,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
           'closure for the downstream recheck',
           **common_values,
         )
+      ####
       try:
         refreshed_options = _refresh_solver_owned_downstream_options(
           conditioned_closure,
@@ -2826,6 +2830,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
           f'conditioned global downstream recheck raised: {error}',
           **common_values,
         )
+      ####
       recheck_configuration = terminal_global_downstream_recheck.configuration
       conditioned_fingerprint = (
         moc_reflected_domain_global_physical_closure_fingerprint(
@@ -2958,6 +2963,7 @@ def audit_reflected_domain_global_coupled_boundary_condition_feedback_terminal_f
           'downstream response recheck within the declared tolerances',
           **common_values,
         )
+      ####
     ####
   ####
   return result(

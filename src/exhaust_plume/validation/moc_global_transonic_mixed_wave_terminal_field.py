@@ -71,6 +71,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageStatus(
   SUBSONIC_FIELD_REQUIRED = (
     'global-transonic-mixed-wave-subsonic-field-cross-section-required'
   )
+####
 
 
 class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAuditStatus(
@@ -89,6 +90,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAuditStatus
   CLAIM_FLAG_FAILURE = (
     'global-transonic-mixed-wave-terminal-field-claim-flag-failure'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +177,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageRequest:
       'source': self.source,
     }
   ####
+####
 
 
 def build_reflected_domain_global_transonic_mixed_wave_moving_interface_request_from_terminal_handoff(
@@ -228,7 +231,7 @@ def build_reflected_domain_global_transonic_mixed_wave_moving_interface_request_
     ),
     source=source,
   )
-  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,6 +301,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageSample:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -389,6 +393,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if not self.subsonic_field_required:
       raise ValueError('terminal coverage evidence must require a subsonic field')
@@ -442,6 +447,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageResult:
       'message': self.message,
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -493,6 +499,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in (
       'maximum_state_residual',
@@ -557,6 +564,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageAudit:
       'message': self.message,
     }
   ####
+####
 
 
 def _state_residual(
@@ -570,10 +578,12 @@ def _state_residual(
     abs(first.mach - second.mach),
     abs(first.gamma - second.gamma),
   )
+####
 
 
 def _pressure_residual(first: float, second: float) -> float:
   return abs(float(first) - float(second))
+####
 
 
 def _sample_patch(
@@ -614,6 +624,7 @@ def _sample_patch(
     if not covered:
       if first_missing is None:
         first_missing = index
+      ####
       samples.append(
         MocReflectedDomainGlobalTransonicMixedWaveTerminalFieldCoverageSample(
           index=index,
@@ -645,6 +656,7 @@ def _sample_patch(
     )
   ####
   return tuple(samples), first_missing, maximum_covered_y
+####
 
 
 def _result(
@@ -674,6 +686,7 @@ def _result(
     patch_coverage_verified=patch_coverage_verified,
     message=message,
   )
+####
 
 
 def assess_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage(
@@ -770,6 +783,7 @@ def assess_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage(
     patch_coverage_verified=complete,
     message=message,
   )
+####
 
 
 def _audit_failure(
@@ -784,6 +798,7 @@ def _audit_failure(
     message=message,
     **kwargs,
   )
+####
 
 
 def measure_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage(
@@ -924,6 +939,7 @@ def measure_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage
         maximum_total_pressure_residual_Pa=max(total_pressure_residuals),
         maximum_static_pressure_residual_Pa=max(static_pressure_residuals),
       )
+    ####
   ####
   missing_lineage_verified = bool(
     expected.first_missing_sample_index == candidate.first_missing_sample_index
@@ -986,3 +1002,4 @@ def measure_reflected_domain_global_transonic_mixed_wave_terminal_field_coverage
       'coverage and preserves the subsonic-field/non-promotion boundary'
     ),
   )
+####

@@ -937,7 +937,6 @@ def _build_source_band_pressure_target(
       state.theta_rad for state in boundary.states
     )),
   )
-  ####
   return compose_moc_physical_field_euler_boundary_pressure_target(
     base_target,
     overlay_target,
@@ -1531,6 +1530,7 @@ def solve_reflected_domain_global_physical_closure(
       None,
       message='consume_ambient_pressure_target_geometry must be a bool',
     )
+  ####
   if not isinstance(use_composed_source_pressure_target_for_global_euler, bool):
     return _closure_result(
       status_type.INVALID_INPUT,
@@ -1543,6 +1543,7 @@ def solve_reflected_domain_global_physical_closure(
         'use_composed_source_pressure_target_for_global_euler must be a bool'
       ),
     )
+  ####
   if not isinstance(
     consume_ambient_pressure_target_geometry_at_global_boundary,
     bool,
@@ -1559,6 +1560,7 @@ def solve_reflected_domain_global_physical_closure(
         'a bool'
       ),
     )
+  ####
   if not isinstance(source_band, MocReflectedDomainAlternatingSourceResult):
     return _closure_result(
       status_type.INVALID_INPUT,
@@ -1688,7 +1690,9 @@ def solve_reflected_domain_global_physical_closure(
             'Euler ambient faces'
           ),
         )
+      ####
     ####
+  ####
   try:
     resolved_handoff = (
       source_band.incoming_handoff
@@ -2019,6 +2023,7 @@ def consume_reflected_domain_global_shock_geometry_response(
         global_remesh,
         resolved_global_euler,
       )
+    ####
     return _closure_result(
       status,
       source_band,
@@ -2051,11 +2056,13 @@ def consume_reflected_domain_global_shock_geometry_response(
       status_type.INVALID_INPUT,
       'closure must be a MocReflectedDomainGlobalPhysicalClosureResult',
     )
+  ####
   if not isinstance(shock_geometry_response, MocEulerShockBoundaryCurveResult):
     return failure(
       status_type.INVALID_INPUT,
       'shock_geometry_response must be a MocEulerShockBoundaryCurveResult',
     )
+  ####
   if not isinstance(branch, ShockBranch):
     return failure(status_type.INVALID_INPUT, 'branch must be a ShockBranch')
   ####
@@ -2070,6 +2077,7 @@ def consume_reflected_domain_global_shock_geometry_response(
       status_type.INVALID_INPUT,
       'geometry-response tolerances must be numeric',
     )
+  ####
   for name, value in (
     ('position_tolerance_m', resolved_position_tolerance),
     ('invariant_tolerance', resolved_invariant_tolerance),
@@ -2082,6 +2090,7 @@ def consume_reflected_domain_global_shock_geometry_response(
         f'{name} must be finite and positive',
       )
     ####
+  ####
   if (
     isinstance(maximum_boundary_iterations, bool)
     or not isinstance(maximum_boundary_iterations, int)
@@ -2098,11 +2107,13 @@ def consume_reflected_domain_global_shock_geometry_response(
       status_type.GLOBAL_EULER_FAILURE,
       'geometry response requires a complete global physical closure',
     )
+  ####
   if not closure.converged or not closure.physical_closure_verified:
     return failure(
       status_type.GLOBAL_EULER_FAILURE,
       'geometry response requires a locally verified global physical closure',
     )
+  ####
   if (
     not shock_geometry_response.converged
     or not shock_geometry_response.local_euler_verified
@@ -2119,6 +2130,7 @@ def consume_reflected_domain_global_shock_geometry_response(
       status_type.GLOBAL_EULER_FAILURE,
       'solver-owned shock geometry response must retain at least three points',
     )
+  ####
   if any(
     len(point) != 2 or not all(isfinite(float(value)) for value in point)
     for point in response_points
@@ -2127,6 +2139,7 @@ def consume_reflected_domain_global_shock_geometry_response(
       status_type.GLOBAL_EULER_FAILURE,
       'solver-owned shock geometry response contains non-finite points',
     )
+  ####
   if any(
     second[0] <= first[0] + resolved_position_tolerance
     or second[1] > first[1] + resolved_position_tolerance
@@ -2145,6 +2158,7 @@ def consume_reflected_domain_global_shock_geometry_response(
       'solver-owned shock geometry response does not terminate on the source '
       'centerline frontier',
     )
+  ####
   centerline_xs = tuple(state.x_m for state in source_band.centerline_source_states)
   if (
     not centerline_xs
@@ -2180,6 +2194,7 @@ def consume_reflected_domain_global_shock_geometry_response(
         f'solver-owned shock geometry response point {index} is outside the '
         'retained source band',
       )
+    ####
     upstream_states.append(state)
     upstream_pressures.append(float(pressure))
   ####
@@ -2206,6 +2221,7 @@ def consume_reflected_domain_global_shock_geometry_response(
       status_type.GLOBAL_EULER_FAILURE,
       f'independent shock geometry response refit raised: {error}',
     )
+  ####
   if not refit.converged or not refit.local_euler_verified:
     return failure(
       status_type.GLOBAL_EULER_FAILURE,
@@ -2259,6 +2275,7 @@ def consume_reflected_domain_global_shock_geometry_response(
       status_type.GLOBAL_EULER_FAILURE,
       f'geometry response exact ambient-field assembly raised: {error}',
     )
+  ####
   if not physical_field.converged or not physical_field.physical_closure_verified:
     return failure(
       status_type.GLOBAL_EULER_FAILURE,
@@ -2297,11 +2314,11 @@ def consume_reflected_domain_global_shock_geometry_response(
       'geometry response produced a global Euler result that did not converge',
       global_euler=updated_global_euler,
     )
+  ####
   downstream_boundary = _build_downstream_boundary_result(
     global_remesh,
     updated_global_euler,
   )
-  ####
 
   downstream_boundary_audit: Any | None = None
   global_audit: Any | None = None

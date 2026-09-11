@@ -157,6 +157,7 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
@@ -177,6 +178,7 @@ class MocReflectedDomainGlobalFrontierFreshResolveResidualResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError(
@@ -291,6 +293,7 @@ def _response_metrics(
   residual = result.conservative_residual_result
   if residual is None or residual.final_response is None:
     return None
+  ####
   response = residual.final_response
   return (
     response.maximum_mass_flux_residual_kg_m2_s,
@@ -497,6 +500,7 @@ def run_reflected_domain_global_frontier_fresh_resolve_conservative_residual(
         'fresh frontier residual solve did not retain strict signed-vector '
         'descent through an exact field re-solve'
       )
+    ####
   elif not two_sided_result.converged:
     status = (
       MocReflectedDomainGlobalFrontierFreshResolveResidualStatus.RESIDUAL_FAILURE
@@ -514,5 +518,6 @@ def run_reflected_domain_global_frontier_fresh_resolve_conservative_residual(
       'fresh frontier closure retained independently audited signed '
       'mass/momentum/energy descent; canonical coupling remains open'
     )
+  ####
   return _result(status, fresh_resolve, message, **common)
 ####

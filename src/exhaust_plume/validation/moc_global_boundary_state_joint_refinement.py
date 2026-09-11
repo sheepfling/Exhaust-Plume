@@ -60,6 +60,7 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementStatus(str, Enum):
     'global-boundary-state-joint-refinement-residual-failure'
   )
   FLAG_FAILURE = 'global-boundary-state-joint-refinement-flag-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,12 +75,14 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementCase:
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be non-empty')
+    ####
     if (
       isinstance(self.resolution_sample_count, bool)
       or not isinstance(self.resolution_sample_count, int)
       or self.resolution_sample_count < 3
     ):
       raise ValueError('resolution_sample_count must be an integer >= 3')
+    ####
     if not isinstance(
       self.result,
       MocReflectedDomainGlobalBoundaryStateJointSolveResult,
@@ -88,7 +91,10 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementCase:
         'result must be a '
         'MocReflectedDomainGlobalBoundaryStateJointSolveResult'
       )
+    ####
     object.__setattr__(self, 'case_id', case_id)
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +138,7 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
       MocReflectedDomainGlobalBoundaryStateJointRefinementStatus,
     ):
       raise TypeError('status must be a typed joint-refinement status')
+    ####
     cases = tuple(self.cases)
     if any(
       not isinstance(
@@ -141,6 +148,7 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
       for case in cases
     ):
       raise TypeError('cases must contain typed joint-refinement cases')
+    ####
     case_ids = tuple(str(value) for value in self.case_ids)
     resolutions = tuple(self.resolution_sample_counts)
     fingerprints = tuple(self.source_closure_fingerprints)
@@ -165,19 +173,24 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
       == len(refreshed_channels)
     ):
       raise ValueError('refinement summaries must match the case count')
+    ####
     if any(not value for value in case_ids):
       raise ValueError('case_ids must be non-empty')
+    ####
     if any(
       isinstance(value, bool) or not isinstance(value, int) or value < 0
       for value in resolutions
     ):
       raise ValueError('resolution sample counts must be nonnegative integers')
+    ####
     for name, values in (
       ('baseline_residual_norms', baseline),
       ('refreshed_residual_norms', refreshed),
     ):
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
+    ####
     for name, values in (
       ('baseline_dimensioned_channel_maxima', baseline_channels),
       ('refreshed_dimensioned_channel_maxima', refreshed_channels),
@@ -188,6 +201,8 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
         for channel_values in values
       ):
         raise ValueError(f'{name} must contain three finite channels per case')
+      ####
+    ####
     for name in (
       'case_audits_verified',
       'case_identity_verified',
@@ -208,17 +223,22 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if (
       self.canonical_free_boundary_verified
       or self.canonical_euler_verified
       or self.downstream_boundary_closure_verified
     ):
       raise ValueError('joint refinement cannot claim canonical closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('joint refinement must remain promotion-blocked')
+    ####
     tolerance = float(self.refinement_tolerance)
     if not isfinite(tolerance) or tolerance <= 0.0:
       raise ValueError('refinement_tolerance must be finite and positive')
+    ####
     if self.status in (
       MocReflectedDomainGlobalBoundaryStateJointRefinementStatus
       .CONVERGED_LOCAL_REFINEMENT,
@@ -229,6 +249,7 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
       and self.refinement_convergence_verified
     ):
       raise ValueError('converged refinement must pass every local refinement gate')
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'case_ids', case_ids)
     object.__setattr__(self, 'resolution_sample_counts', resolutions)
@@ -239,6 +260,7 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
     object.__setattr__(self, 'refreshed_dimensioned_channel_maxima', refreshed_channels)
     object.__setattr__(self, 'refinement_tolerance', tolerance)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -252,6 +274,7 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
       and self.local_refinement_verified
       and self.refinement_convergence_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -291,6 +314,8 @@ class MocReflectedDomainGlobalBoundaryStateJointRefinementMeasurement:
       'cases': tuple(case.result.as_report() for case in self.cases),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -362,13 +387,16 @@ def _failure(
     refinement_tolerance=refinement_tolerance,
     message=message,
   )
+####
 
 
 def _group_indices(case_ids: Sequence[str]) -> dict[str, list[int]]:
   grouped: dict[str, list[int]] = {}
   for index, case_id in enumerate(case_ids):
     grouped.setdefault(case_id, []).append(index)
+  ####
   return grouped
+####
 
 
 def measure_moc_global_boundary_state_joint_refinement(
@@ -385,12 +413,14 @@ def measure_moc_global_boundary_state_joint_refinement(
       MocReflectedDomainGlobalBoundaryStateJointRefinementStatus.INVALID_INPUT,
       'refinement_tolerance must be numeric',
     )
+  ####
   if not isfinite(tolerance) or tolerance <= 0.0:
     return _failure(
       MocReflectedDomainGlobalBoundaryStateJointRefinementStatus.INVALID_INPUT,
       'refinement_tolerance must be finite and positive',
       refinement_tolerance=tolerance,
     )
+  ####
   case_values = tuple(cases)
   if len(case_values) < 2:
     return _failure(
@@ -398,6 +428,7 @@ def measure_moc_global_boundary_state_joint_refinement(
       'joint refinement requires at least two cases',
       refinement_tolerance=tolerance,
     )
+  ####
   if any(
     not isinstance(
       case,
@@ -532,7 +563,6 @@ def measure_moc_global_boundary_state_joint_refinement(
     local_refinement_verified
     and all(len(indices) >= 2 for indices in grouped.values())
   )
-  ####
 
   if not case_audits_verified or not case_identity_verified:
     status = MocReflectedDomainGlobalBoundaryStateJointRefinementStatus.CASE_FAILURE
@@ -603,3 +633,4 @@ def measure_moc_global_boundary_state_joint_refinement(
     fidelity_flags_verified=fidelity_flags_verified,
     refinement_tolerance=tolerance,
   )
+####

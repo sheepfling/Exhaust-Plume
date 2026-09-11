@@ -51,6 +51,7 @@ def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> 
     for entry in report['provider_reports']
   )
   assert report['external_comparison']['status'] == 'pending'
+####
 
 
 def test_all_five_model_visualization_lanes_are_checked_as_one_bundle_contract() -> None:
@@ -76,6 +77,7 @@ def test_all_five_model_visualization_lanes_are_checked_as_one_bundle_contract()
     'planar-moc-primitives-v1': False,
   }
   assert report['external_comparison']['status'] == 'pending'
+####
 
 
 def test_mission_time_validator_binds_visual_signature_and_fpa_products() -> None:

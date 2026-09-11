@@ -138,6 +138,7 @@ class ClosedZone:
         normalized = str(value)
         if not normalized:
           raise ValueError(f'{name} must be non-empty when supplied')
+        ####
         object.__setattr__(self, name, normalized)
       ####
     ####

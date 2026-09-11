@@ -87,6 +87,7 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackStatus(str, Enum):
   STATIONARY_STATE_FAILURE = (
     'global-boundary-state-feedback-stationary-state-rejected'
   )
+####
 
 
 def _options(
@@ -97,21 +98,26 @@ def _options(
 ) -> dict[str, Any]:
   if value is None:
     return {}
+  ####
   if not isinstance(value, Mapping):
     raise TypeError(f'{name} must be a mapping when supplied')
+  ####
   resolved = dict(value)
   collisions = tuple(key for key in reserved if key in resolved)
   if collisions:
     raise ValueError(
       f'{name} cannot override positional controls: {", ".join(collisions)}'
     )
+  ####
   return resolved
+####
 
 
 def _fingerprint(
   closure: MocReflectedDomainGlobalPhysicalClosureResult,
 ) -> str:
   return moc_reflected_domain_global_physical_closure_fingerprint(closure)
+####
 
 
 def _response(
@@ -119,18 +125,22 @@ def _response(
 ) -> MocEulerTwoSidedInterfaceResponse | None:
   if result is None or result.conservative_residual_result is None:
     return None
+  ####
   return result.conservative_residual_result.final_response
+####
 
 
 def _residual_result(
   result: MocReflectedDomainGlobalTwoSidedMovingInterfaceResult | None,
 ) -> MocEulerTwoSidedConservativeResidualSolveResult | None:
   return None if result is None else result.conservative_residual_result
+####
 
 
 def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) -> bool:
   if response is None or not response.signed_residuals_available:
     return False
+  ####
   channels = (
     response.signed_mass_flux_residuals_kg_m2_s,
     response.signed_normal_momentum_residuals_Pa,
@@ -141,6 +151,7 @@ def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) 
     all(channel for channel in channels)
     and all(isfinite(value) for channel in channels for value in channel)
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,50 +180,66 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackHandoff:
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
     ):
       raise TypeError('boundary_feedback_run must be a typed boundary feedback run')
+    ####
     if not isinstance(
       self.proposal,
       MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
     ):
       raise TypeError('proposal must be a typed downstream feedback proposal')
+    ####
     if not isinstance(
       self.two_sided_result,
       MocReflectedDomainGlobalTwoSidedMovingInterfaceResult,
     ):
       raise TypeError('two_sided_result must be a typed two-sided result')
+    ####
     if not isinstance(
       self.conservative_residual_audit,
       MocEulerTwoSidedConservativeResidualAudit,
     ):
       raise TypeError('conservative_residual_audit must be a typed audit')
+    ####
     if not self.boundary_feedback_run.research_feedback_completed:
       raise ValueError('handoff requires a completed boundary feedback run')
+    ####
     if not self.boundary_feedback_run.iterations:
       raise ValueError('handoff requires a retained boundary feedback iteration')
+    ####
     if self.boundary_feedback_run.iterations[-1].proposal is not self.proposal:
       raise ValueError('handoff proposal must be the final retained proposal')
+    ####
     if not self.proposal.ready_for_global_resolve:
       raise ValueError('handoff proposal must be ready for a global resolve')
+    ####
     residual = self.two_sided_result.conservative_residual_result
     if residual is None or not residual.converged:
       raise ValueError('handoff requires a converged conservative residual result')
+    ####
     response = residual.final_response
     if not _signed_channels_finite(response):
       raise ValueError('handoff requires finite signed residual channels')
+    ####
     if not self.conservative_residual_audit.local_consistency_verified:
       raise ValueError('handoff requires an independently consistent residual audit')
+    ####
     if self.two_sided_result.request is None:
       raise ValueError('handoff requires the retained two-sided request')
+    ####
     state_fingerprint = _fingerprint(self.two_sided_result.request.closure)
     if state_fingerprint != self.state_source_closure_fingerprint:
       raise ValueError('state_source_closure_fingerprint does not match the request')
+    ####
     if self.state_source_closure_fingerprint != _fingerprint(
       self.boundary_feedback_run.final_closure
     ):
       raise ValueError('state handoff must consume the final fresh global closure')
+    ####
     if self.proposal_source_closure_fingerprint != self.proposal.source_closure_fingerprint:
       raise ValueError('proposal_source_closure_fingerprint does not match proposal')
+    ####
     if self.proposal.global_coupling_verified or self.proposal.consumed_by_global_solver:
       raise ValueError('handoff proposal cannot claim global-solver consumption')
+    ####
     if (
       self.consumed_by_global_solver
       or self.global_coupling_verified
@@ -221,6 +248,7 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackHandoff:
       or self.production_claim_allowed
     ):
       raise ValueError('boundary state handoffs must remain promotion-blocked')
+    ####
     channels = (
       tuple(float(value) for value in self.signed_mass_flux_residuals_kg_m2_s),
       tuple(float(value) for value in self.signed_normal_momentum_residuals_Pa),
@@ -228,15 +256,19 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackHandoff:
     )
     if not len(channels[0]) == len(channels[1]) == len(channels[2]):
       raise ValueError('signed residual channels must have equal lengths')
+    ####
     if any(not isfinite(value) for channel in channels for value in channel):
       raise ValueError('signed residual channels must be finite')
+    ####
     final_norm = float(self.final_residual_norm)
     if not isfinite(final_norm) or final_norm < 0.0:
       raise ValueError('final_residual_norm must be finite and nonnegative')
+    ####
     object.__setattr__(self, 'signed_mass_flux_residuals_kg_m2_s', channels[0])
     object.__setattr__(self, 'signed_normal_momentum_residuals_Pa', channels[1])
     object.__setattr__(self, 'signed_energy_flux_residuals_W_m2', channels[2])
     object.__setattr__(self, 'final_residual_norm', final_norm)
+  ####
 
   @property
   def ready_for_joint_global_resolve(self) -> bool:
@@ -249,6 +281,7 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackHandoff:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -275,6 +308,8 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackHandoff:
         'canonical, shock-cell, Signature, FPA, or production claim'
       ),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,41 +338,49 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalBoundaryStateFeedbackStatus):
       raise TypeError('status must be a typed boundary-state feedback status')
+    ####
     if self.source_closure is not None and not isinstance(
       self.source_closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('source_closure must be a typed global closure or None')
+    ####
     if self.boundary_feedback_run is not None and not isinstance(
       self.boundary_feedback_run,
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
     ):
       raise TypeError('boundary_feedback_run must be typed or None')
+    ####
     if self.proposal is not None and not isinstance(
       self.proposal,
       MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
     ):
       raise TypeError('proposal must be typed or None')
+    ####
     if self.two_sided_request is not None and not isinstance(
       self.two_sided_request,
       MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
     ):
       raise TypeError('two_sided_request must be typed or None')
+    ####
     if self.two_sided_result is not None and not isinstance(
       self.two_sided_result,
       MocReflectedDomainGlobalTwoSidedMovingInterfaceResult,
     ):
       raise TypeError('two_sided_result must be typed or None')
+    ####
     if self.conservative_residual_audit is not None and not isinstance(
       self.conservative_residual_audit,
       MocEulerTwoSidedConservativeResidualAudit,
     ):
       raise TypeError('conservative_residual_audit must be typed or None')
+    ####
     if self.handoff is not None and not isinstance(
       self.handoff,
       MocReflectedDomainGlobalBoundaryStateFeedbackHandoff,
     ):
       raise TypeError('handoff must be typed or None')
+    ####
     for name in (
       'boundary_feedback_verified',
       'proposal_lineage_verified',
@@ -351,8 +394,11 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('boundary-state feedback must remain promotion-blocked')
+    ####
     if self.status is (
       MocReflectedDomainGlobalBoundaryStateFeedbackStatus.READY_RESEARCH_STATE_HANDOFF
     ) and not (
@@ -365,7 +411,9 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackResult:
       and self.independent_residual_audit_verified
     ):
       raise ValueError('ready state handoff must pass every retained evidence gate')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def handoff_ready(self) -> bool:
@@ -375,6 +423,7 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackResult:
       and self.handoff is not None
       and self.handoff.ready_for_joint_global_resolve
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     response = _response(self.two_sided_result)
@@ -421,6 +470,8 @@ class MocReflectedDomainGlobalBoundaryStateFeedbackResult:
       'handoff': None if self.handoff is None else self.handoff.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _result(
@@ -435,6 +486,7 @@ def _result(
     message=message,
     **kwargs,
   )
+####
 
 
 def build_reflected_domain_global_boundary_state_feedback_handoff(
@@ -450,31 +502,39 @@ def build_reflected_domain_global_boundary_state_feedback_handoff(
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
   ):
     raise TypeError('boundary_feedback_run must be a typed boundary feedback run')
+  ####
   if not isinstance(
     proposal,
     MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal,
   ):
     raise TypeError('proposal must be a typed downstream feedback proposal')
+  ####
   if not isinstance(
     two_sided_result,
     MocReflectedDomainGlobalTwoSidedMovingInterfaceResult,
   ):
     raise TypeError('two_sided_result must be a typed two-sided result')
+  ####
   if not isinstance(
     conservative_residual_audit,
     MocEulerTwoSidedConservativeResidualAudit,
   ):
     raise TypeError('conservative_residual_audit must be a typed residual audit')
+  ####
   if two_sided_result.request is None:
     raise ValueError('two-sided result did not retain its request')
+  ####
   residual = two_sided_result.conservative_residual_result
   if residual is None or residual.final_response is None:
     raise ValueError('two-sided result did not retain a final residual response')
+  ####
   response = residual.final_response
   if not _signed_channels_finite(response):
     raise ValueError('two-sided result did not retain finite signed residual channels')
+  ####
   if not two_sided_result.converged or not conservative_residual_audit.local_consistency_verified:
     raise ValueError('conservative state evidence is not independently ready')
+  ####
   if (
     not two_sided_result.request.require_interface_motion
     or two_sided_result.request.allow_stationary_equilibrium
@@ -483,12 +543,14 @@ def build_reflected_domain_global_boundary_state_feedback_handoff(
     <= two_sided_result.request.position_tolerance_m
   ):
     raise ValueError('state handoff requires a genuinely moving interface response')
+  ####
   assert response.signed_mass_flux_residuals_kg_m2_s is not None
   assert response.signed_normal_momentum_residuals_Pa is not None
   assert response.signed_energy_flux_residuals_W_m2 is not None
   residual_norm = residual.final_residual_norm
   if residual_norm is None:
     raise ValueError('two-sided result did not retain a final residual norm')
+  ####
   state_fingerprint = _fingerprint(two_sided_result.request.closure)
   return MocReflectedDomainGlobalBoundaryStateFeedbackHandoff(
     boundary_feedback_run=boundary_feedback_run,
@@ -502,6 +564,7 @@ def build_reflected_domain_global_boundary_state_feedback_handoff(
     signed_energy_flux_residuals_W_m2=response.signed_energy_flux_residuals_W_m2,
     final_residual_norm=residual_norm,
   )
+####
 
 
 def run_reflected_domain_global_boundary_state_feedback(
@@ -523,6 +586,7 @@ def run_reflected_domain_global_boundary_state_feedback(
       None,
       'closure must be a MocReflectedDomainGlobalPhysicalClosureResult',
     )
+  ####
   try:
     resolved_downstream = _options(
       downstream_options,
@@ -551,10 +615,12 @@ def run_reflected_domain_global_boundary_state_feedback(
     reference_temperature = float(reference_total_temperature_K)
     if not isfinite(reference_temperature) or reference_temperature <= 0.0:
       raise ValueError('reference_total_temperature_K must be finite and positive')
+    ####
     if resolved_boundary.get('consume_target_geometry', True) is not True:
       raise ValueError(
         'boundary-state feedback requires consume_target_geometry=True'
       )
+    ####
     resolved_boundary['consume_target_geometry'] = True
     # Keep the state handoff on the strict residual-admission lane by default.
     # The global moving-interface adapter's broader 100 Pa default is useful for
@@ -607,6 +673,7 @@ def run_reflected_domain_global_boundary_state_feedback(
       boundary_feedback_run=feedback,
       boundary_feedback_verified=False,
     )
+  ####
   iteration = feedback.iterations[-1]
   proposal = iteration.proposal
   proposal_lineage = bool(
@@ -717,6 +784,7 @@ def run_reflected_domain_global_boundary_state_feedback(
         moving_state_verified=moving,
         independent_residual_audit_verified=independent_audit,
       )
+    ####
     return _result(
       MocReflectedDomainGlobalBoundaryStateFeedbackStatus.READY_RESEARCH_STATE_HANDOFF,
       closure,
@@ -736,6 +804,7 @@ def run_reflected_domain_global_boundary_state_feedback(
       moving_state_verified=moving,
       independent_residual_audit_verified=independent_audit,
     )
+  ####
   return _result(
     status,
     closure,
@@ -753,3 +822,4 @@ def run_reflected_domain_global_boundary_state_feedback(
     moving_state_verified=moving,
     independent_residual_audit_verified=independent_audit,
   )
+####

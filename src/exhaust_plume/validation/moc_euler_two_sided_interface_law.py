@@ -54,6 +54,7 @@ class MocEulerTwoSidedInterfaceLawAuditStatus(str, Enum):
     'two-sided-interface-law-audit-conservative-flux-failure'
   )
   FLAG_FAILURE = 'two-sided-interface-law-audit-flag-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +119,7 @@ class MocEulerTwoSidedInterfaceLawAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in (
       'maximum_interface_normal_speed_m_s',
@@ -273,10 +275,12 @@ def _failure(
     maximum_energy_flux_residual_W_m2=maximum_energy_flux_residual_W_m2,
     message=message,
   )
+####
 
 
 def _close(first: float, second: float, tolerance: float) -> bool:
   return abs(first - second) <= tolerance * max(1.0, abs(first), abs(second))
+####
 
 
 def _state_close(first: Any, second: Any, tolerance: float) -> bool:
@@ -284,6 +288,7 @@ def _state_close(first: Any, second: Any, tolerance: float) -> bool:
     _close(float(getattr(first, name)), float(getattr(second, name)), tolerance)
     for name in ('x_m', 'y_m', 'theta_rad', 'mach', 'gamma')
   )
+####
 
 
 def _point_matches(
@@ -295,6 +300,7 @@ def _point_matches(
     abs(first[0] - second[0]) <= tolerance_m
     and abs(first[1] - second[1]) <= tolerance_m
   )
+####
 
 
 def _normal_for_cell(
@@ -330,6 +336,7 @@ def _normal_for_cell(
       and any(_point_matches(vertex, edge_end, tolerance_m) for vertex in vertices)
     ):
       candidates.append(vertices)
+    ####
   ####
   if len(candidates) != 1:
     raise ValueError(
@@ -353,6 +360,7 @@ def _normal_for_cell(
     normal_y = -normal_y
   ####
   return normal_x, normal_y
+####
 
 
 def _primitive(
@@ -395,6 +403,7 @@ def _primitive(
     pressure,
     total_enthalpy_density,
   )
+####
 
 
 def _front_limit_state_compatible(
@@ -415,6 +424,7 @@ def _front_limit_state_compatible(
     <= request.source_pressure_tolerance
     * max(1.0, abs(upstream_pressure), abs(downstream_pressure))
   )
+####
 
 
 def _geometry_valid(result: MocEulerTwoSidedInterfaceLawResult) -> bool:
@@ -435,6 +445,7 @@ def _geometry_valid(result: MocEulerTwoSidedInterfaceLawResult) -> bool:
     )
     and points[-1][1] >= target_y - request.position_tolerance_m
   )
+####
 
 
 def measure_moc_euler_two_sided_interface_law(
@@ -496,9 +507,11 @@ def measure_moc_euler_two_sided_interface_law(
       if state is None or pressure is None:
         source_lineage_verified = False
         break
+      ####
       if not _state_close(state, expected_state, request.source_state_tolerance):
         source_lineage_verified = False
         break
+      ####
       if not _close(
         float(pressure),
         float(expected_pressure),
@@ -506,6 +519,8 @@ def measure_moc_euler_two_sided_interface_law(
       ):
         source_lineage_verified = False
         break
+      ####
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError):
     source_lineage_verified = False
   ####
@@ -573,14 +588,17 @@ def measure_moc_euler_two_sided_interface_law(
         declared_pressure = float(result.downstream_probe_total_pressure_Pa[index])
         if state is None or pressure is None:
           raise ValueError(f'field does not independently sample downstream probe {index}')
+        ####
         if not _state_close(state, declared_state, request.source_state_tolerance):
           raise ValueError(f'downstream state mismatch at probe {index}')
+        ####
         if not _close(
           float(pressure),
           declared_pressure,
           request.source_pressure_tolerance,
         ):
           raise ValueError(f'downstream pressure mismatch at probe {index}')
+        ####
         normal_x, normal_y = _normal_for_cell(
           field,
           current.shock_boundary.shock_points_m,
@@ -594,6 +612,7 @@ def measure_moc_euler_two_sided_interface_law(
           1.0e-7,
         ):
           raise ValueError(f'downstream normal mismatch at probe {index}')
+        ####
         upstream_state = request.source_band.state_at(
           point,
           position_tolerance_m=request.position_tolerance_m,
@@ -604,6 +623,7 @@ def measure_moc_euler_two_sided_interface_law(
         )
         if upstream_state is None or upstream_pressure is None:
           raise ValueError(f'upstream source disappeared at probe {index}')
+        ####
         upstream = _primitive(
           upstream_state,
           float(upstream_pressure),
@@ -633,6 +653,7 @@ def measure_moc_euler_two_sided_interface_law(
             )
           ):
             raise ValueError(f'density jump is too small at probe {index}')
+          ####
           expected_speeds.append(0.0)
         else:
           expected_speeds.append(
@@ -642,6 +663,7 @@ def measure_moc_euler_two_sided_interface_law(
             )
             / density_jump
           )
+        ####
         speed = expected_speeds[-1]
         upstream_relative = upstream_normal - speed
         downstream_relative = downstream_normal - speed
@@ -665,8 +687,10 @@ def measure_moc_euler_two_sided_interface_law(
         expected_mass.append(abs(signed_mass))
         expected_momentum.append(abs(signed_momentum))
         expected_energy.append(abs(signed_energy))
+      ####
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       downstream_probe_verified = False
+    ####
   ####
   signed_channels_verified = True
   if response.signed_residuals_available:
@@ -866,6 +890,7 @@ def measure_moc_euler_two_sided_interface_law(
     status = MocEulerTwoSidedInterfaceLawAuditStatus.CONSERVATIVE_FLUX_FAILURE
   else:
     status = MocEulerTwoSidedInterfaceLawAuditStatus.FLAG_FAILURE
+  ####
   return _failure(
     status,
     (
@@ -898,3 +923,4 @@ def measure_moc_euler_two_sided_interface_law(
     maximum_normal_momentum_residual_Pa=max(expected_momentum, default=0.0),
     maximum_energy_flux_residual_W_m2=max(expected_energy, default=0.0),
   )
+####

@@ -244,6 +244,7 @@ def test_gallery_reject_policy_never_converts_invalid_samples_to_zero(tmp_path: 
   with pytest.raises(ValueError, match='invalid sample'):
     render_product_gallery(result, tmp_path, spec=spec)
   ####
+####
 
 
 def test_signature_gallery_renders_only_declared_aligned_numeric_uncertainty(tmp_path: Path) -> None:
@@ -272,7 +273,7 @@ def test_signature_gallery_renders_only_declared_aligned_numeric_uncertainty(tmp
   )
   assert (tmp_path / 'signature_uncertainty_heatmap.png').exists()
   assert payload['product_metadata']['numeric_uncertainty_declared'] is True
-  ####
+####
 
 
 def test_signature_gallery_rejects_misaligned_numeric_uncertainty(tmp_path: Path) -> None:

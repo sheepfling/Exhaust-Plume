@@ -239,6 +239,7 @@ def test_product_visualization_dispatcher_keeps_product_specific_types(
 ) -> None:
   data = extract_product_visualization_data(result_factory())
   assert isinstance(data, expected_type)
+####
 
 
 @pytest.mark.parametrize(

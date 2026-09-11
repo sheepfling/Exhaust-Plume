@@ -69,6 +69,7 @@ def test_mach_disk_comparison_rejects_invalid_array_shapes() -> None:
       (0.01, 0.02),
     )
   ####
+####
 
 
 def test_visual_feature_series_reports_uncertainty_and_branch_coverage() -> None:

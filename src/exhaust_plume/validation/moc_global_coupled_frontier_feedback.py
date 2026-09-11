@@ -106,6 +106,7 @@ class MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus(str, Enum):
   PROMOTION_FLAG_FAILURE = (
     'global-frontier-feedback-audit-promotion-flag-failure'
   )
+####
 
 
 def _options(
@@ -515,17 +516,20 @@ class MocReflectedDomainGlobalCoupledFrontierFeedbackAudit:
       MocReflectedDomainGlobalCoupledFrontierFeedbackAuditStatus,
     ):
       raise TypeError('status must be a typed frontier-feedback audit status')
+    ####
     if self.candidate is not None and not isinstance(
       self.candidate,
       MocReflectedDomainGlobalCoupledFrontierFeedbackRun,
     ):
       raise TypeError('candidate must be a typed frontier-feedback run or None')
+    ####
     if (
       isinstance(self.iterations_rechecked, bool)
       or not isinstance(self.iterations_rechecked, int)
       or self.iterations_rechecked < 0
     ):
       raise ValueError('iterations_rechecked must be a nonnegative integer')
+    ####
     for name in (
       'configuration_verified',
       'iteration_index_verified',
@@ -543,6 +547,7 @@ class MocReflectedDomainGlobalCoupledFrontierFeedbackAudit:
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
       ####
+    ####
     if self.candidate is not None and self.candidate.production_claim_allowed:
       raise ValueError('frontier-feedback audit cannot accept production claims')
     ####
@@ -825,6 +830,7 @@ def audit_reflected_domain_global_coupled_frontier_feedback(
     independent_steps.append(step_ok)
     if selected_closure is not None:
       selected_closures.append(selected_closure)
+    ####
   ####
 
   expected_final = (

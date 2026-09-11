@@ -77,10 +77,12 @@ class MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus(str, Enum):
   RESIDUAL_DESCENT_FAILURE = (
     'global-boundary-state-outer-update-residual-descent-failure'
   )
+####
 
 
 def _fingerprint(closure: MocReflectedDomainGlobalPhysicalClosureResult) -> str:
   return moc_reflected_domain_global_physical_closure_fingerprint(closure)
+####
 
 
 def _response(
@@ -88,12 +90,15 @@ def _response(
 ) -> MocEulerTwoSidedInterfaceResponse | None:
   if result is None or result.conservative_residual_result is None:
     return None
+  ####
   return result.conservative_residual_result.final_response
+####
 
 
 def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) -> bool:
   if response is None or not response.signed_residuals_available:
     return False
+  ####
   channels = (
     response.signed_mass_flux_residuals_kg_m2_s,
     response.signed_normal_momentum_residuals_Pa,
@@ -104,16 +109,21 @@ def _signed_channels_finite(response: MocEulerTwoSidedInterfaceResponse | None) 
     all(channel for channel in channels)
     and all(isfinite(value) for channel in channels for value in channel)
   )
+####
 
 
 def _strict_descent(before: float, after: float, minimum_fraction: float) -> bool:
   if not isfinite(before) or not isfinite(after):
     return False
+  ####
   if not isfinite(minimum_fraction) or minimum_fraction < 0.0:
     return False
+  ####
   if before <= 0.0:
     return after < before
+  ####
   return after < before * (1.0 - minimum_fraction)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +163,7 @@ class MocReflectedDomainGlobalBoundaryStateOuterUpdateResult:
       MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus,
     ):
       raise TypeError('status must be a typed outer-update status')
+    ####
     for name, expected_type in (
       (
         'handoff',
@@ -186,6 +197,8 @@ class MocReflectedDomainGlobalBoundaryStateOuterUpdateResult:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected_type):
         raise TypeError(f'{name} must be typed or None')
+      ####
+    ####
     for name in (
       'handoff_lineage_verified',
       'outer_feedback_invoked',
@@ -205,17 +218,24 @@ class MocReflectedDomainGlobalBoundaryStateOuterUpdateResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or self.downstream_boundary_closure_verified:
       raise ValueError('outer research updates cannot claim canonical coupling')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('outer research updates must remain promotion-blocked')
+    ####
     for name in ('baseline_residual_norm', 'refreshed_residual_norm'):
       value = getattr(self, name)
       if value is not None:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     if self.status is (
       MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus
       .CONVERGED_RESEARCH_OUTER_UPDATE
@@ -224,7 +244,9 @@ class MocReflectedDomainGlobalBoundaryStateOuterUpdateResult:
       and self.residual_descent_verified
     ):
       raise ValueError('converged outer update must pass state and descent gates')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged_research_outer_update(self) -> bool:
@@ -235,6 +257,7 @@ class MocReflectedDomainGlobalBoundaryStateOuterUpdateResult:
       and self.outer_state_update_verified
       and self.residual_descent_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -288,6 +311,8 @@ class MocReflectedDomainGlobalBoundaryStateOuterUpdateResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _result(
@@ -302,6 +327,7 @@ def _result(
     message=message,
     **kwargs,
   )
+####
 
 
 def run_reflected_domain_global_boundary_state_outer_update(
@@ -318,16 +344,20 @@ def run_reflected_domain_global_boundary_state_outer_update(
       None,
       'handoff must be a typed global boundary-state feedback handoff',
     )
+  ####
   try:
     if not handoff.ready_for_joint_global_resolve:
       raise ValueError('handoff is not ready for joint global consumption')
+    ####
     source = handoff.boundary_feedback_run.final_closure
     if _fingerprint(source) != handoff.state_source_closure_fingerprint:
       raise ValueError('handoff state fingerprint does not match its final closure')
+    ####
     configuration = handoff.boundary_feedback_run.configuration
     downstream_options = configuration.get('downstream_options')
     if not isinstance(downstream_options, Mapping):
       raise ValueError('handoff did not retain downstream solver options')
+    ####
     reference_temperature = float(
       configuration['reference_total_temperature_K']
     )
@@ -339,16 +369,20 @@ def run_reflected_domain_global_boundary_state_outer_update(
     )
     if not isfinite(reference_temperature) or reference_temperature <= 0.0:
       raise ValueError('handoff retained an invalid reference temperature')
+    ####
     if downstream_iterations < 2:
       raise ValueError('handoff retained too few downstream feedback iterations')
+    ####
     if not isfinite(maximum_frame_extension) or maximum_frame_extension < 0.0:
       raise ValueError('handoff retained an invalid frame-extension budget')
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _result(
       MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus.HANDOFF_LINEAGE_FAILURE,
       handoff,
       f'outer-update handoff setup failed closed: {error}',
     )
+  ####
 
   try:
     outer_feedback = run_reflected_domain_global_coupled_boundary_condition_feedback(
@@ -370,6 +404,7 @@ def run_reflected_domain_global_boundary_state_outer_update(
       handoff_lineage_verified=True,
       outer_feedback_invoked=True,
     )
+  ####
   outer_verified = bool(
     outer_feedback.outer_feedback_completed
     and outer_feedback.source_closure is source
@@ -403,6 +438,7 @@ def run_reflected_domain_global_boundary_state_outer_update(
       outer_feedback_verified=outer_verified,
       updated_closure_lineage_verified=updated_lineage,
     )
+  ####
   state_request = replace(
     handoff.two_sided_result.request,
     closure=updated,
@@ -428,6 +464,7 @@ def run_reflected_domain_global_boundary_state_outer_update(
       state_solver_invoked=True,
       baseline_residual_norm=handoff.final_residual_norm,
     )
+  ####
   residual = state_result.conservative_residual_result
   audit = state_result.conservative_residual_audit
   response = _response(state_result)
@@ -475,6 +512,7 @@ def run_reflected_domain_global_boundary_state_outer_update(
       independent_residual_audit_verified=independent_audit,
       baseline_residual_norm=handoff.final_residual_norm,
     )
+  ####
   baseline_norm = float(handoff.final_residual_norm)
   refreshed_value = float(refreshed_norm)
   descent = _strict_descent(
@@ -513,6 +551,7 @@ def run_reflected_domain_global_boundary_state_outer_update(
       'audit did not pass every retained gate',
       **common,
     )
+  ####
   if not descent:
     return _result(
       MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus.RESIDUAL_DESCENT_FAILURE,
@@ -521,6 +560,7 @@ def run_reflected_domain_global_boundary_state_outer_update(
       f'descend the conservative residual ({baseline_norm:.12g} -> {refreshed_value:.12g})',
       **common,
     )
+  ####
   return _result(
     MocReflectedDomainGlobalBoundaryStateOuterUpdateStatus
     .CONVERGED_RESEARCH_OUTER_UPDATE,
@@ -529,3 +569,4 @@ def run_reflected_domain_global_boundary_state_outer_update(
     'independently audited conservative residual descent; production remains closed',
     **common,
   )
+####

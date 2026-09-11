@@ -320,6 +320,7 @@ def _numeric_signature_uncertainty(
   raw = grid.uncertainty.get('absolute_standard_uncertainty_W_sr_m')
   if raw is None:
     raw = grid.uncertainty.get('absolute_standard_uncertainty_w_sr_m')
+  ####
   if raw is None:
     return None
   ####
@@ -381,6 +382,7 @@ def _numeric_signature_uncertainty(
     normalized.append(tuple(values))
   ####
   return tuple(normalized)
+####
 
 
 def _uncertainty_matrix_for_display(
@@ -759,6 +761,7 @@ def render_spectral_radiant_intensity_gallery(
       spec=resolved,
     )
     plt.close(figure)
+  ####
 
   sphere_path = output / 'signature_direction_sphere.png'
   figure = plt.figure(figsize=(8.0, 6.5))

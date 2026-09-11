@@ -167,6 +167,7 @@ def _entropy_closure_profile_fields(
       'mixed-regime request must retain a perimeter contract source before '
       'an entropy profile can be consumed'
     )
+  ####
   if str(profile.source_perimeter_contract_source) != str(
     expected_contract_source
   ):
@@ -192,6 +193,7 @@ def _entropy_closure_profile_fields(
   ####
   if any(not isfinite(value) for value in x_stations):
     raise ValueError('entropy_closure_profile stations must be finite')
+  ####
   if any(
     second <= first
     for first, second in zip(x_stations, x_stations[1:])
@@ -199,6 +201,7 @@ def _entropy_closure_profile_fields(
     raise ValueError(
       'entropy_closure_profile stations must be strictly downstream ordered'
     )
+  ####
   if any(
     not isfinite(value) or value <= 0.0
     for value in (*total_pressure, *static_pressure)
@@ -206,6 +209,7 @@ def _entropy_closure_profile_fields(
     raise ValueError(
       'entropy_closure_profile pressures must be finite and positive'
     )
+  ####
   if any(
     second > first * (1.0 + 1.0e-10)
     for first, second in zip(total_pressure, total_pressure[1:])
@@ -241,10 +245,12 @@ def _entropy_closure_profile_fields(
     raise ValueError(
       'entropy_closure_profile loss fractions must lie in the [0, 1) interval'
     )
+  ####
   if abs(measured_loss - loss_fraction) > 1.0e-9:
     raise ValueError(
       'entropy_closure_profile loss fraction must match its endpoints'
     )
+  ####
   if loss_fraction + 1.0e-10 < minimum_loss:
     raise ValueError(
       'entropy_closure_profile does not supply the retained minimum loss budget'
@@ -258,6 +264,7 @@ def _entropy_closure_profile_fields(
     )
   ####
   return x_stations, total_pressure, static_pressure, relaxation_fraction
+####
 
 
 def _ambient_entrainment_profile_fields(
@@ -294,6 +301,7 @@ def _ambient_entrainment_profile_fields(
       raise ValueError(
         'ambient entrainment temperature must be finite and strictly positive'
       )
+    ####
     temperatures = tuple(temperature for _ in range(axial_cell_count))
   else:
     temperatures = tuple(float(value) for value in temperature_profile)
@@ -302,10 +310,12 @@ def _ambient_entrainment_profile_fields(
         'ambient entrainment temperature profile must align with the axial '
         'cell columns'
       )
+    ####
     if any(not isfinite(value) or value <= 0.0 for value in temperatures):
       raise ValueError(
         'ambient entrainment temperatures must be finite and strictly positive'
       )
+    ####
   ####
   velocity_profile = getattr(profile, 'ambient_velocity_m_s_by_station', None)
   if velocity_profile is None:
@@ -314,6 +324,7 @@ def _ambient_entrainment_profile_fields(
       raise ValueError(
         'ambient entrainment velocity must contain two finite values'
       )
+    ####
     velocities = tuple(velocity for _ in range(axial_cell_count))
   else:
     velocities = tuple(
@@ -328,6 +339,7 @@ def _ambient_entrainment_profile_fields(
         'ambient entrainment velocity profile must contain one finite '
         'two-component value per axial cell column'
       )
+    ####
   ####
   fractions = tuple(
     float(value) for value in profile.entrainment_fraction_by_station
@@ -336,6 +348,7 @@ def _ambient_entrainment_profile_fields(
     raise ValueError(
       'ambient entrainment fractions must align with the axial cell columns'
     )
+  ####
   if any(
     not isfinite(value) or not 0.0 <= value <= 1.0 for value in fractions
   ):
@@ -346,6 +359,7 @@ def _ambient_entrainment_profile_fields(
     raise ValueError('ambient entrainment requires a positive ambient pressure')
   ####
   return temperatures, velocities, fractions
+####
 
 
 class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
@@ -1726,7 +1740,6 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'pressure_shape_relaxation',
       pressure_shape_relaxation,
     )
-    ####
     if self.cfl_number >= 1.0:
       raise ValueError('cfl_number must be less than one')
     ####
@@ -1973,16 +1986,19 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'entropy_closure_profile requires an explicit aligned '
           'free-boundary static-pressure profile'
         )
+      ####
       if tuple(self.free_boundary_pressure_profile_Pa) != profile_static:
         raise ValueError(
           'free-boundary static-pressure profile must exactly match the '
           'entropy_closure_profile target pressure'
         )
+      ####
       if tuple(self.free_boundary_pressure_profile_x_stations_m or ()) != _profile_x:
         raise ValueError(
           'free-boundary pressure stations must exactly match the '
           'entropy_closure_profile stations'
         )
+      ####
     ####
     if self.transonic_shock_interface is not None and not isinstance(
       self.transonic_shock_interface,
@@ -2133,6 +2149,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'sample count to equal the coupled transverse cell count; no '
           'interpolation or remapping is accepted'
         )
+      ####
       if any(
         value is not None
         for value in (
@@ -2157,6 +2174,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'boundary seam and solver-owned ambient free-boundary targets; '
           'other handoffs would change the retained coordinate or entropy frame'
         )
+      ####
       if two_sided_moving_regime_mode and (
         handoff.two_sided_shock_boundary is None
         or not handoff.two_sided_shock_boundary_verified
@@ -2165,6 +2183,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'solver-owned moving mixed-regime two-sided mode requires the '
           'independently audited two-sided shock-boundary handoff'
         )
+      ####
       if two_sided_moving_regime_mode and (
         handoff.two_sided_companion_field is None
         or not handoff.two_sided_companion_field_verified
@@ -2173,6 +2192,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'solver-owned moving mixed-regime two-sided mode requires the '
           'independently audited open companion-field handoff'
         )
+      ####
       if self.require_conservative_moving_interface_flux_closure and not (
         handoff.request.two_sided_moving_interface_conservative_flux_verified
         and handoff.request.two_sided_moving_interface_response_source
@@ -2183,6 +2203,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
           'conservative-flux response/law handoff; no downgrade to the '
           'research-only moving seam is allowed'
         )
+      ####
     ####
     continuation_mode = self.inlet_boundary_mode in (
       MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -4685,6 +4706,7 @@ def _entropy_closure_relaxation_state(
   current_total_pressure = pressure * pressure_ratio
   if target_total_pressure >= current_total_pressure:
     return state.copy()
+  ####
   target_static_pressure = target_total_pressure / pressure_ratio
   target_density = target_static_pressure / (gas_constant * temperature)
   if not isfinite(target_density) or target_density <= 0.0:
@@ -4702,6 +4724,7 @@ def _entropy_closure_relaxation_state(
     target_static_pressure,
     gamma,
   )
+####
 
 
 def _entropy_closure_source_state(
@@ -4793,6 +4816,7 @@ def _entropy_closure_diagnostics(
       target = target_total_pressure[i]
       residuals.append(abs(actual - target))
       relative_residuals.append(abs(actual - target) / max(target, 1.0))
+    ####
   ####
   return (
     tuple(residuals),
@@ -5077,6 +5101,7 @@ def _cell_residuals(
           * wave_sums[i, j]
           * (states[i, j] - target_state)
         )
+      ####
     ####
   ####
   return (

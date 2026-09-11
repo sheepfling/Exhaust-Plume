@@ -80,6 +80,7 @@ class MocGlobalTwoSidedMovingInterfaceRefinementCase:
     ####
     object.__setattr__(self, 'case_id', case_id)
   ####
+####
 
 
 class MocGlobalTwoSidedMovingInterfaceRefinementStatus(str, Enum):
@@ -103,6 +104,7 @@ class MocGlobalTwoSidedMovingInterfaceRefinementStatus(str, Enum):
     'global-two-sided-moving-interface-refinement-residual-failure'
   )
   FLAG_FAILURE = 'global-two-sided-moving-interface-refinement-flag-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +210,7 @@ class MocGlobalTwoSidedMovingInterfaceRefinementMeasurement:
     ):
       if any(not isfinite(value) or value < 0.0 for value in values):
         raise ValueError(f'{name} must contain finite nonnegative values')
+      ####
     ####
     for name in (
       'case_audits_verified',
@@ -229,6 +232,7 @@ class MocGlobalTwoSidedMovingInterfaceRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     tolerance = float(self.refinement_tolerance)
     if not isfinite(tolerance) or tolerance <= 0.0:
@@ -306,6 +310,7 @@ class MocGlobalTwoSidedMovingInterfaceRefinementMeasurement:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -372,6 +377,7 @@ def _failure(
     refinement_tolerance=refinement_tolerance,
     message=message,
   )
+####
 
 
 def _response_signature(
@@ -395,6 +401,7 @@ def _response_signature(
     request.branch.value,
     response.stationary_equilibrium_candidate,
   )
+####
 
 
 def _response_metrics(
@@ -414,6 +421,7 @@ def _response_metrics(
     response.maximum_normal_momentum_residual_Pa,
     response.maximum_energy_flux_residual_W_m2,
   )
+####
 
 
 def measure_moc_global_two_sided_moving_interface_refinement(
@@ -596,7 +604,6 @@ def measure_moc_global_two_sided_moving_interface_refinement(
     local_refinement_verified
     and all(len(indices) >= 3 for indices in grouped_indices.values())
   )
-  ####
   if not case_audits_verified:
     status = MocGlobalTwoSidedMovingInterfaceRefinementStatus.CASE_FAILURE
     message = 'one or more global two-sided cases failed an independent local audit'
@@ -670,3 +677,4 @@ def measure_moc_global_two_sided_moving_interface_refinement(
     fidelity_flags_verified=fidelity_flags_verified,
     refinement_tolerance=tolerance,
   )
+####

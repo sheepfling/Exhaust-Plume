@@ -77,6 +77,7 @@ class MocEulerTwoSidedInterfaceFieldJointClosureAuditStatus(str, Enum):
     'two_sided_interface_field_joint_closure_residual_failure'
   )
   FLAG_FAILURE = 'two_sided_interface_field_joint_closure_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +139,7 @@ class MocEulerTwoSidedInterfaceFieldJointClosureAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in (
       'maximum_normal_momentum_residual_Pa',
@@ -339,6 +341,7 @@ def _centerline_compatibility(
   ####
   if not shock_points or len(shock_points) != len(shock_states):
     return False, None
+  ####
   if not (
     len(centerline_points) == len(centerline_states)
     and len(centerline_points) == len(centerline_pressures)
@@ -475,7 +478,6 @@ def measure_moc_euler_two_sided_interface_field_joint_closure(
     and moving_audit.response_residuals_verified
   )
   field_re_solve_verified = moving_audit.field_re_solve_verified
-  ####
   final_field_iteration = result.final_field_iteration
   if final_field_iteration is None:
     return _failure(
@@ -607,7 +609,6 @@ def measure_moc_euler_two_sided_interface_field_joint_closure(
     ),
     maximum_centerline_invariant_residual=maximum_centerline,
   )
-  ####
   if not moving_verified:
     status = MocEulerTwoSidedInterfaceFieldJointClosureAuditStatus.MOVING_INTERFACE_FAILURE
     message = 'independent moving-interface response or re-solve gates failed'

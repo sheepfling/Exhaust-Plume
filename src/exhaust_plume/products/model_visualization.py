@@ -434,10 +434,13 @@ class ModelVisualField:
       )
       if values and len(values) != len(polygons):
         raise ValueError(f'{name} must match polygon count when supplied')
+      ####
       if any(value == '' for value in values if value is not None):
         raise ValueError(f'{name} entries must be non-empty when supplied')
+      ####
       object.__setattr__(self, name, values)
     ####
+  ####
 
   def model_dump(self) -> dict[str, object]:
     return {
@@ -797,11 +800,13 @@ def _field_from_zones(
     for channel_id, (attribute, _unit, _semantic) in flow_values.items():
       value = getattr(flow, attribute, None)
       channel_values[channel_id].append(_finite(f'{channel_id} zone value', value))
+    ####
     for channel_id, (attribute, _unit, _semantic) in declared_zone_values.items():
       value = getattr(zone, attribute, None)
       channel_values[channel_id].append(
         None if value is None else _finite(f'{channel_id} zone value', value)
       )
+    ####
     region_types.append(
       None
       if region_type_attribute is None
@@ -812,7 +817,6 @@ def _field_from_zones(
       if region_label_attribute is None
       else getattr(zone, region_label_attribute, None)
     )
-    ####
   ####
   if not polygons:
     raise ValueError(f'{field_id} contains no finite polygons')
@@ -4324,6 +4328,7 @@ def _moc_visualization(
         diagnostics['two_sided_terminal_trace_verified'] = bool(
           getattr(trace_validation, 'converged', False)
         )
+      ####
       for name in (
         'maximum_geometry_residual_m',
         'maximum_absolute_invariant_residual',
@@ -4331,6 +4336,7 @@ def _moc_visualization(
         value = getattr(strip, name, None)
         if value is not None and isfinite(float(value)):
           diagnostics[f'two_sided_terminal_{name}'] = float(value)
+        ####
       ####
     ####
   ####
@@ -4421,6 +4427,7 @@ def _moc_visualization(
         'ambient march while boundary geometry remained solver-owned; canonical '
         'global closure and production use remain blocked'
       )
+    ####
   ####
   if global_frontier_boundary_condition_refinement:
     warnings.append(
@@ -4451,6 +4458,7 @@ def _moc_visualization(
         'canonical mixed-regime closure, '
         'refinement, validation, and production promotion remain unresolved'
       )
+    ####
   ####
   if global_frontier_target_refinement:
     warnings.append(

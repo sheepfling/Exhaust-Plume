@@ -80,6 +80,7 @@ class MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldStatus(
   )
   PHYSICAL_FIELD_FAILURE = 'global-transonic-mixed-wave-physical-field-failure'
   AUDIT_FAILURE = 'global-transonic-mixed-wave-physical-field-audit-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,6 +336,7 @@ class MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldResult:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -394,6 +396,7 @@ def _failure(
     independent_audit_verified=independent_audit_verified,
     message=message,
   )
+####
 
 
 def _audit_is_typed_and_consistent(
@@ -413,6 +416,7 @@ def _audit_is_typed_and_consistent(
     MocEulerAmbientFirstWedgeEntropyCharacteristicFreeBoundaryAuditStatus
     .PATH_COVERAGE_FAILURE,
   )
+####
 
 
 def _subsonic_terminal_required(
@@ -551,6 +555,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_physical_field(
       resolved_sample_count = len(interface.shock.shock_points_m)
     else:
       resolved_sample_count = len(frontier)
+    ####
   ####
   if (
     isinstance(resolved_sample_count, bool)
@@ -624,6 +629,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_physical_field(
         frontier_consumed=True,
         message=f'{name} must be a positive integer',
       )
+    ####
   ####
   if not isinstance(allow_zero_strength_attachment, bool) or not isinstance(
     allow_zero_strength_endpoints,
@@ -753,7 +759,6 @@ def solve_reflected_domain_global_transonic_mixed_wave_physical_field(
     physical_field=physical_field,
     audit=audit,
   )
-  ####
   if not independent_audit_verified:
     return _failure(
       status_type.AUDIT_FAILURE,
@@ -806,3 +811,4 @@ def solve_reflected_domain_global_transonic_mixed_wave_physical_field(
     ),
     **common,
   )
+####

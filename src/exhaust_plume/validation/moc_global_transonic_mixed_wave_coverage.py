@@ -51,6 +51,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus(
   PLACEMENT_OUTSIDE_INTERFACE = (
     'global-transonic-mixed-wave-placement-outside-interface'
   )
+####
 
 
 def _finite(name: str, value: object) -> float:
@@ -63,6 +64,7 @@ def _finite(name: str, value: object) -> float:
     raise ValueError(f'{name} must be finite')
   ####
   return numeric
+####
 
 
 def _x_extent(points: tuple[tuple[float, float], ...]) -> tuple[float, float]:
@@ -74,6 +76,7 @@ def _x_extent(points: tuple[tuple[float, float], ...]) -> tuple[float, float]:
     for point in points
   )
   return min(coordinates), max(coordinates)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +113,6 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverage:
       raise ValueError('position_tolerance_m must be positive')
     ####
     object.__setattr__(self, 'position_tolerance_m', tolerance)
-    ####
     for name in (
       'interface_x_min_m',
       'interface_x_max_m',
@@ -216,6 +218,7 @@ class MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverage:
       'message': self.message,
     }
   ####
+####
 
 
 def _failure(
@@ -231,6 +234,7 @@ def _failure(
     message=message,
     **fields,
   )
+####
 
 
 def assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
@@ -251,6 +255,7 @@ def assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
     tolerance = _finite('position_tolerance_m', position_tolerance_m)
     if tolerance <= 0.0:
       raise ValueError('position_tolerance_m must be positive')
+    ####
   except (TypeError, ValueError) as error:
     return _failure(
       MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus
@@ -371,7 +376,6 @@ def assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
     'placement_sample_count': len(placement.sample_points_m),
     'position_tolerance_m': tolerance,
   }
-  ####
   if placement_x < terminal_x - tolerance:
     return _failure(
       MocReflectedDomainGlobalTransonicMixedWaveInterfaceCoverageStatus
@@ -404,3 +408,4 @@ def assess_reflected_domain_global_transonic_mixed_wave_interface_coverage(
       'this geometry audit remains research-only and does not close the field'
     ),
   )
+####

@@ -1307,6 +1307,7 @@ def _solve_ambient_geometry_target_point(
         else:
           bracket_lower = midpoint
           bracket_evaluation = midpoint_evaluation
+        ####
       ####
     ####
     previous_x = x_value

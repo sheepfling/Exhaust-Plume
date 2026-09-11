@@ -101,12 +101,14 @@ class VisualFeatureSeries:
       validity_mask = tuple(bool(value) for value in validity_mask)
       if len(validity_mask) != len(values):
         raise ValueError('validity_mask must match the value count')
+      ####
     ####
     branch_ids = self.branch_ids
     if branch_ids is not None:
       branch_ids = tuple(_nonempty_text('branch ID', value) for value in branch_ids)
       if len(branch_ids) != len(values):
         raise ValueError('branch_ids must match the value count')
+      ####
     elif any(right <= left for left, right in zip(coordinates, coordinates[1:])):
       raise ValueError(
         'unbranched visual feature coordinates must be strictly increasing'
@@ -151,6 +153,7 @@ class VisualFeatureSeries:
     """Return the deterministic identity of the complete feature envelope."""
 
     return canonical_digest(self.model_dump())
+  ####
 ####
 
 
@@ -215,6 +218,7 @@ class VisualFeatureComparison:
         'comparison-is-not-external-validation-evidence',
       ],
     }
+  ####
 ####
 
 

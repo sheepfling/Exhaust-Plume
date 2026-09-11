@@ -321,7 +321,6 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace:
       )
     ####
     object.__setattr__(self, 'samples', samples)
-    ####
     for name in (
       'pressure_residuals_Pa',
       'pressure_residual_fractions',
@@ -810,7 +809,6 @@ class MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile:
       'maximum_displacement_fraction',
       maximum_displacement_fraction,
     )
-    ####
     object.__setattr__(self, 'source_closure_fingerprint', fingerprint)
     object.__setattr__(self, 'x_stations_m', x_stations)
     object.__setattr__(self, 'boundary_y_m', boundary_y)
@@ -2170,6 +2168,7 @@ def build_reflected_domain_global_coupled_downstream_signed_free_boundary_pressu
     )
   else:
     base_pressures = tuple(request.free_boundary_pressure_profile_Pa)
+  ####
   if len(base_pressures) != len(x_centers):
     raise ValueError(
       'signed free-boundary pressure feedback target does not align with '
@@ -2463,7 +2462,6 @@ def build_reflected_domain_global_coupled_downstream_signed_free_boundary_geomet
       coordinate_tolerance_m=coordinate_tolerance_value,
     )
   )
-  ####
   coupled_points = tuple(response.coupled_boundary_points_m)
   field_points = tuple(coupled_field.free_boundary_points_m)
   signed_normal_velocities = tuple(
@@ -3523,6 +3521,7 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
       float(request.mixed_regime_request.ambient_pressure_Pa)
       for _ in range(axial_count)
     )
+  ####
   if len(pressure_targets) != axial_count:
     return failure(
       MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus.FIELD_NOT_READY,
@@ -3582,7 +3581,6 @@ def build_reflected_domain_global_coupled_downstream_boundary_trace(
     residual / max(abs(target), 1.0)
     for residual, target in zip(pressure_residuals, node_targets, strict=True)
   )
-  ####
 
   reported_normal_residuals = tuple(
     field.free_boundary_normal_velocity_residuals_m_s
@@ -4108,7 +4106,6 @@ def solve_reflected_domain_global_coupled_downstream(
   mixed_regime_boundary_reference = (
     solve_reflected_domain_mixed_regime_boundary(mixed_regime_request)
   )
-  ####
   physical_field_handoff: MocReflectedDomainGlobalPhysicalFieldHandoff | None = None
   resolved_transonic_shock_interface_field_placement = (
     transonic_shock_interface_field_placement

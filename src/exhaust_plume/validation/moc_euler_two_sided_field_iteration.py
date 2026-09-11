@@ -498,6 +498,7 @@ def measure_moc_euler_two_sided_field_iteration(
       if expected_index != len(records) - 1:
         record_lineage_verified = False
         break
+      ####
     ####
     incoming = outgoing
   ####

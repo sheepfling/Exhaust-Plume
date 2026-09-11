@@ -39,6 +39,7 @@ def _geometry():
       shock_normal_angle_rad=0.0,
     )
   )
+####
 
 
 def _terminal_sample(geometry, index: int, y_m: float):
@@ -53,6 +54,7 @@ def _terminal_sample(geometry, index: int, y_m: float):
     normal_m=terminal.normal_m,
     source=terminal.source,
   )
+####
 
 
 def _two_sided_shock_boundary(geometry):
@@ -82,6 +84,7 @@ def _two_sided_shock_boundary(geometry):
     points,
     (tangent_angle + compression.beta_rad - turn,) * len(points),
   )
+####
 
 
 def test_moving_interface_retains_exact_terminal_state_and_stops_on_missing_field_coverage():
@@ -119,6 +122,7 @@ def test_moving_interface_retains_exact_terminal_state_and_stops_on_missing_fiel
   assert audit.conservative_boundary_rederived
   assert audit.coverage_rederived
   assert audit.claim_flags_verified
+####
 
 
 def test_moving_interface_accepts_complete_explicit_boundary_without_claiming_field_closure():
@@ -152,6 +156,7 @@ def test_moving_interface_accepts_complete_explicit_boundary_without_claiming_fi
   tampered_audit = measure_moc_moving_mixed_regime_interface(tampered)
   assert tampered_audit.status is MocMovingMixedRegimeInterfaceAuditStatus.COVERAGE_FAILURE
   assert not tampered_audit.converged
+####
 
 
 def test_moving_interface_rejects_supersonic_boundary_profile():
@@ -190,6 +195,7 @@ def test_moving_interface_rejects_supersonic_boundary_profile():
   audit = measure_moc_moving_mixed_regime_interface(result)
   assert audit.converged
   assert audit.subsonic_boundary_rederived
+####
 
 
 def test_moving_interface_remeasures_optional_two_sided_euler_boundary():
@@ -227,6 +233,7 @@ def test_moving_interface_remeasures_optional_two_sided_euler_boundary():
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_moving_interface_retains_and_remeasures_open_two_sided_companion_field():
@@ -266,6 +273,7 @@ def test_moving_interface_retains_and_remeasures_open_two_sided_companion_field(
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_moving_interface_rejects_tampered_two_sided_companion_field():
@@ -309,6 +317,7 @@ def test_moving_interface_rejects_tampered_two_sided_companion_field():
   audit = measure_moc_moving_mixed_regime_interface(result)
   assert audit.converged
   assert audit.two_sided_companion_field_rederived
+####
 
 
 def test_moving_interface_requires_shock_boundary_for_companion_field():
@@ -328,6 +337,8 @@ def test_moving_interface_requires_shock_boundary_for_companion_field():
       sample_count=5,
       two_sided_companion_boundary=companion.samples,
     )
+  ####
+####
 
 
 def test_moving_interface_rejects_tampered_two_sided_euler_boundary():
@@ -363,6 +374,7 @@ def test_moving_interface_rejects_tampered_two_sided_euler_boundary():
   audit = measure_moc_moving_mixed_regime_interface(result)
   assert audit.converged
   assert audit.two_sided_shock_boundary_rederived
+####
 
 
 def test_moving_interface_requires_explicit_geometry_and_does_not_infer_a_trace():
@@ -384,3 +396,4 @@ def test_moving_interface_requires_explicit_geometry_and_does_not_infer_a_trace(
   assert not result.interface_geometry_verified
   assert result.subsonic_field_required
   assert not result.moving_interface_solve_attempted
+####

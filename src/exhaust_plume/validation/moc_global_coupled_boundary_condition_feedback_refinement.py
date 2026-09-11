@@ -95,6 +95,7 @@ def _response_mode_identity(
   boundary_options = configuration.get('boundary_condition_options')
   if not isinstance(downstream_options, Mapping):
     return ()
+  ####
   if not isinstance(boundary_options, Mapping):
     boundary_options = {}
   ####
@@ -107,6 +108,7 @@ def _response_mode_identity(
     f'geometry_conditioning_policy={geometry_policy}',
     f'target_geometry_consumed={target_geometry}',
   )
+####
 
 
 class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus(
@@ -441,6 +443,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
       ####
+    ####
     if (
       self.terminal_global_downstream_recheck_required
       and not self.terminal_global_downstream_recheck_verified
@@ -481,6 +484,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     mode_identity = tuple(str(value) for value in self.response_mode_identity)
     if any(not value for value in mode_identity):
       raise ValueError('response_mode_identity values must be non-empty')
+    ####
     object.__setattr__(self, 'response_mode_identity', mode_identity)
     object.__setattr__(self, 'boundary_flux_audits', audits)
     object.__setattr__(self, 'message', str(self.message))
@@ -1079,6 +1083,7 @@ def _measurement(
         'one or more fresh boundary-feedback cases did not complete every '
         'research-only solver gate'
       )
+    ####
   elif not response_stable or not frame_stable:
     status = (
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
@@ -1252,6 +1257,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
           ),
         )
       )
+    ####
     source_lineage = bool(
       feedback.source_closure is requested.source_closure
       and feedback.source_lineage_verified

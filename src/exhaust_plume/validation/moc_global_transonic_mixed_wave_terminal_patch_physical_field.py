@@ -575,6 +575,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_f
         terminal_probe_consumed=True,
         message=f'{name} must be a positive integer',
       )
+    ####
   ####
   if not isinstance(allow_zero_strength_attachment, bool):
     return _failure(
@@ -610,6 +611,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_f
       resolved_sample_count = len(interface.shock.shock_points_m)
     else:
       resolved_sample_count = len(patch.outgoing_trace_points_m) - 1
+    ####
   ####
   if (
     isinstance(resolved_sample_count, bool)
@@ -678,6 +680,7 @@ def solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_f
       raise ValueError(
         f'terminal reflection patch has no state at requested point {point_m}'
       )
+    ####
     fraction = (float(point_m[1]) - target_y) / (start_y - target_y)
     fraction = max(0.0, min(1.0, fraction))
     positive_reference = (
@@ -713,7 +716,6 @@ def solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_f
     terminal_probe_consumed=True,
     centerline_attempted=True,
   )
-  ####
   try:
     physical_field = (
       solve_marched_attached_shock_with_ambient_centerline_physical_field_from_terminal_reflection_patch(

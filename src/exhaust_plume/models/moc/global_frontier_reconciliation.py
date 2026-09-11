@@ -1282,7 +1282,6 @@ def solve_reflected_domain_global_frontier_fresh_resolve(
   target = build_reflected_domain_global_frontier_pressure_target(
     request.frontier_request
   )
-  ####
   remesh = request.closure.global_remesh
   selected_attempt = None if remesh is None else remesh.selected_attempt
   source_band = request.closure.source_band

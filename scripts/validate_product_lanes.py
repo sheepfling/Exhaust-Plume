@@ -239,7 +239,6 @@ def _model_visualization_contract_inputs() -> dict[ModelVisualizationLane, objec
       max_cells=1,
     ),
   )
-  ####
 
   reduced_metrics = tuple(
     ShockCellMetrics(
@@ -278,7 +277,6 @@ def _model_visualization_contract_inputs() -> dict[ModelVisualizationLane, objec
     was_domain_truncated=True,
     calibration_id='repository-local-visual-contract-fixture-v1',
   )
-  ####
 
   straight = IntegralStraightResult(
     states=tuple(
@@ -304,7 +302,6 @@ def _model_visualization_contract_inputs() -> dict[ModelVisualizationLane, objec
       'total_enthalpy_relative': 0.0,
     },
   )
-  ####
 
   curved = CurvedPlumeResult(
     stations=tuple(
@@ -339,7 +336,6 @@ def _model_visualization_contract_inputs() -> dict[ModelVisualizationLane, objec
     solver_message='repository-local visual contract fixture',
     function_evaluations=3,
   )
-  ####
 
   class _ContractMocField:
     cells = (
@@ -386,11 +382,13 @@ def _model_visualization_contract_inputs() -> dict[ModelVisualizationLane, objec
         mach=2.0,
         gamma=1.4,
       )
+    ####
 
     @staticmethod
     def total_pressure_at(_point: tuple[float, float]) -> float:
       return 180_000.0
     ####
+  ####
 
   moc = SimpleNamespace(
     status='converged-global-physical-closure',
@@ -593,7 +591,6 @@ def _run_mission_time_product_lane() -> dict[str, Any]:
     for time_s in (0.0, 5.0, 10.0)
   ))
   mission_times_s = tuple(state.time_s for state in timeline.states)
-  ####
 
   basic_result = _model_visualization_contract_inputs()[
     ModelVisualizationLane.BASIC_SHOCK_CELL
@@ -626,7 +623,6 @@ def _run_mission_time_product_lane() -> dict[str, Any]:
       for sample in visual_samples
     )
   )
-  ####
 
   def optical_profile_for_state(state: MissionState) -> GrayRadiationProfile:
     throttle = state.throttle_fraction or 0.0
@@ -674,7 +670,6 @@ def _run_mission_time_product_lane() -> dict[str, Any]:
       for sample in signature_timeline.samples
     )
   )
-  ####
 
   def ray_transfer_for_state(
     state: MissionState,
@@ -763,7 +758,6 @@ def _run_mission_time_product_lane() -> dict[str, Any]:
     )
     and fpa_projection.selected_pixel.valid
   )
-  ####
 
   passed = visual_passed and signature_passed and fpa_passed
   return {

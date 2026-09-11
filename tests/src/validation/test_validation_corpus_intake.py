@@ -48,6 +48,7 @@ def test_intake_manifest_rejects_wrong_required_archive_filename(
   with pytest.raises(ValueError, match='must name'):
     load_manifest(path)
   ####
+####
 
 
 def test_intake_manifest_rejects_invalid_digest_and_archive_order(
@@ -70,6 +71,7 @@ def test_intake_manifest_rejects_invalid_digest_and_archive_order(
   with pytest.raises(ValueError, match='order/IDs'):
     load_manifest(reordered_path)
   ####
+####
 
 
 def test_missing_archives_are_not_treated_as_validation_success(tmp_path: Path) -> None:

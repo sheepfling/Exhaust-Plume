@@ -85,10 +85,12 @@ class MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus(
   RESIDUAL_DESCENT_FAILURE = (
     'global-boundary-state-dimensioned-corrector-residual-descent-failure'
   )
+####
 
 
 def _fingerprint(closure: MocReflectedDomainGlobalPhysicalClosureResult) -> str:
   return moc_reflected_domain_global_physical_closure_fingerprint(closure)
+####
 
 
 def _response(
@@ -96,7 +98,9 @@ def _response(
 ) -> MocEulerTwoSidedInterfaceResponse | None:
   if result is None or result.conservative_residual_result is None:
     return None
+  ####
   return result.conservative_residual_result.final_response
+####
 
 
 def _normalized_channel_maxima(
@@ -107,6 +111,7 @@ def _normalized_channel_maxima(
 
   if response is None or request is None or not response.signed_residuals_available:
     return None
+  ####
   channels = (
     response.signed_mass_flux_residuals_kg_m2_s,
     response.signed_normal_momentum_residuals_Pa,
@@ -119,11 +124,14 @@ def _normalized_channel_maxima(
   )
   if any(channel is None for channel in channels):
     return None
+  ####
   assert all(channel is not None for channel in channels)
   if not (len(channels[0]) == len(channels[1]) == len(channels[2])):
     return None
+  ####
   if any(not isfinite(float(value)) or value <= 0.0 for value in tolerances):
     return None
+  ####
   maxima = tuple(
     max(
       (abs(float(value)) / tolerance for value in channel),
@@ -133,7 +141,9 @@ def _normalized_channel_maxima(
   )
   if any(not isfinite(value) for value in maxima):
     return None
+  ####
   return maxima
+####
 
 
 def _dimensioned_descent(
@@ -150,6 +160,7 @@ def _dimensioned_descent(
 
   if before is None or after is None:
     return False
+  ####
   numerical_tolerance = 1.0e-12
   closed_limit = 1.0 + numerical_tolerance
   nonincreasing = all(
@@ -168,18 +179,24 @@ def _dimensioned_descent(
     for current_value, next_value in zip(before, after, strict=True)
   )
   return bool(nonincreasing and (strict or all(value <= closed_limit for value in after)))
+####
 
 
 def _strict_descent(before: float | None, after: float | None, fraction: float) -> bool:
   if before is None or after is None:
     return False
+  ####
   if not isfinite(before) or not isfinite(after):
     return False
+  ####
   if not isfinite(fraction) or fraction < 0.0:
     return False
+  ####
   if before <= 0.0:
     return after < before
+  ####
   return after < before * (1.0 - fraction)
+####
 
 
 def _normalized_residual_norm(
@@ -190,6 +207,7 @@ def _normalized_residual_norm(
 
   if response is None or request is None or not response.signed_residuals_available:
     return None
+  ####
   channels = (
     response.signed_mass_flux_residuals_kg_m2_s,
     response.signed_normal_momentum_residuals_Pa,
@@ -202,6 +220,7 @@ def _normalized_residual_norm(
   )
   if any(channel is None for channel in channels):
     return None
+  ####
   assert all(channel is not None for channel in channels)
   terms = tuple(
     abs(float(value)) / tolerance
@@ -210,8 +229,10 @@ def _normalized_residual_norm(
   )
   if not terms or any(not isfinite(value) for value in terms):
     return None
+  ####
   result = sqrt(sum(value * value for value in terms) / len(terms))
   return result if isfinite(result) else None
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,11 +277,13 @@ class MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult:
       MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus,
     ):
       raise TypeError('status must be a typed dimensioned-corrector status')
+    ####
     if self.joint_result is not None and not isinstance(
       self.joint_result,
       MocReflectedDomainGlobalBoundaryStateJointSolveResult,
     ):
       raise TypeError('joint_result must be typed or None')
+    ####
     for name, expected_type in (
       ('source_closure', MocReflectedDomainGlobalPhysicalClosureResult),
       (
@@ -283,6 +306,8 @@ class MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected_type):
         raise TypeError(f'{name} must be typed or None')
+      ####
+    ####
     for name in (
       'baseline_dimensioned_channel_maxima',
       'refreshed_dimensioned_channel_maxima',
@@ -293,7 +318,9 @@ class MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult:
         or any(not isfinite(value) or value < 0.0 for value in values)
       ):
         raise ValueError(f'{name} must contain three finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     for name in (
       'joint_consumption_verified',
       'terminal_boundary_equations_verified',
@@ -312,23 +339,32 @@ class MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or self.downstream_boundary_closure_verified:
       raise ValueError('dimensioned corrector cannot claim canonical closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('dimensioned corrector must remain promotion-blocked')
+    ####
     for name in ('baseline_residual_norm', 'refreshed_residual_norm'):
       value = getattr(self, name)
       if value is not None:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative when supplied')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     if self.status is (
       MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus
       .CONVERGED_RESEARCH_DIMENSIONED_CORRECTOR
     ) and not (self.corrector_update_verified and self.residual_descent_verified):
       raise ValueError('converged dimensioned correction must pass update gates')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged_research_dimensioned_corrector(self) -> bool:
@@ -340,6 +376,7 @@ class MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult:
       and self.corrector_update_verified
       and self.residual_descent_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -402,6 +439,8 @@ class MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _result(
@@ -416,6 +455,7 @@ def _result(
     message=message,
     **kwargs,
   )
+####
 
 
 def run_reflected_domain_global_boundary_state_dimensioned_corrector(
@@ -436,6 +476,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       None,
       'joint_result must be a typed global boundary-state joint result',
     )
+  ####
   try:
     accepted_tolerances = tuple(
       float(value)
@@ -451,12 +492,14 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       joint_result,
       'accepted conservative tolerances must be numeric',
     )
+  ####
   if any(not isfinite(value) or value <= 0.0 for value in accepted_tolerances):
     return _result(
       MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus.INVALID_INPUT,
       joint_result,
       'accepted conservative tolerances must be finite and positive',
     )
+  ####
   accepted_mass_tolerance, accepted_momentum_tolerance, accepted_energy_tolerance = (
     accepted_tolerances
   )
@@ -503,14 +546,19 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
     )
     if not isinstance(downstream_options, Mapping):
       raise ValueError('handoff did not retain mapping-valued downstream options')
+    ####
     if not isinstance(boundary_options, Mapping):
       raise ValueError('handoff did not retain mapping-valued boundary options')
+    ####
     if downstream_iterations < 2:
       raise ValueError('handoff retained too few downstream feedback iterations')
+    ####
     if not isfinite(reference_temperature) or reference_temperature <= 0.0:
       raise ValueError('handoff retained an invalid reference temperature')
+    ####
     if not isfinite(maximum_frame_extension) or maximum_frame_extension < 0.0:
       raise ValueError('handoff retained an invalid frame-extension budget')
+    ####
     downstream_options = dict(downstream_options)
     boundary_options = dict(boundary_options)
     boundary_options['consume_target_geometry'] = True
@@ -551,6 +599,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       baseline_dimensioned_channel_maxima=reported_baseline_channels,
       joint_consumption_verified=True,
     )
+  ####
   terminal_global_recheck_verified = bool(
     terminal_feedback.terminal_global_downstream_recheck_verified
     and terminal_feedback.terminal_global_fixed_point_verified
@@ -597,6 +646,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       terminal_boundary_equations_verified=True,
       terminal_global_recheck_verified=terminal_global_recheck_verified,
     )
+  ####
   state_request = replace(
     joint_result.state_request,
     closure=terminal_feedback.final_closure,
@@ -638,6 +688,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       terminal_boundary_equations_verified=True,
       terminal_global_recheck_verified=terminal_global_recheck_verified,
     )
+  ####
   try:
     state_result = solve_reflected_domain_global_two_sided_moving_interface(
       state_request
@@ -657,6 +708,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       terminal_global_recheck_verified=terminal_global_recheck_verified,
       state_solver_invoked=True,
     )
+  ####
   residual_result = state_result.conservative_residual_result
   audit = state_result.conservative_residual_audit
   response = _response(state_result)
@@ -726,6 +778,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       'state solve after exact field re-solves; canonical closure was not claimed',
       **common,
     )
+  ####
   if not state_lineage or not complete_response or not independent:
     return _result(
       MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus.LINEAGE_FAILURE,
@@ -734,6 +787,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       'retain the exact state, field re-solve, or independent-audit lineage',
       **common,
     )
+  ####
   if not channel_descent:
     return _result(
       MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus.CHANNEL_FAILURE,
@@ -742,6 +796,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       'dimensioned mass/normal-momentum/energy channels did not strictly descend',
       **common,
     )
+  ####
   if not residual_descent:
     return _result(
       MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus
@@ -751,6 +806,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       'aggregate residual did not strictly descend from the joint result',
       **common,
     )
+  ####
   return _result(
     MocReflectedDomainGlobalBoundaryStateDimensionedCorrectorStatus
     .CONVERGED_RESEARCH_DIMENSIONED_CORRECTOR,
@@ -760,3 +816,4 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
     'coupling and production gates remain closed',
     **common,
   )
+####

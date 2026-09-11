@@ -54,6 +54,7 @@ class MocEulerTwoSidedEntropyRefinementAuditStatus(str, Enum):
   RESOLUTION_ORDER_FAILURE = 'two_sided_entropy_refinement_resolution_order_failure'
   RESIDUAL_FAILURE = 'two_sided_entropy_refinement_residual_failure'
   FLAG_FAILURE = 'two_sided_entropy_refinement_flag_failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,23 +157,28 @@ class MocEulerTwoSidedEntropyRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in ('refinement_tolerance', 'entropy_advection_tolerance'):
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
     ####
     if self.physical_closure_verified:
       raise ValueError('entropy refinement cannot claim physical closure')
+    ####
     if not self.chain_promotion_blocked:
       raise ValueError('entropy refinement must block promotion')
+    ####
     if self.production_claim_allowed:
       raise ValueError('entropy refinement cannot claim production validity')
     ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be non-empty')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -292,6 +298,7 @@ def _failure(
     entropy_advection_tolerance=entropy_advection_tolerance,
     message=message,
   )
+####
 
 
 def measure_moc_euler_two_sided_entropy_refinement(
@@ -406,6 +413,7 @@ def measure_moc_euler_two_sided_entropy_refinement(
     if maximum_residual is None:
       case_audits_verified = False
       break
+    ####
     residuals.append(maximum_residual)
   ####
   if not case_audits_verified or len(entropy_audits) != len(items):
@@ -498,3 +506,4 @@ def measure_moc_euler_two_sided_entropy_refinement(
     refinement_tolerance=refinement_bound,
     entropy_advection_tolerance=entropy_bound,
   )
+####

@@ -96,6 +96,7 @@ class MocMovingMixedRegimeInterfaceStatus(str, Enum):
   TWO_SIDED_COMPANION_FIELD_FAILURE = (
     'moving-mixed-regime-two-sided-companion-field-failure'
   )
+####
 
 
 class MocMovingMixedRegimeInterfaceAuditStatus(str, Enum):
@@ -118,6 +119,7 @@ class MocMovingMixedRegimeInterfaceAuditStatus(str, Enum):
     'moving-mixed-regime-two-sided-companion-field-audit-failure'
   )
   CLAIM_FLAG_FAILURE = 'moving-mixed-regime-interface-claim-flag-failure'
+####
 
 
 def _finite_point(value: object, name: str) -> tuple[float, float]:
@@ -130,6 +132,7 @@ def _finite_point(value: object, name: str) -> tuple[float, float]:
     raise ValueError(f'{name} must contain finite coordinates')
   ####
   return point
+####
 
 
 def _finite_positive(name: str, value: object) -> float:
@@ -138,6 +141,7 @@ def _finite_positive(name: str, value: object) -> float:
     raise ValueError(f'{name} must be finite and positive')
   ####
   return numeric
+####
 
 
 def _state_residual(
@@ -148,6 +152,7 @@ def _state_residual(
     abs(left - right) / max(1.0, abs(left), abs(right))
     for left, right in zip(actual, expected, strict=True)
   )
+####
 
 
 def _primitive_from_conservative(
@@ -169,6 +174,7 @@ def _primitive_from_conservative(
     )
   ####
   return density, velocity_u, velocity_v, pressure
+####
 
 
 def _terminal_downstream_conservative_state(
@@ -185,6 +191,7 @@ def _terminal_downstream_conservative_state(
     density * speed * sin(angle),
     pressure / (state.gamma - 1.0) + 0.5 * density * speed * speed,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,6 +237,7 @@ class MocMovingMixedRegimeConservativeBoundarySample:
       'source': self.source,
     }
   ####
+####
 
 
 def build_moc_terminal_conservative_boundary_sample(
@@ -256,6 +264,7 @@ def build_moc_terminal_conservative_boundary_sample(
     conservative_state=_terminal_downstream_conservative_state(geometry),
     source=source,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -333,11 +342,13 @@ class MocMovingMixedRegimeInterfaceRequest:
         raise ValueError(
           'two_sided_moving_interface_response_source must be non-empty'
         )
+      ####
     ####
     if law_id is not None:
       law_id = str(law_id)
       if not law_id:
         raise ValueError('two_sided_moving_interface_law_id must be non-empty')
+      ####
     ####
     if not isinstance(
       self.two_sided_moving_interface_conservative_flux_verified,
@@ -440,6 +451,7 @@ class MocMovingMixedRegimeInterfaceRequest:
     object.__setattr__(self, 'source', str(self.source))
     if not self.source:
       raise ValueError('source must be non-empty')
+    ####
   ####
 
   @property
@@ -499,6 +511,7 @@ class MocMovingMixedRegimeInterfaceRequest:
       'no_extrapolation': True,
     }
   ####
+####
 
 
 def bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
@@ -517,6 +530,7 @@ def bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
 
   if not isinstance(request, MocMovingMixedRegimeInterfaceRequest):
     raise TypeError('request must be a moving mixed-regime interface request')
+  ####
   if not isinstance(
     moving_result,
     MocEulerTwoSidedMovingInterfaceResult,
@@ -524,6 +538,7 @@ def bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
     raise TypeError(
       'moving_result must be a MocEulerTwoSidedMovingInterfaceResult'
     )
+  ####
   if not isinstance(law_result, MocEulerTwoSidedInterfaceLawResult):
     raise TypeError(
       'law_result must be a MocEulerTwoSidedInterfaceLawResult'
@@ -571,6 +586,7 @@ def bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
     raise ValueError(
       'moving_result must retain a verified final exact two-sided field'
     )
+  ####
   shock_boundary = final_field.shock_boundary
   companion_field = final_field.initial_companion_field
   if shock_boundary is None or not (
@@ -580,6 +596,7 @@ def bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
       'moving_result final field must retain a locally Euler-verified shock '
       'boundary'
     )
+  ####
   if companion_field is None or not (
     companion_field.converged
     and companion_field.state_sampling_available
@@ -623,6 +640,7 @@ def bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
       raise ValueError(
         'moving_result companion boundary point/state lineage is not exact'
       )
+    ####
     companion_boundary.append(
       MocChainBoundarySample(
         state=state,
@@ -641,6 +659,7 @@ def bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
     two_sided_moving_interface_law_id=law_result.response.law_id,
     two_sided_moving_interface_conservative_flux_verified=True,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -699,6 +718,7 @@ class MocMovingMixedRegimeInterfaceResult:
       raise ValueError(
         'result must retain the exact optional two-sided shock-boundary handoff'
       )
+    ####
     if self.two_sided_shock_boundary is not None and not isinstance(
       self.two_sided_shock_boundary,
       MocEulerShockBoundaryCurveResult,
@@ -713,6 +733,7 @@ class MocMovingMixedRegimeInterfaceResult:
       raise ValueError(
         'result must retain the exact optional two-sided companion boundary'
       )
+    ####
     if any(
       not isinstance(sample, MocChainBoundarySample)
       for sample in companion_boundary
@@ -729,6 +750,7 @@ class MocMovingMixedRegimeInterfaceResult:
         'two_sided_companion_field must be a '
         'MocEulerCompanionFieldResult or None'
       )
+    ####
     if self.two_sided_companion_field is not None and (
       not companion_boundary
       or self.two_sided_shock_boundary is None
@@ -754,6 +776,7 @@ class MocMovingMixedRegimeInterfaceResult:
       for index in missing
     ):
       raise ValueError('missing_sample_indices must be valid sample indices')
+    ####
     if len(set(missing)) != len(missing):
       raise ValueError('missing_sample_indices must be unique')
     ####
@@ -777,6 +800,7 @@ class MocMovingMixedRegimeInterfaceResult:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative')
@@ -808,17 +832,22 @@ class MocMovingMixedRegimeInterfaceResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if not self.subsonic_field_required:
       raise ValueError('moving-interface seam must require a subsonic field')
+    ####
     if self.moving_interface_solve_attempted:
       raise ValueError(
         'boundary seam cannot claim that the moving-interface field was solved'
       )
+    ####
     if self.physical_closure_verified or not self.chain_promotion_blocked:
       raise ValueError('moving-interface seam cannot close or promote a field')
+    ####
     if self.production_claim_allowed:
       raise ValueError('moving-interface seam cannot allow production claims')
+    ####
     if self.two_sided_companion_field_verified and (
       self.two_sided_companion_field is None
       or not self.two_sided_companion_field.converged
@@ -906,6 +935,7 @@ class MocMovingMixedRegimeInterfaceResult:
       ),
     }
   ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -951,6 +981,7 @@ class MocMovingMixedRegimeInterfaceAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.terminal_conservative_state_residual is not None:
       residual = float(self.terminal_conservative_state_residual)
@@ -968,6 +999,7 @@ class MocMovingMixedRegimeInterfaceAudit:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative')
@@ -1050,6 +1082,7 @@ class MocMovingMixedRegimeInterfaceAudit:
       'message': self.message,
     }
   ####
+####
 
 
 def _result(
@@ -1101,6 +1134,7 @@ def _result(
     two_sided_companion_field_verified=two_sided_companion_field_verified,
     message=message,
   )
+####
 
 
 def _interface_geometry_check(
@@ -1120,8 +1154,10 @@ def _interface_geometry_check(
   for previous, current in zip(points, points[1:]):
     if current[0] <= previous[0] + request.position_tolerance_m:
       return False, 'moving interface points must be strictly downstream ordered'
+    ####
   ####
   return True, 'explicit interface geometry retains the audited terminal point'
+####
 
 
 def _boundary_state_check(
@@ -1157,7 +1193,7 @@ def _boundary_state_check(
       maximum_total_pressure_gain_fraction,
       gain_fraction,
     )
-    ####
+  ####
   if maximum_mach >= 1.0:
     return (
       False,
@@ -1176,7 +1212,6 @@ def _boundary_state_check(
       'conservative boundary states cannot gain total pressure over the '
       'audited terminal downstream state',
     )
-  ####
   ####
   expected = _terminal_downstream_conservative_state(request.terminal_geometry)
   terminal_candidates = tuple(
@@ -1217,6 +1252,7 @@ def _boundary_state_check(
     maximum_total_pressure_gain_fraction,
     'explicit conservative boundary states are physical and subsonic',
   )
+####
 
 
 def _maximum_sequence_difference(
@@ -1225,10 +1261,12 @@ def _maximum_sequence_difference(
 ) -> float:
   if len(first) != len(second):
     return float('inf')
+  ####
   return max(
     (abs(left - right) for left, right in zip(first, second, strict=True)),
     default=0.0,
   )
+####
 
 
 def _two_sided_shock_boundary_check(
@@ -1373,6 +1411,7 @@ def _two_sided_shock_boundary_check(
     'two-sided shock boundary jump and terminal geometry were independently '
     'remeasured; the mixed-regime subsonic field remains open',
   )
+####
 
 
 def _two_sided_companion_field_check(
@@ -1426,6 +1465,7 @@ def _two_sided_companion_field_check(
     'two-sided shock and explicit companion boundaries formed an open '
     'Euler characteristic strip; subsonic/free-boundary closure remains open',
   )
+####
 
 
 def prepare_moc_moving_mixed_regime_interface(
@@ -1618,6 +1658,7 @@ def prepare_moc_moving_mixed_regime_interface(
       + 'the separate subsonic field solve and physical closure remain required'
     ),
   )
+####
 
 
 def _audit_failure(
@@ -1632,6 +1673,7 @@ def _audit_failure(
     message=message,
     **kwargs,
   )
+####
 
 
 def measure_moc_moving_mixed_regime_interface(
@@ -1761,11 +1803,13 @@ def measure_moc_moving_mixed_regime_interface(
         two_sided_shock_boundary_rederived=True,
         two_sided_companion_field_rederived=False,
       )
+    ####
   else:
     companion_field_rederived_ok = bool(
       candidate.two_sided_companion_field is None
       and not candidate.two_sided_companion_field_verified
     )
+  ####
   if not companion_field_rederived_ok:
     return _audit_failure(
       MocMovingMixedRegimeInterfaceAuditStatus.TWO_SIDED_COMPANION_FIELD_FAILURE,
@@ -1842,3 +1886,4 @@ def measure_moc_moving_mixed_regime_interface(
       'boundary seam and preserves the subsonic-field/non-promotion boundary'
     ),
   )
+####

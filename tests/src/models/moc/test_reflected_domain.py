@@ -707,6 +707,7 @@ def _two_sided_field_iteration_fixture():
   )
   assert companion_field.converged
   return shock_boundary, companion_field, ambient_pressure
+####
 
 
 def _two_sided_field_iteration_for_resolution(sample_count: int):
@@ -881,6 +882,7 @@ def _moving_interface_for_coupled_field(
     )
     assert companion.converged
     two_sided_companion_boundary = companion.samples
+  ####
   moving_request = MocMovingMixedRegimeInterfaceRequest(
     terminal_geometry=geometry,
     interface_points_m=(
@@ -898,7 +900,9 @@ def _moving_interface_for_coupled_field(
   moving_result = prepare_moc_moving_mixed_regime_interface(moving_request)
   if include_inputs:
     return closure, interface, mixed_request, moving_result
+  ####
   return mixed_request, moving_result
+####
 
 
 def test_global_physical_field_binds_an_audited_profile_to_the_coupled_lane():
@@ -1026,6 +1030,7 @@ def test_coupled_euler_free_boundary_update_modes_are_explicitly_segregated():
       ),
     )
   ####
+####
 
 
 def test_kinematic_free_boundary_consumes_physical_field_without_geometry_overlay():
@@ -1462,6 +1467,7 @@ def test_global_transonic_mixed_wave_interface_keeps_subsonic_reference_stop_typ
   assert interface.centerline_boundary_verified is False
   assert interface.global_coupling_verified is False
   assert interface.chain_promotion_blocked
+####
 
 
 def test_global_transonic_mixed_wave_physical_field_keeps_centerline_stop_typed():
@@ -1541,6 +1547,7 @@ def test_global_transonic_mixed_wave_physical_field_keeps_centerline_stop_typed(
   assert tampered.centerline_attempted is False
   assert tampered.physical_field is None
   assert tampered.chain_promotion_blocked
+####
 
 
 def test_global_transonic_mixed_wave_terminal_patch_passes_local_audit_but_blocks_global_promotion():
@@ -1595,6 +1602,7 @@ def test_global_transonic_mixed_wave_terminal_patch_passes_local_audit_but_block
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
   assert 'independent conservative audit passed' in result.message
+####
 
 
 def _terminal_patch_source_for_resolution(sample_count: int):
@@ -1619,6 +1627,7 @@ def _terminal_patch_source_for_resolution(sample_count: int):
     interface
   )
   return interface, probe
+####
 
 
 def test_global_transonic_mixed_wave_terminal_patch_resolution_ladder_is_fresh_and_audited():
@@ -1652,6 +1661,7 @@ def test_global_transonic_mixed_wave_terminal_patch_resolution_ladder_is_fresh_a
     and step.result.production_claim_allowed is False
     for step in run.measurement.steps
   )
+####
 
 
 def test_global_transonic_mixed_wave_terminal_patch_cross_case_keeps_sources_disjoint():
@@ -1688,6 +1698,7 @@ def test_global_transonic_mixed_wave_terminal_patch_cross_case_keeps_sources_dis
   assert run.measurement.residual_trends_verified
   assert run.measurement.global_promotion_blocked
   assert run.measurement.production_claim_allowed is False
+####
 
 
 def test_global_transonic_mixed_wave_terminal_probe_keeps_reference_below_promotion():
@@ -1787,6 +1798,7 @@ def test_global_transonic_mixed_wave_terminal_probe_keeps_reference_below_promot
     .TRACE_FAILURE
   )
   assert not tampered_audit.converged
+####
 
 
 def test_global_transonic_mixed_wave_terminal_scalar_handoff_is_exact_and_stays_research_only():
@@ -1917,6 +1929,7 @@ def test_global_transonic_mixed_wave_terminal_scalar_handoff_is_exact_and_stays_
   assert 'bind to the coupled-field inlet x' in coupled.message
   assert coupled.chain_promotion_blocked
   assert coupled.production_claim_allowed is False
+####
 
 
 def test_coupled_field_consumes_complete_moving_mixed_regime_inlet_by_exact_index():
@@ -1955,6 +1968,7 @@ def test_coupled_field_consumes_complete_moving_mixed_regime_inlet_by_exact_inde
   assert audit.moving_mixed_regime_interface_verified
   assert audit.production_claim_allowed is False
   assert audit.chain_promotion_blocked
+####
 
 
 def test_coupled_field_consumes_two_sided_moving_interface_as_distinct_research_mode():
@@ -2000,6 +2014,7 @@ def test_coupled_field_consumes_two_sided_moving_interface_as_distinct_research_
   assert audit.moving_mixed_regime_interface_verified
   assert audit.production_claim_allowed is False
   assert audit.chain_promotion_blocked
+####
 
 
 def test_coupled_field_rejects_strict_consumer_without_strict_handoff():
@@ -2019,6 +2034,8 @@ def test_coupled_field_rejects_strict_consumer_without_strict_handoff():
       moving_mixed_regime_interface=moving_result,
       require_conservative_moving_interface_flux_closure=True,
     )
+  ####
+####
 
 
 def test_coupled_field_audit_rejects_tampered_strict_consumer_without_handoff():
@@ -2048,6 +2065,7 @@ def test_coupled_field_audit_rejects_tampered_strict_consumer_without_handoff():
   )
   assert not audit.conservative_moving_interface_flux_verified
   assert not audit.local_consistency_verified
+####
 
 
 def test_two_sided_euler_field_iteration_reaches_terminal_trace_fixed_point():
@@ -2078,6 +2096,7 @@ def test_two_sided_euler_field_iteration_reaches_terminal_trace_fixed_point():
   assert not result.canonical_euler_verified
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_two_sided_euler_field_iteration_keeps_promotion_blocked_at_iteration_limit():
@@ -2101,6 +2120,7 @@ def test_two_sided_euler_field_iteration_keeps_promotion_blocked_at_iteration_li
   assert result.final_source_strip is not None
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_two_sided_euler_field_iteration_has_independent_research_audit():
@@ -2161,6 +2181,7 @@ def test_two_sided_euler_field_iteration_has_independent_research_audit():
     MocEulerVariableEntropyLineageAuditStatus.SHOCK_LINEAGE_FAILURE
   )
   assert not tampered_entropy_audit.variable_entropy_lineage_verified
+####
 
 
 def test_two_sided_euler_field_iteration_audit_rejects_tampered_fixed_point_record():
@@ -2185,6 +2206,7 @@ def test_two_sided_euler_field_iteration_audit_rejects_tampered_fixed_point_reco
   assert not audit.handoff_residuals_verified
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_two_sided_moving_interface_requires_solver_owned_update_law():
@@ -2218,6 +2240,7 @@ def test_two_sided_moving_interface_requires_solver_owned_update_law():
   assert audit.initial_field_verified
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_solver_owned_two_sided_interface_law_builds_research_response():
@@ -2370,6 +2393,7 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
       law.response,
       signed_energy_flux_residuals_W_m2=None,
     )
+  ####
 
   with pytest.raises(
     ValueError,
@@ -2382,6 +2406,7 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
         *law.response.signed_normal_momentum_residuals_Pa[1:],
       ),
     )
+  ####
 
   assert any(
     abs(value) > 1.0e-12
@@ -2671,6 +2696,7 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   )
   assert stationary_joint_audit.local_consistency_verified
   assert stationary_joint_audit.maximum_normal_momentum_residual_Pa <= 1.0e-2
+####
 
 
 def test_two_sided_interface_probe_fraction_separates_front_limit_from_motion():
@@ -2689,6 +2715,7 @@ def test_two_sided_interface_probe_fraction_separates_front_limit_from_motion():
     )
     assert candidate.response is not None
     responses.append(candidate)
+  ####
 
   momentum = tuple(
     candidate.response.maximum_normal_momentum_residual_Pa
@@ -2720,6 +2747,7 @@ def test_two_sided_interface_probe_fraction_separates_front_limit_from_motion():
       strict=True,
     )
   )
+####
 
 
 def test_strict_moving_interface_binds_exact_shock_and_companion_lineage():
@@ -2840,6 +2868,8 @@ def test_strict_moving_interface_binds_exact_shock_and_companion_lineage():
       moving,
       research_law,
     )
+  ####
+####
 
 
 def test_global_closure_binds_exact_two_sided_moving_interface_ladder():
@@ -2902,6 +2932,7 @@ def test_global_closure_binds_exact_two_sided_moving_interface_ladder():
   assert strict.moving_result.converged is False
   assert strict.moving_result.chain_promotion_blocked
   assert strict.moving_result.production_claim_allowed is False
+####
 
 
 def test_global_closure_can_consume_signed_conservative_residual_line_search():
@@ -2950,6 +2981,7 @@ def test_global_closure_can_consume_signed_conservative_residual_line_search():
   assert audit_report['operator_id'] == (
     'op.moc.euler-two-sided-conservative-residual-audit-v1'
   )
+####
 
 
 def test_global_conservative_residual_success_requires_independent_audit():
@@ -2977,6 +3009,7 @@ def test_global_conservative_residual_success_requires_independent_audit():
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_global_shape_jacobian_corrector_keeps_active_channels_strict():
@@ -3033,6 +3066,7 @@ def test_global_shape_jacobian_corrector_keeps_active_channels_strict():
   report = result.as_report()['conservative_residual_result']
   assert report['request']['use_shape_jacobian_correction']
   assert report['shape_jacobian_correction_verified']
+####
 
 
 def test_global_two_sided_stationary_interface_is_an_explicit_strict_mode():
@@ -3078,6 +3112,7 @@ def test_global_two_sided_stationary_interface_is_an_explicit_strict_mode():
     MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus.INVALID_INPUT
   )
   assert 'interior probes belong to the moving research lane' in rejected.message
+####
 
 
 def test_global_two_sided_moving_interface_has_independent_case_refinement():
@@ -3105,6 +3140,8 @@ def test_global_two_sided_moving_interface_has_independent_case_refinement():
           result=result,
         )
       )
+    ####
+  ####
 
   measurement = measure_moc_global_two_sided_moving_interface_refinement(cases)
 
@@ -3133,6 +3170,7 @@ def test_global_two_sided_moving_interface_has_independent_case_refinement():
   assert measurement.maximum_normal_momentum_residuals_Pa[5] < (
     measurement.maximum_normal_momentum_residuals_Pa[3]
   )
+####
 
 
 def test_global_two_sided_fixed_point_refinement_requires_strict_terminal_mode():
@@ -3167,6 +3205,8 @@ def test_global_two_sided_fixed_point_refinement_requires_strict_terminal_mode()
           result=result,
         )
       )
+    ####
+  ####
 
   measurement = measure_moc_global_two_sided_moving_interface_fixed_point_refinement(
     cases
@@ -3216,6 +3256,7 @@ def test_global_two_sided_fixed_point_refinement_requires_strict_terminal_mode()
         result=research_result,
       )
     )
+  ####
 
   research_measurement = (
     measure_moc_global_two_sided_moving_interface_fixed_point_refinement(
@@ -3238,6 +3279,7 @@ def test_global_two_sided_fixed_point_refinement_requires_strict_terminal_mode()
     .RESOLUTION_ORDER_FAILURE
   )
   assert reversed_measurement.converged is False
+####
 
 
 def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():
@@ -3275,6 +3317,7 @@ def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():
   assert measurement.maximum_normal_momentum_residuals_Pa[-1] < (
     measurement.maximum_normal_momentum_residuals_Pa[0]
   )
+####
 
 
 def test_solver_owned_two_sided_interface_law_has_cross_case_refinement():
@@ -3311,6 +3354,7 @@ def test_solver_owned_two_sided_interface_law_has_cross_case_refinement():
   assert measurement.refinement_convergence_verified
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_solver_owned_two_sided_interface_law_refinement_rejects_mixed_response_modes():
@@ -3348,6 +3392,7 @@ def test_solver_owned_two_sided_interface_law_refinement_rejects_mixed_response_
   assert measurement.local_consistency_verified is False
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_two_sided_moving_interface_rejects_fixed_geometry_response():
@@ -3377,6 +3422,7 @@ def test_two_sided_moving_interface_rejects_fixed_geometry_response():
       normal_momentum_residuals_Pa=(0.0,) * sample_count,
       energy_flux_residuals_W_m2=(0.0,) * sample_count,
     )
+  ####
 
   result = solve_euler_two_sided_moving_interface(
     request,
@@ -3397,6 +3443,7 @@ def test_two_sided_moving_interface_rejects_fixed_geometry_response():
   assert not audit.interface_motion_verified
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_two_sided_field_refinement_reduces_physical_cell_residual_across_cases():
@@ -3452,6 +3499,7 @@ def test_two_sided_field_refinement_reduces_physical_cell_residual_across_cases(
   assert entropy_measurement.physical_closure_verified is False
   assert entropy_measurement.chain_promotion_blocked
   assert entropy_measurement.production_claim_allowed is False
+####
 
 
 def test_two_sided_field_refinement_requires_strict_resolution_order():
@@ -3481,6 +3529,7 @@ def test_two_sided_field_refinement_requires_strict_resolution_order():
   )
   assert not entropy_measurement.converged
   assert entropy_measurement.chain_promotion_blocked
+####
 
 
 def test_two_sided_field_refinement_rejects_weakened_case_flags():
@@ -3502,6 +3551,7 @@ def test_two_sided_field_refinement_rejects_weakened_case_flags():
   assert not measurement.converged
   assert measurement.chain_promotion_blocked
   assert measurement.production_claim_allowed is False
+####
 
 
 def test_two_sided_terminal_closure_reaches_entropy_aware_internal_field():
@@ -3536,6 +3586,7 @@ def test_two_sided_terminal_closure_reaches_entropy_aware_internal_field():
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_two_sided_terminal_closure_rejects_incomplete_field_iteration():
@@ -3553,6 +3604,8 @@ def test_two_sided_terminal_closure_rejects_incomplete_field_iteration():
 
   with pytest.raises(ValueError, match='converged.*field iteration'):
     MocEulerTwoSidedTerminalClosureRequest(field_iteration=incomplete)
+  ####
+####
 
 
 def test_two_sided_terminal_closure_has_independent_component_audit():
@@ -3585,6 +3638,7 @@ def test_two_sided_terminal_closure_has_independent_component_audit():
   assert audit.physical_closure_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_two_sided_terminal_closure_audit_rejects_tampered_component_flag():
@@ -3611,6 +3665,7 @@ def test_two_sided_terminal_closure_audit_rejects_tampered_component_flag():
   assert audit.component_audits_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_two_sided_terminal_refinement_grows_solver_owned_continuation_ladder():
@@ -3649,6 +3704,7 @@ def test_two_sided_terminal_refinement_grows_solver_owned_continuation_ladder():
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_two_sided_terminal_refinement_has_independent_ladder_audit():
@@ -3690,6 +3746,7 @@ def test_two_sided_terminal_refinement_has_independent_ladder_audit():
   assert audit.refinement_convergence_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_two_sided_terminal_refinement_audit_rejects_tampered_trend_flag():
@@ -3724,6 +3781,7 @@ def test_two_sided_terminal_refinement_audit_rejects_tampered_trend_flag():
   assert audit.residual_reduction_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+####
 
 
 def test_coupled_field_audit_rejects_unconsumed_two_sided_companion_field():
@@ -3754,6 +3812,7 @@ def test_coupled_field_audit_rejects_unconsumed_two_sided_companion_field():
     .MOVING_MIXED_REGIME_TWO_SIDED_COMPANION_FIELD_FAILURE
   )
   assert not audit.local_consistency_verified
+####
 
 
 def test_coupled_field_two_sided_mode_rejects_one_sided_moving_seam():
@@ -3774,6 +3833,8 @@ def test_coupled_field_two_sided_mode_rejects_one_sided_moving_seam():
       ),
       moving_mixed_regime_interface=moving_result,
     )
+  ####
+####
 
 
 def test_coupled_field_stops_when_moving_mixed_regime_inlet_coverage_is_incomplete():
@@ -3816,6 +3877,7 @@ def test_coupled_field_stops_when_moving_mixed_regime_inlet_coverage_is_incomple
     .MOVING_MIXED_REGIME_INTERFACE_FAILURE
   )
   assert not audit.converged
+####
 
 
 def test_global_transonic_mixed_wave_terminal_field_coverage_stops_at_missing_ordinate():
@@ -3905,6 +3967,7 @@ def test_global_transonic_mixed_wave_terminal_field_coverage_stops_at_missing_or
     .SAMPLE_LINEAGE_FAILURE
   )
   assert not tampered_audit.converged
+####
 
 
 def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at_free_boundary_residual():
@@ -4079,6 +4142,7 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_seam_and_stops_at
     assert consumed_entropy_audit.joint_field_research_verified
   else:
     assert not consumed_entropy_audit.joint_field_research_verified
+  ####
 
   tampered_profile = replace(
     entropy_profile,
@@ -4318,6 +4382,7 @@ def test_global_transonic_mixed_wave_downstream_consumes_exact_moving_interface_
   assert result.production_claim_allowed is False
   assert result.as_report()['moving_interface_verified'] is True
   assert result.as_report()['moving_interface_consumed'] is True
+####
 
 
 def test_global_transonic_mixed_wave_downstream_rejects_incomplete_moving_interface_seam():
@@ -4353,6 +4418,7 @@ def test_global_transonic_mixed_wave_downstream_rejects_incomplete_moving_interf
   assert not result.downstream_field_attempted
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_global_coupled_downstream_rejects_non_full_span_transonic_placement():
@@ -7996,6 +8062,7 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
     else:
       first_point = baseline.coupled_field.free_boundary_points_m[index - 1]
       second_point = baseline.coupled_field.free_boundary_points_m[index + 1]
+    ####
     tangent_length = np.hypot(
       second_point[0] - first_point[0],
       second_point[1] - first_point[1],
@@ -8012,6 +8079,7 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
     assert signed_geometry_feedback_profile.boundary_y_m[index] == pytest.approx(
       expected_y
     )
+  ####
   with pytest.raises(ValueError, match='exceeds the declared local-height bound'):
     build_reflected_domain_global_coupled_downstream_signed_free_boundary_geometry_profile(
       closure,
@@ -8020,6 +8088,7 @@ def test_global_coupled_downstream_consumes_aligned_pressure_feedback_profile():
       geometry_correction_fraction=0.25,
       maximum_displacement_fraction=0.25,
     )
+  ####
   signed_geometry_consumed = solve_reflected_domain_global_coupled_downstream(
     closure,
     reference_total_temperature_K=1500.0,
@@ -12669,6 +12738,7 @@ def test_global_frontier_fresh_residual_refinement_records_resolution_ladder():
     residual_closure = fresh.candidate_closure
     if residual_closure is None:
       residual_closure = fresh.request.closure
+    ####
     residual_request = MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
       closure=residual_closure,
       reference_total_temperature_K=1500.0,
@@ -12703,6 +12773,7 @@ def test_global_frontier_fresh_residual_refinement_records_resolution_ladder():
         MocReflectedDomainGlobalFrontierFreshResolveResidualStatus
         .FRESH_RESOLVE_REQUIRED,
       )
+    ####
     retained_count = sample_count
     candidate = fresh.candidate_closure
     if (
@@ -12714,6 +12785,7 @@ def test_global_frontier_fresh_residual_refinement_records_resolution_ladder():
       retained_count = len(
         candidate.global_euler.physical_field.field.ambient_boundary.points_m
       )
+    ####
     cases.append(
       MocReflectedDomainGlobalFrontierFreshResolveResidualRefinementCase(
         case_id='mixed-regime',
@@ -13067,6 +13139,7 @@ def test_global_coupled_boundary_condition_feedback_can_require_terminal_global_
     assert audit.terminal_global_frame_extension is not None
     assert audit.terminal_global_frame_extension.converged
     assert audit.terminal_global_frame_extension.extension_generated
+  ####
   assert audit.terminal_global_target_consumption_verified
   assert audit.terminal_global_target_coverage_verified
   assert audit.terminal_global_target_match_verified
@@ -13367,6 +13440,7 @@ def test_global_boundary_state_joint_refinement_covers_cases_and_resolutions():
           result=joint,
         )
       )
+    ####
   ####
 
   measurement = measure_moc_global_boundary_state_joint_refinement(
@@ -13867,6 +13941,7 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_conver
     response_mode_identity_verified=False,
   )
   assert tampered_case.local_research_verified is False
+####
 
 
 def test_global_coupled_boundary_condition_feedback_refinement_can_require_strict_downstream_recheck():

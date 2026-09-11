@@ -44,12 +44,15 @@ class MocEulerVariableEntropyLineageAuditStatus(str, Enum):
   AMBIENT_LINEAGE_FAILURE = 'euler_variable_entropy_ambient_lineage_failure'
   INTERIOR_LINEAGE_FAILURE = 'euler_variable_entropy_interior_lineage_failure'
   FLAG_FAILURE = 'euler_variable_entropy_lineage_flag_failure'
+####
 
 
 def _log_pressure_residual(actual: float, expected: float) -> float:
   if actual <= 0.0 or expected <= 0.0:
     return float('inf')
+  ####
   return abs(log(float(actual) / float(expected)))
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +116,7 @@ class MocEulerVariableEntropyLineageAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     for name in (
       'maximum_shock_coordinate_residual_m',
@@ -126,9 +130,11 @@ class MocEulerVariableEntropyLineageAudit:
       value = getattr(self, name)
       if value is None:
         continue
+      ####
       numeric = float(value)
       if not isfinite(numeric) or numeric < 0.0:
         raise ValueError(f'{name} must be finite and nonnegative when supplied')
+      ####
       object.__setattr__(self, name, numeric)
     ####
     entropy_advection_residuals = tuple(
@@ -156,10 +162,10 @@ class MocEulerVariableEntropyLineageAudit:
       'entropy_advection_tolerance',
       entropy_advection_tolerance,
     )
-    ####
     operator_id = str(self.operator_id)
     if not operator_id:
       raise ValueError('operator_id must be non-empty')
+    ####
     object.__setattr__(self, 'operator_id', operator_id)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -273,6 +279,7 @@ def _failure(
     maximum_interior_pressure_log_residual=maximum_interior_pressure_log_residual,
     message=message,
   )
+####
 
 
 def _triangle_entropy_advection_residual(
@@ -310,7 +317,6 @@ def _triangle_entropy_advection_residual(
     (points[1][0] - points[0][0]) * (values[2] - values[0])
     - (points[2][0] - points[0][0]) * (values[1] - values[0])
   ) / determinant
-  ####
   velocities: list[tuple[float, float]] = []
   for state in states:
     try:
@@ -319,6 +325,7 @@ def _triangle_entropy_advection_residual(
       theta = float(state.theta_rad)
     except (AttributeError, TypeError, ValueError):
       return None
+    ####
     denominator = 1.0 + 0.5 * (gamma - 1.0) * mach * mach
     if (
       not isfinite(mach)
@@ -328,6 +335,7 @@ def _triangle_entropy_advection_residual(
       or denominator <= 0.0
     ):
       return None
+    ####
     speed = mach / sqrt(denominator)
     velocities.append((speed * cos(theta), speed * sin(theta)))
   ####
@@ -353,6 +361,7 @@ def _triangle_entropy_advection_residual(
   )
   if not isfinite(residual) or residual < 0.0:
     return None
+  ####
   return residual
 ####
 
@@ -393,6 +402,7 @@ def _entropy_advection_residuals(
       )
       if triangle_residual is None:
         return ()
+      ####
       residuals.append(triangle_residual)
     ####
   ####
@@ -738,3 +748,4 @@ def measure_moc_euler_variable_entropy_lineage(
     maximum_ambient_pressure_log_residual=max(ambient_pressure_residuals, default=None),
     maximum_interior_pressure_log_residual=max(interior_source_residuals, default=None),
   )
+####
