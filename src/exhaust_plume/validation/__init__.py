@@ -659,6 +659,12 @@ from exhaust_plume.validation.moc_global_two_sided_moving_interface_refinement i
   MocGlobalTwoSidedMovingInterfaceRefinementMeasurement,
   measure_moc_global_two_sided_moving_interface_refinement,
 )
+from exhaust_plume.validation.moc_global_two_sided_moving_interface_fixed_point_refinement import (
+  MOC_GLOBAL_TWO_SIDED_MOVING_INTERFACE_FIXED_POINT_REFINEMENT_AUDIT_OPERATOR_ID,
+  MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus,
+  MocGlobalTwoSidedMovingInterfaceFixedPointRefinementMeasurement,
+  measure_moc_global_two_sided_moving_interface_fixed_point_refinement,
+)
 from exhaust_plume.validation.moc_euler_variable_entropy_lineage import (
   MOC_EULER_VARIABLE_ENTROPY_LINEAGE_AUDIT_OPERATOR_ID,
   MocEulerVariableEntropyLineageAuditStatus,
@@ -1091,6 +1097,10 @@ __all__ = (
   'MocReflectedDomainGlobalTransonicMixedWaveInterfaceStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveInterfaceResult',
   'solve_reflected_domain_global_transonic_mixed_wave_interface',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_PHYSICAL_FIELD_OPERATOR_ID',
+  'MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldStatus',
+  'MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldResult',
+  'solve_reflected_domain_global_transonic_mixed_wave_physical_field',
   'MOC_REFLECTED_DOMAIN_GLOBAL_TRANSONIC_MIXED_WAVE_TERMINAL_PROBE_OPERATOR_ID',
   'MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeStatus',
   'MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeResult',
@@ -1573,6 +1583,10 @@ __all__ = (
   'MocGlobalTwoSidedMovingInterfaceRefinementStatus',
   'MocGlobalTwoSidedMovingInterfaceRefinementMeasurement',
   'measure_moc_global_two_sided_moving_interface_refinement',
+  'MOC_GLOBAL_TWO_SIDED_MOVING_INTERFACE_FIXED_POINT_REFINEMENT_AUDIT_OPERATOR_ID',
+  'MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus',
+  'MocGlobalTwoSidedMovingInterfaceFixedPointRefinementMeasurement',
+  'measure_moc_global_two_sided_moving_interface_fixed_point_refinement',
   'MOC_EULER_TWO_SIDED_FIELD_REFINEMENT_AUDIT_OPERATOR_ID',
   'MocEulerTwoSidedFieldIterationRefinementCase',
   'MocEulerTwoSidedFieldRefinementAuditStatus',

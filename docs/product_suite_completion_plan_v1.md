@@ -5283,3 +5283,20 @@ No canonical mixed-regime/free-boundary claim, physical shock-cell fit,
 Signature/FPA production claim, provider comparison, validation archive, or
 release gate is relaxed by this packet.  The next physics packet remains the
 solver-owned coupled conservative residual/free-boundary solve.
+
+### P2.2 strict global fixed-point refinement gate checkpoint — 2026-09-11
+
+The retained low-level fixed-point audit now has a global case/resolution
+operator, ``op.moc.global-two-sided-moving-interface-fixed-point-refinement-
+audit-v1``.  It independently remeasures every moving-interface result,
+requires strict conservative-flux and terminal-fixed-point request policies,
+checks one consistent response mode, requires unique source closure lineage
+and increasing shock resolution within each case family, and preserves the
+canonical/production promotion block.
+
+The explicit stationary front-limit ladder passes for two envelope families at
+``(5, 9)`` samples, while the ordinary interior-probe research ladder remains
+ineligible because its strict terminal policy and physical moving-front
+closure are not satisfied.  Reversed resolution order is rejected.  This is
+the reusable admission gate for the future coupled solver, not a claim that
+the current research response has become a physical moving-front solution.

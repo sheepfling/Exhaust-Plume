@@ -38,6 +38,10 @@ from exhaust_plume.validation.moc_global_two_sided_moving_interface_refinement i
   MocGlobalTwoSidedMovingInterfaceRefinementStatus,
   measure_moc_global_two_sided_moving_interface_refinement,
 )
+from exhaust_plume.validation.moc_global_two_sided_moving_interface_fixed_point_refinement import (
+  MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus,
+  measure_moc_global_two_sided_moving_interface_fixed_point_refinement,
+)
 from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
   MocEulerTwoSidedFieldIterationRefinementCase,
   MocEulerTwoSidedFieldRefinementAuditStatus,
@@ -2556,6 +2560,102 @@ def test_global_two_sided_moving_interface_has_independent_case_refinement():
   assert measurement.maximum_normal_momentum_residuals_Pa[5] < (
     measurement.maximum_normal_momentum_residuals_Pa[3]
   )
+
+
+def test_global_two_sided_fixed_point_refinement_requires_strict_terminal_mode():
+  cases = []
+  for case_id, skew in (
+    ('stationary-envelope-a', (-0.75, 0.0)),
+    ('stationary-envelope-b', (-0.5, 0.5)),
+  ):
+    for sample_count in (5, 9):
+      closure = _global_physical_closure_for_mixed_regime(
+        sample_count,
+        compression_envelope_skews=skew,
+      )
+      result = solve_reflected_domain_global_two_sided_stationary_interface(
+        MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+          closure=closure,
+          reference_total_temperature_K=1500.0,
+          maximum_field_iterations=3,
+          maximum_interface_iterations=1,
+          downstream_probe_fraction=0.0,
+          require_interface_motion=False,
+          allow_stationary_equilibrium=True,
+          require_conservative_flux_closure=True,
+          require_terminal_fixed_point=True,
+          normal_momentum_tolerance_Pa=1.0e-6,
+        )
+      )
+      cases.append(
+        MocGlobalTwoSidedMovingInterfaceRefinementCase(
+          case_id=case_id,
+          resolution_sample_count=sample_count,
+          result=result,
+        )
+      )
+
+  measurement = measure_moc_global_two_sided_moving_interface_fixed_point_refinement(
+    cases
+  )
+
+  assert measurement.status is (
+    MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus
+    .CONVERGED_CROSS_CASE_STRICT_FIXED_POINT
+  )
+  assert measurement.converged
+  assert measurement.case_audits_verified
+  assert measurement.strict_mode_verified
+  assert measurement.resolution_order_verified
+  assert measurement.closure_lineage_verified
+  assert measurement.terminal_fixed_point_verified
+  assert measurement.cross_case_verified
+  assert measurement.fidelity_flags_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+
+  reversed_measurement = (
+    measure_moc_global_two_sided_moving_interface_fixed_point_refinement(
+      tuple(reversed(cases[:2])) + tuple(cases[2:])
+    )
+  )
+  assert reversed_measurement.status is (
+    MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus
+    .RESOLUTION_ORDER_FAILURE
+  )
+  assert reversed_measurement.converged is False
+
+  research_cases = []
+  for sample_count in (5, 9):
+    closure = _global_physical_closure_for_mixed_regime(sample_count)
+    research_result = solve_reflected_domain_global_two_sided_moving_interface(
+      MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+        closure=closure,
+        reference_total_temperature_K=1500.0,
+        maximum_field_iterations=3,
+        maximum_interface_iterations=1,
+      )
+    )
+    research_cases.append(
+      MocGlobalTwoSidedMovingInterfaceRefinementCase(
+        case_id='interior-probe-research',
+        resolution_sample_count=sample_count,
+        result=research_result,
+      )
+    )
+
+  research_measurement = (
+    measure_moc_global_two_sided_moving_interface_fixed_point_refinement(
+      research_cases
+    )
+  )
+  assert research_measurement.status is (
+    MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus.MODE_FAILURE
+  )
+  assert research_measurement.converged is False
+  assert research_measurement.strict_mode_verified is False
+  assert research_measurement.chain_promotion_blocked
+  assert research_measurement.production_claim_allowed is False
 
   reversed_measurement = measure_moc_global_two_sided_moving_interface_refinement(
     tuple(reversed(cases[:3])) + tuple(cases[3:])
