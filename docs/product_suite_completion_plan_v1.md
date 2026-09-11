@@ -50,6 +50,29 @@ does not substitute for the provider-bound evidence in the final column.
 | Validation intake | Raw archives, member digests, provenance/license, provider snapshots, operators, units/frames, uncertainty, and disjoint calibration/validation manifest | Exact source/output identity and reproducible intake audit | Version 8 provenance record exists; raw archive, alignment archive, and provider-bound outputs are unavailable |
 | Release | Current candidate freeze, clean checkout, full tests/static/docs/public-contract checks, wheel build, installed-wheel smoke, and manifest with `release_ready=true` | Re-run from the exact frozen `HEAD`, with no stale commit or branch references | Not releasable; current local checks pass but promotion gates are open |
 
+## Current execution queue
+
+This is the short operating queue for the active long-running goal.  The
+larger sections below retain the detailed history and contracts; this queue is
+the handoff to the next slice.
+
+| Order | Slice | Entry condition | Required exit evidence | Current state |
+| --- | --- | --- | --- | --- |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Local branch is clean at `e9a28d5`; `main` is untouched |
+| 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
+| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
+| 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
+| 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
+| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked; no freeze rewrite, push, or tag is authorized yet |
+
+The queue is dependency-ordered.  In particular, Visualization work may
+continue to improve evaluation surfaces, but it cannot turn an open physical
+field into a Signature source; a Signature table cannot be used as a resolved
+radiance claim; and the FPA remains a downstream adapter until its camera and
+detector observations are accepted.  Missing data must stay a typed blocker,
+and a research solver may not be promoted by changing a manifest or claim
+label.
+
 ## Execution sprints and stop conditions
 
 The long-running goal is executed as a sequence of bounded sprints.  Each
@@ -6097,7 +6120,8 @@ observation archives are still unavailable.
 
 ### P3.5 installed-package release gate checkpoint — 2026-09-11
 
-The candidate at ``611ae93`` passes the offline package gate through
+The implementation candidate at ``611ae93`` passes the offline package gate
+through
 ``python3 scripts/check_build.py --offline``.  The check builds a fresh
 wheel, installs it into a new system-site-packages virtual environment without
 network access or dependency resolution, and runs ``tests/installed_smoke.py``.
@@ -6108,8 +6132,11 @@ installed console entry points.  The wheel gate therefore closes local
 packaging evidence for this candidate without changing any product claim
 ceiling.
 
-The umbrella release remains deliberately red.  The current release audit
-still reports the missing provider-bound measurement outputs/scenario assets,
+The documentation checkpoint that records this evidence is now committed at
+``e9a28d5``; the package evidence itself remains attributable to the exact
+implementation candidate above.  The umbrella release remains deliberately
+red.  The current release audit still reports the missing provider-bound
+measurement outputs/scenario assets,
 missing validation archives, open canonical planar-MOC/free-boundary and
 physical shock-cell gates, and a release-freeze HEAD mismatch.  Those are
 real acceptance dependencies rather than package failures; no synthetic
