@@ -4974,3 +4974,28 @@ closed.  This is a solver-admission and time-advancement contract improvement;
 it does not close the missing conservative moving-front field, canonical
 mixed-regime closure, accepted physical shock-cell lengths, provider-bound
 product validation, or release freeze.
+
+### WP-1 global-to-two-sided moving-interface adapter checkpoint — 2026-09-11
+
+The verified global reflected closure now has a reusable typed adapter,
+``solve_reflected_domain_global_two_sided_moving_interface``.  It consumes the
+exact closure source band and locally Euler-verified shock curve, constructs
+the ambient companion boundary and open companion characteristic field, then
+binds those objects to the existing exact physical-field iteration and
+solver-owned Rankine--Hugoniot moving-interface response ladder.  The public
+result retains the closure fingerprint, exact object lineage, moving-interface
+audit, and joint field-closure audit.
+
+The focused regression passes for the research-moving path and verifies that
+the exact shock/companion objects are consumed without interpolation or
+fallback.  The same regression drives the conservative policy with a tight
+momentum budget and receives a typed moving-interface failure with chain
+promotion and production claims still blocked.  Ruff, bytecode compilation,
+Pyright, and whitespace checks are clean.
+
+This is the first global-to-two-sided integration seam, not a canonical
+mixed-regime closure: the interior-probe response remains research-only, the
+strict moving-front case is not accepted until its physical residuals close,
+and canonical free-boundary feedback, multi-resolution/cross-case acceptance,
+physical shock-cell fitting, external validation, and release freeze remain
+open.

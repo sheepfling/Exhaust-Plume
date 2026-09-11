@@ -73,6 +73,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalPhysicalClosureStatus,
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainGlobalCoupledDownstreamStatus,
+  MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus,
+  MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
@@ -168,6 +170,7 @@ from exhaust_plume.models.moc import (
   solve_reflected_domain_global_euler_shock_boundary,
   solve_reflected_domain_global_physical_closure,
   solve_reflected_domain_global_coupled_downstream,
+  solve_reflected_domain_global_two_sided_moving_interface,
   build_reflected_domain_global_solver_owned_transonic_interface_placement,
   build_reflected_domain_global_solver_owned_physical_field_handoff,
   build_reflected_domain_global_coupled_downstream_boundary_pressure_profile,
@@ -2303,6 +2306,62 @@ def test_strict_moving_interface_binds_exact_shock_and_companion_lineage():
       moving,
       research_law,
     )
+
+
+def test_global_closure_binds_exact_two_sided_moving_interface_ladder():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+    closure=closure,
+    reference_total_temperature_K=1500.0,
+    maximum_field_iterations=3,
+    maximum_interface_iterations=1,
+  )
+
+  result = solve_reflected_domain_global_two_sided_moving_interface(request)
+
+  assert result.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+    .CONVERGED_RESEARCH_INTERFACE
+  )
+  assert result.converged
+  assert result.shock_boundary is not None
+  assert result.companion_boundary is not None
+  assert result.companion_field is not None
+  assert result.moving_result is not None
+  assert result.moving_result.converged
+  assert result.moving_result.request is not None
+  assert result.moving_result.request.field_request.shock_boundary is (
+    result.shock_boundary
+  )
+  assert result.moving_result.request.field_request.companion_field is (
+    result.companion_field
+  )
+  assert result.moving_audit is not None
+  assert result.moving_audit.converged
+  assert result.joint_audit is not None
+  assert result.joint_audit.converged
+  assert result.physical_closure_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert result.as_report()['source_closure_fingerprint'] == (
+    moc_reflected_domain_global_physical_closure_fingerprint(closure)
+  )
+
+  strict = solve_reflected_domain_global_two_sided_moving_interface(
+    replace(
+      request,
+      require_conservative_flux_closure=True,
+      normal_momentum_tolerance_Pa=1.0e-6,
+    )
+  )
+  assert strict.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+    .MOVING_INTERFACE_FAILURE
+  )
+  assert strict.moving_result is not None
+  assert strict.moving_result.converged is False
+  assert strict.moving_result.chain_promotion_blocked
+  assert strict.moving_result.production_claim_allowed is False
 
 
 def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():
