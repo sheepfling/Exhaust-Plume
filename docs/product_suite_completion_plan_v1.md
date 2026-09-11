@@ -4630,3 +4630,26 @@ moving-front response.  The default ``0.01`` interior-probe research law
 still has an open momentum residual for genuinely moving updates, and the
 canonical feedback solve, multi-case refinement, physical shock-cell fits,
 external product validation, owner archives, and release gates remain open.
+
+### WP-0 candidate audit checkpoint — 2026-09-10
+
+The current candidate is commit ``25705c2382f441568e55973f16fee14454318a95``
+on ``work/washed-integral-visual``.  It is clean and published to both
+configured remotes.  The full repository suite passes with ``1247 passed``
+and 18 existing warnings; Ruff, Pyright, Rumdl, public-contract asset
+determinism, and the local product-lane validator also pass.
+
+The local product evidence currently covers all five standardized
+Visualization bundles, prescribed mission-time composition, the explicit LTE/
+gray Signature bridges, ray-transfer operators, and the deterministic
+expected-electron/ADC FPA boundary.  These are local engineering or
+research ceilings, not external product claims.
+
+The release validator remains ``release_ready=false``.  The current blockers
+are provider-bound measurement-space scenarios and operator mappings, the
+missing separately named MVP alignment archive, the absent disjoint
+reduced-order calibration/validation cases, incomplete canonical planar-MOC
+first-cell closure, and the lack of accepted physical shock-cell length
+comparisons.  The Version 8 ZIP is not present in the current workspace, so
+no external evidence was synthesized or promoted.  No release tag is
+authorized until those gates and the final exact-HEAD freeze are refreshed.
