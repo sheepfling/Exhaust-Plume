@@ -164,6 +164,27 @@ equation, disjoint case/refinement evidence, provider-bound product
 comparisons, validation archives, physical shock-cell lengths, and release
 freeze remain open.
 
+### P2.2h disjoint signed-response refinement checkpoint — 2026-09-11
+
+The signed pressure/geometry consumer now has its own refinement operator;
+the unbound downstream response ladder is not reused as a proxy.  Each named
+case owns an exact closure fingerprint and a strictly increasing
+``(axial-station, transverse-cell)`` ladder.  Every mesh point invokes a
+fresh solve with both signed consumers enabled, preserves profile and
+response lineage, and independently requires strict fresh normal-velocity
+residual descent.  The aggregate keeps individual pressure-response status
+informational: an iteration-limit or retained overlap-response failure does
+not get relabeled as canonical convergence.
+
+Two disjoint closures across two resolutions per case now pass this local
+research evidence.  The typed report exposes the run statuses and per-case
+normal-residual traces while keeping global coupling, downstream boundary
+closure, external validation, and production promotion false.  The focused
+downstream regression now passes (``22 passed``); mass/energy descent, the
+canonical planar-MOC/free-boundary consumer, accepted provider comparisons,
+validation archives, physical shock-cell lengths, and release freeze remain
+open.
+
 ## Execution sprints and stop conditions
 
 The long-running goal is executed as a sequence of bounded sprints.  Each
@@ -266,9 +287,10 @@ exercised mixed-regime case therefore retains a fresh closed research field
 and passes the independent fresh-resolve audit.  Global coupling, downstream
 fixed-point closure, and every product promotion gate remain closed.
 
-Current next action: run the successful fresh consumer across the declared
-case/refinement ladder and require strict independent mass, normal-momentum,
-and energy residual descent before adding or widening bounded outer feedback.
+Current next action: extend the signed-response ladder with strict independent
+mass, normal-momentum, and energy residual descent, then consume that evidence
+in the canonical planar-MOC/free-boundary equation before adding or widening
+bounded outer feedback.
 The existing two-sided directional line-search (``4a62e6b``) and the fresh
 consumer remain research evidence only; they must not be used to mark
 canonical closure, physical shock cells, Signature production, FPA production,

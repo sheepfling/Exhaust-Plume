@@ -15,7 +15,7 @@ from enum import Enum
 from hashlib import sha256
 import json
 from math import isfinite
-from typing import Any
+from typing import Any, Sequence
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   PHYSICAL_FIELD_EXACT_INITIAL_STATE_SOURCE,
@@ -52,11 +52,26 @@ __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamFeedbackIteration',
   'MocReflectedDomainGlobalCoupledDownstreamFeedbackRun',
   'run_reflected_domain_global_coupled_downstream_feedback',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_REFINEMENT_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_REFINEMENT_RUN_OPERATOR_ID',
+  'MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus',
+  'MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase',
+  'MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCaseRun',
+  'MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementMeasurement',
+  'MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementRun',
+  'measure_reflected_domain_global_coupled_downstream_feedback_refinement',
+  'run_reflected_domain_global_coupled_downstream_feedback_refinement',
 )
 
 
 MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_OPERATOR_ID = (
   'op.moc.reflected-domain.global-coupled-downstream-feedback'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_REFINEMENT_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-coupled-downstream-feedback-refinement'
+)
+MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_REFINEMENT_RUN_OPERATOR_ID = (
+  'op.moc.reflected-domain.global-coupled-downstream-feedback-refinement-run'
 )
 _PHYSICAL_FIELD_AMBIENT_NEIGHBOR_PRESSURE_PROFILE_SOURCE = (
   'solver-owned-physical-field-ambient-neighbor-pressure-profile-v1'
@@ -1637,5 +1652,1003 @@ def run_reflected_domain_global_coupled_downstream_feedback(
     pressure_update_convergence_verified=pressure_update_convergence_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
     message=message,
+  )
+####
+
+
+class MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus(
+  str,
+  Enum,
+):
+  """Outcome of disjoint signed-response case and mesh evidence."""
+
+  CONVERGED_RESEARCH_SIGNED_RESPONSE_LADDER = (
+    'converged-research-global-coupled-downstream-signed-response-ladder'
+  )
+  INVALID_INPUT = 'invalid_input'
+  CASE_ID_FAILURE = (
+    'global-coupled-downstream-feedback-refinement-case-id-failure'
+  )
+  CLOSURE_FAILURE = (
+    'global-coupled-downstream-feedback-refinement-closure-failure'
+  )
+  RESOLUTION_FAILURE = (
+    'global-coupled-downstream-feedback-refinement-resolution-failure'
+  )
+  CASE_FAILURE = (
+    'global-coupled-downstream-feedback-refinement-case-failure'
+  )
+  RESPONSE_FAILURE = (
+    'global-coupled-downstream-feedback-refinement-response-failure'
+  )
+  FIDELITY_FAILURE = (
+    'global-coupled-downstream-feedback-refinement-fidelity-failure'
+  )
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase:
+  """One named closure and its independent signed-response mesh ladder."""
+
+  case_id: str
+  regime: str
+  closure: MocReflectedDomainGlobalPhysicalClosureResult
+  resolutions: tuple[tuple[int, int], ...]
+
+  def __post_init__(self) -> None:
+    case_id = str(self.case_id)
+    regime = str(self.regime)
+    if not case_id:
+      raise ValueError('case_id must be non-empty')
+    ####
+    if not regime:
+      raise ValueError('regime must be non-empty')
+    ####
+    if not isinstance(
+      self.closure,
+      MocReflectedDomainGlobalPhysicalClosureResult,
+    ):
+      raise TypeError(
+        'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
+      )
+    ####
+    try:
+      resolutions = tuple(tuple(value) for value in self.resolutions)
+    except TypeError as error:
+      raise ValueError(
+        'resolutions must contain (axial, transverse) integer pairs'
+      ) from error
+    ####
+    if not resolutions:
+      raise ValueError('resolutions must not be empty')
+    ####
+    if any(
+      len(resolution) != 2
+      or any(
+        isinstance(value, bool) or not isinstance(value, int)
+        for value in resolution
+      )
+      or resolution[0] < 4
+      or resolution[1] < 3
+      for resolution in resolutions
+    ):
+      raise ValueError(
+        'resolutions must contain (axial, transverse) integer pairs with '
+        'axial >= 4 and transverse >= 3'
+      )
+    ####
+    object.__setattr__(self, 'case_id', case_id)
+    object.__setattr__(self, 'regime', regime)
+    object.__setattr__(self, 'resolutions', resolutions)
+  ####
+
+  @property
+  def closure_fingerprint(self) -> str:
+    """Return the exact physical closure identity owned by this case."""
+
+    return moc_reflected_domain_global_physical_closure_fingerprint(
+      self.closure
+    )
+  ####
+
+  @property
+  def resolution_ladder_verified(self) -> bool:
+    """Whether the case declares a strict two-point-or-more mesh ladder."""
+
+    return bool(
+      len(self.resolutions) >= 2
+      and all(
+        right[0] > left[0] and right[1] > left[1]
+        for left, right in zip(self.resolutions, self.resolutions[1:])
+      )
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'case_id': self.case_id,
+      'regime': self.regime,
+      'closure_fingerprint': self.closure_fingerprint,
+      'resolutions': self.resolutions,
+      'resolution_ladder_verified': self.resolution_ladder_verified,
+      'closure_status': self.closure.status.value,
+      'closure_converged': self.closure.converged,
+      'physical_closure_verified': self.closure.physical_closure_verified,
+      'downstream_boundary_model': self.closure.downstream_boundary_model,
+      'downstream_boundary_closure_verified': (
+        self.closure.downstream_boundary_closure_verified
+      ),
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCaseRun:
+  """Fresh signed-response runs retained for one named case."""
+
+  case: MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase
+  runs: tuple[MocReflectedDomainGlobalCoupledDownstreamFeedbackRun, ...]
+  fresh_solver_invocation_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.case,
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase,
+    ):
+      raise TypeError(
+        'case must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase'
+      )
+    ####
+    runs = tuple(self.runs)
+    if any(
+      not isinstance(
+        run,
+        MocReflectedDomainGlobalCoupledDownstreamFeedbackRun,
+      )
+      for run in runs
+    ):
+      raise TypeError(
+        'runs must contain '
+        'MocReflectedDomainGlobalCoupledDownstreamFeedbackRun values'
+      )
+    ####
+    if not isinstance(self.fresh_solver_invocation_verified, bool):
+      raise TypeError('fresh_solver_invocation_verified must be a bool')
+    ####
+    object.__setattr__(self, 'runs', runs)
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    """Whether this case has local signed-response evidence only."""
+
+    return bool(
+      self.fresh_solver_invocation_verified
+      and len(self.runs) == len(self.case.resolutions)
+      and all(
+        run.closure is self.case.closure
+        and run.fresh_solver_invocation_verified
+        and run.local_coupled_field_verified
+        and run.normal_velocity_residual_descent_required
+        and run.normal_velocity_residual_descent_verified
+        and run.chain_promotion_blocked
+        and not run.production_claim_allowed
+        for run in self.runs
+      )
+    )
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'case': self.case.as_report(),
+      'converged': self.converged,
+      'fresh_solver_invocation_verified': (
+        self.fresh_solver_invocation_verified
+      ),
+      'production_claim_allowed': self.production_claim_allowed,
+      'runs': tuple(run.as_report() for run in self.runs),
+      'message': self.message,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementMeasurement:
+  """Independent aggregate evidence for disjoint signed-response ladders."""
+
+  status: MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+  cases: tuple[
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase,
+    ...
+  ] = ()
+  case_runs: tuple[
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCaseRun,
+    ...
+  ] = ()
+  case_ids: tuple[str, ...] = ()
+  regimes: tuple[str, ...] = ()
+  closure_fingerprints: tuple[str, ...] = ()
+  requested_resolutions: tuple[tuple[tuple[int, int], ...], ...] = ()
+  run_statuses: tuple[tuple[str, ...], ...] = ()
+  maximum_normal_velocity_residuals_m_s: tuple[tuple[float, ...], ...] = ()
+  case_ids_verified: bool = False
+  closure_bindings_verified: bool = False
+  distinct_closure_fingerprints_verified: bool = False
+  resolution_ladders_verified: bool = False
+  fresh_solver_invocation_verified: bool = False
+  signed_response_configuration_verified: bool = False
+  closure_lineage_verified: bool = False
+  profile_lineage_verified: bool = False
+  response_lineage_verified: bool = False
+  response_channels_finite: bool = False
+  response_coverage_verified: bool = False
+  geometry_profile_consumption_verified: bool = False
+  normal_velocity_residual_descent_verified: bool = False
+  local_coupled_field_verified: bool = False
+  fidelity_isolation_verified: bool = False
+  global_coupling_verified: bool = False
+  downstream_boundary_closure_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  external_validation_required: bool = True
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus,
+    ):
+      raise TypeError(
+        'status must be a '
+        'MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus'
+      )
+    ####
+    cases = tuple(self.cases)
+    case_runs = tuple(self.case_runs)
+    if any(
+      not isinstance(
+        case,
+        MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase,
+      )
+      for case in cases
+    ):
+      raise TypeError('cases must contain typed refinement cases')
+    ####
+    if any(
+      not isinstance(
+        case_run,
+        MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCaseRun,
+      )
+      for case_run in case_runs
+    ):
+      raise TypeError('case_runs must contain typed refinement case runs')
+    ####
+    if len(cases) != len(case_runs):
+      raise ValueError('cases and case_runs must have matching lengths')
+    ####
+    for name in (
+      'case_ids_verified',
+      'closure_bindings_verified',
+      'distinct_closure_fingerprints_verified',
+      'resolution_ladders_verified',
+      'fresh_solver_invocation_verified',
+      'signed_response_configuration_verified',
+      'closure_lineage_verified',
+      'profile_lineage_verified',
+      'response_lineage_verified',
+      'response_channels_finite',
+      'response_coverage_verified',
+      'geometry_profile_consumption_verified',
+      'normal_velocity_residual_descent_verified',
+      'local_coupled_field_verified',
+      'fidelity_isolation_verified',
+      'global_coupling_verified',
+      'downstream_boundary_closure_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+      'external_validation_required',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+      ####
+    ####
+    if self.global_coupling_verified or self.downstream_boundary_closure_verified:
+      raise ValueError(
+        'signed-response refinement cannot claim global or downstream closure'
+      )
+    ####
+    if not self.chain_promotion_blocked or self.production_claim_allowed:
+      raise ValueError(
+        'signed-response refinement must retain its promotion block'
+      )
+    ####
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'case_runs', case_runs)
+    object.__setattr__(self, 'case_ids', tuple(str(value) for value in self.case_ids))
+    object.__setattr__(self, 'regimes', tuple(str(value) for value in self.regimes))
+    object.__setattr__(
+      self,
+      'closure_fingerprints',
+      tuple(str(value) for value in self.closure_fingerprints),
+    )
+    object.__setattr__(
+      self,
+      'requested_resolutions',
+      tuple(tuple(tuple(value) for value in item) for item in self.requested_resolutions),
+    )
+    object.__setattr__(
+      self,
+      'run_statuses',
+      tuple(tuple(str(value) for value in item) for item in self.run_statuses),
+    )
+    object.__setattr__(
+      self,
+      'maximum_normal_velocity_residuals_m_s',
+      tuple(
+        tuple(float(value) for value in item)
+        for item in self.maximum_normal_velocity_residuals_m_s
+      ),
+    )
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def operator_id(self) -> str:
+    return MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_REFINEMENT_OPERATOR_ID
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+      .CONVERGED_RESEARCH_SIGNED_RESPONSE_LADDER
+      and self.case_ids_verified
+      and self.closure_bindings_verified
+      and self.distinct_closure_fingerprints_verified
+      and self.resolution_ladders_verified
+      and self.fresh_solver_invocation_verified
+      and self.signed_response_configuration_verified
+      and self.closure_lineage_verified
+      and self.profile_lineage_verified
+      and self.response_lineage_verified
+      and self.response_channels_finite
+      and self.response_coverage_verified
+      and self.geometry_profile_consumption_verified
+      and self.normal_velocity_residual_descent_verified
+      and self.local_coupled_field_verified
+      and self.fidelity_isolation_verified
+      and not self.global_coupling_verified
+      and not self.downstream_boundary_closure_verified
+      and self.chain_promotion_blocked
+      and not self.production_claim_allowed
+    )
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'operator_id': self.operator_id,
+      'status': self.status.value,
+      'converged': self.converged,
+      'case_ids': self.case_ids,
+      'regimes': self.regimes,
+      'closure_fingerprints': self.closure_fingerprints,
+      'requested_resolutions': self.requested_resolutions,
+      'run_statuses': self.run_statuses,
+      'maximum_normal_velocity_residuals_m_s': (
+        self.maximum_normal_velocity_residuals_m_s
+      ),
+      'case_ids_verified': self.case_ids_verified,
+      'closure_bindings_verified': self.closure_bindings_verified,
+      'distinct_closure_fingerprints_verified': (
+        self.distinct_closure_fingerprints_verified
+      ),
+      'resolution_ladders_verified': self.resolution_ladders_verified,
+      'fresh_solver_invocation_verified': self.fresh_solver_invocation_verified,
+      'signed_response_configuration_verified': (
+        self.signed_response_configuration_verified
+      ),
+      'closure_lineage_verified': self.closure_lineage_verified,
+      'profile_lineage_verified': self.profile_lineage_verified,
+      'response_lineage_verified': self.response_lineage_verified,
+      'response_channels_finite': self.response_channels_finite,
+      'response_coverage_verified': self.response_coverage_verified,
+      'geometry_profile_consumption_verified': (
+        self.geometry_profile_consumption_verified
+      ),
+      'normal_velocity_residual_descent_verified': (
+        self.normal_velocity_residual_descent_verified
+      ),
+      'local_coupled_field_verified': self.local_coupled_field_verified,
+      'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'global_coupling_verified': self.global_coupling_verified,
+      'downstream_boundary_closure_verified': (
+        self.downstream_boundary_closure_verified
+      ),
+      'chain_promotion_blocked': self.chain_promotion_blocked,
+      'production_claim_allowed': self.production_claim_allowed,
+      'external_validation_required': self.external_validation_required,
+      'cases': tuple(case.as_report() for case in self.cases),
+      'case_runs': tuple(case_run.as_report() for case_run in self.case_runs),
+      'message': self.message,
+    }
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementRun:
+  """Fresh execution record for disjoint signed-response case ladders."""
+
+  cases: tuple[
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase,
+    ...
+  ]
+  case_runs: tuple[
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCaseRun,
+    ...
+  ]
+  measurement: (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementMeasurement
+  )
+  configuration: dict[str, Any]
+  configuration_fingerprint: str
+  fresh_solver_invocation_verified: bool = False
+  fidelity_isolation_verified: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    cases = tuple(self.cases)
+    case_runs = tuple(self.case_runs)
+    if self.measurement.cases != cases:
+      raise ValueError('measurement must retain the exact cases')
+    ####
+    if self.measurement.case_runs != case_runs:
+      raise ValueError('measurement must retain the exact case runs')
+    ####
+    if len(self.configuration_fingerprint) != 64:
+      raise ValueError('configuration_fingerprint must be a SHA-256 digest')
+    ####
+    if not isinstance(self.fresh_solver_invocation_verified, bool):
+      raise TypeError('fresh_solver_invocation_verified must be a bool')
+    ####
+    if not isinstance(self.fidelity_isolation_verified, bool):
+      raise TypeError('fidelity_isolation_verified must be a bool')
+    ####
+    if self.measurement.production_claim_allowed:
+      raise ValueError('signed-response refinement cannot claim production validity')
+    ####
+    object.__setattr__(self, 'cases', cases)
+    object.__setattr__(self, 'case_runs', case_runs)
+    object.__setattr__(self, 'configuration', dict(self.configuration))
+    object.__setattr__(self, 'message', str(self.message))
+  ####
+
+  @property
+  def converged(self) -> bool:
+    return bool(
+      self.measurement.converged
+      and self.fresh_solver_invocation_verified
+      and self.fidelity_isolation_verified
+    )
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    return False
+  ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'operator_id': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_FEEDBACK_REFINEMENT_RUN_OPERATOR_ID
+      ),
+      'converged': self.converged,
+      'fresh_solver_invocation_verified': (
+        self.fresh_solver_invocation_verified
+      ),
+      'fidelity_isolation_verified': self.fidelity_isolation_verified,
+      'production_claim_allowed': self.production_claim_allowed,
+      'configuration': self.configuration,
+      'configuration_fingerprint': self.configuration_fingerprint,
+      'cases': tuple(case.as_report() for case in self.cases),
+      'case_runs': tuple(case_run.as_report() for case_run in self.case_runs),
+      'measurement': self.measurement.as_report(),
+      'message': self.message,
+    }
+  ####
+####
+
+
+def measure_reflected_domain_global_coupled_downstream_feedback_refinement(
+  cases: Sequence[
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase
+  ],
+  case_runs: Sequence[
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCaseRun
+  ],
+  *,
+  signed_normal_response_time_s: float,
+) -> MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementMeasurement:
+  """Measure disjoint signed-response evidence without promoting closure."""
+
+  retained_cases = tuple(cases)
+  retained_case_runs = tuple(case_runs)
+  if not retained_cases:
+    raise ValueError('cases must not be empty')
+  ####
+  if len(retained_cases) != len(retained_case_runs):
+    raise ValueError('cases and case_runs must have matching lengths')
+  ####
+  response_time = float(signed_normal_response_time_s)
+  if not isfinite(response_time) or response_time <= 0.0:
+    raise ValueError(
+      'signed_normal_response_time_s must be finite and positive'
+    )
+  ####
+  case_ids = tuple(case.case_id for case in retained_cases)
+  regimes = tuple(case.regime for case in retained_cases)
+  closure_fingerprints = tuple(
+    case.closure_fingerprint for case in retained_cases
+  )
+  requested_resolutions = tuple(
+    case.resolutions for case in retained_cases
+  )
+  case_ids_verified = bool(
+    len(retained_cases) >= 2
+    and all(case_ids)
+    and len(set(case_ids)) == len(case_ids)
+  )
+  closure_bindings_verified = bool(
+    all(
+      case_run.case is case
+      and all(run.closure is case.closure for run in case_run.runs)
+      for case, case_run in zip(retained_cases, retained_case_runs)
+    )
+  )
+  distinct_closure_fingerprints_verified = bool(
+    len(retained_cases) >= 2
+    and len(set(closure_fingerprints)) == len(closure_fingerprints)
+  )
+  resolution_ladders_verified = bool(
+    retained_cases
+    and all(case.resolution_ladder_verified for case in retained_cases)
+  )
+  fresh_solver_invocation_verified = bool(
+    retained_case_runs
+    and all(
+      case_run.fresh_solver_invocation_verified
+      and len(case_run.runs) == len(case_run.case.resolutions)
+      and all(run.fresh_solver_invocation_verified for run in case_run.runs)
+      for case_run in retained_case_runs
+    )
+  )
+  all_runs = tuple(
+    run
+    for case_run in retained_case_runs
+    for run in case_run.runs
+  )
+  signed_response_configuration_verified = bool(
+    all_runs
+    and all(
+      run.configuration.get('use_signed_free_boundary_pressure_response') is True
+      and run.configuration.get('use_signed_free_boundary_geometry_response')
+      is True
+      and run.configuration.get('signed_normal_response_time_s')
+      == response_time
+      and run.configuration.get('normal_velocity_residual_descent_policy')
+      == 'strict-fresh-response-descent-required-v1'
+      for run in all_runs
+    )
+  )
+  closure_lineage_verified = bool(
+    all_runs and all(run.closure_lineage_verified for run in all_runs)
+  )
+  profile_lineage_verified = bool(
+    all_runs
+    and all(
+      run.pressure_profile_lineage_verified
+      and run.pressure_profile_alignment_verified
+      and run.geometry_profile_lineage_verified
+      and run.geometry_profile_alignment_verified
+      for run in all_runs
+    )
+  )
+  response_lineage_verified = bool(
+    all_runs and all(run.response_lineage_verified for run in all_runs)
+  )
+  response_channels_finite = bool(
+    all_runs and all(run.response_channels_finite for run in all_runs)
+  )
+  response_coverage_verified = bool(
+    all_runs and all(run.response_coverage_verified for run in all_runs)
+  )
+  geometry_profile_consumption_verified = bool(
+    all_runs
+    and all(run.geometry_profile_consumption_verified for run in all_runs)
+  )
+  normal_velocity_residual_descent_verified = bool(
+    all_runs
+    and all(
+      run.normal_velocity_residual_descent_required
+      and run.normal_velocity_residual_descent_verified
+      for run in all_runs
+    )
+  )
+  local_coupled_field_verified = bool(
+    all_runs and all(run.local_coupled_field_verified for run in all_runs)
+  )
+  fidelity_isolation_verified = bool(
+    all_runs and all(run.fidelity_isolation_verified for run in all_runs)
+  )
+  global_coupling_verified = any(
+    run.global_coupling_verified for run in all_runs
+  )
+  downstream_boundary_closure_verified = any(
+    run.downstream_boundary_closure_verified for run in all_runs
+  )
+  chain_promotion_blocked = bool(
+    all_runs
+    and all(
+      run.chain_promotion_blocked and not run.production_claim_allowed
+      for run in all_runs
+    )
+  )
+  production_claim_allowed = any(
+    run.production_claim_allowed for run in all_runs
+  )
+  run_statuses = tuple(
+    tuple(run.status.value for run in case_run.runs)
+    for case_run in retained_case_runs
+  )
+  maximum_normal_velocity_residuals = tuple(
+    tuple(
+      response.maximum_normal_velocity_residual_m_s
+      for run in case_run.runs
+      for item in run.iterations
+      for response in (item.response,)
+      if response is not None
+    )
+    for case_run in retained_case_runs
+  )
+  if not case_ids_verified:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+      .CASE_ID_FAILURE
+    )
+    message = 'signed-response evidence requires at least two unique case IDs'
+  elif not (
+    closure_bindings_verified and distinct_closure_fingerprints_verified
+  ):
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+      .CLOSURE_FAILURE
+    )
+    message = (
+      'signed-response cases must retain distinct exact closure fingerprints; '
+      'closures are never treated as mesh refinements'
+    )
+  elif not resolution_ladders_verified:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+      .RESOLUTION_FAILURE
+    )
+    message = (
+      'each signed-response case must retain a strictly increasing axial and '
+      'transverse resolution ladder'
+    )
+  elif not (fresh_solver_invocation_verified and local_coupled_field_verified):
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+      .CASE_FAILURE
+    )
+    message = (
+      'at least one signed-response mesh point did not retain a fresh locally '
+      'audited coupled field'
+    )
+  elif not fidelity_isolation_verified or not chain_promotion_blocked:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+      .FIDELITY_FAILURE
+    )
+    message = (
+      'signed-response refinement changed its fidelity ceiling or lost its '
+      'promotion block'
+    )
+  elif not (
+    signed_response_configuration_verified
+    and closure_lineage_verified
+    and profile_lineage_verified
+    and response_lineage_verified
+    and response_channels_finite
+    and response_coverage_verified
+    and geometry_profile_consumption_verified
+    and normal_velocity_residual_descent_verified
+  ):
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+      .RESPONSE_FAILURE
+    )
+    message = (
+      'signed pressure/geometry response configuration, lineage, coverage, '
+      'or strict fresh normal-residual descent is incomplete'
+    )
+  else:
+    status = (
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+      .CONVERGED_RESEARCH_SIGNED_RESPONSE_LADDER
+    )
+    message = (
+      'disjoint signed-response case and resolution ladders passed local '
+      'fresh-field evidence; global feedback, canonical closure, external '
+      'validation, and production promotion remain blocked'
+    )
+  ####
+  return MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementMeasurement(
+    status=status,
+    cases=retained_cases,
+    case_runs=retained_case_runs,
+    case_ids=case_ids,
+    regimes=regimes,
+    closure_fingerprints=closure_fingerprints,
+    requested_resolutions=requested_resolutions,
+    run_statuses=run_statuses,
+    maximum_normal_velocity_residuals_m_s=(
+      maximum_normal_velocity_residuals
+    ),
+    case_ids_verified=case_ids_verified,
+    closure_bindings_verified=closure_bindings_verified,
+    distinct_closure_fingerprints_verified=(
+      distinct_closure_fingerprints_verified
+    ),
+    resolution_ladders_verified=resolution_ladders_verified,
+    fresh_solver_invocation_verified=fresh_solver_invocation_verified,
+    signed_response_configuration_verified=(
+      signed_response_configuration_verified
+    ),
+    closure_lineage_verified=closure_lineage_verified,
+    profile_lineage_verified=profile_lineage_verified,
+    response_lineage_verified=response_lineage_verified,
+    response_channels_finite=response_channels_finite,
+    response_coverage_verified=response_coverage_verified,
+    geometry_profile_consumption_verified=(
+      geometry_profile_consumption_verified
+    ),
+    normal_velocity_residual_descent_verified=(
+      normal_velocity_residual_descent_verified
+    ),
+    local_coupled_field_verified=local_coupled_field_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    global_coupling_verified=global_coupling_verified,
+    downstream_boundary_closure_verified=downstream_boundary_closure_verified,
+    chain_promotion_blocked=chain_promotion_blocked,
+    production_claim_allowed=production_claim_allowed,
+    message=message,
+  )
+####
+
+
+def run_reflected_domain_global_coupled_downstream_feedback_refinement(
+  cases: Sequence[
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase
+  ],
+  *,
+  reference_total_temperature_K: float,
+  maximum_iterations: int = 2,
+  pressure_correction_fraction: float = 0.25,
+  signed_normal_response_time_s: float = 1.0e-6,
+  geometry_correction_fraction: float = 0.25,
+  signed_normal_max_displacement_fraction: float = 0.25,
+  pressure_update_tolerance_Pa: float = 1.0e3,
+  position_tolerance_m: float = 1.0e-9,
+  ambient_pressure_Pa: float | None = None,
+  downstream_length_m: float = 0.2,
+  initial_outlet_height_m: float = 0.05,
+  control_section_x_offset_m: float = 0.02,
+  control_section_height_m: float = 0.05,
+  control_section_sample_count: int = 4,
+  max_pseudo_iterations: int = 1200,
+  max_shape_iterations: int = 18,
+  inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode = (
+    MocReflectedDomainCoupledEulerInletBoundaryMode.FULL_STATE_RUSANOV
+  ),
+  outlet_static_pressure_Pa: float | None = None,
+  physical_field_continuation_profile: Any | None = None,
+  physical_field_shock_front_condition: Any | None = None,
+) -> MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementRun:
+  """Run fresh signed pressure/geometry feedback across disjoint ladders.
+
+  ``resolutions`` are owned by each named case and map to
+  ``(axial_station_count, transverse_cell_count)``; the axial cell count is
+  set to the same declared axial value so every feedback step has a fully
+  specified fresh mesh.  This operator intentionally requires both signed
+  response consumers and never reports canonical global closure.
+  """
+
+  retained_cases = tuple(cases)
+  if not retained_cases:
+    raise ValueError('cases must not be empty')
+  ####
+  if any(
+    not isinstance(
+      case,
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase,
+    )
+    for case in retained_cases
+  ):
+    raise TypeError(
+      'cases must contain '
+      'MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase values'
+    )
+  ####
+  response_time = float(signed_normal_response_time_s)
+  if not isfinite(response_time) or response_time <= 0.0:
+    raise ValueError(
+      'signed_normal_response_time_s must be finite and positive'
+    )
+  ####
+  configuration = {
+    'case_ids': tuple(case.case_id for case in retained_cases),
+    'regimes': tuple(case.regime for case in retained_cases),
+    'closure_fingerprints': tuple(
+      case.closure_fingerprint for case in retained_cases
+    ),
+    'resolutions': tuple(case.resolutions for case in retained_cases),
+    'reference_total_temperature_K': float(reference_total_temperature_K),
+    'maximum_iterations': int(maximum_iterations),
+    'pressure_correction_fraction': float(pressure_correction_fraction),
+    'use_signed_free_boundary_pressure_response': True,
+    'use_signed_free_boundary_geometry_response': True,
+    'signed_normal_response_time_s': response_time,
+    'geometry_correction_fraction': float(geometry_correction_fraction),
+    'signed_normal_max_displacement_fraction': float(
+      signed_normal_max_displacement_fraction
+    ),
+    'normal_velocity_residual_descent_policy': (
+      'strict-fresh-response-descent-required-v1'
+    ),
+    'pressure_update_tolerance_Pa': float(pressure_update_tolerance_Pa),
+    'position_tolerance_m': float(position_tolerance_m),
+    'ambient_pressure_Pa': ambient_pressure_Pa,
+    'downstream_length_m': float(downstream_length_m),
+    'initial_outlet_height_m': float(initial_outlet_height_m),
+    'control_section_x_offset_m': float(control_section_x_offset_m),
+    'control_section_height_m': float(control_section_height_m),
+    'control_section_sample_count': int(control_section_sample_count),
+    'max_pseudo_iterations': int(max_pseudo_iterations),
+    'max_shape_iterations': int(max_shape_iterations),
+    'inlet_boundary_mode': getattr(
+      inlet_boundary_mode,
+      'value',
+      str(inlet_boundary_mode),
+    ),
+    'outlet_static_pressure_Pa': outlet_static_pressure_Pa,
+    'feedback_refinement_policy': (
+      'disjoint-closure-two-dimensional-resolution-ladder-v1'
+    ),
+    'promotion_policy': (
+      'research-local-signed-response-only-no-global-or-production-claim-v1'
+    ),
+  }
+  configuration_fingerprint = sha256(
+    json.dumps(
+      configuration,
+      sort_keys=True,
+      separators=(',', ':'),
+      default=str,
+    ).encode('utf-8')
+  ).hexdigest()
+  case_runs: list[
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCaseRun
+  ] = []
+  for case in retained_cases:
+    runs: list[MocReflectedDomainGlobalCoupledDownstreamFeedbackRun] = []
+    failures: list[str] = []
+    for axial_count, transverse_count in case.resolutions:
+      try:
+        run = run_reflected_domain_global_coupled_downstream_feedback(
+          case.closure,
+          reference_total_temperature_K=reference_total_temperature_K,
+          maximum_iterations=maximum_iterations,
+          pressure_correction_fraction=pressure_correction_fraction,
+          use_signed_free_boundary_pressure_response=True,
+          use_signed_free_boundary_geometry_response=True,
+          signed_normal_response_time_s=response_time,
+          geometry_correction_fraction=geometry_correction_fraction,
+          signed_normal_max_displacement_fraction=(
+            signed_normal_max_displacement_fraction
+          ),
+          pressure_update_tolerance_Pa=pressure_update_tolerance_Pa,
+          position_tolerance_m=position_tolerance_m,
+          ambient_pressure_Pa=ambient_pressure_Pa,
+          downstream_length_m=downstream_length_m,
+          initial_outlet_height_m=initial_outlet_height_m,
+          control_section_x_offset_m=control_section_x_offset_m,
+          control_section_height_m=control_section_height_m,
+          control_section_sample_count=control_section_sample_count,
+          axial_station_count=axial_count,
+          axial_cell_count=axial_count,
+          transverse_cell_count=transverse_count,
+          max_pseudo_iterations=max_pseudo_iterations,
+          max_shape_iterations=max_shape_iterations,
+          inlet_boundary_mode=inlet_boundary_mode,
+          outlet_static_pressure_Pa=outlet_static_pressure_Pa,
+          physical_field_continuation_profile=(
+            physical_field_continuation_profile
+          ),
+          physical_field_shock_front_condition=(
+            physical_field_shock_front_condition
+          ),
+        )
+        runs.append(run)
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        failures.append(
+          f'resolution {(axial_count, transverse_count)} failed: {error}'
+        )
+      ####
+    ####
+    case_runs.append(
+      MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCaseRun(
+        case=case,
+        runs=tuple(runs),
+        fresh_solver_invocation_verified=(
+          len(runs) == len(case.resolutions)
+          and all(run.fresh_solver_invocation_verified for run in runs)
+        ),
+        message=(
+          'fresh signed-response mesh ladder completed'
+          if not failures
+          else '; '.join(failures)
+        ),
+      )
+    )
+  ####
+  retained_case_runs = tuple(case_runs)
+  measurement = (
+    measure_reflected_domain_global_coupled_downstream_feedback_refinement(
+      retained_cases,
+      retained_case_runs,
+      signed_normal_response_time_s=response_time,
+    )
+  )
+  fresh_solver_invocation_verified = bool(
+    retained_case_runs
+    and all(
+      case_run.fresh_solver_invocation_verified
+      for case_run in retained_case_runs
+    )
+  )
+  fidelity_isolation_verified = bool(
+    retained_case_runs
+    and all(
+      case_run.runs
+      and all(run.fidelity_isolation_verified for run in case_run.runs)
+      for case_run in retained_case_runs
+    )
+  )
+  return MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementRun(
+    cases=retained_cases,
+    case_runs=retained_case_runs,
+    measurement=measurement,
+    configuration=configuration,
+    configuration_fingerprint=configuration_fingerprint,
+    fresh_solver_invocation_verified=fresh_solver_invocation_verified,
+    fidelity_isolation_verified=fidelity_isolation_verified,
+    message=(
+      'fresh signed-response refinement completed; global feedback, '
+      'canonical closure, external validation, and production promotion '
+      'remain separate gates'
+    ),
   )
 ####

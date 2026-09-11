@@ -399,7 +399,10 @@ from exhaust_plume.validation.moc_global_coupled_pressure_free_boundary_refineme
 )
 from exhaust_plume.validation.moc_global_coupled_downstream_feedback import (
   MocReflectedDomainGlobalCoupledDownstreamFeedbackStatus,
+  MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase,
+  MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus,
   run_reflected_domain_global_coupled_downstream_feedback,
+  run_reflected_domain_global_coupled_downstream_feedback_refinement,
 )
 from exhaust_plume.validation.moc_global_frontier_target_pressure_reconciliation import (
   MocReflectedDomainGlobalFrontierTargetPressureReconciliationStatus,
@@ -8708,6 +8711,86 @@ def test_global_coupled_downstream_feedback_consumes_signed_geometry_response():
   assert run.chain_promotion_blocked
   assert run.production_claim_allowed is False
   assert run.converged is False
+####
+
+
+def test_global_coupled_downstream_signed_feedback_refinement_keeps_cases_disjoint():
+  reflected_closure = _global_physical_closure_for_mixed_regime(sample_count=9)
+  resampled_closure = _global_physical_closure_for_mixed_regime(sample_count=10)
+  ambient_pressure = build_reflected_domain_mixed_regime_boundary_request(
+    reflected_closure
+  ).control_section.samples[-1].static_pressure_Pa
+  cases = (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase(
+      case_id='reflected-placement',
+      regime='reflected',
+      closure=reflected_closure,
+      resolutions=((8, 4), (10, 5)),
+    ),
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementCase(
+      case_id='resampled-placement',
+      regime='resampled-reflected',
+      closure=resampled_closure,
+      resolutions=((8, 4), (10, 5)),
+    ),
+  )
+
+  run = run_reflected_domain_global_coupled_downstream_feedback_refinement(
+    cases,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=ambient_pressure,
+    maximum_iterations=2,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  assert run.converged
+  assert run.fresh_solver_invocation_verified
+  assert run.fidelity_isolation_verified
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledDownstreamFeedbackRefinementStatus
+    .CONVERGED_RESEARCH_SIGNED_RESPONSE_LADDER
+  )
+  assert run.measurement.case_ids == (
+    'reflected-placement',
+    'resampled-placement',
+  )
+  assert run.measurement.case_ids_verified
+  assert run.measurement.closure_bindings_verified
+  assert run.measurement.distinct_closure_fingerprints_verified
+  assert run.measurement.resolution_ladders_verified
+  assert run.measurement.signed_response_configuration_verified
+  assert run.measurement.closure_lineage_verified
+  assert run.measurement.profile_lineage_verified
+  assert run.measurement.response_lineage_verified
+  assert run.measurement.response_channels_finite
+  assert run.measurement.response_coverage_verified
+  assert run.measurement.geometry_profile_consumption_verified
+  assert run.measurement.normal_velocity_residual_descent_verified
+  assert run.measurement.local_coupled_field_verified
+  assert run.measurement.global_coupling_verified is False
+  assert run.measurement.downstream_boundary_closure_verified is False
+  assert run.measurement.chain_promotion_blocked
+  assert run.measurement.production_claim_allowed is False
+  assert run.production_claim_allowed is False
+  assert run.as_report()['operator_id'] == (
+    'op.moc.reflected-domain.global-coupled-downstream-feedback-'
+    'refinement-run'
+  )
+  assert all(
+    len(case_run.runs) == 2
+    and case_run.converged
+    and all(
+      feedback_run.normal_velocity_residual_descent_required
+      and feedback_run.normal_velocity_residual_descent_verified
+      and feedback_run.global_coupling_verified is False
+      and feedback_run.downstream_boundary_closure_verified is False
+      and feedback_run.chain_promotion_blocked
+      and feedback_run.production_claim_allowed is False
+      for feedback_run in case_run.runs
+    )
+    for case_run in run.case_runs
+  )
 ####
 
 
