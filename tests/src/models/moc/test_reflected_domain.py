@@ -20,6 +20,11 @@ from exhaust_plume.validation.moc_euler_two_sided_interface_law import (
   MocEulerTwoSidedInterfaceLawAuditStatus,
   measure_moc_euler_two_sided_interface_law,
 )
+from exhaust_plume.validation.moc_euler_two_sided_interface_law_refinement import (
+  MocEulerTwoSidedInterfaceLawRefinementCase,
+  MocEulerTwoSidedInterfaceLawRefinementStatus,
+  measure_moc_euler_two_sided_interface_law_refinement,
+)
 from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
   MocEulerTwoSidedFieldIterationRefinementCase,
   MocEulerTwoSidedFieldRefinementAuditStatus,
@@ -563,7 +568,11 @@ def _handoff(field):
 ####
 
 
-def _global_physical_closure_for_mixed_regime(sample_count: int = 9):
+def _global_physical_closure_for_mixed_regime(
+  sample_count: int = 9,
+  *,
+  compression_envelope_skews=(-0.75, 0.0),
+):
   field, patch = _patch(sample_count)
   ambient_pressure = field.ambient_boundary.ambient_pressure_Pa
   assert ambient_pressure is not None
@@ -578,7 +587,7 @@ def _global_physical_closure_for_mixed_regime(sample_count: int = 9):
     target_centerline_indices=(3,),
     compression_amplitude_lower_rad=0.007,
     compression_amplitude_upper_rad=0.03,
-    compression_envelope_skews=(-0.75, 0.0),
+    compression_envelope_skews=compression_envelope_skews,
     sample_count=sample_count,
     shock_angle_tolerance_rad=0.02,
   )
@@ -629,6 +638,51 @@ def _two_sided_field_iteration_for_resolution(sample_count: int):
       ambient_pressure_Pa=ambient_pressure,
       maximum_field_iterations=3,
     )
+  )
+####
+
+
+def _solver_owned_interface_law_for_resolution(
+  sample_count: int,
+  *,
+  compression_envelope_skews=(-0.75, 0.0),
+):
+  closure = _global_physical_closure_for_mixed_regime(
+    sample_count,
+    compression_envelope_skews=compression_envelope_skews,
+  )
+  assert closure.global_euler is not None
+  shock_boundary = closure.global_euler.shock_boundary
+  ambient_pressure = closure.source_band.ambient_pressure_Pa
+  assert shock_boundary is not None
+  assert ambient_pressure is not None
+  companion_boundary = solve_euler_ambient_companion_boundary_reference(
+    shock_boundary,
+    ambient_pressure,
+    separation_m=0.5,
+  )
+  assert companion_boundary.converged
+  companion_field = assemble_euler_consistent_companion_characteristic_strip(
+    shock_boundary,
+    companion_boundary.samples,
+  )
+  assert companion_field.converged
+  field = solve_euler_two_sided_field_iteration(
+    MocEulerTwoSidedFieldIterationRequest(
+      shock_boundary=shock_boundary,
+      companion_field=companion_field,
+      ambient_pressure_Pa=ambient_pressure,
+      maximum_field_iterations=3,
+    )
+  )
+  return build_solver_owned_euler_two_sided_interface_response(
+    field,
+    MocEulerTwoSidedInterfaceLawRequest(
+      source_band=closure.source_band,
+      reference_total_temperature_K=1500.0,
+      pseudo_time_step_s=1.0e-8,
+      anchor_endpoint_samples=2,
+    ),
   )
 ####
 
@@ -1753,6 +1807,16 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert audit.result_flags_verified
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+
+  center_probe_law = build_solver_owned_euler_two_sided_interface_response(
+    result,
+    replace(law_request, downstream_probe_fraction=0.5),
+  )
+  assert center_probe_law.response is not None
+  assert law.response.maximum_normal_momentum_residual_Pa < (
+    center_probe_law.response.maximum_normal_momentum_residual_Pa
+  )
+  assert law.request.downstream_probe_fraction == pytest.approx(0.01)
   assert law.as_report()['chain_promotion_blocked']
   assert law.as_report()['production_claim_allowed'] is False
 
@@ -1795,6 +1859,110 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert not moving.moving_interface_verified
   assert moving.chain_promotion_blocked
   assert moving.production_claim_allowed is False
+
+  research_moving = solve_euler_two_sided_moving_interface_with_solver_owned_law(
+    MocEulerTwoSidedMovingInterfaceRequest(
+      field_request=MocEulerTwoSidedFieldIterationRequest(
+        shock_boundary=shock_boundary,
+        companion_field=companion_field,
+        ambient_pressure_Pa=ambient_pressure,
+        maximum_field_iterations=3,
+      ),
+      maximum_interface_iterations=1,
+      mass_flux_tolerance_kg_m2_s=1.0e-6,
+      normal_momentum_tolerance_Pa=100.0,
+      energy_flux_tolerance_W_m2=1.0e-1,
+    ),
+    law_request,
+  )
+  assert research_moving.status is (
+    MocEulerTwoSidedMovingInterfaceStatus.CONVERGED_RESEARCH_MOVING_INTERFACE
+  )
+  assert research_moving.moving_interface_verified
+  assert research_moving.response_residuals_verified
+  assert research_moving.field_re_solve_verified
+  research_moving_audit = measure_moc_euler_two_sided_moving_interface(
+    research_moving
+  )
+  assert research_moving_audit.status is (
+    MocEulerTwoSidedMovingInterfaceAuditStatus.CONVERGED_LOCAL_AUDIT
+  )
+  assert research_moving_audit.local_consistency_verified
+  assert research_moving_audit.canonical_free_boundary_verified is False
+  assert research_moving_audit.canonical_euler_verified is False
+  assert research_moving_audit.chain_promotion_blocked
+  assert research_moving_audit.production_claim_allowed is False
+
+
+def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():
+  cases = tuple(
+    MocEulerTwoSidedInterfaceLawRefinementCase(
+      case_id='mixed-regime-fixture',
+      resolution_sample_count=sample_count,
+      result=_solver_owned_interface_law_for_resolution(sample_count),
+    )
+    for sample_count in (5, 9, 13, 17)
+  )
+
+  measurement = measure_moc_euler_two_sided_interface_law_refinement(cases)
+
+  assert measurement.status is (
+    MocEulerTwoSidedInterfaceLawRefinementStatus.CONVERGED_LOCAL_REFINEMENT
+  )
+  assert measurement.converged
+  assert measurement.local_consistency_verified
+  assert measurement.case_audits_verified
+  assert measurement.case_identity_verified
+  assert measurement.resolution_order_verified
+  assert measurement.residuals_finite
+  assert measurement.mass_residuals_verified
+  assert measurement.energy_residuals_verified
+  assert measurement.momentum_nonincreasing_verified
+  assert measurement.momentum_reduction_verified
+  assert measurement.refinement_convergence_verified
+  assert measurement.cross_case_verified is False
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.canonical_euler_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+  assert measurement.maximum_normal_momentum_residuals_Pa[-1] < (
+    measurement.maximum_normal_momentum_residuals_Pa[0]
+  )
+
+
+def test_solver_owned_two_sided_interface_law_has_cross_case_refinement():
+  cases = tuple(
+    MocEulerTwoSidedInterfaceLawRefinementCase(
+      case_id=case_id,
+      resolution_sample_count=sample_count,
+      result=_solver_owned_interface_law_for_resolution(
+        sample_count,
+        compression_envelope_skews=skews,
+      ),
+    )
+    for case_id, skews in (
+      ('mixed-regime-envelope-a', (-0.75, 0.0)),
+      ('mixed-regime-envelope-b', (0.0,)),
+    )
+    for sample_count in (5, 9, 13, 17)
+  )
+
+  measurement = measure_moc_euler_two_sided_interface_law_refinement(cases)
+
+  assert measurement.status is (
+    MocEulerTwoSidedInterfaceLawRefinementStatus
+    .CONVERGED_CROSS_CASE_REFINEMENT
+  )
+  assert measurement.converged
+  assert measurement.local_consistency_verified
+  assert measurement.case_audits_verified
+  assert measurement.resolution_order_verified
+  assert measurement.momentum_nonincreasing_verified
+  assert measurement.momentum_reduction_verified
+  assert measurement.cross_case_verified
+  assert measurement.refinement_convergence_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
 
 
 def test_two_sided_moving_interface_rejects_fixed_geometry_response():

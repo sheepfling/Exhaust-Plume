@@ -3,10 +3,11 @@
 The fixed-front two-sided field already contains the two pieces needed for a
 bounded front-tracking response: an upstream state/total-pressure source band
 and an interior downstream state on the retained physical mesh.  This module
-uses those states in the stationary Rankine--Hugoniot mass equation to derive
-a dimensional normal front speed, advances only the unconstrained interior
-shock samples, resamples the upstream field by identity, and refits an exact
-Euler-consistent shock before rebuilding the open companion strip.
+uses those states in the moving Rankine--Hugoniot mass equation to derive a
+dimensional normal front speed, evaluates all three flux channels in the
+front-relative frame, advances only the unconstrained interior shock samples,
+resamples the upstream field by identity, and refits an exact Euler-consistent
+shock before rebuilding the open companion strip.
 
 This is deliberately a research law, not canonical free-boundary closure.  It
 does not invent a subsonic field, move an endpoint without a boundary law, or
@@ -198,7 +199,11 @@ class MocEulerTwoSidedInterfaceLawRequest:
   pseudo_time_step_s: float = 1.0e-8
   relaxation: float = 0.5
   maximum_normal_displacement_m: float = 1.0e-3
-  downstream_probe_fraction: float = 0.5
+  # The interface state is the one-sided post-front limit.  A small explicit
+  # fraction samples just inside the retained downstream cell; the caller can
+  # increase it for a declared sensitivity study, but the default must not
+  # silently use a cell-center state as the front state.
+  downstream_probe_fraction: float = 0.01
   companion_separation_m: float = 0.5
   companion_seed_flow_angle_rad: float = 0.0
   # Two samples per endpoint are retained so the endpoint tangent is not
@@ -796,28 +801,31 @@ def build_solver_owned_euler_two_sided_interface_response(
         downstream_density * downstream_normal_velocity
         - upstream_density * upstream_normal_velocity
       ) / density_jump
+      if not isfinite(speed):
+        raise ValueError(f'interface normal speed is non-finite at sample {index}')
+      ####
+      upstream_relative_velocity = upstream_normal_velocity - speed
+      downstream_relative_velocity = downstream_normal_velocity - speed
       mass_residuals.append(
         abs(
-          downstream_density * downstream_normal_velocity
-          - upstream_density * upstream_normal_velocity
+          downstream_density * downstream_relative_velocity
+          - upstream_density * upstream_relative_velocity
         )
       )
       momentum_residuals.append(
         abs(
-          downstream_density * downstream_normal_velocity**2
+          downstream_density * downstream_relative_velocity**2
           + downstream_pressure_static
-          - upstream_density * upstream_normal_velocity**2
+          - upstream_density * upstream_relative_velocity**2
           - upstream_pressure_static
         )
       )
       energy_residuals.append(
         abs(
-          downstream_h * downstream_normal_velocity
-          - upstream_h * upstream_normal_velocity
+          downstream_h * downstream_relative_velocity
+          - upstream_h * upstream_relative_velocity
         )
       )
-      if not isfinite(speed):
-        raise ValueError(f'interface normal speed is non-finite at sample {index}')
       ####
       speeds.append(speed)
       if index < request.anchor_endpoint_samples or index >= len(probes) - request.anchor_endpoint_samples:

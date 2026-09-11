@@ -4535,7 +4535,8 @@ The first bounded response law is now implemented as
 ``solver-owned-two-sided-euler-rankine-front-response-v1``.  It reconstructs
 dimensional primitive states from an explicit total-temperature/gas-constant
 scale, samples the retained downstream physical cells, derives a signed
-normal interface speed from the mass Rankine--Hugoniot relation, advances only
+normal interface speed from the moving mass Rankine--Hugoniot relation,
+evaluates mass/momentum/energy in the front-relative frame, advances only
 interior shock samples, resamples the bounded upstream source band, refits an
 exact Euler-consistent shock with static-pressure inputs, and rebuilds an open
 companion characteristic strip.  The endpoint tangent is protected by
@@ -4552,8 +4553,32 @@ because the declared mass/momentum/energy residual tolerances are still open;
 this is research evidence, not canonical free-boundary closure or physical
 shock-cell promotion.
 
-The next WP-1 slice is therefore a conservative residual closure and
-refinement ladder across cases/resolutions, including a separate treatment of
-energy/entropy and ambient/centerline compatibility.  Until that evidence
-passes, the response law remains blocked from the canonical chain and from
-Visualization/Signature/FPA production claims.
+The local resolution ladder now passes across two distinct solver-owned
+envelope cases at four resolutions each: mass and energy residuals remain at
+the declared local tolerance, and normal-momentum residuals decrease on each
+case group.  This is a cross-case refinement checkpoint, not closure: the
+response law remains blocked from the canonical chain and from
+Visualization/Signature/FPA production claims.  The next WP-1 slice is a
+joint interface/field solve that uses the momentum residual to update the
+front only through conservative equations, then rechecks entropy and
+ambient/centerline compatibility.
+
+### WP-1 front-limit and cross-case refinement checkpoint — 2026-09-10
+
+The response law now evaluates the moving Rankine--Hugoniot channels with
+front-relative normal velocity.  The downstream probe default is an explicit
+``0.01`` one-sided fraction inside the retained physical cell, rather than a
+cell-center state.  A sensitivity regression confirms that the near-front
+sample reduces the 9-sample normal-momentum residual from approximately
+``21.0 kPa`` to ``41.7 Pa`` while mass and energy remain at roundoff.
+
+The independent refinement operator now groups fresh results by case, audits
+each result, requires increasing resolution within every group, and checks
+non-increasing/reducing normal-momentum residuals.  Two distinct solver-owned
+envelope cases pass four-resolution ladders.  With an explicit research
+tolerance of ``100 Pa``, the moving driver consumes the response, completes
+the exact two-sided field re-solve, and passes its independent moving-interface
+audit.  This is a declared research convergence at the current resolution;
+the strict default tolerance remains open, and canonical free-boundary,
+entropy/ambient/centerline closure, physical shock-cell fitting, provider
+validation, and production promotion remain blocked.

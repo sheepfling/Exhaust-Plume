@@ -557,17 +557,26 @@ def measure_moc_euler_two_sided_interface_law(
           (downstream_density * downstream_normal - upstream_density * upstream_normal)
           / density_jump
         )
+        speed = expected_speeds[-1]
+        upstream_relative = upstream_normal - speed
+        downstream_relative = downstream_normal - speed
         expected_mass.append(
-          abs(downstream_density * downstream_normal - upstream_density * upstream_normal)
+          abs(
+            downstream_density * downstream_relative
+            - upstream_density * upstream_relative
+          )
         )
         expected_momentum.append(
           abs(
-            downstream_density * downstream_normal**2 + downstream_static
-            - upstream_density * upstream_normal**2 - upstream_static
+            downstream_density * downstream_relative**2 + downstream_static
+            - upstream_density * upstream_relative**2 - upstream_static
           )
         )
         expected_energy.append(
-          abs(downstream_h * downstream_normal - upstream_h * upstream_normal)
+          abs(
+            downstream_h * downstream_relative
+            - upstream_h * upstream_relative
+          )
         )
     except (ArithmeticError, FloatingPointError, TypeError, ValueError):
       downstream_probe_verified = False
