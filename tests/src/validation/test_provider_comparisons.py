@@ -493,4 +493,9 @@ def test_visual_feature_probe_reports_missing_feature_and_branch_contract() -> N
     'mach_disk_position_m',
     'operating_pressure_or_branch_id',
   ]
+  assert result['comparison_operator_id'] == 'op.visual.feature-series.no-extrapolation-v1'
+  assert result['visual_feature_series_schema'] == 'exhaust-plume.visual-feature-series@1'
+  assert 'coordinate_frame_id' in result['required_series_metadata']
+  assert 'one_sigma_uncertainty_when_available' in result['required_series_metadata']
+  assert 'never treat missing uncertainty as zero' in result['uncertainty_policy']
 ####

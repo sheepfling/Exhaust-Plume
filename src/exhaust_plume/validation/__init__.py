@@ -978,7 +978,12 @@ from exhaust_plume.validation.shock_train_validation import (
 from exhaust_plume.validation.visual_comparisons import (
   MACH_DISK_FEATURE_OPERATOR_ID,
   MachDiskPressureComparison,
+  VISUAL_FEATURE_COMPARISON_OPERATOR_ID,
+  VISUAL_FEATURE_SERIES_SCHEMA,
+  VisualFeatureComparison,
+  VisualFeatureSeries,
   compare_mach_disk_pressure_relation,
+  compare_visual_feature_series,
 )
 
 __all__ = (
@@ -1588,8 +1593,12 @@ __all__ = (
   'VisualLaneInvariantReport',
   'ComparisonEvidenceStatus',
   'MACH_DISK_FEATURE_OPERATOR_ID',
+  'VISUAL_FEATURE_COMPARISON_OPERATOR_ID',
+  'VISUAL_FEATURE_SERIES_SCHEMA',
   'LOS_FOV_SPECTRUM_OPERATOR_ID',
   'MachDiskPressureComparison',
+  'VisualFeatureComparison',
+  'VisualFeatureSeries',
   'NozzleCaseAssessment',
   'NozzleValidityCase',
   'OperatorStatus',
@@ -1636,6 +1645,7 @@ __all__ = (
   'compare_peak_normalized_spectral_shape',
   'compare_declared_peak_normalized_spectral_shape',
   'compare_mach_disk_pressure_relation',
+  'compare_visual_feature_series',
   'compare_shock_train_pressure_extrema_spacing',
   'audit_shock_train_calibration_validation_split',
   'validate_signature_table_result',

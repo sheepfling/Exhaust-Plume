@@ -5980,3 +5980,99 @@ The next P3 gate is the provider-bound five-lane gallery/comparison intake with
 declared coordinate operators and uncertainty overlays.  Canonical
 mixed-regime closure, physical shock-cell lengths, missing validation archives,
 and exact-head release freeze remain open.
+
+### P3.2 product/validation and package evidence checkpoint — 2026-09-11
+
+The broader product and validation surface now passes as one bounded
+verification tranche: ``362 passed in 8m55s`` across
+``tests/src/products`` and ``tests/src/validation``.  A no-isolation wheel
+build also completes for the current candidate checkout.  This is package and
+regression evidence only; it does not change any lane's claim ceiling or turn
+local fixtures into provider-bound validation.
+
+The release manifest still reports ``release_ready=false`` for the expected
+reasons: provider-specific measurement-space outputs and scenario assets are
+missing, the separately named MVP alignment archive is unavailable, the
+canonical planar-MOC/free-boundary closure and accepted physical shock-cell
+length comparison are open, and the recorded release freeze does not match
+the current candidate HEAD.  The worktree is clean and no low-fidelity
+promotion was detected.
+
+The remaining work is now an ordered release queue rather than an undifferentiated
+model merge:
+
+1. **Validation intake.** Acquire and verify the Version 8 observation archive
+   and the separately named alignment archive.  Record immutable SHA-256
+   identities and source metadata before executing any provider comparison;
+   if either archive is absent, retain the comparison as blocked.
+2. **Provider-bound Visualization intake.** Keep all five model-lane bundles
+   independent, then bind each comparison to an explicit scenario, coordinate
+   frame, feature-extraction operator, uncertainty policy, and coverage rule.
+   No row-order matching, implicit frame transform, extrapolation, or visual
+   endpoint inference is allowed.  A rendered gallery remains evaluation
+   evidence, not external validation.
+3. **Signature and ray-transfer acceptance.** For each benchmark, bind the
+   provider snapshot to the declared measurement space (intrinsic intensity,
+   sensor radiance, relative shape, or band-integrated output), observer/FOV
+   and path operators, detector response, uncertainty, and disjoint
+   calibration/validation cases.  A spectral residual alone cannot promote a
+   claim.
+4. **FPA boundary completion.** Preserve the downstream-only boundary while
+   adding provider-bound camera/optics, pixel-detector, digitization, and
+   measured-count evidence.  Until that evidence exists, expose only the
+   deterministic expected-electron/expected-ADC adapters.
+5. **Canonical high-fidelity physics.** Close the solver-owned planar-MOC
+   free-boundary equation and conservative shock-jump audit, then repeat the
+   first-cell/shock-chain fit over disjoint cases and increasing resolutions.
+   Research pressure controllers, terminal patches, and diagnostic
+   correlations cannot be relabeled as the production closure.
+6. **Release freeze.** After the final code, docs, and evidence commit, rerun
+   the lane validator, full bounded test tranche, package build, and promotion
+   guards; update the release manifest to the exact candidate HEAD only after
+   all preceding gates pass.  Push/tag is a separate explicit handoff, not an
+   automatic consequence of local readiness.
+
+The next implementation checkpoint is item 2: a typed provider-bound visual
+feature/gallery intake that can report missing operator inputs and uncertainty
+coverage without fabricating observations.  Items 1 and 5 remain external/data
+and physics gates respectively; they must not be hidden behind visualization
+work.
+
+### P3.3 typed visual-feature intake checkpoint — 2026-09-11
+
+The provider-comparison seam now has a reusable
+``exhaust-plume.visual-feature-series@1`` envelope and
+``op.visual.feature-series.no-extrapolation-v1`` diagnostic operator.  Each
+series requires feature and coordinate identities/units, source and scenario
+identity, coordinate frame, measurement space, extraction operator, finite
+values, and an explicit validity mask.  Hysteretic or otherwise unordered
+features require branch IDs on both sides; unbranched axes must be strictly
+increasing.  Optional model-lane identity and a deterministic series digest
+keep the five independent visualization lanes traceable without merging their
+claims.
+
+The comparison reports exact contract mismatches, branch-set mismatches,
+coverage, partial-domain diagnostics, and one-sigma uncertainty coverage and
+normalized residuals when both sides supply uncertainty.  Missing uncertainty
+is reported as missing coverage, never as zero error.  Its report is explicitly
+diagnostic-only and guards against extrapolation, implicit frame transforms,
+row-order branch inference, and promotion to external validation.
+
+The provider preflight now records this schema, operator, required metadata,
+and uncertainty policy.  The focused visual/provider comparison tests pass
+(``25 passed``), with Ruff and Pyright clean.  This closes the contract side
+of the Visualization comparison gate; it does not unblock the gate itself:
+the current providers still do not emit the physical Mach-disk feature,
+branch/pressure mapping, or provider-bound scenario/uncertainty assets.
+
+The committed candidate ``c756c4b`` also produces a clean no-isolation wheel
+build containing the new validation surface.  The generated wheel is local
+build evidence only; it is not a release artifact until the external and
+physics gates below are complete.
+
+Next work remains the validation archive intake and provider-owned output
+handoff.  Once those exist, instantiate the series for each applicable model
+lane and benchmark, verify the declared operator crosswalk, and only then
+consider quantitative evidence.  Signature/ray measurement-space acceptance,
+FPA detector evidence, canonical physical closure, and release freeze remain
+separate gates.

@@ -43,7 +43,11 @@ try:
     ComparisonEvidenceStatus,
     ProviderBoundComparisonEvidence,
   )
-  from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
+  from exhaust_plume.validation.visual_comparisons import (
+    MACH_DISK_FEATURE_OPERATOR_ID,
+    VISUAL_FEATURE_COMPARISON_OPERATOR_ID,
+    VISUAL_FEATURE_SERIES_SCHEMA,
+  )
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
   from validate_external_corpus_alignment import _read_csv, _read_json, preflight_corpus
   from verify_validation_corpus import load_manifest, verify_archive
@@ -60,7 +64,11 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution
     ComparisonEvidenceStatus,
     ProviderBoundComparisonEvidence,
   )
-  from exhaust_plume.validation.visual_comparisons import MACH_DISK_FEATURE_OPERATOR_ID
+  from exhaust_plume.validation.visual_comparisons import (
+    MACH_DISK_FEATURE_OPERATOR_ID,
+    VISUAL_FEATURE_COMPARISON_OPERATOR_ID,
+    VISUAL_FEATURE_SERIES_SCHEMA,
+  )
 ####
 
 
@@ -621,6 +629,8 @@ def execute_visual_feature_probe(
   observed_columns = list(observed.get('columns', []))
   return {
     'operator_id': MACH_DISK_FEATURE_OPERATOR_ID,
+    'comparison_operator_id': VISUAL_FEATURE_COMPARISON_OPERATOR_ID,
+    'visual_feature_series_schema': VISUAL_FEATURE_SERIES_SCHEMA,
     'status': 'blocked-missing-provider-feature' if missing_outputs else 'not-executed-provider-sample-not-bound',
     'claim_status': 'not_accepted',
     'comparison_method': 'branch-aware-no-extrapolation',
@@ -630,6 +640,24 @@ def execute_visual_feature_probe(
     'observed_point_count': observed.get('row_count', 0),
     'observed_columns': observed_columns,
     'observed_branch_id_field_present': 'branch_id' in observed_columns,
+    'required_series_metadata': [
+      'feature_id',
+      'coordinate_id_and_unit',
+      'feature_unit',
+      'source_id_and_digest',
+      'scenario_id',
+      'coordinate_frame_id',
+      'measurement_space',
+      'operator_id',
+      'validity_mask',
+      'branch_ids_for_hysteretic_features',
+      'one_sigma_uncertainty_when_available',
+    ],
+    'uncertainty_policy': (
+      'report uncertainty coverage and normalized residuals when both series '
+      'supply nonzero one-sigma uncertainties; never treat missing uncertainty '
+      'as zero'
+    ),
     'reason': (
       'current visual providers do not emit a Mach-disk feature and operating-branch channel'
       if missing_outputs else
