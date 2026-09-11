@@ -5199,3 +5199,23 @@ mixed-regime interface/free-boundary equations, stable physical case ladder,
 accepted first-cell lengths, provider-bound comparisons, validation archives,
 and release freeze remain open.  No global or production claim flags are
 changed by this checkpoint.
+
+### P2.2 bounded mixed-wave physical-field admission checkpoint — 2026-09-11
+
+The open mixed-wave interface now has a separate strict admission wrapper,
+``solve_reflected_domain_global_transonic_mixed_wave_physical_field``.  It
+requires the caller to provide the outer flow-angle bracket, consumes the
+exact interface frontier without remapping or extrapolation, invokes the
+existing entropy-characteristic ambient/centerline physical-field solver, and
+independently remeasures the retained result.  The result records the source
+field/frontier lineage, the resolved sample count and tolerances, the nested
+physical-field result, and the independent audit.
+
+The canonical mixed-regime fixture reaches the solver's typed
+``CENTERLINE_BOUNDARY_FAILURE`` / ambient-attachment stop with the physical
+attempt and audit retained.  The focused mixed-wave suite passes (``8
+passed``), including a tampered-frontier regression.  This packet does not
+relax the remesh tolerance, infer a missing angle bracket, or promote the
+local field into a global closure: centerline/global feedback, physical
+shock-cell continuation, provider-bound validation, validation archives, and
+release gates remain open.
