@@ -5865,3 +5865,32 @@ canonical mixed-regime free boundary, accept a physical shock-cell length, or
 open Signature/FPA/provider or release claims.  The next physics gate remains
 the canonical planar-MOC/free-boundary equation, followed by accepted physical
 length evidence and provider-bound validation.
+
+### P2.2 terminal-patch physical-field checkpoint — 2026-09-11
+
+The mixed-wave seam now has an explicit terminal-patch field-admission
+operator, ``op.moc.reflected-domain.global-transonic-mixed-wave-terminal-patch-physical-field``.
+It requires the exact locally verified mixed-wave interface and its verified
+terminal-reflection probe, consumes the bounded outgoing patch trace, and calls
+the existing ambient/centerline physical-field solver with a caller-owned
+attachment bracket.  The result records the exact interface/probe lineage,
+the typed subsonic terminal, the state-carrying physical field, and the
+centerline closure gate without relabelling the patch as a canonical global
+solution.
+
+On the retained mixed-regime case, the terminal-patch solver reaches a
+geometrically closed, state-sampling, upstream-coupled ambient field.  The
+independent conservative Euler audit still fails its shock-jump gate: the
+largest normalized mass/momentum/energy jump is about ``0.0211`` at the
+configured ``0.01`` audit tolerance.  The typed result therefore remains an
+audit failure with ``physical_closure_verified=false``,
+``global_coupling_verified=false``, and chain/production promotion blocked.
+The focused old-path and terminal-patch regressions pass (``2 passed``), with
+Ruff, Pyright, compilation, and whitespace checks clean.
+
+This is a useful local closure diagnostic, not completion of P2.2.  The next
+physics gate is to resolve the conservative shock-jump discrepancy and then
+repeat the terminal-patch field/audit across disjoint cases and resolutions.
+Canonical reflected/free-boundary feedback, physical shock-cell lengths,
+provider-bound Visualization/Signature/RAY/FPA validation, missing archives,
+and release freeze remain open.

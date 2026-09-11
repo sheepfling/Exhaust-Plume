@@ -292,6 +292,10 @@ from exhaust_plume.validation.moc_global_transonic_mixed_wave_physical_field imp
   MocReflectedDomainGlobalTransonicMixedWavePhysicalFieldStatus,
   solve_reflected_domain_global_transonic_mixed_wave_physical_field,
 )
+from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_patch_physical_field import (
+  MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchPhysicalFieldStatus,
+  solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_field,
+)
 from exhaust_plume.validation.moc_global_transonic_mixed_wave_terminal_probe import (
   MocReflectedDomainGlobalTransonicMixedWaveTerminalProbeStatus,
   probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation,
@@ -1373,6 +1377,7 @@ def test_global_transonic_mixed_wave_physical_field_keeps_centerline_stop_typed(
   assert result.physical_field.status.value == (
     'entropy_characteristic_free_boundary_ambient_attachment_failure'
   )
+
   assert result.audit is not None
   assert result.independent_audit_verified
   assert result.audit.status.value == (
@@ -1411,6 +1416,59 @@ def test_global_transonic_mixed_wave_physical_field_keeps_centerline_stop_typed(
   assert tampered.centerline_attempted is False
   assert tampered.physical_field is None
   assert tampered.chain_promotion_blocked
+
+
+def test_global_transonic_mixed_wave_terminal_patch_retains_local_field_audit_stop():
+  closure = _global_physical_closure_for_mixed_regime()
+  ambient_pressure = closure.source_band.ambient_boundary.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  attempt = run_reflected_domain_global_transonic_expansion_attempt(
+    MocReflectedDomainGlobalTransonicClosureRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      ambient_pressure_Pa=ambient_pressure,
+    )
+  )
+  assert attempt.characteristic_field is not None
+  interface = solve_reflected_domain_global_transonic_mixed_wave_interface(
+    attempt.characteristic_field,
+    ambient_pressure,
+  )
+  probe = probe_reflected_domain_global_transonic_mixed_wave_terminal_continuation(
+    interface
+  )
+  result = (
+    solve_reflected_domain_global_transonic_mixed_wave_terminal_patch_physical_field(
+      interface,
+      probe,
+      outer_flow_angle_bracket=(-0.05, 0.05),
+    )
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalTransonicMixedWaveTerminalPatchPhysicalFieldStatus
+    .AUDIT_FAILURE
+  )
+  assert result.interface is interface
+  assert result.terminal_probe is probe
+  assert result.interface_consumed
+  assert result.source_field_consumed
+  assert result.frontier_consumed
+  assert result.terminal_probe_consumed
+  assert result.centerline_attempted
+  assert result.centerline_boundary_verified
+  assert result.physical_field is not None
+  assert result.physical_field.physical_closure_verified
+  assert result.physical_field.state_sampling_available
+  assert result.physical_field.upstream_coupling_verified
+  assert result.audit is not None
+  assert result.independent_audit_verified is False
+  assert result.audit.converged is False
+  assert result.physical_closure_verified is False
+  assert result.global_coupling_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert 'independent conservative audit' in result.message
 
 
 def test_global_transonic_mixed_wave_terminal_probe_keeps_reference_below_promotion():
