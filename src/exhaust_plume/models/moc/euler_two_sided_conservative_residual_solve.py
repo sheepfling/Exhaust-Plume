@@ -20,8 +20,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import isfinite, sqrt
+from math import hypot, isfinite, sqrt
 from typing import Any
+
+import numpy as np
 
 from exhaust_plume.models.moc.euler_two_sided_field_iteration import (
   MocEulerTwoSidedFieldIterationResult,
@@ -123,6 +125,10 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
   use_directional_residual_correction: bool = True
   jacobian_probe_fraction: float = 0.5
   maximum_directional_step_fraction: float = 1.0
+  use_shape_jacobian_correction: bool = False
+  shape_jacobian_probe_fraction: float = 0.25
+  maximum_shape_controls: int = 8
+  maximum_shape_step_fraction: float = 1.0
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -188,6 +194,31 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
       ),
     )
     ####
+    if not isinstance(self.use_shape_jacobian_correction, bool):
+      raise TypeError('use_shape_jacobian_correction must be a bool')
+    if (
+      isinstance(self.maximum_shape_controls, bool)
+      or not isinstance(self.maximum_shape_controls, int)
+      or self.maximum_shape_controls < 1
+    ):
+      raise ValueError('maximum_shape_controls must be a positive integer')
+    object.__setattr__(
+      self,
+      'shape_jacobian_probe_fraction',
+      _bounded_fraction(
+        self.shape_jacobian_probe_fraction,
+        'shape_jacobian_probe_fraction',
+      ),
+    )
+    object.__setattr__(
+      self,
+      'maximum_shape_step_fraction',
+      _bounded_directional_step_fraction(
+        self.maximum_shape_step_fraction,
+        'maximum_shape_step_fraction',
+      ),
+    )
+    ####
     if self.law_request.source_band is None:
       raise ValueError('law_request must retain a source band')
     ####
@@ -213,6 +244,10 @@ class MocEulerTwoSidedConservativeResidualSolveRequest:
       'maximum_directional_step_fraction': (
         self.maximum_directional_step_fraction
       ),
+      'use_shape_jacobian_correction': self.use_shape_jacobian_correction,
+      'shape_jacobian_probe_fraction': self.shape_jacobian_probe_fraction,
+      'maximum_shape_controls': self.maximum_shape_controls,
+      'maximum_shape_step_fraction': self.maximum_shape_step_fraction,
       'production_claim_allowed': False,
     }
 
@@ -322,22 +357,35 @@ def _dimensioned_channel_descent(
   before: tuple[float, float, float] | None,
   after: tuple[float, float, float] | None,
 ) -> bool:
-  """Require no channel worsening and at least one strict channel decrease."""
+  """Require active-channel descent while retaining closed channels.
+
+  A channel already inside its declared tolerance is an inactive constraint;
+  it may move within that strict accepted band while another open equation is
+  corrected.  An open channel must not worsen, and at least one open channel
+  must strictly decrease.  This is an active-set rule, not a tolerance
+  relaxation: a previously closed channel may not leave its accepted band.
+  """
 
   if before is None or after is None:
     return False
   numerical_tolerance = 1.0e-12
+  closed_limit = 1.0 + numerical_tolerance
   nonincreasing = all(
-    next_value
-    <= current_value + numerical_tolerance * max(1.0, abs(current_value))
+    (
+      next_value
+      <= current_value + numerical_tolerance * max(1.0, abs(current_value))
+      if current_value > 1.0
+      else next_value <= closed_limit
+    )
     for current_value, next_value in zip(before, after, strict=True)
   )
   strict = any(
-    next_value
+    current_value > 1.0
+    and next_value
     < current_value - numerical_tolerance * max(1.0, abs(current_value))
     for current_value, next_value in zip(before, after, strict=True)
   )
-  return bool(nonincreasing and strict)
+  return bool(nonincreasing and (strict or all(value <= closed_limit for value in after)))
 
 
 def _directional_least_squares_step(
@@ -373,6 +421,188 @@ def _directional_least_squares_step(
   return min(maximum_step_fraction, raw_step)
 
 
+def _shock_normals(
+  points: tuple[tuple[float, float], ...],
+) -> tuple[tuple[float, float], ...]:
+  """Return the solver's downstream-ordered shock normals."""
+
+  if len(points) < 2:
+    raise ValueError('shape correction requires at least two shock points')
+  normals: list[tuple[float, float]] = []
+  for index in range(len(points)):
+    if index == 0:
+      start, end = points[0], points[1]
+    elif index == len(points) - 1:
+      start, end = points[-2], points[-1]
+    else:
+      start, end = points[index - 1], points[index + 1]
+    tangent_x = end[0] - start[0]
+    tangent_y = end[1] - start[1]
+    length = hypot(tangent_x, tangent_y)
+    if not isfinite(length) or length <= 0.0:
+      raise ValueError('shape correction encountered a degenerate shock tangent')
+    normals.append((-tangent_y / length, tangent_x / length))
+  ####
+  return tuple(normals)
+
+
+def _shape_control_vectors(
+  current: MocEulerTwoSidedFieldIterationResult,
+  response: MocEulerTwoSidedInterfaceResponse,
+  request: MocEulerTwoSidedConservativeResidualSolveRequest,
+) -> tuple[tuple[str, tuple[tuple[float, float], ...]], ...]:
+  """Build bounded normal-shape controls from exact solver geometry.
+
+  The first control is the mass-derived kinematic front direction already
+  supplied by the interface law.  The remaining controls are local normal
+  perturbations of unconstrained interior samples.  They change shock slope
+  and curvature, which are the geometric degrees of freedom of the free
+  boundary; they never write pressure, temperature, or state data directly.
+  """
+
+  shock = current.shock_boundary
+  if shock is None:
+    raise ValueError('shape correction requires a retained shock boundary')
+  ####
+  points = tuple(shock.shock_points_m)
+  sample_count = len(points)
+  if len(response.normal_displacements_m) != sample_count:
+    raise ValueError('shape correction geometry and response samples are misaligned')
+  ####
+  anchor_count = request.law_request.anchor_endpoint_samples
+  if anchor_count * 2 >= sample_count:
+    raise ValueError('shape correction requires unconstrained interior samples')
+  ####
+  normals = _shock_normals(points)
+  controls: list[tuple[str, tuple[tuple[float, float], ...]]] = []
+  # ``normal_displacements_m`` is a signed scalar in the local normal frame;
+  # reconstructing the vector here keeps the kinematic law as one explicit
+  # shape control instead of treating it as an unconstrained coordinate edit.
+  mass_direction = tuple(
+    (
+      float(displacement) * normal[0],
+      float(displacement) * normal[1],
+    )
+    for displacement, normal in zip(
+      response.normal_displacements_m,
+      normals,
+      strict=True,
+    )
+  )
+  if max((hypot(*vector) for vector in mass_direction), default=0.0) > (
+    request.moving_request.position_tolerance_m
+  ):
+    controls.append(('mass-kinematic-normal-update', mass_direction))
+  ####
+  interior_indices = list(range(anchor_count, sample_count - anchor_count))
+  local_budget = request.maximum_shape_controls - len(controls)
+  if local_budget <= 0:
+    return tuple(controls)
+  if len(interior_indices) > local_budget:
+    selected: list[int] = []
+    for slot in range(local_budget):
+      candidate = round(
+        slot * (len(interior_indices) - 1) / max(local_budget - 1, 1)
+      )
+      index = interior_indices[candidate]
+      if index not in selected:
+        selected.append(index)
+    interior_indices = selected
+  ####
+  maximum_probe = (
+    request.law_request.maximum_normal_displacement_m
+    * request.shape_jacobian_probe_fraction
+  )
+  tolerance = request.moving_request.position_tolerance_m
+  for index in interior_indices:
+    left_spacing = hypot(
+      points[index][0] - points[index - 1][0],
+      points[index][1] - points[index - 1][1],
+    )
+    right_spacing = hypot(
+      points[index + 1][0] - points[index][0],
+      points[index + 1][1] - points[index][1],
+    )
+    probe_distance = min(maximum_probe, 0.1 * left_spacing, 0.1 * right_spacing)
+    if not isfinite(probe_distance) or probe_distance <= 2.0 * tolerance:
+      continue
+    ####
+    vector = [(0.0, 0.0) for _ in points]
+    vector[index] = (
+      probe_distance * normals[index][0],
+      probe_distance * normals[index][1],
+    )
+    controls.append((f'interior-normal-shape-{index}', tuple(vector)))
+  ####
+  return tuple(controls)
+
+
+def _apply_shape_controls(
+  points: tuple[tuple[float, float], ...],
+  controls: tuple[tuple[str, tuple[tuple[float, float], ...]], ...],
+  coefficients: tuple[float, ...],
+) -> tuple[tuple[float, float], ...]:
+  if len(controls) != len(coefficients):
+    raise ValueError('shape controls and coefficients are misaligned')
+  updated = [[float(point[0]), float(point[1])] for point in points]
+  for coefficient, (_name, vector) in zip(coefficients, controls, strict=True):
+    if not isfinite(coefficient):
+      raise ValueError('shape correction coefficient is non-finite')
+    for index, (delta_x, delta_y) in enumerate(vector):
+      updated[index][0] += coefficient * delta_x
+      updated[index][1] += coefficient * delta_y
+  ####
+  return tuple((point[0], point[1]) for point in updated)
+
+
+def _shape_jacobian_coefficients(
+  current_vector: tuple[float, ...],
+  probe_vectors: tuple[tuple[float, ...], ...],
+  maximum_step_fraction: float,
+) -> tuple[tuple[float, ...], bool]:
+  """Solve a bounded least-squares shape Newton step from exact probes."""
+
+  if not probe_vectors or any(
+    len(vector) != len(current_vector) for vector in probe_vectors
+  ):
+    return (), False
+  ####
+  try:
+    matrix = np.asarray(
+      [
+        [probe[index] - current_vector[index] for probe in probe_vectors]
+        for index in range(len(current_vector))
+      ],
+      dtype=float,
+    )
+    target = -np.asarray(current_vector, dtype=float)
+    if matrix.ndim != 2 or matrix.shape[1] != len(probe_vectors):
+      return (), False
+    if not np.isfinite(matrix).all() or not np.isfinite(target).all():
+      return (), False
+    coefficients, _residuals, rank, singular_values = np.linalg.lstsq(
+      matrix,
+      target,
+      rcond=None,
+    )
+  except (np.linalg.LinAlgError, TypeError, ValueError):
+    return (), False
+  ####
+  if int(rank) < 1 or not np.isfinite(coefficients).all():
+    return (), False
+  if singular_values.size and not np.isfinite(singular_values).all():
+    return (), False
+  bounded = np.clip(
+    coefficients,
+    -maximum_step_fraction,
+    maximum_step_fraction,
+  )
+  if not np.isfinite(bounded).all() or float(np.linalg.norm(bounded)) <= 1.0e-12:
+    return (), False
+  ####
+  return tuple(float(value) for value in bounded), True
+
+
 def _field_verified(field: MocEulerTwoSidedFieldIterationResult) -> bool:
   return bool(
     field.field_iteration_verified
@@ -402,6 +632,10 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
   jacobian_probe_step_fraction: float | None = None
   jacobian_probe_residual_norm: float | None = None
   directional_step_fraction: float | None = None
+  shape_jacobian_verified: bool = False
+  shape_control_names: tuple[str, ...] = ()
+  shape_probe_residual_norms: tuple[float, ...] = ()
+  shape_step_norm: float | None = None
   step_source: str = 'backtracked-law-direction'
 
   def __post_init__(self) -> None:
@@ -491,6 +725,29 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
     if not isinstance(self.directional_jacobian_verified, bool):
       raise TypeError('directional_jacobian_verified must be a bool')
     ####
+    if not isinstance(self.shape_jacobian_verified, bool):
+      raise TypeError('shape_jacobian_verified must be a bool')
+    shape_names = tuple(str(name) for name in self.shape_control_names)
+    shape_norms = tuple(float(value) for value in self.shape_probe_residual_norms)
+    if len(shape_names) != len(shape_norms):
+      raise ValueError(
+        'shape_control_names and shape_probe_residual_norms must align'
+      )
+    if any(not name for name in shape_names):
+      raise ValueError('shape_control_names must be non-empty')
+    if any(not isfinite(value) or value < 0.0 for value in shape_norms):
+      raise ValueError(
+        'shape_probe_residual_norms must contain finite nonnegative values'
+      )
+    if self.shape_step_norm is not None:
+      object.__setattr__(
+        self,
+        'shape_step_norm',
+        _nonnegative_float(self.shape_step_norm, 'shape_step_norm'),
+      )
+    object.__setattr__(self, 'shape_control_names', shape_names)
+    object.__setattr__(self, 'shape_probe_residual_norms', shape_norms)
+    ####
     object.__setattr__(self, 'step_source', step_source)
     ####
     for name in ('residual_descent_verified', 'accepted', 'field_re_solve_verified'):
@@ -514,6 +771,10 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
       'jacobian_probe_step_fraction': self.jacobian_probe_step_fraction,
       'jacobian_probe_residual_norm': self.jacobian_probe_residual_norm,
       'directional_step_fraction': self.directional_step_fraction,
+      'shape_jacobian_verified': self.shape_jacobian_verified,
+      'shape_control_names': self.shape_control_names,
+      'shape_probe_residual_norms': self.shape_probe_residual_norms,
+      'shape_step_norm': self.shape_step_norm,
       'step_source': self.step_source,
       'response': None if self.response is None else self.response.as_report(),
       'measured_response': (
@@ -548,6 +809,7 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
   field_re_solve_verified: bool
   terminal_fixed_point_verified: bool
   directional_residual_correction_verified: bool = False
+  shape_jacobian_correction_verified: bool = False
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
   message: str = ''
@@ -616,6 +878,7 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
       'field_re_solve_verified',
       'terminal_fixed_point_verified',
       'directional_residual_correction_verified',
+      'shape_jacobian_correction_verified',
       'chain_promotion_blocked',
       'production_claim_allowed',
     ):
@@ -668,6 +931,9 @@ class MocEulerTwoSidedConservativeResidualSolveResult:
       'directional_residual_correction_verified': (
         self.directional_residual_correction_verified
       ),
+      'shape_jacobian_correction_verified': (
+        self.shape_jacobian_correction_verified
+      ),
       'chain_promotion_blocked': self.chain_promotion_blocked,
       'production_claim_allowed': self.production_claim_allowed,
       'request': None if self.request is None else self.request.as_report(),
@@ -710,6 +976,7 @@ def _failure(
   field_re_solve_verified: bool = False,
   terminal_fixed_point_verified: bool = False,
   directional_residual_correction_verified: bool = False,
+  shape_jacobian_correction_verified: bool = False,
 ) -> MocEulerTwoSidedConservativeResidualSolveResult:
   return MocEulerTwoSidedConservativeResidualSolveResult(
     status=status,
@@ -727,6 +994,7 @@ def _failure(
     directional_residual_correction_verified=(
       directional_residual_correction_verified
     ),
+    shape_jacobian_correction_verified=shape_jacobian_correction_verified,
     chain_promotion_blocked=True,
     production_claim_allowed=False,
     message=message,
@@ -810,6 +1078,7 @@ def solve_euler_two_sided_conservative_residual(
   motion_seen = False
   field_re_solve_verified = True
   directional_correction_seen = False
+  shape_correction_seen = False
   ####
   for iteration_index in range(request.maximum_iterations):
     full_response_result = _law_result(current, request.law_request)
@@ -891,6 +1160,7 @@ def solve_euler_two_sided_conservative_residual(
         directional_residual_correction_verified=(
           directional_correction_seen
         ),
+        shape_jacobian_correction_verified=shape_correction_seen,
         chain_promotion_blocked=True,
         production_claim_allowed=False,
         message=(
@@ -912,7 +1182,68 @@ def solve_euler_two_sided_conservative_residual(
     jacobian_probe_step_fraction: float | None = None
     jacobian_probe_residual_norm: float | None = None
     directional_step_fraction: float | None = None
+    shape_jacobian_verified = False
+    shape_control_names: tuple[str, ...] = ()
+    shape_probe_residual_norms: tuple[float, ...] = ()
+    shape_step_norm: float | None = None
     last_message = 'no trial passed the residual descent criterion'
+
+    def evaluate_geometry(
+      points: tuple[tuple[float, float], ...],
+    ) -> tuple[
+      MocEulerTwoSidedInterfaceResponse,
+      MocEulerTwoSidedFieldIterationResult,
+      MocEulerTwoSidedInterfaceResponse,
+      float,
+      tuple[float, ...],
+    ]:
+      """Apply one solver-generated geometry and re-solve the exact field."""
+
+      trial_law_request = replace(
+        request.law_request,
+        geometry_override_points_m=points,
+        require_conservative_flux_closure=False,
+      )
+      trial_law = build_solver_owned_euler_two_sided_interface_response(
+        current,
+        trial_law_request,
+        iteration_index=iteration_index,
+      )
+      trial_response = trial_law.response
+      if trial_response is None:
+        raise ValueError(trial_law.message)
+      ####
+      if current.request is None:
+        raise ValueError('current field iteration retained no typed request')
+      next_request = replace(
+        current.request,
+        shock_boundary=trial_response.next_shock_boundary,
+        companion_field=trial_response.next_companion_field,
+      )
+      candidate = solve_euler_two_sided_field_iteration(next_request)
+      if not _field_verified(candidate):
+        raise ValueError(
+          'exact field re-solve did not pass its local gates: '
+          f'{candidate.status.value}'
+        )
+      ####
+      measurement = _law_result(candidate, trial_law_request)
+      measured_response = measurement.response
+      if measured_response is None:
+        raise ValueError(measurement.message)
+      ####
+      after = _residual_norm(measured_response, request.moving_request)
+      measured_vector = _scaled_residual_vector(
+        measured_response,
+        request.moving_request,
+      )
+      return (
+        trial_response,
+        candidate,
+        measured_response,
+        after,
+        measured_vector,
+      )
 
     def evaluate_step(
       step_fraction: float,
@@ -1002,7 +1333,82 @@ def solve_euler_two_sided_conservative_residual(
         descent = False
       return descent
 
-    if request.use_directional_residual_correction:
+    if request.use_shape_jacobian_correction:
+      try:
+        if current.shock_boundary is None:
+          raise ValueError('current field retained no shock boundary')
+        shape_controls = _shape_control_vectors(
+          current,
+          full_response,
+          request,
+        )
+        shape_control_names = tuple(name for name, _vector in shape_controls)
+        if not shape_controls:
+          raise ValueError('no admissible interior shape controls were available')
+        current_points = tuple(current.shock_boundary.shock_points_m)
+        shape_probe_vectors: list[tuple[float, ...]] = []
+        probe_norms: list[float] = []
+        for name, vector in shape_controls:
+          probe_points = _apply_shape_controls(
+            current_points,
+            ((name, vector),),
+            (1.0,),
+          )
+          probe = evaluate_geometry(probe_points)
+          shape_probe_vectors.append(probe[4])
+          probe_norms.append(probe[3])
+        shape_probe_residual_norms = tuple(probe_norms)
+        shape_coefficients, shape_jacobian_verified = _shape_jacobian_coefficients(
+          full_vector,
+          tuple(shape_probe_vectors),
+          request.maximum_shape_step_fraction,
+        )
+        shape_correction_seen = shape_correction_seen or shape_jacobian_verified
+        if shape_jacobian_verified:
+          shape_step_norm = float(np.linalg.norm(shape_coefficients))
+          for shape_backtrack in range(request.maximum_backtracks + 1):
+            scale = request.backtrack_factor**shape_backtrack
+            trial_coefficients = tuple(
+              scale * coefficient for coefficient in shape_coefficients
+            )
+            trial_points = _apply_shape_controls(
+              current_points,
+              shape_controls,
+              trial_coefficients,
+            )
+            try:
+              shape_trial = evaluate_geometry(trial_points)
+            except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+              last_message = (
+                'multi-control shape correction trial failed: '
+                f'{error}'
+              )
+              continue
+            if is_descent(shape_trial[3], shape_trial[2], full_response):
+              accepted = True
+              accepted_field = shape_trial[1]
+              accepted_response = shape_trial[0]
+              accepted_measurement = shape_trial[2]
+              accepted_after = shape_trial[3]
+              accepted_step = max(
+                (abs(value) for value in trial_coefficients),
+                default=0.0,
+              )
+              accepted_backtracks = shape_backtrack
+              accepted_step_source = 'multi-control-shape-jacobian-correction'
+              break
+            last_message = (
+              'multi-control shape correction did not descend the conservative '
+              f'residual norm ({shape_trial[3]:.6g} from {full_norm:.6g})'
+            )
+      except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+        shape_jacobian_verified = False
+        shape_control_names = ()
+        shape_probe_residual_norms = ()
+        shape_step_norm = None
+        last_message = f'multi-control shape correction failed: {error}'
+    ####
+    if request.use_directional_residual_correction and not accepted:
       try:
         jacobian_probe_step_fraction = request.jacobian_probe_fraction
         probe = evaluate_step(jacobian_probe_step_fraction)
@@ -1087,6 +1493,10 @@ def solve_euler_two_sided_conservative_residual(
         jacobian_probe_step_fraction=jacobian_probe_step_fraction,
         jacobian_probe_residual_norm=jacobian_probe_residual_norm,
         directional_step_fraction=directional_step_fraction,
+        shape_jacobian_verified=shape_jacobian_verified,
+        shape_control_names=shape_control_names,
+        shape_probe_residual_norms=shape_probe_residual_norms,
+        shape_step_norm=shape_step_norm,
         step_source=accepted_step_source,
         message=last_message,
       )
@@ -1108,6 +1518,7 @@ def solve_euler_two_sided_conservative_residual(
         directional_residual_correction_verified=(
           directional_correction_seen
         ),
+        shape_jacobian_correction_verified=shape_correction_seen,
       )
     ####
     record = MocEulerTwoSidedConservativeResidualSolveIteration(
@@ -1127,6 +1538,10 @@ def solve_euler_two_sided_conservative_residual(
       jacobian_probe_step_fraction=jacobian_probe_step_fraction,
       jacobian_probe_residual_norm=jacobian_probe_residual_norm,
       directional_step_fraction=directional_step_fraction,
+      shape_jacobian_verified=shape_jacobian_verified,
+      shape_control_names=shape_control_names,
+      shape_probe_residual_norms=shape_probe_residual_norms,
+      shape_step_norm=shape_step_norm,
       step_source=accepted_step_source,
       message=(
         'trial front was accepted after an exact field re-solve because the '
@@ -1162,4 +1577,5 @@ def solve_euler_two_sided_conservative_residual(
     ),
     field_re_solve_verified=field_re_solve_verified,
     directional_residual_correction_verified=directional_correction_seen,
+    shape_jacobian_correction_verified=shape_correction_seen,
   )

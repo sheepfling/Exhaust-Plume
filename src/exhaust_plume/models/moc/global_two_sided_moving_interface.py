@@ -168,6 +168,10 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
   use_conservative_residual_directional_correction: bool = True
   residual_jacobian_probe_fraction: float = 0.5
   maximum_residual_directional_step_fraction: float = 1.0
+  use_conservative_residual_shape_jacobian_correction: bool = False
+  shape_jacobian_probe_fraction: float = 0.25
+  maximum_shape_controls: int = 8
+  maximum_shape_step_fraction: float = 1.0
   source: str = 'solver-owned-global-two-sided-moving-interface-request-v1'
 
   def __post_init__(self) -> None:
@@ -305,6 +309,35 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       raise TypeError(
         'use_conservative_residual_directional_correction must be a bool'
       )
+    if not isinstance(
+      self.use_conservative_residual_shape_jacobian_correction,
+      bool,
+    ):
+      raise TypeError(
+        'use_conservative_residual_shape_jacobian_correction must be a bool'
+      )
+    if (
+      isinstance(self.maximum_shape_controls, bool)
+      or not isinstance(self.maximum_shape_controls, int)
+      or self.maximum_shape_controls < 1
+    ):
+      raise ValueError('maximum_shape_controls must be a positive integer')
+    object.__setattr__(
+      self,
+      'shape_jacobian_probe_fraction',
+      _bounded_fraction(
+        self.shape_jacobian_probe_fraction,
+        'shape_jacobian_probe_fraction',
+      ),
+    )
+    object.__setattr__(
+      self,
+      'maximum_shape_step_fraction',
+      _bounded_directional_step_fraction(
+        self.maximum_shape_step_fraction,
+        'maximum_shape_step_fraction',
+      ),
+    )
     ####
     source = str(self.source)
     if not source:
@@ -372,6 +405,12 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'maximum_residual_directional_step_fraction': (
         self.maximum_residual_directional_step_fraction
       ),
+      'use_conservative_residual_shape_jacobian_correction': (
+        self.use_conservative_residual_shape_jacobian_correction
+      ),
+      'shape_jacobian_probe_fraction': self.shape_jacobian_probe_fraction,
+      'maximum_shape_controls': self.maximum_shape_controls,
+      'maximum_shape_step_fraction': self.maximum_shape_step_fraction,
       'source': self.source,
       'chain_promotion_blocked': True,
       'production_claim_allowed': False,
@@ -844,6 +883,12 @@ def solve_reflected_domain_global_two_sided_moving_interface(
           maximum_directional_step_fraction=(
             request.maximum_residual_directional_step_fraction
           ),
+          use_shape_jacobian_correction=(
+            request.use_conservative_residual_shape_jacobian_correction
+          ),
+          shape_jacobian_probe_fraction=request.shape_jacobian_probe_fraction,
+          maximum_shape_controls=request.maximum_shape_controls,
+          maximum_shape_step_fraction=request.maximum_shape_step_fraction,
         )
       )
     else:

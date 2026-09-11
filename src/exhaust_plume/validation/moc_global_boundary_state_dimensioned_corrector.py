@@ -140,22 +140,34 @@ def _dimensioned_descent(
   before: tuple[float, float, float] | None,
   after: tuple[float, float, float] | None,
 ) -> bool:
-  """Require no normalized channel worsening and one strict decrease."""
+  """Require active-channel descent while retaining closed channels.
+
+  A channel already inside its declared tolerance may move within that strict
+  accepted band while an open equation is corrected.  Open channels may not
+  worsen and at least one open channel must strictly decrease.  No tolerance
+  is widened by this active-set rule.
+  """
 
   if before is None or after is None:
     return False
   numerical_tolerance = 1.0e-12
+  closed_limit = 1.0 + numerical_tolerance
   nonincreasing = all(
-    next_value
-    <= current_value + numerical_tolerance * max(1.0, abs(current_value))
+    (
+      next_value
+      <= current_value + numerical_tolerance * max(1.0, abs(current_value))
+      if current_value > 1.0
+      else next_value <= closed_limit
+    )
     for current_value, next_value in zip(before, after, strict=True)
   )
   strict = any(
-    next_value
+    current_value > 1.0
+    and next_value
     < current_value - numerical_tolerance * max(1.0, abs(current_value))
     for current_value, next_value in zip(before, after, strict=True)
   )
-  return bool(nonincreasing and strict)
+  return bool(nonincreasing and (strict or all(value <= closed_limit for value in after)))
 
 
 def _strict_descent(before: float | None, after: float | None, fraction: float) -> bool:
@@ -601,6 +613,7 @@ def run_reflected_domain_global_boundary_state_dimensioned_corrector(
       accepted_energy_tolerance,
     ),
     require_dimensioned_conservative_channel_descent=True,
+    use_conservative_residual_shape_jacobian_correction=True,
     source='solver-owned-global-boundary-state-dimensioned-corrector-v1',
   )
   baseline_response = _response(joint_result.state_result)

@@ -232,6 +232,10 @@ class MocEulerTwoSidedInterfaceLawRequest:
   # changed by an interior-only update.  A single anchored point would still
   # change the geometry-conditioned endpoint turn.
   anchor_endpoint_samples: int = 2
+  # A higher-level shape corrector may supply a bounded, solver-generated
+  # trial geometry.  This is deliberately a geometry input to the exact
+  # shock/companion/field re-solve, not a pressure or state overlay.
+  geometry_override_points_m: tuple[tuple[float, float], ...] | None = None
   branch: ShockBranch = ShockBranch.WEAK
   position_tolerance_m: float = 1.0e-8
   source_state_tolerance: float = 1.0e-6
@@ -320,6 +324,34 @@ class MocEulerTwoSidedInterfaceLawRequest:
     ):
       raise ValueError('anchor_endpoint_samples must be a positive integer')
     ####
+    geometry_override = self.geometry_override_points_m
+    if geometry_override is not None:
+      try:
+        normalized_geometry = tuple(
+          (float(point[0]), float(point[1]))
+          for point in geometry_override
+        )
+      except (TypeError, ValueError, IndexError) as error:
+        raise ValueError(
+          'geometry_override_points_m must contain coordinate pairs'
+        ) from error
+      ####
+      if len(normalized_geometry) < 3:
+        raise ValueError(
+          'geometry_override_points_m must retain at least three samples'
+        )
+      if any(
+        not all(isfinite(value) for value in point)
+        for point in normalized_geometry
+      ):
+        raise ValueError('geometry_override_points_m must contain finite points')
+      ####
+      object.__setattr__(
+        self,
+        'geometry_override_points_m',
+        normalized_geometry,
+      )
+    ####
     if self.source_band.ambient_pressure_Pa is None:
       raise ValueError('source_band must retain an ambient pressure')
     ####
@@ -342,6 +374,7 @@ class MocEulerTwoSidedInterfaceLawRequest:
       'companion_separation_m': self.companion_separation_m,
       'companion_seed_flow_angle_rad': self.companion_seed_flow_angle_rad,
       'anchor_endpoint_samples': self.anchor_endpoint_samples,
+      'geometry_override_points_m': self.geometry_override_points_m,
       'branch': self.branch.value,
       'position_tolerance_m': self.position_tolerance_m,
       'source_state_tolerance': self.source_state_tolerance,
@@ -681,6 +714,52 @@ def _front_limit_state_compatible(
     <= request.source_pressure_tolerance
     * max(1.0, abs(upstream_pressure), abs(downstream_pressure))
   )
+
+
+def _geometry_override_is_valid(
+  prior_shock: MocEulerShockBoundaryCurveResult,
+  points: tuple[tuple[float, float], ...],
+  request: MocEulerTwoSidedInterfaceLawRequest,
+) -> bool:
+  """Check a bounded solver-generated trial geometry before exact refit."""
+
+  prior_points = tuple(prior_shock.shock_points_m)
+  if len(points) != len(prior_points) or len(points) < 3:
+    return False
+  ####
+  tolerance = request.position_tolerance_m
+  anchor_count = request.anchor_endpoint_samples
+  if anchor_count * 2 > len(points):
+    return False
+  ####
+  for index, (prior, point) in enumerate(zip(prior_points, points, strict=True)):
+    if any(not isfinite(value) for value in point):
+      return False
+    ####
+    if index < anchor_count or index >= len(points) - anchor_count:
+      if max(abs(point[0] - prior[0]), abs(point[1] - prior[1])) > tolerance:
+        return False
+    ####
+    if hypot(point[0] - prior[0], point[1] - prior[1]) > (
+      request.maximum_normal_displacement_m + tolerance
+    ):
+      return False
+    ####
+    if index:
+      previous = points[index - 1]
+      if (
+        point[0] <= previous[0] + tolerance
+        or point[1] > previous[1] + tolerance
+      ):
+        return False
+    ####
+  ####
+  centerline_y = (
+    request.source_band.target_centerline_y_m
+    if request.source_band.target_centerline_y_m is not None
+    else 0.0
+  )
+  return bool(points[-1][1] >= centerline_y - tolerance)
 
 
 def _probe_downstream_field(
@@ -1075,7 +1154,30 @@ def build_solver_owned_euler_two_sided_interface_response(
       downstream_field_lineage_verified=downstream_field_lineage_verified,
     )
   ####
-  points = tuple(next_points)
+  if request.geometry_override_points_m is None:
+    points = tuple(next_points)
+  else:
+    points = tuple(request.geometry_override_points_m)
+    if not _geometry_override_is_valid(shock, points, request):
+      return _failure(
+        MocEulerTwoSidedInterfaceLawStatus.GEOMETRY_FAILURE,
+        'solver-generated geometry trial violated the anchored, monotone, or '
+        'bounded interior-shape contract; no geometry extrapolation was used',
+        request=request,
+        current_field_iteration=current_field_iteration,
+        source_lineage_verified=True,
+        downstream_probe_verified=True,
+        probe_points_m=tuple(probe.probe_point_m for probe in probes),
+        probe_normals=tuple((probe.normal_x, probe.normal_y) for probe in probes),
+        interface_normal_speeds_m_s=tuple(speeds),
+        downstream_probe_states=tuple(probe.state for probe in probes),
+        downstream_probe_total_pressure_Pa=tuple(
+          probe.total_pressure_Pa for probe in probes
+        ),
+        endpoint_constraints_applied=True,
+        downstream_field_source=downstream_field_source,
+        downstream_field_lineage_verified=downstream_field_lineage_verified,
+      )
   geometry_valid = bool(
     len(points) >= 3
     and all(

@@ -135,6 +135,7 @@ from exhaust_plume.models.moc import (
   MocEulerTwoSidedFieldIterationStatus,
   solve_euler_two_sided_field_iteration,
   MocEulerTwoSidedInterfaceResponse,
+  MocEulerTwoSidedConservativeResidualSolveStatus,
   MocEulerTwoSidedInterfaceLawRequest,
   MocEulerTwoSidedInterfaceLawStatus,
   build_solver_owned_euler_two_sided_interface_response,
@@ -2976,6 +2977,62 @@ def test_global_conservative_residual_success_requires_independent_audit():
   assert result.physical_closure_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+
+
+def test_global_shape_jacobian_corrector_keeps_active_channels_strict():
+  closure = _global_physical_closure_for_mixed_regime()
+  result = solve_reflected_domain_global_two_sided_moving_interface(
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest(
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_field_iterations=3,
+      maximum_interface_iterations=2,
+      use_conservative_residual_line_search=True,
+      require_conservative_flux_closure=True,
+      require_dimensioned_conservative_channel_descent=True,
+      normal_momentum_tolerance_Pa=1.0e-2,
+      use_conservative_residual_directional_correction=False,
+      use_conservative_residual_shape_jacobian_correction=True,
+      maximum_shape_controls=8,
+      maximum_residual_backtracks=2,
+    )
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+    .MOVING_INTERFACE_FAILURE
+  )
+  assert result.conservative_residual_result is not None
+  residual = result.conservative_residual_result
+  assert residual.status is (
+    MocEulerTwoSidedConservativeResidualSolveStatus.ITERATION_LIMIT
+  )
+  assert residual.shape_jacobian_correction_verified
+  assert len(residual.records) == 2
+  assert all(
+    record.accepted
+    and record.step_source == 'multi-control-shape-jacobian-correction'
+    and record.shape_jacobian_verified
+    and len(record.shape_control_names) >= 2
+    and len(record.shape_control_names) == len(record.shape_probe_residual_norms)
+    and record.shape_step_norm is not None
+    for record in residual.records
+  )
+  first = residual.records[0].measured_response
+  last = residual.records[-1].measured_response
+  assert first is not None
+  assert last is not None
+  assert last.maximum_normal_momentum_residual_Pa < (
+    first.maximum_normal_momentum_residual_Pa
+  )
+  assert last.maximum_mass_flux_residual_kg_m2_s <= 1.0e-3
+  assert last.maximum_energy_flux_residual_W_m2 <= 1.0e-1
+  assert residual.production_claim_allowed is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()['conservative_residual_result']
+  assert report['request']['use_shape_jacobian_correction']
+  assert report['shape_jacobian_correction_verified']
 
 
 def test_global_two_sided_stationary_interface_is_an_explicit_strict_mode():
@@ -13384,6 +13441,10 @@ def test_global_boundary_state_dimensioned_corrector_keeps_strict_state_failure_
   assert result.state_solver_invoked
   assert result.state_request is not None
   assert result.state_request.require_dimensioned_conservative_channel_descent
+  assert result.state_request.use_conservative_residual_shape_jacobian_correction
+  assert result.state_result is not None
+  assert result.state_result.conservative_residual_result is not None
+  assert result.state_result.conservative_residual_result.shape_jacobian_correction_verified
   assert result.complete_conservative_response_verified
   assert result.state_lineage_verified
   assert result.independent_residual_audit_verified is False
