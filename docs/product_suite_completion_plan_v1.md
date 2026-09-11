@@ -4700,3 +4700,21 @@ moving/stationary mixing; the focused solver-owned interface-law slice passes
 four tests.  This closes an evidence-accounting boundary only.  It does not
 promote either response mode to canonical free-boundary closure, physical
 shock-cell fitting, provider validation, or a release claim.
+
+### WP-1 coupled-feedback mode identity checkpoint — 2026-09-10
+
+The disjoint global coupled-boundary feedback refinement now records and
+verifies the exact response-mode identity for every fresh case.  The identity
+includes the solver-owned physical-field continuation mode, the
+no-target-geometry-injection policy, and the target-geometry consumption flag.
+The aggregate refinement gate requires one identical identity across the
+ladder, and each case remains locally unverified if that identity is tampered
+or omitted.  Reports now expose the identity beside the numerical response
+signature, so a stable trend cannot hide a change in boundary law or
+conditioning policy.
+
+The coarse and fine cross-case research regressions pass with the new gate,
+including a negative tamper assertion.  This is fidelity/accounting evidence;
+it does not close the canonical globally coupled downstream boundary, accept a
+physical shock-cell length, satisfy provider validation, or change the
+release blockers.

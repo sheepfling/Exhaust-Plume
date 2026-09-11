@@ -11081,6 +11081,12 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_retain
   assert run.measurement.frame_coverage_verified
   assert run.measurement.residuals_finite
   assert run.measurement.geometry_profile_injection_blocked
+  assert run.measurement.response_mode_identity == (
+    'inlet_boundary_mode=solver-owned-physical-field-continuation-profile',
+    'geometry_conditioning_policy=solver-owned-global-march-no-target-geometry-injection-v1',
+    'target_geometry_consumed=False',
+  )
+  assert run.measurement.response_mode_identity_verified
   assert run.measurement.fidelity_isolation_verified
   assert run.measurement.terminal_fixed_point_verified
   assert run.measurement.response_stability_verified
@@ -11141,6 +11147,12 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_conver
   assert run.measurement.frame_coverage_verified
   assert run.measurement.residuals_finite
   assert run.measurement.geometry_profile_injection_blocked
+  assert run.measurement.response_mode_identity_verified
+  assert all(
+    case.response_mode_identity == run.measurement.response_mode_identity
+    and case.response_mode_identity_verified
+    for case in run.cases
+  )
   assert run.measurement.fidelity_isolation_verified
   assert run.measurement.terminal_fixed_point_verified
   assert run.measurement.response_stability_verified
@@ -11161,6 +11173,12 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_conver
     for case in run.cases
   )
   assert all(case.run.production_claim_allowed is False for case in run.cases)
+  tampered_case = replace(
+    run.cases[0],
+    response_mode_identity=('inlet_boundary_mode=tampered',),
+    response_mode_identity_verified=False,
+  )
+  assert tampered_case.local_research_verified is False
 ####
 
 

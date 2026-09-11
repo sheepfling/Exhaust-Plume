@@ -78,6 +78,35 @@ _FORBIDDEN_PROFILE_KEYS = frozenset(
 _MESH_KEYS = frozenset(
   {'axial_station_count', 'axial_cell_count', 'transverse_cell_count'}
 )
+_RESEARCH_RESPONSE_MODE_IDENTITY = (
+  'inlet_boundary_mode=solver-owned-physical-field-continuation-profile',
+  f'geometry_conditioning_policy={_GEOMETRY_POLICY}',
+  'target_geometry_consumed=False',
+)
+
+
+def _response_mode_identity(
+  run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
+) -> tuple[str, ...]:
+  """Return the solver/policy identity carried by one feedback run."""
+
+  configuration = run.configuration
+  downstream_options = configuration.get('downstream_options')
+  boundary_options = configuration.get('boundary_condition_options')
+  if not isinstance(downstream_options, Mapping):
+    return ()
+  if not isinstance(boundary_options, Mapping):
+    boundary_options = {}
+  ####
+  inlet_mode = downstream_options.get('inlet_boundary_mode')
+  inlet_mode_value = getattr(inlet_mode, 'value', inlet_mode)
+  geometry_policy = configuration.get('geometry_conditioning_policy')
+  target_geometry = boundary_options.get('consume_target_geometry', False)
+  return (
+    f'inlet_boundary_mode={inlet_mode_value}',
+    f'geometry_conditioning_policy={geometry_policy}',
+    f'target_geometry_consumed={target_geometry}',
+  )
 
 
 class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus(
@@ -350,6 +379,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
   resolution: tuple[int, int, int]
   run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun
   response_signature: tuple[float, float, float, float, float]
+  response_mode_identity: tuple[str, ...] = ()
   terminal_fixed_point_audit: (
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit
     | None
@@ -363,6 +393,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
   frame_coverage_verified: bool = False
   residuals_finite: bool = False
   geometry_profile_injection_blocked: bool = False
+  response_mode_identity_verified: bool = False
   fidelity_isolation_verified: bool = False
   conservative_boundary_fluxes_verified: bool = False
   message: str = ''
@@ -418,6 +449,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       'frame_coverage_verified',
       'residuals_finite',
       'geometry_profile_injection_blocked',
+      'response_mode_identity_verified',
       'fidelity_isolation_verified',
       'conservative_boundary_fluxes_verified',
     ):
@@ -429,6 +461,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     object.__setattr__(self, 'regime', str(self.regime))
     object.__setattr__(self, 'resolution', resolution)
     object.__setattr__(self, 'response_signature', signature)
+    mode_identity = tuple(str(value) for value in self.response_mode_identity)
+    if any(not value for value in mode_identity):
+      raise ValueError('response_mode_identity values must be non-empty')
+    object.__setattr__(self, 'response_mode_identity', mode_identity)
     object.__setattr__(self, 'boundary_flux_audits', audits)
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -451,6 +487,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       and self.frame_coverage_verified
       and self.residuals_finite
       and self.geometry_profile_injection_blocked
+      and self.response_mode_identity_verified
       and self.fidelity_isolation_verified
     )
   ####
@@ -470,6 +507,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'resolution': self.resolution,
       'response_signature': self.response_signature,
+      'response_mode_identity': self.response_mode_identity,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
       'terminal_fixed_point_audit': (
         None
@@ -490,6 +528,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       'geometry_profile_injection_blocked': (
         self.geometry_profile_injection_blocked
       ),
+      'response_mode_identity_verified': self.response_mode_identity_verified,
       'fidelity_isolation_verified': self.fidelity_isolation_verified,
       'conservative_boundary_fluxes_verified': (
         self.conservative_boundary_fluxes_verified
@@ -511,6 +550,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
   ] = ()
   case_ids: tuple[str, ...] = ()
   source_closure_fingerprints: tuple[str, ...] = ()
+  response_mode_identity: tuple[str, ...] = ()
   resolution_order_verified: bool = False
   distinct_source_closures_verified: bool = False
   case_bindings_verified: bool = False
@@ -519,6 +559,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
   frame_coverage_verified: bool = False
   residuals_finite: bool = False
   geometry_profile_injection_blocked: bool = False
+  response_mode_identity_verified: bool = False
   fidelity_isolation_verified: bool = False
   terminal_fixed_point_verified: bool = False
   response_stability_verified: bool = False
@@ -555,6 +596,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
     if len(set(fingerprints)) != len(fingerprints):
       raise ValueError('source closure fingerprints must be distinct')
     ####
+    mode_identity = tuple(str(value) for value in self.response_mode_identity)
+    if any(not value for value in mode_identity):
+      raise ValueError('response_mode_identity values must be non-empty')
+    ####
     if any(
       not isinstance(
         case,
@@ -573,6 +618,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       'frame_coverage_verified',
       'residuals_finite',
       'geometry_profile_injection_blocked',
+      'response_mode_identity_verified',
       'fidelity_isolation_verified',
       'terminal_fixed_point_verified',
       'response_stability_verified',
@@ -613,6 +659,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'case_ids', ids)
     object.__setattr__(self, 'source_closure_fingerprints', fingerprints)
+    object.__setattr__(self, 'response_mode_identity', mode_identity)
     object.__setattr__(self, 'operator_id', str(self.operator_id))
     object.__setattr__(self, 'message', str(self.message))
   ####
@@ -632,6 +679,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       and self.frame_coverage_verified
       and self.residuals_finite
       and self.geometry_profile_injection_blocked
+      and self.response_mode_identity_verified
       and self.fidelity_isolation_verified
       and self.terminal_fixed_point_verified
       and self.response_stability_verified
@@ -651,6 +699,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       'converged': self.converged,
       'case_ids': self.case_ids,
       'source_closure_fingerprints': self.source_closure_fingerprints,
+      'response_mode_identity': self.response_mode_identity,
       'checks': {
         'resolution_order_verified': self.resolution_order_verified,
         'distinct_source_closures_verified': (
@@ -666,6 +715,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
         'geometry_profile_injection_blocked': (
           self.geometry_profile_injection_blocked
         ),
+        'response_mode_identity_verified': self.response_mode_identity_verified,
         'fidelity_isolation_verified': self.fidelity_isolation_verified,
         'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
         'response_stability_verified': self.response_stability_verified,
@@ -851,6 +901,7 @@ def _measurement(
   ],
   *,
   response_stability_fraction: float,
+  expected_response_mode_identity: tuple[str, ...],
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurement:
   case_ids = tuple(case.case_id for case in cases)
   fingerprints = tuple(case.source_closure_fingerprint for case in cases)
@@ -877,6 +928,14 @@ def _measurement(
   geometry = bool(
     cases and all(case.geometry_profile_injection_blocked for case in cases)
   )
+  mode_identity = bool(
+    cases
+    and all(
+      case.response_mode_identity == expected_response_mode_identity
+      and case.response_mode_identity_verified
+      for case in cases
+    )
+  )
   fidelity = bool(cases and all(case.fidelity_isolation_verified for case in cases))
   terminal_fixed_point = bool(
     cases and all(case.terminal_fixed_point_verified for case in cases)
@@ -899,6 +958,7 @@ def _measurement(
     and frame
     and residuals
     and geometry
+    and mode_identity
     and fidelity
     and terminal_fixed_point
     and response_stable
@@ -913,7 +973,8 @@ def _measurement(
     )
     message = (
       'disjoint solver-owned boundary feedback passed local refinement and '
-      'conservative boundary-flux evidence gates; canonical closure and '
+      'response-mode identity and conservative boundary-flux evidence gates; '
+      'canonical closure and '
       'external validation remain open'
     )
   elif not resolution_order or not distinct or not bindings:
@@ -924,6 +985,15 @@ def _measurement(
     message = (
       'cross-case source identities or mesh/frame resolutions are not a '
       'strict disjoint ladder'
+    )
+  elif not mode_identity:
+    status = (
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
+      .FIDELITY_FAILURE
+    )
+    message = (
+      'cross-case feedback cases did not retain one exact solver boundary '
+      'mode and conditioning-policy identity'
     )
   elif not all(case.local_research_verified for case in cases):
     if not terminal_fixed_point:
@@ -978,6 +1048,7 @@ def _measurement(
     cases=cases,
     case_ids=case_ids,
     source_closure_fingerprints=fingerprints,
+    response_mode_identity=expected_response_mode_identity,
     resolution_order_verified=resolution_order,
     distinct_source_closures_verified=distinct,
     case_bindings_verified=bindings,
@@ -986,6 +1057,7 @@ def _measurement(
     frame_coverage_verified=frame,
     residuals_finite=residuals,
     geometry_profile_injection_blocked=geometry,
+    response_mode_identity_verified=mode_identity,
     fidelity_isolation_verified=fidelity,
     terminal_fixed_point_verified=terminal_fixed_point,
     response_stability_verified=response_stable,
@@ -1052,6 +1124,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
     'maximum_frame_extension_m': float(maximum_frame_extension_m),
     'response_stability_fraction': stability_fraction,
     'profile_policy': _GEOMETRY_POLICY,
+    'response_mode_identity': _RESEARCH_RESPONSE_MODE_IDENTITY,
     'boundary_flux_policy': 'explicit-retained-state-audit-required-v1',
   }
   retained: list[
@@ -1110,6 +1183,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
       boundary_flux_audits
       and all(audit.converged for audit in boundary_flux_audits)
     )
+    response_mode_identity = _response_mode_identity(feedback)
     retained.append(
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase(
         case_id=requested.case_id,
@@ -1118,6 +1192,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
         resolution=requested.resolution,
         run=feedback,
         response_signature=_response_signature(feedback),
+        response_mode_identity=response_mode_identity,
         terminal_fixed_point_audit=terminal_fixed_point_audit,
         boundary_flux_audits=boundary_flux_audits,
         source_lineage_verified=source_lineage,
@@ -1135,6 +1210,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
           # those generated profiles are not mistaken for injection.
           requested.downstream_options,
         ),
+        response_mode_identity_verified=(
+          response_mode_identity == _RESEARCH_RESPONSE_MODE_IDENTITY
+        ),
         fidelity_isolation_verified=feedback.fidelity_isolation_verified,
         conservative_boundary_fluxes_verified=(
           conservative_boundary_fluxes_verified
@@ -1147,6 +1225,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
   measurement = _measurement(
     retained_cases,
     response_stability_fraction=stability_fraction,
+    expected_response_mode_identity=_RESEARCH_RESPONSE_MODE_IDENTITY,
   )
   fidelity = bool(
     retained_cases and all(case.fidelity_isolation_verified for case in retained_cases)
