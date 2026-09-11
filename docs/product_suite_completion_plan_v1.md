@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — checkpoint `c4a4c69`
+### Active execution card — checkpoint `eb8a1ff`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement and the first
