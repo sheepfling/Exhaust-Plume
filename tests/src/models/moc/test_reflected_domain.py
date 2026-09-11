@@ -100,6 +100,7 @@ from exhaust_plume.models.moc import (
   MocTransonicShockInterfaceSample,
   MocMovingMixedRegimeInterfaceStatus,
   MocMovingMixedRegimeInterfaceRequest,
+  bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result,
   build_moc_terminal_conservative_boundary_sample,
   fit_euler_consistent_shock_boundary,
   solve_euler_ambient_companion_boundary_reference,
@@ -2065,6 +2066,120 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   )
   assert stationary_joint_audit.local_consistency_verified
   assert stationary_joint_audit.maximum_normal_momentum_residual_Pa <= 1.0e-2
+
+
+def test_strict_moving_interface_binds_exact_shock_and_companion_lineage():
+  research_law = _solver_owned_interface_law_for_resolution(9)
+  assert research_law.current_field_iteration is not None
+  assert research_law.request is not None
+  strict_law = build_solver_owned_euler_two_sided_interface_response(
+    research_law.current_field_iteration,
+    replace(
+      research_law.request,
+      downstream_probe_fraction=0.0,
+      require_conservative_flux_closure=True,
+    ),
+  )
+  assert strict_law.response_ready
+  assert strict_law.conservative_flux_closure_verified
+  assert strict_law.request is not None
+  field = research_law.current_field_iteration
+  assert field.shock_boundary is not None
+  assert field.initial_companion_field is not None
+  ambient_pressure = strict_law.request.source_band.ambient_pressure_Pa
+  assert ambient_pressure is not None
+  moving = solve_euler_two_sided_moving_interface_with_solver_owned_law(
+    MocEulerTwoSidedMovingInterfaceRequest(
+      field_request=MocEulerTwoSidedFieldIterationRequest(
+        shock_boundary=field.shock_boundary,
+        companion_field=field.initial_companion_field,
+        ambient_pressure_Pa=ambient_pressure,
+        maximum_field_iterations=3,
+      ),
+      maximum_interface_iterations=1,
+      require_interface_motion=False,
+      allow_stationary_equilibrium=True,
+    ),
+    strict_law.request,
+  )
+  assert moving.status is (
+    MocEulerTwoSidedMovingInterfaceStatus
+    .CONVERGED_RESEARCH_STATIONARY_INTERFACE
+  )
+  assert moving.final_field_iteration is not None
+  assert moving.records
+  assert all(
+    record.response is not None
+    and record.response.conservative_flux_closure_verified
+    for record in moving.records
+  )
+
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  transition_request = build_reflected_domain_coupled_euler_free_boundary_request(
+    mixed_request,
+    reference_total_temperature_K=1500.0,
+  )
+  transition = assess_reflected_domain_coupled_euler_transonic_transition(
+    transition_request
+  )
+  assert transition.shock_state is not None
+  geometry = solve_moc_transonic_shock_geometry(
+    MocTransonicShockGeometryRequest(
+      shock_state=transition.shock_state,
+      shock_point_m=(mixed_request.control_section.points_m[0][0], 0.025),
+      shock_normal_angle_rad=0.0,
+    )
+  )
+  assert geometry.geometry_verified
+  sample_count = 3
+  lower_y = geometry.shock_point_m[1]
+  upper_y = lower_y + 0.05
+  terminal = build_moc_terminal_conservative_boundary_sample(geometry)
+  seam_request = MocMovingMixedRegimeInterfaceRequest(
+    terminal_geometry=geometry,
+    interface_points_m=(geometry.shock_point_m,),
+    boundary_samples=tuple(
+      replace(
+        terminal,
+        index=index,
+        point_m=(
+          geometry.shock_point_m[0],
+          lower_y + (upper_y - lower_y) * index / (sample_count - 1),
+        ),
+      )
+      for index in range(sample_count)
+    ),
+    cross_section_x_m=geometry.shock_point_m[0],
+    lower_y_m=lower_y,
+    upper_y_m=upper_y,
+    sample_count=sample_count,
+  )
+
+  bound = bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
+    seam_request,
+    moving,
+    strict_law,
+  )
+  final_field = moving.final_field_iteration
+  assert final_field.shock_boundary is not None
+  assert final_field.initial_companion_field is not None
+  assert bound.interface_points_m == final_field.shock_boundary.shock_points_m
+  assert bound.two_sided_shock_boundary is final_field.shock_boundary
+  assert bound.two_sided_companion_boundary
+  assert bound.two_sided_moving_interface_conservative_flux_verified
+  assert bound.two_sided_moving_interface_response_source == (
+    strict_law.response.response_source
+  )
+  assert bound.two_sided_moving_interface_law_id == strict_law.response.law_id
+  assert bound.as_report()['no_extrapolation']
+
+  with pytest.raises(ValueError, match='strict conservative-flux policy'):
+    bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
+      seam_request,
+      moving,
+      research_law,
+    )
 
 
 def test_solver_owned_two_sided_interface_law_has_local_resolution_refinement():

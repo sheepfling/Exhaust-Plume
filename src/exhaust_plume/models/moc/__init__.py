@@ -241,6 +241,7 @@ from exhaust_plume.models.moc.moving_mixed_regime_interface import (
   MocMovingMixedRegimeInterfaceRequest,
   MocMovingMixedRegimeInterfaceResult,
   MocMovingMixedRegimeInterfaceAudit,
+  bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result,
   prepare_moc_moving_mixed_regime_interface,
   measure_moc_moving_mixed_regime_interface,
 )
@@ -1069,6 +1070,7 @@ __all__ = (
   'MocMovingMixedRegimeInterfaceRequest',
   'MocMovingMixedRegimeInterfaceResult',
   'MocMovingMixedRegimeInterfaceAudit',
+  'bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result',
   'prepare_moc_moving_mixed_regime_interface',
   'measure_moc_moving_mixed_regime_interface',
   'MocPhysicalFieldContinuationProfileStatus',

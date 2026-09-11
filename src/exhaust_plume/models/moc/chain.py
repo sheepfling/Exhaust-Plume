@@ -136,6 +136,20 @@ class MocChainBoundarySample:
   def point_m(self) -> tuple[float, float]:
     return self.state.x_m, self.state.y_m
   ####
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'point_m': list(self.point_m),
+      'state': {
+        'x_m': self.state.x_m,
+        'y_m': self.state.y_m,
+        'theta_rad': self.state.theta_rad,
+        'mach': self.state.mach,
+        'gamma': self.state.gamma,
+      },
+      'total_pressure_Pa': self.total_pressure_Pa,
+    }
+  ####
 ####
 
 

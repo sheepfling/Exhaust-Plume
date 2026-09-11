@@ -4802,3 +4802,24 @@ The focused regression rejects the current interior probe at the strict
 momentum tolerance and accepts the retained post-shock front-limit stationary
 case.  This closes an admission-control gap; it does not supply the missing
 unsteady downstream field or canonical moving/free-boundary closure.
+
+### WP-1 strict moving-front handoff checkpoint — 2026-09-10
+
+The strict conservative-flux evidence is now carried through the higher-level
+moving mixed-regime boundary contract by an explicit typed adapter.  It binds
+the exact final solver-owned shock curve and open companion boundary, retains
+the response source and law identity, and requires every accepted moving
+iteration to carry strict mass, normal-momentum, and energy admission.  The
+companion boundary is converted only from its retained point/state/total-
+pressure samples; missing samples, point/state drift, incomplete final fields,
+or a non-strict law are rejected without interpolation or extrapolation.
+
+The contract report now exposes this evidence beside the existing field-
+required and non-promotion flags, and ``MocChainBoundarySample`` has a stable
+report form so the retained companion handoff is serializable.  The focused
+moving-interface/law regression passes 3 tests plus the strict handoff test;
+Ruff, bytecode compilation, and whitespace checks are clean.  This closes a
+solver-to-coupled-consumer lineage seam only.  The downstream subsonic/
+free-boundary solve, global feedback, refinement, physical shock-cell fits,
+provider-bound product comparisons, owner archives, and release tag remain
+blocked.

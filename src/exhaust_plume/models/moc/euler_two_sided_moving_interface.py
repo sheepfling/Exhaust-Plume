@@ -174,6 +174,7 @@ class MocEulerTwoSidedInterfaceResponse:
   )
   law_id: str = 'solver-owned-two-sided-euler-interface-law-required'
   stationary_equilibrium_candidate: bool = False
+  conservative_flux_closure_verified: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -261,6 +262,9 @@ class MocEulerTwoSidedInterfaceResponse:
     if not isinstance(self.stationary_equilibrium_candidate, bool):
       raise TypeError('stationary_equilibrium_candidate must be a bool')
     ####
+    if not isinstance(self.conservative_flux_closure_verified, bool):
+      raise TypeError('conservative_flux_closure_verified must be a bool')
+    ####
     object.__setattr__(self, 'response_source', source)
     object.__setattr__(self, 'law_id', law_id)
   ####
@@ -315,6 +319,9 @@ class MocEulerTwoSidedInterfaceResponse:
       'response_source': self.response_source,
       'law_id': self.law_id,
       'stationary_equilibrium_candidate': self.stationary_equilibrium_candidate,
+      'conservative_flux_closure_verified': (
+        self.conservative_flux_closure_verified
+      ),
       'production_claim_allowed': False,
     }
   ####

@@ -1205,6 +1205,7 @@ def build_solver_owned_euler_two_sided_interface_response(
     response_source=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
     law_id=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
+    conservative_flux_closure_verified=conservative_flux_closure_verified,
   )
   result_status = (
     MocEulerTwoSidedInterfaceLawStatus.RESPONSE_READY

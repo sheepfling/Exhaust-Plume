@@ -11,7 +11,7 @@ ordinates, move an interface by endpoint hold, or claim a closed field.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import cos, hypot, isfinite, sin
 from typing import Any
@@ -24,6 +24,12 @@ from exhaust_plume.models.moc.euler_characteristic_field import (
 from exhaust_plume.models.moc.euler_shock_boundary import (
   MocEulerShockBoundaryCurveResult,
   fit_euler_consistent_shock_boundary_from_geometry,
+)
+from exhaust_plume.models.moc.euler_two_sided_interface_law import (
+  MocEulerTwoSidedInterfaceLawResult,
+)
+from exhaust_plume.models.moc.euler_two_sided_moving_interface import (
+  MocEulerTwoSidedMovingInterfaceResult,
 )
 from exhaust_plume.models.moc.transonic_transition import (
   MocTransonicShockGeometryAudit,
@@ -41,6 +47,7 @@ __all__ = (
   'MocMovingMixedRegimeInterfaceRequest',
   'MocMovingMixedRegimeInterfaceResult',
   'MocMovingMixedRegimeInterfaceAudit',
+  'bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result',
   'prepare_moc_moving_mixed_regime_interface',
   'measure_moc_moving_mixed_regime_interface',
 )
@@ -268,6 +275,9 @@ class MocMovingMixedRegimeInterfaceRequest:
   normal_tolerance: float = DEFAULT_NORMAL_TOLERANCE
   two_sided_shock_boundary: MocEulerShockBoundaryCurveResult | None = None
   two_sided_companion_boundary: tuple[MocChainBoundarySample, ...] = ()
+  two_sided_moving_interface_response_source: str | None = None
+  two_sided_moving_interface_law_id: str | None = None
+  two_sided_moving_interface_conservative_flux_verified: bool = False
   source: str = 'solver-owned-moving-mixed-regime-interface-request-v1'
 
   def __post_init__(self) -> None:
@@ -315,12 +325,48 @@ class MocMovingMixedRegimeInterfaceRequest:
         'two_sided_companion_boundary requires a two_sided_shock_boundary'
       )
     ####
+    response_source = self.two_sided_moving_interface_response_source
+    law_id = self.two_sided_moving_interface_law_id
+    if response_source is not None:
+      response_source = str(response_source)
+      if not response_source:
+        raise ValueError(
+          'two_sided_moving_interface_response_source must be non-empty'
+        )
+    ####
+    if law_id is not None:
+      law_id = str(law_id)
+      if not law_id:
+        raise ValueError('two_sided_moving_interface_law_id must be non-empty')
+    ####
+    if not isinstance(
+      self.two_sided_moving_interface_conservative_flux_verified,
+      bool,
+    ):
+      raise TypeError(
+        'two_sided_moving_interface_conservative_flux_verified must be a bool'
+      )
+    ####
+    if self.two_sided_moving_interface_conservative_flux_verified and not (
+      response_source is not None and law_id is not None
+    ):
+      raise ValueError(
+        'verified two-sided moving-interface evidence must retain its response '
+        'source and law identity'
+      )
+    ####
     if len({sample.index for sample in samples}) != len(samples):
       raise ValueError('boundary_samples indices must be unique')
     ####
     object.__setattr__(self, 'interface_points_m', interface_points)
     object.__setattr__(self, 'boundary_samples', samples)
     object.__setattr__(self, 'two_sided_companion_boundary', companion_boundary)
+    object.__setattr__(
+      self,
+      'two_sided_moving_interface_response_source',
+      response_source,
+    )
+    object.__setattr__(self, 'two_sided_moving_interface_law_id', law_id)
     for name in (
       'cross_section_x_m',
       'lower_y_m',
@@ -428,6 +474,15 @@ class MocMovingMixedRegimeInterfaceRequest:
       'two_sided_companion_boundary': [
         sample.as_report() for sample in self.two_sided_companion_boundary
       ],
+      'two_sided_moving_interface_response_source': (
+        self.two_sided_moving_interface_response_source
+      ),
+      'two_sided_moving_interface_law_id': (
+        self.two_sided_moving_interface_law_id
+      ),
+      'two_sided_moving_interface_conservative_flux_verified': (
+        self.two_sided_moving_interface_conservative_flux_verified
+      ),
       'cross_section_x_m': self.cross_section_x_m,
       'lower_y_m': self.lower_y_m,
       'upper_y_m': self.upper_y_m,
@@ -444,6 +499,148 @@ class MocMovingMixedRegimeInterfaceRequest:
       'no_extrapolation': True,
     }
   ####
+
+
+def bind_moc_moving_mixed_regime_interface_to_two_sided_moving_result(
+  request: MocMovingMixedRegimeInterfaceRequest,
+  moving_result: MocEulerTwoSidedMovingInterfaceResult,
+  law_result: MocEulerTwoSidedInterfaceLawResult,
+) -> MocMovingMixedRegimeInterfaceRequest:
+  """Bind strict moving-front evidence to the explicit mixed-regime seam.
+
+  The caller still owns the exact conservative samples on the declared
+  downstream section.  This adapter only carries the final solver-owned
+  shock/companion objects and the conservative-flux evidence into the
+  existing boundary contract; it does not interpolate samples or close the
+  subsonic/free boundary.
+  """
+
+  if not isinstance(request, MocMovingMixedRegimeInterfaceRequest):
+    raise TypeError('request must be a moving mixed-regime interface request')
+  if not isinstance(
+    moving_result,
+    MocEulerTwoSidedMovingInterfaceResult,
+  ):
+    raise TypeError(
+      'moving_result must be a MocEulerTwoSidedMovingInterfaceResult'
+    )
+  if not isinstance(law_result, MocEulerTwoSidedInterfaceLawResult):
+    raise TypeError(
+      'law_result must be a MocEulerTwoSidedInterfaceLawResult'
+    )
+  ####
+  if not (
+    moving_result.converged
+    and moving_result.moving_interface_verified
+    and moving_result.field_re_solve_verified
+    and moving_result.chain_promotion_blocked
+    and not moving_result.production_claim_allowed
+  ):
+    raise ValueError(
+      'moving_result must be a converged, independently re-solved, '
+      'non-promotable research result'
+    )
+  ####
+  if not (
+    law_result.response_ready
+    and law_result.request is not None
+    and law_result.request.require_conservative_flux_closure
+    and law_result.conservative_flux_closure_verified
+    and law_result.response is not None
+  ):
+    raise ValueError(
+      'law_result must retain a ready response admitted by the strict '
+      'conservative-flux policy'
+    )
+  ####
+  responses = tuple(record.response for record in moving_result.records)
+  if not responses or any(
+    response is None
+    or not response.conservative_flux_closure_verified
+    or response.response_source != law_result.response.response_source
+    or response.law_id != law_result.response.law_id
+    for response in responses
+  ):
+    raise ValueError(
+      'every moving-interface iteration must retain the same strict '
+      'conservative response-law identity'
+    )
+  ####
+  final_field = moving_result.final_field_iteration
+  if final_field is None or not final_field.field_iteration_verified:
+    raise ValueError(
+      'moving_result must retain a verified final exact two-sided field'
+    )
+  shock_boundary = final_field.shock_boundary
+  companion_field = final_field.initial_companion_field
+  if shock_boundary is None or not (
+    shock_boundary.converged and shock_boundary.local_euler_verified
+  ):
+    raise ValueError(
+      'moving_result final field must retain a locally Euler-verified shock '
+      'boundary'
+    )
+  if companion_field is None or not (
+    companion_field.converged
+    and companion_field.state_sampling_available
+    and companion_field.shock_boundary is shock_boundary
+    and companion_field.shock_boundary_local_euler_verified
+    and companion_field.companion_boundary_contract_verified
+    and companion_field.pressure_lineage_verified
+    and companion_field.chain_promotion_blocked
+    and not companion_field.production_claim_allowed
+  ):
+    raise ValueError(
+      'moving_result final field must retain an open, verified companion '
+      'boundary with pressure lineage'
+    )
+  ####
+  companion_points = tuple(companion_field.companion_boundary_points_m)
+  companion_states = tuple(companion_field.companion_boundary_states)
+  companion_pressures = tuple(
+    companion_field.companion_boundary_total_pressure_Pa
+  )
+  if not (
+    companion_points
+    and len(companion_points) == len(companion_states) == len(companion_pressures)
+  ):
+    raise ValueError(
+      'moving_result companion boundary must retain point, state, and total '
+      'pressure samples without gaps'
+    )
+  ####
+  companion_boundary: list[MocChainBoundarySample] = []
+  for point, state, pressure in zip(
+    companion_points,
+    companion_states,
+    companion_pressures,
+    strict=True,
+  ):
+    if max(
+      abs(float(point[index]) - (state.x_m, state.y_m)[index])
+      for index in range(2)
+    ) > request.position_tolerance_m:
+      raise ValueError(
+        'moving_result companion boundary point/state lineage is not exact'
+      )
+    companion_boundary.append(
+      MocChainBoundarySample(
+        state=state,
+        total_pressure_Pa=pressure,
+      )
+    )
+  ####
+  return replace(
+    request,
+    interface_points_m=tuple(shock_boundary.shock_points_m),
+    two_sided_shock_boundary=shock_boundary,
+    two_sided_companion_boundary=tuple(companion_boundary),
+    two_sided_moving_interface_response_source=(
+      law_result.response.response_source
+    ),
+    two_sided_moving_interface_law_id=law_result.response.law_id,
+    two_sided_moving_interface_conservative_flux_verified=True,
+  )
 
 
 @dataclass(frozen=True, slots=True)
