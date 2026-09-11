@@ -5952,3 +5952,31 @@ and whitespace checks are clean.  The next physics gate is the canonical
 reflected/free-boundary equation and independently accepted physical
 shock-cell-length comparison.  Provider-bound Visualization/Signature/RAY/FPA
 validation, validation archives, and release freeze remain open.
+
+### P3.1 standard visualization source-context checkpoint — 2026-09-11
+
+The renderer-neutral adapters now preserve a typed source context on every
+standard visualization output: section geometry and channel lines, sectioned
+tube line bundles and meshes, Signature spectral grids and lines, ray-transfer
+lines and bundles, and engineering flux glyphs.  The context carries the exact
+capability/schema identity, provider/session/snapshot IDs, content digest,
+requested and actual times, output frame, result status, fidelity and
+validation claim, applicability report, provenance, derivation lineage, and
+warnings.  It also exposes a renderer-ready claim panel without inventing a
+production or external-validation flag.
+
+Mesh serialization includes the same context, so a generic renderer or exported
+artifact cannot silently lose the source claim while changing representation.
+The context is optional for existing hand-built adapter objects, but all
+extraction paths populate it from the validated result envelope and reject
+frame/context mismatches.  This is a visualization-contract and evidence
+surface improvement only; it does not upgrade any solver fidelity, create
+provider comparisons, or open Signature/RAY/FPA validation claims.
+
+The combined standard visualization/API/gallery tranche passes (``37
+passed``; ``18`` focused API/adapter tests plus the existing gallery
+regression), and Ruff, Pyright, compilation, and whitespace checks are clean.
+The next P3 gate is the provider-bound five-lane gallery/comparison intake with
+declared coordinate operators and uncertainty overlays.  Canonical
+mixed-regime closure, physical shock-cell lengths, missing validation archives,
+and exact-head release freeze remain open.

@@ -34,6 +34,7 @@ from exhaust_plume.api import (
   SpectralRayTransferPayload,
   SpectralRayTransferResult,
   ValidationLevel,
+  VisualizationSourceContext,
   extract_plume_flux_section_glyph,
   extract_product_visualization_data,
   extract_spectral_radiant_intensity_grid,
@@ -174,6 +175,10 @@ def test_signature_visualization_preserves_wavelength_grid_and_validity() -> Non
   assert lines[0].direction == (1.0, 0.0, 0.0)
   assert lines[0].values_W_sr_m == (1.0, None)
   assert lines[0].validity_mask == (True, False)
+  assert isinstance(grid.source_context, VisualizationSourceContext)
+  assert grid.source_context.content_sha256 == result.envelope.content_sha256
+  assert grid.source_context.provenance == result.envelope.provenance
+  assert lines[0].source_context == grid.source_context
 ####
 
 
@@ -195,6 +200,9 @@ def test_ray_transfer_visualization_keeps_ray_geometry_and_separate_fields() -> 
   assert line.background_transmittance == (0.8, None)
   assert line.validity_mask == (True, False)
   assert line.item_status is ItemStatus.OK
+  assert data.source_context is not None
+  assert data.source_context.snapshot_id == str(result.envelope.snapshot_id)
+  assert data.lines[0].source_context == data.source_context
 ####
 
 
@@ -211,6 +219,8 @@ def test_flux_visualization_preserves_vector_scalar_and_species_glyph_data() -> 
   assert glyph.momentum_flux_N == (60.0, 2.0, 3.0)
   assert glyph.species_mass_flows_kgps == (('exhaust', 1.5), ('air', 0.2))
   assert glyph.cross_section_second_moment_m2 == ((0.01, 0.0), (0.0, 0.02))
+  assert glyph.source_context is not None
+  assert glyph.source_context.actual_time_s == result.envelope.actual_time_s
 ####
 
 
@@ -229,6 +239,25 @@ def test_product_visualization_dispatcher_keeps_product_specific_types(
 ) -> None:
   data = extract_product_visualization_data(result_factory())
   assert isinstance(data, expected_type)
+
+
+@pytest.mark.parametrize(
+  'result_factory',
+  (_visual_result, _signature_result, _ray_transfer_result, _flux_result),
+)
+def test_product_visualization_context_exposes_claim_panel_and_lineage(result_factory) -> None:
+  result = result_factory()
+  data = extract_product_visualization_data(result)
+
+  assert data.source_context is not None
+  context = data.source_context
+  assert context.capability_id == result.envelope.capability_id
+  assert context.frame_id == result.envelope.frame.frame_id
+  assert context.fidelity == result.envelope.fidelity
+  assert context.applicability == result.envelope.applicability
+  assert context.claim_panel['model_fidelity'] == result.envelope.fidelity.model_fidelity.value
+  assert context.claim_panel['validation_level'] == result.envelope.fidelity.validation_level.value
+  assert context.model_dump()['provenance'] == result.envelope.provenance.model_dump(mode='json')
 ####
 
 

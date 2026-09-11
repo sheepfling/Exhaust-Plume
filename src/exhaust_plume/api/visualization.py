@@ -15,13 +15,18 @@ from typing import Any, TypeAlias
 
 from exhaust_plume.api.capabilities import VISUAL_SECTIONED_TUBE_V1
 from exhaust_plume.api.contracts import (
+  Applicability,
+  DerivationStep,
   FeatureAssociation,
   FeatureChannel,
+  FidelityClaim,
+  FrameRef,
   ItemStatus,
   PlumeFluxSectionResult,
   ProductResult,
-  ResultStatus,
   ResultEnvelope,
+  Provenance,
+  ResultStatus,
   SectionedTubeResult,
   SpectralRadiantIntensityResult,
   SpectralRayTransferResult,
@@ -52,6 +57,132 @@ def _check_result_envelope(envelope: ResultEnvelope) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class VisualizationSourceContext:
+  """Source identity and claim context retained by visual adapters.
+
+  A visualization adapter may reshape values, tessellate geometry, or select a
+  slice, but it must not sever the result's lineage.  This context is a
+  display/evaluation seam only: it reports the source claim and applicability
+  state without promoting the source to a stronger fidelity or validation
+  level.
+  """
+
+  capability_id: str
+  schema_version: str
+  provider_id: str
+  session_id: str
+  snapshot_id: str
+  content_sha256: str
+  requested_time_s: float
+  actual_time_s: float
+  frame: FrameRef
+  status: ResultStatus
+  fidelity: FidelityClaim
+  applicability: Applicability
+  provenance: Provenance
+  derivation: tuple[DerivationStep, ...] = ()
+  warnings: tuple[str, ...] = ()
+
+  def __post_init__(self) -> None:
+    for name in (
+      'capability_id',
+      'schema_version',
+      'provider_id',
+      'session_id',
+      'snapshot_id',
+      'content_sha256',
+    ):
+      if not getattr(self, name):
+        raise ValueError(f'visualization source context {name} must not be empty')
+    ####
+    if len(self.content_sha256) != 64 or any(
+      character not in '0123456789abcdef'
+      for character in self.content_sha256
+    ):
+      raise ValueError('visualization source context content_sha256 must be lowercase SHA-256')
+    ####
+    if not isfinite(self.requested_time_s) or not isfinite(self.actual_time_s):
+      raise ValueError('visualization source context times must be finite')
+    ####
+    object.__setattr__(self, 'derivation', tuple(self.derivation))
+    object.__setattr__(self, 'warnings', tuple(self.warnings))
+  ####
+
+  @classmethod
+  def from_envelope(cls, envelope: ResultEnvelope) -> VisualizationSourceContext:
+    """Copy a validated result envelope without retaining the product DTO."""
+
+    return cls(
+      capability_id=envelope.capability_id,
+      schema_version=envelope.schema_version,
+      provider_id=str(envelope.provider_id),
+      session_id=str(envelope.session_id),
+      snapshot_id=str(envelope.snapshot_id),
+      content_sha256=envelope.content_sha256,
+      requested_time_s=envelope.requested_time_s,
+      actual_time_s=envelope.actual_time_s,
+      frame=envelope.frame,
+      status=envelope.status,
+      fidelity=envelope.fidelity,
+      applicability=envelope.applicability,
+      provenance=envelope.provenance,
+      derivation=envelope.derivation,
+      warnings=envelope.warnings,
+    )
+  ####
+
+  @property
+  def frame_id(self) -> str:
+    """Return the source output frame used by the visualized data."""
+
+    return self.frame.frame_id
+  ####
+
+  @property
+  def claim_panel(self) -> dict[str, Any]:
+    """Return renderer-ready claim fields without inventing promotion state."""
+
+    return {
+      'status': self.status.value,
+      'model_fidelity': self.fidelity.model_fidelity.value,
+      'validation_level': self.fidelity.validation_level.value,
+      'claim_notes': list(self.fidelity.claim_notes),
+      'applicability': self.applicability.model_dump(mode='json'),
+      'warnings': list(self.warnings),
+    }
+  ####
+
+  def model_dump(self) -> dict[str, Any]:
+    """Return JSON-compatible identity, claim, and provenance metadata."""
+
+    return {
+      'capability_id': self.capability_id,
+      'schema_version': self.schema_version,
+      'provider_id': self.provider_id,
+      'session_id': self.session_id,
+      'snapshot_id': self.snapshot_id,
+      'content_sha256': self.content_sha256,
+      'requested_time_s': self.requested_time_s,
+      'actual_time_s': self.actual_time_s,
+      'frame': self.frame.model_dump(mode='json'),
+      'status': self.status.value,
+      'fidelity': self.fidelity.model_dump(mode='json'),
+      'applicability': self.applicability.model_dump(mode='json'),
+      'provenance': self.provenance.model_dump(mode='json'),
+      'derivation': [step.model_dump(mode='json') for step in self.derivation],
+      'warnings': list(self.warnings),
+      'claim_panel': self.claim_panel,
+    }
+  ####
+####
+
+
+def _source_context(envelope: ResultEnvelope) -> VisualizationSourceContext:
+  return VisualizationSourceContext.from_envelope(envelope)
+####
+
+
+@dataclass(frozen=True, slots=True)
 class SectionedTubeGeometrySeries:
   """Line-friendly geometry sampled at the contract's section stations."""
 
@@ -63,6 +194,7 @@ class SectionedTubeGeometrySeries:
   normal_2: tuple[Vector3, ...]
   semi_axis_1_m: tuple[float, ...]
   semi_axis_2_m: tuple[float, ...]
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if not self.frame_id:
@@ -125,6 +257,8 @@ class SectionedTubeGeometrySeries:
     ####
     object.__setattr__(self, 'semi_axis_1_m', tuple(float(value) for value in self.semi_axis_1_m))
     object.__setattr__(self, 'semi_axis_2_m', tuple(float(value) for value in self.semi_axis_2_m))
+    if self.source_context is not None and self.source_context.frame_id != self.frame_id:
+      raise ValueError('geometry source context must use the geometry frame')
   ####
 ####
 
@@ -141,6 +275,7 @@ class SectionedTubeChannelLine:
   component_index: int
   arc_length_m: tuple[float, ...]
   values: tuple[ScalarValue, ...]
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if not self.frame_id:
@@ -173,6 +308,8 @@ class SectionedTubeChannelLine:
       'values',
       tuple(None if value is None else float(value) for value in self.values),
     )
+    if self.source_context is not None and self.source_context.frame_id != self.frame_id:
+      raise ValueError('channel source context must use the channel frame')
   ####
 ####
 
@@ -183,6 +320,7 @@ class SectionedTubeLineData:
 
   geometry: SectionedTubeGeometrySeries
   channels: tuple[SectionedTubeChannelLine, ...]
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if any(channel.frame_id != self.geometry.frame_id for channel in self.channels):
@@ -190,6 +328,21 @@ class SectionedTubeLineData:
     ####
     if any(channel.arc_length_m != self.geometry.arc_length_m for channel in self.channels):
       raise ValueError('line data channels must use the geometry arc-length axis')
+    ####
+    contexts = tuple(
+      context
+      for context in (
+        self.source_context,
+        self.geometry.source_context,
+        *(channel.source_context for channel in self.channels),
+      )
+      if context is not None
+    )
+    if contexts and any(context != contexts[0] for context in contexts[1:]):
+      raise ValueError('line data source contexts must agree')
+    ####
+    if self.source_context is not None and self.source_context.frame_id != self.geometry.frame_id:
+      raise ValueError('line data source context must use the geometry frame')
     ####
     object.__setattr__(self, 'channels', tuple(self.channels))
   ####
@@ -212,6 +365,7 @@ class SectionedTubeRenderMesh:
   faces: tuple[tuple[int, int, int], ...]
   face_section_indices: tuple[int, ...]
   feature_channels: tuple[FeatureChannel, ...] = ()
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if not self.frame_id:
@@ -250,6 +404,8 @@ class SectionedTubeRenderMesh:
     object.__setattr__(self, 'faces', tuple(normalized_faces))
     object.__setattr__(self, 'face_section_indices', tuple(int(index) for index in self.face_section_indices))
     object.__setattr__(self, 'feature_channels', tuple(self.feature_channels))
+    if self.source_context is not None and self.source_context.frame_id != self.frame_id:
+      raise ValueError('mesh source context must use the mesh frame')
   ####
 
   @property
@@ -279,6 +435,7 @@ class SectionedTubeRenderMesh:
       'faces': [list(face) for face in self.faces],
       'face_section_indices': list(self.face_section_indices),
       'feature_channels': [channel.model_dump(mode='json') for channel in self.feature_channels],
+      'source_context': None if self.source_context is None else self.source_context.model_dump(),
       'bounds': {
         'minimum_m': list(self.minimum_m),
         'maximum_m': list(self.maximum_m),
@@ -315,6 +472,7 @@ def extract_sectioned_tube_geometry(result: SectionedTubeResult) -> SectionedTub
     normal_2=tuple(_as_vector3(section.normal_2) for section in sections),
     semi_axis_1_m=tuple(section.semi_axis_1_m for section in sections),
     semi_axis_2_m=tuple(section.semi_axis_2_m for section in sections),
+    source_context=_source_context(checked.envelope),
   )
 ####
 
@@ -342,6 +500,7 @@ def extract_sectioned_tube_channel_lines(
   ####
   arc_lengths = tuple(section.arc_length_m for section in checked.payload.sections)
   frame_id = checked.envelope.frame.frame_id
+  source_context = _source_context(checked.envelope)
   lines: list[SectionedTubeChannelLine] = []
   for channel in channels:
     for component_index in range(channel.component_count):
@@ -358,6 +517,7 @@ def extract_sectioned_tube_channel_lines(
         component_index=component_index,
         arc_length_m=arc_lengths,
         values=values,
+        source_context=source_context,
       ))
     ####
   ####
@@ -372,9 +532,11 @@ def extract_sectioned_tube_line_data(
 ) -> SectionedTubeLineData:
   """Extract geometry and optional feature lines in one renderer-neutral object."""
 
+  checked = _require_renderable_result(result)
   return SectionedTubeLineData(
-    geometry=extract_sectioned_tube_geometry(result),
-    channels=extract_sectioned_tube_channel_lines(result, channel_id=channel_id),
+    geometry=extract_sectioned_tube_geometry(checked),
+    channels=extract_sectioned_tube_channel_lines(checked, channel_id=channel_id),
+    source_context=_source_context(checked.envelope),
   )
 ####
 
@@ -460,6 +622,7 @@ def build_sectioned_tube_render_mesh(
     faces=tuple(faces),
     face_section_indices=tuple(face_section_indices),
     feature_channels=tuple(checked.payload.feature_channels),
+    source_context=_source_context(checked.envelope),
   )
 ####
 
@@ -474,6 +637,7 @@ class SpectralRadiantIntensityGrid:
   radiant_intensity_W_sr_m: tuple[tuple[ScalarValue, ...], ...]
   validity_mask: tuple[tuple[bool, ...], ...]
   uncertainty: dict[str, Any]
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if not self.frame_id:
@@ -529,6 +693,8 @@ class SpectralRadiantIntensityGrid:
     )
     object.__setattr__(self, 'validity_mask', tuple(tuple(row) for row in self.validity_mask))
     object.__setattr__(self, 'uncertainty', dict(self.uncertainty))
+    if self.source_context is not None and self.source_context.frame_id != self.frame_id:
+      raise ValueError('spectral-intensity source context must use the grid frame')
   ####
 ####
 
@@ -543,6 +709,7 @@ class SpectralRadiantIntensityLine:
   wavelengths_m: tuple[float, ...]
   values_W_sr_m: tuple[ScalarValue, ...]
   validity_mask: tuple[bool, ...]
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if not self.frame_id:
@@ -562,6 +729,8 @@ class SpectralRadiantIntensityLine:
       tuple(None if value is None else float(value) for value in self.values_W_sr_m),
     )
     object.__setattr__(self, 'validity_mask', tuple(self.validity_mask))
+    if self.source_context is not None and self.source_context.frame_id != self.frame_id:
+      raise ValueError('spectral-intensity line source context must use the line frame')
   ####
 ####
 
@@ -586,6 +755,7 @@ def extract_spectral_radiant_intensity_grid(
     ),
     validity_mask=tuple(tuple(row) for row in payload.validity_mask),
     uncertainty=payload.uncertainty,
+    source_context=_source_context(result.envelope),
   )
 ####
 
@@ -614,6 +784,7 @@ def extract_spectral_radiant_intensity_lines(
       wavelengths_m=grid.wavelengths_m,
       values_W_sr_m=grid.radiant_intensity_W_sr_m[index],
       validity_mask=grid.validity_mask[index],
+      source_context=grid.source_context,
     )
     for index in selected_indices
   )
@@ -637,6 +808,7 @@ class SpectralRayTransferLine:
   background_transmittance: tuple[ScalarValue, ...]
   validity_mask: tuple[bool, ...]
   item_status: ItemStatus
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if not self.frame_id or not self.ray_id:
@@ -676,6 +848,8 @@ class SpectralRayTransferLine:
       tuple(None if value is None else float(value) for value in self.background_transmittance),
     )
     object.__setattr__(self, 'validity_mask', tuple(self.validity_mask))
+    if self.source_context is not None and self.source_context.frame_id != self.frame_id:
+      raise ValueError('ray-transfer line source context must use the line frame')
   ####
 ####
 
@@ -687,6 +861,7 @@ class SpectralRayTransferData:
   frame_id: str
   wavelengths_m: tuple[float, ...]
   lines: tuple[SpectralRayTransferLine, ...]
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if not self.frame_id or not self.lines:
@@ -697,6 +872,20 @@ class SpectralRayTransferData:
     ####
     if any(line.wavelengths_m != self.wavelengths_m for line in self.lines):
       raise ValueError('ray-transfer lines must use the shared wavelength axis')
+    ####
+    contexts = tuple(
+      context
+      for context in (
+        self.source_context,
+        *(line.source_context for line in self.lines),
+      )
+      if context is not None
+    )
+    if contexts and any(context != contexts[0] for context in contexts[1:]):
+      raise ValueError('ray-transfer source contexts must agree')
+    ####
+    if self.source_context is not None and self.source_context.frame_id != self.frame_id:
+      raise ValueError('ray-transfer data source context must use the shared frame')
     ####
     object.__setattr__(self, 'wavelengths_m', tuple(float(value) for value in self.wavelengths_m))
     object.__setattr__(self, 'lines', tuple(self.lines))
@@ -734,6 +923,7 @@ def extract_spectral_ray_transfer_lines(
       background_transmittance=tuple(payload.background_transmittance[index]),
       validity_mask=tuple(payload.validity_mask[index]),
       item_status=payload.item_status[index],
+      source_context=_source_context(result.envelope),
     )
     for index in selected_indices
   )
@@ -755,6 +945,7 @@ def extract_spectral_ray_transfer_data(
     frame_id=result.envelope.frame.frame_id,
     wavelengths_m=tuple(result.payload.wavelengths_m),
     lines=lines,
+    source_context=_source_context(result.envelope),
   )
 ####
 
@@ -778,6 +969,7 @@ class PlumeFluxSectionGlyph:
   ambient_pressure_Pa: float
   pressure_match_relative_residual: float
   cross_section_second_moment_m2: Matrix2
+  source_context: VisualizationSourceContext | None = None
 
   def __post_init__(self) -> None:
     if not self.frame_id or not self.section_frame_id:
@@ -812,6 +1004,8 @@ class PlumeFluxSectionGlyph:
       'cross_section_second_moment_m2',
       tuple(tuple(float(value) for value in row) for row in self.cross_section_second_moment_m2),
     )
+    if self.source_context is not None and self.source_context.frame_id != self.frame_id:
+      raise ValueError('flux glyph source context must use the glyph frame')
   ####
 ####
 
@@ -846,6 +1040,7 @@ def extract_plume_flux_section_glyph(result: PlumeFluxSectionResult) -> PlumeFlu
     ambient_pressure_Pa=payload.ambient_pressure_Pa,
     pressure_match_relative_residual=payload.pressure_match_relative_residual,
     cross_section_second_moment_m2=payload.cross_section_second_moment_m2,
+    source_context=_source_context(result.envelope),
   )
 ####
 
@@ -1119,6 +1314,7 @@ __all__ = (
   'SectionedTubeGeometrySeries',
   'SectionedTubeLineData',
   'SectionedTubeRenderMesh',
+  'VisualizationSourceContext',
   'SpectralRadiantIntensityGrid',
   'SpectralRadiantIntensityLine',
   'SpectralRayTransferData',

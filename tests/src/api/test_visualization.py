@@ -101,6 +101,11 @@ def test_contract_mesh_uses_explicit_section_normals_and_retains_channels() -> N
   assert mesh.minimum_m[0] == 0.0
   assert mesh.maximum_m[0] > 3.0
   assert mesh.model_dump()['capability_id'] == 'plume.visual.sectioned-tube@1'
+  assert mesh.source_context is not None
+  assert mesh.source_context.content_sha256 == result.envelope.content_sha256
+  assert mesh.model_dump()['source_context']['claim_panel']['validation_level'] == (
+    result.envelope.fidelity.validation_level.value
+  )
 ####
 
 
