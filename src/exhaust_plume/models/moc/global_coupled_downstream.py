@@ -479,6 +479,7 @@ class MocReflectedDomainGlobalPhysicalFieldHandoff:
   placement: MocTransonicShockInterfaceFieldPlacementResult
   continuation_profile: MocPhysicalFieldContinuationProfileResult
   shock_front_condition: MocPhysicalFieldShockFrontConditionResult
+  independent_measurement: Any | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -514,11 +515,35 @@ class MocReflectedDomainGlobalPhysicalFieldHandoff:
   def converged(self) -> bool:
     """Whether every derived handoff component passed its own audit."""
 
+    audit = self.independent_measurement
     return bool(
       self.placement.converged
       and self.continuation_profile.converged
       and self.shock_front_condition.converged
+      and audit is not None
+      and bool(getattr(audit, 'converged', False))
     )
+  ####
+
+  @property
+  def physical_closure_verified(self) -> bool:
+    """A shared-field handoff does not close the downstream free boundary."""
+
+    return False
+  ####
+
+  @property
+  def chain_promotion_blocked(self) -> bool:
+    """Keep this exact handoff below chain promotion."""
+
+    return True
+  ####
+
+  @property
+  def production_claim_allowed(self) -> bool:
+    """The handoff is research-only evidence."""
+
+    return False
   ####
 
   def as_report(self) -> dict[str, Any]:
@@ -527,10 +552,17 @@ class MocReflectedDomainGlobalPhysicalFieldHandoff:
       'placement': self.placement.as_report(),
       'continuation_profile': self.continuation_profile.as_report(),
       'shock_front_condition': self.shock_front_condition.as_report(),
+      'independent_measurement': (
+        None
+        if self.independent_measurement is None
+        or not hasattr(self.independent_measurement, 'as_report')
+        else self.independent_measurement.as_report()
+      ),
       'claim_status': (
         'research-only-solver-owned-global-physical-field-handoff; '
-        'global-feedback, canonical mixed-regime closure, refinement, and '
-        'external validation remain open'
+        'shared-field lineage is independently audited; global-feedback, '
+        'canonical mixed-regime closure, refinement, and external validation '
+        'remain open'
       ),
     }
   ####
@@ -3252,11 +3284,23 @@ def build_reflected_domain_global_solver_owned_physical_field_handoff(
       f'independent audit: {shock_front_condition.message}'
     )
   ####
-  return MocReflectedDomainGlobalPhysicalFieldHandoff(
+  provisional = MocReflectedDomainGlobalPhysicalFieldHandoff(
     placement=placement,
     continuation_profile=continuation,
     shock_front_condition=shock_front_condition,
   )
+  from exhaust_plume.validation.moc_global_physical_field_handoff import (
+    measure_moc_reflected_domain_global_physical_field_handoff,
+  )
+
+  audit = measure_moc_reflected_domain_global_physical_field_handoff(provisional)
+  if not audit.converged:
+    raise ValueError(
+      'solver-owned global physical-field handoff failed its shared-field '
+      f'audit: {audit.message}'
+    )
+  ####
+  return replace(provisional, independent_measurement=audit)
 ####
 
 

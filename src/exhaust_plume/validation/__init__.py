@@ -518,6 +518,12 @@ from exhaust_plume.validation.moc_physical_field_shock_front import (
   MocPhysicalFieldShockFrontConditionAudit,
   measure_moc_physical_field_shock_front_condition,
 )
+from exhaust_plume.validation.moc_global_physical_field_handoff import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_PHYSICAL_FIELD_HANDOFF_AUDIT_OPERATOR_ID,
+  MocReflectedDomainGlobalPhysicalFieldHandoffAuditStatus,
+  MocReflectedDomainGlobalPhysicalFieldHandoffAudit,
+  measure_moc_reflected_domain_global_physical_field_handoff,
+)
 from exhaust_plume.validation.moc_physical_field_euler_reconciliation import (
   MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_AUDIT_OPERATOR_ID,
   MocPhysicalFieldEulerReconciliationAuditStatus,
@@ -1233,6 +1239,10 @@ __all__ = (
   'MocPhysicalFieldShockFrontConditionAuditStatus',
   'MocPhysicalFieldShockFrontConditionAudit',
   'measure_moc_physical_field_shock_front_condition',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_PHYSICAL_FIELD_HANDOFF_AUDIT_OPERATOR_ID',
+  'MocReflectedDomainGlobalPhysicalFieldHandoffAuditStatus',
+  'MocReflectedDomainGlobalPhysicalFieldHandoffAudit',
+  'measure_moc_reflected_domain_global_physical_field_handoff',
   'MOC_PHYSICAL_FIELD_EULER_RECONCILIATION_AUDIT_OPERATOR_ID',
   'MocPhysicalFieldEulerReconciliationAuditStatus',
   'MocPhysicalFieldEulerReconciliationAudit',

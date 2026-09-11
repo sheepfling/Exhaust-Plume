@@ -4753,3 +4753,18 @@ and it does not close the solver-owned mixed-regime/free-boundary law.  The
 canonical physical closure, accepted shock-cell lengths, provider-bound
 Visualization/Signature/FPA comparisons, owner archives, and exact release
 freeze remain open.
+
+### WP-1 shared physical-field handoff audit checkpoint — 2026-09-10
+
+The global solver-owned physical-field handoff now retains a second-pass
+research audit after its local placement, continuation, and shock-front
+audits.  The audit remeasures all three components, requires one exact source
+field and continuation-result identity across every seam, and verifies that
+the placement samples, continuation section, and coupled inlet profile remain
+on the same cross-section.  A tampered component is rejected before the
+handoff can be consumed by the coupled downstream solver.
+
+This strengthens lineage and fidelity isolation only.  The handoff remains
+research-only: downstream free-boundary closure, global fixed-point feedback,
+multi-resolution/cross-case evidence, physical shock-cell fitting, provider
+validation, owner archives, and the final release freeze remain open.

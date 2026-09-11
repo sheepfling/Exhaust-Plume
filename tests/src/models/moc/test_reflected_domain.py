@@ -312,6 +312,10 @@ from exhaust_plume.validation.moc_physical_field_shock_front import (
   MocPhysicalFieldShockFrontConditionAuditStatus,
   measure_moc_physical_field_shock_front_condition,
 )
+from exhaust_plume.validation.moc_global_physical_field_handoff import (
+  MocReflectedDomainGlobalPhysicalFieldHandoffAuditStatus,
+  measure_moc_reflected_domain_global_physical_field_handoff,
+)
 from exhaust_plume.validation.moc_physical_field_euler_reconciliation import (
   MocPhysicalFieldEulerReconciliationAuditStatus,
   measure_moc_physical_field_euler_reconciliation,
@@ -5790,6 +5794,8 @@ def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
     MocReflectedDomainGlobalPhysicalFieldHandoff,
   )
   assert result.physical_field_handoff.converged
+  assert result.physical_field_handoff.independent_measurement is not None
+  assert result.physical_field_handoff.independent_measurement.converged
   assert result.coupled_request is not None
   assert result.coupled_request.physical_field_continuation_profile == (
     result.physical_field_handoff.continuation_profile
@@ -5860,6 +5866,46 @@ def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
   )
   assert 'does not cover coupled cell center' in out_of_field.message
   assert not out_of_field.initial_state_field_bound
+####
+
+
+def test_global_physical_field_handoff_rechecks_shared_field_lineage():
+  closure = _global_physical_closure_for_mixed_regime()
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+
+  audit = measure_moc_reflected_domain_global_physical_field_handoff(handoff)
+  assert audit.status is (
+    MocReflectedDomainGlobalPhysicalFieldHandoffAuditStatus.VERIFIED
+  )
+  assert audit.converged
+  assert audit.research_evidence_verified
+  assert audit.source_field_identity_verified
+  assert audit.cross_section_lineage_verified
+  assert audit.coupled_profile_lineage_verified
+  assert audit.placement_audit is not None
+  assert audit.continuation_audit is not None
+  assert audit.shock_front_audit is not None
+  assert audit.as_report()['claim_status'].startswith(
+    'research-only-shared-global-physical-field-handoff-audit'
+  )
+
+  tampered_condition = replace(
+    handoff.shock_front_condition,
+    field=None,
+  )
+  tampered_handoff = replace(
+    handoff,
+    shock_front_condition=tampered_condition,
+  )
+  tampered_audit = measure_moc_reflected_domain_global_physical_field_handoff(
+    tampered_handoff
+  )
+  assert tampered_audit.status is (
+    MocReflectedDomainGlobalPhysicalFieldHandoffAuditStatus.COMPONENT_AUDIT_FAILURE
+  )
+  assert not tampered_audit.research_evidence_verified
 ####
 
 
