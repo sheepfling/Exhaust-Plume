@@ -58,12 +58,12 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `530c966` after the `bc11337` entropy-compatible interface-law code checkpoint and its evidence follow-on; the reflected-domain and independent validation suites are green, Ruff, Pyright, compilation, whitespace, and offline wheel/install smoke pass, and `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `91a485c` after extending the `bc11337` entropy-compatible interface-law checkpoint across every live two-state field face and its independent audit; the reflected-domain and independent validation suites are green, Ruff, Pyright, compilation, whitespace, and offline wheel/install smoke pass, and `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; the live entropy-compatible interface law is now a separate local gate, while upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
-| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked at `530c966`; the candidate is clean, but the canonical/global, physical shock-cell, provider/archive, and release-freeze gates remain red; no freeze rewrite, push, or tag is authorized yet |
+| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked at `91a485c`; the candidate is clean, but the canonical/global, physical shock-cell, provider/archive, and release-freeze gates remain red; no freeze rewrite, push, or tag is authorized yet |
 
 The queue is dependency-ordered.  In particular, Visualization work may
 continue to improve evaluation surfaces, but it cannot turn an open physical
@@ -7250,3 +7250,31 @@ disjoint cases and increasing resolutions, accepted physical shock-cell
 lengths, provider-bound VIS/SIG/RAY/FPA comparisons, missing validation
 archives, and the exact release freeze remain open.  No downstream product
 promotion is allowed from this checkpoint.
+
+### P3.27 all-face live entropy-law checkpoint — 2026-09-12 (`91a485c`)
+
+The opt-in entropy-compatible mode now selects the live Tadmor-bounded
+Rusanov interface law for every two-state finite-volume face in the coupled
+field residual: interior transverse and axial faces, inlet, outlet ghost
+state, and the regular free-boundary state-trace branch.  The explicit
+material-wall and fixed conservative-packet branches remain unchanged.  The
+ordinary Rusanov mode is unchanged because the selector is enabled only by
+``conservative-state-trace-entropy-compatible-rusanov-v1``.
+
+The independent validator mirrors that exact mode selection and replays the
+same live face law, so a solver/audit mismatch cannot be hidden by the new
+mode.  The focused state-consumer tranche remains green; the complete
+reflected-domain suite passes (``231 passed in 6m23s``), the independent
+validation suite passes (``245 passed in 8m37s``), Pyright and compilation
+pass, whitespace is clean, and the offline wheel/install smoke exits zero.
+The package smoke still emits the pre-existing expansion-fan attainability
+warnings and legacy compatibility deprecation warning; these are not new
+failures.
+
+This is still local interface evidence, not a global entropy or conservation
+proof.  The upstream mass, momentum, energy, and entropy feedback equations,
+canonical moving free-boundary fixed point, disjoint cases and increasing
+resolutions, accepted physical shock-cell lengths, provider-bound
+VIS/SIG/RAY/FPA comparisons, missing validation archives, and exact release
+freeze remain open.  No downstream product promotion is allowed from this
+checkpoint.
