@@ -16574,22 +16574,27 @@ def test_global_mixed_regime_frontier_residual_exchange_is_bounded_and_replayabl
       probe_displacement_m=1.0e-5,
     )
   )
-  assert result.status in (
+  assert result.status is (
     MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
-    .CONVERGED_RESEARCH_FRONTIER_RESIDUAL_EXCHANGE,
-    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
-    .GEOMETRY_UPDATE_FAILURE,
-    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
-    .RESIDUAL_REJECTION,
+    .CONVERGED_RESEARCH_FRONTIER_RESIDUAL_EXCHANGE
   )
+  assert result.converged
   assert result.source_packet is not None
   assert result.source_packet.sample_count == source_frontier.frontier_sample_count - 1
   assert len(result.source_packet.maximum_by_component) == 5
   assert result.geometry_update_attempted
-  assert result.geometry_update_consumed is (
-    result.status is not (
-      MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
-      .GEOMETRY_UPDATE_FAILURE
+  assert result.geometry_update_consumed
+  iteration = result.iterations[0]
+  assert iteration.accepted
+  assert iteration.candidate_count >= 2
+  assert iteration.selected_direction_multiplier == -1.0
+  assert iteration.trial_packet is not None
+  assert all(
+    after < before
+    for before, after in zip(
+      result.source_packet.maximum_by_component,
+      iteration.trial_packet.maximum_by_component,
+      strict=True,
     )
   )
   assert result.global_coupling_verified is False

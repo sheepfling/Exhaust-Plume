@@ -360,6 +360,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
   probe_displacement_m: float = 1.0e-4
   maximum_displacement_m: float = 1.0e-3
   relaxation: float = 0.5
+  line_search_scales: tuple[float, ...] = (1.0, 0.5, 0.25, 0.1)
+  try_opposite_direction: bool = True
   branch: ShockBranch = ShockBranch.WEAK
   position_tolerance_m: float = 1.0e-8
   invariant_tolerance: float = 1.0e-8
@@ -406,12 +408,20 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
       raise ValueError('relaxation must be no greater than one')
     if self.probe_displacement_m > self.maximum_displacement_m:
       raise ValueError('probe_displacement_m cannot exceed maximum_displacement_m')
+    scales = tuple(float(value) for value in self.line_search_scales)
+    if not scales or any(not isfinite(value) or value <= 0.0 or value > 1.0 for value in scales):
+      raise ValueError('line_search_scales must contain finite values in (0, 1]')
+    if any(right >= left for left, right in zip(scales, scales[1:])):
+      raise ValueError('line_search_scales must be strictly decreasing')
+    if not isinstance(self.try_opposite_direction, bool):
+      raise TypeError('try_opposite_direction must be a bool')
     if not isinstance(self.branch, ShockBranch):
       raise TypeError('branch must be a ShockBranch')
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
     object.__setattr__(self, 'relaxation', relaxation)
+    object.__setattr__(self, 'line_search_scales', scales)
     object.__setattr__(self, 'source', source)
 
   def as_report(self) -> dict[str, Any]:
@@ -423,6 +433,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
       'probe_displacement_m': self.probe_displacement_m,
       'maximum_displacement_m': self.maximum_displacement_m,
       'relaxation': self.relaxation,
+      'line_search_scales': self.line_search_scales,
+      'try_opposite_direction': self.try_opposite_direction,
       'branch': self.branch.value,
       'position_tolerance_m': self.position_tolerance_m,
       'invariant_tolerance': self.invariant_tolerance,
@@ -452,6 +464,9 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
   geometry_update_attempted: bool
   geometry_update_consumed: bool
   accepted: bool
+  candidate_count: int = 1
+  selected_direction_multiplier: float = 1.0
+  selected_step_scale: float = 1.0
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -480,6 +495,17 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+    if (
+      isinstance(self.candidate_count, bool)
+      or not isinstance(self.candidate_count, int)
+      or self.candidate_count < 0
+    ):
+      raise ValueError('candidate_count must be a nonnegative integer')
+    for name in ('selected_direction_multiplier', 'selected_step_scale'):
+      value = float(getattr(self, name))
+      if not isfinite(value):
+        raise ValueError(f'{name} must be finite')
+      object.__setattr__(self, name, value)
     if self.accepted and not (
       self.componentwise_non_worsening
       and self.strict_component_descent
@@ -508,6 +534,9 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
       'geometry_update_attempted': self.geometry_update_attempted,
       'geometry_update_consumed': self.geometry_update_consumed,
       'accepted': self.accepted,
+      'candidate_count': self.candidate_count,
+      'selected_direction_multiplier': self.selected_direction_multiplier,
+      'selected_step_scale': self.selected_step_scale,
       'message': self.message,
     }
 
@@ -717,6 +746,9 @@ def _trial_points(
   closure: MocReflectedDomainGlobalPhysicalClosureResult,
   packet: MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket,
   request: MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest,
+  *,
+  direction_multiplier: float = 1.0,
+  step_scale: float = 1.0,
 ) -> tuple[tuple[float, float], ...]:
   if closure.global_euler is None or closure.global_euler.shock_boundary is None:
     raise ValueError('target closure retains no global shock boundary')
@@ -751,11 +783,11 @@ def _trial_points(
       request.probe_displacement_m,
       request.maximum_displacement_m,
       0.25 * spacing,
-    ) * request.relaxation
+    ) * request.relaxation * step_scale
     if not isfinite(step) or step <= request.position_tolerance_m:
       continue
     ####
-    direction = -copysign(1.0, signed_residual)
+    direction = direction_multiplier * -copysign(1.0, signed_residual)
     updated[global_index][0] += direction * step * normals[global_index][0]
     updated[global_index][1] += direction * step * normals[global_index][1]
   return tuple((point[0], point[1]) for point in updated)
@@ -767,12 +799,21 @@ def _run_trial(
   current_step: MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep,
   request: MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest,
   iteration_index: int,
+  *,
+  direction_multiplier: float = 1.0,
+  step_scale: float = 1.0,
 ) -> tuple[
   tuple[tuple[float, float], ...],
   MocReflectedDomainGlobalPhysicalClosureResult,
   MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep,
 ]:
-  trial_points = _trial_points(current_closure, current_packet, request)
+  trial_points = _trial_points(
+    current_closure,
+    current_packet,
+    request,
+    direction_multiplier=direction_multiplier,
+    step_scale=step_scale,
+  )
   if current_closure.global_euler is None or current_closure.global_euler.shock_boundary is None:
     raise ValueError('target closure retains no global shock boundary')
   if current_closure.source_band is None:
@@ -875,19 +916,51 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
   current_packet = source_packet
   retained: list[MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration] = []
   for iteration_index in range(request.maximum_iterations):
-    try:
-      trial_points, trial_closure, trial_step = _run_trial(
-        current_closure,
-        current_packet,
-        current_step,
-        request,
-        iteration_index,
-      )
-      trial_packet = build_reflected_domain_global_mixed_regime_frontier_residual_packet(
-        trial_step
-      )
-      non_worsening, strict = _comparison(current_packet, trial_packet)
-    except (ArithmeticError, FloatingPointError, RuntimeError, TypeError, ValueError) as error:
+    directions = (1.0, -1.0) if request.try_opposite_direction else (1.0,)
+    candidates: list[Any] = []
+    failures: list[str] = []
+    attempted = 0
+    accepted_candidate: Any | None = None
+    for direction_multiplier in directions:
+      for step_scale in request.line_search_scales:
+        attempted += 1
+        try:
+          trial_points, trial_closure, trial_step = _run_trial(
+            current_closure,
+            current_packet,
+            current_step,
+            request,
+            iteration_index,
+            direction_multiplier=direction_multiplier,
+            step_scale=step_scale,
+          )
+          trial_packet = build_reflected_domain_global_mixed_regime_frontier_residual_packet(
+            trial_step
+          )
+          non_worsening, strict = _comparison(current_packet, trial_packet)
+        except (ArithmeticError, FloatingPointError, RuntimeError, TypeError, ValueError) as error:
+          failures.append(
+            f'direction={direction_multiplier:g},scale={step_scale:g}: {error}'
+          )
+          continue
+        candidate = (
+          trial_points,
+          trial_closure,
+          trial_step,
+          trial_packet,
+          non_worsening,
+          strict,
+          direction_multiplier,
+          step_scale,
+        )
+        candidates.append(candidate)
+        if non_worsening and strict:
+          accepted_candidate = candidate
+          break
+      if accepted_candidate is not None:
+        break
+    if not candidates:
+      error = '; '.join(failures) or 'no bounded line-search candidates were produced'
       iteration = MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration(
         iteration_index=iteration_index,
         source_packet=current_packet,
@@ -901,7 +974,8 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
         geometry_update_attempted=True,
         geometry_update_consumed=False,
         accepted=False,
-        message=f'geometry/frontier trial failed closed: {error}',
+        candidate_count=attempted,
+        message=f'geometry/frontier line search failed closed: {error}',
       )
       retained.append(iteration)
       return MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult(
@@ -921,9 +995,24 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
         canonical_free_boundary_verified=False,
         chain_promotion_blocked=True,
         production_claim_allowed=False,
-        message=f'frontier residual geometry update failed closed: {error}',
+        message=f'frontier residual geometry line search failed closed: {error}',
       )
     ####
+    selected = (
+      accepted_candidate
+      if accepted_candidate is not None
+      else min(candidates, key=lambda candidate: candidate[3].residual_norm)
+    )
+    (
+      trial_points,
+      trial_closure,
+      trial_step,
+      trial_packet,
+      non_worsening,
+      strict,
+      selected_direction_multiplier,
+      selected_step_scale,
+    ) = selected
     accepted = bool(non_worsening and strict)
     iteration = MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration(
       iteration_index=iteration_index,
@@ -938,12 +1027,21 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       geometry_update_attempted=True,
       geometry_update_consumed=True,
       accepted=accepted,
+      candidate_count=attempted,
+      selected_direction_multiplier=selected_direction_multiplier,
+      selected_step_scale=selected_step_scale,
       message=(
         'frontier residuals drove a bounded exact-Euler shock geometry trial '
+        f'line search ({attempted} candidates; direction '
+        f'{selected_direction_multiplier:g}, scale {selected_step_scale:g}) '
         'and the refreshed physical frontier was component-wise admitted'
         if accepted
-        else 'refreshed physical frontier was retained, but at least one '
-        'component worsened or no component strictly descended'
+        else (
+          'refreshed physical frontier was retained after a bounded line '
+          f'search ({attempted} candidates; selected direction '
+          f'{selected_direction_multiplier:g}, scale {selected_step_scale:g}), '
+          'but at least one component worsened or no component strictly descended'
+        )
       ),
     )
     retained.append(iteration)
