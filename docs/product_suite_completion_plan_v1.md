@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `7c02399` (fail-closed upstream state-equation contract checkpoint); the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `4fe27db` (explicit entropy-transition gate checkpoint); the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component, then drives a bounded pressure/geometry projection into a fresh global closure solve; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — code checkpoint `7c02399`
+### Active execution card — code checkpoint `4fe27db`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -92,6 +92,15 @@ The current state-feedback report also carries an explicit upstream
 state-equation contract.  Its exact conservative target frame is ready, but
 the global characteristic MOC equations report the contract as unavailable
 and consume no mass, momentum, energy, or entropy channel.
+
+The solver-owned two-sided interface lane now retains an explicit entropy
+transition channel alongside signed mass, normal-momentum, and energy
+residuals.  The channel is the log ratio of the downstream/upstream
+``p/rho**gamma`` proxies and is gated as a second-law inequality rather than
+being collapsed into a fourth equality residual.  Local, moving-interface, and
+global requests can require the gate; the default research lanes remain
+backward-compatible and promotion-blocked.  The strict local/global entropy
+regressions pass, but this is still not the missing upstream global equation.
 
 The equation-level corrector has now also been exercised.  It sends the fresh
 joint closure through a terminal downstream -> global -> downstream recheck
@@ -371,6 +380,32 @@ target in conservative variables, carry the entropy transition explicitly,
 re-solve the same global/free-boundary frame, and pass independent signed
 mass/momentum/energy/entropy residual and disjoint-resolution gates before any
 canonical or production flag can change.
+
+### P3.20 explicit entropy-transition gate checkpoint — 2026-09-11 (`4fe27db`)
+
+The solver-owned two-sided moving-interface lane now retains the entropy
+transition explicitly instead of treating it as an untracked side diagnostic.
+Each response carries the signed log transition of the dimensional
+``p/rho**gamma`` entropy proxy.  The physical gate permits entropy production
+but rejects entropy loss beyond the declared tolerance; it is intentionally
+separate from the dimensional mass, normal-momentum, and energy equality
+residuals.
+
+The local law request, moving-interface request, and global two-sided request
+can opt into the strict entropy gate.  Typed local and moving-interface
+failures, serialized reports, independent law-audit remeasurement, and the
+global handoff all preserve the channel.  The focused strict local/global
+regressions pass, the complete reflected-domain suite passes (``228 passed in
+379.07s``), Ruff and Pyright are clean, and the checkpoint is committed at
+``4fe27db``.
+
+This closes only the entropy-accounting seam in the existing research solver.
+It does not consume the retained four-component mixed-regime trace in the
+upstream characteristic MOC equations, establish canonical global coupling,
+validate shock-cell lengths, or open Signature/FPA production claims.  The
+next physics slice remains the solver-owned upstream conservative equation
+and its independent signed mass/momentum/energy/entropy residual and
+disjoint-resolution gates.
 
 ### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
 
