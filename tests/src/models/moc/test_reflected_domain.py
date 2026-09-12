@@ -193,6 +193,11 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalMixedRegimeNormalClosureAmbientState,
   solve_reflected_domain_global_mixed_regime_normal_closure,
   audit_reflected_domain_global_mixed_regime_normal_closure,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryStatus,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureSample,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryRequest,
+  solve_reflected_domain_global_mixed_regime_characteristic_free_boundary,
+  audit_reflected_domain_global_mixed_regime_characteristic_free_boundary,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
@@ -8686,6 +8691,102 @@ def test_global_mixed_regime_global_shock_frontier_binds_supersonic_research_cha
   assert compatibility.converged
   assert compatibility.compatibility_gate_verified
   assert compatibility_audit.converged
+
+  pressure_profile = tuple(
+    MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureSample(
+      sample_index=sample.sample_index,
+      point_m=(sample.state.x_m, sample.state.y_m),
+      ambient_pressure_Pa=closure.source_band.ambient_pressure_Pa,
+    )
+    for sample in compatibility.samples
+  )
+  free_boundary = (
+    solve_reflected_domain_global_mixed_regime_characteristic_free_boundary(
+      MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryRequest(
+        characteristic_compatibility=compatibility,
+        characteristic_compatibility_audit=compatibility_audit,
+        ambient_pressure_profile=pressure_profile,
+        seed_boundary_state=compatibility.samples[0].state,
+        geometry_tolerance=1.0e-6,
+      )
+    )
+  )
+  assert free_boundary.status is (
+    MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryStatus
+    .CONVERGED_LOCAL_RESEARCH_FREE_BOUNDARY
+  )
+  assert free_boundary.converged
+  assert free_boundary.completed
+  assert free_boundary.equation_consumption_verified
+  assert free_boundary.pressure_boundary_equation_consumed
+  assert free_boundary.free_boundary_equation_consumed
+  assert free_boundary.forward_geometry_verified
+  assert free_boundary.canonical_free_boundary_verified is False
+  assert free_boundary.global_coupling_verified is False
+  assert free_boundary.chain_promotion_blocked
+  assert free_boundary.production_claim_allowed is False
+  free_boundary_audit = (
+    audit_reflected_domain_global_mixed_regime_characteristic_free_boundary(
+      free_boundary
+    )
+  )
+  assert free_boundary_audit.converged
+  assert free_boundary_audit.request_lineage_replayed
+  assert free_boundary_audit.compatibility_replayed
+  assert free_boundary_audit.pressure_profile_replayed
+  assert free_boundary_audit.point_replay_verified
+  assert free_boundary_audit.boundary_replay_verified
+  assert free_boundary_audit.independent_equation_verified
+  assert free_boundary_audit.canonical_free_boundary_verified is False
+  assert free_boundary_audit.global_coupling_verified is False
+  assert free_boundary_audit.chain_promotion_blocked
+  assert free_boundary_audit.production_claim_allowed is False
+
+  assert free_boundary.request is not None
+  wrong_boundary_family = (
+    solve_reflected_domain_global_mixed_regime_characteristic_free_boundary(
+      replace(
+        free_boundary.request,
+        boundary_family=CharacteristicFamily.MINUS,
+      )
+    )
+  )
+  assert wrong_boundary_family.status is (
+    MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryStatus
+    .POINT_FAILURE
+  )
+  assert wrong_boundary_family.free_boundary_equation_consumed is False
+  assert wrong_boundary_family.chain_promotion_blocked
+  assert wrong_boundary_family.production_claim_allowed is False
+
+  tampered_point = replace(
+    free_boundary.point_results[0],
+    pressure_residual=1.0e-4,
+  )
+  tampered_free_boundary = replace(
+    free_boundary,
+    point_results=(tampered_point, *free_boundary.point_results[1:]),
+  )
+  tampered_audit = (
+    audit_reflected_domain_global_mixed_regime_characteristic_free_boundary(
+      tampered_free_boundary
+    )
+  )
+  assert tampered_audit.converged is False
+  assert tampered_audit.independent_equation_verified is False
+
+  missing_profile = (
+    solve_reflected_domain_global_mixed_regime_characteristic_free_boundary(
+      replace(free_boundary.request, ambient_pressure_profile=None)
+    )
+  )
+  assert missing_profile.status is (
+    MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryStatus
+    .PRESSURE_PROFILE_REQUIRED
+  )
+  assert missing_profile.free_boundary_equation_consumed is False
+  assert missing_profile.chain_promotion_blocked
+  assert missing_profile.production_claim_allowed is False
 
   shock = closure.global_euler.shock_boundary
   assert shock is not None

@@ -233,6 +233,17 @@ Advance the current research evidence in the following order:
    global/free-boundary equation.  These remain research seams until accepted
    residual exchange, canonical topology/free-boundary closure, and promotion
    evidence are complete.
+   P3.43u now exposes the next local equation explicitly: it consumes the
+   independently audited contiguous compatibility span, an exact anchored
+   characteristic state, and an aligned ambient-pressure trace; it marches the
+   declared free-boundary characteristic family with the existing pressure-
+   matched intersection primitive, records pressure/tangent/intersection/
+   forward-order gates, and independently replays the complete result.  The
+   exercised shock-frontier case passes this local equation and its tamper-
+   replay and missing-profile regressions.  The operator remains
+   research-only: its pressure boundary is not conservative or entropy
+   closure, and it cannot satisfy the canonical global/free-boundary,
+   physical shock-cell, provider, or release gates.
 4. Consume the complete conservative and entropy target in the upstream
    moving shock/free-boundary equations, not only in a fixed-front re-solve,
    downstream solve, or pressure/geometry projection.
@@ -8727,3 +8738,36 @@ audit is clean but still returns `release_ready=false`: provider-bound
 comparisons, raw/alignment archives, reduced-order and planar physical gates,
 accepted physical shock-cell comparison, and a current release freeze remain
 open. No push or tag was performed.
+
+### P3.43u local characteristic/free-boundary equation checkpoint — 2026-09-12 (candidate checkpoint)
+
+The next equation seam is now an explicit operator rather than an unconnected
+primitive.  It consumes the independently audited contiguous compatibility
+span, requires the first exact incoming state as its anchored seed, consumes a
+coordinate-aligned ambient static-pressure trace, and marches the explicitly
+declared boundary characteristic family with the existing pressure-matched
+characteristic-intersection solver.  It retains per-point pressure, tangent,
+intersection, and downstream-order gates and independently replays the exact
+request/result.
+
+The exercised solver-produced shock-frontier case passes the local march and
+audit.  Tampering with a point residual is rejected by replay, the wrong
+boundary family fails closed, and removing the pressure trace returns the
+typed `PRESSURE_PROFILE_REQUIRED` stop.  The tangent residual is recomputed
+from the solved boundary segment rather than copied from the predicted
+tangent, so the local tangency gate is independently geometric.  The full
+mixed-regime reflected-domain slice passes (`41 passed, 219 deselected in
+170.09s`).  The operator is intentionally research-only: it does not solve
+conservative state, entropy, centerline, second-family, global feedback,
+accepted shock-cell, provider, or release closure, and all
+canonical/production flags remain false.
+
+The existing shock-frontier refinement runner now retains this free-boundary
+request, result, and audit in every case/resolution step.  Its source-lineage,
+independent-audit, frontier-regime, and fidelity-isolation gates require the
+local march to pass; the runner still reports research coverage only and does
+not turn the added equation into a canonical/global or production claim.  The
+candidate remains dedicated-branch research evidence; canonical/global
+closure, accepted physical shock-cell lengths, provider/archive validation,
+and release readiness remain open, with no push or tag authorized by this
+checkpoint.

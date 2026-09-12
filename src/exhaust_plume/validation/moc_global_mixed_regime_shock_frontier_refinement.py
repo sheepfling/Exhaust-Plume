@@ -25,6 +25,14 @@ from exhaust_plume.models.moc.global_mixed_regime_normal_closure import (
   audit_reflected_domain_global_mixed_regime_normal_closure,
   solve_reflected_domain_global_mixed_regime_normal_closure,
 )
+from exhaust_plume.models.moc.global_mixed_regime_characteristic_free_boundary import (
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryAudit,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureSample,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryRequest,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryResult,
+  audit_reflected_domain_global_mixed_regime_characteristic_free_boundary,
+  solve_reflected_domain_global_mixed_regime_characteristic_free_boundary,
+)
 from exhaust_plume.models.moc.global_mixed_regime_transonic_interface import (
   MocReflectedDomainGlobalMixedRegimeTransonicInterfaceAudit,
   MocReflectedDomainGlobalMixedRegimeTransonicInterfaceRequest,
@@ -172,6 +180,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase:
   geometry_tolerance: float = 1.0e-2
   component_tolerance: float = 1.0e-5
   target_entropy_consistency_tolerance: float = 1.0e-4
+  boundary_family: CharacteristicFamily = CharacteristicFamily.PLUS
 
   def __post_init__(self) -> None:
     case_id = str(self.case_id)
@@ -213,6 +222,9 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase:
       object.__setattr__(self, name, _positive(name, getattr(self, name)))
     ####
     object.__setattr__(self, 'offset_side', offset_side)
+    if not isinstance(self.boundary_family, CharacteristicFamily):
+      raise TypeError('boundary_family must be a CharacteristicFamily')
+    ####
   ####
 
   @property
@@ -241,6 +253,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase:
       'target_entropy_consistency_tolerance': (
         self.target_entropy_consistency_tolerance
       ),
+      'boundary_family': self.boundary_family.value,
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'closure_status': self.closure.status.value,
       'closure_converged': self.closure.converged,
@@ -320,6 +333,9 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
   compatibility_request: MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityRequest
   compatibility: MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityResult
   compatibility_audit: MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityAudit
+  free_boundary_request: MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryRequest
+  free_boundary: MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryResult
+  free_boundary_audit: MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryAudit
   normal_closure_request: MocReflectedDomainGlobalMixedRegimeNormalClosureRequest
   normal_closure: MocReflectedDomainGlobalMixedRegimeNormalClosureResult
   normal_closure_audit: MocReflectedDomainGlobalMixedRegimeNormalClosureAudit
@@ -392,6 +408,18 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
         MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityAudit,
       ),
       (
+        'free_boundary_request',
+        MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryRequest,
+      ),
+      (
+        'free_boundary',
+        MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryResult,
+      ),
+      (
+        'free_boundary_audit',
+        MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryAudit,
+      ),
+      (
         'normal_closure_request',
         MocReflectedDomainGlobalMixedRegimeNormalClosureRequest,
       ),
@@ -434,6 +462,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
     interface_request = self.transonic_interface.request
     handoff_request = self.characteristic_handoff.request
     normal_request = self.normal_closure.request
+    free_boundary_request = self.free_boundary.request
     return bool(
       self.state_equation_request.closure is self.closure
       and equation_request is self.state_equation_request
@@ -446,6 +475,11 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
       and self.compatibility.request is self.compatibility_request
       and self.compatibility_request.upstream_equation_handoff
       is self.characteristic_handoff
+      and free_boundary_request is self.free_boundary_request
+      and free_boundary_request.characteristic_compatibility
+      is self.compatibility
+      and free_boundary_request.characteristic_compatibility_audit
+      is self.compatibility_audit
       and normal_request is self.normal_closure_request
       and normal_request.transonic_interface is self.transonic_interface
       and normal_request.characteristic_compatibility is self.compatibility
@@ -468,6 +502,8 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
       is self.characteristic_handoff
       and self.compatibility_audit.converged
       and self.compatibility_audit.candidate is self.compatibility
+      and self.free_boundary_audit.converged
+      and self.free_boundary_audit.candidate is self.free_boundary
       and self.normal_closure_audit.converged
       and self.normal_closure_audit.candidate is self.normal_closure
     )
@@ -487,6 +523,8 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
       and self.characteristic_handoff.incoming_characteristic_count > 0
       and self.compatibility.converged
       and self.compatibility.compatibility_gate_verified
+      and self.free_boundary.converged
+      and self.free_boundary.equation_consumption_verified
       and self.normal_closure.converged
       and self.normal_closure.normal_closure_verified
     )
@@ -497,6 +535,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
     return bool(
       self.characteristic_handoff.chain_promotion_blocked
       and self.compatibility.chain_promotion_blocked
+      and self.free_boundary.chain_promotion_blocked
       and self.normal_closure.chain_promotion_blocked
       and not self.characteristic_handoff.upstream_characteristic_equation_consumed
       and not self.compatibility.upstream_characteristic_equation_consumed
@@ -504,6 +543,9 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
       and not self.normal_closure.global_coupling_verified
       and not self.characteristic_handoff.production_claim_allowed
       and not self.compatibility.production_claim_allowed
+      and not self.free_boundary.canonical_free_boundary_verified
+      and not self.free_boundary.global_coupling_verified
+      and not self.free_boundary.production_claim_allowed
       and not self.normal_closure.production_claim_allowed
     )
   ####
@@ -546,6 +588,15 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
         'maximum_geometry_residual': (
           self.compatibility.maximum_geometry_residual
         ),
+        'maximum_free_boundary_pressure_residual': (
+          self.free_boundary.maximum_absolute_pressure_residual
+        ),
+        'maximum_free_boundary_tangent_residual': (
+          self.free_boundary.maximum_absolute_tangent_residual
+        ),
+        'maximum_free_boundary_geometry_residual': (
+          self.free_boundary.maximum_geometry_residual
+        ),
         'maximum_component_residual': (
           self.normal_closure.maximum_component_residual
         ),
@@ -560,6 +611,9 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
       'characteristic_handoff_audit': self.characteristic_handoff_audit.as_report(),
       'compatibility': self.compatibility.as_report(),
       'compatibility_audit': self.compatibility_audit.as_report(),
+      'free_boundary_request': self.free_boundary_request.as_report(),
+      'free_boundary': self.free_boundary.as_report(),
+      'free_boundary_audit': self.free_boundary_audit.as_report(),
       'normal_closure': self.normal_closure.as_report(),
       'normal_closure_audit': self.normal_closure_audit.as_report(),
     }
@@ -969,6 +1023,56 @@ def _run_case(
     )
   ####
   ambient_profile = _ambient_profile(case, state_request)
+  ambient_by_index = {
+    sample.sample_index: sample for sample in ambient_profile
+  }
+  incoming_ambient_profile = tuple(
+    ambient_by_index[sample.sample_index]
+    for sample in compatibility.samples
+  )
+  free_boundary_request = (
+    MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryRequest(
+      characteristic_compatibility=compatibility,
+      characteristic_compatibility_audit=compatibility_audit,
+      ambient_pressure_profile=tuple(
+        MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureSample(
+          sample_index=sample.sample_index,
+          point_m=(sample.state.x_m, sample.state.y_m),
+          ambient_pressure_Pa=ambient.static_pressure_Pa,
+        )
+        for sample, ambient in zip(
+          compatibility.samples,
+          incoming_ambient_profile,
+          strict=True,
+        )
+      ),
+      seed_boundary_state=compatibility.samples[0].state,
+      boundary_family=case.boundary_family,
+      geometry_tolerance=case.geometry_tolerance,
+    )
+  )
+  free_boundary = (
+    solve_reflected_domain_global_mixed_regime_characteristic_free_boundary(
+      free_boundary_request
+    )
+  )
+  if not free_boundary.converged:
+    raise ValueError(
+      f'characteristic free-boundary march did not converge: '
+      f'{free_boundary.message}'
+    )
+  ####
+  free_boundary_audit = (
+    audit_reflected_domain_global_mixed_regime_characteristic_free_boundary(
+      free_boundary
+    )
+  )
+  if not free_boundary_audit.converged:
+    raise ValueError(
+      'characteristic free-boundary audit did not converge: '
+      f'{free_boundary_audit.message}'
+    )
+  ####
   normal_request = MocReflectedDomainGlobalMixedRegimeNormalClosureRequest(
     transonic_interface=interface,
     transonic_interface_audit=interface_audit,
@@ -1007,6 +1111,9 @@ def _run_case(
     compatibility_request=compatibility_request,
     compatibility=compatibility,
     compatibility_audit=compatibility_audit,
+    free_boundary_request=free_boundary_request,
+    free_boundary=free_boundary,
+    free_boundary_audit=free_boundary_audit,
     normal_closure_request=normal_request,
     normal_closure=normal_closure,
     normal_closure_audit=normal_closure_audit,
