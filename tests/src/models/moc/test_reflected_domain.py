@@ -391,6 +391,11 @@ from exhaust_plume.validation.moc_coupled_euler_free_boundary_refinement import 
   measure_reflected_domain_coupled_euler_free_boundary_refinement,
   run_reflected_domain_coupled_euler_free_boundary_refinement,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_state_consumer_refinement import (
+  MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementCase,
+  MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStatus,
+  run_reflected_domain_global_mixed_regime_state_consumer_refinement,
+)
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID,
@@ -7339,6 +7344,54 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
     'conservative-state-trace-rusanov-v1'
   )
   assert report['production_claim_allowed'] is False
+ ####
+
+
+def test_global_mixed_regime_state_consumer_refinement_records_cross_case_coverage():
+  refinement_cases = []
+  for case_id, sample_count in (('source-7', 7), ('source-9', 9)):
+    closure = _global_physical_closure_for_mixed_regime(sample_count)
+    mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+    refinement_cases.append(
+      MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementCase(
+        case_id=case_id,
+        closure=closure,
+        resolutions=((4, 3), (8, 4)),
+        reference_total_temperature_K=1500.0,
+        ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+      )
+    )
+
+  run = run_reflected_domain_global_mixed_regime_state_consumer_refinement(
+    refinement_cases,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStatus
+    .CONVERGED_CROSS_CASE_RESEARCH_COVERAGE
+  )
+  assert run.converged
+  assert run.measurement.local_coverage_verified
+  assert run.measurement.cross_case_coverage_verified
+  assert run.measurement.case_ids_verified
+  assert run.measurement.source_closure_bindings_verified
+  assert run.measurement.distinct_source_closures_verified
+  assert run.measurement.resolution_ladders_verified
+  assert run.measurement.fresh_downstream_verified
+  assert run.measurement.consumer_lineage_verified
+  assert run.measurement.state_resolves_verified
+  assert run.measurement.independent_audits_verified
+  assert run.measurement.residual_metrics_finite
+  assert run.measurement.fidelity_isolation_verified
+  assert len(run.steps) == 4
+  assert all(step.resolved.global_coupling_verified is False for step in run.steps)
+  assert all(step.resolved.production_claim_allowed is False for step in run.steps)
+  report = run.as_report()
+  assert report['global_coupling_verified'] is False
+  assert report['production_claim_allowed'] is False
+  assert 'nonmonotonic research residuals' in report['measurement']['claim_status']
  ####
 
 
