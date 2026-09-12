@@ -16591,8 +16591,9 @@ def test_global_mixed_regime_frontier_residual_exchange_is_bounded_and_replayabl
     MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
     .ACCEPTED
   )
-  assert iteration.candidate_count >= 2
-  assert iteration.selected_direction_multiplier == -1.0
+  assert iteration.candidate_count == 1
+  assert iteration.selected_update_mode == 'attachment-tangent'
+  assert iteration.selected_direction_multiplier == 1.0
   assert iteration.trial_packet is not None
   assert all(
     after < before
@@ -16621,7 +16622,7 @@ def test_global_mixed_regime_frontier_residual_exchange_is_bounded_and_replayabl
 ####
 
 
-def test_global_mixed_regime_frontier_residual_exchange_refinement_keeps_open_cases_open():
+def test_global_mixed_regime_frontier_residual_exchange_refinement_covers_cases_and_keeps_promotion_closed():
   cases = []
   for case_id, skew, component_tolerance in (
     ('frontier-exchange-negative', (-0.75, 0.0), 1.0e-5),
@@ -16662,29 +16663,24 @@ def test_global_mixed_regime_frontier_residual_exchange_refinement_keeps_open_ca
   )
   assert measurement.status is (
     MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStatus
-    .COMPLETED_RESEARCH_COVERAGE_WITH_OPEN_GATE
+    .CONVERGED_CROSS_CASE_RESEARCH_COVERAGE
   )
-  assert measurement.converged is False
+  assert measurement.converged
   assert measurement.local_case_resolution_ladders_verified
   assert measurement.distinct_source_closures_verified
   assert measurement.source_lineage_verified
   assert measurement.independent_replay_verified
-  assert measurement.componentwise_admission_verified is False
-  assert measurement.accepted_update_verified is False
-  positive_high_resolution = next(
-    step
+  assert measurement.componentwise_admission_verified
+  assert measurement.accepted_update_verified
+  assert measurement.cross_case_coverage_verified
+  assert all(step.result.converged for step in measurement.steps)
+  assert all(
+    step.result.iterations[0].admission_reason is (
+      MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
+      .ACCEPTED
+    )
     for step in measurement.steps
-    if step.case.case_id == 'frontier-exchange-positive'
-    and step.case.frontier_sample_count == 11
   )
-  assert positive_high_resolution.result.iterations[0].admission_reason is (
-    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
-    .NO_STRICT_COMPONENT_DESCENT
-  )
-  assert 'solver-owned endpoint stencil' in (
-    positive_high_resolution.result.iterations[0].message
-  )
-  assert measurement.cross_case_coverage_verified is False
   assert measurement.canonical_free_boundary_verified is False
   assert measurement.global_coupling_verified is False
   assert measurement.chain_promotion_blocked
@@ -16737,6 +16733,83 @@ def test_global_mixed_regime_frontier_residual_exchange_admits_fine_interior_ste
   )
   assert audit.converged
   assert audit.independent_exchange_verified
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_frontier_residual_exchange_can_disable_attachment_tangent_update():
+  closure = _global_physical_closure_for_mixed_regime()
+  source_frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='frontier-residual-exchange-normal-only',
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+    )
+  )
+  result = run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest(
+      source_frontier_step=source_frontier,
+      target_closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      probe_displacement_m=1.0e-5,
+      allow_attachment_tangent_update=False,
+    )
+  )
+  assert result.converged
+  assert result.request is not None
+  assert result.request.as_report()['allow_attachment_tangent_update'] is False
+  iteration = result.iterations[0]
+  assert iteration.accepted
+  assert iteration.selected_update_mode == 'normal'
+  assert iteration.candidate_count >= 2
+  assert iteration.selected_direction_multiplier == -1.0
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_frontier_residual_exchange_keeps_attachment_stencil_fail_closed_when_disabled():
+  closure = _global_physical_closure_for_mixed_regime(
+    11,
+    compression_envelope_skews=(0.75, 0.0),
+  )
+  source_frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='frontier-residual-exchange-attachment-fail-closed',
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      component_tolerance=1.0e-4,
+    )
+  )
+  result = run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest(
+      source_frontier_step=source_frontier,
+      target_closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      probe_displacement_m=1.0e-5,
+      allow_attachment_tangent_update=False,
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
+    .RESIDUAL_REJECTION
+  )
+  assert result.converged is False
+  iteration = result.iterations[0]
+  assert iteration.accepted is False
+  assert iteration.selected_update_mode == 'normal'
+  assert iteration.admission_reason is (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
+    .NO_STRICT_COMPONENT_DESCENT
+  )
+  assert 'solver-owned endpoint stencil' in iteration.message
   assert result.global_coupling_verified is False
   assert result.canonical_free_boundary_verified is False
   assert result.chain_promotion_blocked

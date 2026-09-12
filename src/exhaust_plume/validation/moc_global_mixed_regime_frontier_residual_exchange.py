@@ -65,6 +65,10 @@ FRONTIER_RESIDUAL_COMPONENT_NAMES = (
   'energy_flux',
   'entropy_proxy_flux',
 )
+FRONTIER_RESIDUAL_UPDATE_MODES = (
+  'normal',
+  'attachment-tangent',
+)
 
 
 class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus(
@@ -383,6 +387,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
     0.01,
   )
   try_opposite_direction: bool = True
+  allow_attachment_tangent_update: bool = True
   branch: ShockBranch = ShockBranch.WEAK
   position_tolerance_m: float = 1.0e-8
   invariant_tolerance: float = 1.0e-8
@@ -436,6 +441,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
       raise ValueError('line_search_scales must be strictly decreasing')
     if not isinstance(self.try_opposite_direction, bool):
       raise TypeError('try_opposite_direction must be a bool')
+    if not isinstance(self.allow_attachment_tangent_update, bool):
+      raise TypeError('allow_attachment_tangent_update must be a bool')
     if not isinstance(self.branch, ShockBranch):
       raise TypeError('branch must be a ShockBranch')
     source = str(self.source)
@@ -456,6 +463,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
       'relaxation': self.relaxation,
       'line_search_scales': self.line_search_scales,
       'try_opposite_direction': self.try_opposite_direction,
+      'allow_attachment_tangent_update': self.allow_attachment_tangent_update,
       'branch': self.branch.value,
       'position_tolerance_m': self.position_tolerance_m,
       'invariant_tolerance': self.invariant_tolerance,
@@ -488,6 +496,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
   candidate_count: int = 1
   selected_direction_multiplier: float = 1.0
   selected_step_scale: float = 1.0
+  selected_update_mode: str = 'normal'
   admission_reason: MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason = (
     MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason.NO_VALID_TRIAL_GEOMETRY
   )
@@ -530,6 +539,13 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
       if not isfinite(value):
         raise ValueError(f'{name} must be finite')
       object.__setattr__(self, name, value)
+    update_mode = str(self.selected_update_mode)
+    if update_mode not in FRONTIER_RESIDUAL_UPDATE_MODES:
+      raise ValueError(
+        'selected_update_mode must be one of '
+        f'{FRONTIER_RESIDUAL_UPDATE_MODES}'
+      )
+    object.__setattr__(self, 'selected_update_mode', update_mode)
     if not isinstance(
       self.admission_reason,
       MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason,
@@ -566,6 +582,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
       'candidate_count': self.candidate_count,
       'selected_direction_multiplier': self.selected_direction_multiplier,
       'selected_step_scale': self.selected_step_scale,
+      'selected_update_mode': self.selected_update_mode,
       'admission_reason': self.admission_reason.value,
       'message': self.message,
     }
@@ -779,6 +796,7 @@ def _trial_points(
   *,
   direction_multiplier: float = 1.0,
   step_scale: float = 1.0,
+  update_mode: str = 'normal',
 ) -> tuple[tuple[float, float], ...]:
   if closure.global_euler is None or closure.global_euler.shock_boundary is None:
     raise ValueError('target closure retains no global shock boundary')
@@ -788,12 +806,53 @@ def _trial_points(
     raise ValueError('target shock boundary is shorter than the frontier packet')
   if packet.sample_start_index + packet.sample_count > len(points):
     raise ValueError('frontier packet does not align with target shock boundary')
+  if update_mode not in FRONTIER_RESIDUAL_UPDATE_MODES:
+    raise ValueError(f'unsupported frontier residual update mode: {update_mode}')
   normals = _normals(points)
   updated = [list(point) for point in points]
   for local_index, signed_residual in enumerate(
     packet.signed_normal_momentum_residuals_Pa
   ):
     global_index = packet.sample_start_index + local_index
+    if update_mode == 'attachment-tangent':
+      if global_index != 1 or not request.allow_attachment_tangent_update:
+        continue
+      # Sample zero is a solver-owned zero-strength Mach-wave endpoint.  The
+      # first compressive sample may move only along that fixed endpoint ray;
+      # this preserves the attachment tangent while allowing the exact source
+      # band and Euler refit to respond to its normal residual.
+      first = points[0]
+      second = points[1]
+      endpoint_length = hypot(
+        second[0] - first[0],
+        second[1] - first[1],
+      )
+      if len(points) > 2:
+        next_point = points[2]
+        next_spacing = hypot(
+          next_point[0] - second[0],
+          next_point[1] - second[1],
+        )
+      else:
+        next_spacing = endpoint_length
+      step = min(
+        request.probe_displacement_m,
+        request.maximum_displacement_m,
+        0.25 * endpoint_length,
+        0.25 * next_spacing,
+      ) * request.relaxation * step_scale
+      if not isfinite(step) or step <= request.position_tolerance_m:
+        continue
+      ####
+      endpoint_unit = (
+        (second[0] - first[0]) / endpoint_length,
+        (second[1] - first[1]) / endpoint_length,
+      )
+      direction = direction_multiplier * copysign(1.0, signed_residual)
+      updated[global_index][0] += direction * step * endpoint_unit[0]
+      updated[global_index][1] += direction * step * endpoint_unit[1]
+      continue
+    ####
     if global_index <= 1 or global_index >= len(points) - 2:
       # The first and centerline endpoints are solver-owned attachment or
       # termination conditions.  Their adjacent samples are also held fixed
@@ -832,6 +891,7 @@ def _run_trial(
   *,
   direction_multiplier: float = 1.0,
   step_scale: float = 1.0,
+  update_mode: str = 'normal',
 ) -> tuple[
   tuple[tuple[float, float], ...],
   MocReflectedDomainGlobalPhysicalClosureResult,
@@ -843,6 +903,7 @@ def _run_trial(
     request,
     direction_multiplier=direction_multiplier,
     step_scale=step_scale,
+    update_mode=update_mode,
   )
   if current_closure.global_euler is None or current_closure.global_euler.shock_boundary is None:
     raise ValueError('target closure retains no global shock boundary')
@@ -947,45 +1008,61 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
   retained: list[MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration] = []
   for iteration_index in range(request.maximum_iterations):
     directions = (1.0, -1.0) if request.try_opposite_direction else (1.0,)
+    attachment_sample_active = bool(
+      request.allow_attachment_tangent_update
+      and current_packet.sample_start_index <= 1
+      and current_packet.sample_start_index + current_packet.sample_count > 1
+    )
+    update_modes = (
+      ('attachment-tangent', 'normal')
+      if attachment_sample_active
+      else ('normal',)
+    )
     candidates: list[Any] = []
     failures: list[str] = []
     attempted = 0
     accepted_candidate: Any | None = None
-    for direction_multiplier in directions:
-      for step_scale in request.line_search_scales:
-        attempted += 1
-        try:
-          trial_points, trial_closure, trial_step = _run_trial(
-            current_closure,
-            current_packet,
-            current_step,
-            request,
-            iteration_index,
-            direction_multiplier=direction_multiplier,
-            step_scale=step_scale,
+    for update_mode in update_modes:
+      for direction_multiplier in directions:
+        for step_scale in request.line_search_scales:
+          attempted += 1
+          try:
+            trial_points, trial_closure, trial_step = _run_trial(
+              current_closure,
+              current_packet,
+              current_step,
+              request,
+              iteration_index,
+              direction_multiplier=direction_multiplier,
+              step_scale=step_scale,
+              update_mode=update_mode,
+            )
+            trial_packet = build_reflected_domain_global_mixed_regime_frontier_residual_packet(
+              trial_step
+            )
+            non_worsening, strict = _comparison(current_packet, trial_packet)
+          except (ArithmeticError, FloatingPointError, RuntimeError, TypeError, ValueError) as error:
+            failures.append(
+              f'mode={update_mode},direction={direction_multiplier:g},'
+              f'scale={step_scale:g}: {error}'
+            )
+            continue
+          candidate = (
+            trial_points,
+            trial_closure,
+            trial_step,
+            trial_packet,
+            non_worsening,
+            strict,
+            direction_multiplier,
+            step_scale,
+            update_mode,
           )
-          trial_packet = build_reflected_domain_global_mixed_regime_frontier_residual_packet(
-            trial_step
-          )
-          non_worsening, strict = _comparison(current_packet, trial_packet)
-        except (ArithmeticError, FloatingPointError, RuntimeError, TypeError, ValueError) as error:
-          failures.append(
-            f'direction={direction_multiplier:g},scale={step_scale:g}: {error}'
-          )
-          continue
-        candidate = (
-          trial_points,
-          trial_closure,
-          trial_step,
-          trial_packet,
-          non_worsening,
-          strict,
-          direction_multiplier,
-          step_scale,
-        )
-        candidates.append(candidate)
-        if non_worsening and strict:
-          accepted_candidate = candidate
+          candidates.append(candidate)
+          if non_worsening and strict:
+            accepted_candidate = candidate
+            break
+        if accepted_candidate is not None:
           break
       if accepted_candidate is not None:
         break
@@ -1046,6 +1123,7 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       strict,
       selected_direction_multiplier,
       selected_step_scale,
+      selected_update_mode,
     ) = selected
     accepted = bool(non_worsening and strict)
     admission_reason = (
@@ -1077,17 +1155,20 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       candidate_count=attempted,
       selected_direction_multiplier=selected_direction_multiplier,
       selected_step_scale=selected_step_scale,
+      selected_update_mode=selected_update_mode,
       admission_reason=admission_reason,
       message=(
         'frontier residuals drove a bounded exact-Euler shock geometry trial '
-        f'line search ({attempted} candidates; direction '
-        f'{selected_direction_multiplier:g}, scale {selected_step_scale:g}) '
+        f'line search ({attempted} candidates; mode {selected_update_mode}, '
+        f'direction {selected_direction_multiplier:g}, '
+        f'scale {selected_step_scale:g}) '
         'and the refreshed physical frontier was component-wise admitted'
         if accepted
         else (
           'refreshed physical frontier was retained after a bounded line '
-          f'search ({attempted} candidates; selected direction '
-          f'{selected_direction_multiplier:g}, scale {selected_step_scale:g}), '
+          f'search ({attempted} candidates; mode {selected_update_mode}, '
+          f'selected direction {selected_direction_multiplier:g}, '
+          f'scale {selected_step_scale:g}), '
           + (
             'at least one component worsened'
             if not non_worsening
