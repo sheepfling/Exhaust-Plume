@@ -216,6 +216,7 @@ def _conservative_flux_target_frame_matches(
     MocReflectedDomainCoupledEulerFreeBoundaryFluxTarget,
   ):
     return False
+  ####
   midpoint = (
     0.5 * float(first[0] + second[0]),
     0.5 * float(first[1] + second[1]),
@@ -234,6 +235,7 @@ def _conservative_flux_target_frame_matches(
   length = float(np.hypot(delta[0], delta[1]))
   if not isfinite(length) or length <= 0.0:
     return False
+  ####
   face_normal = (float(delta[1] / length), float(-delta[0] / length))
   frame_tolerance = max(
     1.0e-10,
@@ -1414,6 +1416,7 @@ def _entropy_compatible_rusanov(
         'audited entropy-compatible Rusanov flux retained a positive '
         'discrete entropy defect'
       )
+    ####
   ####
   return flux_density * length, wave
 ####
@@ -3242,6 +3245,7 @@ def _audit_field(
       'conservative-flux profile audit requires one target per free-boundary '
       'cell column'
     )
+  ####
   use_entropy_compatible_flux = request.free_boundary_flux_mode is (
     MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
     .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV
@@ -3448,6 +3452,7 @@ def _audit_field(
               gamma,
               gas_constant,
             )
+          ####
           top_pressure[i] = pressure
           top_normal_velocity[i] = velocity_u * normal_x + velocity_v * normal_y
         elif edge_index == 2:

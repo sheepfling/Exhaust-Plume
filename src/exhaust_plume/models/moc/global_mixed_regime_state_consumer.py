@@ -79,6 +79,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerStatus(str, Enum):
   TRACE_NOT_READY = 'global-mixed-regime-consumer-trace-not-ready'
   TRACE_REPLAY_FAILURE = 'global-mixed-regime-consumer-trace-replay-failure'
   STATE_AUDIT_FAILURE = 'global-mixed-regime-consumer-state-audit-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,15 +113,19 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
       or self.segment_index < 0
     ):
       raise ValueError('segment_index must be a nonnegative integer')
+    ####
     midpoint = tuple(float(value) for value in self.midpoint_m)
     normal = tuple(float(value) for value in self.normal_m)
     if len(midpoint) != 2 or any(not isfinite(value) for value in midpoint):
       raise ValueError('midpoint_m must contain two finite coordinates')
+    ####
     if len(normal) != 2 or any(not isfinite(value) for value in normal):
       raise ValueError('normal_m must contain two finite components')
+    ####
     normal_norm = hypot(normal[0], normal[1])
     if abs(normal_norm - 1.0) > 1.0e-9:
       raise ValueError('normal_m must be a unit vector')
+    ####
     object.__setattr__(self, 'midpoint_m', midpoint)
     object.__setattr__(self, 'normal_m', normal)
     for name in (
@@ -133,22 +138,28 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
       value = float(getattr(self, name))
       if not isfinite(value):
         raise ValueError(f'{name} must be finite')
+      ####
       if name == 'segment_length_m' and value <= 0.0:
         raise ValueError('segment_length_m must be positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     entropy_proxy = float(self.entropy_proxy)
     if not isfinite(entropy_proxy) or entropy_proxy <= 0.0:
       raise ValueError('entropy_proxy must be finite and positive')
+    ####
     object.__setattr__(self, 'entropy_proxy', entropy_proxy)
     wave_speed = float(self.maximum_wave_speed_m_s)
     if not isfinite(wave_speed) or wave_speed < 0.0:
       raise ValueError('maximum_wave_speed_m_s must be finite and nonnegative')
+    ####
     object.__setattr__(self, 'maximum_wave_speed_m_s', wave_speed)
     flux_scheme = str(self.flux_scheme)
     if not flux_scheme:
       raise ValueError('flux_scheme must be non-empty')
-    object.__setattr__(self, 'flux_scheme', flux_scheme)
     ####
+    object.__setattr__(self, 'flux_scheme', flux_scheme)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -164,6 +175,8 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
       'maximum_wave_speed_m_s': self.maximum_wave_speed_m_s,
       'flux_scheme': self.flux_scheme,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,21 +215,25 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerResult:
       MocReflectedDomainGlobalMixedRegimeStateConsumerStatus,
     ):
       raise TypeError('status must be a typed mixed-regime consumer status')
+    ####
     if self.closure is not None and not isinstance(
       self.closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('closure must be a typed global physical closure or None')
+    ####
     if self.downstream is not None and not isinstance(
       self.downstream,
       MocReflectedDomainGlobalCoupledDownstreamResult,
     ):
       raise TypeError('downstream must be a typed coupled result or None')
+    ####
     if self.trace is not None and not isinstance(
       self.trace,
       MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace,
     ):
       raise TypeError('trace must be a typed coupled boundary trace or None')
+    ####
     flux_samples = tuple(self.conservative_flux_samples)
     if any(
       not isinstance(
@@ -226,11 +243,13 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerResult:
       for sample in flux_samples
     ):
       raise TypeError('conservative_flux_samples must contain typed flux samples')
+    ####
     if any(
       sample.segment_index != index
       for index, sample in enumerate(flux_samples)
     ):
       raise ValueError('conservative_flux_samples must be segment ordered')
+    ####
     object.__setattr__(self, 'conservative_flux_samples', flux_samples)
     if self.entropy_proxy_range is not None:
       entropy_range = tuple(float(value) for value in self.entropy_proxy_range)
@@ -238,14 +257,19 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerResult:
         not isfinite(value) or value <= 0.0 for value in entropy_range
       ):
         raise ValueError('entropy_proxy_range must contain two finite positives')
+      ####
       if entropy_range[1] < entropy_range[0]:
         raise ValueError('entropy_proxy_range must be ordered')
+      ####
       object.__setattr__(self, 'entropy_proxy_range', entropy_range)
+    ####
     if self.source_closure_fingerprint is not None:
       fingerprint = str(self.source_closure_fingerprint)
       if not fingerprint:
         raise ValueError('source_closure_fingerprint must be non-empty')
+      ####
       object.__setattr__(self, 'source_closure_fingerprint', fingerprint)
+    ####
     for name in (
       'closure_lineage_verified',
       'global_field_consumed',
@@ -265,16 +289,22 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('research state consumer cannot claim canonical coupling')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('research state consumer must remain promotion-blocked')
+    ####
     if self.status is (
       MocReflectedDomainGlobalMixedRegimeStateConsumerStatus
       .CONSUMED_LOCAL_RESEARCH_STATE
     ) and not self.consumed_local_research_state:
       raise ValueError('consumed state must pass every local channel gate')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def consumed_local_research_state(self) -> bool:
@@ -294,6 +324,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerResult:
       and self.ambient_channel_verified
       and self.centerline_channel_verified
     )
+  ####
 
   def as_chain_termination_decision(self) -> MocChainTerminationDecision:
     reason = (
@@ -316,6 +347,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerResult:
         'production_claim_allowed': False,
       },
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -350,6 +382,8 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerResult:
       'chain_termination_decision': self.as_chain_termination_decision().as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -373,6 +407,7 @@ def _failure(
     global_field_consumed=global_field_consumed,
     message=message,
   )
+####
 
 
 def _build_flux_samples(
@@ -394,6 +429,7 @@ def _build_flux_samples(
       or gamma_value <= 1.0
     ):
       raise ValueError('trace endpoint has an invalid conservative state')
+    ####
     velocity_u = momentum_x / density
     velocity_v = momentum_y / density
     pressure = (gamma_value - 1.0) * (
@@ -402,11 +438,13 @@ def _build_flux_samples(
     )
     if not isfinite(pressure) or pressure <= 0.0:
       raise ValueError('trace endpoint has a non-positive thermodynamic pressure')
+    ####
     normal_velocity = velocity_u * normal[0] + velocity_v * normal[1]
     sound_speed = sqrt(gamma_value * pressure / density)
     wave_speed = abs(normal_velocity) + sound_speed
     if not isfinite(wave_speed) or wave_speed <= 0.0:
       raise ValueError('trace endpoint has an invalid acoustic wave speed')
+    ####
     return (
       (
         density * normal_velocity,
@@ -417,6 +455,7 @@ def _build_flux_samples(
       wave_speed,
       pressure / density ** gamma_value,
     )
+  ####
 
   samples = trace.samples
   flux_samples: list[MocReflectedDomainGlobalMixedRegimeConservativeFluxSample] = []
@@ -426,6 +465,7 @@ def _build_flux_samples(
     length = hypot(dx, dy)
     if not isfinite(length) or length <= 0.0:
       raise ValueError('trace contains a non-positive segment length')
+    ####
     nx = -dy / length
     ny = dx / length
     normal = (nx, ny)
@@ -452,6 +492,7 @@ def _build_flux_samples(
     entropy_proxy = 0.5 * (left_entropy_proxy + right_entropy_proxy)
     if not isfinite(entropy_proxy) or entropy_proxy <= 0.0:
       raise ValueError('trace segment has an invalid endpoint entropy proxy')
+    ####
     flux_samples.append(
       MocReflectedDomainGlobalMixedRegimeConservativeFluxSample(
         segment_index=index,
@@ -472,7 +513,9 @@ def _build_flux_samples(
         ),
       )
     )
+  ####
   return tuple(flux_samples)
+####
 
 
 def consume_reflected_domain_global_mixed_regime_state(
@@ -492,12 +535,14 @@ def consume_reflected_domain_global_mixed_regime_state(
       MocReflectedDomainGlobalMixedRegimeStateConsumerStatus.INVALID_INPUT,
       'closure must be a MocReflectedDomainGlobalPhysicalClosureResult',
     )
+  ####
   if not isinstance(downstream, MocReflectedDomainGlobalCoupledDownstreamResult):
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateConsumerStatus.INVALID_INPUT,
       'downstream must be a MocReflectedDomainGlobalCoupledDownstreamResult',
       closure=closure,
     )
+  ####
   fingerprint = moc_reflected_domain_global_physical_closure_fingerprint(closure)
   if not closure.converged or not closure.physical_closure_verified:
     return _failure(
@@ -508,6 +553,7 @@ def consume_reflected_domain_global_mixed_regime_state(
       downstream=downstream,
       source_closure_fingerprint=fingerprint,
     )
+  ####
   if not downstream.closure_lineage_verified or downstream.source_closure_fingerprint != fingerprint:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateConsumerStatus.CLOSURE_LINEAGE_FAILURE,
@@ -533,6 +579,7 @@ def consume_reflected_domain_global_mixed_regime_state(
       downstream=downstream,
       source_closure_fingerprint=fingerprint,
     )
+  ####
   try:
     global_cell_samples = exact_field.cell_state_samples()
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
@@ -544,6 +591,7 @@ def consume_reflected_domain_global_mixed_regime_state(
       source_closure_fingerprint=fingerprint,
       global_field_consumed=False,
     )
+  ####
   global_field_consumed = bool(
     len(global_cell_samples) == len(exact_field.cells)
     and len(global_cell_samples) > 0
@@ -569,6 +617,7 @@ def consume_reflected_domain_global_mixed_regime_state(
       source_closure_fingerprint=fingerprint,
       global_field_consumed=True,
     )
+  ####
   if trace.source_closure_fingerprint != fingerprint:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateConsumerStatus.CLOSURE_LINEAGE_FAILURE,
@@ -594,6 +643,7 @@ def consume_reflected_domain_global_mixed_regime_state(
       source_closure_fingerprint=fingerprint,
       global_field_consumed=True,
     )
+  ####
   if replayed_trace != trace or not replayed_trace.local_trace_verified:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateConsumerStatus.TRACE_REPLAY_FAILURE,
@@ -722,6 +772,7 @@ def consume_reflected_domain_global_mixed_regime_state(
       'channels failed their independent consumer audit'
     ),
   )
+####
 
 
 def build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame(
@@ -748,6 +799,7 @@ def build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame
       'consumer must be a '
       'MocReflectedDomainGlobalMixedRegimeStateConsumerResult'
     )
+  ####
   if not consumer.consumed_local_research_state or consumer.trace is None:
     raise ValueError(
       'conservative boundary profile requires a locally consumed full-state '
@@ -776,7 +828,9 @@ def build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame
     raise ValueError(
       'conservative boundary profile retained no complete trace segments'
     )
+  ####
   return tuple(states), tuple(points)
+####
 
 
 def build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
@@ -799,6 +853,7 @@ def build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
     )
   )
   return profile, tuple(point[0] for point in points)
+####
 
 
 def build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_profile(
@@ -823,14 +878,18 @@ def build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_pro
     raise ValueError(
       'entropy-proxy target and conservative state frame must align'
     )
+  ####
   if any(sample.midpoint_m != point for sample, point in zip(samples, points)):
     raise ValueError(
       'entropy-proxy target retained a different segment-midpoint frame'
     )
+  ####
   entropy_profile = tuple(float(sample.entropy_proxy) for sample in samples)
   if any(not isfinite(value) or value <= 0.0 for value in entropy_profile):
     raise ValueError('entropy-proxy target must contain finite positive values')
+  ####
   return entropy_profile
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeStateResolveStatus(str, Enum):
@@ -846,6 +905,7 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveStatus(str, Enum):
   INDEPENDENT_AUDIT_FAILURE = (
     'global-mixed-regime-state-resolve-independent-audit-failure'
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -880,21 +940,25 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       MocReflectedDomainGlobalMixedRegimeStateResolveStatus,
     ):
       raise TypeError('status must be a typed state-resolve status')
+    ####
     if self.consumer is not None and not isinstance(
       self.consumer,
       MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
     ):
       raise TypeError('consumer must be typed or None')
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocReflectedDomainCoupledEulerFreeBoundaryRequest,
     ):
       raise TypeError('request must be typed or None')
+    ####
     if self.field is not None and not isinstance(
       self.field,
       MocReflectedDomainCoupledEulerFreeBoundaryResult,
     ):
       raise TypeError('field must be typed or None')
+    ####
     profile = tuple(
       tuple(float(value) for value in state)
       for state in self.conservative_state_profile
@@ -904,9 +968,11 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       for state in profile
     ):
       raise ValueError('conservative_state_profile must contain finite four-tuples')
+    ####
     stations = tuple(float(value) for value in self.conservative_state_profile_x_stations_m)
     if any(not isfinite(value) for value in stations):
       raise ValueError('conservative_state_profile_x_stations_m must be finite')
+    ####
     points = tuple(
       tuple(float(value) for value in point)
       for point in self.conservative_state_profile_points_m
@@ -918,17 +984,22 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       raise ValueError(
         'conservative_state_profile_points_m must contain finite 2-D points'
       )
+    ####
     if len(profile) != len(stations) or len(profile) != len(points):
       raise ValueError(
         'conservative state profile, x stations, and 2-D points must align'
       )
+    ####
     entropy_profile = tuple(float(value) for value in self.entropy_proxy_profile)
     if any(not isfinite(value) or value <= 0.0 for value in entropy_profile):
       raise ValueError('entropy_proxy_profile must contain finite positive values')
+    ####
     if len(profile) != len(entropy_profile):
       raise ValueError('conservative state profile and entropy profile must align')
+    ####
     if any(second <= first for first, second in zip(stations, stations[1:])):
       raise ValueError('conservative state profile stations must be ordered')
+    ####
     if any(
       second[0] <= first[0]
       for first, second in zip(points, points[1:])
@@ -936,6 +1007,7 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       raise ValueError(
         'conservative state profile 2-D points must be ordered in x'
       )
+    ####
     object.__setattr__(self, 'conservative_state_profile', profile)
     object.__setattr__(self, 'conservative_state_profile_x_stations_m', stations)
     object.__setattr__(self, 'conservative_state_profile_points_m', points)
@@ -953,11 +1025,16 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('state resolve cannot claim canonical global coupling')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('state resolve must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def fresh_local_research_state_resolve_verified(self) -> bool:
@@ -973,6 +1050,7 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       and self.field is not None
       and self.field.converged
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -1007,6 +1085,8 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       'production_claim_allowed': False,
       'message': self.message,
     }
+  ####
+####
 
 
 def solve_reflected_domain_global_mixed_regime_state_consumer(
@@ -1035,12 +1115,14 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       consumer=None,
       message='apply_conservative_flux_profile must be a bool',
     )
+  ####
   if not isinstance(apply_entropy_compatible_flux, bool):
     return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
       status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT,
       consumer=None,
       message='apply_entropy_compatible_flux must be a bool',
     )
+  ####
   if apply_conservative_flux_profile and apply_entropy_compatible_flux:
     return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
       status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT,
@@ -1050,6 +1132,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
         'are mutually exclusive'
       ),
     )
+  ####
 
   if not isinstance(
     consumer,
@@ -1063,6 +1146,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
         'MocReflectedDomainGlobalMixedRegimeStateConsumerResult'
       ),
     )
+  ####
   if not consumer.consumed_local_research_state:
     return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
       status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.CONSUMER_NOT_READY,
@@ -1132,6 +1216,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
         'consumed state did not retain the coupled mesh needed to bind the '
         'flux frame'
       )
+    ####
     lower_ordinate = min(
       float(point[1])
       for cell in coupled_field.cell_vertices_by_cell_m
@@ -1280,3 +1365,4 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       )
     ),
   )
+####

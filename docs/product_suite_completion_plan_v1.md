@@ -58,12 +58,14 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `d22acce` after adding an opt-in component-wise complete-state descent gate to the global/coupled feedback loop; the focused regression and reflected-domain suite (232 passed) are green, Ruff, Pyright, compilation, whitespace, and offline wheel/install smoke pass, and `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Dedicated branch `work/washed-integral-visual` is based on the integration line; committed base is `9d53983`, with the P3.29–P3.43k research consumers, physical frontier builders, validation runners, public exports, regressions, and plan updates still in the working tree. The P3.43k residual-exchange operator now has a focused replay regression, but the candidate is not release-frozen until these changes are reviewed and committed. `main` is untouched. |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
-| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; the live entropy-compatible interface law is a separate local gate, and the new component-wise outer descent gate demonstrates that scalar maximum-norm descent can hide worsening momentum channels; upstream conservative/entropy feedback and the true global fixed point remain open |
-| 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
+| 2a | Upstream characteristic frame, transonic interface, equation handoff, and bounded compatibility | Independently consumed conservative/entropy target | Exact primitive conversion, explicit regime segregation, moving-interface flux channels, component-wise residual report, replay audit, contiguous incoming-family compatibility, and typed missing-characteristic/normal-closure stop | P3.39–P3.42 remain locally verified. The coupled downstream free-boundary top-row trace is all subsonic/sonic (maximum Mach approximately `0.68023`) and correctly stops with `MISSING_INCOMING_CHARACTERISTIC`; the separate solver-owned global Euler shock frontier is now the physically grounded supersonic source for the next research handoff |
+| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | P3.31 now composes full-state downstream consumption, strict moving conservative/entropy response, fresh shock-geometry reconciliation, and final trace replay. P3.32 covers two distinct source closures across increasing `(8,4) -> (12,6)` downstream ladders. P3.33 consumes the complete state/entropy target in a research interface strip with independent replay, and P3.34 covers that seam across two closures and increasing `(8,4) -> (10,5)` ladders. P3.35 carries the exact state/entropy equation across one moving/global correction, P3.36 covers that correction across the same disjoint case/resolution shape, P3.37 tries bounded correction fractions from the same exact source while retaining component-wise admission as a separate gate, and P3.38 consumes the exact equation target in a fresh live free-boundary field with an independent field audit. P3.42 now consumes only a contiguous, admitted incoming characteristic-family subset with exact invariant/geometry/forward residuals and an independent replay. P3.43–P3.43g compose local state/normal closure with the solver-owned shock frontier and terminal global/downstream recheck; P3.43h now requires one frontier step for every retained feedback closure and independently replays that chain. P3.43i binds the frontier-derived shock resolution into the fresh global boundary-state joint solve and rechecks the resulting closure with a new physical frontier step. P3.43j rebuilds the boundary-state handoff from each new closure and runs the frontier-integrated joint solve twice; the physical steps pass, but cross-iteration residual descent remains explicitly open. P3.43k now carries a typed five-channel frontier residual packet into a bounded exact-Euler shock-geometry trial, rebuilds the global physical field, and replays the refreshed frontier independently. The current one-case trial is physically consumed but rejected on component-wise non-worsening/strict descent, so normal closure, the canonical fixed point, and disjoint case/resolution promotion remain open |
+| 3a | Frontier residual-exchange ladder | One locally verified P3.43k source/target exchange | At least two distinct source-closure fingerprints and increasing exact shock resolutions, with per-case packet/update/response replay and component-wise admission evidence | The four-case refinement harness now covers two source closures × `(9 -> 11)` exact shock-frontier resolutions with independent replay and explicit claim ceilings. The ladder is reproducible, but remains open because the current responses are not all component-wise admitted with strict descent |
+| 4 | Physical shock-cell chain | Accepted canonical field/frontier from slices 2–3a | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3a; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
-| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked at `d22acce`; the candidate is clean, but the canonical/global, physical shock-cell, provider/archive, and release-freeze gates remain red; no freeze rewrite, push, or tag is authorized yet |
+| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Not frozen. The last committed release evidence is stale, the working tree contains the P3.29/P3.30/P3.31/P3.32 checkpoints, and canonical/global, physical shock-cell, provider/archive, and release gates remain red. No freeze rewrite, push, or tag is authorized by this plan. |
 
 The queue is dependency-ordered.  In particular, Visualization work may
 continue to improve evaluation surfaces, but it cannot turn an open physical
@@ -72,6 +74,396 @@ radiance claim; and the FPA remains a downstream adapter until its camera and
 detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
+
+## Work packages and dependency graph
+
+The following is the actionable plan for the long-running goal. Each package
+has a named owner lane, a concrete artifact, and a gate. Work may proceed in
+parallel only when it does not consume an unfinished upstream contract.
+
+### WP-0 — Integration control plane
+
+Keep all work on the dedicated integration branch until the release gates
+close. Reconcile incoming work by API/contract first, then resolve behavior
+conflicts with focused tests. Preserve the master/main line as the known
+integration baseline. Record every merge, contract change, and promotion
+decision in this plan and in the relevant manifest.
+
+Exit evidence: no unresolved conflict markers, public import smoke, focused
+regression for every touched contract, full test/static/package checks, and a
+committed candidate `HEAD`.
+
+### WP-1 — Fidelity registry and lane segregation
+
+Maintain one explicit lane for each solver family rather than continuously
+upgrading one approximation in place:
+
+| Lane | Intended use | Claim ceiling |
+| --- | --- | --- |
+| Basic shock-cell/plume | Fast Visualization and bounded Signature screening | Geometry/region diagnostics and clearly labeled engineering estimates; no resolved physical radiance or FPA source claim |
+| Reduced-order shock train | Fast spacing and sensitivity exploration | Diagnostic pressure-extrema/spacing behavior only until disjoint physical calibration and validation exist |
+| Washed/curved plume | Visualization and exploratory Signature/optical studies | Research comparison only until curved-path refinement and provider measurement-space evidence close |
+| Planar/reflected MOC | Physical flow structure and shock-cell precursor | Research physical-field evidence until first-cell/continued-cell length acceptance and global closure close |
+| Global mixed-regime/free-boundary | Canonical physical source candidate | No production claim until all conservative, entropy, frontier, ambient, centerline, downstream, frame, and refinement gates pass |
+| Ray/optical transfer | Signature composition and ray-path transport | Operator-specific claim only; straight and curved paths retain separate evidence and ceilings |
+| FPA downstream | Camera, detector, pixel, and digitization composition | Downstream adapter only until source-bound camera/detector comparisons are accepted |
+
+Exit evidence: the fidelity matrix, public contracts, manifests, and tests
+agree on the same lane ceiling; no adapter can cast a lower-fidelity result into
+a higher-fidelity source type.
+
+### WP-2 — Standardized Visualization product
+
+Finish the renderer-neutral Visualization surface for all five plume-model
+bundles. Every bundle must support the common schema for source/configuration,
+geometry, regions/cells, scalar/vector fields, centerline/station slices,
+cross-plume slices, axial paths, masks/validity, provenance, and diagnostics.
+Provide multiple views: axial overview, cross-section, station profiles,
+centerline feature traces, region/cell overlays, time-series playback, and
+angular-space maps where the upstream Signature contract provides them.
+
+Exit evidence: deterministic galleries for every allowed lane, exact view and
+slice metadata, model/solver/fidelity labels, and provider-bound geometry or
+feature comparisons with declared coordinate/frame/operator semantics. A
+visual feature such as a Mach-disk endpoint remains diagnostic unless its
+physical measurement meaning is accepted.
+
+### WP-3 — Mission-time state and query composition
+
+Make time and position first-class in the source composition. A trajectory or
+scripted mission advances an immutable state/cursor containing time, position,
+altitude, attitude, ambient atmosphere, throttle/burn state, chemistry, and
+solver configuration. Each step must retain the exact source-state fingerprint
+and produce reproducible Visualization, Signature, and FPA inputs.
+Expose point queries for wavelength, angle, position, and time; return units,
+validity, uncertainty lineage, and the source/fidelity identifier with every
+result. Do not bake a changing booster state into a static model object.
+
+Exit evidence: replayable trajectory/time-series tests, cache keys that include
+all state-changing inputs, monotonic/explicit cursor advancement, and no
+cross-time or cross-position reuse of a stale spectrum or detector frame.
+
+### WP-4 — Canonical physical closure and shock-cell chain
+
+Advance the current research evidence in the following order:
+
+1. Use the P3.31 moving/global composition and P3.32 coverage runner as a
+   research harness: together they now consume the full state target in the
+   downstream finite-volume equations,
+   closes the strict moving conservative/entropy response, independently
+   reconciles the returned shock geometry, and replays a fresh final trace.
+2. Use the P3.33 interface-strip equation and P3.34 coverage runner as the
+   audited conservative/entropy seam across disjoint source closures and
+   increasing resolutions.
+3. Use the P3.35 moving upstream state/entropy corrector and P3.36 coverage
+   runner to carry the exact target and residual vector across a fresh
+   moving/global front correction. Use the P3.37 bounded line search to try
+   explicitly declared correction fractions from the same exact source and
+   retain component-wise admission as a separate gate. P3.38 now installs the
+   exact equation target into a fresh live free-boundary field and checks the
+   result with the independent coupled-field audit; this remains a local
+   consumer seam, not a canonical solve.  P3.39 now converts the exact
+   four-component target into primitive thermodynamic samples and retains an
+   optional `CharacteristicState` only for genuinely supersonic samples;
+   the current mixed-regime trace is explicitly reported as subsonic/sonic and
+   is not coerced into the MOC lane.  P3.40 now consumes that exact frame
+   through an explicit stationary or moving interface-normal control, retains
+   mass, normal/tangential momentum, total-energy, and entropy-proxy flux
+   channels, and independently reports component-wise along-interface
+   residuals.  It admits the subsonic trace as primitive interface data and
+   rejects a fabricated characteristic state; it still does not solve the
+   upstream equation or free boundary.  P3.41 now consumes and independently
+   audits that interface handoff, retains the subsonic sample indices and any
+   admitted supersonic subset separately, and returns a typed
+   ``MISSING_INCOMING_CHARACTERISTIC`` stop when the current all-subsonic
+   trace cannot supply the next equation's incoming data.  P3.42 now consumes
+   an admitted incoming family only over a contiguous supersonic span, checks
+   exact characteristic invariants plus forward geometry, and independently
+   replays the compatibility evidence; it retains the subsonic condition and
+   normal/free-boundary closure as open gates.  P3.43 composes that
+   compatibility with the local state equation and P3.43a-c carries an
+   independently audited two-sided normal closure into the research consumer.
+   P3.43d keeps the all-subsonic downstream seam as a typed stop; P3.43e
+   instead binds the exact solver-owned global Euler shock frontier; and P3.43f
+   covers that frontier across disjoint physical source closures and
+   solver-derived sample resolutions.  P3.43g now composes one such frontier
+   step with the terminal global/downstream feedback recheck and independently
+   audits the composition.  P3.43h now requires and replays one frontier step
+   for every retained feedback closure.  P3.43i now feeds the exact frontier
+   resolution into the global boundary-state joint solve and requires a fresh
+   physical frontier recheck on the output closure.  P3.43j repeats that
+   frontier-integrated solve from each fresh closure; the two-step research
+   chain currently fails closed on cross-iteration residual descent.  P3.43k
+   now carries the frontier normal-closure residual vector into a bounded,
+   solver-owned shock-normal geometry trial, refits the exact Euler shock,
+   rebuilds the global physical field, and independently remeasures the
+   refreshed frontier.  The focused one-case replay reaches the global
+   update but rejects the response because component-wise non-worsening and
+   strict descent are not both demonstrated.  The four-case refinement
+   harness now exercises two distinct source closures at increasing `(9 ->
+   11)` exact frontier resolutions and independently replays each response;
+   its ladder evidence is green while its component-wise admission gate is
+   correctly still open.  These remain research seams until accepted
+   residual exchange, canonical topology/free-boundary closure, and
+   promotion evidence are complete.
+4. Consume the complete conservative and entropy target in the upstream
+   moving shock/free-boundary equations, not only in a fixed-front re-solve,
+   downstream solve, or pressure/geometry projection.
+5. Re-solve the same global/free-boundary frame with bounded solver-owned
+   geometry controls and fresh field solves for every trial.
+6. Independently remeasure signed mass, streamwise/transverse momentum, total
+   energy, entropy transition, ambient, centerline, topology, and downstream
+   frame coverage.
+7. Require component-wise residual admission, disjoint cases, and increasing
+   resolutions; scalar maximum-norm descent is insufficient.
+8. Fit the first shock cell and continued cell chain from the accepted field,
+   retaining solver-owned length, uncertainty, termination semantics, and exact
+   lineage. Replace diagnostic pressure-extrema spacing with a physical feature
+   only after accepted solver-length comparison.
+
+Exit evidence: canonical global/free-boundary status, independent audit, and
+shock-cell chain all pass on the declared case/resolution matrix. Until then,
+the P3.29 fixed-front consumer, P3.30 downstream/global response step,
+P3.31 moving/global composition, P3.32 disjoint/resolution coverage, P3.33
+upstream state/entropy interface-strip equation, P3.34 equation coverage,
+P3.35 moving upstream corrector, P3.36 corrector coverage, P3.37 bounded line
+search, P3.38 live free-boundary consumer, and P3.39 conservative-to-
+characteristic frame bridge are useful local
+equation-consumption evidence
+but cannot promote the upstream contract or any product.
+
+### WP-5 — Signature and ray-transfer product
+
+Build Signature from an explicitly selected source lane. Keep chemistry,
+thermodynamics, emissivity/radiation model, atmospheric attenuation, angular
+integration, and ray transfer as separate contracts with units and validity
+masks. Support spectral radiance/radiant intensity lookup at a requested
+`(time, position, wavelength, direction)` and retain whether the result is a
+table, gray engineering estimate, LTE research result, straight transfer, or
+curved transfer. Add analytic and refinement checks for ray paths and bind all
+outputs to measurement-space operators before comparison.
+
+Exit evidence: source-bound spectral/radiance comparisons, uncertainty and
+provenance, straight/curved path checks, and an explicit acceptance decision
+for each model/chemistry/atmosphere combination. Local tables and gray paths
+remain diagnostic when the physical source or provider data are absent.
+
+### WP-6 — Focal-plane array product
+
+Treat FPA as a downstream composition of an accepted Signature/ray source.
+Complete camera pose and projection, ray validity/hits, spectral-to-detector
+integration, detector response/noise, expected electrons, pixel indexing,
+optional ADC/digitization, saturation/invalid propagation, and metadata for
+Visualization. Keep source and detector calibration/validation cases
+disjoint.
+
+Exit evidence: deterministic camera/detector fixtures, source-bound image
+comparisons in the named measurement space, calibration metadata, and an
+explicit downstream boundary showing which Signature lane was consumed.
+
+### WP-7 — Validation intake and release
+
+Acquire the owner-supplied Version 8 and alignment/provider archives before
+claiming external validation. Store immutable member digests, provenance and
+license, scenario/branch mapping, coordinate/frame/unit definitions,
+measurement operators, uncertainty, and disjoint calibration/validation
+assignments. Run the provider preflight before model fitting; a missing
+archive or unbound measurement space is a typed blocker.
+
+Then run the release ladder from the exact candidate `HEAD`: local tests and
+static checks, documentation/public-contract checks, wheel build, installed
+wheel smoke, lane release audit, provider comparisons, and a clean-tree freeze.
+Set `release_ready=true` only when every required lane is accepted and the
+manifest points to the same committed `HEAD`. Pushes and tags are a separate
+explicit handoff after the release decision.
+
+## Immediate next actions
+
+1. Review and commit the current P3.29/P3.30/P3.31/P3.32/P3.33/P3.34/P3.35/P3.36/P3.37/P3.38/P3.39/P3.40/P3.41/P3.42/P3.43 research checkpoints as bounded
+   integration units; keep their promotion flags closed.
+2. Run and extend the P3.32 coverage matrix over accepted disjoint source
+   closures and increasing resolutions, retaining its open component-wise
+   residuals and proving that no stale field or geometry handoff crosses the
+   moving-front refresh.
+3. Use the P3.33 solver-owned interface-strip equation and P3.34 coverage
+   runner as the audited conservative/entropy seam. P3.35 now consumes that
+   exact state frame before and after a moving/global research correction and
+   retains an independently checked combined residual vector. P3.37
+   evaluates bounded correction fractions from the same exact source and
+   accepts only a component-wise non-worsening candidate. P3.38 consumes the
+   resulting exact target in the live free-boundary field and independently
+   audits that handoff.
+4. Continue from the P3.41 upstream-equation handoff.  P3.42 now consumes
+   incoming characteristic data only from a contiguous admitted supersonic
+   subset, checks exact invariant/geometry/forward residuals, and retains the
+   primitive subsonic condition separately.  The current all-subsonic trace
+   must remain a typed missing-characteristic/normal-closure stop until a real
+   canonical equation and normal closure consume it.  The P3.35/P3.40/P3.41/
+   P3.42/P3.43/P3.43a research seams must not be relabeled as production
+   solvers.
+5. Use the P3.43 canonical-consumer gate across disjoint source closures and
+   increasing resolutions.  It must consume the exact characteristic
+   compatibility, state-equation, and audited global-feedback evidence before
+   the normal/free-boundary closure can be attempted; the current open state
+   residual must remain a typed blocker.  Add the solver-owned normal-closure
+   contract with an explicit two-sided ambient primitive/conservative profile;
+   pressure-only ambient input must stop before flux closure.  The new P3.43b
+   coverage runner must validate each declared resolution against the feedback
+   configuration and require distinct source fingerprints before it reports
+   cross-case coverage.  P3.43c must consume an independently audited local
+   normal closure before the canonical gate can report its remaining open
+   global closure.
+6. Use the P3.36 disjoint-case/increasing-resolution gate and P3.37 bounded
+   line search for that corrector, then
+   feed only an accepted canonical field into first-cell and continued shock
+   cell fitting.
+7. In parallel, obtain and bind the missing validation/alignment/provider
+   assets; do not synthesize an archive or treat a provenance-only corpus as
+   accepted validation.
+8. Run the standardized Visualization, Signature/RAY, and FPA measurement-space
+   acceptance once the corresponding source and provider gates are available.
+9. Re-freeze from the final exact `HEAD`, publish the release decision, and
+   push/tag only after explicit authorization.
+
+## Non-negotiable stop rules
+
+- A pressure-only target cannot satisfy a conservative state or entropy
+  contract.
+- A fixed-front result cannot be labeled a moving global/free-boundary fixed
+  point.
+- A scalar residual decrease cannot mask a worsening physical channel.
+- A diagnostic shock-cell spacing or visual endpoint cannot become a physical
+  length claim without accepted comparison.
+- Missing, synthetic, stale, or unbound validation data remain blockers.
+- A lower-fidelity plume solver cannot silently feed a higher-fidelity
+  Signature or FPA production claim.
+- A dirty or stale candidate cannot be release-frozen.
+
+## Long-running goal operating plan
+
+The goal is executed as a sequence of small, reviewable checkpoints.  Each
+checkpoint must leave the repository runnable and must record what was
+consumed, what was independently re-derived, and what remains blocked.  A
+checkpoint may add evidence without changing a higher-level promotion flag;
+promotion is a separate decision after the evidence matrix is complete.
+
+### Stage A — Establish the candidate baseline
+
+1. Keep the dedicated integration branch as the working line and leave
+   `main` untouched until a release candidate is explicitly authorized.
+2. Reconcile the current working-tree research checkpoints into coherent
+   commits, one contract family at a time.  Run focused tests after each
+   family and run the full suite/static/package matrix at the freeze boundary.
+3. Refresh the lane-release manifest from the exact candidate `HEAD`.  Treat
+   dirty-tree, stale-freeze, missing-archive, and missing-provider evidence as
+   blockers rather than paperwork to be deferred.
+
+Exit gate: a committed candidate with deterministic local checks, no
+unresolved conflicts, and a manifest that accurately reports every open gate.
+
+### Stage B — Finish the physical source without crossing fidelities
+
+1. P3.40: add the explicit transonic interface law.  Consume the P3.39
+   boundary frame and the exact conservative trace, retain subsonic data as a
+   subsonic interface condition, and admit a `CharacteristicState` only when
+   the supplied sample is genuinely supersonic.  Report mass, normal and
+   tangential momentum, energy, entropy, and frame-alignment residuals as
+   separate channels.
+2. P3.41: connect the admissible interface data to the solver-owned upstream
+   characteristic/free-boundary equation.  The equation must state which
+   characteristics enter, which boundary variables are solved, and which
+   quantities are supplied by the subsonic side.  A missing incoming
+   characteristic or normal closure must return a typed research stop.
+3. P3.42: consume only the admitted incoming characteristic family on a
+   contiguous supersonic subset.  Require exact invariant, characteristic
+   geometry, forward-direction, interface-lineage, and independent replay
+   evidence; do not bridge a subsonic gap or invent the second family.  Keep
+   the primitive subsonic condition and normal/free-boundary closure as open
+   gates.
+4. P3.43: compose the exact incoming-family compatibility, conservative/
+   entropy state equation, and solver-owned global-feedback result on
+   disjoint source closures and increasing spatial resolutions.  Require
+   independent lower-lane replay, exact closure fingerprints, component-wise
+   residual admission, entropy-law consistency, and topology/frame coverage.
+   The P3.43b runner now checks this coverage boundary; any open state-equation
+   residual must remain a typed stop, the feedback configuration must carry the
+   declared resolution, and one locally closed fixture cannot stand in for a
+   disjoint case/resolution gate or a canonical fixed point.
+5. P3.43a: consume that exact mixed-regime chain only with a solver-owned
+   two-sided ambient primitive state, moving-control-volume fluxes, component
+   residuals, and an oriented entropy inequality.  Missing ambient density,
+   velocity, temperature, or gas-law consistency must be a typed blocker;
+   copying pressure into a normal closure is not sufficient.  Keep global
+   coupling, free-boundary promotion, and production flags closed until this
+   contract is exercised over disjoint cases and resolutions.
+6. P3.43c: let the canonical-consumer gate optionally require and consume the
+   P3.43a result plus its independent audit.  A consumed local normal closure
+   changes only the typed research status to ``open-global-closure``; it must
+   not set the global fixed-point or production flags.
+7. P3.44: fit the first and continued shock cells only from an accepted
+   physical field/frontier.  Retain length uncertainty, termination reason,
+   solver/fidelity lineage, and an external comparison in the same measurement
+   space.  Pressure-extrema spacing remains a diagnostic fallback.
+
+Exit gate: the canonical source is accepted on the declared case/resolution
+matrix, or the result is an explicit typed research blocker.  In either case,
+the lower-fidelity Visualization and engineering Signature lanes remain
+usable without being relabeled as the canonical source.
+
+### Stage C — Complete the three product surfaces in parallel
+
+These tracks may proceed while Stage B is open, but they must consume only the
+source lane named in their request and must expose that lane in their output.
+
+- Visualization: finish the five standardized bundles, axial/cross-section/
+  station/path/angular/time views, region and shock-cell overlays, masks,
+  provenance, and deterministic galleries.  Every image or field view must
+  state whether it is diagnostic, engineering, or physical-field evidence.
+- Signature: finish time/position/wavelength/direction point queries, source
+  fingerprints, chemistry/radiation/atmosphere composition, straight versus
+  curved ray-transfer status, uncertainty, and invalid-region propagation.
+  A lookup table or gray/LTE result must retain its source and claim ceiling.
+- FPA: finish camera pose/projection, ray hits and misses, spectral-to-detector
+  integration, detector response/noise, electrons, pixel indexing, optional
+  ADC, saturation, and metadata.  FPA acceptance is downstream of an
+  explicitly selected Signature/ray lane.
+
+Exit gate: deterministic local fixtures and measurement-space reports exist
+for each product, with provider/calibration comparisons still clearly marked
+pending when their source data are unavailable.
+
+### Stage D — Validation intake and release
+
+1. Add the owner-supplied validation archives only through an immutable intake
+   record: member digests, provenance/license, scenario mapping, frames/units,
+   measurement operators, uncertainty, and disjoint calibration/validation
+   assignments.
+2. Run provider-bound comparisons separately for Visualization, Signature/ray,
+   and FPA.  Record pass/fail/tolerance and the exact model/source/operator
+   fingerprints; never treat a provenance-only or synthetic fixture as an
+   external validation result.
+3. Freeze the exact candidate `HEAD`, rerun the complete local and package
+   matrix from that freeze, and require the release manifest to report
+   `release_ready=true` with no stale references.
+4. Only after the release decision is green, and only with explicit user
+   authorization, merge/push/tag.  If any gate is red, publish the blocker
+   report and continue the long-running goal at the next typed seam.
+
+### Per-checkpoint checklist
+
+Every implementation slice should answer these questions before it is called
+done:
+
+1. Which product lane and solver fidelity does it belong to?
+2. Which exact upstream contract did it consume, and was that lineage replayed?
+3. Which physical channels were actually solved or only measured?
+4. Were subsonic, sonic, and supersonic states kept in their admissible lanes?
+5. Were cases and resolutions disjoint and freshly solved?
+6. Which independent test/static/package evidence passed?
+7. Which promotion flags remain false, and what is the next required seam?
+
+This checklist is part of the plan, not a substitute for the underlying
+physics or provider evidence.
 
 ### Historical release-evidence checkpoint — 2026-09-11
 
@@ -7306,3 +7698,833 @@ conservative/entropy boundary equation or a canonical fixed point.  The next
 physics slice must consume the full vector in a solver-owned upstream
 corrector, then repeat the disjoint-case and increasing-resolution gates
 without accepting scalar-only descent.
+
+### P3.29 fixed-front upstream conservative-equation consumer checkpoint — 2026-09-12 (working tree)
+
+The global mixed-regime validation lane now exposes an explicit
+``op.moc.reflected-domain.global-mixed-regime-upstream-conservative-
+reconciliation-v1`` operator.  It binds the exact closure fingerprint and the
+complete downstream mass, streamwise-momentum, transverse-momentum, energy,
+and entropy target frame; constructs the closure-owned shock-front condition;
+re-solves the retained shock/ambient/centerline mesh with the conservative
+finite-volume equations; independently audits the recomputed residual
+channels; and samples the post-solve piecewise-constant field at the exact
+target points.  The focused mixed-regime regression passes (``1 passed``), and
+Ruff, Pyright, compilation, and whitespace checks are clean.
+
+This is intentionally a local fixed-front equation-consumption result, not a
+moving global/free-boundary fixed point: the downstream target is measured
+before and after the solve but is not imposed as an interior source, ambient
+projection, or silently cast characteristic state.  The result therefore
+reports ``fixed_front_conservative_equation_consumed=true`` while retaining
+``upstream_state_target_consumed=false``, ``entropy_channel_consumed=false``,
+``upstream_equation_consumed=false``, ``global_coupling_verified=false``,
+``canonical_free_boundary_verified=false``, and the promotion/production
+blocks.  The release manifest remains red.
+
+The next implementation slice is the actual solver-owned coupling: formulate
+how the complete state/entropy target enters the moving shock/free-boundary
+equations, solve a true global fixed point, and independently verify signed
+mass, momentum, energy, and entropy residuals on disjoint cases and increasing
+resolutions.  No interior nudging, pressure-only projection, scalar residual
+descent, or low-fidelity result may be promoted into Signature or FPA claims.
+
+### P3.30 full-state downstream/global response composition checkpoint — 2026-09-12 (working tree)
+
+The mixed-regime lane now exposes an explicit
+``op.moc.reflected-domain.global-mixed-regime-state-coupled-step-v1`` research
+operator.  It consumes the complete conservative/entropy target in the live
+entropy-compatible downstream finite-volume equations, independently replays
+the produced full-state trace, and routes the remeasured response into a
+fresh global pressure/geometry solve.  The operator retains the initial and
+refreshed ten-channel residual vectors and has a typed component-wise descent
+gate; it cannot turn a scalar norm decrease into convergence.
+
+The focused end-to-end regression passes (``1 passed``), the complete
+reflected-domain suite passes (``234 passed in 6m27s``), and Ruff, Pyright,
+compilation, and whitespace checks are clean.  The regression intentionally
+allows an open component-wise residual so that equation consumption and global
+response projection are tested independently from the still-open fixed-point
+criterion.
+
+This closes only the downstream state-consumption-to-global-response
+composition.  The upstream characteristic state equation, moving
+shock/free-boundary fixed point, disjoint cases and increasing resolutions,
+accepted physical shock-cell lengths, provider-bound VIS/SIG/RAY/FPA
+comparisons, missing validation archives, and exact release freeze remain
+open.  The result retains ``upstream_state_equation_consumed=false``,
+``global_coupling_verified=false``,
+``canonical_free_boundary_verified=false``, the promotion/production blocks,
+and research-only status.  The next physics slice must replace the current
+pressure/geometry-only global response handoff with a solver-owned moving
+state-equation coupling and repeat independent signed residual audits.
+
+### P3.31 moving/global state-and-geometry composition checkpoint — 2026-09-12 (working tree)
+
+The mixed-regime validation lane now exposes an explicit
+``op.moc.reflected-domain.global-mixed-regime-moving-state-coupled-step-v1``
+research operator.  Its composed sequence is:
+
+``full-state downstream consumption -> strict moving conservative/entropy
+response -> fresh global shock-geometry reconciliation -> fresh downstream
+trace replay``.
+
+The moving stage is fail-closed: conservative residual line search,
+conservative flux closure, entropy transition, and solver-owned consumption of
+the global physical field are mandatory.  The returned shock geometry is not
+accepted as a carried object; it is independently sampled from the retained
+source band, refit with Euler shock states, and consumed by a fresh ambient
+physical-field assembly.  The post-geometry downstream solve rejects typed
+field/pressure/geometry handoffs so a stale frame cannot cross the moving
+refresh.  The result retains exact closure lineage and the initial/final
+ten-channel residual vectors.
+
+The focused composition regression passes (``1 passed``), and the complete
+reflected-domain suite passes (``235 passed in 6m35s``).  Ruff, Pyright,
+compilation, and whitespace checks are clean.  The regression intentionally
+allows an open component-wise residual so the moving/global contracts are
+validated independently of the still-open fixed-point admission criterion.
+
+This is the strongest local moving/global research composition currently
+available, not canonical closure.  The complete state target still is not
+consumed by the upstream characteristic equation; the global fixed point,
+disjoint-case and increasing-resolution admission, physical shock-cell
+lengths, provider-bound VIS/SIG/RAY/FPA comparisons, missing validation
+archives, and exact release freeze remain open.  The result retains
+``upstream_state_equation_consumed=false``,
+``global_coupling_verified=false``,
+``canonical_free_boundary_verified=false``, the promotion/production blocks,
+and research-only status.
+
+### P3.32 moving/global disjoint-case and resolution coverage checkpoint — 2026-09-12 (working tree)
+
+The mixed-regime validation lane now exposes an explicit
+``op.moc.reflected-domain.global-mixed-regime-moving-state-coupled-step-
+refinement-v1`` coverage operator.  It wraps the P3.31 composition without
+changing its claim ceiling and requires each declared case to provide an
+explicit mixed-regime downstream ambient target.  The runner rejects the
+tempting source-band ambient inference because that value is not necessarily
+the control-section ambient consumed by the downstream state equations.
+
+The retained coverage matrix contains two distinct source closures
+(``moving-source-7`` and ``moving-source-9``), each exercised at strictly
+increasing ``(axial, transverse)`` resolutions ``(8, 4) -> (12, 6)``.  Every
+step starts from a fresh resolution-matched downstream solve, binds the exact
+closure fingerprint, executes the P3.31 moving/global sequence, and retains
+the independent moving, geometry, final-trace, and ten-channel residual
+evidence.  A smaller ``(4, 3)`` request fails at the real state-consuming seam;
+the coverage contract therefore records ``(8, 4)`` as the minimum supported
+research ladder instead of hiding that resolution boundary.
+
+The focused disjoint-ladder regression passes (``1 passed, 235 deselected``),
+and the complete reflected-domain suite passes (``236 passed in 6m53s``).
+The measurement reports cross-case and increasing-resolution coverage while
+keeping component-wise residual descent as a separate open gate; coverage is
+not allowed to promote an open residual.  Exact closure lineage, local
+moving/geometry/final-trace gates, fidelity isolation, and the promotion
+blocks remain explicit.  The result retains
+``global_coupling_verified=false``,
+``canonical_free_boundary_verified=false``,
+``production_claim_allowed=false``, and research-only status.
+
+Ruff, Pyright, compilation, whitespace checks, and the offline wheel/install
+smoke pass; the current wheel digest is
+``98ea144a29761f8cae9b63817c14fdb7fb1dffe1c3c8018e483ab57aee2403c3``.  The
+fresh lane-release audit remains red with eight blockers: the candidate tree
+is dirty, its freeze/validated commit is stale relative to the candidate, the
+provider preflight is not accepted, and the provider/archive, canonical
+global-closure, reduced-order, planar-MOC, and physical shock-cell gates
+remain open.
+
+This closes a reusable local coverage and resolution-accounting gap only.  It
+does not close the upstream characteristic state equation, the canonical
+moving global/free-boundary fixed point, accepted physical shock-cell lengths,
+provider-bound VIS/SIG/RAY/FPA comparisons, missing validation archives, or
+the exact release freeze.  The next physics slice remains the solver-owned
+upstream state/entropy coupling, followed by component-wise admission on an
+accepted case/resolution matrix.
+
+### P3.33 solver-owned upstream state/entropy interface-strip checkpoint — 2026-09-12 (working tree)
+
+The mixed-regime MOC lane now exposes an explicit research operator,
+``op.moc.reflected-domain.global-mixed-regime-upstream-state-equation-v1``.
+It consumes the complete downstream full-state trace as an exact vertex frame
+(density, both momentum components, total energy, and entropy proxy), validates
+the vertex thermodynamics, forms the adjacent segment midpoint target, and
+closes each segment energy from its declared entropy proxy.  No target state is
+cast to a characteristic state or projected to a pressure boundary.
+
+The solver constructs a narrow Cauchy interface strip between that curved trace
+and a deterministic normal offset sampled from the exact retained global
+physical field.  The target and source boundaries, plus the interior strip
+faces, use the live entropy-compatible Rusanov Euler flux.  The result retains
+the exact source-field lineage, boundary fluxes, entropy defects, normalized
+mass/momentum/energy residual channels, and a fresh independent replay audit.
+The vertex-to-segment bookkeeping is explicit so the existing midpoint trace
+contract is not shortened by dropping an endpoint.
+
+The focused regression passes (exact trace/entropy consumption, independent
+replay, and entropy-target tamper rejection), the complete reflected-domain
+suite passes (``237 passed in 6m53s``), and the full repository suite passes
+(``1321 passed, 18 warnings in 16m35s``).  Lane partitioning, Ruff, scope
+markers, Markdown, Pyright, public-contract assets, compilation, whitespace,
+and the escalated isolated wheel/install smoke are clean.  The local strip
+residual remains an open research metric on the retained case; therefore this
+checkpoint reports
+``upstream_state_equation_consumed=true`` only for the equation-consumption
+evidence, while retaining
+``canonical_free_boundary_verified=false``,
+``global_coupling_verified=false``,
+``chain_promotion_blocked=true``, and
+``production_claim_allowed=false``.
+
+This does not close the canonical global/free-boundary fixed point.  The strip
+is not yet a moving shock-boundary corrector, does not update the retained
+global field, and has no cross-case/increasing-resolution admission gate of
+its own.  Accepted physical shock-cell lengths, provider-bound VIS/SIG/RAY/FPA
+comparisons, missing validation archives, and the exact release freeze remain
+open.  The next slice is to add independent refinement coverage for this exact
+state/entropy equation and then bind its residual vector to a true global
+moving-boundary fixed-point solve without promoting an open local result.
+
+### P3.34 upstream state/entropy disjoint-case refinement checkpoint — 2026-09-12 (working tree)
+
+The validation layer now exposes
+``op.moc.reflected-domain.global-mixed-regime-upstream-state-equation-
+refinement-v1``.  For each declared case and resolution it freshly solves the
+mixed-regime downstream field, consumes the exact full-state trace, constructs
+the P3.33 interface-strip request, runs the state/entropy equation, and
+independently replays the retained flux and residual report.  Caller-supplied
+downstream handoffs and target-frame overrides are rejected so stale geometry,
+pressure, or state data cannot cross the refinement boundary.
+
+The focused coverage regression passes across two distinct source closures
+(``state-source-7`` and ``state-source-9``) at increasing ``(8,4) -> (10,5)``
+resolutions.  The measurement proves exact closure lineage, target-frame
+coverage, state/entropy consumption, independent replay, finite residual
+metrics, and fidelity isolation for all four fresh steps.  It intentionally
+does not require monotonic residual descent and does not promote the local
+strip into canonical global closure.
+
+The validation-only suite passes after this addition (``245 passed in 8m35s``),
+and the new focused coverage regression passes.  Lane partitioning, Ruff,
+scope markers, Markdown, Pyright, public-contract assets, compilation,
+whitespace, and the escalated isolated wheel/install smoke are also green.
+The full repository baseline immediately before this slice was ``1321
+passed, 18 warnings in 16m35s``; the complete repository rerun remains a
+pre-commit integration check.  The candidate remains uncommitted and the
+release manifest remains red.  The next physics slice is a solver-owned
+moving shock/free-boundary corrector that consumes this exact target and
+residual vector, followed by component-wise admission on the same disjoint
+case/resolution matrix.
+
+### P3.35 moving upstream state/entropy equation corrector checkpoint — 2026-09-12 (working tree)
+
+The validation layer now exposes the research operator
+``op.moc.reflected-domain.global-mixed-regime-moving-upstream-state-equation-
+corrector-v1``.  It builds the P3.33 target only from the exact consumer-owned
+downstream trace, runs the strict P3.31 moving/global correction, builds a
+fresh final trace from the reconciled closure, and consumes the same upstream
+state/entropy equation again.  Caller-supplied target-frame overrides are
+rejected.  Both equation results are independently replayed.
+
+The corrector retains a declared 17-channel acceptance vector: five
+normalized conservative upstream channels, target-entropy and entropy-flux
+channels, and the ten downstream coupled-state channels.  Component-wise
+descent is checked independently of the scalar norm; an open residual is
+returned as a typed research result rather than being promoted.  The focused
+end-to-end regression passes (``1 passed, 238 deselected in 5.99s``).  The
+operator retains ``upstream_state_equation_consumed=true`` as local equation
+evidence but keeps ``global_coupling_verified=false``,
+``canonical_free_boundary_verified=false``,
+``chain_promotion_blocked=true``, and ``production_claim_allowed=false``.
+
+This is the first moving consumer of the exact P3.33 target, but it is not the
+canonical characteristic/free-boundary solve: the existing moving/global
+front response still supplies the research correction, and no physical
+provider or shock-cell claim is inferred.
+
+### P3.36 moving upstream corrector disjoint-case refinement checkpoint — 2026-09-12 (working tree)
+
+The validation layer now exposes
+``op.moc.reflected-domain.global-mixed-regime-moving-upstream-state-equation-
+corrector-refinement-v1``.  It freshly solves every declared downstream
+resolution for each named source closure, executes P3.35, and verifies exact
+source/final closure lineage, both state/entropy equation replays, moving
+front evidence, aligned residual metrics, and fidelity isolation.  The
+coverage report keeps component-wise residual admission as a separate boolean
+gate; coverage cannot imply canonical fixed-point convergence.
+
+The focused refinement regression passes across two distinct source closures
+(``moving-upstream-source-7`` and ``moving-upstream-source-9``) at increasing
+``(8,4) -> (10,5)`` resolutions (``1 passed, 239 deselected in 19.07s``).
+The full repository suite after P3.35/P3.36 passes (``1324 passed, 18
+warnings in 17m00s``), and the escalated isolated wheel/install smoke passes;
+the wheel build copied both new public refinement modules and the installed
+package completed its smoke checks.  Lane partitioning, Ruff, scope markers,
+Markdown, Pyright, public-contract assets, compilation, and whitespace checks
+remain green.  The candidate is still uncommitted and the release manifest
+remains red: canonical upstream/free-boundary admission, accepted physical
+shock-cell lengths, provider-bound VIS/SIG/RAY/FPA comparisons, missing
+validation archives, and the exact release freeze are still open.
+
+### P3.37 bounded moving upstream correction line-search checkpoint — 2026-09-12 (working tree)
+
+The validation layer now exposes the research operator
+``op.moc.reflected-domain.global-mixed-regime-moving-upstream-state-equation-
+line-search-v1``.  It tries an explicitly bounded sequence of correction
+fractions from the same exact verified closure and downstream source.  Every
+candidate is a fresh P3.35 moving upstream state/entropy corrector with the
+complete 17-channel upstream-plus-downstream residual vector and independent
+equation replays.  The first candidate that passes the full local
+component-wise non-worsening/strict-improvement gate is retained; open
+candidates remain typed evidence and are never relabeled as a fixed point.
+
+The focused line-search regression passes (``1 passed, 240 deselected in
+6.07s``).  The new public validation export passes the isolated wheel/build
+smoke, and Pyright, Ruff, scope markers, public-contract assets, compilation,
+and whitespace checks are green.  The full repository result immediately
+before this small slice remains ``1324 passed, 18 warnings in 17m00s``; a
+complete repository rerun after P3.37 is still a pre-commit integration check.
+
+This is a bounded residual-admission control layer, not the canonical
+upstream characteristic/free-boundary equation.  It retains
+``global_coupling_verified=false``,
+``canonical_free_boundary_verified=false``,
+``chain_promotion_blocked=true``, and ``production_claim_allowed=false``.
+Accepted physical shock-cell lengths, provider-bound VIS/SIG/RAY/FPA
+comparisons, missing validation archives, and the exact release freeze remain
+open.  The next physics slice is to consume the target and admitted residual
+vector in the solver-owned canonical upstream characteristic/free-boundary
+equations, then repeat disjoint-case and increasing-resolution validation.
+
+### P3.38 live free-boundary upstream-equation consumer checkpoint — 2026-09-12 (working tree)
+
+The coupled-Euler request now accepts an explicitly typed
+``MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationResult``.  When that
+handoff is present, request validation requires the exact closure object, the
+entropy-compatible conservative-state trace mode, the equation's segment
+states at the coupled cell centers, and its target-node geometry on the same
+frame.  Pressure-only, fixed-flux, entropy-profile, moving-inlet, and other
+incompatible fallbacks are rejected rather than silently combined with the
+state-equation target.  The result reports separate
+``upstream_state_equation_target_frame_verified`` and
+``upstream_state_equation_consumed`` flags.
+
+The validation layer now exposes
+``op.moc.reflected-domain.global-mixed-regime-upstream-state-equation-free-
+boundary-consumer-v1``.  It independently replays the upstream equation,
+checks exact closure and downstream-field lineage, creates a fresh
+free-boundary request from the equation's target nodes and entropy-closed
+states, runs a fresh live field solve, and independently audits that field.
+The focused regression passes (including an explicit tampered-state rejection)
+and retains the exact request/result identity.  The complete repository suite
+also passes (``1326 passed, 18 warnings in 16m51s``), along with Ruff, scope
+markers, Markdown, Pyright, public-contract assets, compilation, whitespace,
+lane partitioning, and the escalated isolated wheel/install smoke.  The operator remains
+research-only: ``canonical_free_boundary_verified=false``,
+``global_coupling_verified=false``, ``chain_promotion_blocked=true``, and
+``production_claim_allowed=false``.
+
+This closes the previously missing equation-to-live-downstream consumer
+boundary only.  It does not close the upstream characteristic equation, the
+global moving/free-boundary fixed point, component-wise admission across its
+own disjoint resolution matrix, accepted physical shock-cell lengths,
+provider-bound VIS/SIG/RAY/FPA comparisons, missing validation archives, or
+the exact release freeze.  The next physics slice remains the solver-owned
+canonical upstream characteristic/free-boundary equation and its fresh
+global residual admission.
+
+### P3.39 conservative-to-characteristic boundary-frame bridge checkpoint — 2026-09-12 (working tree)
+
+The new model seam
+``op.moc.reflected-domain.global-mixed-regime-upstream-characteristic-frame-v1``
+consumes only an independently verified P3.33 upstream state-equation result.
+It reconstructs density, velocity, pressure, temperature, sound speed, Mach,
+flow angle, total pressure/temperature, entropy proxy, and four-component
+conservative round-trip residuals from the exact retained target frame.  The
+conversion is solver-owned and typed; it never projects the state to pressure
+only and never casts a subsonic state into ``CharacteristicState``.
+
+The current mixed-regime trace is explicitly subsonic/sonic at all retained
+samples in the focused regression, so
+``characteristic_state_profile_available=false`` and
+``characteristic_equation_ready=false``.  This is a required lane boundary,
+not a failure to hide: the future canonical solver needs an explicit
+transonic/mixed-regime interface law before its supersonic characteristic
+equation can consume the trace.  An independent replay audit reproduces the
+frame and the regime classification.
+
+Focused evidence: the new subsonic-lane regression passes (``1 passed, 242
+deselected`` in ``2.59s``), and Ruff plus bytecode compilation pass for the
+new model, public exports, and regression.  The bridge remains research-only:
+``upstream_characteristic_equation_consumed=false``,
+``free_boundary_equation_consumed=false``,
+``global_coupling_verified=false``, ``chain_promotion_blocked=true``, and
+``production_claim_allowed=false``.
+
+This closes the dimensional boundary-frame seam only.  It does not close the
+solver-owned upstream characteristic/free-boundary equation, the moving
+global fixed point, component-wise residual admission, physical shock-cell
+length acceptance, provider-bound Visualization/Signature/RAY/FPA evidence,
+missing validation archives, or release freeze.  The next physics slice is
+the explicit transonic interface plus characteristic/free-boundary equation
+that consumes this frame without promoting subsonic data into a supersonic
+MOC state.
+
+### P3.40 explicit transonic interface admission checkpoint — 2026-09-12 (working tree)
+
+The new model seam
+``op.moc.reflected-domain.global-mixed-regime-transonic-interface-v1``
+consumes the exact P3.39 primitive/conservative boundary frame and a
+solver-supplied interface normal at every retained point.  It supports a
+stationary or moving normal control and retains moving-control-volume mass,
+normal-momentum, tangential-momentum, total-energy, and entropy-proxy flux
+channels.  Adjacent samples retain separate frame-alignment and component
+residuals; these are along-interface admission diagnostics, not a claim of
+Rankine-Hugoniot or free-boundary closure.
+
+The regime gate is explicit: a ``CharacteristicState`` is accepted only when
+the exact frame sample is genuinely supersonic beyond the declared sonic
+tolerance, and its coordinates/Mach/flow angle must match the frame.  The
+current retained trace remains subsonic/sonic, so the interface admits it as
+primitive data, reports zero supersonic characteristic samples, and can
+optionally stop with ``CHARACTERISTIC_DATA_REQUIRED`` when a downstream
+equation requests an incoming characteristic.  A tampered subsonic sample
+with an injected Mach-2 characteristic is rejected as a typed regime failure.
+
+The focused regression passes (``2 passed, 242 deselected``), including an
+independent replay audit, the strict characteristic-data stop, and the
+coercion rejection.  Ruff, Pyright, compilation, scope markers,
+public-contract assets, and whitespace checks are clean.  The seam remains
+research-only with
+``upstream_characteristic_equation_consumed=false``,
+``free_boundary_equation_consumed=false``,
+``global_coupling_verified=false``, ``chain_promotion_blocked=true``, and
+``production_claim_allowed=false``.
+
+This closes the typed transonic interface-admission boundary only.  It does
+not close the canonical upstream characteristic/free-boundary equation,
+component-wise global fixed-point admission, physical shock-cell lengths,
+provider-bound Visualization/Signature/RAY/FPA comparisons, missing
+validation archives, or release freeze.  The next physics slice is to consume
+the admitted supersonic subset and the primitive subsonic condition in an
+explicit upstream equation, with a typed missing-characteristic/normal-closure
+stop for the current all-subsonic trace.
+
+### P3.41 upstream characteristic-equation handoff gate checkpoint — 2026-09-12 (working tree)
+
+The new model seam
+``op.moc.reflected-domain.global-mixed-regime-upstream-characteristic-equation-v1``
+consumes the audited P3.40 interface result and its independent replay.  It
+retains the exact subsonic/sonic sample indices and the exact genuinely
+supersonic characteristic subset as separate inputs, classifies each supplied
+characteristic against a declared incoming family and interface-normal
+orientation, and never promotes the primitive subsonic samples into a
+characteristic boundary.
+
+The current case returns the typed
+``MISSING_INCOMING_CHARACTERISTIC`` stop because every retained interface
+sample is subsonic or sonic.  The result still records that the primitive
+subsonic boundary condition was consumed, that zero incoming characteristics
+were available, and that normal/free-boundary closure was not consumed.  A
+relaxed local-handoff mode is available for contract testing, but it retains
+``equation_ready=false`` and all canonical/global/production flags closed.
+
+Focused evidence: the frame/interface/equation boundary regression passes
+(``3 passed, 242 deselected``), including independent replay, the explicit
+missing-characteristic stop, the relaxed research-only handoff, and the
+subsonic characteristic-coercion rejection.  Ruff, Pyright, compilation,
+scope markers, public-contract assets, and whitespace checks are clean.
+The complete reflected-domain model suite also passes (``245 passed in
+448.64s``), so the new public seams did not regress the existing MOC/global
+lanes.
+
+This closes the equation-admission accounting boundary only.  It does not
+implement the canonical upstream characteristic/free-boundary solve, normal
+closure, global fixed point, physical shock-cell lengths, provider-bound
+Visualization/Signature/RAY/FPA comparisons, missing validation archives, or
+release freeze.  The next physics slice is the actual solver-owned equation
+consumer for a frame containing an admissible supersonic subset, with the
+current all-subsonic case retained as a hard typed stop.
+
+### P3.42 bounded incoming-family compatibility checkpoint — 2026-09-12 (working tree)
+
+The new research seam
+``op.moc.reflected-domain.global-mixed-regime-upstream-characteristic-compatibility-v1``
+consumes the P3.41 handoff without changing its regime partition.  It selects
+only the declared incoming characteristic family, requires the retained
+incoming indices to form one contiguous supersonic span, and evaluates the
+existing solver-owned characteristic invariants and directions.  Each adjacent
+segment records a relative invariant residual, characteristic-geometry
+residual, forward-direction margin, and physical path length.  The operator
+does not interpolate across a subsonic/missing sample, invent the second
+family, or solve the normal/free-boundary/global closure.
+
+The real retained trace still returns the typed
+``CHARACTERISTIC_DATA_REQUIRED`` result with zero compatibility consumption;
+primitive subsonic data are not coerced into characteristics.  A synthetic
+mixed-regime fixture with an explicit supersonic subset consumes the contiguous
+incoming span and independently replays the exact samples, segments, and gate
+status.  Both outcomes retain
+``normal_closure_required=true``,
+``upstream_characteristic_equation_consumed=false``,
+``free_boundary_equation_consumed=false``,
+``global_coupling_verified=false``, ``chain_promotion_blocked=true``, and
+``production_claim_allowed=false``.
+
+Focused evidence: the updated frame/interface/equation/compatibility
+regression passes (``1 passed, 244 deselected``), including the deliberate
+non-contiguous-coverage rejection.  The complete reflected-domain model suite
+also passes (``245 passed in 442.88s``).  Ruff, Pyright, bytecode compilation,
+scope markers, public-contract assets, documentation checks, and whitespace
+checks are clean.  This is bounded characteristic compatibility evidence only;
+it does not close the canonical upstream equation, normal closure, global fixed
+point, physical shock-cell acceptance, provider-bound
+Visualization/Signature/RAY/FPA comparisons, missing validation archives, or
+release freeze.  The next physics slice is P3.43: a solver-owned canonical
+consumer on disjoint admissible cases and increasing resolutions, retaining
+this compatibility seam as an explicit prerequisite.
+
+### P3.43 canonical-consumer composition gate checkpoint — 2026-09-12 (working tree)
+
+The new validation seam
+``op.moc.reflected-domain.global-mixed-regime-canonical-consumer-gate-v1``
+defines the exact inputs required before a canonical moving/global source can
+be attempted: the P3.42 incoming-family compatibility result, the exact
+conservative/entropy upstream state-equation result retained by that chain,
+and a solver-owned global-feedback result with its terminal downstream
+recheck policy explicit.  The consumer independently replays the
+characteristic compatibility and state-equation contracts, verifies the
+physical-closure fingerprint, and requires the global-feedback lineage to
+remain promotion-blocked.  It does not treat the existing research feedback
+operator's ``global_coupling_verified=false`` output as a fixed point.
+
+The real all-subsonic trace still stops earlier with
+``CHARACTERISTIC_COMPATIBILITY_REQUIRED``.  The synthetic mixed-regime
+fixture admits the incoming characteristic span, and the exact state equation
+closes its local Euler residual at the declared 400-iteration budget
+(``maximum_conservative_euler_residual ~= 4.8886e-4`` against the ``5e-4``
+tolerance).  A real solver-owned global-feedback run with terminal global ->
+downstream recheck also completes its research contract.  Composing all three
+inputs returns
+``COMPLETED_RESEARCH_CANONICAL_CONSUMPTION_WITH_OPEN_CLOSURE`` and an
+independent audit passes, while ``normal_closure_verified=false``,
+``canonical_free_boundary_verified=false``, and
+``global_coupling_verified=false`` remain explicit.
+
+The focused regression passes (``1 passed, 244 deselected in 6.29s``), and the
+post-integration reflected-domain suite passes (``245 passed in 453.38s``).
+Public validation imports, Ruff, Pyright, compilation, scope markers,
+public-contract assets, documentation checks, and whitespace checks are clean.
+This closes the research-evidence composition contract only.  It does not
+close normal/free-boundary closure, the global fixed point, disjoint
+case/resolution acceptance, physical shock-cell lengths, provider-bound
+Visualization/Signature/RAY/FPA comparisons, missing validation archives, or
+release freeze.  The next physics slice is integration of an accepted P3.43a
+normal closure into the canonical-consumer promotion boundary.
+
+### P3.43a solver-owned two-sided normal-closure checkpoint — 2026-09-12 (working tree)
+
+The new model
+``op.moc.reflected-domain.global-mixed-regime-normal-closure-v1`` keeps the
+normal closure separate from the P3.43 canonical-consumer gate.  It requires
+the exact P3.40 transonic interface and independent interface replay, the
+P3.42 admitted incoming-family compatibility and independent replay, and an
+explicit ambient primitive state at every exact interface point.  Each ambient
+state carries density, velocity, pressure, temperature, gamma, and a specific
+gas constant; the solver checks gas-law consistency and exact gamma/gas-
+constant lineage before measuring moving-control-volume mass, normal and
+tangential momentum, total-energy, and entropy-proxy fluxes.
+
+The result also records an oriented entropy inequality (ambient-side entropy
+relative to the declared interface orientation).  A successful result is
+``CONVERGED_LOCAL_RESEARCH_NORMAL_CLOSURE`` with
+``normal_closure_verified=true``, but it remains explicitly
+``canonical_free_boundary_verified=false``, ``global_coupling_verified=false``,
+promotion-blocked, and production-ineligible.  Missing characteristic
+compatibility, missing ambient state, invalid gas-law lineage, and open
+component/entropy residuals each remain typed outcomes; pressure-only input is
+never promoted to a conservative closure.
+
+The integrated reflected-domain regression covers all-subsonic rejection,
+mixed-regime missing-ambient rejection, an explicit same-state local closure
+with independent replay, and a pressure-mismatched open residual.  The focused
+test passes (``1 passed, 244 deselected in 6.36s``); Ruff, Pyright, compile,
+and the public model import are clean.  This checkpoint is local research
+evidence only and is not external validation, a global fixed point, a shock
+cell fit, or a release gate.  The disjoint P3.43b coverage runner and the
+P3.43c normal-closure handoff are now implemented; the next physics slice is
+fresh cross-case execution with an accepted normal closure at every declared
+resolution.
+
+### P3.43b canonical-consumer case/resolution coverage checkpoint — 2026-09-12 (working tree)
+
+The new validation runner
+``op.moc.reflected-domain.global-mixed-regime-canonical-consumer-refinement-v1``
+executes the exact P3.43 consumer and independent audit for every declared
+case/resolution pair.  It binds the declared ``(axial, transverse)`` pair to
+the solver-owned feedback configuration, retains the exact source-closure
+fingerprint, and checks that every result and audit remains promotion-blocked.
+It reports a local ladder only when one source case has at least two strictly
+increasing resolutions; it reports cross-case coverage only when multiple
+case ids also carry distinct closure fingerprints.  A changed case label or a
+relabelled resolution cannot create evidence.
+
+The focused regression intentionally supplies the same ``(8,4)`` feedback
+evidence once as ``(8,4)`` and once as ``(12,6)``.  The runner returns
+``COMPLETED_RESEARCH_COVERAGE_WITH_OPEN_GATE`` with the resolution ladder
+visible but ``feedback_resolutions_verified=false`` and both local and
+cross-case coverage false.  This is the desired fail-closed behavior.  The
+focused reflected-domain test passes (``1 passed, 244 deselected in 6.57s``),
+and the new module's Ruff, Pyright, and public validation import checks are
+clean.  A true cross-case result still requires fresh solver runs at each
+resolution and at least two physically distinct source closures; normal
+closure, global coupling, external validation, and release promotion remain
+open.
+
+### P3.43c canonical-consumer normal-closure handoff checkpoint — 2026-09-12 (working tree)
+
+The canonical-consumer request can now carry a typed P3.43a normal-closure
+result and its independent audit, with ``require_normal_closure=true`` making
+the handoff mandatory.  The consumer checks that the local normal closure
+retains the exact incoming-family compatibility chain, that the supplied audit
+belongs to that exact result, and that the normal-closure replay passes before
+it returns ``COMPLETED_RESEARCH_CANONICAL_CONSUMPTION_WITH_OPEN_GLOBAL_CLOSURE``.
+Without that explicit option, the existing P3.43 open-closure result remains
+unchanged; an incomplete or unaudited normal closure is a typed stop.
+
+The integrated regression now proves both paths: the earlier P3.43 result
+remains open normal closure, while the same mixed fixture with an independently
+audited local normal closure reports ``normal_closure_verified=true`` but keeps
+``canonical_free_boundary_verified=false``, ``global_coupling_verified=false``,
+promotion blocked, and production ineligible.  The focused test passes
+(``1 passed, 244 deselected in 6.69s``), and Ruff, Pyright, compilation, and
+public imports are clean.  The post-integration reflected-domain suite passes
+(``245 passed in 452.68s``), and the lane manifest regression passes
+(``3 passed``).  This does not establish a global fixed point or cross-case
+acceptance; the next slice is fresh cross-case execution over distinct
+closures and declared resolutions.
+
+### P3.43d fresh physical-source regime coverage checkpoint — 2026-09-12 (working tree)
+
+The next execution slice was checked against the real solver-owned source
+rather than the synthetic mixed-regime fixture.  The physical closure was
+freshly sampled with distinct compression-envelope skews, multiple reference
+total temperatures, and both coarse/fine downstream resolutions.  Every
+retained coupled boundary trace stayed subsonic/sonic; the largest observed
+Mach number was approximately ``0.68023``, with zero genuinely supersonic
+samples in every case.  The result is therefore not a compatibility pass: it
+is the expected typed ``CHARACTERISTIC_DATA_REQUIRED`` /
+``MISSING_INCOMING_CHARACTERISTIC`` boundary, with the primitive frame and
+moving-interface channels retained but no fabricated ``CharacteristicState``
+admitted.
+
+This confirms that the coupled downstream trace cannot yet exercise the P3.42
+incoming-family or P3.43a normal-closure contracts; it does not imply that the
+entire verified global physical closure is subsonic.  The next implementation
+slice must use the separate solver-owned global Euler shock frontier, while
+keeping the downstream trace as an explicit subsonic stop.  It must not weaken
+the sonic tolerance, relabel the all-subsonic trace, reuse the synthetic
+fixture as validation, or promote pressure-only/global-feedback evidence.
+P3.43d remains source-regime evidence only; the newly found shock-frontier
+research seam is recorded below and all canonical, shock-cell, Signature, FPA,
+provider-validation, and release gates remain closed.
+
+The reproducibility record for this checkpoint is: closure variants
+``(-0.75, 0.0)``, ``(0.75, 0.0)``, and ``(-0.25, 0.25)`` at nine source
+samples; ``(-0.75, 0.0)`` at thirteen source samples; and reference total
+temperatures ``300``, ``600``, ``900``, ``1200``, and ``1500 K``, all evaluated
+with the same explicit downstream resolution controls and the ``(8,4)`` /
+``(12,6)`` ladder.  The expected next report should retain case ids, source
+fingerprints, resolution bindings, maximum Mach, supersonic sample count, and
+the typed stop for every case.
+
+### P3.43e solver-owned global shock-frontier handoff checkpoint — 2026-09-12 (working tree)
+
+The physical source was traced one seam upstream of the subsonic coupled
+downstream top row.  The verified global Euler closure retains an exact shock
+curve with aligned upstream states and total pressures at Mach approximately
+`1.49–1.58`.  A new public builder,
+`build_reflected_domain_global_mixed_regime_upstream_state_equation_request_from_global_shock_frontier`,
+dimensionizes that exact frontier with explicit total temperature and gas
+constant, excludes the attachment singularity by default, and enters the
+conservative/entropy interface-strip equation without inventing a state.
+
+The exercised nine-sample case retains eight supersonic samples.  Its moving
+interface is independently replayed; the `C−` incoming-family span passes
+compatibility with explicit research tolerances (maximum invariant residual
+approximately `3.96e-4`, maximum geometry residual approximately `8.56e-3`);
+the downstream shock state then closes the local two-sided normal flux and
+entropy channels with maximum component residual approximately `3.59e-6`.
+An all-supersonic frontier now correctly reports an admitted interface handoff
+without requiring a nonexistent subsonic boundary condition.  An offset that
+falls outside the retained physical field returns a typed `STATE_FAILURE`
+rather than raising while constructing the failure result.
+
+This is a meaningful physical research handoff, not canonical closure: the
+state equation, characteristic equation, compatibility, and normal closure
+remain promotion-blocked; `canonical_free_boundary_verified`,
+`global_coupling_verified`, and `production_claim_allowed` remain false.  The
+next slice is fresh disjoint source/resolution coverage of this shock-frontier
+path, followed by a solver-owned global fixed-point consumer that closes both
+the frontier and downstream response in one solve.  The subsonic coupled
+downstream seam must remain a separate typed stop.
+
+### P3.43f physical shock-frontier source/resolution coverage checkpoint — 2026-09-12 (working tree)
+
+The new validation runner
+`op.moc.reflected-domain.global-mixed-regime-shock-frontier-refinement-v1`
+executes the exact P3.43e chain for every declared physical closure.  Frontier
+resolution is derived from the retained Euler shock-curve sample count rather
+than accepted as a free label, and every step retains the closure fingerprint,
+explicit thermodynamic controls, incoming-family choice, compatibility
+tolerances, normal-closure tolerance, and independent replay audits.  A
+successful coverage result requires a strictly increasing frontier-resolution
+ladder within each case id and distinct solver-produced closure fingerprints
+across case ids; a relabelled or repeated request cannot manufacture
+refinement.
+
+The focused regression runs two source skews at nine and eleven frontier
+samples, passes with
+`CONVERGED_CROSS_CASE_RESEARCH_COVERAGE`, and retains four distinct closure
+fingerprints.  The baseline skew closes the local normal channel at
+`1e-5` component tolerance; the second skew requires its explicitly
+declared `1e-4` research tolerance and reports its residuals rather than
+silently inheriting the baseline.  Each case remains all-supersonic after the
+attachment sample, consumes the `C−` incoming family, and independently
+replays the state equation, primitive frame, transonic interface,
+characteristic handoff, compatibility, and normal closure.
+
+This closes only disjoint local research coverage for the physical
+shock-frontier seam.  It does not close the all-subsonic downstream response,
+the canonical global fixed point, physical shock-cell length acceptance,
+provider-bound Visualization/Signature/RAY/FPA comparisons, validation
+archives, or release promotion.  The next physics slice is a solver-owned
+global fixed-point consumer that couples the retained shock frontier and the
+downstream response while preserving the typed all-subsonic downstream stop.
+
+### P3.43g shock-frontier/global-feedback composition checkpoint — 2026-09-12 (working tree)
+
+The new validation operator
+`op.moc.reflected-domain.global-mixed-regime-global-fixed-point-consumer-v1`
+binds one locally verified P3.43e/f shock-frontier step to the existing
+solver-owned terminal global re-solve and downstream-response recheck.  It
+requires exact source-closure identity and fingerprint lineage, the
+promotion-blocked feedback flags, a verified terminal global re-solve, and a
+verified downstream recheck.  It then invokes and independently audits the
+canonical research-consumer boundary with the exact incoming-family,
+conservative/entropy, and two-sided normal-closure objects from the frontier
+step.
+
+The focused regression passes.  The result reports
+`COMPLETED_RESEARCH_CONSUMPTION_WITH_OPEN_GLOBAL_CLOSURE`, with both frontier
+and terminal feedback evidence consumed and replayed, while
+`global_coupling_verified=false`, `canonical_free_boundary_verified=false`,
+`chain_promotion_blocked=true`, and `production_claim_allowed=false` remain
+explicit.  This is a composition and lineage gate, not evidence that the
+shock frontier has been solved as the downstream free boundary; the next
+required physics slice is the actual solver-owned joint fixed-point solve,
+followed by physical shock-cell acceptance.
+
+### P3.43h per-closure joint fixed-point refinement checkpoint — 2026-09-12 (working tree)
+
+The new validation operator
+`op.moc.reflected-domain.global-mixed-regime-joint-fixed-point-refinement-v1`
+requires one locally verified physical shock-frontier step for the source
+closure and for every fresh `next_closure` retained by the outer global
+feedback run.  It verifies exact object identity, source fingerprints,
+fidelity isolation, terminal global fixed-point/downstream-recheck flags, and
+an independent replay of the source composition.  A missing or extra frontier
+step is a typed count failure; an unaligned closure is a typed lineage
+failure.  The result remains explicitly research-only and promotion-blocked.
+
+The focused regression now passes three tests, including the new two-closure
+joint replay and its short-chain failure path.  This closes the bookkeeping
+gap around fresh feedback states, but it still does not implement a solver
+owned joint canonical fixed point, accepted physical shock-cell lengths,
+provider-bound Visualization/Signature/RAY/FPA comparisons, validation-data
+ingestion, or release promotion.  The next required physics slice is to make
+the global solve itself consume and update the shock-frontier state at every
+closure, then prove convergence on disjoint cases before any product lane is
+promoted.
+
+### P3.43i joint state/frontier solve checkpoint — 2026-09-12 (working tree)
+
+The new operator
+`op.moc.reflected-domain.global-mixed-regime-joint-state-frontier-solve-v1`
+binds the physical frontier to the existing solver-owned global boundary-state
+joint solve.  It derives the fresh global shock resolution from the exact
+frontier step, forces explicit target-geometry consumption, and requires the
+resulting geometry-response closure to pass a new physical frontier step with
+the same source lineage and independently audited local gates.
+
+The focused regression passes.  This is stronger than a post-hoc report-only
+composition, but it remains a research seam: the mixed-regime characteristic
+and normal equations are not yet residuals inside the global Euler solve, so
+`global_coupling_verified=false`, `canonical_free_boundary_verified=false`,
+and production promotion remain closed.  The next gate is an actual residual
+exchange between the frontier normal closure and the global free-boundary
+update, followed by disjoint joint-state/frontier refinement and physical
+shock-cell length acceptance.
+
+### P3.43j bounded joint state/frontier feedback checkpoint — 2026-09-12 (working tree)
+
+The new operator
+`op.moc.reflected-domain.global-mixed-regime-joint-state-frontier-feedback-v1`
+rebuilds the solver-owned boundary-state handoff from each fresh output
+closure.  Every iteration consumes a new physical frontier step, feeds its
+exact shock resolution into the global state/frontier joint solve, and retains
+the next closure, geometry delta, pressure-log delta, joint residual, and
+lineage flags.  The independent replay reproduces the two-step chain.
+
+The two-step regression completes both research iterations and passes the
+per-step frontier/joint audits, but correctly reports
+`COMPLETED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK_WITH_OPEN_CONVERGENCE`:
+cross-iteration residual descent and fixed-point tolerances are not yet met.
+This is the first explicit multi-closure fail-closed result for the integrated
+frontier path.  The next physics slice is to exchange the frontier normal
+closure residuals into the global free-boundary update and require disjoint
+case/resolution convergence before shock-cell fitting or product promotion.
+
+### P3.43k residual-exchange implementation gate — 2026-09-12 (research implementation)
+
+The current P3.43i/j operators prove exact frontier resolution consumption,
+fresh closure lineage, and independent local frontier replay.  P3.43k now
+adds the typed, solver-owned exchange packet and passes it into a bounded
+geometry-conditioned exact-Euler global update.  The packet carries, for
+every exact frontier sample, the point identity, signed physical flux
+channels, component tolerances, units, source closure fingerprint, and
+independent normal-closure audit identity.  The first focused case reaches
+the global update and fresh frontier response, but the response is retained
+as a rejected research trial because component-wise non-worsening and strict
+descent are not both satisfied.  A four-case refinement runner now repeats
+that evidence across two distinct source closures and increasing `(9 -> 11)`
+exact shock-frontier resolutions; it verifies lineage and replay while
+keeping the residual-admission gate open.
+
+The global/free-boundary update must consume that packet in its state or
+geometry equation and return the consumed residual channels in its fresh
+response.  The current operator does this through a bounded shock-normal
+geometry trial and records update consumption separately from candidate
+admission.  A post-hoc comparison, a scalar resolution selector, or a copied
+pressure target does not satisfy the full gate.  The acceptance ladder is:
+
+1. source and refreshed frontier packets have exact sample/closure lineage;
+2. the global update explicitly records the packet as consumed and returns a
+   dimensionally aligned residual response;
+3. independent replay reproduces the packet, update, response, and claim
+   ceiling;
+4. component-wise residuals are non-worsening (with declared strict descent
+   where required) across disjoint source closures and increasing resolutions;
+5. only then may the canonical free-boundary and physical shock-cell gates be
+   attempted.
+
+Until this gate closes, `global_coupling_verified`, canonical free-boundary
+closure, physical shock-cell length acceptance, Signature promotion, FPA
+promotion, and release readiness remain false.  The full current hygiene
+checks are green (Pyright: 0 errors; compileall, Ruff, and diff checks pass),
+but the lane-release validator still reports `release_ready=false` because
+the candidate is dirty/stale and provider-bound validation, raw validation
+archives, reduced-order/planar physical gates, and canonical closure remain
+open.

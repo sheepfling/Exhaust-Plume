@@ -80,6 +80,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStatus(
   )
   METRIC_FAILURE = 'global-mixed-regime-state-consumer-metric-failure'
   FIDELITY_FAILURE = 'global-mixed-regime-state-consumer-fidelity-failure'
+####
 
 
 def _validate_resolution(resolution: tuple[int, int]) -> tuple[int, int]:
@@ -88,12 +89,15 @@ def _validate_resolution(resolution: tuple[int, int]) -> tuple[int, int]:
     isinstance(item, bool) or not isinstance(item, int) for item in value
   ):
     raise ValueError('resolution must contain two integer counts')
+  ####
   if value[0] < 4 or value[1] < 3:
     raise ValueError(
       'axial resolution must be at least four and transverse resolution '
       'must be at least three'
     )
+  ####
   return value
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +114,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementCase:
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be non-empty')
+    ####
     if not isinstance(
       self.closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
@@ -117,26 +122,33 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementCase:
       raise TypeError(
         'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
       )
+    ####
     try:
       resolutions = tuple(_validate_resolution(tuple(value)) for value in self.resolutions)
     except TypeError as error:
       raise ValueError(
         'resolutions must contain (axial, transverse) integer pairs'
       ) from error
+    ####
     if not resolutions:
       raise ValueError('resolutions must not be empty')
+    ####
     temperature = float(self.reference_total_temperature_K)
     if not isfinite(temperature) or temperature <= 0.0:
       raise ValueError('reference_total_temperature_K must be finite and positive')
+    ####
     ambient = self.ambient_pressure_Pa
     if ambient is not None:
       ambient = float(ambient)
       if not isfinite(ambient) or ambient <= 0.0:
         raise ValueError('ambient_pressure_Pa must be finite and positive')
+      ####
+    ####
     object.__setattr__(self, 'case_id', case_id)
     object.__setattr__(self, 'resolutions', resolutions)
     object.__setattr__(self, 'reference_total_temperature_K', temperature)
     object.__setattr__(self, 'ambient_pressure_Pa', ambient)
+  ####
 
   @property
   def closure_fingerprint(self) -> str:
@@ -145,6 +157,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementCase:
     return moc_reflected_domain_global_physical_closure_fingerprint(
       self.closure
     )
+  ####
 
   @property
   def resolution_ladder_verified(self) -> bool:
@@ -157,6 +170,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementCase:
         for left, right in zip(self.resolutions, self.resolutions[1:])
       )
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -170,6 +184,8 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementCase:
       'closure_converged': self.closure.converged,
       'physical_closure_verified': self.closure.physical_closure_verified,
     }
+  ####
+####
 
 
 def _source_sample_count(
@@ -180,7 +196,9 @@ def _source_sample_count(
   field = None if physical_field is None else physical_field.field
   if field is None:
     return None
+  ####
   return len(field.ambient_boundary.points_m)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +216,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be non-empty')
+    ####
     resolution = _validate_resolution(tuple(self.resolution))
     if not isinstance(
       self.closure,
@@ -206,6 +225,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
       raise TypeError(
         'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
       )
+    ####
     if not isinstance(
       self.downstream,
       MocReflectedDomainGlobalCoupledDownstreamResult,
@@ -213,6 +233,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
       raise TypeError(
         'downstream must be a MocReflectedDomainGlobalCoupledDownstreamResult'
       )
+    ####
     if not isinstance(
       self.consumer,
       MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
@@ -221,6 +242,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
         'consumer must be a '
         'MocReflectedDomainGlobalMixedRegimeStateConsumerResult'
       )
+    ####
     if not isinstance(
       self.resolved,
       MocReflectedDomainGlobalMixedRegimeStateResolveResult,
@@ -229,14 +251,19 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
         'resolved must be a '
         'MocReflectedDomainGlobalMixedRegimeStateResolveResult'
       )
+    ####
     if self.downstream.closure is not self.closure:
       raise ValueError('downstream must retain the exact source closure')
+    ####
     if self.consumer.closure is not self.closure:
       raise ValueError('consumer must retain the exact source closure')
+    ####
     if self.consumer.downstream is not self.downstream:
       raise ValueError('consumer must retain the exact downstream result')
+    ####
     if self.resolved.consumer is not self.consumer:
       raise ValueError('resolved result must retain the exact consumer result')
+    ####
     if self.downstream.coupled_request is not None:
       request = self.downstream.coupled_request
       if (
@@ -246,6 +273,8 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
         raise ValueError(
           'downstream coupled request must retain the declared resolution'
         )
+      ####
+    ####
     if self.resolved.request is not None:
       request = self.resolved.request
       if (
@@ -255,18 +284,23 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
         raise ValueError(
           'resolved coupled request must retain the declared resolution'
         )
+      ####
+    ####
     object.__setattr__(self, 'case_id', case_id)
     object.__setattr__(self, 'resolution', resolution)
+  ####
 
   @property
   def source_closure_fingerprint(self) -> str:
     return moc_reflected_domain_global_physical_closure_fingerprint(
       self.closure
     )
+  ####
 
   @property
   def source_sample_count(self) -> int | None:
     return _source_sample_count(self.closure)
+  ####
 
   @property
   def fresh_downstream_verified(self) -> bool:
@@ -277,6 +311,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
       and trace is not None
       and trace.local_trace_verified
     )
+  ####
 
   @property
   def consumer_lineage_verified(self) -> bool:
@@ -287,24 +322,30 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
       == self.source_closure_fingerprint
       and self.consumer.downstream is self.downstream
     )
+  ####
 
   @property
   def state_resolve_verified(self) -> bool:
     return bool(self.resolved.fresh_local_research_state_resolve_verified)
+  ####
 
   @property
   def maximum_conservative_euler_residual(self) -> float | None:
     field = self.resolved.field
     if field is None or field.maximum_conservative_euler_residual is None:
       return None
+    ####
     return float(field.maximum_conservative_euler_residual)
+  ####
 
   @property
   def maximum_free_boundary_pressure_residual_Pa(self) -> float | None:
     field = self.resolved.field
     if field is None:
       return None
+    ####
     return float(field.maximum_free_boundary_pressure_residual_Pa)
+  ####
 
   @property
   def fidelity_isolation_verified(self) -> bool:
@@ -322,6 +363,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
       and not self.resolved.canonical_free_boundary_verified
       and not self.resolved.global_coupling_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -346,6 +388,8 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep:
       'consumer': self.consumer.as_report(),
       'resolved': self.resolved.as_report(),
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -394,6 +438,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement:
       MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStatus,
     ):
       raise TypeError('status must be a typed state-consumer refinement status')
+    ####
     steps = tuple(self.steps)
     if any(
       not isinstance(
@@ -403,6 +448,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement:
       for step in steps
     ):
       raise TypeError('steps must contain typed state-consumer refinement steps')
+    ####
     fields = {
       'case_ids': tuple(str(value) for value in self.case_ids),
       'resolutions': tuple(tuple(value) for value in self.resolutions),
@@ -422,6 +468,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement:
     }
     if any(len(value) != len(steps) for value in fields.values()):
       raise ValueError('refinement summaries must match the step count')
+    ####
     if any(
       value is not None
       and (
@@ -432,6 +479,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement:
       for value in fields['source_sample_counts']
     ):
       raise ValueError('source_sample_counts must contain nonnegative integers or None')
+    ####
     for name in (
       'maximum_conservative_euler_residuals',
       'maximum_free_boundary_pressure_residuals_Pa',
@@ -442,6 +490,8 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement:
         for value in fields[name]
       ):
         raise ValueError(f'{name} must contain finite nonnegative values or None')
+      ####
+    ####
     for name in (
       'case_ids_verified',
       'source_closure_bindings_verified',
@@ -463,15 +513,21 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('state-consumer coverage cannot claim global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('state-consumer coverage must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'steps', steps)
     for name, value in fields.items():
       object.__setattr__(self, name, value)
+    ####
     object.__setattr__(self, 'operator_id', str(self.operator_id))
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -485,6 +541,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement:
       )
       and self.local_coverage_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -535,6 +592,8 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement:
         'canonical global closure, or production validity'
       ),
     }
+  ####
+####
 
 
 def _group_indices(
@@ -543,7 +602,9 @@ def _group_indices(
   grouped: dict[str, list[int]] = {}
   for index, step in enumerate(steps):
     grouped.setdefault(step.case_id, []).append(index)
+  ####
   return grouped
+####
 
 
 def _summary_values(
@@ -566,6 +627,7 @@ def _summary_values(
       step.maximum_free_boundary_pressure_residual_Pa for step in steps
     ),
   }
+####
 
 
 def _measurement_failure(
@@ -583,6 +645,7 @@ def _measurement_failure(
     **flags,
     message=message,
   )
+####
 
 
 def measure_reflected_domain_global_mixed_regime_state_consumer_refinement(
@@ -606,12 +669,14 @@ def measure_reflected_domain_global_mixed_regime_state_consumer_refinement(
       .INVALID_INPUT,
       'steps must be iterable',
     )
+  ####
   if len(retained_steps) < 2:
     return _measurement_failure(
       MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStatus
       .INVALID_INPUT,
       'state-consumer refinement requires at least two steps',
     )
+  ####
   if any(
     not isinstance(
       step,
@@ -624,6 +689,7 @@ def measure_reflected_domain_global_mixed_regime_state_consumer_refinement(
       .INVALID_INPUT,
       'steps must contain typed state-consumer refinement steps',
     )
+  ####
   grouped = _group_indices(retained_steps)
   actual_case_ids = tuple(grouped)
   expected = (
@@ -768,6 +834,7 @@ def measure_reflected_domain_global_mixed_regime_state_consumer_refinement(
       'resolutions; no monotonic residual convergence or canonical promotion '
       'is inferred'
     )
+  ####
   return _measurement_failure(
     status,
     message,
@@ -785,6 +852,7 @@ def measure_reflected_domain_global_mixed_regime_state_consumer_refinement(
     cross_case_coverage_verified=cross_case_coverage_verified,
     fidelity_isolation_verified=fidelity_isolation_verified,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -817,6 +885,7 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementRun:
       for case in cases
     ):
       raise TypeError('cases must contain typed state-consumer refinement cases')
+    ####
     if any(
       not isinstance(
         step,
@@ -825,16 +894,20 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementRun:
       for step in steps
     ):
       raise TypeError('steps must contain typed state-consumer refinement steps')
+    ####
     expected_count = sum(len(case.resolutions) for case in cases)
     if len(steps) != expected_count:
       raise ValueError('steps must cover every requested case resolution')
+    ####
     if not isinstance(
       self.measurement,
       MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementMeasurement,
     ):
       raise TypeError('measurement must be a typed state-consumer measurement')
+    ####
     if tuple(self.measurement.steps) != steps:
       raise ValueError('measurement must retain the exact run steps')
+    ####
     configuration = tuple(self.configuration)
     if any(
       not isinstance(item, tuple)
@@ -843,18 +916,23 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementRun:
       for item in configuration
     ):
       raise ValueError('configuration must contain (name, value) pairs')
+    ####
     fingerprint = str(self.configuration_fingerprint)
     if len(fingerprint) != 64:
       raise ValueError('configuration_fingerprint must be a SHA-256 digest')
+    ####
     if not isinstance(self.fresh_solver_invocation_verified, bool):
       raise TypeError('fresh_solver_invocation_verified must be a bool')
+    ####
     if not isinstance(self.fidelity_isolation_verified, bool):
       raise TypeError('fidelity_isolation_verified must be a bool')
+    ####
     object.__setattr__(self, 'cases', cases)
     object.__setattr__(self, 'steps', steps)
     object.__setattr__(self, 'configuration', configuration)
     object.__setattr__(self, 'configuration_fingerprint', fingerprint)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -863,10 +941,12 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementRun:
       and self.fresh_solver_invocation_verified
       and self.fidelity_isolation_verified
     )
+  ####
 
   @property
   def production_claim_allowed(self) -> bool:
     return False
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -889,6 +969,8 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementRun:
       'claim_status': 'research-only state-consumer coverage',
       'message': self.message,
     }
+  ####
+####
 
 
 def _configuration(
@@ -914,6 +996,7 @@ def _configuration(
     ).encode('utf-8')
   ).hexdigest()
   return configuration, fingerprint
+####
 
 
 def run_reflected_domain_global_mixed_regime_state_consumer_refinement(
@@ -926,8 +1009,10 @@ def run_reflected_domain_global_mixed_regime_state_consumer_refinement(
     retained_cases = tuple(cases)
   except TypeError as error:
     raise ValueError('cases must be an iterable of typed refinement cases') from error
+  ####
   if len(retained_cases) < 1:
     raise ValueError('state-consumer refinement requires at least one case')
+  ####
   if any(
     not isinstance(
       case,
@@ -936,9 +1021,11 @@ def run_reflected_domain_global_mixed_regime_state_consumer_refinement(
     for case in retained_cases
   ):
     raise TypeError('cases must contain typed state-consumer refinement cases')
+  ####
   case_ids = tuple(case.case_id for case in retained_cases)
   if len(set(case_ids)) != len(case_ids):
     raise ValueError('state-consumer refinement case IDs must be unique')
+  ####
   forbidden = {
     'closure',
     'axial_cell_count',
@@ -951,6 +1038,7 @@ def run_reflected_domain_global_mixed_regime_state_consumer_refinement(
       'runner_options cannot override closure, resolution, or source '
       'thermodynamic inputs owned by a case'
     )
+  ####
   steps: list[
     MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStep
   ] = []
@@ -981,6 +1069,8 @@ def run_reflected_domain_global_mixed_regime_state_consumer_refinement(
           resolved=resolved,
         )
       )
+    ####
+  ####
   retained_steps = tuple(steps)
   measurement = (
     measure_reflected_domain_global_mixed_regime_state_consumer_refinement(
@@ -1014,3 +1104,4 @@ def run_reflected_domain_global_mixed_regime_state_consumer_refinement(
       'pending'
     ),
   )
+####

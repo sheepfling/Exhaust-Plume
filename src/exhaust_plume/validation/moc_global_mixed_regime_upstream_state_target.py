@@ -53,6 +53,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus(str, Enum):
   FRAME_FAILURE = 'upstream-state-target-frame-failure'
   TARGET_STATE_FAILURE = 'upstream-state-target-target-state-failure'
   SAMPLE_FAILURE = 'upstream-state-target-global-field-sample-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,9 +77,13 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     if self.target_gamma <= 1.0:
       raise ValueError('target_gamma must be greater than one')
+    ####
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -88,6 +93,8 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest:
       'position_tolerance_m': self.position_tolerance_m,
       'residual_floor': self.residual_floor,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,8 +117,10 @@ class MocReflectedDomainGlobalMixedRegimeConservativeStateSample:
     point = tuple(float(value) for value in self.point_m)
     if len(point) != 2 or any(not isfinite(value) for value in point):
       raise ValueError('point_m must contain two finite coordinates')
+    ####
     if not isinstance(self.characteristic_state, CharacteristicState):
       raise TypeError('characteristic_state must be a CharacteristicState')
+    ####
     object.__setattr__(self, 'point_m', point)
     for name in (
       'total_pressure_Pa',
@@ -123,18 +132,25 @@ class MocReflectedDomainGlobalMixedRegimeConservativeStateSample:
       value = float(getattr(self, name))
       if not isfinite(value) or value <= 0.0:
         raise ValueError(f'{name} must be finite and positive')
+      ####
       object.__setattr__(self, name, value)
+    ####
     for name in ('velocity_u_m_s', 'velocity_v_m_s', 'mach'):
       value = float(getattr(self, name))
       if not isfinite(value) or (name == 'mach' and value <= 1.0):
         raise ValueError(f'{name} must be finite and valid')
+      ####
       object.__setattr__(self, name, value)
+    ####
     conservative = tuple(float(value) for value in self.conservative_state)
     if len(conservative) != 4 or any(not isfinite(value) for value in conservative):
       raise ValueError('conservative_state must contain four finite values')
+    ####
     if conservative[0] <= 0.0 or conservative[3] <= 0.0:
       raise ValueError('conservative_state density and energy must be positive')
+    ####
     object.__setattr__(self, 'conservative_state', conservative)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -156,6 +172,8 @@ class MocReflectedDomainGlobalMixedRegimeConservativeStateSample:
       'entropy_proxy': self.entropy_proxy,
       'conservative_state': self.conservative_state,
     }
+  ####
+####
 
 
 def _state_profile(
@@ -171,7 +189,9 @@ def _state_profile(
     for state in profile
   ):
     raise ValueError(f'{name} must contain finite four-component states')
+  ####
   return profile
+####
 
 
 def _points(
@@ -187,19 +207,24 @@ def _points(
     for point in points
   ):
     raise ValueError(f'{name} must contain finite 2-D points')
+  ####
   if any(
     second[0] <= first[0]
     for first, second in zip(points, points[1:])
   ):
     raise ValueError(f'{name} must be strictly ordered in x')
+  ####
   return points
+####
 
 
 def _entropy_profile(values: Any, name: str) -> tuple[float, ...]:
   profile = tuple(float(value) for value in values)
   if any(not isfinite(value) or value <= 0.0 for value in profile):
     raise ValueError(f'{name} must contain finite positive values')
+  ####
   return profile
+####
 
 
 def _conservative_from_characteristic(
@@ -240,6 +265,7 @@ def _conservative_from_characteristic(
     entropy_proxy=entropy_proxy,
     conservative_state=conservative,
   )
+####
 
 
 def _validate_target_state(
@@ -251,6 +277,7 @@ def _validate_target_state(
   density, momentum_x, momentum_y, total_energy = state
   if density <= 0.0 or total_energy <= 0.0:
     raise ValueError('target conservative density and energy must be positive')
+  ####
   velocity_u = momentum_x / density
   velocity_v = momentum_y / density
   static_pressure = (gamma - 1.0) * (
@@ -259,9 +286,12 @@ def _validate_target_state(
   )
   if not isfinite(static_pressure) or static_pressure <= residual_floor:
     raise ValueError('target conservative state must have positive pressure')
+  ####
   static_temperature = static_pressure / (density * gas_constant)
   if not isfinite(static_temperature) or static_temperature <= residual_floor:
     raise ValueError('target conservative state must have positive temperature')
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,16 +333,19 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus,
     ):
       raise TypeError('status must be a typed upstream state-target status')
+    ####
     if self.contract is not None and not isinstance(
       self.contract,
       MocReflectedDomainGlobalMixedRegimeStateEquationContract,
     ):
       raise TypeError('contract must be a typed state-equation contract or None')
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest,
     ):
       raise TypeError('request must be a typed state-target request or None')
+    ####
     target_profile = _state_profile(self.target_profile, 'target_profile')
     target_points = _points(self.target_points_m, 'target_points_m')
     target_entropy = _entropy_profile(
@@ -333,14 +366,19 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       for sample in sampled_states
     ):
       raise TypeError('sampled_states must contain typed state samples')
+    ####
     if len(target_profile) != len(target_points):
       raise ValueError('target profile and points must align')
+    ####
     if len(target_profile) != len(target_entropy):
       raise ValueError('target profile and entropy profile must align')
+    ####
     if len(sampled_profile) != len(sampled_states):
       raise ValueError('sampled profile and sampled states must align')
+    ####
     if len(sampled_profile) != len(sampled_entropy):
       raise ValueError('sampled profile and sampled entropy must align')
+    ####
     for name in (
       'signed_state_residuals',
       'relative_state_residuals',
@@ -354,7 +392,9 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
         for residual in residuals
       ):
         raise ValueError(f'{name} must contain finite four-component residuals')
+      ####
       object.__setattr__(self, name, residuals)
+    ####
     for name in (
       'maximum_absolute_residual_by_component',
       'maximum_relative_residual_by_component',
@@ -364,12 +404,16 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
         not isfinite(value) or value < 0.0 for value in values
       ):
         raise ValueError(f'{name} must contain zero or four finite nonnegative values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     entropy_logs = tuple(float(value) for value in self.signed_entropy_log_residuals)
     if any(not isfinite(value) for value in entropy_logs):
       raise ValueError('signed_entropy_log_residuals must be finite')
+    ####
     if len(entropy_logs) not in (0, len(target_profile)):
       raise ValueError('signed_entropy_log_residuals must align with target profile')
+    ####
     object.__setattr__(self, 'signed_entropy_log_residuals', entropy_logs)
     if self.maximum_absolute_entropy_log_residual is not None:
       maximum_entropy = float(self.maximum_absolute_entropy_log_residual)
@@ -377,7 +421,9 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
         raise ValueError(
           'maximum_absolute_entropy_log_residual must be finite and nonnegative'
         )
+      ####
       object.__setattr__(self, 'maximum_absolute_entropy_log_residual', maximum_entropy)
+    ####
     for name in (
       'target_frame_verified',
       'dimensionalization_verified',
@@ -394,15 +440,20 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.entropy_channel_consumed or self.upstream_equation_consumed:
       raise ValueError(
         'the dimensional state-target probe cannot claim entropy or upstream '
         'equation consumption'
       )
+    ####
     if self.global_coupling_verified or self.canonical_free_boundary_verified:
       raise ValueError('the dimensional state-target probe cannot claim global coupling')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('the dimensional state-target probe must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'target_profile', target_profile)
     object.__setattr__(self, 'target_points_m', target_points)
     object.__setattr__(self, 'target_entropy_proxy_profile', target_entropy)
@@ -410,6 +461,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
     object.__setattr__(self, 'sampled_profile', sampled_profile)
     object.__setattr__(self, 'sampled_entropy_proxy_profile', sampled_entropy)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def local_research_residuals_verified(self) -> bool:
@@ -426,6 +478,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       and len(self.target_profile) > 0
       and all(len(residual) == 4 for residual in self.signed_state_residuals)
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -467,6 +520,8 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       'request': None if self.request is None else self.request.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -488,6 +543,7 @@ def _failure(
     target_entropy_proxy_profile=target_entropy,
     message=message,
   )
+####
 
 
 def measure_reflected_domain_global_mixed_regime_upstream_state_target(
@@ -505,6 +561,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       'contract must be a '
       'MocReflectedDomainGlobalMixedRegimeStateEquationContract',
     )
+  ####
   if not isinstance(
     request,
     MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest,
@@ -514,6 +571,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       'request must be a typed upstream state-target request',
       contract=contract,
     )
+  ####
   if not contract.state_target_ready:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus.CONTRACT_NOT_READY,
@@ -521,6 +579,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       contract=contract,
       request=request,
     )
+  ####
   try:
     target_profile = _state_profile(
       contract.conservative_state_profile,
@@ -541,6 +600,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       contract=contract,
       request=request,
     )
+  ####
   if (
     len(target_profile) != len(target_points)
     or len(target_profile) != len(target_entropy)
@@ -555,6 +615,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       target_points=target_points,
       target_entropy=target_entropy,
     )
+  ####
   try:
     for state in target_profile:
       _validate_target_state(
@@ -563,6 +624,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
         request.gas_constant_J_kgK,
         request.residual_floor,
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus.TARGET_STATE_FAILURE,
@@ -607,6 +669,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       )
       if characteristic is None or total_pressure is None:
         raise ValueError(f'global field did not sample target point {point!r}')
+      ####
       sampled_states.append(
         _conservative_from_characteristic(
           characteristic,
@@ -614,6 +677,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
           request,
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus.SAMPLE_FAILURE,
@@ -738,3 +802,4 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
     if measured
     else 'global state-target residual measurement did not pass its local gates',
   )
+####

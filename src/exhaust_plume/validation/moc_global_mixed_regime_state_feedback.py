@@ -93,6 +93,7 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus(str, Enum):
     'global-mixed-regime-state-feedback-pressure-geometry-consumption-failure'
   )
   FIDELITY_FAILURE = 'global-mixed-regime-state-feedback-fidelity-failure'
+####
 
 
 def _options(
@@ -103,15 +104,19 @@ def _options(
 ) -> dict[str, Any]:
   if value is None:
     return {}
+  ####
   if not isinstance(value, Mapping):
     raise TypeError(f'{name} must be a mapping when supplied')
+  ####
   resolved = dict(value)
   collisions = tuple(key for key in reserved if key in resolved)
   if collisions:
     raise ValueError(
       f'{name} cannot override positional controls: {", ".join(collisions)}'
     )
+  ####
   return resolved
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +157,7 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
       MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus,
     ):
       raise TypeError('status must be a typed mixed-regime feedback status')
+    ####
     for name, expected in (
       ('closure', MocReflectedDomainGlobalPhysicalClosureResult),
       ('downstream', MocReflectedDomainGlobalCoupledDownstreamResult),
@@ -180,6 +186,7 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected):
         raise TypeError(f'{name} must retain its typed research result')
+      ####
     ####
     consumer_id = str(self.consumer_id)
     if not consumer_id and self.status is not (
@@ -207,6 +214,7 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('mixed-regime state feedback must remain promotion-blocked')
@@ -221,14 +229,17 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
     object.__setattr__(self, 'consumer_id', consumer_id)
     object.__setattr__(self, 'correction_fraction', correction_fraction)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def source_closure_fingerprint(self) -> str | None:
     if self.closure is None:
       return None
+    ####
     return moc_reflected_domain_global_physical_closure_fingerprint(
       self.closure
     )
+  ####
 
   @property
   def full_state_consumer_ready(self) -> bool:
@@ -240,20 +251,24 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
       and self.upstream_state_equation_contract is not None
       and self.upstream_state_equation_contract.state_target_ready
     )
+  ####
 
   @property
   def global_coupling_verified(self) -> bool:
     """The upstream conservative equations have not consumed the state packet."""
 
     return False
+  ####
 
   @property
   def canonical_free_boundary_verified(self) -> bool:
     return False
+  ####
 
   @property
   def downstream_boundary_closure_verified(self) -> bool:
     return False
+  ####
 
   @property
   def research_feedback_completed(self) -> bool:
@@ -266,6 +281,7 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
       and self.fresh_global_resolve_verified
       and self.fidelity_isolation_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     consumer = self.consumer
@@ -367,6 +383,8 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -390,6 +408,7 @@ def _failure(
     message=message,
     **kwargs,
   )
+####
 
 
 def _build_solver_owned_base_target(
@@ -400,9 +419,11 @@ def _build_solver_owned_base_target(
 ) -> MocPhysicalFieldEulerBoundaryPressureTarget:
   if closure.global_euler is None or closure.global_euler.physical_field is None:
     raise ValueError('source closure retained no physical field for base target')
+  ####
   field = closure.global_euler.physical_field.field
   if field is None:
     raise ValueError('source closure retained no physical field geometry')
+  ####
   boundary = field.ambient_boundary
   points = tuple(boundary.points_m)
   states = tuple(boundary.states)
@@ -412,6 +433,7 @@ def _build_solver_owned_base_target(
       'source closure ambient boundary must retain aligned solver-owned '
       'points, states, and pressure samples'
     )
+  ####
   return MocPhysicalFieldEulerBoundaryPressureTarget(
     x_stations_m=tuple(point[0] for point in points),
     static_pressure_Pa=pressures,
@@ -421,6 +443,7 @@ def _build_solver_owned_base_target(
     source_closure_fingerprint=request.source_closure_fingerprint,
     source_proposal_fingerprint=request.source_proposal_fingerprint,
   )
+####
 
 
 def _state_lineage_and_channels_verified(
@@ -446,6 +469,7 @@ def _state_lineage_and_channels_verified(
     and consumer.entropy_channel_verified
   )
   return lineage, channels
+####
 
 
 def measure_reflected_domain_global_mixed_regime_state_feedback(
@@ -471,6 +495,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       'closure must be a MocReflectedDomainGlobalPhysicalClosureResult',
       consumer_id=str(consumer_id),
     )
+  ####
   if not isinstance(downstream, MocReflectedDomainGlobalCoupledDownstreamResult):
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus.INVALID_INPUT,
@@ -478,6 +503,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       consumer_id=str(consumer_id),
     )
+  ####
   try:
     fraction = float(correction_fraction)
     resolved_consumer_id = str(consumer_id)
@@ -494,6 +520,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       downstream=downstream,
       consumer_id=str(consumer_id),
     )
+  ####
   if (
     not resolved_consumer_id
     or not isfinite(fraction)
@@ -523,6 +550,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       consumer_id=resolved_consumer_id,
       correction_fraction=fraction,
     )
+  ####
   if (
     not downstream.converged
     or not downstream.local_coupled_field_verified
@@ -553,6 +581,8 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
         consumer_id=resolved_consumer_id,
         correction_fraction=fraction,
       )
+    ####
+  ####
   if not isinstance(
     consumer,
     MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
@@ -565,6 +595,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       consumer_id=resolved_consumer_id,
       correction_fraction=fraction,
     )
+  ####
   lineage_verified, channels_verified = _state_lineage_and_channels_verified(
     closure,
     downstream,
@@ -622,6 +653,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       full_state_lineage_verified=lineage_verified,
       full_state_channels_audit_verified=channels_verified,
     )
+  ####
   try:
     proposal = build_reflected_domain_global_coupled_downstream_upstream_feedback_proposal(
       closure,
@@ -641,6 +673,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       full_state_lineage_verified=lineage_verified,
       full_state_channels_audit_verified=channels_verified,
     )
+  ####
   if not proposal.ready_for_global_resolve:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus.PROPOSAL_FAILURE,
@@ -677,6 +710,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       full_state_lineage_verified=lineage_verified,
       full_state_channels_audit_verified=channels_verified,
     )
+  ####
   try:
     base_target = _build_solver_owned_base_target(
       closure,
@@ -804,6 +838,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       else boundary_condition.message
     ),
   )
+####
 
 
 def run_reflected_domain_global_mixed_regime_state_feedback(
@@ -824,6 +859,7 @@ def run_reflected_domain_global_mixed_regime_state_feedback(
       'closure must be a MocReflectedDomainGlobalPhysicalClosureResult',
       consumer_id=str(consumer_id),
     )
+  ####
   try:
     options = _options(
       downstream_options,
@@ -838,6 +874,7 @@ def run_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       consumer_id=str(consumer_id),
     )
+  ####
   if not isfinite(temperature) or temperature <= 0.0:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus.INVALID_INPUT,
@@ -845,6 +882,7 @@ def run_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       consumer_id=str(consumer_id),
     )
+  ####
   try:
     downstream = solve_reflected_domain_global_coupled_downstream(
       closure,
@@ -859,6 +897,7 @@ def run_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       consumer_id=str(consumer_id),
     )
+  ####
   return measure_reflected_domain_global_mixed_regime_state_feedback(
     closure,
     downstream,
@@ -866,3 +905,4 @@ def run_reflected_domain_global_mixed_regime_state_feedback(
     consumer_id=consumer_id,
     boundary_condition_options=boundary_condition_options,
   )
+####

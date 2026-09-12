@@ -456,6 +456,7 @@ class ShockCellVisualSession:
         raise ValueError(
           f'branch {branch!r} contains duplicate operating-pressure coordinates'
         )
+      ####
     ####
     source_id = (
       f'{self._descriptor.provider_id}:{self._metadata.session_id}:'
@@ -516,7 +517,6 @@ class ShockCellVisualSession:
       operating_state = replace(operating_state, time_s=time_s)
     ####
     solution = self._solve_operating_state(operating_state)
-    ####
     dynamic_digest = canonical_digest({'operating_state': operating_state})
     ambient_digest = canonical_digest({'ambient': operating_state.ambient})
     provider_digest = canonical_digest({

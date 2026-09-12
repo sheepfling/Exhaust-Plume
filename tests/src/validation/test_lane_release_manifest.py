@@ -61,6 +61,7 @@ def test_lane_manifest_binds_the_validated_code_or_audited_follow_on() -> None:
   assert report['checks']['candidate_worktree_clean'] is (
     provenance['candidate_worktree_clean'] is True
   )
+####
 
 
 def test_lane_manifest_accepts_allowlisted_documentation_follow_on(

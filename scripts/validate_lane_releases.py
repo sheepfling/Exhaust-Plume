@@ -224,8 +224,10 @@ def _mission_time_composition_status(
   focal_plane_array = record.get('focal_plane_array')
   if not isinstance(visualization, dict):
     return record, False
+  ####
   if not isinstance(signature, dict):
     return record, False
+  ####
   if not isinstance(focal_plane_array, dict):
     return record, False
   ####

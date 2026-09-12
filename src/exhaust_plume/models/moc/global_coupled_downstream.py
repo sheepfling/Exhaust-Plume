@@ -3285,6 +3285,7 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
     )
     if not isfinite(pressure_fraction) or pressure_fraction <= 0.0:
       return None
+    ####
     pressure_metric = max(
       (
         abs(float(residual))
@@ -3297,7 +3298,6 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       ),
       default=0.0,
     )
-    ####
     normal_fraction = field.maximum_free_boundary_normal_velocity_residual_fraction
     centerline_fraction = field.maximum_centerline_normal_velocity_residual_fraction
     shape_residual = field.maximum_shape_residual_m

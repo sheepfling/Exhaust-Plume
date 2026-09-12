@@ -54,6 +54,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus(str, Enum):
   RESOLVE_NOT_READY = 'global-mixed-regime-state-equation-resolve-not-ready'
   FRAME_FAILURE = 'global-mixed-regime-state-equation-frame-failure'
   CONSUMPTION_FAILURE = 'global-mixed-regime-state-equation-consumption-failure'
+####
 
 
 def _as_state_profile(
@@ -69,16 +70,21 @@ def _as_state_profile(
     for state in profile
   ):
     raise ValueError(f'{name} must contain finite four-component states')
+  ####
   return profile
+####
 
 
 def _as_stations(values: tuple[float, ...] | Any, name: str) -> tuple[float, ...]:
   stations = tuple(float(value) for value in values)
   if any(not isfinite(value) for value in stations):
     raise ValueError(f'{name} must contain finite stations')
+  ####
   if any(second <= first for first, second in zip(stations, stations[1:])):
     raise ValueError(f'{name} must be strictly ordered')
+  ####
   return stations
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,16 +125,19 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationAudit:
       MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus,
     ):
       raise TypeError('status must be a typed state-equation audit status')
+    ####
     if self.consumer is not None and not isinstance(
       self.consumer,
       MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
     ):
       raise TypeError('consumer must be a typed mixed-regime consumer result')
+    ####
     if self.resolved is not None and not isinstance(
       self.resolved,
       MocReflectedDomainGlobalMixedRegimeStateResolveResult,
     ):
       raise TypeError('resolved must be a typed mixed-regime resolve result')
+    ####
     target_profile = _as_state_profile(self.target_profile, 'target_profile')
     produced_profile = _as_state_profile(
       self.produced_profile,
@@ -144,8 +153,10 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationAudit:
     )
     if len(target_profile) != len(target_stations):
       raise ValueError('target profile and stations must align')
+    ####
     if len(produced_profile) != len(produced_stations):
       raise ValueError('produced profile and stations must align')
+    ####
     signed = tuple(
       tuple(float(value) for value in residual)
       for residual in self.signed_state_residuals
@@ -159,8 +170,10 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationAudit:
       for residual in (*signed, *relative)
     ):
       raise ValueError('state residuals must contain finite four-tuples')
+    ####
     if len(signed) != len(relative):
       raise ValueError('signed and relative state residuals must align')
+    ####
     object.__setattr__(self, 'target_profile', target_profile)
     object.__setattr__(self, 'produced_profile', produced_profile)
     object.__setattr__(self, 'target_x_stations_m', target_stations)
@@ -176,14 +189,18 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationAudit:
         not isfinite(value) or value < 0.0 for value in values
       ):
         raise ValueError(f'{name} must be empty or contain four finite values')
+      ####
       object.__setattr__(self, name, values)
+    ####
     if self.maximum_relative_state_residual_norm is not None:
       norm = float(self.maximum_relative_state_residual_norm)
       if not isfinite(norm) or norm < 0.0:
         raise ValueError(
           'maximum_relative_state_residual_norm must be finite and nonnegative'
         )
+      ####
       object.__setattr__(self, 'maximum_relative_state_residual_norm', norm)
+    ####
     for name in (
       'consumer_lineage_verified',
       'target_frame_verified',
@@ -202,15 +219,21 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('state-equation audit cannot claim global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('state-equation audit must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def component_names(self) -> tuple[str, ...]:
     return _STATE_COMPONENT_NAMES
+  ####
 
   @property
   def research_state_equation_consumed(self) -> bool:
@@ -229,6 +252,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationAudit:
       and self.total_energy_equation_verified
       and self.full_state_equation_consumed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -271,6 +295,8 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationAudit:
       'production_claim_allowed': self.production_claim_allowed,
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -288,6 +314,7 @@ def _failure(
     message=message,
     **kwargs,
   )
+####
 
 
 def _frame_matches(
@@ -301,6 +328,7 @@ def _frame_matches(
       for expected, actual in zip(target, produced, strict=True)
     )
   )
+####
 
 
 def measure_reflected_domain_global_mixed_regime_state_equations(
@@ -334,6 +362,7 @@ def measure_reflected_domain_global_mixed_regime_state_equations(
         MocReflectedDomainGlobalMixedRegimeStateResolveResult,
       ) else None,
     )
+  ####
   if not consumer.consumed_local_research_state:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus.CONSUMER_NOT_READY,
@@ -341,6 +370,7 @@ def measure_reflected_domain_global_mixed_regime_state_equations(
       consumer=consumer,
       resolved=resolved,
     )
+  ####
   if not resolved.fresh_local_research_state_resolve_verified:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus.RESOLVE_NOT_READY,
@@ -348,6 +378,7 @@ def measure_reflected_domain_global_mixed_regime_state_equations(
       consumer=consumer,
       resolved=resolved,
     )
+  ####
   if resolved.consumer is not consumer:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus.CONSUMPTION_FAILURE,
@@ -367,6 +398,7 @@ def measure_reflected_domain_global_mixed_regime_state_equations(
       resolved=resolved,
       consumer_lineage_verified=True,
     )
+  ####
   try:
     expected_profile, expected_stations = (
       build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
@@ -555,3 +587,4 @@ def measure_reflected_domain_global_mixed_regime_state_equations(
       'lineage or one of its four conservative channels did not pass'
     ),
   )
+####

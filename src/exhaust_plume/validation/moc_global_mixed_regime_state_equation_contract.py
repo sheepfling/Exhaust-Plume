@@ -65,10 +65,12 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus(
   )
   LINEAGE_FAILURE = 'upstream-global-state-equation-contract-lineage-failure'
   STATE_FRAME_FAILURE = 'upstream-global-state-equation-contract-frame-failure'
+####
 
 
 def _empty_channels() -> MappingProxyType:
   return MappingProxyType({name: False for name in _STATE_CHANNEL_NAMES})
+####
 
 
 def _finite_state_profile(
@@ -85,19 +87,24 @@ def _finite_state_profile(
     for state in profile
   ):
     raise ValueError(f'{name} must contain finite four-component states')
+  ####
   return profile
+####
 
 
 def _ordered_stations(values: Any, name: str) -> tuple[float, ...]:
   stations = tuple(float(value) for value in values)
   if any(not isfinite(value) for value in stations):
     raise ValueError(f'{name} must contain finite stations')
+  ####
   if any(
     second <= first
     for first, second in zip(stations, stations[1:])
   ):
     raise ValueError(f'{name} must be strictly ordered')
+  ####
   return stations
+####
 
 
 def _ordered_points(
@@ -113,12 +120,15 @@ def _ordered_points(
     for point in points
   ):
     raise ValueError(f'{name} must contain finite 2-D points')
+  ####
   if any(
     second[0] <= first[0]
     for first, second in zip(points, points[1:])
   ):
     raise ValueError(f'{name} must be strictly ordered in x')
+  ####
   return points
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,9 +192,11 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
         'conservative state profile, station frame, and 2-D point frame must '
         'have equal lengths'
       )
+    ####
     entropy_profile = tuple(float(value) for value in self.entropy_proxy_profile)
     if any(not isfinite(value) or value <= 0.0 for value in entropy_profile):
       raise ValueError('entropy_proxy_profile must contain finite positive values')
+    ####
     if len(profile) != len(entropy_profile):
       raise ValueError('conservative state profile and entropy profile must align')
     ####
@@ -216,6 +228,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.upstream_equation_consumed or any(consumed.values()):
       raise ValueError(
@@ -259,6 +272,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
         'source_closure_fingerprint',
         str(self.source_closure_fingerprint),
       )
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -314,6 +328,7 @@ def _failure(
     consumer=consumer,
     message=message,
   )
+####
 
 
 def prepare_reflected_domain_global_mixed_regime_state_equation_contract(
@@ -449,3 +464,4 @@ def prepare_reflected_domain_global_mixed_regime_state_equation_contract(
       'projection, or global solve was used to claim consumption'
     ),
   )
+####

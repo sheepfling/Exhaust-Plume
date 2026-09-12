@@ -42,6 +42,58 @@ from exhaust_plume.validation.moc_global_two_sided_moving_interface_fixed_point_
   MocGlobalTwoSidedMovingInterfaceFixedPointRefinementStatus,
   measure_moc_global_two_sided_moving_interface_fixed_point_refinement,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_canonical_consumer import (
+  MocReflectedDomainGlobalMixedRegimeCanonicalConsumerStatus,
+  MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRequest,
+  consume_reflected_domain_global_mixed_regime_canonical_source,
+  audit_reflected_domain_global_mixed_regime_canonical_source,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_canonical_consumer_refinement import (
+  MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementStatus,
+  MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementCase,
+  run_reflected_domain_global_mixed_regime_canonical_consumer_refinement,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_shock_frontier_refinement import (
+  MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase,
+  MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStatus,
+  run_reflected_domain_global_mixed_regime_shock_frontier_step,
+  run_reflected_domain_global_mixed_regime_shock_frontier_refinement,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_frontier_residual_exchange import (
+  MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus,
+  MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest,
+  audit_reflected_domain_global_mixed_regime_frontier_residual_exchange,
+  run_reflected_domain_global_mixed_regime_frontier_residual_exchange,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_frontier_residual_exchange_refinement import (
+  MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementCase,
+  MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStatus,
+  run_reflected_domain_global_mixed_regime_frontier_residual_exchange_refinement,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_global_fixed_point_consumer import (
+  MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerRequest,
+  MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerStatus,
+  audit_reflected_domain_global_mixed_regime_global_fixed_point,
+  consume_reflected_domain_global_mixed_regime_global_fixed_point,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_joint_fixed_point_refinement import (
+  MocReflectedDomainGlobalMixedRegimeJointFixedPointRefinementRequest,
+  MocReflectedDomainGlobalMixedRegimeJointFixedPointRefinementStatus,
+  audit_reflected_domain_global_mixed_regime_joint_fixed_point,
+  consume_reflected_domain_global_mixed_regime_joint_fixed_point,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_joint_state_frontier_solve import (
+  MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveRequest,
+  MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveStatus,
+  audit_reflected_domain_global_mixed_regime_joint_state_frontier_solve,
+  run_reflected_domain_global_mixed_regime_joint_state_frontier_solve,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_joint_state_frontier_feedback import (
+  MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest,
+  MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus,
+  audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback,
+  run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback,
+)
 from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
   MocEulerTwoSidedFieldIterationRefinementCase,
   MocEulerTwoSidedFieldRefinementAuditStatus,
@@ -81,6 +133,7 @@ from exhaust_plume.validation.moc_global_frontier_fresh_resolve_residual_refinem
 )
 from exhaust_plume import AmbientInput, CaloricallyPerfectGas, NozzleExitInput
 from exhaust_plume.models.moc import (
+  CharacteristicFamily,
   CharacteristicState,
   MocAmbientPhysicalFieldResult,
   MocAmbientPhysicalFieldStatus,
@@ -106,6 +159,33 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalMixedRegimeStateResolveStatus,
   consume_reflected_domain_global_mixed_regime_state,
   solve_reflected_domain_global_mixed_regime_state_consumer,
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationStatus,
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRequest,
+  build_reflected_domain_global_mixed_regime_upstream_state_equation_request_from_global_shock_frontier,
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationAuditStatus,
+  solve_reflected_domain_global_mixed_regime_upstream_state_equation,
+  audit_reflected_domain_global_mixed_regime_upstream_state_equation,
+  MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicFrameStatus,
+  MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicFrameRequest,
+  build_reflected_domain_global_mixed_regime_upstream_characteristic_frame,
+  audit_reflected_domain_global_mixed_regime_upstream_characteristic_frame,
+  MocReflectedDomainGlobalMixedRegimeTransonicInterfaceStatus,
+  MocReflectedDomainGlobalMixedRegimeTransonicInterfaceRequest,
+  solve_reflected_domain_global_mixed_regime_transonic_interface,
+  audit_reflected_domain_global_mixed_regime_transonic_interface,
+  MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationStatus,
+  MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationRequest,
+  admit_reflected_domain_global_mixed_regime_upstream_characteristic_equation,
+  audit_reflected_domain_global_mixed_regime_upstream_characteristic_equation,
+  MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityStatus,
+  MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityRequest,
+  consume_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility,
+  audit_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility,
+  MocReflectedDomainGlobalMixedRegimeNormalClosureStatus,
+  MocReflectedDomainGlobalMixedRegimeNormalClosureRequest,
+  MocReflectedDomainGlobalMixedRegimeNormalClosureAmbientState,
+  solve_reflected_domain_global_mixed_regime_normal_closure,
+  audit_reflected_domain_global_mixed_regime_normal_closure,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
@@ -413,6 +493,45 @@ from exhaust_plume.validation.moc_global_mixed_regime_upstream_state_target impo
   MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus,
   MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest,
   measure_reflected_domain_global_mixed_regime_upstream_state_target,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_upstream_conservative_reconciliation import (
+  MocReflectedDomainGlobalMixedRegimeUpstreamConservativeReconciliationStatus,
+  run_reflected_domain_global_mixed_regime_upstream_conservative_reconciliation,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_upstream_state_equation_refinement import (
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRefinementCase,
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRefinementStatus,
+  run_reflected_domain_global_mixed_regime_upstream_state_equation_refinement,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_moving_upstream_state_equation_corrector import (
+  MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationCorrectorStatus,
+  run_reflected_domain_global_mixed_regime_moving_upstream_state_equation_corrector,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_moving_upstream_state_equation_corrector_refinement import (
+  MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationCorrectorRefinementCase,
+  MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationCorrectorRefinementStatus,
+  run_reflected_domain_global_mixed_regime_moving_upstream_state_equation_corrector_refinement,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_moving_upstream_state_equation_line_search import (
+  MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationLineSearchStatus,
+  run_reflected_domain_global_mixed_regime_moving_upstream_state_equation_line_search,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_upstream_state_equation_free_boundary import (
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationFreeBoundaryConsumerStatus,
+  run_reflected_domain_global_mixed_regime_upstream_state_equation_free_boundary_consumer,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_state_coupled_step import (
+  MocReflectedDomainGlobalMixedRegimeStateCoupledStepStatus,
+  run_reflected_domain_global_mixed_regime_state_coupled_step,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_moving_state_coupled_step import (
+  MocReflectedDomainGlobalMixedRegimeMovingStateCoupledStepStatus,
+  run_reflected_domain_global_mixed_regime_moving_state_coupled_step,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_moving_state_coupled_step_refinement import (
+  MocReflectedDomainGlobalMixedRegimeMovingStateCoupledStepRefinementCase,
+  MocReflectedDomainGlobalMixedRegimeMovingStateCoupledStepRefinementStatus,
+  run_reflected_domain_global_mixed_regime_moving_state_coupled_step_refinement,
 )
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
@@ -7331,6 +7450,7 @@ def test_global_mixed_regime_state_consumer_replays_full_trace_without_promotion
       ),
       abs(normal_velocity) + sound_speed,
     )
+  ####
 
   left_flux, left_wave_speed = physical_flux(left_sample)
   right_flux, right_wave_speed = physical_flux(right_sample)
@@ -7511,7 +7631,7 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
     'conservative-state-trace-rusanov-v1'
   )
   assert report['production_claim_allowed'] is False
- ####
+####
 
 
 def test_global_mixed_regime_entropy_compatible_trace_uses_live_boundary_law():
@@ -7568,7 +7688,7 @@ def test_global_mixed_regime_entropy_compatible_trace_uses_live_boundary_law():
     MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT
   )
   assert 'mutually exclusive' in rejected.message
- ####
+####
 
 
 def test_global_mixed_regime_fixed_flux_handoff_fails_closed_on_entropy_loss():
@@ -7632,7 +7752,7 @@ def test_global_mixed_regime_fixed_flux_handoff_fails_closed_on_entropy_loss():
   assert resolved.global_coupling_verified is False
   assert resolved.chain_promotion_blocked
   assert resolved.production_claim_allowed is False
- ####
+####
 
 
 def test_global_mixed_regime_state_equation_audit_retains_all_four_channels():
@@ -7714,7 +7834,7 @@ def test_global_mixed_regime_state_equation_audit_retains_all_four_channels():
   assert rejected.full_state_equation_consumed is False
   assert rejected.chain_promotion_blocked
   assert rejected.production_claim_allowed is False
- ####
+####
 
 
 def test_global_mixed_regime_upstream_state_target_probe_is_dimensional_only():
@@ -7783,7 +7903,88 @@ def test_global_mixed_regime_upstream_state_target_probe_is_dimensional_only():
   )
   assert report['upstream_equation_consumed'] is False
   assert report['production_claim_allowed'] is False
- ####
+####
+
+
+def test_global_mixed_regime_upstream_conservative_reconciliation_consumes_fixed_front_equations_only():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+  contract = prepare_reflected_domain_global_mixed_regime_state_equation_contract(
+    closure,
+    consumed,
+  )
+  request = MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest(
+    reference_total_temperature_K=1500.0,
+    target_gamma=mixed_request.control_section.samples[0].gamma,
+  )
+
+  result = run_reflected_domain_global_mixed_regime_upstream_conservative_reconciliation(
+    contract,
+    request,
+    reconciliation_options={'max_pseudo_iterations': 240},
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamConservativeReconciliationStatus
+    .CONVERGED_LOCAL_UPSTREAM_CONSERVATIVE_RECONCILIATION
+  )
+  assert result.local_fixed_front_reconciliation_verified
+  assert result.source_field_lineage_verified
+  assert result.target_frame_verified
+  assert result.fixed_front_solver_invoked
+  assert result.fixed_front_conservative_equation_consumed
+  assert result.independent_audit_verified
+  assert result.post_resolve_target_sampling_verified
+  assert result.reconciliation is not None
+  assert result.reconciliation.converged
+  assert result.audit is not None
+  assert result.audit.converged
+  assert len(result.target_profile) == len(result.target_points_m)
+  assert len(result.target_profile) == len(result.reconciled_target_profile)
+  assert len(result.target_profile) == len(result.reconciled_target_cell_indices)
+  assert result.maximum_relative_target_state_residual_norm is not None
+  assert result.maximum_absolute_target_entropy_log_residual is not None
+  assert result.upstream_state_target_consumed is False
+  assert result.entropy_channel_consumed is False
+  assert result.upstream_equation_consumed is False
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()
+  assert report['operator_id'].endswith(
+    'upstream-conservative-reconciliation-v1'
+  )
+  assert report['fixed_front_conservative_equation_consumed'] is True
+  assert report['upstream_state_target_consumed'] is False
+  assert report['global_coupling_verified'] is False
+  assert report['production_claim_allowed'] is False
+
+  invalid = run_reflected_domain_global_mixed_regime_upstream_conservative_reconciliation(
+    contract,
+    request,
+    reconciliation_options={'ambient_pressure_target': None},
+  )
+  assert invalid.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamConservativeReconciliationStatus
+    .INVALID_INPUT
+  )
+  assert invalid.chain_promotion_blocked
+  assert invalid.production_claim_allowed is False
+####
 
 
 def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_projection():
@@ -7858,7 +8059,1854 @@ def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_proj
   assert report['upstream_state_equation_consumed'] is False
   assert report['global_coupling_verified'] is False
   assert report['production_claim_allowed'] is False
- ####
+####
+
+
+def test_global_mixed_regime_state_coupled_step_consumes_state_before_global_projection():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  result = run_reflected_domain_global_mixed_regime_state_coupled_step(
+    closure,
+    downstream,
+    consumer_id='test-global-mixed-regime-state-coupled-step-v1',
+    require_componentwise_residual_descent=False,
+  )
+
+  assert result.status in {
+    MocReflectedDomainGlobalMixedRegimeStateCoupledStepStatus
+    .CONVERGED_RESEARCH_STATE_COUPLED_STEP,
+    MocReflectedDomainGlobalMixedRegimeStateCoupledStepStatus
+    .COMPLETED_RESEARCH_STATE_COUPLED_STEP_WITH_OPEN_RESIDUAL,
+  }
+  assert result.state_consumer is not None
+  assert result.state_consumer.consumed_local_research_state
+  assert result.state_resolve is not None
+  assert result.state_resolve.fresh_local_research_state_resolve_verified
+  assert result.state_target_frame_verified
+  assert result.state_target_consumed_by_downstream_equations
+  assert result.refreshed_downstream is not None
+  assert result.refreshed_state_consumer is not None
+  assert result.refreshed_trace_audit_verified
+  assert result.global_feedback is not None
+  assert result.global_feedback.research_feedback_completed
+  assert result.global_pressure_geometry_projection_verified
+  assert result.refreshed_closure is not None
+  assert result.refreshed_closure is not closure
+  assert len(result.initial_residual_vector) == 10
+  assert len(result.refreshed_residual_vector) == 10
+  assert result.upstream_state_equation_consumed is False
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()
+  assert report['state_target_consumed_by_downstream_equations'] is True
+  assert report['global_pressure_geometry_projection_verified'] is True
+  assert report['upstream_state_equation_consumed'] is False
+  assert report['global_coupling_verified'] is False
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_mixed_regime_moving_state_step_reconciles_solver_owned_geometry():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  result = run_reflected_domain_global_mixed_regime_moving_state_coupled_step(
+    closure,
+    downstream,
+    reference_total_temperature_K=1500.0,
+    consumer_id='test-global-mixed-regime-moving-state-coupled-step-v1',
+    require_componentwise_residual_descent=False,
+    moving_interface_options={
+      'maximum_field_iterations': 3,
+      'maximum_interface_iterations': 1,
+    },
+    downstream_options={
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+  )
+
+  assert result.status in {
+    MocReflectedDomainGlobalMixedRegimeMovingStateCoupledStepStatus
+    .CONVERGED_RESEARCH_MOVING_GLOBAL_STATE_STEP,
+    MocReflectedDomainGlobalMixedRegimeMovingStateCoupledStepStatus
+    .COMPLETED_RESEARCH_MOVING_GLOBAL_STATE_STEP_WITH_OPEN_RESIDUAL,
+  }
+  assert result.state_step is not None
+  assert result.state_target_consumed_by_downstream_equations
+  assert result.moving_interface is not None
+  assert result.moving_interface.converged
+  assert result.moving_interface.conservative_residual_result is not None
+  assert result.moving_interface.conservative_residual_result.converged
+  assert result.moving_interface.conservative_residual_audit is not None
+  assert result.moving_interface.conservative_residual_audit.converged
+  assert result.moving_lineage_verified
+  assert result.moving_conservative_flux_closure_verified
+  assert result.moving_entropy_transition_verified
+  assert result.moving_global_physical_field_consumed
+  assert result.moving_response is not None
+  assert result.shock_geometry_response is result.moving_response.next_shock_boundary
+  assert result.geometry_closure is not None
+  assert result.moving_geometry_reconciliation_verified
+  assert result.geometry_closure is not result.state_step.refreshed_closure
+  assert result.final_downstream is not None
+  assert result.final_downstream.converged
+  assert result.final_trace_audit_verified
+  assert result.final_state_consumer is not None
+  assert result.final_state_consumer.consumed_local_research_state
+  assert len(result.initial_residual_vector) == 10
+  assert len(result.final_residual_vector) == 10
+  assert result.upstream_state_equation_consumed is False
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()
+  assert report['moving_conservative_flux_closure_verified'] is True
+  assert report['moving_entropy_transition_verified'] is True
+  assert report['moving_global_physical_field_consumed'] is True
+  assert report['moving_geometry_reconciliation_verified'] is True
+  assert report['final_trace_audit_verified'] is True
+  assert report['global_coupling_verified'] is False
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_mixed_regime_moving_state_refinement_covers_disjoint_ladders():
+  refinement_cases = []
+  for case_id, sample_count in (('moving-source-7', 7), ('moving-source-9', 9)):
+    closure = _global_physical_closure_for_mixed_regime(sample_count)
+    mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+    refinement_cases.append(
+      MocReflectedDomainGlobalMixedRegimeMovingStateCoupledStepRefinementCase(
+        case_id=case_id,
+        closure=closure,
+        resolutions=((8, 4), (12, 6)),
+        reference_total_temperature_K=1500.0,
+        ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+        moving_interface_options={
+          'maximum_field_iterations': 3,
+          'maximum_interface_iterations': 1,
+        },
+      )
+    )
+  ####
+
+  run = (
+    run_reflected_domain_global_mixed_regime_moving_state_coupled_step_refinement(
+      refinement_cases,
+      max_pseudo_iterations=400,
+      max_shape_iterations=12,
+      require_componentwise_residual_descent=False,
+    )
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalMixedRegimeMovingStateCoupledStepRefinementStatus
+    .CONVERGED_CROSS_CASE_RESEARCH_COVERAGE
+  )
+  assert run.converged
+  assert run.research_coverage_verified
+  assert run.case_ids_verified
+  assert run.source_closure_bindings_verified
+  assert run.distinct_source_closures_verified
+  assert run.resolution_ladders_verified
+  assert run.local_composition_verified
+  assert run.moving_gates_verified
+  assert run.geometry_reconciliation_verified
+  assert run.final_trace_verified
+  assert run.residual_metrics_finite
+  assert run.fidelity_isolation_verified
+  assert len(run.steps) == 4
+  assert len(run.initial_residual_vectors) == 4
+  assert len(run.final_residual_vectors) == 4
+  assert all(len(vector) == 10 for vector in run.initial_residual_vectors)
+  assert all(len(vector) == 10 for vector in run.final_residual_vectors)
+  assert run.canonical_free_boundary_verified is False
+  assert run.global_coupling_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  report = run.as_report()
+  assert report['checks']['cross_case_coverage_verified'] is True
+  assert report['checks']['moving_gates_verified'] is True
+  assert report['checks']['geometry_reconciliation_verified'] is True
+  assert report['checks']['final_trace_verified'] is True
+  assert report['checks']['global_coupling_verified'] is False
+  assert report['checks']['production_claim_allowed'] is False
+####
+
+
+def test_global_mixed_regime_upstream_state_equation_consumes_exact_trace_and_entropy():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+  assert consumed.trace is not None
+  trace = consumed.trace
+  assert trace.samples
+  request = MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRequest(
+    closure=closure,
+    target_points_m=tuple(sample.point_m for sample in trace.samples),
+    target_conservative_state_profile=tuple(
+      sample.conservative_state for sample in trace.samples
+    ),
+    target_entropy_proxy_profile=tuple(
+      sample.entropy_proxy for sample in trace.samples
+    ),
+    target_gamma=trace.samples[0].gamma,
+    reference_total_temperature_K=1500.0,
+  )
+
+  result = solve_reflected_domain_global_mixed_regime_upstream_state_equation(
+    request
+  )
+
+  assert result.status in {
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationStatus
+    .CONVERGED_LOCAL_RESEARCH_UPSTREAM_STATE_EQUATION,
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationStatus
+    .COMPLETED_RESEARCH_UPSTREAM_STATE_EQUATION_WITH_OPEN_RESIDUAL,
+  }
+  assert result.research_state_equation_consumed
+  assert result.target_frame_verified
+  assert result.source_field_lineage_verified
+  assert result.global_field_sampled
+  assert result.target_conservative_state_consumed
+  assert result.entropy_target_consumed
+  assert result.upstream_state_equation_consumed
+  assert result.conservative_residuals_measured
+  assert result.entropy_flux_verified
+  assert len(result.source_points_m) == len(trace.samples)
+  assert len(result.cell_vertices_by_cell_m) == len(trace.samples) - 1
+  assert len(result.entropy_closed_target_profile) == len(trace.samples) - 1
+  assert result.canonical_free_boundary_verified is False
+  assert result.global_coupling_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+  audit = audit_reflected_domain_global_mixed_regime_upstream_state_equation(
+    result
+  )
+  assert audit.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationAuditStatus
+    .VERIFIED_RESEARCH_INTERFACE_STRIP
+  )
+  assert audit.converged
+  assert audit.target_boundary_replayed
+  assert audit.source_boundary_replayed
+  assert audit.entropy_target_replayed
+  assert audit.residual_report_verified
+  assert audit.independent_research_equation_verified
+  assert audit.canonical_free_boundary_verified is False
+  assert audit.global_coupling_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+  tampered = replace(
+    request,
+    target_entropy_proxy_profile=(
+      request.target_entropy_proxy_profile[0] * 1.1,
+      *request.target_entropy_proxy_profile[1:],
+    ),
+  )
+  rejected = solve_reflected_domain_global_mixed_regime_upstream_state_equation(
+    tampered
+  )
+  assert rejected.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationStatus
+    .ENTROPY_TARGET_FAILURE
+  )
+  assert rejected.upstream_state_equation_consumed is False
+  assert rejected.chain_promotion_blocked
+  assert rejected.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_upstream_state_equation_refinement_covers_cases():
+  cases = []
+  for case_id, sample_count in (('state-source-7', 7), ('state-source-9', 9)):
+    closure = _global_physical_closure_for_mixed_regime(sample_count)
+    mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+    cases.append(
+      MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRefinementCase(
+        case_id=case_id,
+        closure=closure,
+        resolutions=((8, 4), (10, 5)),
+        reference_total_temperature_K=1500.0,
+        ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+      )
+    )
+  ####
+
+  run = (
+    run_reflected_domain_global_mixed_regime_upstream_state_equation_refinement(
+      cases,
+      max_pseudo_iterations=400,
+      max_shape_iterations=12,
+      equation_max_pseudo_iterations=80,
+    )
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRefinementStatus
+    .CONVERGED_CROSS_CASE_RESEARCH_COVERAGE
+  )
+  assert run.converged
+  assert run.case_ids_verified
+  assert run.source_closure_bindings_verified
+  assert run.distinct_source_closures_verified
+  assert run.resolution_ladders_verified
+  assert run.fresh_downstream_verified
+  assert run.target_frames_verified
+  assert run.equation_consumption_verified
+  assert run.independent_audits_verified
+  assert run.residual_metrics_finite
+  assert run.local_coverage_verified
+  assert run.cross_case_coverage_verified
+  assert run.fidelity_isolation_verified
+  assert len(run.steps) == 4
+  assert len(run.equation_statuses) == 4
+  assert all(step.locally_verified for step in run.steps)
+  assert run.canonical_free_boundary_verified is False
+  assert run.global_coupling_verified is False
+  assert run.external_validation_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  report = run.as_report()
+  assert report['checks']['cross_case_coverage_verified'] is True
+  assert report['checks']['equation_consumption_verified'] is True
+  assert report['checks']['independent_audits_verified'] is True
+  assert report['checks']['global_coupling_verified'] is False
+  assert report['checks']['production_claim_allowed'] is False
+####
+
+
+def test_global_mixed_regime_upstream_state_equation_consumes_live_free_boundary_target():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+  assert consumed.trace is not None
+  trace = consumed.trace
+  equation_request = MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRequest(
+    closure=closure,
+    target_points_m=tuple(sample.point_m for sample in trace.samples),
+    target_conservative_state_profile=tuple(
+      sample.conservative_state for sample in trace.samples
+    ),
+    target_entropy_proxy_profile=tuple(
+      sample.entropy_proxy for sample in trace.samples
+    ),
+    target_gamma=trace.samples[0].gamma,
+    reference_total_temperature_K=1500.0,
+  )
+  equation = solve_reflected_domain_global_mixed_regime_upstream_state_equation(
+    equation_request
+  )
+  assert equation.research_state_equation_consumed
+  assert audit_reflected_domain_global_mixed_regime_upstream_state_equation(
+    equation
+  ).converged
+
+  result = (
+    run_reflected_domain_global_mixed_regime_upstream_state_equation_free_boundary_consumer(
+      closure,
+      downstream,
+      equation,
+    )
+  )
+
+  assert result.status in {
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationFreeBoundaryConsumerStatus
+    .CONVERGED_LOCAL_RESEARCH_CONSUMER,
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationFreeBoundaryConsumerStatus
+    .COMPLETED_RESEARCH_CONSUMER_WITH_OPEN_RESIDUAL,
+  }
+  assert result.source_lineage_verified
+  assert result.equation_consumption_verified
+  assert result.equation_replay_verified
+  assert result.target_frame_verified
+  assert result.request_frame_verified
+  assert result.coupled_field is not None
+  assert result.coupled_field_audit is not None
+  assert result.coupled_field_consumed
+  assert result.coupled_field.request is result.coupled_request
+  assert result.coupled_field.upstream_state_equation_consumed
+  assert result.coupled_field.upstream_state_equation_target_frame_verified
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()
+  assert report['operator_id'].endswith('free-boundary-consumer-v1')
+  assert report['target_frame_verified'] is True
+  assert report['coupled_field_consumed'] is True
+  assert report['global_coupling_verified'] is False
+  assert report['production_claim_allowed'] is False
+  assert result.coupled_request is not None
+  assert result.coupled_request.free_boundary_conservative_state_profile is not None
+  profile = result.coupled_request.free_boundary_conservative_state_profile
+  tampered_states = (
+    (
+      profile[0][0] * 1.01,
+      *profile[0][1:],
+    ),
+    *profile[1:],
+  )
+  with pytest.raises(ValueError, match='must exactly match'):
+    replace(
+      result.coupled_request,
+      free_boundary_conservative_state_profile=tampered_states,
+    )
+  ####
+####
+
+
+def test_global_mixed_regime_upstream_characteristic_frame_keeps_subsonic_trace_out_of_moc():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+  assert consumed.trace is not None
+  trace = consumed.trace
+  equation = solve_reflected_domain_global_mixed_regime_upstream_state_equation(
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRequest(
+      closure=closure,
+      target_points_m=tuple(sample.point_m for sample in trace.samples),
+      target_conservative_state_profile=tuple(
+        sample.conservative_state for sample in trace.samples
+      ),
+      target_entropy_proxy_profile=tuple(
+        sample.entropy_proxy for sample in trace.samples
+      ),
+      target_gamma=trace.samples[0].gamma,
+      reference_total_temperature_K=1500.0,
+    )
+  )
+  assert equation.research_state_equation_consumed
+
+  frame = build_reflected_domain_global_mixed_regime_upstream_characteristic_frame(
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicFrameRequest(
+      upstream_state_equation=equation,
+    )
+  )
+
+  assert frame.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicFrameStatus
+    .CONVERGED_LOCAL_RESEARCH_PRIMITIVE_FRAME
+  )
+  assert frame.converged
+  assert frame.target_frame_verified
+  assert frame.source_state_equation_consumed
+  assert frame.primitive_frame_verified
+  assert frame.state_roundtrip_verified
+  assert frame.entropy_lineage_verified
+  assert frame.supersonic_sample_count == 0
+  assert frame.subsonic_or_sonic_sample_count == len(trace.samples)
+  assert frame.characteristic_state_profile_available is False
+  assert frame.characteristic_equation_ready is False
+  assert frame.upstream_characteristic_equation_consumed is False
+  assert frame.free_boundary_equation_consumed is False
+  assert frame.global_coupling_verified is False
+  assert frame.canonical_free_boundary_verified is False
+  assert frame.chain_promotion_blocked
+  assert frame.production_claim_allowed is False
+  assert all(sample.characteristic_state is None for sample in frame.samples)
+  assert all(sample.regime == 'subsonic_or_sonic' for sample in frame.samples)
+  audit = audit_reflected_domain_global_mixed_regime_upstream_characteristic_frame(
+    frame
+  )
+  assert audit.converged
+  assert audit.independent_frame_verified
+  assert audit.target_frame_replayed
+  assert audit.primitive_frame_replayed
+  assert audit.state_roundtrip_replayed
+  assert audit.entropy_lineage_replayed
+  assert audit.regime_classification_replayed
+  assert audit.upstream_characteristic_equation_consumed is False
+  assert audit.free_boundary_equation_consumed is False
+  assert audit.global_coupling_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  report = frame.as_report()
+  assert report['characteristic_equation_ready'] is False
+  assert report['upstream_characteristic_equation_consumed'] is False
+  assert report['production_claim_allowed'] is False
+  audit_report = audit.as_report()
+  assert audit_report['independent_frame_verified'] is True
+  assert audit_report['upstream_characteristic_equation_consumed'] is False
+####
+
+
+def test_global_mixed_regime_global_shock_frontier_binds_supersonic_research_chain():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = (
+    build_reflected_domain_global_mixed_regime_upstream_state_equation_request_from_global_shock_frontier(
+      closure,
+      reference_total_temperature_K=1500.0,
+      normal_offset_m=1.0e-3,
+      offset_side=1.0,
+    )
+  )
+  equation = solve_reflected_domain_global_mixed_regime_upstream_state_equation(
+    request
+  )
+  assert equation.converged
+  assert equation.research_state_equation_consumed
+  assert request.source.endswith('global-shock-frontier-v1')
+
+  frame = build_reflected_domain_global_mixed_regime_upstream_characteristic_frame(
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicFrameRequest(
+      upstream_state_equation=equation,
+    )
+  )
+  assert frame.converged
+  assert frame.supersonic_sample_count == len(frame.samples)
+  assert frame.subsonic_or_sonic_sample_count == 0
+
+  points = tuple(sample.point_m for sample in frame.samples)
+  normals: list[tuple[float, float]] = []
+  for index, point in enumerate(points):
+    if index == 0:
+      first, second = points[0], points[1]
+    elif index == len(points) - 1:
+      first, second = points[-2], points[-1]
+    else:
+      first, second = points[index - 1], points[index + 1]
+    tangent_x = second[0] - first[0]
+    tangent_y = second[1] - first[1]
+    length = sqrt(tangent_x * tangent_x + tangent_y * tangent_y)
+    normals.append((-tangent_y / length, tangent_x / length))
+  ####
+
+  interface = solve_reflected_domain_global_mixed_regime_transonic_interface(
+    MocReflectedDomainGlobalMixedRegimeTransonicInterfaceRequest(
+      characteristic_frame=frame,
+      interface_normals_m=tuple(normals),
+      ambient_pressure_Pa=closure.source_band.ambient_pressure_Pa,
+    )
+  )
+  interface_audit = (
+    audit_reflected_domain_global_mixed_regime_transonic_interface(interface)
+  )
+  assert interface.converged
+  assert interface.supersonic_sample_count == len(frame.samples)
+  assert interface_audit.converged
+
+  handoff = admit_reflected_domain_global_mixed_regime_upstream_characteristic_equation(
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationRequest(
+      transonic_interface=interface,
+      transonic_interface_audit=interface_audit,
+      incoming_family=CharacteristicFamily.MINUS,
+    )
+  )
+  assert handoff.interface_handoff_verified
+  assert handoff.subsonic_sample_indices == ()
+  assert handoff.incoming_characteristic_count > 0
+  assert handoff.normal_closure_verified is False
+
+  compatibility = (
+    consume_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility(
+      MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityRequest(
+        upstream_equation_handoff=handoff,
+        invariant_tolerance=5.0e-4,
+        geometry_tolerance=1.0e-2,
+      )
+    )
+  )
+  compatibility_audit = (
+    audit_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility(
+      compatibility
+    )
+  )
+  assert compatibility.converged
+  assert compatibility.compatibility_gate_verified
+  assert compatibility_audit.converged
+
+  shock = closure.global_euler.shock_boundary
+  assert shock is not None
+  gamma = request.target_gamma
+  gas_constant = request.gas_constant_J_kgK
+  ambient_profile: list[MocReflectedDomainGlobalMixedRegimeNormalClosureAmbientState] = []
+  for index, (state, total_pressure, point) in enumerate(
+    zip(
+      shock.downstream_states[1:],
+      shock.downstream_total_pressure_Pa[1:],
+      points,
+      strict=True,
+    )
+  ):
+    factor = 1.0 + 0.5 * (gamma - 1.0) * state.mach * state.mach
+    static_pressure = total_pressure / factor ** (gamma / (gamma - 1.0))
+    static_temperature = request.reference_total_temperature_K / factor
+    density = static_pressure / (gas_constant * static_temperature)
+    sound_speed = sqrt(gamma * gas_constant * static_temperature)
+    speed = state.mach * sound_speed
+    ambient_profile.append(
+      MocReflectedDomainGlobalMixedRegimeNormalClosureAmbientState(
+        sample_index=index,
+        point_m=point,
+        density_kg_m3=density,
+        velocity_u_m_s=speed * cos(state.theta_rad),
+        velocity_v_m_s=speed * sin(state.theta_rad),
+        static_pressure_Pa=static_pressure,
+        static_temperature_K=static_temperature,
+        gamma=gamma,
+        specific_gas_constant_J_kg_K=gas_constant,
+      )
+    )
+  ####
+
+  normal_closure = solve_reflected_domain_global_mixed_regime_normal_closure(
+    MocReflectedDomainGlobalMixedRegimeNormalClosureRequest(
+      transonic_interface=interface,
+      transonic_interface_audit=interface_audit,
+      characteristic_compatibility=compatibility,
+      characteristic_compatibility_audit=compatibility_audit,
+      ambient_state_profile=tuple(ambient_profile),
+      component_tolerance=1.0e-5,
+    )
+  )
+  assert normal_closure.converged
+  assert normal_closure.normal_closure_verified
+  assert normal_closure.canonical_free_boundary_verified is False
+  assert normal_closure.global_coupling_verified is False
+  assert normal_closure.chain_promotion_blocked
+  assert normal_closure.production_claim_allowed is False
+  normal_audit = audit_reflected_domain_global_mixed_regime_normal_closure(
+    normal_closure
+  )
+  assert normal_audit.converged
+
+
+def test_global_mixed_regime_global_shock_frontier_offset_failure_is_typed():
+  closure = _global_physical_closure_for_mixed_regime()
+  request = (
+    build_reflected_domain_global_mixed_regime_upstream_state_equation_request_from_global_shock_frontier(
+      closure,
+      reference_total_temperature_K=1500.0,
+      normal_offset_m=1.0e-3,
+      offset_side=-1.0,
+    )
+  )
+  result = solve_reflected_domain_global_mixed_regime_upstream_state_equation(
+    request
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationStatus.STATE_FAILURE
+  )
+  assert result.converged is False
+  assert 'offset-field sampling' in result.message
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+
+
+def test_global_mixed_regime_shock_frontier_refinement_is_disjoint_and_fail_closed():
+  cases = (
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='shock-frontier-skew-negative',
+      closure=_global_physical_closure_for_mixed_regime(
+        9,
+        compression_envelope_skews=(-0.75, 0.0),
+      ),
+      reference_total_temperature_K=1500.0,
+    ),
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='shock-frontier-skew-negative',
+      closure=_global_physical_closure_for_mixed_regime(
+        11,
+        compression_envelope_skews=(-0.75, 0.0),
+      ),
+      reference_total_temperature_K=1500.0,
+    ),
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='shock-frontier-skew-positive',
+      closure=_global_physical_closure_for_mixed_regime(
+        9,
+        compression_envelope_skews=(0.75, 0.0),
+      ),
+      reference_total_temperature_K=1500.0,
+      component_tolerance=1.0e-4,
+    ),
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='shock-frontier-skew-positive',
+      closure=_global_physical_closure_for_mixed_regime(
+        11,
+        compression_envelope_skews=(0.75, 0.0),
+      ),
+      reference_total_temperature_K=1500.0,
+      component_tolerance=1.0e-4,
+    ),
+  )
+  measurement = (
+    run_reflected_domain_global_mixed_regime_shock_frontier_refinement(
+      cases,
+      expected_case_ids=(
+        'shock-frontier-skew-negative',
+        'shock-frontier-skew-positive',
+      ),
+    )
+  )
+  assert measurement.status is (
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStatus
+    .CONVERGED_CROSS_CASE_RESEARCH_COVERAGE
+  )
+  assert measurement.converged
+  assert measurement.local_case_resolution_ladders_verified
+  assert measurement.distinct_source_closures_verified
+  assert measurement.source_lineage_verified
+  assert measurement.frontier_regimes_verified
+  assert measurement.independent_audits_verified
+  assert measurement.fidelity_isolation_verified
+  assert measurement.chain_promotion_blocked
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.global_coupling_verified is False
+  assert measurement.production_claim_allowed is False
+  assert measurement.frontier_sample_counts == (9, 11, 9, 11)
+  assert len(set(measurement.source_closure_fingerprints)) == 4
+  assert all(step.locally_verified for step in measurement.steps)
+
+
+def test_global_mixed_regime_global_fixed_point_consumer_binds_frontier_and_recheck():
+  refinement = (
+    run_reflected_domain_global_mixed_regime_shock_frontier_refinement(
+      (
+        MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+          case_id='fixed-point-frontier',
+          closure=_global_physical_closure_for_mixed_regime(
+            9,
+            compression_envelope_skews=(-0.75, 0.0),
+          ),
+          reference_total_temperature_K=1500.0,
+        ),
+        MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+          case_id='fixed-point-frontier',
+          closure=_global_physical_closure_for_mixed_regime(
+            11,
+            compression_envelope_skews=(-0.75, 0.0),
+          ),
+          reference_total_temperature_K=1500.0,
+        ),
+      )
+    )
+  )
+  assert refinement.converged
+  frontier_step = refinement.steps[0]
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    frontier_step.closure
+  )
+  feedback = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    frontier_step.closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+      'inlet_boundary_mode': (
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+      ),
+      'physical_field_continuation_profile': handoff.continuation_profile,
+      'physical_field_shock_front_condition': handoff.shock_front_condition,
+    },
+    require_terminal_global_downstream_recheck=True,
+  )
+  assert feedback.research_feedback_completed
+  result = consume_reflected_domain_global_mixed_regime_global_fixed_point(
+    MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerRequest(
+      shock_frontier_step=frontier_step,
+      global_feedback=feedback,
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerStatus
+    .COMPLETED_RESEARCH_CONSUMPTION_WITH_OPEN_GLOBAL_CLOSURE
+  )
+  assert result.converged
+  assert result.shock_frontier_consumed
+  assert result.shock_frontier_lineage_verified
+  assert result.terminal_feedback_consumed
+  assert result.terminal_global_fixed_point_verified
+  assert result.terminal_global_downstream_recheck_verified
+  assert result.canonical_research_consumption_verified
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_global_fixed_point(result)
+  assert audit.converged
+  assert audit.shock_frontier_lineage_replayed
+  assert audit.terminal_feedback_lineage_replayed
+  assert audit.terminal_fixed_point_replayed
+  assert audit.canonical_consumer_audit_verified
+  assert audit.global_coupling_verified is False
+  missing_feedback = (
+    consume_reflected_domain_global_mixed_regime_global_fixed_point(
+      MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerRequest(
+        shock_frontier_step=frontier_step,
+      )
+    )
+  )
+  assert missing_feedback.status is (
+    MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerStatus
+    .GLOBAL_FEEDBACK_REQUIRED
+  )
+  assert missing_feedback.converged is False
+  assert missing_feedback.chain_promotion_blocked
+  assert missing_feedback.production_claim_allowed is False
+
+
+def test_global_mixed_regime_joint_fixed_point_rechecks_every_feedback_closure():
+  source_closure = _global_physical_closure_for_mixed_regime(
+    9,
+    compression_envelope_skews=(-0.75, 0.0),
+  )
+  handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    source_closure
+  )
+  feedback = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    source_closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+      'inlet_boundary_mode': (
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+      ),
+      'physical_field_continuation_profile': handoff.continuation_profile,
+      'physical_field_shock_front_condition': handoff.shock_front_condition,
+    },
+    require_terminal_global_downstream_recheck=True,
+  )
+  assert feedback.research_feedback_completed
+  closures = (
+    feedback.source_closure,
+    *tuple(
+      iteration.next_closure
+      for iteration in feedback.iterations
+      if iteration.next_closure is not None
+    ),
+  )
+  assert len(closures) == 2
+  frontier_steps = tuple(
+    run_reflected_domain_global_mixed_regime_shock_frontier_step(
+      MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+        case_id=f'joint-feedback-closure-{index}',
+        closure=closure,
+        reference_total_temperature_K=1500.0,
+      )
+    )
+    for index, closure in enumerate(closures)
+  )
+  result = consume_reflected_domain_global_mixed_regime_joint_fixed_point(
+    MocReflectedDomainGlobalMixedRegimeJointFixedPointRefinementRequest(
+      global_feedback=feedback,
+      shock_frontier_steps=frontier_steps,
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeJointFixedPointRefinementStatus
+    .COMPLETED_RESEARCH_JOINT_RECHECK_WITH_OPEN_CLOSURE
+  )
+  assert result.converged
+  assert result.global_feedback_consumed
+  assert result.frontier_step_count_verified
+  assert result.frontier_feedback_lineage_verified
+  assert result.frontier_steps_consumed
+  assert result.frontier_steps_locally_verified
+  assert result.joint_recheck_verified
+  assert result.global_coupling_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_joint_fixed_point(result)
+  assert audit.converged
+  assert audit.feedback_lineage_replayed
+  assert audit.frontier_step_count_replayed
+  assert audit.frontier_closure_lineage_replayed
+  assert audit.frontier_steps_replayed
+  assert audit.terminal_replayed
+  assert audit.global_fixed_point_consumer_audit_verified
+  assert audit.independent_joint_recheck_verified
+  short_result = consume_reflected_domain_global_mixed_regime_joint_fixed_point(
+    replace(
+      result.request,
+      shock_frontier_steps=frontier_steps[:-1],
+    )
+  )
+  assert short_result.status is (
+    MocReflectedDomainGlobalMixedRegimeJointFixedPointRefinementStatus
+    .FRONTIER_STEP_COUNT_FAILURE
+  )
+  assert short_result.converged is False
+  assert short_result.chain_promotion_blocked
+  assert short_result.production_claim_allowed is False
+
+
+def test_global_mixed_regime_transonic_interface_admits_subsonic_frame_without_coercion():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+  assert consumed.trace is not None
+  trace = consumed.trace
+  equation = solve_reflected_domain_global_mixed_regime_upstream_state_equation(
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRequest(
+      closure=closure,
+      target_points_m=tuple(sample.point_m for sample in trace.samples),
+      target_conservative_state_profile=tuple(
+        sample.conservative_state for sample in trace.samples
+      ),
+      target_entropy_proxy_profile=tuple(
+        sample.entropy_proxy for sample in trace.samples
+      ),
+      target_gamma=trace.samples[0].gamma,
+      reference_total_temperature_K=1500.0,
+    )
+  )
+  frame = build_reflected_domain_global_mixed_regime_upstream_characteristic_frame(
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicFrameRequest(
+      upstream_state_equation=equation,
+    )
+  )
+  assert frame.converged
+
+  normals: list[tuple[float, float]] = []
+  points = tuple(sample.point_m for sample in frame.samples)
+  for index, point in enumerate(points):
+    if index == 0:
+      tangent = (
+        points[1][0] - point[0],
+        points[1][1] - point[1],
+      )
+    elif index == len(points) - 1:
+      tangent = (
+        point[0] - points[index - 1][0],
+        point[1] - points[index - 1][1],
+      )
+    else:
+      tangent = (
+        points[index + 1][0] - points[index - 1][0],
+        points[index + 1][1] - points[index - 1][1],
+      )
+    length = sqrt(tangent[0] * tangent[0] + tangent[1] * tangent[1])
+    normals.append((-tangent[1] / length, tangent[0] / length))
+  ####
+
+  request = MocReflectedDomainGlobalMixedRegimeTransonicInterfaceRequest(
+    characteristic_frame=frame,
+    interface_normals_m=tuple(normals),
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+  )
+  result = solve_reflected_domain_global_mixed_regime_transonic_interface(request)
+  assert result.status in {
+    MocReflectedDomainGlobalMixedRegimeTransonicInterfaceStatus
+    .CONVERGED_LOCAL_RESEARCH_INTERFACE,
+    MocReflectedDomainGlobalMixedRegimeTransonicInterfaceStatus
+    .COMPLETED_RESEARCH_INTERFACE_WITH_OPEN_COMPONENTS,
+  }
+  assert result.converged
+  assert result.frame_lineage_verified
+  assert result.interface_geometry_verified
+  assert result.normal_tangent_decomposition_verified
+  assert result.regime_separation_verified
+  assert result.component_fluxes_measured
+  assert result.entropy_channel_measured
+  assert result.subsonic_interface_condition_admitted
+  assert result.supersonic_sample_count == 0
+  assert result.subsonic_or_sonic_sample_count == len(frame.samples)
+  assert result.supersonic_characteristic_data_admitted is False
+  assert result.upstream_characteristic_equation_consumed is False
+  assert result.free_boundary_equation_consumed is False
+  assert result.global_coupling_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert all(
+    sample.characteristic_data_admitted is False
+    for sample in result.flux_samples
+  )
+  audit = audit_reflected_domain_global_mixed_regime_transonic_interface(result)
+  assert audit.converged
+  assert audit.independent_interface_verified
+  assert audit.frame_lineage_replayed
+  assert audit.interface_geometry_replayed
+  assert audit.regime_separation_replayed
+  assert audit.component_fluxes_replayed
+  assert audit.entropy_channel_replayed
+
+  strict_result = solve_reflected_domain_global_mixed_regime_transonic_interface(
+    replace(request, require_supersonic_characteristic_data=True)
+  )
+  assert strict_result.status is (
+    MocReflectedDomainGlobalMixedRegimeTransonicInterfaceStatus
+    .CHARACTERISTIC_DATA_REQUIRED
+  )
+  assert strict_result.chain_promotion_blocked
+  assert strict_result.production_claim_allowed is False
+
+  coerced_sample = replace(
+    frame.samples[0],
+    characteristic_state=CharacteristicState(
+      x_m=frame.samples[0].point_m[0],
+      y_m=frame.samples[0].point_m[1],
+      theta_rad=frame.samples[0].flow_angle_rad,
+      mach=2.0,
+      gamma=trace.samples[0].gamma,
+    ),
+  )
+  coerced_frame = replace(
+    frame,
+    samples=(coerced_sample, *frame.samples[1:]),
+  )
+  coerced_result = solve_reflected_domain_global_mixed_regime_transonic_interface(
+    replace(request, characteristic_frame=coerced_frame)
+  )
+  assert coerced_result.status is (
+    MocReflectedDomainGlobalMixedRegimeTransonicInterfaceStatus
+    .REGIME_SEPARATION_FAILURE
+  )
+  assert coerced_result.converged is False
+####
+
+
+def test_global_mixed_regime_upstream_characteristic_equation_stops_on_all_subsonic_frame():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+  assert consumed.trace is not None
+  trace = consumed.trace
+  equation = solve_reflected_domain_global_mixed_regime_upstream_state_equation(
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationRequest(
+      closure=closure,
+      target_points_m=tuple(sample.point_m for sample in trace.samples),
+      target_conservative_state_profile=tuple(
+        sample.conservative_state for sample in trace.samples
+      ),
+      target_entropy_proxy_profile=tuple(
+        sample.entropy_proxy for sample in trace.samples
+      ),
+      target_gamma=trace.samples[0].gamma,
+      reference_total_temperature_K=1500.0,
+      max_pseudo_iterations=400,
+    )
+  )
+  frame = build_reflected_domain_global_mixed_regime_upstream_characteristic_frame(
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicFrameRequest(
+      upstream_state_equation=equation,
+    )
+  )
+  points = tuple(sample.point_m for sample in frame.samples)
+  normals: list[tuple[float, float]] = []
+  for index, point in enumerate(points):
+    if index == 0:
+      tangent = (
+        points[1][0] - point[0],
+        points[1][1] - point[1],
+      )
+    elif index == len(points) - 1:
+      tangent = (
+        point[0] - points[index - 1][0],
+        point[1] - points[index - 1][1],
+      )
+    else:
+      tangent = (
+        points[index + 1][0] - points[index - 1][0],
+        points[index + 1][1] - points[index - 1][1],
+      )
+    length = sqrt(tangent[0] * tangent[0] + tangent[1] * tangent[1])
+    normals.append((-tangent[1] / length, tangent[0] / length))
+  ####
+  interface_request = MocReflectedDomainGlobalMixedRegimeTransonicInterfaceRequest(
+    characteristic_frame=frame,
+    interface_normals_m=tuple(normals),
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+  )
+  interface = solve_reflected_domain_global_mixed_regime_transonic_interface(
+    interface_request
+  )
+  interface_audit = audit_reflected_domain_global_mixed_regime_transonic_interface(
+    interface
+  )
+  assert interface.converged
+  assert interface_audit.converged
+
+  handoff_request = (
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationRequest(
+      transonic_interface=interface,
+      transonic_interface_audit=interface_audit,
+    )
+  )
+  handoff = admit_reflected_domain_global_mixed_regime_upstream_characteristic_equation(
+    handoff_request
+  )
+  assert handoff.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationStatus
+    .MISSING_INCOMING_CHARACTERISTIC
+  )
+  assert handoff.converged is False
+  assert handoff.interface_lineage_verified
+  assert handoff.subsonic_boundary_condition_consumed
+  assert handoff.supersonic_characteristic_data_consumed is False
+  assert handoff.incoming_characteristic_count == 0
+  assert handoff.normal_closure_verified is False
+  assert handoff.equation_ready is False
+  assert handoff.upstream_characteristic_equation_consumed is False
+  assert handoff.free_boundary_equation_consumed is False
+  assert handoff.global_coupling_verified is False
+  assert handoff.chain_promotion_blocked
+  assert handoff.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_upstream_characteristic_equation(
+    handoff
+  )
+  assert audit.converged
+  assert audit.independent_handoff_verified
+  assert audit.interface_lineage_replayed
+  assert audit.regime_partition_replayed
+
+  all_subsonic_compatibility = (
+    consume_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility(
+      MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityRequest(
+        upstream_equation_handoff=handoff,
+      )
+    )
+  )
+  assert all_subsonic_compatibility.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityStatus
+    .CHARACTERISTIC_DATA_REQUIRED
+  )
+  assert all_subsonic_compatibility.characteristic_compatibility_consumed is False
+  assert all_subsonic_compatibility.chain_promotion_blocked
+  assert all_subsonic_compatibility.production_claim_allowed is False
+  all_subsonic_compatibility_audit = (
+    audit_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility(
+      all_subsonic_compatibility
+    )
+  )
+  assert all_subsonic_compatibility_audit.converged
+
+  all_subsonic_normal_closure = (
+    solve_reflected_domain_global_mixed_regime_normal_closure(
+      MocReflectedDomainGlobalMixedRegimeNormalClosureRequest(
+        transonic_interface=interface,
+        transonic_interface_audit=interface_audit,
+      )
+    )
+  )
+  assert all_subsonic_normal_closure.status is (
+    MocReflectedDomainGlobalMixedRegimeNormalClosureStatus
+    .CHARACTERISTIC_COMPATIBILITY_REQUIRED
+  )
+  assert all_subsonic_normal_closure.normal_closure_verified is False
+  assert all_subsonic_normal_closure.chain_promotion_blocked
+  assert all_subsonic_normal_closure.production_claim_allowed is False
+
+  canonical_all_subsonic = consume_reflected_domain_global_mixed_regime_canonical_source(
+    MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRequest(
+      characteristic_compatibility=all_subsonic_compatibility,
+      upstream_state_equation=equation,
+    )
+  )
+  assert canonical_all_subsonic.status is (
+    MocReflectedDomainGlobalMixedRegimeCanonicalConsumerStatus
+    .CHARACTERISTIC_COMPATIBILITY_REQUIRED
+  )
+  assert canonical_all_subsonic.characteristic_compatibility_consumed is False
+  assert canonical_all_subsonic.canonical_free_boundary_verified is False
+  assert canonical_all_subsonic.global_coupling_verified is False
+  assert canonical_all_subsonic.chain_promotion_blocked
+  assert canonical_all_subsonic.production_claim_allowed is False
+  canonical_all_subsonic_audit = (
+    audit_reflected_domain_global_mixed_regime_canonical_source(
+      canonical_all_subsonic
+    )
+  )
+  assert canonical_all_subsonic_audit.converged is False
+
+  local_handoff = admit_reflected_domain_global_mixed_regime_upstream_characteristic_equation(
+    replace(
+      handoff_request,
+      require_incoming_characteristic=False,
+      require_normal_closure=False,
+    )
+  )
+  assert local_handoff.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationStatus
+    .ADMITTED_LOCAL_RESEARCH_HANDOFF
+  )
+  assert local_handoff.converged
+  assert local_handoff.equation_ready is False
+  assert local_handoff.upstream_characteristic_equation_consumed is False
+  assert local_handoff.chain_promotion_blocked
+  assert local_handoff.production_claim_allowed is False
+
+  gamma = trace.samples[0].gamma
+  density = 1.0
+  pressure = 100_000.0
+  velocity_u = 800.0
+  sound_speed = sqrt(gamma * pressure / density)
+  mach = velocity_u / sound_speed
+  static_temperature = pressure / (density * 287.05)
+  stagnation_factor = 1.0 + 0.5 * (gamma - 1.0) * mach * mach
+  entropy_proxy = pressure / density**gamma
+  supersonic_samples = tuple(
+    replace(
+      sample,
+      conservative_state=(
+        density,
+        density * velocity_u,
+        0.0,
+        pressure / (gamma - 1.0) + 0.5 * density * velocity_u * velocity_u,
+      ),
+      target_entropy_proxy=entropy_proxy,
+      density_kg_m3=density,
+      velocity_u_m_s=velocity_u,
+      velocity_v_m_s=0.0,
+      static_pressure_Pa=pressure,
+      static_temperature_K=static_temperature,
+      sound_speed_m_s=sound_speed,
+      mach=mach,
+      flow_angle_rad=0.0,
+      total_pressure_Pa=pressure * stagnation_factor ** (gamma / (gamma - 1.0)),
+      total_temperature_K=static_temperature * stagnation_factor,
+      entropy_proxy=entropy_proxy,
+      entropy_log_residual=0.0,
+      roundtrip_relative_residuals=(0.0, 0.0, 0.0, 0.0),
+      characteristic_state=CharacteristicState(
+        x_m=sample.point_m[0],
+        y_m=sample.point_m[1],
+        theta_rad=0.0,
+        mach=mach,
+        gamma=gamma,
+      ),
+    )
+    for sample in frame.samples[1:]
+  )
+  mixed_frame = replace(
+    frame,
+    samples=(frame.samples[0], *supersonic_samples),
+    characteristic_state_profile_available=False,
+  )
+  mixed_interface_request = replace(
+    interface_request,
+    characteristic_frame=mixed_frame,
+    interface_normals_m=tuple((0.0, 1.0) for _ in frame.samples),
+    interface_normal_speed_m_s=0.0,
+  )
+  mixed_interface = solve_reflected_domain_global_mixed_regime_transonic_interface(
+    mixed_interface_request
+  )
+  mixed_interface_audit = (
+    audit_reflected_domain_global_mixed_regime_transonic_interface(
+      mixed_interface
+    )
+  )
+  assert mixed_interface.converged
+  assert mixed_interface_audit.converged
+  mixed_handoff = (
+    admit_reflected_domain_global_mixed_regime_upstream_characteristic_equation(
+      replace(
+        handoff_request,
+        transonic_interface=mixed_interface,
+        transonic_interface_audit=mixed_interface_audit,
+        require_normal_closure=False,
+        incoming_normal_sign=1.0,
+      )
+    )
+  )
+  assert mixed_handoff.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationStatus
+    .ADMITTED_LOCAL_RESEARCH_HANDOFF
+  )
+  assert mixed_handoff.converged
+  assert mixed_handoff.subsonic_sample_indices == (0,)
+  assert mixed_handoff.supersonic_sample_indices == tuple(
+    range(1, len(frame.samples))
+  )
+  assert mixed_handoff.incoming_characteristic_count > 0
+  assert mixed_handoff.interface_handoff_verified
+  assert mixed_handoff.equation_ready is False
+  assert mixed_handoff.upstream_characteristic_equation_consumed is False
+
+  compatibility = (
+    consume_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility(
+      MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityRequest(
+        upstream_equation_handoff=mixed_handoff,
+      )
+    )
+  )
+  assert compatibility.status in {
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityStatus
+    .CONVERGED_LOCAL_RESEARCH_COMPATIBILITY,
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityStatus
+    .COMPLETED_RESEARCH_COMPATIBILITY_WITH_OPEN_RESIDUAL,
+  }
+  assert compatibility.converged
+  assert compatibility.characteristic_compatibility_consumed
+  assert compatibility.incoming_sample_indices == tuple(
+    range(1, len(frame.samples))
+  )
+  assert compatibility.normal_closure_required
+  assert compatibility.upstream_characteristic_equation_consumed is False
+  assert compatibility.free_boundary_equation_consumed is False
+  assert compatibility.global_coupling_verified is False
+  assert compatibility.chain_promotion_blocked
+  assert compatibility.production_claim_allowed is False
+  compatibility_audit = (
+    audit_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility(
+      compatibility
+    )
+  )
+  assert compatibility_audit.converged
+  assert compatibility_audit.independent_compatibility_verified
+
+  normal_closure_without_ambient = (
+    solve_reflected_domain_global_mixed_regime_normal_closure(
+      MocReflectedDomainGlobalMixedRegimeNormalClosureRequest(
+        transonic_interface=mixed_interface,
+        transonic_interface_audit=mixed_interface_audit,
+        characteristic_compatibility=compatibility,
+        characteristic_compatibility_audit=compatibility_audit,
+      )
+    )
+  )
+  assert normal_closure_without_ambient.status is (
+    MocReflectedDomainGlobalMixedRegimeNormalClosureStatus
+    .AMBIENT_STATE_REQUIRED
+  )
+  assert normal_closure_without_ambient.characteristic_compatibility_consumed
+  assert normal_closure_without_ambient.ambient_state_profile_consumed is False
+  assert normal_closure_without_ambient.normal_closure_verified is False
+
+  ambient_profile = tuple(
+    MocReflectedDomainGlobalMixedRegimeNormalClosureAmbientState(
+      sample_index=sample.sample_index,
+      point_m=sample.point_m,
+      density_kg_m3=sample.density_kg_m3,
+      velocity_u_m_s=sample.frame_sample.velocity_u_m_s,
+      velocity_v_m_s=sample.frame_sample.velocity_v_m_s,
+      static_pressure_Pa=sample.static_pressure_Pa,
+      static_temperature_K=sample.frame_sample.static_temperature_K,
+      gamma=trace.samples[0].gamma,
+      specific_gas_constant_J_kg_K=(
+        sample.static_pressure_Pa
+        / (sample.density_kg_m3 * sample.frame_sample.static_temperature_K)
+      ),
+    )
+    for sample in mixed_interface.flux_samples
+  )
+  normal_closure = solve_reflected_domain_global_mixed_regime_normal_closure(
+    MocReflectedDomainGlobalMixedRegimeNormalClosureRequest(
+      transonic_interface=mixed_interface,
+      transonic_interface_audit=mixed_interface_audit,
+      characteristic_compatibility=compatibility,
+      characteristic_compatibility_audit=compatibility_audit,
+      ambient_state_profile=ambient_profile,
+    )
+  )
+  assert normal_closure.status is (
+    MocReflectedDomainGlobalMixedRegimeNormalClosureStatus
+    .CONVERGED_LOCAL_RESEARCH_NORMAL_CLOSURE
+  )
+  assert normal_closure.converged
+  assert normal_closure.interface_lineage_verified
+  assert normal_closure.interface_audit_verified
+  assert normal_closure.characteristic_compatibility_consumed
+  assert normal_closure.characteristic_compatibility_audit_verified
+  assert normal_closure.ambient_state_profile_consumed
+  assert normal_closure.ambient_state_equation_verified
+  assert normal_closure.component_fluxes_measured
+  assert normal_closure.entropy_inequality_verified
+  assert normal_closure.componentwise_residual_gate_verified
+  assert normal_closure.normal_closure_equation_consumed
+  assert normal_closure.normal_closure_verified
+  assert normal_closure.canonical_free_boundary_verified is False
+  assert normal_closure.global_coupling_verified is False
+  assert normal_closure.chain_promotion_blocked
+  assert normal_closure.production_claim_allowed is False
+  assert normal_closure.maximum_component_residual == 0.0
+  normal_closure_audit = (
+    audit_reflected_domain_global_mixed_regime_normal_closure(normal_closure)
+  )
+  assert normal_closure_audit.converged
+  assert normal_closure_audit.independent_normal_closure_verified
+  assert normal_closure_audit.interface_lineage_replayed
+  assert normal_closure_audit.compatibility_lineage_replayed
+  assert normal_closure_audit.ambient_profile_replayed
+  assert normal_closure_audit.flux_replay_verified
+  assert normal_closure_audit.entropy_replay_verified
+
+  mismatched_ambient_profile = (
+    ambient_profile[0],
+    replace(
+      ambient_profile[1],
+      static_pressure_Pa=ambient_profile[1].static_pressure_Pa * 1.01,
+      static_temperature_K=(
+        ambient_profile[1].static_pressure_Pa
+        * 1.01
+        / (
+          ambient_profile[1].density_kg_m3
+          * ambient_profile[1].specific_gas_constant_J_kg_K
+        )
+      ),
+    ),
+    *ambient_profile[2:],
+  )
+  open_normal_closure = solve_reflected_domain_global_mixed_regime_normal_closure(
+    replace(
+      normal_closure.request,
+      ambient_state_profile=mismatched_ambient_profile,
+    )
+  )
+  assert open_normal_closure.status is (
+    MocReflectedDomainGlobalMixedRegimeNormalClosureStatus
+    .COMPLETED_RESEARCH_NORMAL_CLOSURE_WITH_OPEN_RESIDUAL
+  )
+  assert open_normal_closure.component_fluxes_measured
+  assert open_normal_closure.componentwise_residual_gate_verified is False
+  assert open_normal_closure.normal_closure_verified is False
+  assert open_normal_closure.chain_promotion_blocked
+
+  canonical_mixed = consume_reflected_domain_global_mixed_regime_canonical_source(
+    MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRequest(
+      characteristic_compatibility=compatibility,
+      upstream_state_equation=equation,
+    )
+  )
+  assert canonical_mixed.status is (
+    MocReflectedDomainGlobalMixedRegimeCanonicalConsumerStatus
+    .GLOBAL_FEEDBACK_REQUIRED
+  )
+  assert canonical_mixed.characteristic_compatibility_consumed
+  assert canonical_mixed.upstream_state_equation_consumed
+  assert canonical_mixed.global_feedback_consumed is False
+  assert canonical_mixed.canonical_free_boundary_verified is False
+  assert canonical_mixed.global_coupling_verified is False
+  assert canonical_mixed.chain_promotion_blocked
+  assert canonical_mixed.production_claim_allowed is False
+
+  feedback_handoff = build_reflected_domain_global_solver_owned_physical_field_handoff(
+    closure
+  )
+  feedback = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+      'inlet_boundary_mode': (
+        MocReflectedDomainCoupledEulerInletBoundaryMode
+        .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+      ),
+      'physical_field_continuation_profile': feedback_handoff.continuation_profile,
+      'physical_field_shock_front_condition': feedback_handoff.shock_front_condition,
+    },
+    require_terminal_global_downstream_recheck=True,
+  )
+  assert feedback.research_feedback_completed
+  canonical_feedback_request = (
+    MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRequest(
+      characteristic_compatibility=compatibility,
+      upstream_state_equation=equation,
+      global_feedback=feedback,
+    )
+  )
+  canonical_with_feedback = (
+    consume_reflected_domain_global_mixed_regime_canonical_source(
+      canonical_feedback_request
+    )
+  )
+  assert canonical_with_feedback.status is (
+    MocReflectedDomainGlobalMixedRegimeCanonicalConsumerStatus
+    .COMPLETED_RESEARCH_CANONICAL_CONSUMPTION_WITH_OPEN_CLOSURE
+  )
+  assert canonical_with_feedback.converged
+  assert canonical_with_feedback.characteristic_compatibility_consumed
+  assert canonical_with_feedback.upstream_state_equation_consumed
+  assert canonical_with_feedback.global_feedback_consumed
+  assert canonical_with_feedback.normal_closure_required
+  assert canonical_with_feedback.normal_closure_verified is False
+  assert canonical_with_feedback.canonical_free_boundary_verified is False
+  assert canonical_with_feedback.global_coupling_verified is False
+  assert canonical_with_feedback.chain_promotion_blocked
+  assert canonical_with_feedback.production_claim_allowed is False
+  canonical_with_feedback_audit = (
+    audit_reflected_domain_global_mixed_regime_canonical_source(
+      canonical_with_feedback
+    )
+  )
+  assert canonical_with_feedback_audit.converged
+  assert canonical_with_feedback_audit.independent_research_consumption_verified
+
+  canonical_with_normal_request = replace(
+    canonical_feedback_request,
+    normal_closure=normal_closure,
+    normal_closure_audit=normal_closure_audit,
+    require_normal_closure=True,
+  )
+  canonical_with_normal = (
+    consume_reflected_domain_global_mixed_regime_canonical_source(
+      canonical_with_normal_request
+    )
+  )
+  assert canonical_with_normal.status is (
+    MocReflectedDomainGlobalMixedRegimeCanonicalConsumerStatus
+    .COMPLETED_RESEARCH_CANONICAL_CONSUMPTION_WITH_OPEN_GLOBAL_CLOSURE
+  )
+  assert canonical_with_normal.converged
+  assert canonical_with_normal.normal_closure_consumed
+  assert canonical_with_normal.normal_closure_audit_verified
+  assert canonical_with_normal.normal_closure_verified
+  assert canonical_with_normal.canonical_free_boundary_verified is False
+  assert canonical_with_normal.global_coupling_verified is False
+  assert canonical_with_normal.chain_promotion_blocked
+  assert canonical_with_normal.production_claim_allowed is False
+  canonical_with_normal_audit = (
+    audit_reflected_domain_global_mixed_regime_canonical_source(
+      canonical_with_normal
+    )
+  )
+  assert canonical_with_normal_audit.converged
+  assert canonical_with_normal_audit.normal_closure_lineage_replayed
+  assert canonical_with_normal_audit.normal_closure_audit_verified
+
+  canonical_refinement = (
+    run_reflected_domain_global_mixed_regime_canonical_consumer_refinement(
+      (
+        MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementCase(
+          case_id='mixed-source',
+          resolution=(8, 4),
+          request=canonical_feedback_request,
+        ),
+        MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementCase(
+          case_id='mixed-source',
+          resolution=(12, 6),
+          request=canonical_feedback_request,
+        ),
+      )
+    )
+  )
+  assert canonical_refinement.status is (
+    MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementStatus
+    .COMPLETED_RESEARCH_COVERAGE_WITH_OPEN_GATE
+  )
+  assert canonical_refinement.resolution_ladders_verified
+  assert canonical_refinement.source_closure_bindings_verified
+  assert canonical_refinement.feedback_resolutions_verified is False
+  assert canonical_refinement.local_coverage_verified is False
+  assert canonical_refinement.cross_case_coverage_verified is False
+  assert canonical_refinement.canonical_free_boundary_verified is False
+  assert canonical_refinement.global_coupling_verified is False
+  assert canonical_refinement.chain_promotion_blocked
+  assert canonical_refinement.production_claim_allowed is False
+
+  supersonic_indices = tuple(range(1, len(frame.samples)))
+  gapped_handoff = replace(
+    mixed_handoff,
+    incoming_characteristic_indices=(supersonic_indices[0], *supersonic_indices[2:]),
+    outgoing_characteristic_indices=(supersonic_indices[1],),
+    incoming_characteristic_count=len(supersonic_indices) - 1,
+  )
+  gapped_compatibility = (
+    consume_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility(
+      MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityRequest(
+        upstream_equation_handoff=gapped_handoff,
+      )
+    )
+  )
+  assert gapped_compatibility.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityStatus
+    .CHARACTERISTIC_COVERAGE_FAILURE
+  )
+  assert gapped_compatibility.characteristic_compatibility_consumed is False
+  assert gapped_compatibility.chain_promotion_blocked
+####
+
+
+def test_global_mixed_regime_moving_upstream_state_equation_corrector_consumes_combined_residuals():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  result = (
+    run_reflected_domain_global_mixed_regime_moving_upstream_state_equation_corrector(
+      closure,
+      downstream,
+      reference_total_temperature_K=1500.0,
+      max_equation_pseudo_iterations=80,
+      require_componentwise_residual_descent=False,
+      moving_interface_options={
+        'maximum_field_iterations': 3,
+        'maximum_interface_iterations': 1,
+      },
+      downstream_options={
+        'axial_cell_count': 8,
+        'transverse_cell_count': 4,
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+    )
+  )
+
+  assert result.status in {
+    MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationCorrectorStatus
+    .CONVERGED_RESEARCH_MOVING_UPSTREAM_STATE_EQUATION_CORRECTOR,
+    MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationCorrectorStatus
+    .COMPLETED_RESEARCH_MOVING_UPSTREAM_STATE_EQUATION_CORRECTOR_WITH_OPEN_RESIDUAL,
+  }
+  assert result.source_lineage_verified
+  assert result.initial_equation_consumption_verified
+  assert result.initial_equation_replay_verified
+  assert result.moving_global_corrector_verified
+  assert result.final_lineage_verified
+  assert result.final_equation_consumption_verified
+  assert result.final_equation_replay_verified
+  assert result.upstream_state_equation_consumed
+  assert len(result.initial_upstream_residual_vector) == 7
+  assert len(result.final_upstream_residual_vector) == 7
+  assert len(result.initial_downstream_residual_vector) == 10
+  assert len(result.final_downstream_residual_vector) == 10
+  assert len(result.initial_combined_residual_vector) == 17
+  assert len(result.final_combined_residual_vector) == 17
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()
+  assert len(report['residual_channel_names']) == 17
+  assert report['upstream_state_equation_consumed'] is True
+  assert report['global_coupling_verified'] is False
+  assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_mixed_regime_moving_upstream_corrector_refinement_covers_disjoint_ladders():
+  cases = []
+  for case_id, sample_count in (
+    ('moving-upstream-source-7', 7),
+    ('moving-upstream-source-9', 9),
+  ):
+    closure = _global_physical_closure_for_mixed_regime(sample_count)
+    mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+    cases.append(
+      MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationCorrectorRefinementCase(
+        case_id=case_id,
+        closure=closure,
+        resolutions=((8, 4), (10, 5)),
+        reference_total_temperature_K=1500.0,
+        ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+        moving_interface_options={
+          'maximum_field_iterations': 3,
+          'maximum_interface_iterations': 1,
+        },
+      )
+    )
+  ####
+
+  run = (
+    run_reflected_domain_global_mixed_regime_moving_upstream_state_equation_corrector_refinement(
+      cases,
+      max_pseudo_iterations=400,
+      max_shape_iterations=12,
+      max_equation_pseudo_iterations=80,
+    )
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationCorrectorRefinementStatus
+    .CONVERGED_CROSS_CASE_RESEARCH_COVERAGE
+  )
+  assert run.converged
+  assert run.case_ids_verified
+  assert run.source_closure_bindings_verified
+  assert run.distinct_source_closures_verified
+  assert run.resolution_ladders_verified
+  assert run.local_coverage_verified
+  assert run.cross_case_coverage_verified
+  assert run.equation_consumption_verified
+  assert run.moving_corrector_verified
+  assert run.residual_metrics_finite
+  assert run.fidelity_isolation_verified
+  assert len(run.steps) == 4
+  assert len(run.componentwise_residual_descent) == 4
+  assert run.canonical_free_boundary_verified is False
+  assert run.global_coupling_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  report = run.as_report()
+  assert report['checks']['cross_case_coverage_verified'] is True
+  assert report['checks']['equation_consumption_verified'] is True
+  assert report['checks']['moving_corrector_verified'] is True
+  assert report['checks']['componentwise_residual_admission_verified'] == (
+    all(run.componentwise_residual_descent)
+  )
+  assert report['checks']['global_coupling_verified'] is False
+  assert report['checks']['production_claim_allowed'] is False
+####
+
+
+def test_global_mixed_regime_moving_upstream_line_search_retains_open_gate():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  result = run_reflected_domain_global_mixed_regime_moving_upstream_state_equation_line_search(
+    closure,
+    downstream,
+    reference_total_temperature_K=1500.0,
+    correction_fractions=(0.005,),
+    max_equation_pseudo_iterations=80,
+    moving_interface_options={
+      'maximum_field_iterations': 3,
+      'maximum_interface_iterations': 1,
+    },
+    downstream_options={
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+  )
+
+  assert result.status in {
+    MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationLineSearchStatus
+    .CONVERGED_RESEARCH_LINE_SEARCH,
+    MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationLineSearchStatus
+    .COMPLETED_RESEARCH_LINE_SEARCH_WITH_OPEN_RESIDUAL,
+  }
+  assert len(result.correction_fractions) == 1
+  assert len(result.attempts) == 1
+  assert result.source_lineage_verified
+  assert result.candidate_vectors_consistent
+  assert result.upstream_state_equation_consumed
+  assert result.independent_replays_verified
+  assert result.moving_global_corrector_verified
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  assert len(result.baseline_residual_vector) == 17
+  if result.selected_attempt is not None:
+    assert result.status is (
+      MocReflectedDomainGlobalMixedRegimeMovingUpstreamStateEquationLineSearchStatus
+      .CONVERGED_RESEARCH_LINE_SEARCH
+    )
+    assert len(result.selected_residual_vector) == 17
+  ####
+  report = result.as_report()
+  assert report['operator_id'].endswith('line-search-v1')
+  assert report['attempt_count'] == 1
+  assert report['global_coupling_verified'] is False
+  assert report['production_claim_allowed'] is False
+####
 
 
 def test_global_mixed_regime_state_consumer_refinement_records_cross_case_coverage():
@@ -7875,6 +9923,7 @@ def test_global_mixed_regime_state_consumer_refinement_records_cross_case_covera
         ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
       )
     )
+  ####
 
   run = run_reflected_domain_global_mixed_regime_state_consumer_refinement(
     refinement_cases,
@@ -7906,7 +9955,7 @@ def test_global_mixed_regime_state_consumer_refinement_records_cross_case_covera
   assert report['global_coupling_verified'] is False
   assert report['production_claim_allowed'] is False
   assert 'nonmonotonic research residuals' in report['measurement']['claim_status']
- ####
+####
 
 
 def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
@@ -14431,6 +16480,246 @@ def test_global_boundary_state_joint_consumer_consumes_geometry_response_without
   )
   assert report['handoff_consumed'] is True
   assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_mixed_regime_joint_state_frontier_solve_rechecks_fresh_closure():
+  closure = _global_physical_closure_for_mixed_regime()
+  feedback = run_reflected_domain_global_boundary_state_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    downstream_feedback_iterations=2,
+    downstream_options={
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+  )
+  assert feedback.handoff is not None
+  source_closure = feedback.handoff.boundary_feedback_run.iterations[-1].source_closure
+  source_frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='joint-state-frontier-source',
+      closure=source_closure,
+      reference_total_temperature_K=1500.0,
+    )
+  )
+  result = run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveRequest(
+      handoff=feedback.handoff,
+      source_frontier_step=source_frontier,
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveStatus
+    .CONVERGED_RESEARCH_JOINT_STATE_FRONTIER
+  )
+  assert result.converged
+  assert result.source_frontier_lineage_verified
+  assert result.source_frontier_locally_verified
+  assert result.frontier_resolution_consumed
+  assert result.global_joint_solve_verified
+  assert result.refreshed_closure_lineage_verified
+  assert result.refreshed_frontier_verified
+  assert result.joint_state_frontier_verified
+  assert result.independent_audit_verified
+  assert result.joint_state_solve is not None
+  assert result.joint_state_solve.converged_research_joint_update
+  assert result.refreshed_frontier_step is not None
+  assert result.refreshed_frontier_step.locally_verified
+  assert result.refreshed_frontier_step.closure is (
+    result.joint_state_solve.geometry_response_closure
+  )
+  assert result.refreshed_frontier_step.frontier_sample_count == (
+    source_frontier.frontier_sample_count
+  )
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
+    result
+  )
+  assert audit.converged
+  assert audit.request_replayed
+  assert audit.source_frontier_replayed
+  assert audit.global_joint_solve_replayed
+  assert audit.refreshed_frontier_replayed
+  assert audit.independent_joint_state_frontier_verified
+  assert audit.global_coupling_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_frontier_residual_exchange_is_bounded_and_replayable():
+  closure = _global_physical_closure_for_mixed_regime()
+  source_frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='frontier-residual-exchange-source',
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+    )
+  )
+  assert source_frontier.locally_verified
+  result = run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest(
+      source_frontier_step=source_frontier,
+      target_closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      probe_displacement_m=1.0e-5,
+    )
+  )
+  assert result.status in (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
+    .CONVERGED_RESEARCH_FRONTIER_RESIDUAL_EXCHANGE,
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
+    .GEOMETRY_UPDATE_FAILURE,
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
+    .RESIDUAL_REJECTION,
+  )
+  assert result.source_packet is not None
+  assert result.source_packet.sample_count == source_frontier.frontier_sample_count - 1
+  assert len(result.source_packet.maximum_by_component) == 5
+  assert result.geometry_update_attempted
+  assert result.geometry_update_consumed is (
+    result.status is not (
+      MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
+      .GEOMETRY_UPDATE_FAILURE
+    )
+  )
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_frontier_residual_exchange(
+    result
+  )
+  assert audit.converged
+  assert audit.request_replayed
+  assert audit.packet_replayed
+  assert audit.update_replayed
+  assert audit.response_replayed
+  assert audit.independent_exchange_verified
+  assert audit.global_coupling_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_frontier_residual_exchange_refinement_keeps_open_cases_open():
+  cases = []
+  for case_id, skew, component_tolerance in (
+    ('frontier-exchange-negative', (-0.75, 0.0), 1.0e-5),
+    ('frontier-exchange-positive', (0.75, 0.0), 1.0e-4),
+  ):
+    for sample_count in (9, 11):
+      closure = _global_physical_closure_for_mixed_regime(
+        sample_count,
+        compression_envelope_skews=skew,
+      )
+      source_frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+        MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+          case_id=case_id,
+          closure=closure,
+          reference_total_temperature_K=1500.0,
+          component_tolerance=component_tolerance,
+        )
+      )
+      assert source_frontier.locally_verified
+      cases.append(
+        MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementCase(
+          case_id=case_id,
+          source_frontier_step=source_frontier,
+          target_closure=closure,
+          reference_total_temperature_K=1500.0,
+          maximum_iterations=1,
+          probe_displacement_m=1.0e-5,
+        )
+      )
+  measurement = (
+    run_reflected_domain_global_mixed_regime_frontier_residual_exchange_refinement(
+      cases,
+      expected_case_ids=(
+        'frontier-exchange-negative',
+        'frontier-exchange-positive',
+      ),
+    )
+  )
+  assert measurement.status is (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStatus
+    .COMPLETED_RESEARCH_COVERAGE_WITH_OPEN_GATE
+  )
+  assert measurement.converged is False
+  assert measurement.local_case_resolution_ladders_verified
+  assert measurement.distinct_source_closures_verified
+  assert measurement.source_lineage_verified
+  assert measurement.independent_replay_verified
+  assert measurement.componentwise_admission_verified is False
+  assert measurement.accepted_update_verified is False
+  assert measurement.cross_case_coverage_verified is False
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.global_coupling_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_joint_state_frontier_feedback_rebuilds_each_closure():
+  result = run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest(
+      source_closure=_global_physical_closure_for_mixed_regime(),
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=2,
+      downstream_feedback_iterations=2,
+      downstream_options={
+        'axial_station_count': 7,
+        'axial_cell_count': 8,
+        'transverse_cell_count': 4,
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+      two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus
+    .COMPLETED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK_WITH_OPEN_CONVERGENCE
+  )
+  assert result.converged is False
+  assert result.feedback_completed
+  assert len(result.iterations) == 2
+  assert result.frontier_chain_verified
+  assert result.joint_solve_chain_verified
+  assert result.fixed_point_verified is False
+  assert result.residual_descent_verified is False
+  assert result.independent_audit_verified
+  assert result.final_closure is not None
+  assert result.final_closure is not result.source_closure
+  assert all(item.research_step_verified for item in result.iterations)
+  assert all(item.next_closure is not None for item in result.iterations)
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+    result
+  )
+  assert audit.converged
+  assert audit.request_replayed
+  assert audit.iteration_count_replayed
+  assert audit.closure_lineage_replayed
+  assert audit.frontier_chain_replayed
+  assert audit.joint_chain_replayed
+  assert audit.convergence_flags_replayed
+  assert audit.independent_joint_feedback_verified
+  assert audit.global_coupling_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
 ####
 
 
