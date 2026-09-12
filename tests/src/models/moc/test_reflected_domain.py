@@ -55,6 +55,9 @@ from exhaust_plume.validation.moc_euler_two_sided_entropy_refinement import (
   MocEulerTwoSidedEntropyRefinementAuditStatus,
   measure_moc_euler_two_sided_entropy_refinement,
 )
+from exhaust_plume.validation.moc_euler_two_sided_conservative_residual import (
+  MocEulerTwoSidedConservativeResidualAuditStatus,
+)
 from exhaust_plume.validation.moc_euler_two_sided_terminal_closure import (
   MocEulerTwoSidedTerminalClosureAuditStatus,
   measure_moc_euler_two_sided_terminal_closure,
@@ -13795,6 +13798,13 @@ def test_global_boundary_state_dimensioned_corrector_keeps_strict_state_failure_
   assert result.complete_conservative_response_verified
   assert result.state_lineage_verified
   assert result.independent_residual_audit_verified is False
+  assert result.conservative_residual_audit is not None
+  assert result.conservative_residual_audit.status is (
+    MocEulerTwoSidedConservativeResidualAuditStatus.ITERATION_LIMIT
+  )
+  assert 'independent residual evidence is consistent' in (
+    result.conservative_residual_audit.message
+  )
   assert result.dimensioned_channel_descent_verified
   assert result.residual_descent_verified
   assert result.terminal_feedback_run is not None

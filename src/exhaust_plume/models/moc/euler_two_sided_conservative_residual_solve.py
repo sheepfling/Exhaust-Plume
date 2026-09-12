@@ -754,6 +754,10 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
   directional_step_fraction: float | None = None
   shape_jacobian_verified: bool = False
   shape_control_names: tuple[str, ...] = ()
+  shape_control_vectors: tuple[
+    tuple[tuple[float, float], ...], ...
+  ] = ()
+  shape_control_coefficients: tuple[float, ...] = ()
   shape_probe_residual_norms: tuple[float, ...] = ()
   shape_step_norm: float | None = None
   step_source: str = 'backtracked-law-direction'
@@ -852,10 +856,46 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
       raise TypeError('shape_jacobian_verified must be a bool')
     ####
     shape_names = tuple(str(name) for name in self.shape_control_names)
+    shape_vectors = tuple(
+      tuple((float(delta[0]), float(delta[1])) for delta in vector)
+      for vector in self.shape_control_vectors
+    )
+    shape_coefficients = tuple(
+      float(value) for value in self.shape_control_coefficients
+    )
     shape_norms = tuple(float(value) for value in self.shape_probe_residual_norms)
     if len(shape_names) != len(shape_norms):
       raise ValueError(
         'shape_control_names and shape_probe_residual_norms must align'
+      )
+    ####
+    if shape_vectors and len(shape_vectors) != len(shape_names):
+      raise ValueError(
+        'shape_control_names and shape_control_vectors must align'
+      )
+    ####
+    if self.accepted and self.step_source == (
+      'multi-control-shape-jacobian-correction'
+    ) and (
+      len(shape_vectors) != len(shape_names)
+      or len(shape_coefficients) != len(shape_names)
+    ):
+      raise ValueError(
+        'accepted shape-Jacobian records must retain one coefficient per '
+        'shape control'
+      )
+    ####
+    if any(
+      not isfinite(value)
+      for vector in shape_vectors
+      for delta in vector
+      for value in delta
+    ):
+      raise ValueError('shape_control_vectors must contain finite coordinates')
+    ####
+    if any(not isfinite(value) for value in shape_coefficients):
+      raise ValueError(
+        'shape_control_coefficients must contain finite values'
       )
     ####
     if any(not name for name in shape_names):
@@ -874,6 +914,8 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
       )
     ####
     object.__setattr__(self, 'shape_control_names', shape_names)
+    object.__setattr__(self, 'shape_control_vectors', shape_vectors)
+    object.__setattr__(self, 'shape_control_coefficients', shape_coefficients)
     object.__setattr__(self, 'shape_probe_residual_norms', shape_norms)
     object.__setattr__(self, 'step_source', step_source)
     for name in ('residual_descent_verified', 'accepted', 'field_re_solve_verified'):
@@ -900,6 +942,8 @@ class MocEulerTwoSidedConservativeResidualSolveIteration:
       'directional_step_fraction': self.directional_step_fraction,
       'shape_jacobian_verified': self.shape_jacobian_verified,
       'shape_control_names': self.shape_control_names,
+      'shape_control_vectors': self.shape_control_vectors,
+      'shape_control_coefficients': self.shape_control_coefficients,
       'shape_probe_residual_norms': self.shape_probe_residual_norms,
       'shape_step_norm': self.shape_step_norm,
       'step_source': self.step_source,
@@ -1320,6 +1364,8 @@ def solve_euler_two_sided_conservative_residual(
     directional_step_fraction: float | None = None
     shape_jacobian_verified = False
     shape_control_names: tuple[str, ...] = ()
+    shape_control_vectors: tuple[tuple[tuple[float, float], ...], ...] = ()
+    shape_control_coefficients: tuple[float, ...] = ()
     shape_probe_residual_norms: tuple[float, ...] = ()
     shape_step_norm: float | None = None
     last_message = 'no trial passed the residual descent criterion'
@@ -1542,6 +1588,10 @@ def solve_euler_two_sided_conservative_residual(
               )
               accepted_backtracks = shape_backtrack
               accepted_step_source = 'multi-control-shape-jacobian-correction'
+              shape_control_vectors = tuple(
+                vector for _name, vector in shape_controls
+              )
+              shape_control_coefficients = tuple(trial_coefficients)
               break
             ####
             last_message = (
@@ -1649,6 +1699,8 @@ def solve_euler_two_sided_conservative_residual(
         directional_step_fraction=directional_step_fraction,
         shape_jacobian_verified=shape_jacobian_verified,
         shape_control_names=shape_control_names,
+        shape_control_vectors=shape_control_vectors,
+        shape_control_coefficients=shape_control_coefficients,
         shape_probe_residual_norms=shape_probe_residual_norms,
         shape_step_norm=shape_step_norm,
         step_source=accepted_step_source,
@@ -1694,6 +1746,8 @@ def solve_euler_two_sided_conservative_residual(
       directional_step_fraction=directional_step_fraction,
       shape_jacobian_verified=shape_jacobian_verified,
       shape_control_names=shape_control_names,
+      shape_control_vectors=shape_control_vectors,
+      shape_control_coefficients=shape_control_coefficients,
       shape_probe_residual_norms=shape_probe_residual_norms,
       shape_step_norm=shape_step_norm,
       step_source=accepted_step_source,

@@ -428,6 +428,90 @@ def _trial(
 ####
 
 
+def _apply_shape_controls(
+  points: tuple[tuple[float, float], ...],
+  controls: tuple[tuple[tuple[float, float], ...], ...],
+  coefficients: tuple[float, ...],
+) -> tuple[tuple[float, float], ...]:
+  """Replay one retained multi-control shape trial without inference."""
+
+  if len(controls) != len(coefficients) or not controls:
+    raise ValueError('retained shape controls and coefficients are misaligned')
+  ####
+  if any(len(vector) != len(points) for vector in controls):
+    raise ValueError('retained shape controls do not match the shock samples')
+  ####
+  updated = [[float(point[0]), float(point[1])] for point in points]
+  for coefficient, vector in zip(coefficients, controls, strict=True):
+    if not isfinite(float(coefficient)):
+      raise ValueError('retained shape coefficient is non-finite')
+    ####
+    for index, (delta_x, delta_y) in enumerate(vector):
+      updated[index][0] += float(coefficient) * float(delta_x)
+      updated[index][1] += float(coefficient) * float(delta_y)
+    ####
+  ####
+  return tuple((point[0], point[1]) for point in updated)
+####
+
+
+def _shape_trial(
+  field: MocEulerTwoSidedFieldIterationResult,
+  law_request: MocEulerTwoSidedInterfaceLawRequest,
+  record: MocEulerTwoSidedConservativeResidualSolveIteration,
+  result: MocEulerTwoSidedConservativeResidualSolveResult,
+) -> tuple[
+  MocEulerTwoSidedInterfaceResponse,
+  MocEulerTwoSidedFieldIterationResult,
+  MocEulerTwoSidedInterfaceResponse,
+  float,
+  tuple[float, ...],
+]:
+  """Replay the exact retained shape-Jacobian trial."""
+
+  if field.shock_boundary is None:
+    raise ValueError('shape trial field did not retain a shock boundary')
+  ####
+  trial_points = _apply_shape_controls(
+    tuple(field.shock_boundary.shock_points_m),
+    record.shape_control_vectors,
+    record.shape_control_coefficients,
+  )
+  trial_request = replace(
+    law_request,
+    geometry_override_points_m=trial_points,
+    require_conservative_flux_closure=False,
+  )
+  trial_result = build_solver_owned_euler_two_sided_interface_response(
+    field,
+    trial_request,
+    iteration_index=record.iteration_index,
+  )
+  trial_response = trial_result.response
+  if trial_response is None:
+    raise ValueError(trial_result.message)
+  ####
+  if field.request is None:
+    raise ValueError('shape trial field did not retain a field request')
+  ####
+  next_request = replace(
+    field.request,
+    shock_boundary=trial_response.next_shock_boundary,
+    companion_field=trial_response.next_companion_field,
+  )
+  next_field = solve_euler_two_sided_field_iteration(next_request)
+  if not _field_verified(next_field):
+    raise ValueError(
+      'independent exact shape field re-solve did not pass its local gates: '
+      f'{next_field.status.value}'
+    )
+  ####
+  measured = _measure(next_field, trial_request, result)
+  vector = _scaled_vector(measured, result)
+  return trial_response, next_field, measured, _norm(vector), vector
+####
+
+
 def measure_moc_euler_two_sided_conservative_residual(
   result: MocEulerTwoSidedConservativeResidualSolveResult,
 ) -> MocEulerTwoSidedConservativeResidualAudit:
@@ -546,13 +630,22 @@ def measure_moc_euler_two_sided_conservative_residual(
       if not _close(current_norm, record.residual_norm_before):
         raise ValueError('record residual_norm_before disagreed with remeasurement')
       ####
-      trial_response, next_field, measured, after, measured_vector = _trial(
-        current,
-        request.law_request,
-        record.step_fraction,
-        record.iteration_index,
-        result,
-      )
+      if record.step_source == 'multi-control-shape-jacobian-correction':
+        trial_response, next_field, measured, after, measured_vector = _shape_trial(
+          current,
+          request.law_request,
+          record,
+          result,
+        )
+      else:
+        trial_response, next_field, measured, after, measured_vector = _trial(
+          current,
+          request.law_request,
+          record.step_fraction,
+          record.iteration_index,
+          result,
+        )
+      ####
       if record.response is None or record.measured_response is None:
         raise ValueError('record did not retain trial and measured responses')
       ####
