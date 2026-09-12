@@ -58,9 +58,9 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `4fe27db` (explicit entropy-transition gate checkpoint); the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `d673074` (2-D conservative state-target frame checkpoint); the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
-| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component, then drives a bounded pressure/geometry projection into a fresh global closure solve; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
+| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; its exact 2-D segment-midpoint frame is now retained for the future upstream equation, while the bounded pressure/geometry projection remains separate; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
 | 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked; no freeze rewrite, push, or tag is authorized yet |
@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — code checkpoint `4fe27db`
+### Active execution card — code checkpoint `d673074`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -89,9 +89,12 @@ provider validation, the downstream boundary, canonical free-boundary,
 production shock-cell, and release flags remain closed.
 
 The current state-feedback report also carries an explicit upstream
-state-equation contract.  Its exact conservative target frame is ready, but
-the global characteristic MOC equations report the contract as unavailable
-and consume no mass, momentum, energy, or entropy channel.
+state-equation contract.  Its exact conservative target frame now retains the
+segment-midpoint ``(x, y)`` coordinates from the curved downstream trace and
+also exposes the existing x-only compatibility projection used by the
+downstream Rusanov lane.  The global characteristic MOC equations still report
+the contract as unavailable and consume no mass, momentum, energy, or entropy
+channel.
 
 The solver-owned two-sided interface lane now retains an explicit entropy
 transition channel alongside signed mass, normal-momentum, and energy
@@ -406,6 +409,33 @@ validate shock-cell lengths, or open Signature/FPA production claims.  The
 next physics slice remains the solver-owned upstream conservative equation
 and its independent signed mass/momentum/energy/entropy residual and
 disjoint-resolution gates.
+
+### P3.21 exact 2-D conservative target-frame checkpoint — 2026-09-11 (`d673074`)
+
+The mixed-regime state handoff now has two explicitly separated views.  The
+solver retains the conservative average for each adjacent downstream trace
+segment together with that segment's geometric midpoint in the original
+``(x, y)`` frame.  The existing downstream coupled-Euler request continues to
+receive only its exact increasing-x projection, so this change does not alter
+the already-audited Rusanov discretization or silently interpolate onto a new
+grid.
+
+The resolve result and the upstream state-equation contract now carry and
+validate the full 2-D frame, including finite coordinates, equal profile/frame
+lengths, and strict x ordering.  Reports and the public MOC import surface
+preserve the frame for the future solver-owned upstream equation.  Regression
+coverage verifies that the retained frame matches the trace midpoints and that
+the curved trace actually carries changing y coordinates.
+
+The full reflected-domain regression passes (``228 passed in 380.37s``), the
+focused state-consumer/equation tests pass, Ruff, Pyright, compilation, and
+whitespace checks pass, and the code checkpoint is committed at ``d673074``.
+This closes frame provenance only; it does not make the upstream equation
+available, feed the state channels into the global characteristic MOC solver,
+establish canonical free-boundary closure, validate shock-cell lengths, or
+open Signature/FPA production claims.  The next slice remains the
+solver-owned upstream conservative equation with explicit entropy, the same
+2-D frame, independent signed residuals, and disjoint case/resolution gates.
 
 ### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
 
