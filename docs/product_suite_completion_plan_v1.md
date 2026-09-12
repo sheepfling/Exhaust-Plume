@@ -58,12 +58,12 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `91a485c` after extending the `bc11337` entropy-compatible interface-law checkpoint across every live two-state field face and its independent audit; the reflected-domain and independent validation suites are green, Ruff, Pyright, compilation, whitespace, and offline wheel/install smoke pass, and `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `d22acce` after adding an opt-in component-wise complete-state descent gate to the global/coupled feedback loop; the focused regression and reflected-domain suite (232 passed) are green, Ruff, Pyright, compilation, whitespace, and offline wheel/install smoke pass, and `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
-| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; the live entropy-compatible interface law is now a separate local gate, while upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
+| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; the live entropy-compatible interface law is a separate local gate, and the new component-wise outer descent gate demonstrates that scalar maximum-norm descent can hide worsening momentum channels; upstream conservative/entropy feedback and the true global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
-| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked at `91a485c`; the candidate is clean, but the canonical/global, physical shock-cell, provider/archive, and release-freeze gates remain red; no freeze rewrite, push, or tag is authorized yet |
+| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked at `d22acce`; the candidate is clean, but the canonical/global, physical shock-cell, provider/archive, and release-freeze gates remain red; no freeze rewrite, push, or tag is authorized yet |
 
 The queue is dependency-ordered.  In particular, Visualization work may
 continue to improve evaluation surfaces, but it cannot turn an open physical
@@ -7278,3 +7278,31 @@ resolutions, accepted physical shock-cell lengths, provider-bound
 VIS/SIG/RAY/FPA comparisons, missing validation archives, and exact release
 freeze remain open.  No downstream product promotion is allowed from this
 checkpoint.
+
+### P3.28 component-wise complete-state descent checkpoint — 2026-09-12 (`d22acce`)
+
+The bounded global/coupled boundary-feedback runner now retains the complete
+ten-channel normalized state vector for every fresh outer solve and exposes an
+opt-in component-wise descent policy.  The policy requires equal-width finite
+vectors, forbids any channel from worsening beyond numerical tolerance, and
+requires at least one strict active-channel improvement per step.  Channels
+already inside one tolerance unit may remain unchanged while an open equation
+is corrected; no tolerance is widened.
+
+The retained mixed-regime case proves why this gate is needed: the scalar
+maximum residual decreases over two fresh global solves, while the streamwise
+and transverse momentum components increase slightly.  With the new policy
+enabled, the run returns the typed
+``COMPLETE_STATE_CHANNELWISE_RESIDUAL_DESCENT_FAILURE`` status and keeps
+global coupling, canonical free-boundary closure, chain promotion, and
+production claims disabled.  Existing research paths retain their prior
+behavior because the policy is opt-in.
+
+The focused regression passes (``2 passed``), the complete reflected-domain
+suite passes (``232 passed in 6m28s``), Ruff, Pyright, compilation, whitespace,
+and offline package smoke are clean.  This closes a residual-accounting and
+lane-segregation gap only; it does not provide the missing upstream
+conservative/entropy boundary equation or a canonical fixed point.  The next
+physics slice must consume the full vector in a solver-owned upstream
+corrector, then repeat the disjoint-case and increasing-resolution gates
+without accepting scalar-only descent.
