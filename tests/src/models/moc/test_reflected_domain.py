@@ -13351,6 +13351,7 @@ def test_global_coupled_boundary_feedback_consumes_open_response_as_research_ste
     maximum_iterations=2,
     downstream_feedback_iterations=2,
     require_response_residual_descent=True,
+    require_complete_state_residual_descent=True,
     downstream_options={
       'ambient_pressure_Pa': ambient_pressure,
       'pressure_correction_fraction': 0.005,
@@ -13371,9 +13372,15 @@ def test_global_coupled_boundary_feedback_consumes_open_response_as_research_ste
   assert len(run.iterations) == 2
   assert run.response_residual_descent_required
   assert run.response_residual_descent_verified
+  assert run.complete_state_residual_descent_required
+  assert run.complete_state_residual_descent_verified
   assert len(run.downstream_normalized_overlap_residuals) == 2
   assert run.downstream_normalized_overlap_residuals[1] < (
     run.downstream_normalized_overlap_residuals[0]
+  )
+  assert len(run.downstream_normalized_coupled_state_residuals) == 2
+  assert run.downstream_normalized_coupled_state_residuals[1] < (
+    run.downstream_normalized_coupled_state_residuals[0]
   )
   assert run.downstream_response_verified
   assert run.fresh_global_solve_verified
@@ -13396,11 +13403,29 @@ def test_global_coupled_boundary_feedback_consumes_open_response_as_research_ste
   assert iteration.boundary_condition is not None
   assert iteration.boundary_condition.target_geometry_consumed
   assert iteration.research_step_verified
+  assert iteration.downstream_feedback is not None
+  downstream_result = iteration.downstream_feedback.iterations[-1].result
+  assert len(downstream_result.normalized_coupled_state_residual_vector or ()) == 10
+  assert downstream_result.maximum_normalized_coupled_state_residual is not None
+  assert downstream_result.as_report()['normalized_coupled_state_residual_channels'] == (
+    'conservative_mass',
+    'conservative_streamwise_momentum',
+    'conservative_transverse_momentum',
+    'conservative_energy',
+    'conservative_euler',
+    'free_boundary_pressure',
+    'free_boundary_normal_velocity',
+    'centerline_normal_velocity',
+    'free_boundary_shape',
+    'entropy_transport',
+  )
   assert (
     run.as_report()['iterations'][0]['proposal']['ready_for_global_resolve']
   )
   assert run.as_report()['response_residual_descent_verified'] is True
+  assert run.as_report()['complete_state_residual_descent_verified'] is True
   assert len(run.as_report()['downstream_normalized_overlap_residuals']) == 2
+  assert len(run.as_report()['downstream_normalized_coupled_state_residuals']) == 2
   assert run.as_report()['production_claim_allowed'] is False
 ####
 
@@ -13437,6 +13462,42 @@ def test_global_coupled_boundary_feedback_response_descent_gate_fails_closed_wit
   assert run.chain_promotion_blocked
   assert run.production_claim_allowed is False
   assert run.as_report()['response_residual_descent_verified'] is False
+####
+
+
+def test_global_coupled_boundary_feedback_complete_state_descent_gate_fails_closed_without_two_steps():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  ambient_pressure = mixed_request.control_section.samples[-1].static_pressure_Pa
+  run = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=1,
+    downstream_feedback_iterations=2,
+    require_complete_state_residual_descent=True,
+    downstream_options={
+      'ambient_pressure_Pa': ambient_pressure,
+      'pressure_correction_fraction': 0.005,
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    boundary_condition_options={'consume_target_geometry': True},
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+    .COMPLETE_STATE_RESIDUAL_DESCENT_FAILURE
+  )
+  assert run.complete_state_residual_descent_required
+  assert run.complete_state_residual_descent_verified is False
+  assert len(run.downstream_normalized_coupled_state_residuals) == 1
+  assert run.research_feedback_completed is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  assert run.as_report()['complete_state_residual_descent_verified'] is False
 ####
 
 
@@ -14149,6 +14210,54 @@ def test_global_coupled_boundary_condition_feedback_cross_case_refinement_conver
     response_mode_identity_verified=False,
   )
   assert tampered_case.local_research_verified is False
+####
+
+
+def test_global_coupled_boundary_condition_feedback_cross_case_fails_closed_without_complete_state_descent():
+  cases = tuple(
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackCrossCase(
+      case_id=f'state-descent-{sample_count}',
+      regime='mixed-regime-research',
+      source_closure=_global_physical_closure_for_mixed_regime(sample_count),
+      resolution=resolution,
+      downstream_options={
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+    )
+    for sample_count, resolution in (
+      (9, (9, 10, 5)),
+      (11, (11, 12, 6)),
+    )
+  )
+
+  run = (
+    run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_refinement(
+      cases,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=2,
+      downstream_feedback_iterations=2,
+      require_complete_state_residual_descent=True,
+    )
+  )
+
+  assert run.measurement.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
+    .COMPLETE_STATE_RESIDUAL_DESCENT_FAILURE
+  )
+  assert run.converged is False
+  assert run.configuration['require_complete_state_residual_descent'] is True
+  assert run.measurement.complete_state_residual_descent_required
+  assert run.measurement.complete_state_residuals_finite
+  assert run.measurement.complete_state_residual_descent_verified is False
+  assert run.measurement.complete_state_residual_stability_verified
+  assert run.measurement.maximum_relative_complete_state_residual_change is not None
+  assert run.measurement.maximum_relative_complete_state_residual_change < 0.75
+  assert all(case.complete_state_residual_descent_required for case in run.cases)
+  assert all(case.complete_state_residuals_finite for case in run.cases)
+  assert run.cases[0].complete_state_residual_descent_verified
+  assert run.cases[1].complete_state_residual_descent_verified is False
+  assert run.measurement.production_claim_allowed is False
 ####
 
 

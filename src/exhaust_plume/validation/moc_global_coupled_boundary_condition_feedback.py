@@ -115,6 +115,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus(str, Enum):
   RESPONSE_DESCENT_FAILURE = (
     'global-coupled-boundary-condition-response-descent-failure'
   )
+  COMPLETE_STATE_RESIDUAL_DESCENT_FAILURE = (
+    'global-coupled-boundary-condition-complete-state-residual-descent-failure'
+  )
   FIDELITY_FAILURE = 'global-coupled-boundary-condition-fidelity-failure'
   ITERATION_LIMIT = 'global-coupled-boundary-condition-iteration-limit'
   TERMINAL_FIXED_POINT_FAILURE = (
@@ -350,6 +353,24 @@ def _latest_downstream_normalized_overlap_residual(
 ####
 
 
+def _latest_downstream_normalized_coupled_state_residual(
+  feedback: MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None,
+) -> float | None:
+  """Return the latest complete coupled-state metric, if retained."""
+
+  if feedback is None:
+    return None
+  ####
+  for iteration in reversed(feedback.iterations):
+    metric = iteration.result.maximum_normalized_coupled_state_residual
+    if metric is not None and isfinite(float(metric)) and float(metric) >= 0.0:
+      return float(metric)
+    ####
+  ####
+  return None
+####
+
+
 def _strict_response_residual_descent(metrics: tuple[float, ...]) -> bool:
   """Require finite, strict decrease of the retained outer response metric."""
 
@@ -528,6 +549,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
   ####
 
   @property
+  def downstream_normalized_coupled_state_residual(self) -> float | None:
+    """Return this step's complete retained coupled-state metric."""
+
+    return _latest_downstream_normalized_coupled_state_residual(
+      self.downstream_feedback
+    )
+  ####
+
+  @property
   def research_step_verified(self) -> bool:
     """Whether this step reached every local research-only evidence gate."""
 
@@ -564,6 +594,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackIteration:
       'research_step_verified': self.research_step_verified,
       'downstream_normalized_overlap_residual': (
         self.downstream_normalized_overlap_residual
+      ),
+      'downstream_normalized_coupled_state_residual': (
+        self.downstream_normalized_coupled_state_residual
       ),
       'downstream_response_verified': self.downstream_response_verified,
       'source_lineage_verified': self.source_lineage_verified,
@@ -815,6 +848,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
         not self.response_residual_descent_required
         or self.response_residual_descent_verified
       )
+      and (
+        not self.complete_state_residual_descent_required
+        or self.complete_state_residual_descent_verified
+      )
     )
   ####
 
@@ -899,6 +936,36 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   ####
 
   @property
+  def complete_state_residual_descent_required(self) -> bool:
+    """Whether this run requested complete-state residual descent evidence."""
+
+    return bool(
+      self.configuration.get('complete_state_residual_descent_required', False)
+    )
+  ####
+
+  @property
+  def downstream_normalized_coupled_state_residuals(self) -> tuple[float, ...]:
+    """Return one complete coupled-state metric for each retained step."""
+
+    return tuple(
+      metric
+      for item in self.iterations
+      for metric in (item.downstream_normalized_coupled_state_residual,)
+      if metric is not None
+    )
+  ####
+
+  @property
+  def complete_state_residual_descent_verified(self) -> bool:
+    """Whether every retained complete-state metric strictly improves."""
+
+    return _strict_response_residual_descent(
+      self.downstream_normalized_coupled_state_residuals
+    )
+  ####
+
+  @property
   def converged(self) -> bool:
     """Alias for bounded research completion, never canonical closure."""
 
@@ -962,6 +1029,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       ),
       'downstream_normalized_overlap_residuals': (
         self.downstream_normalized_overlap_residuals
+      ),
+      'complete_state_residual_descent_required': (
+        self.complete_state_residual_descent_required
+      ),
+      'complete_state_residual_descent_verified': (
+        self.complete_state_residual_descent_verified
+      ),
+      'downstream_normalized_coupled_state_residuals': (
+        self.downstream_normalized_coupled_state_residuals
       ),
       'terminal_fixed_point_required': self.terminal_fixed_point_required,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
@@ -1518,6 +1594,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   boundary_condition_options: Mapping[str, Any] | None = None,
   maximum_frame_extension_m: float = 0.5,
   require_response_residual_descent: bool = False,
+  require_complete_state_residual_descent: bool = False,
   require_terminal_fixed_point: bool = False,
   require_terminal_global_fixed_point: bool = False,
   require_terminal_global_downstream_recheck: bool = False,
@@ -1537,6 +1614,10 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   tangent, pressure, and normal-velocity overlap residual channels; otherwise
   the run fails closed with a typed response-descent status.  This is a
   research-loop audit, not a replacement for the individual residual gates.
+  When ``require_complete_state_residual_descent`` is true, the complete
+  retained conservative/boundary/state vector must also strictly decrease;
+  this includes the solver's declared entropy-transport loss tolerance and
+  fails closed when a fresh coupled field cannot expose every channel.
   When ``require_terminal_fixed_point`` is
   true, a fresh downstream response is automatically replayed against the
   final retained closure and the run is marked failed unless that terminal
@@ -1565,6 +1646,11 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   ####
   if not isinstance(require_response_residual_descent, bool):
     raise ValueError('require_response_residual_descent must be a bool')
+  ####
+  if not isinstance(require_complete_state_residual_descent, bool):
+    raise ValueError(
+      'require_complete_state_residual_descent must be a bool'
+    )
   ####
   if not isinstance(require_terminal_global_fixed_point, bool):
     raise ValueError('require_terminal_global_fixed_point must be a bool')
@@ -1651,6 +1737,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     'downstream_feedback_iterations': downstream_feedback_iterations,
     'maximum_frame_extension_m': resolved_maximum_frame_extension,
     'response_residual_descent_required': require_response_residual_descent,
+    'complete_state_residual_descent_required': (
+      require_complete_state_residual_descent
+    ),
     'consumer_id': resolved_consumer_id,
     'downstream_options': resolved_downstream_options,
     'boundary_condition_options': resolved_boundary_options,
@@ -2141,6 +2230,29 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
         ####
       ####
     ####
+    if failure_status is None and require_complete_state_residual_descent:
+      if iteration_index > 0:
+        previous_metric = _latest_downstream_normalized_coupled_state_residual(
+          iterations[-2].downstream_feedback
+        )
+        current_metric = step.downstream_normalized_coupled_state_residual
+        if (
+          previous_metric is None
+          or current_metric is None
+          or not _strict_response_residual_descent(
+            (previous_metric, current_metric)
+          )
+        ):
+          failure_status = (
+            MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+            .COMPLETE_STATE_RESIDUAL_DESCENT_FAILURE
+          )
+          failure_message = (
+            'complete coupled-state residual vector did not strictly '
+            'decrease between fresh global solves'
+          )
+      ####
+    ####
     if failure_status is not None:
       break
     ####
@@ -2187,6 +2299,24 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
       failure_message = (
         'outer response-residual descent requires at least two finite '
         'strictly decreasing fresh global response metrics'
+      )
+    ####
+  ####
+  if failure_status is None and require_complete_state_residual_descent:
+    metrics = tuple(
+      metric
+      for item in retained_iterations
+      for metric in (item.downstream_normalized_coupled_state_residual,)
+      if metric is not None
+    )
+    if not _strict_response_residual_descent(metrics):
+      failure_status = (
+        MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+        .COMPLETE_STATE_RESIDUAL_DESCENT_FAILURE
+      )
+      failure_message = (
+        'complete-state residual descent requires every fresh field to retain '
+        'a finite vector and at least two strict improvements'
       )
     ####
   ####

@@ -68,6 +68,7 @@ __all__ = (
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponseStatus',
   'MocReflectedDomainGlobalCoupledDownstreamBoundaryResponse',
+  'GLOBAL_COUPLED_DOWNSTREAM_STATE_RESIDUAL_CHANNELS',
   'MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackStatus',
   'MocReflectedDomainGlobalCoupledDownstreamUpstreamFeedbackProposal',
   'build_reflected_domain_global_coupled_downstream_boundary_pressure_profile',
@@ -102,6 +103,19 @@ GLOBAL_COUPLED_DOWNSTREAM_UPSTREAM_FEEDBACK_PROPOSAL_MODEL = (
 GLOBAL_COUPLED_DOWNSTREAM_BOUNDARY_TRACE_MODEL = (
   'research-global-coupled-euler-free-boundary-trace-v1'
 )
+GLOBAL_COUPLED_DOWNSTREAM_STATE_RESIDUAL_CHANNELS = (
+  'conservative_mass',
+  'conservative_streamwise_momentum',
+  'conservative_transverse_momentum',
+  'conservative_energy',
+  'conservative_euler',
+  'free_boundary_pressure',
+  'free_boundary_normal_velocity',
+  'centerline_normal_velocity',
+  'free_boundary_shape',
+  'entropy_transport',
+)
+_COUPLED_EULER_ENTROPY_TRANSPORT_TOLERANCE = 5.0e-2
 
 
 class MocReflectedDomainGlobalCoupledDownstreamStatus(str, Enum):
@@ -3226,6 +3240,106 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
   ####
 
   @property
+  def normalized_coupled_state_residual_vector(self) -> tuple[float, ...] | None:
+    """Return the retained coupled-state residual vector in tolerance units.
+
+    The vector is derived only from the exact retained coupled request and
+    field.  Its first five entries are the conservative cell residual
+    channels; the remaining entries cover the free-boundary pressure,
+    free-boundary and centerline normal-velocity fractions, boundary shape,
+    and the solver's declared entropy-transport loss tolerance.  This is a
+    research comparison vector, not a canonical closure or promotion gate.
+    """
+
+    request = self.coupled_request
+    field = self.coupled_field
+    if request is None or field is None:
+      return None
+    ####
+    conservative = (
+      field.maximum_conservative_mass_residual,
+      field.maximum_conservative_streamwise_momentum_residual,
+      field.maximum_conservative_transverse_momentum_residual,
+      field.maximum_conservative_energy_residual,
+      field.maximum_conservative_euler_residual,
+    )
+    if any(value is None for value in conservative):
+      return None
+    ####
+    tolerance = float(request.euler_residual_tolerance)
+    if not isfinite(tolerance) or tolerance <= 0.0:
+      return None
+    ####
+    pressure_targets = request.free_boundary_pressure_profile_Pa
+    if pressure_targets is None:
+      pressure_targets = (
+        float(request.mixed_regime_request.ambient_pressure_Pa),
+      ) * request.axial_cell_count
+    ####
+    pressure_residuals = tuple(field.free_boundary_pressure_residuals_Pa)
+    if len(pressure_targets) != len(pressure_residuals):
+      return None
+    ####
+    pressure_fraction = float(
+      request.free_boundary_pressure_tolerance_fraction
+    )
+    if not isfinite(pressure_fraction) or pressure_fraction <= 0.0:
+      return None
+    pressure_metric = max(
+      (
+        abs(float(residual))
+        / max(abs(float(target)) * pressure_fraction, 1.0e-12)
+        for residual, target in zip(
+          pressure_residuals,
+          pressure_targets,
+          strict=True,
+        )
+      ),
+      default=0.0,
+    )
+    ####
+    normal_fraction = field.maximum_free_boundary_normal_velocity_residual_fraction
+    centerline_fraction = field.maximum_centerline_normal_velocity_residual_fraction
+    shape_residual = field.maximum_shape_residual_m
+    entropy_residual = field.maximum_entropy_transport_residual
+    shape_tolerance = float(request.shape_convergence_tolerance)
+    entropy_tolerance = _COUPLED_EULER_ENTROPY_TRANSPORT_TOLERANCE
+    if (
+      normal_fraction is None
+      or centerline_fraction is None
+      or shape_residual is None
+      or entropy_residual is None
+      or not isfinite(shape_tolerance)
+      or shape_tolerance <= 0.0
+    ):
+      return None
+    ####
+    vector = tuple(
+      float(value) / tolerance for value in conservative
+    ) + (
+      float(pressure_metric),
+      float(normal_fraction)
+      / float(request.free_boundary_normal_velocity_tolerance_fraction),
+      float(centerline_fraction)
+      / float(request.centerline_normal_velocity_tolerance_fraction),
+      float(shape_residual) / shape_tolerance,
+      float(entropy_residual) / entropy_tolerance,
+    )
+    if any(not isfinite(value) or value < 0.0 for value in vector):
+      return None
+    ####
+    return vector
+  ####
+
+  @property
+  def maximum_normalized_coupled_state_residual(self) -> float | None:
+    """Return the maximum normalized retained coupled-state residual."""
+
+    vector = self.normalized_coupled_state_residual_vector
+    return None if vector is None else max(vector, default=0.0)
+  ####
+
+  @property
   def local_coupled_field_verified(self) -> bool:
     """Whether the downstream candidate and its independent audit both pass."""
 
@@ -3322,6 +3436,15 @@ class MocReflectedDomainGlobalCoupledDownstreamResult:
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'closure_lineage_verified': self.closure_lineage_verified,
       'local_coupled_field_verified': self.local_coupled_field_verified,
+      'normalized_coupled_state_residual_channels': (
+        GLOBAL_COUPLED_DOWNSTREAM_STATE_RESIDUAL_CHANNELS
+      ),
+      'normalized_coupled_state_residual_vector': (
+        self.normalized_coupled_state_residual_vector
+      ),
+      'maximum_normalized_coupled_state_residual': (
+        self.maximum_normalized_coupled_state_residual
+      ),
       'mixed_regime_reference_verified': self.mixed_regime_reference_verified,
       'global_coupling_verified': self.global_coupling_verified,
       'downstream_boundary_closure_verified': (

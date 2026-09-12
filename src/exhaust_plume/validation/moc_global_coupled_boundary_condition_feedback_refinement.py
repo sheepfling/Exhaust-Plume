@@ -132,6 +132,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus(
   STABILITY_FAILURE = (
     'global-coupled-boundary-condition-feedback-refinement-stability-failure'
   )
+  COMPLETE_STATE_RESIDUAL_DESCENT_FAILURE = (
+    'global-coupled-boundary-condition-feedback-refinement-complete-state-residual-descent-failure'
+  )
   BOUNDARY_FLUX_EVIDENCE_REQUIRED = (
     'global-coupled-boundary-condition-feedback-refinement-boundary-flux-evidence-required'
   )
@@ -189,6 +192,16 @@ def _maximum_absolute(values: Sequence[float]) -> float:
 def _relative_change(first: float, second: float, floor: float) -> float:
   scale = max(abs(float(first)), abs(float(second)), float(floor))
   return abs(float(second) - float(first)) / scale
+####
+
+
+def _strict_residual_descent(values: Sequence[float]) -> bool:
+  resolved = tuple(float(value) for value in values)
+  return bool(
+    len(resolved) >= 2
+    and all(isfinite(value) for value in resolved)
+    and all(second < first for first, second in zip(resolved, resolved[1:]))
+  )
 ####
 
 
@@ -381,6 +394,8 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
   resolution: tuple[int, int, int]
   run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun
   response_signature: tuple[float, float, float, float, float]
+  complete_state_residual_metrics: tuple[float, ...] = ()
+  complete_state_residual_descent_required: bool = False
   response_mode_identity: tuple[str, ...] = ()
   terminal_fixed_point_audit: (
     MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackTerminalFixedPointAudit
@@ -426,6 +441,18 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       raise ValueError(
         'response_signature must contain five finite response magnitudes'
       )
+    ####
+    state_metrics = tuple(
+      float(value) for value in self.complete_state_residual_metrics
+    )
+    if any(not isfinite(value) or value < 0.0 for value in state_metrics):
+      raise ValueError(
+        'complete_state_residual_metrics must contain finite nonnegative '
+        'values'
+      )
+    ####
+    if not isinstance(self.complete_state_residual_descent_required, bool):
+      raise TypeError('complete_state_residual_descent_required must be a bool')
     ####
     if self.terminal_fixed_point_audit is not None and not isinstance(
       self.terminal_fixed_point_audit,
@@ -481,6 +508,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     object.__setattr__(self, 'regime', str(self.regime))
     object.__setattr__(self, 'resolution', resolution)
     object.__setattr__(self, 'response_signature', signature)
+    object.__setattr__(self, 'complete_state_residual_metrics', state_metrics)
     mode_identity = tuple(str(value) for value in self.response_mode_identity)
     if any(not value for value in mode_identity):
       raise ValueError('response_mode_identity values must be non-empty')
@@ -511,6 +539,11 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       and self.target_lineage_verified
       and self.frame_coverage_verified
       and self.residuals_finite
+      and self.complete_state_residuals_finite
+      and (
+        not self.complete_state_residual_descent_required
+        or self.complete_state_residual_descent_verified
+      )
       and self.geometry_profile_injection_blocked
       and self.response_mode_identity_verified
       and self.fidelity_isolation_verified
@@ -525,6 +558,26 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
     )
   ####
 
+  @property
+  def complete_state_residuals_finite(self) -> bool:
+    """Whether retained complete-state metrics are finite and nonempty."""
+
+    return bool(
+      self.complete_state_residual_metrics
+      and all(
+        isfinite(value) and value >= 0.0
+        for value in self.complete_state_residual_metrics
+      )
+    )
+  ####
+
+  @property
+  def complete_state_residual_descent_verified(self) -> bool:
+    """Whether every fresh retained state metric strictly decreases."""
+
+    return _strict_residual_descent(self.complete_state_residual_metrics)
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'case_id': self.case_id,
@@ -532,6 +585,14 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase:
       'source_closure_fingerprint': self.source_closure_fingerprint,
       'resolution': self.resolution,
       'response_signature': self.response_signature,
+      'complete_state_residual_metrics': self.complete_state_residual_metrics,
+      'complete_state_residual_descent_required': (
+        self.complete_state_residual_descent_required
+      ),
+      'complete_state_residuals_finite': self.complete_state_residuals_finite,
+      'complete_state_residual_descent_verified': (
+        self.complete_state_residual_descent_verified
+      ),
       'response_mode_identity': self.response_mode_identity,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
       'terminal_global_downstream_recheck_required': (
@@ -589,6 +650,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
   target_lineage_verified: bool = False
   frame_coverage_verified: bool = False
   residuals_finite: bool = False
+  complete_state_residual_descent_required: bool = False
+  complete_state_residuals_finite: bool = False
+  complete_state_residual_descent_verified: bool = False
+  complete_state_residual_stability_verified: bool = False
   geometry_profile_injection_blocked: bool = False
   response_mode_identity_verified: bool = False
   fidelity_isolation_verified: bool = False
@@ -600,6 +665,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
   conservative_boundary_fluxes_verified: bool = False
   maximum_relative_response_change: float | None = None
   maximum_relative_frame_extension_change: float | None = None
+  maximum_relative_complete_state_residual_change: float | None = None
   global_coupling_verified: bool = False
   downstream_boundary_closure_verified: bool = False
   chain_promotion_blocked: bool = True
@@ -650,6 +716,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       'target_lineage_verified',
       'frame_coverage_verified',
       'residuals_finite',
+      'complete_state_residual_descent_required',
+      'complete_state_residuals_finite',
+      'complete_state_residual_descent_verified',
+      'complete_state_residual_stability_verified',
       'geometry_profile_injection_blocked',
       'response_mode_identity_verified',
       'fidelity_isolation_verified',
@@ -672,6 +742,7 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
     for name in (
       'maximum_relative_response_change',
       'maximum_relative_frame_extension_change',
+      'maximum_relative_complete_state_residual_change',
     ):
       value = getattr(self, name)
       if value is not None:
@@ -713,6 +784,14 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       and self.target_lineage_verified
       and self.frame_coverage_verified
       and self.residuals_finite
+      and self.complete_state_residuals_finite
+      and (
+        not self.complete_state_residual_descent_required
+        or (
+          self.complete_state_residual_descent_verified
+          and self.complete_state_residual_stability_verified
+        )
+      )
       and self.geometry_profile_injection_blocked
       and self.response_mode_identity_verified
       and self.fidelity_isolation_verified
@@ -751,6 +830,18 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
         'target_lineage_verified': self.target_lineage_verified,
         'frame_coverage_verified': self.frame_coverage_verified,
         'residuals_finite': self.residuals_finite,
+        'complete_state_residual_descent_required': (
+          self.complete_state_residual_descent_required
+        ),
+        'complete_state_residuals_finite': (
+          self.complete_state_residuals_finite
+        ),
+        'complete_state_residual_descent_verified': (
+          self.complete_state_residual_descent_verified
+        ),
+        'complete_state_residual_stability_verified': (
+          self.complete_state_residual_stability_verified
+        ),
         'geometry_profile_injection_blocked': (
           self.geometry_profile_injection_blocked
         ),
@@ -777,6 +868,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurem
       'maximum_relative_response_change': self.maximum_relative_response_change,
       'maximum_relative_frame_extension_change': (
         self.maximum_relative_frame_extension_change
+      ),
+      'maximum_relative_complete_state_residual_change': (
+        self.maximum_relative_complete_state_residual_change
       ),
       'global_coupling_verified': self.global_coupling_verified,
       'downstream_boundary_closure_verified': (
@@ -915,6 +1009,34 @@ def _adjacent_stability(
 ####
 
 
+def _adjacent_complete_state_residual_stability(
+  cases: Sequence[
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementCase
+  ],
+  *,
+  response_stability_fraction: float,
+) -> tuple[bool, float | None]:
+  """Compare the final complete-state metric across adjacent resolutions."""
+
+  if len(cases) < 2 or any(
+    not case.complete_state_residuals_finite for case in cases
+  ):
+    return False, None
+  ####
+  final_metrics = tuple(
+    case.complete_state_residual_metrics[-1] for case in cases
+  )
+  changes = tuple(
+    _relative_change(first, second, 1.0e-6)
+    for first, second in zip(final_metrics, final_metrics[1:])
+  )
+  return (
+    bool(changes) and all(change <= response_stability_fraction for change in changes),
+    max(changes, default=None),
+  )
+####
+
+
 def _boundary_flux_audits(
   run: MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
 ) -> tuple[MocReflectedDomainCoupledEulerBoundaryFluxAudit, ...]:
@@ -948,6 +1070,7 @@ def _measurement(
   response_stability_fraction: float,
   expected_response_mode_identity: tuple[str, ...],
   terminal_global_downstream_recheck_required: bool,
+  complete_state_residual_descent_required: bool,
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementMeasurement:
   case_ids = tuple(case.case_id for case in cases)
   fingerprints = tuple(case.source_closure_fingerprint for case in cases)
@@ -971,6 +1094,12 @@ def _measurement(
   lineage = bool(cases and all(case.target_lineage_verified for case in cases))
   frame = bool(cases and all(case.frame_coverage_verified for case in cases))
   residuals = bool(cases and all(case.residuals_finite for case in cases))
+  complete_state_finite = bool(
+    cases and all(case.complete_state_residuals_finite for case in cases)
+  )
+  complete_state_descent = bool(
+    cases and all(case.complete_state_residual_descent_verified for case in cases)
+  )
   geometry = bool(
     cases and all(case.geometry_profile_injection_blocked for case in cases)
   )
@@ -999,6 +1128,12 @@ def _measurement(
       response_stability_fraction=response_stability_fraction,
     )
   )
+  complete_state_stable, maximum_complete_state_change = (
+    _adjacent_complete_state_residual_stability(
+      cases,
+      response_stability_fraction=response_stability_fraction,
+    )
+  )
   fluxes = bool(
     cases and all(case.conservative_boundary_fluxes_verified for case in cases)
   )
@@ -1010,6 +1145,11 @@ def _measurement(
     and lineage
     and frame
     and residuals
+    and complete_state_finite
+    and (
+      not complete_state_residual_descent_required
+      or (complete_state_descent and complete_state_stable)
+    )
     and geometry
     and mode_identity
     and fidelity
@@ -1052,6 +1192,30 @@ def _measurement(
       'cross-case feedback cases did not retain one exact solver boundary '
       'mode and conditioning-policy identity'
     )
+  elif not complete_state_finite or (
+    complete_state_residual_descent_required
+    and (not complete_state_descent or not complete_state_stable)
+  ):
+    status = (
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementStatus
+      .COMPLETE_STATE_RESIDUAL_DESCENT_FAILURE
+    )
+    if not complete_state_finite:
+      message = (
+        'one or more fresh boundary-feedback cases did not retain a finite '
+        'complete coupled-state residual metric'
+      )
+    elif not complete_state_descent:
+      message = (
+        'complete-state residual descent requires every disjoint case to '
+        'retain at least two strict improvements'
+      )
+    else:
+      message = (
+        'the final complete-state residual changed beyond the declared '
+        f'{response_stability_fraction:.3g} cross-resolution stability fraction'
+      )
+    ####
   elif not all(case.local_research_verified for case in cases):
     if not terminal_fixed_point:
       status = (
@@ -1126,6 +1290,12 @@ def _measurement(
     target_lineage_verified=lineage,
     frame_coverage_verified=frame,
     residuals_finite=residuals,
+    complete_state_residual_descent_required=(
+      complete_state_residual_descent_required
+    ),
+    complete_state_residuals_finite=complete_state_finite,
+    complete_state_residual_descent_verified=complete_state_descent,
+    complete_state_residual_stability_verified=complete_state_stable,
     geometry_profile_injection_blocked=geometry,
     response_mode_identity_verified=mode_identity,
     fidelity_isolation_verified=fidelity,
@@ -1141,6 +1311,9 @@ def _measurement(
     conservative_boundary_fluxes_verified=fluxes,
     maximum_relative_response_change=maximum_response,
     maximum_relative_frame_extension_change=maximum_frame,
+    maximum_relative_complete_state_residual_change=(
+      maximum_complete_state_change
+    ),
     message=message,
   )
 ####
@@ -1157,6 +1330,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
   maximum_frame_extension_m: float = 0.5,
   response_stability_fraction: float = 0.75,
   require_terminal_global_downstream_recheck: bool = False,
+  require_complete_state_residual_descent: bool = False,
 ) -> MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRefinementRun:
   """Fresh-solve a disjoint source/mesh ladder through boundary feedback."""
 
@@ -1194,6 +1368,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
   if not isinstance(require_terminal_global_downstream_recheck, bool):
     raise ValueError('require_terminal_global_downstream_recheck must be a bool')
   ####
+  if not isinstance(require_complete_state_residual_descent, bool):
+    raise ValueError('require_complete_state_residual_descent must be a bool')
+  ####
   configuration: dict[str, Any] = {
     'case_ids': tuple(case.case_id for case in requested_cases),
     'source_closure_fingerprints': fingerprints,
@@ -1205,6 +1382,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
     'response_stability_fraction': stability_fraction,
     'require_terminal_global_downstream_recheck': (
       require_terminal_global_downstream_recheck
+    ),
+    'require_complete_state_residual_descent': (
+      require_complete_state_residual_descent
     ),
     'profile_policy': _GEOMETRY_POLICY,
     'response_mode_identity': _RESEARCH_RESPONSE_MODE_IDENTITY,
@@ -1242,6 +1422,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
       maximum_frame_extension_m=maximum_frame_extension_m,
       require_terminal_global_downstream_recheck=(
         require_terminal_global_downstream_recheck
+      ),
+      require_complete_state_residual_descent=(
+        require_complete_state_residual_descent
       ),
     )
     terminal_fixed_point_audit = feedback.terminal_fixed_point_audit
@@ -1287,6 +1470,12 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
         resolution=requested.resolution,
         run=feedback,
         response_signature=_response_signature(feedback),
+        complete_state_residual_metrics=(
+          feedback.downstream_normalized_coupled_state_residuals
+        ),
+        complete_state_residual_descent_required=(
+          require_complete_state_residual_descent
+        ),
         response_mode_identity=response_mode_identity,
         terminal_fixed_point_audit=terminal_fixed_point_audit,
         terminal_global_downstream_recheck_required=(
@@ -1330,6 +1519,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback_cross_case_r
     expected_response_mode_identity=_RESEARCH_RESPONSE_MODE_IDENTITY,
     terminal_global_downstream_recheck_required=(
       require_terminal_global_downstream_recheck
+    ),
+    complete_state_residual_descent_required=(
+      require_complete_state_residual_descent
     ),
   )
   fidelity = bool(
