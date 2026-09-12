@@ -501,3 +501,26 @@ def test_visual_feature_probe_reports_missing_feature_and_branch_contract() -> N
   assert 'one_sigma_uncertainty_when_available' in result['required_series_metadata']
   assert 'never treat missing uncertainty as zero' in result['uncertainty_policy']
 ####
+
+
+def test_visual_feature_probe_keeps_diagnostic_provider_series_unaccepted() -> None:
+  providers = _providers()
+  diagnostic_series = {
+    'feature_id': 'mach_disk_position_m',
+    'branch_ids': ['underexpanded'],
+    'measurement_space': 'physical-geometry-diagnostic',
+  }
+  providers['visual']['feature_outputs'] = [
+    'mach_disk_position_m',
+    'operating_pressure_or_branch_id',
+  ]
+  providers['visual']['diagnostic_feature_series'] = [diagnostic_series]
+
+  result = execute_visual_feature_probe(_observations(), providers)
+
+  assert result['status'] == 'not-executed-provider-sample-not-bound'
+  assert result['claim_status'] == 'not_accepted'
+  assert result['missing_provider_outputs'] == []
+  assert result['diagnostic_provider_feature_series'] == [diagnostic_series]
+  assert 'not bound' in result['reason']
+####

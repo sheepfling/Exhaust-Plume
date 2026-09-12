@@ -50,6 +50,23 @@ def test_visual_lane_local_acceptance_is_separate_from_external_comparison() -> 
     entry['local_geometry_invariants']['status'] == 'passed'
     for entry in report['provider_reports']
   )
+  shock_provider = next(
+    entry
+    for entry in report['provider_reports']
+    if entry['provider_id'] == 'plume.shock-cell-analytical'
+  )
+  assert shock_provider['feature_outputs'] == [
+    'mach_disk_position_m',
+    'operating_pressure_or_branch_id',
+  ]
+  assert shock_provider['diagnostic_feature_series']['feature_id'] == (
+    'mach_disk_position_m'
+  )
+  assert shock_provider['diagnostic_feature_series']['branch_ids'] == [
+    'underexpanded',
+    'underexpanded',
+    'underexpanded',
+  ]
   assert report['external_comparison']['status'] == 'pending'
 ####
 

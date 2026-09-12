@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from math import isfinite
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from exhaust_plume.api.v1 import (
   ApplicabilityStatus,
@@ -45,13 +45,20 @@ from exhaust_plume.providers.shock_diamond import (
   ShockCellAnalyticalDefinition,
   ShockCellAnalyticalOperatingState,
 )
+from exhaust_plume.validation.visual_comparisons import VisualFeatureSeries
 
 __all__ = (
+  'SHOCK_CELL_MACH_DISK_FEATURE_OPERATOR_ID',
   'ShockCellVisualConfiguration',
   'ShockCellVisualDefinition',
   'ShockCellVisualOperatingState',
   'ShockCellVisualProvider',
   'ShockCellVisualSession',
+)
+
+
+SHOCK_CELL_MACH_DISK_FEATURE_OPERATOR_ID = (
+  'operator.model.shock-cell-basic.mach-disk-endpoint-diagnostic-v1'
 )
 
 
@@ -188,6 +195,37 @@ def _solution_digest_payload(solution: ShockCellSolveResult) -> dict[str, Any]:
     'zone_count': len(solution.zones),
     'details': repr(dict(solution.details)),
   }
+####
+
+
+def _diagnostic_mach_disk_position_m(solution: ShockCellSolveResult) -> float:
+  """Return the endpoint of the modeled centerline-compression region.
+
+  The basic solver does not resolve a physical Mach disk.  The selected
+  endpoint is therefore an explicitly named diagnostic proxy: the maximum
+  axial coordinate of the first modeled region labelled ``Centerline
+  Compression``.  Callers must retain the diagnostic claim ceiling.
+  """
+
+  candidates = tuple(
+    zone
+    for zone in solution.zones
+    if 'centerline compression' in (zone.region_label or '').lower()
+  )
+  if not candidates:
+    raise ValueError(
+      'basic shock-cell solution retained no centerline-compression region '
+      'from which to derive a diagnostic feature'
+    )
+  ####
+  endpoint = max(
+    float(max(float(point[0]) for point in zone.vertices_xr_m))
+    for zone in candidates
+  )
+  if not isfinite(endpoint) or endpoint < 0.0:
+    raise ValueError('diagnostic Mach-disk endpoint must be finite and nonnegative')
+  ####
+  return endpoint
 ####
 
 
@@ -352,6 +390,94 @@ class ShockCellVisualSession:
     ####
   ####
 
+  def _solve_operating_state(
+      self,
+      operating_state: ShockCellVisualOperatingState,
+  ) -> ShockCellSolveResult:
+    self._validate_operating_state(operating_state)
+    solution = solve_shock_cells(self._configuration.solver_config(operating_state))
+    if solution.status in {
+        SolverStatus.INVALID_INPUT,
+        SolverStatus.NUMERICAL_FAILURE,
+        SolverStatus.OUTSIDE_MODEL_VALIDITY,
+    }:
+      raise OperatingStateDomainError(
+        str(solution.details.get('solver_diagnostics_v1', 'shock-cell solver failed'))
+      )
+    ####
+    return solution
+  ####
+
+  def build_mach_disk_feature_series(
+      self,
+      operating_states: Sequence[ShockCellVisualOperatingState],
+      *,
+      scenario_id: str,
+      branch_ids: Sequence[str],
+  ) -> VisualFeatureSeries:
+    """Build a diagnostic feature series from explicit model operating states.
+
+    The caller supplies every branch identifier.  This method never infers a
+    hysteresis branch from row order, pressure ordering, or the solver regime.
+    The returned ``mach_disk_position_m`` is the basic solver's centerline-
+    compression endpoint proxy, not a resolved physical Mach-disk observable.
+    """
+
+    states = tuple(operating_states)
+    branches = tuple(str(branch) for branch in branch_ids)
+    if not states:
+      raise ValueError('operating_states must contain at least one state')
+    ####
+    if len(states) != len(branches) or any(not branch.strip() for branch in branches):
+      raise ValueError(
+        'branch_ids must contain one non-empty explicit branch ID per operating state'
+      )
+    ####
+    coordinates: list[float] = []
+    values: list[float] = []
+    for state in states:
+      solution = self._solve_operating_state(state)
+      if solution.regime.value != 'underexpanded':
+        raise OperatingStateDomainError(
+          'diagnostic Mach-disk feature extraction currently requires an '
+          'underexpanded basic-solver state'
+        )
+      ####
+      coordinates.append(float(state.nozzle_exit.total_pressure_Pa))
+      values.append(_diagnostic_mach_disk_position_m(solution))
+    ####
+    for branch in set(branches):
+      branch_coordinates = tuple(
+        coordinate
+        for coordinate, candidate_branch in zip(coordinates, branches, strict=True)
+        if candidate_branch == branch
+      )
+      if len(branch_coordinates) != len(set(branch_coordinates)):
+        raise ValueError(
+          f'branch {branch!r} contains duplicate operating-pressure coordinates'
+        )
+    ####
+    source_id = (
+      f'{self._descriptor.provider_id}:{self._metadata.session_id}:'
+      'mach-disk-diagnostic-proxy'
+    )
+    return VisualFeatureSeries(
+      feature_id='mach_disk_position_m',
+      coordinate_id='nozzle_exit_total_pressure_Pa',
+      coordinate_unit='Pa',
+      feature_unit='m',
+      coordinates=tuple(coordinates),
+      values=tuple(values),
+      source_id=source_id,
+      scenario_id=scenario_id,
+      coordinate_frame_id=self._definition.plume_frame_id,
+      measurement_space='physical-geometry-diagnostic',
+      operator_id=SHOCK_CELL_MACH_DISK_FEATURE_OPERATOR_ID,
+      branch_ids=branches,
+      model_lane_id='shock-cell-basic-v1',
+    )
+  ####
+
   def create_snapshot(
       self,
       *,
@@ -389,10 +515,7 @@ class ShockCellVisualSession:
     if abs(operating_state.time_s - time_s) > 1.0e-12:
       operating_state = replace(operating_state, time_s=time_s)
     ####
-    self._validate_operating_state(operating_state)
-    solution = solve_shock_cells(self._configuration.solver_config(operating_state))
-    if solution.status in {SolverStatus.NUMERICAL_FAILURE, SolverStatus.OUTSIDE_MODEL_VALIDITY}:
-      raise OperatingStateDomainError(str(solution.details.get('solver_diagnostics_v1', 'shock-cell solver failed')))
+    solution = self._solve_operating_state(operating_state)
     ####
     dynamic_digest = canonical_digest({'operating_state': operating_state})
     ambient_digest = canonical_digest({'ambient': operating_state.ambient})

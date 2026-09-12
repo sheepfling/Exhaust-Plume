@@ -587,6 +587,8 @@
         {
           "contract_conformance": true,
           "deterministic_serialization": true,
+          "diagnostic_feature_series": null,
+          "feature_outputs": [],
           "local_geometry_invariants": {
             "cases": [
               {
@@ -640,6 +642,44 @@
         {
           "contract_conformance": true,
           "deterministic_serialization": true,
+          "diagnostic_feature_series": {
+            "branch_ids": [
+              "underexpanded",
+              "underexpanded",
+              "underexpanded"
+            ],
+            "coordinate_frame_id": "straight-axisymmetric-xr",
+            "coordinate_id": "nozzle_exit_total_pressure_Pa",
+            "coordinate_unit": "Pa",
+            "coordinates": [
+              24571288.556890905,
+              26805042.062062804,
+              29038795.567234702
+            ],
+            "feature_id": "mach_disk_position_m",
+            "feature_unit": "m",
+            "measurement_space": "physical-geometry-diagnostic",
+            "model_lane_id": "shock-cell-basic-v1",
+            "operator_id": "operator.model.shock-cell-basic.mach-disk-endpoint-diagnostic-v1",
+            "scenario_id": "repository-local-visual-feature-probe-v1",
+            "schema": "exhaust-plume.visual-feature-series@1",
+            "source_id": "plume.shock-cell-analytical:fa91aacb2791e189c1124c61:mach-disk-diagnostic-proxy",
+            "uncertainties": null,
+            "validity_mask": [
+              true,
+              true,
+              true
+            ],
+            "values": [
+              17.567257848696432,
+              19.194153280237416,
+              20.909125215129983
+            ]
+          },
+          "feature_outputs": [
+            "mach_disk_position_m",
+            "operating_pressure_or_branch_id"
+          ],
           "local_geometry_invariants": {
             "cases": [
               {

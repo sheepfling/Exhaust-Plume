@@ -73,6 +73,7 @@ from exhaust_plume.providers.shock_diamond import (
     ShockCellOperatingState,
 )
 from exhaust_plume.providers.shock_cell_visual import (
+    SHOCK_CELL_MACH_DISK_FEATURE_OPERATOR_ID,
     ShockCellVisualConfiguration,
     ShockCellVisualDefinition,
     ShockCellVisualOperatingState,
@@ -162,6 +163,7 @@ __all__ = (
     'ShockCellDefinition',
     'ShockCellOperatingState',
     'ShockCellVisualConfiguration',
+    'SHOCK_CELL_MACH_DISK_FEATURE_OPERATOR_ID',
     'ShockCellVisualDefinition',
     'ShockCellVisualOperatingState',
     'ShockCellVisualProvider',

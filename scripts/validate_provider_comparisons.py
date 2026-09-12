@@ -522,11 +522,23 @@ def _local_provider_inventory() -> dict[str, Any]:
     for provider in visual['provider_reports']
     for channel in provider['output_channels']
   })
+  visual_feature_outputs = sorted({
+    output
+    for provider in visual['provider_reports']
+    for output in provider.get('feature_outputs', ())
+  })
+  diagnostic_feature_series = [
+    provider['diagnostic_feature_series']
+    for provider in visual['provider_reports']
+    if provider.get('diagnostic_feature_series') is not None
+  ]
   return {
     'visual': {
       'lane_id': visual['lane_id'],
       'provider_ids': visual['provider_ids'],
       'output_channels': visual_channels,
+      'feature_outputs': visual_feature_outputs,
+      'diagnostic_feature_series': diagnostic_feature_series,
       'status': visual['status'],
       'local_geometry_invariants': visual['local_geometry_invariants'],
       'claim_ceiling': visual['claim_ceiling'],
@@ -627,7 +639,13 @@ def execute_visual_feature_probe(
   """Record whether the visual Mach-disk feature contract can execute."""
 
   observed = observations['RP-HOTWAKE-001']['mach_disk_relation']
-  available_outputs = list(providers['visual']['output_channels'])
+  available_outputs = sorted({
+    *providers['visual'].get('output_channels', ()),
+    *providers['visual'].get('feature_outputs', ()),
+  })
+  diagnostic_feature_series = list(
+    providers['visual'].get('diagnostic_feature_series', ())
+  )
   required_outputs = ['mach_disk_position_m', 'operating_pressure_or_branch_id']
   missing_outputs = [output for output in required_outputs if output not in available_outputs]
   observed_columns = list(observed.get('columns', []))
@@ -644,6 +662,7 @@ def execute_visual_feature_probe(
     'observed_point_count': observed.get('row_count', 0),
     'observed_columns': observed_columns,
     'observed_branch_id_field_present': 'branch_id' in observed_columns,
+    'diagnostic_provider_feature_series': diagnostic_feature_series,
     'required_series_metadata': [
       'feature_id',
       'coordinate_id_and_unit',
@@ -665,7 +684,9 @@ def execute_visual_feature_probe(
     'reason': (
       'current visual providers do not emit a Mach-disk feature and operating-branch channel'
       if missing_outputs else
-      'provider inventory has the feature names but no bound pressure/feature sample arrays'
+      'diagnostic model feature series is available, but it is not bound to the '
+      'provider-specific observed scenario, branch crosswalk, and external '
+      'measurement semantics'
     ),
   }
 ####

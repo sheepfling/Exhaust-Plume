@@ -511,6 +511,27 @@ def _run_visual_lane() -> dict[str, Any]:
       })
     ####
 
+    feature_outputs: list[str] = []
+    diagnostic_feature_series: dict[str, Any] | None = None
+    if isinstance(provider, ShockCellVisualProvider):
+      feature_session = provider.create_session(
+        definition=ShockCellVisualDefinition(nozzle_radius_m=1.0),
+      )
+      feature_series = feature_session.build_mach_disk_feature_series(
+        tuple(
+          _shock_cell_state(ratio)
+          for ratio in (1.1, 1.2, 1.3)
+        ),
+        scenario_id='repository-local-visual-feature-probe-v1',
+        branch_ids=('underexpanded', 'underexpanded', 'underexpanded'),
+      )
+      feature_outputs = [
+        'mach_disk_position_m',
+        'operating_pressure_or_branch_id',
+      ]
+      diagnostic_feature_series = feature_series.model_dump()
+    ####
+
     conformance = run_visual_provider_conformance(
       provider.descriptor,
       lambda provider=provider, definition=definition, state_factory=state_factory, pose=pose: provider.create_session(
@@ -528,6 +549,8 @@ def _run_visual_lane() -> dict[str, Any]:
       'contract_conformance': conformance.passed,
       'deterministic_serialization': conformance.deterministic_serialization,
       'output_channels': case_summaries[-1]['output_channels'],
+      'feature_outputs': feature_outputs,
+      'diagnostic_feature_series': diagnostic_feature_series,
       'local_geometry_invariants': {
         'status': 'passed' if all(
           case['status'] == 'passed' for case in provider_case_invariants

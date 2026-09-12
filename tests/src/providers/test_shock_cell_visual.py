@@ -26,6 +26,7 @@ from exhaust_plume.contracts.errors import (
 )
 from exhaust_plume.providers import (
   ShockCellVisualDefinition,
+  ShockCellVisualOperatingState,
   ShockCellVisualProvider,
 )
 
@@ -156,4 +157,26 @@ def test_shock_cell_visual_provider_rejects_outside_model_states() -> None:
   with pytest.raises(OperatingStateDomainError, match='exceeds attached maximum'):
     _snapshot(0.1)
   ####
+####
+
+
+def test_shock_cell_visual_exposes_explicit_diagnostic_feature_series() -> None:
+  session, _ = _snapshot(1.2)
+  exit_state, ambient = _state(1.1)
+  series = session.build_mach_disk_feature_series(
+    (ShockCellVisualOperatingState(
+      nozzle_exit=exit_state,
+      ambient=ambient,
+    ),),
+    scenario_id='repository-local-feature-case',
+    branch_ids=('loading',),
+  )
+  assert series.feature_id == 'mach_disk_position_m'
+  assert series.coordinate_id == 'nozzle_exit_total_pressure_Pa'
+  assert series.measurement_space == 'physical-geometry-diagnostic'
+  assert series.branch_ids == ('loading',)
+  assert series.model_lane_id == 'shock-cell-basic-v1'
+  assert series.uncertainties is None
+  assert series.values[0] > 0.0
+  assert 'diagnostic' in series.operator_id
 ####
