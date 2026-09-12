@@ -1,13 +1,13 @@
 {
   "report_id": "exhaust-plume-completion-release-freeze-v1",
   "schema_version": "plume.release-freeze@1",
-  "branch": "work/validation-and-completion",
+  "branch": "work/washed-integral-visual",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "964859fbe1150b81c5eb440a5a68ed8dfa7b2cc7",
-  "validated_code_commit": "b16f550b42331491430b18fcdbaf9275125e8b54",
-  "validated_code_commit_note": "The checked source and wheel evidence include the Visualization/Signature lane validation hardening recorded at b16f550.",
+  "head_commit": "a92e0a20e657494adec129141527574a29332f87",
+  "validated_code_commit": "a92e0a20e657494adec129141527574a29332f87",
+  "validated_code_commit_note": "The product candidate passed the full repository suite (1310 tests), Ruff, Pyright, compilation, and isolated wheel/install smoke before this release-evidence validator/test hardening commit; the focused release-manifest tests pass on this commit and the entropy-target checkpoint is included.",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
-  "remote_publish_status": "validation-completion-branch-not-pushed; PRs-5-6-7-merged",
+  "remote_publish_status": "candidate-branch-not-pushed; historical PRs-5-6-7-merged",
   "remote_pr_audit": {
     "repository": "sheepfling/Exhaust-Plume",
     "default_branch": "main",
@@ -37,16 +37,16 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 444,
+      "tests_passed": 1310,
       "warnings": 18
     },
     "ruff": "passed",
     "pyright": "passed",
     "generic_sensor_space_operator_probe": "passed-synthetic-only",
     "public_schema_fixture_determinism": "passed",
-      "fresh_wheel_build_and_installed_smoke": "passed",
-      "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "c6a9109dccb92fa7755d07d03fd7bb07dc82642de0eb8abb59c66a09c0228bf1",
+    "fresh_wheel_build_and_installed_smoke": "passed",
+    "wheel_package_version": "0.1.0a2.dev0",
+    "wheel_sha256": "f8ec75d837a4e67c35c985bf2a015279d6ceced8dc483402fa1ec67086e7a866",
     "wheel_reproducibility": {
       "source_date_epoch": 1787670925,
       "independent_build_count": 2,
