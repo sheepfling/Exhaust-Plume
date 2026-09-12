@@ -583,6 +583,7 @@ from exhaust_plume.validation.moc_global_mixed_regime_shock_frontier_refinement 
 from exhaust_plume.validation.moc_global_mixed_regime_frontier_residual_exchange import (
   MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_FRONTIER_RESIDUAL_EXCHANGE_OPERATOR_ID,
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus,
+  MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason,
   MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket,
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest,
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration,
@@ -1618,6 +1619,7 @@ __all__ = (
   'run_reflected_domain_global_mixed_regime_shock_frontier_refinement',
   'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_FRONTIER_RESIDUAL_EXCHANGE_OPERATOR_ID',
   'MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus',
+  'MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason',
   'MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket',
   'MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest',
   'MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration',

@@ -42,6 +42,7 @@ from exhaust_plume.validation.moc_global_mixed_regime_shock_frontier_refinement 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_FRONTIER_RESIDUAL_EXCHANGE_OPERATOR_ID',
   'MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus',
+  'MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason',
   'MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket',
   'MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest',
   'MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration',
@@ -83,6 +84,18 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus(
   GEOMETRY_UPDATE_FAILURE = 'frontier-residual-exchange-geometry-update-failure'
   FRONTIER_RECHECK_FAILURE = 'frontier-residual-exchange-frontier-recheck-failure'
   RESIDUAL_REJECTION = 'frontier-residual-exchange-residual-rejection'
+
+
+class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason(
+  str,
+  Enum,
+):
+  """Typed reason why a bounded residual trial was or was not admitted."""
+
+  ACCEPTED = 'accepted'
+  NO_VALID_TRIAL_GEOMETRY = 'no-valid-trial-geometry'
+  COMPONENT_WORSENING = 'component-worsening'
+  NO_STRICT_COMPONENT_DESCENT = 'no-strict-component-descent'
 
 
 class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAuditStatus(
@@ -467,6 +480,9 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
   candidate_count: int = 1
   selected_direction_multiplier: float = 1.0
   selected_step_scale: float = 1.0
+  admission_reason: MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason = (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason.NO_VALID_TRIAL_GEOMETRY
+  )
   message: str = ''
 
   def __post_init__(self) -> None:
@@ -506,6 +522,11 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
       if not isfinite(value):
         raise ValueError(f'{name} must be finite')
       object.__setattr__(self, name, value)
+    if not isinstance(
+      self.admission_reason,
+      MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason,
+    ):
+      raise TypeError('admission_reason must be a typed admission reason')
     if self.accepted and not (
       self.componentwise_non_worsening
       and self.strict_component_descent
@@ -537,6 +558,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
       'candidate_count': self.candidate_count,
       'selected_direction_multiplier': self.selected_direction_multiplier,
       'selected_step_scale': self.selected_step_scale,
+      'admission_reason': self.admission_reason.value,
       'message': self.message,
     }
 
@@ -975,6 +997,10 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
         geometry_update_consumed=False,
         accepted=False,
         candidate_count=attempted,
+        admission_reason=(
+          MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
+          .NO_VALID_TRIAL_GEOMETRY
+        ),
         message=f'geometry/frontier line search failed closed: {error}',
       )
       retained.append(iteration)
@@ -1014,6 +1040,19 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       selected_step_scale,
     ) = selected
     accepted = bool(non_worsening and strict)
+    admission_reason = (
+      MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason.ACCEPTED
+      if accepted
+      else (
+        MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
+        .COMPONENT_WORSENING
+        if not non_worsening
+        else (
+          MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
+          .NO_STRICT_COMPONENT_DESCENT
+        )
+      )
+    )
     iteration = MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration(
       iteration_index=iteration_index,
       source_packet=current_packet,
@@ -1030,6 +1069,7 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       candidate_count=attempted,
       selected_direction_multiplier=selected_direction_multiplier,
       selected_step_scale=selected_step_scale,
+      admission_reason=admission_reason,
       message=(
         'frontier residuals drove a bounded exact-Euler shock geometry trial '
         f'line search ({attempted} candidates; direction '
@@ -1040,7 +1080,14 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
           'refreshed physical frontier was retained after a bounded line '
           f'search ({attempted} candidates; selected direction '
           f'{selected_direction_multiplier:g}, scale {selected_step_scale:g}), '
-          'but at least one component worsened or no component strictly descended'
+          + (
+            'at least one component worsened'
+            if not non_worsening
+            else (
+              'no candidate achieved strict component descent under the '
+              'solver-owned endpoint stencil'
+            )
+          )
         )
       ),
     )

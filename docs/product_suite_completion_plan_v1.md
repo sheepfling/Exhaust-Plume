@@ -8531,3 +8531,24 @@ but the lane-release validator still reports `release_ready=false` because
 the recorded freeze is stale and provider-bound validation, raw validation
 archives, reduced-order/planar physical gates, and canonical closure remain
 open.
+
+### P3.43l typed residual-exchange admission diagnostics checkpoint — 2026-09-12 (working tree)
+
+The residual-exchange iteration contract now emits a typed admission reason
+for every bounded line-search outcome: `accepted`, `no-valid-trial-geometry`,
+`component-worsening`, or `no-strict-component-descent`.  The open positive
+high-resolution case is therefore reported as a valid refreshed physical
+frontier with no candidate achieving strict component descent under the
+solver-owned endpoint stencil, rather than as an undifferentiated residual
+failure.  The admission reason is included in the structured iteration report
+and is exported through the public validation package.
+
+The focused residual-exchange regression passes both the admitted base case and
+the four-case open refinement ladder (`2 passed, 252 deselected`); Pyright,
+Ruff, compileall, diff checks, and public-import smoke are green.  This is an
+auditability improvement only: it does not relax component-wise admission,
+move solver-owned attachment/termination samples, or promote the residual
+exchange, canonical closure, shock-cell chain, provider comparisons, or
+release.  The raw Version 8 ZIP and separately named MVP alignment archive
+remain absent from the workspace, so the validation-intake blocker is
+unchanged.

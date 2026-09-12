@@ -60,6 +60,7 @@ from exhaust_plume.validation.moc_global_mixed_regime_shock_frontier_refinement 
   run_reflected_domain_global_mixed_regime_shock_frontier_refinement,
 )
 from exhaust_plume.validation.moc_global_mixed_regime_frontier_residual_exchange import (
+  MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason,
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus,
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest,
   audit_reflected_domain_global_mixed_regime_frontier_residual_exchange,
@@ -16586,6 +16587,10 @@ def test_global_mixed_regime_frontier_residual_exchange_is_bounded_and_replayabl
   assert result.geometry_update_consumed
   iteration = result.iterations[0]
   assert iteration.accepted
+  assert iteration.admission_reason is (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
+    .ACCEPTED
+  )
   assert iteration.candidate_count >= 2
   assert iteration.selected_direction_multiplier == -1.0
   assert iteration.trial_packet is not None
@@ -16666,6 +16671,19 @@ def test_global_mixed_regime_frontier_residual_exchange_refinement_keeps_open_ca
   assert measurement.independent_replay_verified
   assert measurement.componentwise_admission_verified is False
   assert measurement.accepted_update_verified is False
+  positive_high_resolution = next(
+    step
+    for step in measurement.steps
+    if step.case.case_id == 'frontier-exchange-positive'
+    and step.case.frontier_sample_count == 11
+  )
+  assert positive_high_resolution.result.iterations[0].admission_reason is (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
+    .NO_STRICT_COMPONENT_DESCENT
+  )
+  assert 'solver-owned endpoint stencil' in (
+    positive_high_resolution.result.iterations[0].message
+  )
   assert measurement.cross_case_coverage_verified is False
   assert measurement.canonical_free_boundary_verified is False
   assert measurement.global_coupling_verified is False
