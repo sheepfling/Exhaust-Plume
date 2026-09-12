@@ -6707,3 +6707,20 @@ and whitespace checks are clean.  The next physics slice remains the actual
 global/free-boundary conservative closure, with provider validation,
 accepted shock-cell comparisons, Signature/RAY/FPA acceptance, and release
 freeze still open.
+
+### P3.12 local product and package gate checkpoint — 2026-09-11
+
+The local product-lane validator passes at the current candidate checkout
+(``local_status=passed``).  It exercises the standardized five-model
+visualization bundle, Signature table/LTE contract fixtures, straight and
+curved gray transfer adapters, ray-to-signature consistency, FPA digitization,
+and mission-time composition.  The installed-package smoke check also passes
+from the offline wheel build/install path.
+
+These are local contract and packaging gates only.  The validator continues to
+report ``external_status=comparison-pending`` and ``release_ready=false``:
+provider-bound observer/scenario/detector data, physical shock-cell and
+first-cell acceptance, canonical global/free-boundary closure, the missing
+alignment archive, and the exact final release freeze are not satisfied.  The
+checkout is clean, but this candidate has not been pushed or tagged as a
+release.
