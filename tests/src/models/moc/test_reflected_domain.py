@@ -7333,6 +7333,12 @@ def test_global_mixed_regime_state_consumer_replays_full_trace_without_promotion
       consumed.trace.samples[1:],
     )
   )
+  assert contract.entropy_proxy_profile == tuple(
+    sample.entropy_proxy for sample in consumed.conservative_flux_samples
+  )
+  assert len(contract.entropy_proxy_profile) == len(
+    contract.conservative_state_profile
+  )
   assert contract.available_channels == {
     'mass': True,
     'streamwise_momentum': True,
@@ -7572,7 +7578,18 @@ def test_global_mixed_regime_upstream_state_target_probe_is_dimensional_only():
   assert result.dimensionalization_verified
   assert result.global_field_sampling_verified
   assert result.state_target_residuals_measured
+  assert result.entropy_proxy_residuals_measured
   assert len(result.sampled_states) == len(contract.conservative_state_profile)
+  assert len(result.target_entropy_proxy_profile) == len(
+    contract.conservative_state_profile
+  )
+  assert len(result.sampled_entropy_proxy_profile) == len(
+    result.sampled_states
+  )
+  assert len(result.signed_entropy_log_residuals) == len(
+    result.target_entropy_proxy_profile
+  )
+  assert result.maximum_absolute_entropy_log_residual is not None
   assert result.entropy_channel_available
   assert result.entropy_channel_consumed is False
   assert result.upstream_equation_consumed is False
@@ -7583,6 +7600,10 @@ def test_global_mixed_regime_upstream_state_target_probe_is_dimensional_only():
   report = result.as_report()
   assert report['operator_id'].endswith('upstream-state-target-v1')
   assert report['entropy_channel_consumed'] is False
+  assert report['entropy_proxy_residuals_measured'] is True
+  assert len(report['signed_entropy_log_residuals']) == len(
+    report['target_entropy_proxy_profile']
+  )
   assert report['upstream_equation_consumed'] is False
   assert report['production_claim_allowed'] is False
  ####

@@ -496,6 +496,7 @@ from exhaust_plume.models.moc.global_mixed_regime_state_consumer import (
   MocReflectedDomainGlobalMixedRegimeStateResolveResult,
   consume_reflected_domain_global_mixed_regime_state,
   build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame,
+  build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_profile,
   build_reflected_domain_global_mixed_regime_conservative_boundary_profile,
   solve_reflected_domain_global_mixed_regime_state_consumer,
 )
@@ -1408,6 +1409,7 @@ __all__ = (
   'MocReflectedDomainGlobalMixedRegimeStateResolveResult',
   'consume_reflected_domain_global_mixed_regime_state',
   'build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame',
+  'build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_profile',
   'build_reflected_domain_global_mixed_regime_conservative_boundary_profile',
   'solve_reflected_domain_global_mixed_regime_state_consumer',
   'MOC_GLOBAL_TWO_SIDED_MOVING_INTERFACE_OPERATOR_ID',

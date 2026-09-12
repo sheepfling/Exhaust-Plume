@@ -52,6 +52,7 @@ __all__ = (
   'MocReflectedDomainGlobalMixedRegimeStateResolveStatus',
   'MocReflectedDomainGlobalMixedRegimeStateResolveResult',
   'build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame',
+  'build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_profile',
   'build_reflected_domain_global_mixed_regime_conservative_boundary_profile',
   'solve_reflected_domain_global_mixed_regime_state_consumer',
 )
@@ -92,6 +93,7 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
   streamwise_momentum_flux_Pa: float
   transverse_momentum_flux_Pa: float
   energy_flux_W_m2: float
+  entropy_proxy: float
 
   def __post_init__(self) -> None:
     if (
@@ -124,6 +126,10 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
       if name == 'segment_length_m' and value <= 0.0:
         raise ValueError('segment_length_m must be positive')
       object.__setattr__(self, name, value)
+    entropy_proxy = float(self.entropy_proxy)
+    if not isfinite(entropy_proxy) or entropy_proxy <= 0.0:
+      raise ValueError('entropy_proxy must be finite and positive')
+    object.__setattr__(self, 'entropy_proxy', entropy_proxy)
     ####
 
   def as_report(self) -> dict[str, Any]:
@@ -136,6 +142,7 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
       'streamwise_momentum_flux_Pa': self.streamwise_momentum_flux_Pa,
       'transverse_momentum_flux_Pa': self.transverse_momentum_flux_Pa,
       'energy_flux_W_m2': self.energy_flux_W_m2,
+      'entropy_proxy': self.entropy_proxy,
     }
 
 
@@ -377,6 +384,9 @@ def _build_flux_samples(
     )
     if gamma <= 1.0 or not isfinite(gamma) or pressure <= 0.0:
       raise ValueError('trace segment has an invalid averaged thermodynamic state')
+    entropy_proxy = pressure / density ** gamma
+    if not isfinite(entropy_proxy) or entropy_proxy <= 0.0:
+      raise ValueError('trace segment has an invalid averaged entropy proxy')
     normal_velocity = velocity_u * nx + velocity_v * ny
     flux_samples.append(
       MocReflectedDomainGlobalMixedRegimeConservativeFluxSample(
@@ -395,6 +405,7 @@ def _build_flux_samples(
           density * velocity_v * normal_velocity + pressure * ny
         ),
         energy_flux_W_m2=(energy + pressure) * normal_velocity,
+        entropy_proxy=entropy_proxy,
       )
     )
   return tuple(flux_samples)
@@ -726,6 +737,38 @@ def build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
   return profile, tuple(point[0] for point in points)
 
 
+def build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_profile(
+  consumer: MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+) -> tuple[float, ...]:
+  """Build the entropy-proxy target aligned with the conservative state frame.
+
+  The entropy proxy is evaluated from the same segment-averaged conservative
+  state used by the downstream state target.  It is not an entropy jump and it
+  is not the interface-law second-law gate; it is the scalar entropy channel
+  that a future upstream state equation must carry alongside the four
+  conservative components.
+  """
+
+  _profile, points = (
+    build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame(
+      consumer
+    )
+  )
+  samples = tuple(consumer.conservative_flux_samples)
+  if len(samples) != len(points):
+    raise ValueError(
+      'entropy-proxy target and conservative state frame must align'
+    )
+  if any(sample.midpoint_m != point for sample, point in zip(samples, points)):
+    raise ValueError(
+      'entropy-proxy target retained a different segment-midpoint frame'
+    )
+  entropy_profile = tuple(float(sample.entropy_proxy) for sample in samples)
+  if any(not isfinite(value) or value <= 0.0 for value in entropy_profile):
+    raise ValueError('entropy-proxy target must contain finite positive values')
+  return entropy_profile
+
+
 class MocReflectedDomainGlobalMixedRegimeStateResolveStatus(str, Enum):
   """Typed outcomes of a fresh downstream solve consuming the full trace."""
 
@@ -755,6 +798,7 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
   ) = ()
   conservative_state_profile_x_stations_m: tuple[float, ...] = ()
   conservative_state_profile_points_m: tuple[tuple[float, float], ...] = ()
+  entropy_proxy_profile: tuple[float, ...] = ()
   consumer_lineage_verified: bool = False
   profile_frame_verified: bool = False
   fresh_solver_invoked: bool = False
@@ -814,6 +858,11 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       raise ValueError(
         'conservative state profile, x stations, and 2-D points must align'
       )
+    entropy_profile = tuple(float(value) for value in self.entropy_proxy_profile)
+    if any(not isfinite(value) or value <= 0.0 for value in entropy_profile):
+      raise ValueError('entropy_proxy_profile must contain finite positive values')
+    if len(profile) != len(entropy_profile):
+      raise ValueError('conservative state profile and entropy profile must align')
     if any(second <= first for first, second in zip(stations, stations[1:])):
       raise ValueError('conservative state profile stations must be ordered')
     if any(
@@ -826,6 +875,7 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
     object.__setattr__(self, 'conservative_state_profile', profile)
     object.__setattr__(self, 'conservative_state_profile_x_stations_m', stations)
     object.__setattr__(self, 'conservative_state_profile_points_m', points)
+    object.__setattr__(self, 'entropy_proxy_profile', entropy_profile)
     for name in (
       'consumer_lineage_verified',
       'profile_frame_verified',
@@ -879,6 +929,7 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       'conservative_state_profile_points_m': (
         self.conservative_state_profile_points_m
       ),
+      'entropy_proxy_profile': self.entropy_proxy_profile,
       'request': None if self.request is None else self.request.as_report(),
       'field': None if self.field is None else self.field.as_report(),
       'field_audit': (
@@ -945,6 +996,11 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       )
     )
     profile_x = tuple(point[0] for point in profile_points)
+    entropy_profile = (
+      build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_profile(
+        consumer
+      )
+    )
     request = replace(
       baseline_request,
       source=(f'{baseline_request.source}:global-mixed-regime-state-consumer-v1'),
@@ -976,6 +1032,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       conservative_state_profile=profile,
       conservative_state_profile_x_stations_m=profile_x,
       conservative_state_profile_points_m=profile_points,
+      entropy_proxy_profile=entropy_profile,
       consumer_lineage_verified=True,
       profile_frame_verified=True,
       fresh_solver_invoked=True,
@@ -1000,6 +1057,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       conservative_state_profile=profile,
       conservative_state_profile_x_stations_m=profile_x,
       conservative_state_profile_points_m=profile_points,
+      entropy_proxy_profile=entropy_profile,
       consumer_lineage_verified=True,
       profile_frame_verified=True,
       fresh_solver_invoked=True,
@@ -1046,6 +1104,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
     conservative_state_profile=profile,
     conservative_state_profile_x_stations_m=profile_x,
     conservative_state_profile_points_m=profile_points,
+    entropy_proxy_profile=entropy_profile,
     consumer_lineage_verified=True,
     profile_frame_verified=True,
     fresh_solver_invoked=True,

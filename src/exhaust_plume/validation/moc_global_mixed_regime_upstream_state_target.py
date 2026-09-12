@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import cos, isfinite, sin, sqrt
+from math import cos, isfinite, log, sin, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.primitives import CharacteristicState
@@ -195,6 +195,13 @@ def _points(
   return points
 
 
+def _entropy_profile(values: Any, name: str) -> tuple[float, ...]:
+  profile = tuple(float(value) for value in values)
+  if any(not isfinite(value) or value <= 0.0 for value in profile):
+    raise ValueError(f'{name} must contain finite positive values')
+  return profile
+
+
 def _conservative_from_characteristic(
   state: CharacteristicState,
   total_pressure_Pa: float,
@@ -266,16 +273,21 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
   request: MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest | None
   target_profile: tuple[tuple[float, float, float, float], ...] = ()
   target_points_m: tuple[tuple[float, float], ...] = ()
+  target_entropy_proxy_profile: tuple[float, ...] = ()
   sampled_states: tuple[MocReflectedDomainGlobalMixedRegimeConservativeStateSample, ...] = ()
   sampled_profile: tuple[tuple[float, float, float, float], ...] = ()
+  sampled_entropy_proxy_profile: tuple[float, ...] = ()
   signed_state_residuals: tuple[tuple[float, float, float, float], ...] = ()
   relative_state_residuals: tuple[tuple[float, float, float, float], ...] = ()
+  signed_entropy_log_residuals: tuple[float, ...] = ()
   maximum_absolute_residual_by_component: tuple[float, float, float, float] = ()
   maximum_relative_residual_by_component: tuple[float, float, float, float] = ()
+  maximum_absolute_entropy_log_residual: float | None = None
   target_frame_verified: bool = False
   dimensionalization_verified: bool = False
   global_field_sampling_verified: bool = False
   state_target_residuals_measured: bool = False
+  entropy_proxy_residuals_measured: bool = False
   entropy_channel_available: bool = False
   entropy_channel_consumed: bool = False
   upstream_equation_consumed: bool = False
@@ -303,7 +315,15 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       raise TypeError('request must be a typed state-target request or None')
     target_profile = _state_profile(self.target_profile, 'target_profile')
     target_points = _points(self.target_points_m, 'target_points_m')
+    target_entropy = _entropy_profile(
+      self.target_entropy_proxy_profile,
+      'target_entropy_proxy_profile',
+    )
     sampled_profile = _state_profile(self.sampled_profile, 'sampled_profile')
+    sampled_entropy = _entropy_profile(
+      self.sampled_entropy_proxy_profile,
+      'sampled_entropy_proxy_profile',
+    )
     sampled_states = tuple(self.sampled_states)
     if any(
       not isinstance(
@@ -315,8 +335,12 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       raise TypeError('sampled_states must contain typed state samples')
     if len(target_profile) != len(target_points):
       raise ValueError('target profile and points must align')
+    if len(target_profile) != len(target_entropy):
+      raise ValueError('target profile and entropy profile must align')
     if len(sampled_profile) != len(sampled_states):
       raise ValueError('sampled profile and sampled states must align')
+    if len(sampled_profile) != len(sampled_entropy):
+      raise ValueError('sampled profile and sampled entropy must align')
     for name in (
       'signed_state_residuals',
       'relative_state_residuals',
@@ -341,11 +365,25 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       ):
         raise ValueError(f'{name} must contain zero or four finite nonnegative values')
       object.__setattr__(self, name, values)
+    entropy_logs = tuple(float(value) for value in self.signed_entropy_log_residuals)
+    if any(not isfinite(value) for value in entropy_logs):
+      raise ValueError('signed_entropy_log_residuals must be finite')
+    if len(entropy_logs) not in (0, len(target_profile)):
+      raise ValueError('signed_entropy_log_residuals must align with target profile')
+    object.__setattr__(self, 'signed_entropy_log_residuals', entropy_logs)
+    if self.maximum_absolute_entropy_log_residual is not None:
+      maximum_entropy = float(self.maximum_absolute_entropy_log_residual)
+      if not isfinite(maximum_entropy) or maximum_entropy < 0.0:
+        raise ValueError(
+          'maximum_absolute_entropy_log_residual must be finite and nonnegative'
+        )
+      object.__setattr__(self, 'maximum_absolute_entropy_log_residual', maximum_entropy)
     for name in (
       'target_frame_verified',
       'dimensionalization_verified',
       'global_field_sampling_verified',
       'state_target_residuals_measured',
+      'entropy_proxy_residuals_measured',
       'entropy_channel_available',
       'entropy_channel_consumed',
       'upstream_equation_consumed',
@@ -367,8 +405,10 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       raise ValueError('the dimensional state-target probe must remain promotion-blocked')
     object.__setattr__(self, 'target_profile', target_profile)
     object.__setattr__(self, 'target_points_m', target_points)
+    object.__setattr__(self, 'target_entropy_proxy_profile', target_entropy)
     object.__setattr__(self, 'sampled_states', sampled_states)
     object.__setattr__(self, 'sampled_profile', sampled_profile)
+    object.__setattr__(self, 'sampled_entropy_proxy_profile', sampled_entropy)
     object.__setattr__(self, 'message', str(self.message))
 
   @property
@@ -381,6 +421,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       and self.dimensionalization_verified
       and self.global_field_sampling_verified
       and self.state_target_residuals_measured
+      and self.entropy_proxy_residuals_measured
       and len(self.target_profile) == len(self.sampled_profile)
       and len(self.target_profile) > 0
       and all(len(residual) == 4 for residual in self.signed_state_residuals)
@@ -395,20 +436,27 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
       'local_research_residuals_verified': self.local_research_residuals_verified,
       'target_profile': self.target_profile,
       'target_points_m': self.target_points_m,
+      'target_entropy_proxy_profile': self.target_entropy_proxy_profile,
       'sampled_states': [sample.as_report() for sample in self.sampled_states],
       'sampled_profile': self.sampled_profile,
+      'sampled_entropy_proxy_profile': self.sampled_entropy_proxy_profile,
       'signed_state_residuals': self.signed_state_residuals,
       'relative_state_residuals': self.relative_state_residuals,
+      'signed_entropy_log_residuals': self.signed_entropy_log_residuals,
       'maximum_absolute_residual_by_component': (
         self.maximum_absolute_residual_by_component
       ),
       'maximum_relative_residual_by_component': (
         self.maximum_relative_residual_by_component
       ),
+      'maximum_absolute_entropy_log_residual': (
+        self.maximum_absolute_entropy_log_residual
+      ),
       'target_frame_verified': self.target_frame_verified,
       'dimensionalization_verified': self.dimensionalization_verified,
       'global_field_sampling_verified': self.global_field_sampling_verified,
       'state_target_residuals_measured': self.state_target_residuals_measured,
+      'entropy_proxy_residuals_measured': self.entropy_proxy_residuals_measured,
       'entropy_channel_available': self.entropy_channel_available,
       'entropy_channel_consumed': False,
       'upstream_equation_consumed': False,
@@ -429,6 +477,7 @@ def _failure(
   request: MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest | None = None,
   target_profile: tuple[tuple[float, float, float, float], ...] = (),
   target_points: tuple[tuple[float, float], ...] = (),
+  target_entropy: tuple[float, ...] = (),
 ) -> MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult:
   return MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult(
     status=status,
@@ -436,6 +485,7 @@ def _failure(
     request=request,
     target_profile=target_profile,
     target_points_m=target_points,
+    target_entropy_proxy_profile=target_entropy,
     message=message,
   )
 
@@ -480,6 +530,10 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       contract.conservative_state_profile_points_m,
       'contract.conservative_state_profile_points_m',
     )
+    target_entropy = _entropy_profile(
+      contract.entropy_proxy_profile,
+      'contract.entropy_proxy_profile',
+    )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus.FRAME_FAILURE,
@@ -487,14 +541,19 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       contract=contract,
       request=request,
     )
-  if len(target_profile) != len(target_points) or not target_profile:
+  if (
+    len(target_profile) != len(target_points)
+    or len(target_profile) != len(target_entropy)
+    or not target_profile
+  ):
     return _failure(
       MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus.FRAME_FAILURE,
-      'contract target frame is empty or misaligned',
+      'contract target state, point, or entropy frame is empty or misaligned',
       contract=contract,
       request=request,
       target_profile=target_profile,
       target_points=target_points,
+      target_entropy=target_entropy,
     )
   try:
     for state in target_profile:
@@ -512,6 +571,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       request=request,
       target_profile=target_profile,
       target_points=target_points,
+      target_entropy=target_entropy,
     )
   ####
   closure = contract.closure
@@ -531,6 +591,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       request=request,
       target_profile=target_profile,
       target_points=target_points,
+      target_entropy=target_entropy,
     )
   ####
   sampled_states: list[MocReflectedDomainGlobalMixedRegimeConservativeStateSample] = []
@@ -561,9 +622,11 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       request=request,
       target_profile=target_profile,
       target_points=target_points,
+      target_entropy=target_entropy,
     )
   ####
   sampled_profile = tuple(sample.conservative_state for sample in sampled_states)
+  sampled_entropy = tuple(sample.entropy_proxy for sample in sampled_states)
   signed = tuple(
     tuple(
       actual - target
@@ -586,6 +649,14 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
     max((abs(residual[index]) for residual in relative), default=0.0)
     for index in range(4)
   )
+  signed_entropy = tuple(
+    log(actual / target)
+    for actual, target in zip(sampled_entropy, target_entropy, strict=True)
+  )
+  maximum_absolute_entropy = max(
+    (abs(residual) for residual in signed_entropy),
+    default=0.0,
+  )
   dimensionalization_verified = bool(
     len(sampled_states) == len(target_points)
     and all(
@@ -597,6 +668,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
     contract.state_target_frame_verified
     and contract.conservative_state_profile == target_profile
     and contract.conservative_state_profile_points_m == target_points
+    and contract.entropy_proxy_profile == target_entropy
   )
   global_field_sampling_verified = bool(
     len(sampled_states) == len(target_points)
@@ -608,6 +680,12 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
       for sample, point in zip(sampled_states, target_points, strict=True)
     )
   )
+  entropy_proxy_residuals_measured = bool(
+    len(sampled_entropy) == len(target_entropy) == len(target_profile)
+    and len(signed_entropy) == len(target_entropy)
+    and all(isfinite(value) for value in sampled_entropy)
+    and all(isfinite(value) for value in signed_entropy)
+  )
   measured = bool(
     target_frame_verified
     and dimensionalization_verified
@@ -615,6 +693,7 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
     and len(signed) == len(target_profile)
     and all(isfinite(value) for residual in signed for value in residual)
     and all(isfinite(value) for residual in relative for value in residual)
+    and entropy_proxy_residuals_measured
   )
   entropy_available = bool(contract.available_channels.get('entropy', False))
   return MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult(
@@ -628,16 +707,21 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
     request=request,
     target_profile=target_profile,
     target_points_m=target_points,
+    target_entropy_proxy_profile=target_entropy,
     sampled_states=tuple(sampled_states),
     sampled_profile=sampled_profile,
+    sampled_entropy_proxy_profile=sampled_entropy,
     signed_state_residuals=signed,
     relative_state_residuals=relative,
+    signed_entropy_log_residuals=signed_entropy,
     maximum_absolute_residual_by_component=maximum_absolute,
     maximum_relative_residual_by_component=maximum_relative,
+    maximum_absolute_entropy_log_residual=maximum_absolute_entropy,
     target_frame_verified=target_frame_verified,
     dimensionalization_verified=dimensionalization_verified,
     global_field_sampling_verified=global_field_sampling_verified,
     state_target_residuals_measured=measured,
+    entropy_proxy_residuals_measured=entropy_proxy_residuals_measured,
     entropy_channel_available=entropy_available,
     entropy_channel_consumed=False,
     upstream_equation_consumed=False,
@@ -647,8 +731,9 @@ def measure_reflected_domain_global_mixed_regime_upstream_state_target(
     production_claim_allowed=False,
     message=(
       'exact global characteristic states were dimensionalized and compared '
-      'at the retained 2-D target frame; the upstream conservative equation, '
-      'entropy channel, global feedback, and promotion remain unavailable'
+      'at the retained 2-D target frame; conservative and entropy-proxy '
+      'residuals were measured, but the upstream equation, entropy channel, '
+      'global feedback, and promotion remain unavailable'
     )
     if measured
     else 'global state-target residual measurement did not pass its local gates',

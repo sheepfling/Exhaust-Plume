@@ -22,6 +22,7 @@ from typing import Any
 
 from exhaust_plume.models.moc.global_mixed_regime_state_consumer import (
   MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+  build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_profile,
   build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame,
 )
 from exhaust_plume.models.moc.global_physical_closure import (
@@ -131,6 +132,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
   conservative_state_profile: tuple[tuple[float, float, float, float], ...] = ()
   conservative_state_profile_x_stations_m: tuple[float, ...] = ()
   conservative_state_profile_points_m: tuple[tuple[float, float], ...] = ()
+  entropy_proxy_profile: tuple[float, ...] = ()
   available_channels: MappingProxyType = field(default_factory=_empty_channels)
   consumed_channels: MappingProxyType = field(default_factory=_empty_channels)
   closure_lineage_verified: bool = False
@@ -180,6 +182,11 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
         'conservative state profile, station frame, and 2-D point frame must '
         'have equal lengths'
       )
+    entropy_profile = tuple(float(value) for value in self.entropy_proxy_profile)
+    if any(not isfinite(value) or value <= 0.0 for value in entropy_profile):
+      raise ValueError('entropy_proxy_profile must contain finite positive values')
+    if len(profile) != len(entropy_profile):
+      raise ValueError('conservative state profile and entropy profile must align')
     ####
     available = dict(self.available_channels)
     consumed = dict(self.consumed_channels)
@@ -231,6 +238,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
       profile
       and len(profile) >= 1
       and points
+      and entropy_profile
       and self.closure_lineage_verified
       and self.state_target_frame_verified
       and all(available.values())
@@ -242,6 +250,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
     object.__setattr__(self, 'conservative_state_profile', profile)
     object.__setattr__(self, 'conservative_state_profile_x_stations_m', stations)
     object.__setattr__(self, 'conservative_state_profile_points_m', points)
+    object.__setattr__(self, 'entropy_proxy_profile', entropy_profile)
     object.__setattr__(self, 'available_channels', MappingProxyType(available))
     object.__setattr__(self, 'consumed_channels', MappingProxyType(consumed))
     if self.source_closure_fingerprint is not None:
@@ -267,6 +276,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
       'conservative_state_profile_points_m': (
         self.conservative_state_profile_points_m
       ),
+      'entropy_proxy_profile': self.entropy_proxy_profile,
       'available_channels': dict(self.available_channels),
       'consumed_channels': dict(self.consumed_channels),
       'closure_lineage_verified': self.closure_lineage_verified,
@@ -386,6 +396,11 @@ def prepare_reflected_domain_global_mixed_regime_state_equation_contract(
     points = _ordered_points(points, 'conservative state profile points')
     stations = tuple(point[0] for point in points)
     stations = _ordered_stations(stations, 'conservative state profile stations')
+    entropy_profile = (
+      build_reflected_domain_global_mixed_regime_conservative_boundary_entropy_profile(
+        consumer
+      )
+    )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus.STATE_FRAME_FAILURE,
@@ -415,6 +430,7 @@ def prepare_reflected_domain_global_mixed_regime_state_equation_contract(
     conservative_state_profile=profile,
     conservative_state_profile_x_stations_m=stations,
     conservative_state_profile_points_m=points,
+    entropy_proxy_profile=entropy_profile,
     available_channels=available,
     consumed_channels=consumed,
     closure_lineage_verified=True,
