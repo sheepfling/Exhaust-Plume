@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at the next state-equation audit checkpoint; the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `0fef147` (downstream full-state equation-consumption audit checkpoint); the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component, then drives a bounded pressure/geometry projection into a fresh global closure solve; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — code checkpoint `2c02d81`
+### Active execution card — code checkpoint `0fef147`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -319,7 +319,7 @@ promotion.
 
 ### P3.18 downstream full-state equation-consumption audit checkpoint — 2026-09-11
 
-The new
+The implementation checkpoint ``0fef147`` adds the new
 ``moc_global_mixed_regime_state_equation`` validator closes the accounting
 gap between selecting the conservative Rusanov mode and demonstrating that a
 four-component state packet entered the downstream equations.  Given the exact
