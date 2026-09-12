@@ -7111,3 +7111,42 @@ first-cell acceptance, canonical global/free-boundary closure, the missing
 alignment archive, and the exact final release freeze are not satisfied.  The
 checkout is clean, but this candidate has not been pushed or tagged as a
 release.
+
+### P3.14 explicit diagnostic visual-feature intake checkpoint — 2026-09-11 (`9e33c79`)
+
+The basic shock-cell Visualization provider now exposes a branch-aware
+``exhaust-plume.visual-feature-series@1`` adapter for
+``mach_disk_position_m`` over explicit nozzle-exit total-pressure coordinates.
+The feature is deliberately named and serialized as a diagnostic endpoint of
+the modeled centerline-compression region; the basic solver does not resolve a
+physical Mach disk, so this adapter carries no physical-validation or
+uncertainty claim.  Branch IDs are caller-supplied and duplicate pressure
+coordinates within a branch fail closed; no hysteresis branch is inferred from
+row order or pressure ordering.
+
+The local product report now records the feature outputs and diagnostic series,
+and the provider-comparison intake recognizes the required feature names.  The
+comparison remains ``not-executed-provider-sample-not-bound`` and
+``not_accepted`` because the recovered 606-point observation has no provider-
+bound scenario/branch crosswalk or accepted external measurement semantics.
+The committed corpus preflight remains an earlier archive-backed snapshot;
+the missing Version 8/alignment inputs are not replaced with a synthetic
+archive merely to refresh that external evidence.
+
+The complete repository regression passes (``1313 passed, 18 warnings`` in
+15:40), the focused visual/provider-comparison tranche passes (``43 passed``),
+Ruff, Pyright, compilation, and whitespace checks are clean, and the fresh
+wheel/install smoke passes with wheel SHA-256
+``a49e7ba3a71c05d77067b8f554d02a1f33a2a5d319bad3a839c0bd7ed9a1b611``.  The
+release freeze is rebound to ``9e33c794c507c7d30b21fa3373deac3fd6fdae82``;
+the umbrella release remains red.
+
+The next execution queue is therefore: acquire and verify the separately named
+alignment archive and provider-bound scenario assets; bind the visual feature
+series to measured pressure/position semantics with explicit branch mapping
+and uncertainty; then repeat the same intake for Signature/RAY/FPA.  In
+parallel, close the canonical conservative global/free-boundary and physical
+shock-cell/first-cell gates on their own fidelity lanes.  Until those gates
+pass, the basic diagnostic series may support evaluation and visualization
+only, and no low-fidelity result may be promoted into the higher-fidelity
+Signature or FPA products.
