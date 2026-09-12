@@ -64,6 +64,7 @@ from exhaust_plume.models.moc.moving_mixed_regime_interface import (
 __all__ = (
   'MocReflectedDomainCoupledEulerFreeBoundaryStatus',
   'MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode',
+  'MocReflectedDomainCoupledEulerFreeBoundaryFluxMode',
   'MocReflectedDomainCoupledEulerInletBoundaryMode',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudgetStatus',
   'MocReflectedDomainCoupledEulerSubsonicPressureBudget',
@@ -377,6 +378,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryStatus(str, Enum):
   POSITIVITY_FAILURE = 'coupled-euler-positivity-failure'
   SOLVER_FAILURE = 'coupled-euler-pseudo-time-failure'
   FREE_BOUNDARY_FAILURE = 'coupled-euler-free-boundary-failure'
+  FREE_BOUNDARY_CONSERVATIVE_STATE_FAILURE = (
+    'coupled-euler-free-boundary-conservative-state-failure'
+  )
   CENTERLINE_FAILURE = 'coupled-euler-centerline-boundary-failure'
   RESIDUAL_FAILURE = 'coupled-euler-residual-failure'
   TRANSONIC_FRONTIER_FAILURE = 'coupled-euler-transonic-frontier-failure'
@@ -412,6 +416,23 @@ class MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode(str, Enum):
 
   PRESSURE_SLOPE_RESEARCH = 'pressure-slope-research-v1'
   KINEMATIC_STREAMLINE = 'kinematic-streamline-v1'
+####
+
+
+class MocReflectedDomainCoupledEulerFreeBoundaryFluxMode(str, Enum):
+  """Select the explicit free-boundary state/flux contract.
+
+  The specified-pressure material-streamline flux is the historical local
+  research boundary.  The conservative-state trace mode consumes a complete
+  four-component state at every free-boundary cell column and applies the
+  Rusanov flux against that retained state.  It is a downstream research
+  handoff, not proof of a canonical wall or global free-boundary closure.
+  """
+
+  SPECIFIED_PRESSURE_MATERIAL_STREAMLINE = (
+    'specified-pressure-material-streamline-v1'
+  )
+  CONSERVATIVE_STATE_TRACE_RUSANOV = 'conservative-state-trace-rusanov-v1'
 ####
 
 
@@ -1639,6 +1660,10 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   free_boundary_update_mode: MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode = (
     MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.PRESSURE_SLOPE_RESEARCH
   )
+  free_boundary_flux_mode: MocReflectedDomainCoupledEulerFreeBoundaryFluxMode = (
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .SPECIFIED_PRESSURE_MATERIAL_STREAMLINE
+  )
   downstream_length_m: float | None = None
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL
   outlet_static_pressure_Pa: float | None = None
@@ -1674,6 +1699,16 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   free_boundary_geometry_profile_x_stations_m: tuple[float, ...] | None = None
   free_boundary_geometry_profile_source: str | None = None
   free_boundary_geometry_profile_lower_ordinate_m: float | None = None
+  # Optional complete conservative states at the free-boundary cell columns.
+  # These are consumed only by the explicit conservative-state trace flux
+  # mode; pressure-only requests cannot silently carry this handoff.
+  free_boundary_conservative_state_profile: (
+    tuple[tuple[float, float, float, float], ...] | None
+  ) = None
+  free_boundary_conservative_state_profile_x_stations_m: (
+    tuple[float, ...] | None
+  ) = None
+  free_boundary_conservative_state_profile_source: str | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -1701,6 +1736,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       raise TypeError(
         'free_boundary_update_mode must be a '
         'MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode'
+      )
+    ####
+    if not isinstance(
+      self.free_boundary_flux_mode,
+      MocReflectedDomainCoupledEulerFreeBoundaryFluxMode,
+    ):
+      raise TypeError(
+        'free_boundary_flux_mode must be a '
+        'MocReflectedDomainCoupledEulerFreeBoundaryFluxMode'
       )
     ####
     for name, value in (
@@ -1936,6 +1980,116 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         self,
         'free_boundary_geometry_profile_lower_ordinate_m',
         lower_ordinate,
+      )
+    ####
+    conservative_profile = self.free_boundary_conservative_state_profile
+    conservative_profile_x = (
+      self.free_boundary_conservative_state_profile_x_stations_m
+    )
+    conservative_profile_source = (
+      self.free_boundary_conservative_state_profile_source
+    )
+    if conservative_profile is None:
+      if conservative_profile_x is not None or conservative_profile_source is not None:
+        raise ValueError(
+          'free-boundary conservative-state profile coordinates and source '
+          'require a profile'
+        )
+    else:
+      if conservative_profile_x is None or conservative_profile_source is None:
+        raise ValueError(
+          'free-boundary conservative-state profile requires aligned '
+          'coordinates and a non-empty source'
+        )
+      states = tuple(
+        tuple(float(value) for value in state)
+        for state in conservative_profile
+      )
+      coordinates = tuple(float(value) for value in conservative_profile_x)
+      if len(states) != self.axial_cell_count:
+        raise ValueError(
+          'free-boundary conservative-state profile must contain one state '
+          'per axial cell column'
+        )
+      if len(coordinates) != len(states):
+        raise ValueError(
+          'free-boundary conservative-state profile coordinates must align '
+          'with the state profile'
+        )
+      if any(
+        len(state) != 4
+        or any(not isfinite(value) for value in state)
+        for state in states
+      ):
+        raise ValueError(
+          'free-boundary conservative-state profile must contain four finite '
+          'values per state'
+        )
+      gamma = float(self.mixed_regime_request.control_section.samples[0].gamma)
+      for state in states:
+        density = state[0]
+        if density <= 0.0:
+          raise ValueError(
+            'free-boundary conservative-state density must be positive'
+          )
+        velocity_u = state[1] / density
+        velocity_v = state[2] / density
+        pressure = (gamma - 1.0) * (
+          state[3]
+          - 0.5 * density * (velocity_u * velocity_u + velocity_v * velocity_v)
+        )
+        if not isfinite(pressure) or pressure <= 0.0:
+          raise ValueError(
+            'free-boundary conservative-state profile must have positive '
+            'thermodynamic pressure'
+          )
+      if any(not isfinite(value) for value in coordinates):
+        raise ValueError(
+          'free-boundary conservative-state profile coordinates must be finite'
+        )
+      if any(
+        second <= first for first, second in zip(coordinates, coordinates[1:])
+      ):
+        raise ValueError(
+          'free-boundary conservative-state profile coordinates must be '
+          'strictly downstream ordered'
+        )
+      source = str(conservative_profile_source)
+      if not source:
+        raise ValueError(
+          'free-boundary conservative-state profile source must be non-empty'
+        )
+      object.__setattr__(
+        self,
+        'free_boundary_conservative_state_profile',
+        states,
+      )
+      object.__setattr__(
+        self,
+        'free_boundary_conservative_state_profile_x_stations_m',
+        coordinates,
+      )
+      object.__setattr__(
+        self,
+        'free_boundary_conservative_state_profile_source',
+        source,
+      )
+    ####
+    if self.free_boundary_flux_mode is (
+      MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .CONSERVATIVE_STATE_TRACE_RUSANOV
+    ) and self.free_boundary_conservative_state_profile is None:
+      raise ValueError(
+        'conservative-state trace flux mode requires an explicit '
+        'free-boundary conservative-state profile'
+      )
+    if self.free_boundary_flux_mode is (
+      MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .SPECIFIED_PRESSURE_MATERIAL_STREAMLINE
+    ) and self.free_boundary_conservative_state_profile is not None:
+      raise ValueError(
+        'specified-pressure material-streamline flux mode cannot consume a '
+        'conservative-state profile'
       )
     ####
     if self.free_boundary_update_mode is (
@@ -2356,6 +2510,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       'shape_relaxation': self.shape_relaxation,
       'pressure_shape_relaxation': self.pressure_shape_relaxation,
       'free_boundary_update_mode': self.free_boundary_update_mode.value,
+      'free_boundary_flux_mode': self.free_boundary_flux_mode.value,
       'downstream_length_m': self.downstream_length_m,
       'effective_downstream_length_m': self.effective_downstream_length_m,
       'outlet_static_pressure_Pa': self.outlet_static_pressure_Pa,
@@ -2377,6 +2532,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       ),
       'free_boundary_geometry_profile_lower_ordinate_m': (
         self.free_boundary_geometry_profile_lower_ordinate_m
+      ),
+      'free_boundary_conservative_state_profile': (
+        self.free_boundary_conservative_state_profile
+      ),
+      'free_boundary_conservative_state_profile_x_stations_m': (
+        self.free_boundary_conservative_state_profile_x_stations_m
+      ),
+      'free_boundary_conservative_state_profile_source': (
+        self.free_boundary_conservative_state_profile_source
       ),
       'inlet_boundary_mode': self.inlet_boundary_mode.value,
       'transonic_shock_geometry': (
@@ -2422,7 +2586,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         if self.entropy_closure_profile is None
         else self.entropy_closure_profile.as_report()
       ),
-      'free_boundary_flux_model': COUPLED_EULER_FREE_BOUNDARY_FLUX_MODEL,
+      'free_boundary_flux_model': self.free_boundary_flux_mode.value,
       'claim_status': (
         'constant-gamma-coupled-euler-free-boundary-research-lane; '
         'independent-audit-and-external-validation-required'
@@ -2470,6 +2634,10 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   free_boundary_update_mode: MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode = (
     MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode.PRESSURE_SLOPE_RESEARCH
   ),
+  free_boundary_flux_mode: MocReflectedDomainCoupledEulerFreeBoundaryFluxMode = (
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .SPECIFIED_PRESSURE_MATERIAL_STREAMLINE
+  ),
   downstream_length_m: float | None = None,
   source: str = COUPLED_EULER_FREE_BOUNDARY_MODEL,
   outlet_static_pressure_Pa: float | None = None,
@@ -2498,6 +2666,13 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
   free_boundary_geometry_profile_x_stations_m: tuple[float, ...] | None = None,
   free_boundary_geometry_profile_source: str | None = None,
   free_boundary_geometry_profile_lower_ordinate_m: float | None = None,
+  free_boundary_conservative_state_profile: (
+    tuple[tuple[float, float, float, float], ...] | None
+  ) = None,
+  free_boundary_conservative_state_profile_x_stations_m: (
+    tuple[float, ...] | None
+  ) = None,
+  free_boundary_conservative_state_profile_source: str | None = None,
 ) -> MocReflectedDomainCoupledEulerFreeBoundaryRequest:
   """Bind one mixed-regime reference to the coupled-Euler research lane.
 
@@ -2540,6 +2715,7 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     shape_relaxation=shape_relaxation,
     pressure_shape_relaxation=pressure_shape_relaxation,
     free_boundary_update_mode=free_boundary_update_mode,
+    free_boundary_flux_mode=free_boundary_flux_mode,
     downstream_length_m=downstream_length_m,
     source=source,
     outlet_static_pressure_Pa=outlet_static_pressure_Pa,
@@ -2569,6 +2745,15 @@ def build_reflected_domain_coupled_euler_free_boundary_request(
     free_boundary_geometry_profile_source=free_boundary_geometry_profile_source,
     free_boundary_geometry_profile_lower_ordinate_m=(
       free_boundary_geometry_profile_lower_ordinate_m
+    ),
+    free_boundary_conservative_state_profile=(
+      free_boundary_conservative_state_profile
+    ),
+    free_boundary_conservative_state_profile_x_stations_m=(
+      free_boundary_conservative_state_profile_x_stations_m
+    ),
+    free_boundary_conservative_state_profile_source=(
+      free_boundary_conservative_state_profile_source
     ),
   )
 ####
@@ -2611,6 +2796,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
   centerline_normal_velocity_residuals_m_s: tuple[float, ...] = ()
   free_boundary_pressure_profile_consumed: bool = False
   free_boundary_geometry_profile_consumed: bool = False
+  free_boundary_conservative_state_profile_consumed: bool = False
   free_boundary_ambient_pressure_target_consumed: bool = False
   pseudo_iteration_count: int = 0
   shape_iteration_count: int = 0
@@ -3231,6 +3417,14 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       )
     ####
     if not isinstance(
+      self.free_boundary_conservative_state_profile_consumed,
+      bool,
+    ):
+      raise TypeError(
+        'free_boundary_conservative_state_profile_consumed must be a bool'
+      )
+    ####
+    if not isinstance(
       self.free_boundary_ambient_pressure_target_consumed,
       bool,
     ):
@@ -3488,6 +3682,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryResult:
       ),
       'free_boundary_geometry_profile_consumed': (
         self.free_boundary_geometry_profile_consumed
+      ),
+      'free_boundary_conservative_state_profile_consumed': (
+        self.free_boundary_conservative_state_profile_consumed
       ),
       'free_boundary_ambient_pressure_target_consumed': (
         self.free_boundary_ambient_pressure_target_consumed
@@ -4885,6 +5082,43 @@ def _free_boundary_geometry_targets(
 ####
 
 
+def _validate_conservative_state_profile_frame(
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  x_stations: np.ndarray,
+) -> None:
+  """Require an exact cell-center frame for the conservative trace handoff."""
+
+  if request.free_boundary_flux_mode is not (
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .CONSERVATIVE_STATE_TRACE_RUSANOV
+  ):
+    return
+  ####
+  profile_x = request.free_boundary_conservative_state_profile_x_stations_m
+  profile = request.free_boundary_conservative_state_profile
+  if profile is None or profile_x is None:
+    raise ValueError(
+      'conservative-state trace flux mode requires its complete state/frame '
+      'profile'
+    )
+  expected_x = 0.5 * (x_stations[:-1] + x_stations[1:])
+  if len(profile) != len(expected_x) or len(profile_x) != len(expected_x):
+    raise ValueError(
+      'conservative-state trace profile does not match the coupled axial '
+      'cell count'
+    )
+  tolerance = 1.0e-9 * max(float(np.max(np.abs(expected_x))), 1.0)
+  if any(
+    abs(float(actual) - float(expected)) > tolerance
+    for actual, expected in zip(profile_x, expected_x, strict=True)
+  ):
+    raise ValueError(
+      'conservative-state trace profile changed the exact coupled cell-center '
+      'frame; no interpolation or extrapolation was attempted'
+    )
+  ####
+
+
 def _cell_residuals(
   states: np.ndarray,
   points: np.ndarray,
@@ -4899,6 +5133,10 @@ def _cell_residuals(
   total_temperature: float,
   gas_constant: float,
   inlet_boundary_mode: MocReflectedDomainCoupledEulerInletBoundaryMode,
+  free_boundary_flux_mode: MocReflectedDomainCoupledEulerFreeBoundaryFluxMode,
+  free_boundary_conservative_state_profile: (
+    tuple[tuple[float, float, float, float], ...] | None
+  ),
   inlet_override_states: tuple[np.ndarray, ...] | None = None,
   entropy_closure_profile: Any | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -4979,20 +5217,43 @@ def _cell_residuals(
             gas_constant,
           )
         elif edge_index == 2 and j == transverse_count - 1:
-          boundary_pressure = (
-            ambient_pressure
-            if free_boundary_pressure_profile is None
-            else free_boundary_pressure_profile[i]
-          )
-          flux, wave = _specified_pressure_wall_flux(
-            state,
-            boundary_pressure,
-            normal_x,
-            normal_y,
-            face_length,
-            gamma,
-            gas_constant,
-          )
+          if free_boundary_flux_mode is (
+            MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+            .CONSERVATIVE_STATE_TRACE_RUSANOV
+          ):
+            if free_boundary_conservative_state_profile is None:
+              raise ValueError(
+                'conservative-state trace flux mode retained no boundary '
+                'state profile'
+              )
+            target_state = np.asarray(
+              free_boundary_conservative_state_profile[i],
+              dtype=float,
+            )
+            flux, wave = _rusanov_flux(
+              state,
+              target_state,
+              normal_x,
+              normal_y,
+              face_length,
+              gamma,
+              gas_constant,
+            )
+          else:
+            boundary_pressure = (
+              ambient_pressure
+              if free_boundary_pressure_profile is None
+              else free_boundary_pressure_profile[i]
+            )
+            flux, wave = _specified_pressure_wall_flux(
+              state,
+              boundary_pressure,
+              normal_x,
+              normal_y,
+              face_length,
+              gamma,
+              gas_constant,
+            )
           _rho, u, v, pressure, _temperature, _sound_speed = (
             _primitive_from_conservative(state, gamma, gas_constant)
           )
@@ -6501,6 +6762,12 @@ def _result_from_field(
     free_boundary_geometry_profile_consumed=(
       request.free_boundary_geometry_profile_y_m is not None
     ),
+    free_boundary_conservative_state_profile_consumed=(
+      request.free_boundary_flux_mode
+      is MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .CONSERVATIVE_STATE_TRACE_RUSANOV
+      and request.free_boundary_conservative_state_profile is not None
+    ),
     free_boundary_ambient_pressure_target_consumed=(
       request.inlet_boundary_mode
       is MocReflectedDomainCoupledEulerInletBoundaryMode
@@ -6563,6 +6830,8 @@ def _solve_pseudo_time(
       request.reference_total_temperature_K,
       request.gas_constant_J_kgK,
       request.inlet_boundary_mode,
+      request.free_boundary_flux_mode,
+      request.free_boundary_conservative_state_profile,
       inlet_override_states,
       request.entropy_closure_profile,
     )
@@ -7039,6 +7308,16 @@ def solve_reflected_domain_coupled_euler_free_boundary(
     x_start + downstream_length,
     request.axial_cell_count + 1,
   )
+  try:
+    _validate_conservative_state_profile_frame(request, x_stations)
+  except (TypeError, ValueError) as error:
+    return _failure(
+      MocReflectedDomainCoupledEulerFreeBoundaryStatus
+      .FREE_BOUNDARY_CONSERVATIVE_STATE_FAILURE,
+      str(error),
+      request,
+    )
+  ####
   if request.inlet_boundary_mode is (
     MocReflectedDomainCoupledEulerInletBoundaryMode
     .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE

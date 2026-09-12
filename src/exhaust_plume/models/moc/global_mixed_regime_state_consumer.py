@@ -16,7 +16,7 @@ claim.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from math import hypot, isfinite
 from typing import Any
@@ -31,6 +31,13 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   MocReflectedDomainGlobalCoupledDownstreamResult,
   build_reflected_domain_global_coupled_downstream_boundary_trace,
 )
+from exhaust_plume.models.moc.coupled_euler_free_boundary import (
+  MocReflectedDomainCoupledEulerFreeBoundaryFluxMode,
+  MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  MocReflectedDomainCoupledEulerFreeBoundaryResult,
+  MocReflectedDomainCoupledEulerFreeBoundaryStatus,
+  solve_reflected_domain_coupled_euler_free_boundary,
+)
 from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
@@ -42,6 +49,10 @@ __all__ = (
   'MocReflectedDomainGlobalMixedRegimeConservativeFluxSample',
   'MocReflectedDomainGlobalMixedRegimeStateConsumerResult',
   'consume_reflected_domain_global_mixed_regime_state',
+  'MocReflectedDomainGlobalMixedRegimeStateResolveStatus',
+  'MocReflectedDomainGlobalMixedRegimeStateResolveResult',
+  'build_reflected_domain_global_mixed_regime_conservative_boundary_profile',
+  'solve_reflected_domain_global_mixed_regime_state_consumer',
 )
 
 
@@ -633,5 +644,369 @@ def consume_reflected_domain_global_mixed_regime_state(
     else (
       'full conservative downstream trace replayed, but one or more state '
       'channels failed their independent consumer audit'
+    ),
+  )
+
+
+def build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
+  consumer: MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+) -> tuple[
+  tuple[tuple[float, float, float, float], ...],
+  tuple[float, ...],
+]:
+  """Build exact cell-column state targets from adjacent trace nodes.
+
+  The returned state profile is a conservative average on the retained trace
+  segments.  It is intentionally not interpolated onto a new grid; the
+  resolver below requires its x stations to match the fresh coupled solver's
+  cell centers exactly.
+  """
+
+  if not isinstance(
+    consumer,
+    MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+  ):
+    raise TypeError(
+      'consumer must be a '
+      'MocReflectedDomainGlobalMixedRegimeStateConsumerResult'
+    )
+  if not consumer.consumed_local_research_state or consumer.trace is None:
+    raise ValueError(
+      'conservative boundary profile requires a locally consumed full-state '
+      'trace'
+    )
+  ####
+  trace = consumer.trace
+  states: list[tuple[float, float, float, float]] = []
+  x_stations: list[float] = []
+  for left, right in zip(trace.samples, trace.samples[1:]):
+    states.append(
+      tuple(
+        0.5 * (float(left.conservative_state[index])
+               + float(right.conservative_state[index]))
+        for index in range(4)
+      )
+    )
+    x_stations.append(0.5 * (left.point_m[0] + right.point_m[0]))
+  ####
+  if not states or len(states) != trace.sample_count - 1:
+    raise ValueError(
+      'conservative boundary profile retained no complete trace segments'
+    )
+  return tuple(states), tuple(float(value) for value in x_stations)
+
+
+class MocReflectedDomainGlobalMixedRegimeStateResolveStatus(str, Enum):
+  """Typed outcomes of a fresh downstream solve consuming the full trace."""
+
+  CONVERGED_LOCAL_RESEARCH_STATE_RESOLVE = (
+    'converged-local-global-mixed-regime-state-resolve'
+  )
+  INVALID_INPUT = 'invalid_input'
+  CONSUMER_NOT_READY = 'global-mixed-regime-state-resolve-consumer-not-ready'
+  REQUEST_FAILURE = 'global-mixed-regime-state-resolve-request-failure'
+  FRESH_SOLVER_FAILURE = 'global-mixed-regime-state-resolve-solver-failure'
+  INDEPENDENT_AUDIT_FAILURE = (
+    'global-mixed-regime-state-resolve-independent-audit-failure'
+  )
+
+
+@dataclass(frozen=True, slots=True)
+class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
+  """Research evidence from one fresh full-state downstream re-solve."""
+
+  status: MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+  consumer: MocReflectedDomainGlobalMixedRegimeStateConsumerResult | None
+  request: MocReflectedDomainCoupledEulerFreeBoundaryRequest | None = None
+  field: MocReflectedDomainCoupledEulerFreeBoundaryResult | None = None
+  field_audit: Any | None = None
+  conservative_state_profile: (
+    tuple[tuple[float, float, float, float], ...]
+  ) = ()
+  conservative_state_profile_x_stations_m: tuple[float, ...] = ()
+  consumer_lineage_verified: bool = False
+  profile_frame_verified: bool = False
+  fresh_solver_invoked: bool = False
+  fresh_field_lineage_verified: bool = False
+  independent_audit_verified: bool = False
+  canonical_free_boundary_verified: bool = False
+  global_coupling_verified: bool = False
+  chain_promotion_blocked: bool = True
+  production_claim_allowed: bool = False
+  message: str = ''
+
+  def __post_init__(self) -> None:
+    if not isinstance(
+      self.status,
+      MocReflectedDomainGlobalMixedRegimeStateResolveStatus,
+    ):
+      raise TypeError('status must be a typed state-resolve status')
+    if self.consumer is not None and not isinstance(
+      self.consumer,
+      MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+    ):
+      raise TypeError('consumer must be typed or None')
+    if self.request is not None and not isinstance(
+      self.request,
+      MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+    ):
+      raise TypeError('request must be typed or None')
+    if self.field is not None and not isinstance(
+      self.field,
+      MocReflectedDomainCoupledEulerFreeBoundaryResult,
+    ):
+      raise TypeError('field must be typed or None')
+    profile = tuple(
+      tuple(float(value) for value in state)
+      for state in self.conservative_state_profile
+    )
+    if any(
+      len(state) != 4 or any(not isfinite(value) for value in state)
+      for state in profile
+    ):
+      raise ValueError('conservative_state_profile must contain finite four-tuples')
+    stations = tuple(float(value) for value in self.conservative_state_profile_x_stations_m)
+    if any(not isfinite(value) for value in stations):
+      raise ValueError('conservative_state_profile_x_stations_m must be finite')
+    if len(profile) != len(stations):
+      raise ValueError('conservative state profile and stations must align')
+    if any(second <= first for first, second in zip(stations, stations[1:])):
+      raise ValueError('conservative state profile stations must be ordered')
+    object.__setattr__(self, 'conservative_state_profile', profile)
+    object.__setattr__(self, 'conservative_state_profile_x_stations_m', stations)
+    for name in (
+      'consumer_lineage_verified',
+      'profile_frame_verified',
+      'fresh_solver_invoked',
+      'fresh_field_lineage_verified',
+      'independent_audit_verified',
+      'canonical_free_boundary_verified',
+      'global_coupling_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      if not isinstance(getattr(self, name), bool):
+        raise TypeError(f'{name} must be a bool')
+    if self.canonical_free_boundary_verified or self.global_coupling_verified:
+      raise ValueError('state resolve cannot claim canonical global coupling')
+    if not self.chain_promotion_blocked or self.production_claim_allowed:
+      raise ValueError('state resolve must remain promotion-blocked')
+    object.__setattr__(self, 'message', str(self.message))
+
+  @property
+  def fresh_local_research_state_resolve_verified(self) -> bool:
+    return bool(
+      self.status
+      is MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+      .CONVERGED_LOCAL_RESEARCH_STATE_RESOLVE
+      and self.consumer_lineage_verified
+      and self.profile_frame_verified
+      and self.fresh_solver_invoked
+      and self.fresh_field_lineage_verified
+      and self.independent_audit_verified
+      and self.field is not None
+      and self.field.converged
+    )
+
+  def as_report(self) -> dict[str, Any]:
+    return {
+      'model': 'research-global-mixed-regime-state-resolve-v1',
+      'status': self.status.value,
+      'fresh_local_research_state_resolve_verified': (
+        self.fresh_local_research_state_resolve_verified
+      ),
+      'consumer_lineage_verified': self.consumer_lineage_verified,
+      'profile_frame_verified': self.profile_frame_verified,
+      'fresh_solver_invoked': self.fresh_solver_invoked,
+      'fresh_field_lineage_verified': self.fresh_field_lineage_verified,
+      'independent_audit_verified': self.independent_audit_verified,
+      'conservative_state_profile': self.conservative_state_profile,
+      'conservative_state_profile_x_stations_m': (
+        self.conservative_state_profile_x_stations_m
+      ),
+      'request': None if self.request is None else self.request.as_report(),
+      'field': None if self.field is None else self.field.as_report(),
+      'field_audit': (
+        None
+        if self.field_audit is None
+        else self.field_audit.as_report()
+      ),
+      'canonical_free_boundary_verified': False,
+      'global_coupling_verified': False,
+      'chain_promotion_blocked': True,
+      'production_claim_allowed': False,
+      'message': self.message,
+    }
+
+
+def solve_reflected_domain_global_mixed_regime_state_consumer(
+  consumer: MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+) -> MocReflectedDomainGlobalMixedRegimeStateResolveResult:
+  """Fresh-solve the coupled field with the consumed full-state trace.
+
+  This is the first numerical consumer of the full downstream state packet.
+  It binds adjacent trace-state averages to the exact existing coupled
+  cell-center frame and uses the explicit conservative Rusanov boundary flux.
+  It does not change the upstream global closure, so it cannot claim a global
+  fixed point or production validity.
+  """
+
+  if not isinstance(
+    consumer,
+    MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+  ):
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT,
+      consumer=None,
+      message=(
+        'consumer must be a '
+        'MocReflectedDomainGlobalMixedRegimeStateConsumerResult'
+      ),
+    )
+  if not consumer.consumed_local_research_state:
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.CONSUMER_NOT_READY,
+      consumer=consumer,
+      consumer_lineage_verified=consumer.closure_lineage_verified,
+      message=(
+        'fresh full-state solve requires a locally consumed conservative trace'
+      ),
+    )
+  ####
+  downstream = consumer.downstream
+  baseline_request = None if downstream is None else downstream.coupled_request
+  if baseline_request is None:
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.REQUEST_FAILURE,
+      consumer=consumer,
+      consumer_lineage_verified=True,
+      message='consumed state retained no coupled-Euler request for re-solving',
+    )
+  ####
+  try:
+    profile, profile_x = (
+      build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
+        consumer
+      )
+    )
+    request = replace(
+      baseline_request,
+      source=(f'{baseline_request.source}:global-mixed-regime-state-consumer-v1'),
+      free_boundary_flux_mode=(
+        MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+        .CONSERVATIVE_STATE_TRACE_RUSANOV
+      ),
+      free_boundary_conservative_state_profile=profile,
+      free_boundary_conservative_state_profile_x_stations_m=profile_x,
+      free_boundary_conservative_state_profile_source=(
+        'research-global-coupled-downstream-full-state-trace-v1'
+      ),
+    )
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.REQUEST_FAILURE,
+      consumer=consumer,
+      consumer_lineage_verified=True,
+      message=f'full-state coupled request construction failed: {error}',
+    )
+  ####
+  try:
+    field = solve_reflected_domain_coupled_euler_free_boundary(request)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.FRESH_SOLVER_FAILURE,
+      consumer=consumer,
+      request=request,
+      conservative_state_profile=profile,
+      conservative_state_profile_x_stations_m=profile_x,
+      consumer_lineage_verified=True,
+      profile_frame_verified=True,
+      fresh_solver_invoked=True,
+      message=f'full-state coupled solver raised: {error}',
+    )
+  ####
+  try:
+    from exhaust_plume.validation.moc_coupled_euler_free_boundary import (
+      measure_reflected_domain_coupled_euler_free_boundary,
+    )
+
+    field_audit = measure_reflected_domain_coupled_euler_free_boundary(field)
+  except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=(
+        MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+        .INDEPENDENT_AUDIT_FAILURE
+      ),
+      consumer=consumer,
+      request=request,
+      field=field,
+      conservative_state_profile=profile,
+      conservative_state_profile_x_stations_m=profile_x,
+      consumer_lineage_verified=True,
+      profile_frame_verified=True,
+      fresh_solver_invoked=True,
+      fresh_field_lineage_verified=field.request is request,
+      message=f'full-state coupled independent audit raised: {error}',
+    )
+  ####
+  field_lineage_verified = bool(
+    field.request is request
+    and request.free_boundary_flux_mode
+    is MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .CONSERVATIVE_STATE_TRACE_RUSANOV
+    and field.free_boundary_conservative_state_profile_consumed
+  )
+  audit_verified = bool(
+    getattr(field_audit, 'converged', False)
+    and getattr(field_audit, 'local_consistency_verified', False)
+  )
+  local = bool(
+    field.status
+    is MocReflectedDomainCoupledEulerFreeBoundaryStatus
+    .CONVERGED_LOCAL_PHYSICAL_CLOSURE
+    and field.converged
+    and field_lineage_verified
+    and audit_verified
+  )
+  return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+    status=(
+      MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+      .CONVERGED_LOCAL_RESEARCH_STATE_RESOLVE
+      if local
+      else (
+        MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+        .FRESH_SOLVER_FAILURE
+        if not field.converged
+        else MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+        .INDEPENDENT_AUDIT_FAILURE
+      )
+    ),
+    consumer=consumer,
+    request=request,
+    field=field,
+    field_audit=field_audit,
+    conservative_state_profile=profile,
+    conservative_state_profile_x_stations_m=profile_x,
+    consumer_lineage_verified=True,
+    profile_frame_verified=True,
+    fresh_solver_invoked=True,
+    fresh_field_lineage_verified=field_lineage_verified,
+    independent_audit_verified=audit_verified,
+    message=(
+      'fresh coupled Euler solve consumed the full conservative downstream '
+      'trace; canonical global feedback, free-boundary closure, refinement, '
+      'external validation, and production promotion remain open'
+    )
+    if local
+    else (
+      'fresh coupled Euler solve consumed the full conservative downstream '
+      f'trace but remained non-converged ({field.status.value}); no fallback '
+      'boundary law was attempted'
+      if not field.converged
+      else (
+        'fresh coupled Euler solve reported local closure, but its independent '
+        f'audit failed ({getattr(field_audit, "status", "unknown")}); no '
+        'fallback boundary law was attempted'
+      )
     ),
   )

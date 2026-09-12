@@ -102,7 +102,9 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus,
   MocReflectedDomainGlobalMixedRegimeStateConsumerStatus,
+  MocReflectedDomainGlobalMixedRegimeStateResolveStatus,
   consume_reflected_domain_global_mixed_regime_state,
+  solve_reflected_domain_global_mixed_regime_state_consumer,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
@@ -113,6 +115,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalFrontierFreshResolveRequest,
   MocReflectedDomainDownstreamBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
+  MocReflectedDomainCoupledEulerFreeBoundaryFluxMode,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerFreeBoundaryUpdateMode,
@@ -7277,6 +7280,66 @@ def test_global_mixed_regime_state_consumer_replays_full_trace_without_promotion
   assert rejected.chain_promotion_blocked
   assert rejected.production_claim_allowed is False
 ####
+
+
+def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+
+  resolved = solve_reflected_domain_global_mixed_regime_state_consumer(consumed)
+
+  assert resolved.status in (
+    MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+    .CONVERGED_LOCAL_RESEARCH_STATE_RESOLVE,
+    MocReflectedDomainGlobalMixedRegimeStateResolveStatus.FRESH_SOLVER_FAILURE,
+    MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+    .INDEPENDENT_AUDIT_FAILURE,
+  )
+  assert resolved.consumer is consumed
+  assert resolved.consumer_lineage_verified
+  assert resolved.profile_frame_verified
+  assert resolved.fresh_solver_invoked
+  assert resolved.request is not None
+  assert resolved.request.free_boundary_flux_mode is (
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .CONSERVATIVE_STATE_TRACE_RUSANOV
+  )
+  assert resolved.request.free_boundary_conservative_state_profile == (
+    resolved.conservative_state_profile
+  )
+  assert resolved.request.free_boundary_conservative_state_profile_x_stations_m == (
+    resolved.conservative_state_profile_x_stations_m
+  )
+  assert resolved.request.free_boundary_conservative_state_profile_source == (
+    'research-global-coupled-downstream-full-state-trace-v1'
+  )
+  assert resolved.field is not None
+  assert resolved.field.request is resolved.request
+  assert resolved.field.free_boundary_conservative_state_profile_consumed
+  assert resolved.field_audit is not None
+  assert resolved.canonical_free_boundary_verified is False
+  assert resolved.global_coupling_verified is False
+  assert resolved.chain_promotion_blocked
+  assert resolved.production_claim_allowed is False
+  report = resolved.as_report()
+  assert report['request']['free_boundary_flux_model'] == (
+    'conservative-state-trace-rusanov-v1'
+  )
+  assert report['production_claim_allowed'] is False
+ ####
 
 
 def test_global_coupled_downstream_derives_solver_owned_exact_field_handoff():
