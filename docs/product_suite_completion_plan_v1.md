@@ -6683,3 +6683,27 @@ reflected-domain suite passes (``223 passed``), and Ruff, Pyright, compilation,
 and whitespace checks are clean.  Canonical global/free-boundary closure,
 accepted physical shock-cell comparisons, provider validation archives/outputs,
 Signature/RAY/FPA acceptance, and the release freeze remain open.
+
+### P3.11 bounded shape-step contract checkpoint — 2026-09-11
+
+The implementation checkpoint ``1d0dcdc`` fixes the remaining record-contract
+edge case exposed while probing the strict corrector.  The shape-Jacobian
+configuration permits coefficients through its declared bounded range, but
+the common scalar ``step_fraction`` field is intentionally limited to one.
+Accepted shape records now keep that scalar as a bounded summary while
+retaining the exact multi-control coefficient vector and ``shape_step_norm``
+for replay.  A regression exercises a legal coefficient magnitude above one
+and verifies aligned vector/coefficient evidence.
+
+The probe confirms that increasing the legal shape-step range and interface
+iteration budget does not by itself close the physical mixed-regime state:
+the normal-momentum channel remains open at the strict accepted tolerance,
+and the solver continues to fail closed with a typed non-converged result.
+No tolerance was relaxed and no approximate shape update was promoted.
+
+The focused shape/global-corrector tranche passes (``3 passed``), the complete
+reflected-domain suite passes (``223 passed``), and Ruff, Pyright, compilation,
+and whitespace checks are clean.  The next physics slice remains the actual
+global/free-boundary conservative closure, with provider validation,
+accepted shock-cell comparisons, Signature/RAY/FPA acceptance, and release
+freeze still open.
