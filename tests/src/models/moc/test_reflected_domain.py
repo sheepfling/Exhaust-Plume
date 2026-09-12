@@ -14181,6 +14181,54 @@ def test_global_coupled_boundary_feedback_response_descent_gate_fails_closed_wit
 ####
 
 
+def test_global_coupled_boundary_feedback_channelwise_state_descent_rejects_hidden_worsening():
+  """Maximum-norm descent must not hide a worsening momentum channel."""
+
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  ambient_pressure = mixed_request.control_section.samples[-1].static_pressure_Pa
+  run = run_reflected_domain_global_coupled_boundary_condition_feedback(
+    closure,
+    reference_total_temperature_K=1500.0,
+    maximum_iterations=2,
+    downstream_feedback_iterations=2,
+    require_complete_state_residual_descent=True,
+    require_complete_state_channelwise_residual_descent=True,
+    downstream_options={
+      'ambient_pressure_Pa': ambient_pressure,
+      'pressure_correction_fraction': 0.005,
+      'axial_station_count': 7,
+      'axial_cell_count': 8,
+      'transverse_cell_count': 4,
+      'max_pseudo_iterations': 400,
+      'max_shape_iterations': 12,
+    },
+    boundary_condition_options={'consume_target_geometry': True},
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+    .COMPLETE_STATE_CHANNELWISE_RESIDUAL_DESCENT_FAILURE
+  )
+  assert run.complete_state_residual_descent_verified
+  assert run.complete_state_channelwise_residual_descent_required
+  assert run.complete_state_channelwise_residual_descent_verified is False
+  vectors = run.downstream_normalized_coupled_state_residual_vectors
+  assert len(vectors) == 2
+  assert len(vectors[0]) == len(vectors[1]) == 10
+  assert vectors[1][1] > vectors[0][1]
+  assert vectors[1][2] > vectors[0][2]
+  assert run.research_feedback_completed is False
+  assert run.global_coupling_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  report = run.as_report()
+  assert report['complete_state_channelwise_residual_descent_required'] is True
+  assert report['complete_state_channelwise_residual_descent_verified'] is False
+  assert len(report['downstream_normalized_coupled_state_residual_vectors']) == 2
+####
+
+
 def test_global_coupled_boundary_feedback_complete_state_descent_gate_fails_closed_without_two_steps():
   closure = _global_physical_closure_for_mixed_regime()
   mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)

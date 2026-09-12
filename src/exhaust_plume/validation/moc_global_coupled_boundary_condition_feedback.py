@@ -118,6 +118,9 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus(str, Enum):
   COMPLETE_STATE_RESIDUAL_DESCENT_FAILURE = (
     'global-coupled-boundary-condition-complete-state-residual-descent-failure'
   )
+  COMPLETE_STATE_CHANNELWISE_RESIDUAL_DESCENT_FAILURE = (
+    'global-coupled-boundary-condition-complete-state-channelwise-residual-descent-failure'
+  )
   FIDELITY_FAILURE = 'global-coupled-boundary-condition-fidelity-failure'
   ITERATION_LIMIT = 'global-coupled-boundary-condition-iteration-limit'
   TERMINAL_FIXED_POINT_FAILURE = (
@@ -371,6 +374,28 @@ def _latest_downstream_normalized_coupled_state_residual(
 ####
 
 
+def _latest_downstream_normalized_coupled_state_vector(
+  feedback: MocReflectedDomainGlobalCoupledDownstreamFeedbackRun | None,
+) -> tuple[float, ...] | None:
+  """Return the latest finite complete coupled-state vector."""
+
+  if feedback is None:
+    return None
+  ####
+  for iteration in reversed(feedback.iterations):
+    vector = iteration.result.normalized_coupled_state_residual_vector
+    if vector is None:
+      continue
+    ####
+    resolved = tuple(float(value) for value in vector)
+    if resolved and all(isfinite(value) and value >= 0.0 for value in resolved):
+      return resolved
+    ####
+  ####
+  return None
+####
+
+
 def _strict_response_residual_descent(metrics: tuple[float, ...]) -> bool:
   """Require finite, strict decrease of the retained outer response metric."""
 
@@ -385,6 +410,49 @@ def _strict_response_residual_descent(metrics: tuple[float, ...]) -> bool:
       for before, after in zip(metrics, metrics[1:])
     )
   )
+####
+
+
+def _strict_componentwise_residual_vector_descent(
+  vectors: tuple[tuple[float, ...], ...],
+) -> bool:
+  """Require no channel worsening and one active-channel decrease per step.
+
+  Channels already at or below one tolerance unit may remain unchanged while
+  an open equation is corrected.  An open channel may not worsen, and every
+  adjacent pair must contain at least one strict decrease.  This is stronger
+  than checking only the maximum component, which can hide a worsening
+  momentum or entropy channel behind improvement in another equation.
+  """
+
+  if len(vectors) < 2 or not vectors[0]:
+    return False
+  ####
+  width = len(vectors[0])
+  if any(
+    len(vector) != width
+    or any(not isfinite(value) or value < 0.0 for value in vector)
+    for vector in vectors
+  ):
+    return False
+  ####
+  numerical_tolerance = 1.0e-12
+  for before, after in zip(vectors, vectors[1:]):
+    nonincreasing = all(
+      next_value
+      <= current_value + numerical_tolerance * max(1.0, abs(current_value))
+      for current_value, next_value in zip(before, after, strict=True)
+    )
+    strict = any(
+      next_value
+      < current_value - numerical_tolerance * max(1.0, abs(current_value))
+      for current_value, next_value in zip(before, after, strict=True)
+    )
+    if not nonincreasing or not strict:
+      return False
+    ####
+  ####
+  return True
 ####
 
 
@@ -852,6 +920,10 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
         not self.complete_state_residual_descent_required
         or self.complete_state_residual_descent_verified
       )
+      and (
+        not self.complete_state_channelwise_residual_descent_required
+        or self.complete_state_channelwise_residual_descent_verified
+      )
     )
   ####
 
@@ -966,6 +1038,45 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
   ####
 
   @property
+  def complete_state_channelwise_residual_descent_required(self) -> bool:
+    """Whether this run requested component-wise state-vector descent."""
+
+    return bool(
+      self.configuration.get(
+        'complete_state_channelwise_residual_descent_required',
+        False,
+      )
+    )
+  ####
+
+  @property
+  def downstream_normalized_coupled_state_residual_vectors(
+    self,
+  ) -> tuple[tuple[float, ...], ...]:
+    """Return one exact ten-channel vector for each retained outer step."""
+
+    return tuple(
+      vector
+      for item in self.iterations
+      for vector in (
+        _latest_downstream_normalized_coupled_state_vector(
+          item.downstream_feedback
+        ),
+      )
+      if vector is not None
+    )
+  ####
+
+  @property
+  def complete_state_channelwise_residual_descent_verified(self) -> bool:
+    """Whether no retained coupled-state channel worsens between steps."""
+
+    return _strict_componentwise_residual_vector_descent(
+      self.downstream_normalized_coupled_state_residual_vectors
+    )
+  ####
+
+  @property
   def converged(self) -> bool:
     """Alias for bounded research completion, never canonical closure."""
 
@@ -1038,6 +1149,15 @@ class MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun:
       ),
       'downstream_normalized_coupled_state_residuals': (
         self.downstream_normalized_coupled_state_residuals
+      ),
+      'complete_state_channelwise_residual_descent_required': (
+        self.complete_state_channelwise_residual_descent_required
+      ),
+      'complete_state_channelwise_residual_descent_verified': (
+        self.complete_state_channelwise_residual_descent_verified
+      ),
+      'downstream_normalized_coupled_state_residual_vectors': (
+        self.downstream_normalized_coupled_state_residual_vectors
       ),
       'terminal_fixed_point_required': self.terminal_fixed_point_required,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
@@ -1595,6 +1715,7 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   maximum_frame_extension_m: float = 0.5,
   require_response_residual_descent: bool = False,
   require_complete_state_residual_descent: bool = False,
+  require_complete_state_channelwise_residual_descent: bool = False,
   require_terminal_fixed_point: bool = False,
   require_terminal_global_fixed_point: bool = False,
   require_terminal_global_downstream_recheck: bool = False,
@@ -1618,6 +1739,11 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   retained conservative/boundary/state vector must also strictly decrease;
   this includes the solver's declared entropy-transport loss tolerance and
   fails closed when a fresh coupled field cannot expose every channel.
+  When ``require_complete_state_channelwise_residual_descent`` is true, every
+  component of that retained vector must be nonincreasing between fresh
+  global solves, with at least one strict improvement per step.  This is
+  stronger than maximum-norm descent and is the admission policy intended for
+  a future canonical coupled closure; it remains research-only here.
   When ``require_terminal_fixed_point`` is
   true, a fresh downstream response is automatically replayed against the
   final retained closure and the run is marked failed unless that terminal
@@ -1650,6 +1776,14 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
   if not isinstance(require_complete_state_residual_descent, bool):
     raise ValueError(
       'require_complete_state_residual_descent must be a bool'
+    )
+  ####
+  if not isinstance(
+    require_complete_state_channelwise_residual_descent,
+    bool,
+  ):
+    raise ValueError(
+      'require_complete_state_channelwise_residual_descent must be a bool'
     )
   ####
   if not isinstance(require_terminal_global_fixed_point, bool):
@@ -1739,6 +1873,9 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
     'response_residual_descent_required': require_response_residual_descent,
     'complete_state_residual_descent_required': (
       require_complete_state_residual_descent
+    ),
+    'complete_state_channelwise_residual_descent_required': (
+      require_complete_state_channelwise_residual_descent
     ),
     'consumer_id': resolved_consumer_id,
     'downstream_options': resolved_downstream_options,
@@ -2253,6 +2390,34 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
           )
       ####
     ####
+    if (
+      failure_status is None
+      and require_complete_state_channelwise_residual_descent
+      and iteration_index > 0
+    ):
+      previous_vector = _latest_downstream_normalized_coupled_state_vector(
+        iterations[-2].downstream_feedback
+      )
+      current_vector = _latest_downstream_normalized_coupled_state_vector(
+        step.downstream_feedback
+      )
+      if (
+        previous_vector is None
+        or current_vector is None
+        or not _strict_componentwise_residual_vector_descent(
+          (previous_vector, current_vector)
+        )
+      ):
+        failure_status = (
+          MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+          .COMPLETE_STATE_CHANNELWISE_RESIDUAL_DESCENT_FAILURE
+        )
+        failure_message = (
+          'one or more complete coupled-state residual channels worsened or '
+          'failed to improve between fresh global solves'
+        )
+      ####
+    ####
     if failure_status is not None:
       break
     ####
@@ -2319,6 +2484,32 @@ def run_reflected_domain_global_coupled_boundary_condition_feedback(
         'a finite vector and at least two strict improvements'
       )
     ####
+  ####
+  if (
+    failure_status is None
+    and require_complete_state_channelwise_residual_descent
+    and not _strict_componentwise_residual_vector_descent(
+      tuple(
+        vector
+        for item in retained_iterations
+        for vector in (
+          _latest_downstream_normalized_coupled_state_vector(
+            item.downstream_feedback
+          ),
+        )
+        if vector is not None
+      )
+    )
+  ):
+    failure_status = (
+      MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackStatus
+      .COMPLETE_STATE_CHANNELWISE_RESIDUAL_DESCENT_FAILURE
+    )
+    failure_message = (
+      'component-wise complete-state descent requires at least two finite '
+      'equal-width vectors with no worsening channel and one strict '
+      'improvement per fresh global solve'
+    )
   ####
   if failure_status is None:
     status = (
