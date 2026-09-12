@@ -1,7 +1,7 @@
 {
   "checks": {
     "all_active_lanes_have_local_release_evidence": true,
-    "candidate_worktree_clean": true,
+    "candidate_worktree_clean": false,
     "documentation_only_follow_on_verified": false,
     "fpa_provider_guard_passed": true,
     "low_fidelity_promotion_detected": false,
@@ -266,10 +266,10 @@
     "low_fidelity_promotion_forbidden": true
   },
   "release_provenance": {
-    "candidate_head_commit": "ad46f4823cc40b044634bfcedc68d43a2c235495",
+    "candidate_head_commit": "bc1133725dc74ae73fb2d954bb0d5b20750c4187",
     "candidate_head_matches_recorded_freeze": false,
     "candidate_head_matches_validated_code_commit": false,
-    "candidate_worktree_clean": true,
+    "candidate_worktree_clean": false,
     "documentation_only_follow_on_verified": false,
     "recorded_freeze_head_commit": "b73cb609066c0e35c2bf2f4377ba2bec5f22493a",
     "validated_code_commit": "b73cb609066c0e35c2bf2f4377ba2bec5f22493a"
@@ -285,6 +285,7 @@
       "planar MOC first-cell closure is not complete; the CJ-UEJ external reference comparison is quantified diagnostic evidence only and remains not accepted",
       "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open",
       "release freeze does not identify the current candidate HEAD and the follow-on commit is not documentation-only release evidence",
+      "candidate worktree is not clean; release evidence must be generated from a committed candidate",
       "provider comparison preflight is not externally accepted"
     ],
     "release_ready": false

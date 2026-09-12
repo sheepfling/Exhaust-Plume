@@ -7215,3 +7215,38 @@ law (or an independently justified entropy flux) and then repeat the actual
 upstream conservative equation, disjoint-case, and increasing-resolution
 gates.  External validation archives and provider-bound VIS/SIG/RAY/FPA
 comparisons remain separate release blockers.
+
+### P3.26 live entropy-compatible interface-law checkpoint — 2026-09-12 (`bc11337`)
+
+The coupled-Euler field now has a distinct opt-in
+``conservative-state-trace-entropy-compatible-rusanov-v1`` boundary law.  It
+consumes the complete conservative state trace on the exact cell-center frame
+and recomputes the interface flux from the live interior state on every
+pseudo-time residual evaluation.  The arithmetic central flux receives at
+least the physical Lax-Friedrichs wave-speed bound and, when necessary, the
+additional dissipation required by the ideal-gas Tadmor entropy inequality
+using the retained entropy variables and normal entropy potential.  This is
+an entropy-compatible local interface condition, not a claim that the
+surrounding moving free boundary or upstream global equations are closed.
+
+The independent coupled-Euler audit re-derives the entropy variables,
+potential, and live trace flux separately.  The global mixed-regime consumer
+can select this law with ``apply_entropy_compatible_flux=True``; the option is
+mutually exclusive with the stale fixed-flux packet experiment.  The ordinary
+state-trace Rusanov path remains available as the compatibility baseline, and
+the fixed packet continues to fail closed on the retained case's measured
+entropy loss rather than being silently upgraded.
+
+The new live-law regression passes with a locally converged field and
+independent audit, while preserving ``global_coupling_verified=false``, the
+chain-promotion block, and ``production_claim_allowed=false``.  The complete
+reflected-domain suite passes (``231 passed in 6m23s``), the independent
+validation suite passes (``245 passed in 8m38s``), and Ruff, Pyright,
+compilation, and whitespace checks are clean.
+
+This closes the local interface-law experiment only.  The actual upstream
+conservative state equation, canonical global/free-boundary fixed point,
+disjoint cases and increasing resolutions, accepted physical shock-cell
+lengths, provider-bound VIS/SIG/RAY/FPA comparisons, missing validation
+archives, and the exact release freeze remain open.  No downstream product
+promotion is allowed from this checkpoint.
