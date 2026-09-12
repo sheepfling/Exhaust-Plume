@@ -5,7 +5,7 @@
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
   "head_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2",
   "validated_code_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2",
-  "validated_code_commit_note": "The product candidate passed the full repository suite (1310 tests), Ruff, Pyright, compilation, and isolated wheel/install smoke before release-evidence validator/test hardening; the focused release-manifest suite (3 passed) passes on this commit and the entropy-target checkpoint is included.",
+  "validated_code_commit_note": "The exact validated code tranche passed the full repository suite (1311 tests), Ruff, Pyright, compilation, and isolated wheel/install smoke; the focused release-manifest suite (3 passed) and entropy-target checkpoint are included.",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "candidate-branch-not-pushed; historical PRs-5-6-7-merged",
   "remote_pr_audit": {
@@ -37,7 +37,7 @@
   "repository_quality": {
     "pytest": {
       "status": "passed",
-      "tests_passed": 1310,
+      "tests_passed": 1311,
       "warnings": 18
     },
     "ruff": "passed",
