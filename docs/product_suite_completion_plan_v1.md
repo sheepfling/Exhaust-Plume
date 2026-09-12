@@ -7185,7 +7185,7 @@ independently measure the signed mass/momentum/energy residuals, and require
 closure on disjoint cases and increasing resolutions before any downstream
 promotion is considered.
 
-### P3.25 opt-in fixed-flux interface gate — 2026-09-11 (working tree)
+### P3.25 opt-in fixed-flux interface gate — 2026-09-11 (`ad46f48`)
 
 The coupled-Euler request now has a typed, frame-locked conservative-flux
 target.  Each target retains its oriented four-component flux density,
