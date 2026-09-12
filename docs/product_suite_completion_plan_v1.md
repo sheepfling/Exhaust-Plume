@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `404f539` (canonical-closure seam checkpoint); the reflected-domain suite is green at 224 tests, the focused canonical-stop tranche is green at 4 tests, and the local static/contract/package checks pass; the new full-state consumer slice is being verified before its checkpoint commit; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `d147f2a` (mixed-regime full-state consumer checkpoint); the reflected-domain suite is green at 224 tests, the focused canonical-stop tranche is green at 4 tests, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | A model-side full-state consumer seam now exists; the true coupled feedback/free-boundary solve remains open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — code checkpoint `f7e9f68`
+### Active execution card — code checkpoint `d147f2a`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -162,7 +162,7 @@ research shock-cell fits remain below production Signature/FPA claims.
 
 ### P3.14 solver-owned full-state consumer seam — 2026-09-11
 
-The model lane now has an explicit
+The implementation checkpoint ``d147f2a`` adds an explicit
 ``consume_reflected_domain_global_mixed_regime_state`` operator.  It accepts
 the exact verified global physical closure together with the coupled-Euler
 downstream result, requires complete retained global-field state sampling,
