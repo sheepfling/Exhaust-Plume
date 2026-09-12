@@ -404,6 +404,10 @@ from exhaust_plume.validation.moc_global_mixed_regime_state_equation import (
   MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus,
   measure_reflected_domain_global_mixed_regime_state_equations,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_state_equation_contract import (
+  MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus,
+  prepare_reflected_domain_global_mixed_regime_state_equation_contract,
+)
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID,
@@ -7267,6 +7271,37 @@ def test_global_mixed_regime_state_consumer_replays_full_trace_without_promotion
   assert report['model'] == 'research-global-mixed-regime-state-consumer-v1'
   assert report['production_claim_allowed'] is False
 
+  contract = prepare_reflected_domain_global_mixed_regime_state_equation_contract(
+    closure,
+    consumed,
+  )
+  assert contract.status is (
+    MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus
+    .UPSTREAM_EQUATION_CONTRACT_UNAVAILABLE
+  )
+  assert contract.state_target_ready
+  assert contract.closure_lineage_verified
+  assert contract.state_target_frame_verified
+  assert contract.available_channels == {
+    'mass': True,
+    'streamwise_momentum': True,
+    'transverse_momentum': True,
+    'energy': True,
+    'entropy': True,
+  }
+  assert contract.consumed_channels == {
+    'mass': False,
+    'streamwise_momentum': False,
+    'transverse_momentum': False,
+    'energy': False,
+    'entropy': False,
+  }
+  assert contract.upstream_equation_contract_available is False
+  assert contract.upstream_equation_consumed is False
+  assert contract.global_coupling_verified is False
+  assert contract.chain_promotion_blocked
+  assert contract.production_claim_allowed is False
+
   tampered_trace = replace(
     consumed.trace,
     samples=(
@@ -7470,6 +7505,12 @@ def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_proj
   assert run.full_state_consumer_ready
   assert run.full_state_lineage_verified
   assert run.full_state_channels_audit_verified
+  assert run.upstream_state_equation_contract is not None
+  assert run.upstream_state_equation_contract.state_target_ready
+  assert run.upstream_state_equation_contract.status is (
+    MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus
+    .UPSTREAM_EQUATION_CONTRACT_UNAVAILABLE
+  )
   assert run.pressure_geometry_projection_requested
   assert run.pressure_geometry_projection_consumed_verified
   assert run.fresh_global_resolve_verified
@@ -7498,6 +7539,9 @@ def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_proj
     'energy': False,
     'entropy': False,
   }
+  assert report['upstream_state_target_ready'] is True
+  assert report['upstream_state_equation_contract_available'] is False
+  assert report['upstream_state_equation_consumed'] is False
   assert report['global_coupling_verified'] is False
   assert report['production_claim_allowed'] is False
  ####

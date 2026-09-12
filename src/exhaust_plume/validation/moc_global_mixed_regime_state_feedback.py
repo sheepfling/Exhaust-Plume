@@ -48,6 +48,10 @@ from exhaust_plume.validation.moc_global_frontier_boundary_condition import (
   MocReflectedDomainGlobalFrontierBoundaryConditionStatus,
   run_reflected_domain_global_frontier_boundary_conditioned_resolve,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_state_equation_contract import (
+  MocReflectedDomainGlobalMixedRegimeStateEquationContract,
+  prepare_reflected_domain_global_mixed_regime_state_equation_contract,
+)
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_FEEDBACK_OPERATOR_ID',
@@ -127,6 +131,9 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
   frontier_request: MocReflectedDomainGlobalFrontierReconciliationRequest | None = None
   base_target: MocPhysicalFieldEulerBoundaryPressureTarget | None = None
   boundary_condition: MocReflectedDomainGlobalFrontierBoundaryConditionResult | None = None
+  upstream_state_equation_contract: (
+    MocReflectedDomainGlobalMixedRegimeStateEquationContract | None
+  ) = None
   consumer_id: str = ''
   correction_fraction: float = _DEFAULT_OUTER_CORRECTION_FRACTION
   full_state_lineage_verified: bool = False
@@ -164,6 +171,10 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
       (
         'boundary_condition',
         MocReflectedDomainGlobalFrontierBoundaryConditionResult,
+      ),
+      (
+        'upstream_state_equation_contract',
+        MocReflectedDomainGlobalMixedRegimeStateEquationContract,
       ),
     ):
       value = getattr(self, name)
@@ -226,6 +237,8 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
       and self.consumer.consumed_local_research_state
       and self.full_state_lineage_verified
       and self.full_state_channels_audit_verified
+      and self.upstream_state_equation_contract is not None
+      and self.upstream_state_equation_contract.state_target_ready
     )
 
   @property
@@ -273,13 +286,18 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
         consumer is not None and consumer.entropy_channel_verified
       ),
     }
-    state_channel_consumption = {
-      'mass': False,
-      'streamwise_momentum': False,
-      'transverse_momentum': False,
-      'energy': False,
-      'entropy': False,
-    }
+    state_contract = self.upstream_state_equation_contract
+    state_channel_consumption = (
+      dict(state_contract.consumed_channels)
+      if state_contract is not None
+      else {
+        'mass': False,
+        'streamwise_momentum': False,
+        'transverse_momentum': False,
+        'energy': False,
+        'entropy': False,
+      }
+    )
     boundary_condition = self.boundary_condition
     return {
       'operator_id': MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_FEEDBACK_OPERATOR_ID,
@@ -295,6 +313,19 @@ class MocReflectedDomainGlobalMixedRegimeStateFeedbackRun:
       ),
       'full_state_channel_audit': state_channel_audit,
       'full_state_channel_consumed_by_global_equations': state_channel_consumption,
+      'upstream_state_equation_contract': (
+        None if state_contract is None else state_contract.as_report()
+      ),
+      'upstream_state_target_ready': bool(
+        state_contract is not None and state_contract.state_target_ready
+      ),
+      'upstream_state_equation_contract_available': bool(
+        state_contract is not None
+        and state_contract.upstream_equation_contract_available
+      ),
+      'upstream_state_equation_consumed': bool(
+        state_contract is not None and state_contract.upstream_equation_consumed
+      ),
       'pressure_geometry_projection_requested': (
         self.pressure_geometry_projection_requested
       ),
@@ -555,6 +586,27 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       full_state_channels_audit_verified=channels_verified,
     )
   ####
+  state_equation_contract = (
+    prepare_reflected_domain_global_mixed_regime_state_equation_contract(
+      closure,
+      consumer,
+    )
+  )
+  if not state_equation_contract.state_target_ready:
+    return _failure(
+      MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus.STATE_CONSUMER_FAILURE,
+      'upstream conservative state-equation contract could not retain an exact '
+      'lineaged target frame',
+      closure=closure,
+      downstream=downstream,
+      consumer=consumer,
+      upstream_state_equation_contract=state_equation_contract,
+      consumer_id=resolved_consumer_id,
+      correction_fraction=fraction,
+      full_state_lineage_verified=lineage_verified,
+      full_state_channels_audit_verified=channels_verified,
+    )
+  ####
   response = downstream.downstream_boundary_response
   if response is None:
     return _failure(
@@ -564,6 +616,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       downstream=downstream,
       consumer=consumer,
+      upstream_state_equation_contract=state_equation_contract,
       consumer_id=resolved_consumer_id,
       correction_fraction=fraction,
       full_state_lineage_verified=lineage_verified,
@@ -582,6 +635,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       downstream=downstream,
       consumer=consumer,
+      upstream_state_equation_contract=state_equation_contract,
       consumer_id=resolved_consumer_id,
       correction_fraction=fraction,
       full_state_lineage_verified=lineage_verified,
@@ -595,6 +649,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       downstream=downstream,
       consumer=consumer,
+      upstream_state_equation_contract=state_equation_contract,
       proposal=proposal,
       consumer_id=resolved_consumer_id,
       correction_fraction=fraction,
@@ -615,6 +670,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       downstream=downstream,
       consumer=consumer,
+      upstream_state_equation_contract=state_equation_contract,
       proposal=proposal,
       consumer_id=resolved_consumer_id,
       correction_fraction=fraction,
@@ -634,6 +690,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       closure=closure,
       downstream=downstream,
       consumer=consumer,
+      upstream_state_equation_contract=state_equation_contract,
       proposal=proposal,
       frontier_request=request,
       consumer_id=resolved_consumer_id,
@@ -722,6 +779,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
     frontier_request=request,
     base_target=base_target,
     boundary_condition=boundary_condition,
+    upstream_state_equation_contract=state_equation_contract,
     consumer_id=resolved_consumer_id,
     correction_fraction=fraction,
     full_state_lineage_verified=lineage_verified,
@@ -737,8 +795,9 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
     message=(
       'full conservative downstream trace passed its independent audit; its '
       'pressure/geometry projection was consumed by a fresh global physical '
-      'closure solve; mass, momentum, energy, and entropy remain audit-only '
-      'because the upstream global equations do not yet consume those channels'
+      'closure solve; the exact upstream state-equation contract is retained '
+      'but mass, momentum, energy, and entropy remain unconsumed because the '
+      'upstream global equations do not yet implement that contract'
       if status
       is MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus
       .COMPLETED_RESEARCH_PRESSURE_GEOMETRY_FEEDBACK
