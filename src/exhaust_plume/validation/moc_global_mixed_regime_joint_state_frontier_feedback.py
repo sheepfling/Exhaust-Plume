@@ -4,8 +4,11 @@ Each iteration rebuilds the downstream/global boundary-state handoff from the
 fresh closure produced by the previous iteration.  The physical shock
 frontier is then consumed by the joint state solver and rechecked on its fresh
 closure.  Completing a bounded sequence is not itself a fixed-point claim;
-the result exposes separate geometry, pressure, and residual convergence
-gates and remains research-only.
+the result exposes separate geometry, pressure, joint-residual, and frontier-
+residual convergence gates and remains research-only.  An explicit opt-in can
+also consume the bounded five-channel frontier residual exchange after each
+joint solve; a rejected exchange stops the chain rather than falling back to
+an unexchanged closure.
 """
 
 from __future__ import annotations
@@ -29,6 +32,11 @@ from exhaust_plume.validation.moc_global_mixed_regime_joint_state_frontier_solve
   MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveRequest,
   MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult,
   run_reflected_domain_global_mixed_regime_joint_state_frontier_solve,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_frontier_residual_exchange import (
+  MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest,
+  MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult,
+  run_reflected_domain_global_mixed_regime_frontier_residual_exchange,
 )
 from exhaust_plume.validation.moc_global_mixed_regime_shock_frontier_refinement import (
   MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase,
@@ -70,6 +78,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus(
   FEEDBACK_FAILURE = 'joint-state-frontier-feedback-boundary-state-failure'
   FRONTIER_FAILURE = 'joint-state-frontier-feedback-frontier-failure'
   JOINT_SOLVE_FAILURE = 'joint-state-frontier-feedback-joint-solve-failure'
+  RESIDUAL_EXCHANGE_FAILURE = (
+    'joint-state-frontier-feedback-residual-exchange-failure'
+  )
   RESIDUAL_DESCENT_FAILURE = (
     'joint-state-frontier-feedback-residual-descent-failure'
   )
@@ -126,6 +137,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
   require_fixed_point: bool = False
   require_residual_descent: bool = False
   source: str = 'research-global-mixed-regime-joint-state-frontier-feedback-v1'
+  consume_frontier_residual_exchange: bool = False
+  frontier_residual_exchange_options: Mapping[str, Any] | None = None
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -158,6 +171,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
     for name in ('require_fixed_point', 'require_residual_descent'):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+    if not isinstance(self.consume_frontier_residual_exchange, bool):
+      raise TypeError('consume_frontier_residual_exchange must be a bool')
     object.__setattr__(
       self,
       'downstream_options',
@@ -171,6 +186,14 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       self,
       'two_sided_request_options',
       MappingProxyType(resolved_two_sided),
+    )
+    object.__setattr__(
+      self,
+      'frontier_residual_exchange_options',
+      _mapping(
+        self.frontier_residual_exchange_options,
+        'frontier_residual_exchange_options',
+      ),
     )
     source = str(self.source)
     if not source:
@@ -193,6 +216,12 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       'fixed_point_residual_tolerance': self.fixed_point_residual_tolerance,
       'require_fixed_point': self.require_fixed_point,
       'require_residual_descent': self.require_residual_descent,
+      'consume_frontier_residual_exchange': (
+        self.consume_frontier_residual_exchange
+      ),
+      'frontier_residual_exchange_options': dict(
+        self.frontier_residual_exchange_options or {}
+      ),
       'source_closure_fingerprint': moc_reflected_domain_global_physical_closure_fingerprint(
         self.source_closure
       ),
@@ -226,6 +255,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
   message: str = ''
+  frontier_residual_exchange: MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult | None = None
+  frontier_residual_norm: float | None = None
+  frontier_residual_exchange_verified: bool = False
 
   def __post_init__(self) -> None:
     if isinstance(self.iteration_index, bool) or not isinstance(self.iteration_index, int) or self.iteration_index < 0:
@@ -237,6 +269,10 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
     for name, expected in (
       ('source_frontier_step', MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep),
       ('joint_solve', MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult),
+      (
+        'frontier_residual_exchange',
+        MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult,
+      ),
       ('next_closure', MocReflectedDomainGlobalPhysicalClosureResult),
     ):
       value = getattr(self, name)
@@ -247,6 +283,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       'boundary_state_feedback_verified',
       'frontier_step_verified',
       'joint_solve_verified',
+      'frontier_residual_exchange_verified',
       'next_closure_lineage_verified',
       'fixed_point_verified',
       'residual_descent_verified',
@@ -255,7 +292,12 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
-    for name in ('geometry_delta_m', 'pressure_log_delta', 'joint_residual_norm'):
+    for name in (
+      'geometry_delta_m',
+      'pressure_log_delta',
+      'joint_residual_norm',
+      'frontier_residual_norm',
+    ):
       value = getattr(self, name)
       if value is not None:
         numeric = float(value)
@@ -273,6 +315,17 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       and self.boundary_state_feedback_verified
       and self.frontier_step_verified
       and self.joint_solve_verified
+      and (
+        (
+          self.frontier_residual_exchange is None
+          and not self.frontier_residual_exchange_verified
+        )
+        or (
+          self.frontier_residual_exchange is not None
+          and self.frontier_residual_exchange_verified
+          and self.frontier_residual_exchange.converged
+        )
+      )
       and self.next_closure_lineage_verified
       and self.next_closure is not None
       and self.chain_promotion_blocked
@@ -293,10 +346,14 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       'geometry_delta_m': self.geometry_delta_m,
       'pressure_log_delta': self.pressure_log_delta,
       'joint_residual_norm': self.joint_residual_norm,
+      'frontier_residual_norm': self.frontier_residual_norm,
       'source_lineage_verified': self.source_lineage_verified,
       'boundary_state_feedback_verified': self.boundary_state_feedback_verified,
       'frontier_step_verified': self.frontier_step_verified,
       'joint_solve_verified': self.joint_solve_verified,
+      'frontier_residual_exchange_verified': (
+        self.frontier_residual_exchange_verified
+      ),
       'next_closure_lineage_verified': self.next_closure_lineage_verified,
       'fixed_point_verified': self.fixed_point_verified,
       'residual_descent_verified': self.residual_descent_verified,
@@ -310,6 +367,11 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
         else self.source_frontier_step.as_report()
       ),
       'joint_solve': None if self.joint_solve is None else self.joint_solve.as_report(),
+      'frontier_residual_exchange': (
+        None
+        if self.frontier_residual_exchange is None
+        else self.frontier_residual_exchange.as_report()
+      ),
       'message': self.message,
     }
 
@@ -334,6 +396,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
   message: str = ''
+  frontier_residual_exchange_chain_verified: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus):
@@ -366,6 +429,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       'feedback_completed',
       'frontier_chain_verified',
       'joint_solve_chain_verified',
+      'frontier_residual_exchange_chain_verified',
       'fixed_point_verified',
       'residual_descent_verified',
       'independent_audit_verified',
@@ -391,6 +455,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       and self.feedback_completed
       and self.frontier_chain_verified
       and self.joint_solve_chain_verified
+      and self.frontier_residual_exchange_chain_verified
       and self.fixed_point_verified
       and self.residual_descent_verified
       and self.independent_audit_verified
@@ -410,6 +475,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       'feedback_completed': self.feedback_completed,
       'frontier_chain_verified': self.frontier_chain_verified,
       'joint_solve_chain_verified': self.joint_solve_chain_verified,
+      'frontier_residual_exchange_chain_verified': (
+        self.frontier_residual_exchange_chain_verified
+      ),
       'fixed_point_verified': self.fixed_point_verified,
       'residual_descent_verified': self.residual_descent_verified,
       'independent_audit_verified': self.independent_audit_verified,
@@ -455,6 +523,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
   chain_promotion_blocked: bool = True
   production_claim_allowed: bool = False
   message: str = ''
+  residual_exchange_chain_replayed: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -473,6 +542,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       'closure_lineage_replayed',
       'frontier_chain_replayed',
       'joint_chain_replayed',
+      'residual_exchange_chain_replayed',
       'convergence_flags_replayed',
       'independent_joint_feedback_verified',
       'global_coupling_verified',
@@ -508,6 +578,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       'closure_lineage_replayed': self.closure_lineage_replayed,
       'frontier_chain_replayed': self.frontier_chain_replayed,
       'joint_chain_replayed': self.joint_chain_replayed,
+      'residual_exchange_chain_replayed': (
+        self.residual_exchange_chain_replayed
+      ),
       'convergence_flags_replayed': self.convergence_flags_replayed,
       'independent_joint_feedback_verified': (
         self.independent_joint_feedback_verified
@@ -762,11 +835,84 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         independent_audit_verified=False,
       )
     assert next_closure is not None
+    frontier_residual_exchange = None
+    frontier_residual_exchange_verified = False
+    if request.consume_frontier_residual_exchange:
+      exchange_options = dict(
+        request.frontier_residual_exchange_options or {}
+      )
+      collisions = tuple(
+        key
+        for key in (
+          'source_frontier_step',
+          'target_closure',
+          'reference_total_temperature_K',
+        )
+        if key in exchange_options
+      )
+      if collisions:
+        return _failure(
+          status_type.RESIDUAL_EXCHANGE_FAILURE,
+          'frontier residual exchange options cannot override positional '
+          f'controls: {", ".join(collisions)}',
+          request=request,
+          source_closure=request.source_closure,
+          final_closure=current,
+          iterations=tuple(retained),
+          feedback_completed=False,
+          frontier_chain_verified=False,
+          joint_solve_chain_verified=False,
+          independent_audit_verified=False,
+        )
+      try:
+        frontier_residual_exchange = (
+          run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
+            MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest(
+              source_frontier_step=frontier_step,
+              target_closure=next_closure,
+              reference_total_temperature_K=(
+                request.reference_total_temperature_K
+              ),
+              **exchange_options,
+            )
+          )
+        )
+      except (
+        ArithmeticError,
+        FloatingPointError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+      ) as error:
+        return _failure(
+          status_type.RESIDUAL_EXCHANGE_FAILURE,
+          f'frontier residual exchange iteration {iteration_index} raised: '
+          f'{error}',
+          request=request,
+          source_closure=request.source_closure,
+          final_closure=current,
+          iterations=tuple(retained),
+          feedback_completed=False,
+          frontier_chain_verified=False,
+          joint_solve_chain_verified=False,
+          independent_audit_verified=False,
+        )
+      frontier_residual_exchange_verified = (
+        frontier_residual_exchange.converged
+      )
+      if frontier_residual_exchange.final_closure is not None:
+        next_closure = frontier_residual_exchange.final_closure
     geometry_delta, pressure_delta = _closure_deltas(current, next_closure)
     residual_norm = (
       None
       if joint.joint_state_solve is None
       else joint.joint_state_solve.refreshed_residual_norm
+    )
+    frontier_residual_norm = (
+      None
+      if frontier_residual_exchange is None
+      or frontier_residual_exchange.final_packet is None
+      else frontier_residual_exchange.final_packet.residual_norm
     )
     previous_residuals = tuple(
       item.joint_residual_norm
@@ -796,16 +942,23 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       boundary_state_feedback=feedback,
       source_frontier_step=frontier_step,
       joint_solve=joint,
+      frontier_residual_exchange=frontier_residual_exchange,
       next_closure=next_closure,
       geometry_delta_m=geometry_delta,
       pressure_log_delta=pressure_delta,
       joint_residual_norm=residual_norm,
+      frontier_residual_norm=frontier_residual_norm,
       source_lineage_verified=source_lineage,
       boundary_state_feedback_verified=feedback.handoff_ready,
       frontier_step_verified=frontier_verified,
       joint_solve_verified=joint_verified,
+      frontier_residual_exchange_verified=frontier_residual_exchange_verified,
       next_closure_lineage_verified=(
-        next_closure is joint.joint_state_solve.geometry_response_closure
+        (
+          next_closure is frontier_residual_exchange.final_closure
+          if frontier_residual_exchange is not None
+          else next_closure is joint.joint_state_solve.geometry_response_closure
+        )
       ),
       fixed_point_verified=fixed,
       residual_descent_verified=residual_descent,
@@ -813,15 +966,55 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       production_claim_allowed=False,
       message=(
         'fresh boundary-state feedback, physical frontier, and joint global '
-        'state solve completed; fixed-point residuals remain open'
+        'state solve completed'
+        + (
+          '; bounded frontier residual exchange was independently admitted; '
+          'fixed-point residuals remain open'
+          if frontier_residual_exchange is not None
+          and frontier_residual_exchange_verified
+          else '; fixed-point residuals remain open'
+        )
       ),
     )
     retained.append(iteration)
+    if (
+      request.consume_frontier_residual_exchange
+      and not frontier_residual_exchange_verified
+    ):
+      return _failure(
+        status_type.RESIDUAL_EXCHANGE_FAILURE,
+        'joint state/frontier solve completed, but the required bounded '
+        'frontier residual exchange did not pass its admission and replay '
+        f'gates: {frontier_residual_exchange.message if frontier_residual_exchange is not None else "no result"}',
+        request=request,
+        source_closure=request.source_closure,
+        final_closure=next_closure,
+        iterations=tuple(retained),
+        feedback_completed=False,
+        frontier_chain_verified=bool(
+          retained and all(item.frontier_step_verified for item in retained)
+        ),
+        joint_solve_chain_verified=False,
+        frontier_residual_exchange_chain_verified=False,
+        independent_audit_verified=False,
+      )
     current = next_closure
   ####
   iterations = tuple(retained)
   frontier_chain = bool(iterations and all(item.frontier_step_verified for item in iterations))
   joint_chain = bool(iterations and all(item.research_step_verified for item in iterations))
+  frontier_residual_exchange_chain = bool(
+    not request.consume_frontier_residual_exchange
+    or (
+      iterations
+      and all(
+        item.frontier_residual_exchange_verified
+        and item.frontier_residual_exchange is not None
+        and item.frontier_residual_exchange.converged
+        for item in iterations
+      )
+    )
+  )
   fixed = bool(iterations and all(item.fixed_point_verified for item in iterations))
   residuals = tuple(
     item.joint_residual_norm
@@ -862,6 +1055,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     feedback_completed=bool(len(iterations) == request.maximum_iterations),
     frontier_chain_verified=frontier_chain,
     joint_solve_chain_verified=joint_chain,
+    frontier_residual_exchange_chain_verified=frontier_residual_exchange_chain,
     fixed_point_verified=fixed,
     residual_descent_verified=residual_descent,
     independent_audit_verified=independent,
@@ -964,11 +1158,49 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       )
     )
   )
+  residual_exchange_chain = bool(
+    count_replayed
+    and all(
+      replay_item.frontier_residual_exchange_verified
+      == result_item.frontier_residual_exchange_verified
+      and (
+        (
+          replay_item.frontier_residual_exchange is None
+          and result_item.frontier_residual_exchange is None
+        )
+        or (
+          replay_item.frontier_residual_exchange is not None
+          and result_item.frontier_residual_exchange is not None
+          and replay_item.frontier_residual_exchange.status
+          is result_item.frontier_residual_exchange.status
+          and replay_item.frontier_residual_exchange.final_packet is not None
+          and result_item.frontier_residual_exchange.final_packet is not None
+          and replay_item.frontier_residual_exchange.final_packet.fingerprint
+          == result_item.frontier_residual_exchange.final_packet.fingerprint
+          and replay_item.frontier_residual_exchange.final_closure is not None
+          and result_item.frontier_residual_exchange.final_closure is not None
+          and moc_reflected_domain_global_physical_closure_fingerprint(
+            replay_item.frontier_residual_exchange.final_closure
+          )
+          == moc_reflected_domain_global_physical_closure_fingerprint(
+            result_item.frontier_residual_exchange.final_closure
+          )
+        )
+      )
+      for replay_item, result_item in zip(
+        replay.iterations,
+        result.iterations,
+        strict=True,
+      )
+    )
+  )
   convergence_flags = bool(
     replay.status is result.status
     and replay.feedback_completed == result.feedback_completed
     and replay.frontier_chain_verified == result.frontier_chain_verified
     and replay.joint_solve_chain_verified == result.joint_solve_chain_verified
+    and replay.frontier_residual_exchange_chain_verified
+    == result.frontier_residual_exchange_chain_verified
     and replay.fixed_point_verified == result.fixed_point_verified
     and replay.residual_descent_verified == result.residual_descent_verified
     and replay.independent_audit_verified == result.independent_audit_verified
@@ -979,6 +1211,7 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     and closure_lineage
     and frontier_chain
     and joint_chain
+    and residual_exchange_chain
     and convergence_flags
     and replay.independent_audit_verified
     and replay.chain_promotion_blocked
@@ -996,6 +1229,7 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     closure_lineage_replayed=closure_lineage,
     frontier_chain_replayed=frontier_chain,
     joint_chain_replayed=joint_chain,
+    residual_exchange_chain_replayed=residual_exchange_chain,
     convergence_flags_replayed=convergence_flags,
     independent_joint_feedback_verified=independent,
     global_coupling_verified=False,

@@ -16871,6 +16871,111 @@ def test_global_mixed_regime_joint_state_frontier_feedback_rebuilds_each_closure
 ####
 
 
+def test_global_mixed_regime_joint_feedback_can_consume_frontier_residual_exchange():
+  result = run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest(
+      source_closure=_global_physical_closure_for_mixed_regime(),
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      downstream_feedback_iterations=2,
+      downstream_options={
+        'axial_station_count': 7,
+        'axial_cell_count': 8,
+        'transverse_cell_count': 4,
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+      two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+      consume_frontier_residual_exchange=True,
+      frontier_residual_exchange_options={
+        'probe_displacement_m': 1.0e-5,
+      },
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus
+    .COMPLETED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK_WITH_OPEN_CONVERGENCE
+  )
+  assert result.converged is False
+  assert result.feedback_completed
+  assert result.frontier_chain_verified
+  assert result.joint_solve_chain_verified
+  assert result.frontier_residual_exchange_chain_verified
+  assert result.independent_audit_verified
+  assert len(result.iterations) == 1
+  iteration = result.iterations[0]
+  assert iteration.frontier_residual_exchange is not None
+  assert iteration.frontier_residual_exchange.converged
+  assert iteration.frontier_residual_exchange_verified
+  assert iteration.frontier_residual_norm is not None
+  assert iteration.next_closure is iteration.frontier_residual_exchange.final_closure
+  assert iteration.research_step_verified
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+    result
+  )
+  assert audit.converged
+  assert audit.request_replayed
+  assert audit.iteration_count_replayed
+  assert audit.closure_lineage_replayed
+  assert audit.frontier_chain_replayed
+  assert audit.joint_chain_replayed
+  assert audit.residual_exchange_chain_replayed
+  assert audit.convergence_flags_replayed
+  assert audit.independent_joint_feedback_verified
+  assert audit.global_coupling_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_joint_feedback_fails_closed_on_exchange_rejection():
+  result = run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest(
+      source_closure=_global_physical_closure_for_mixed_regime(),
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=2,
+      downstream_feedback_iterations=2,
+      downstream_options={
+        'axial_station_count': 7,
+        'axial_cell_count': 8,
+        'transverse_cell_count': 4,
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+      two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+      consume_frontier_residual_exchange=True,
+      frontier_residual_exchange_options={
+        'probe_displacement_m': 1.0e-5,
+      },
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus
+    .RESIDUAL_EXCHANGE_FAILURE
+  )
+  assert result.converged is False
+  assert len(result.iterations) == 2
+  assert result.frontier_residual_exchange_chain_verified is False
+  rejected = result.iterations[-1].frontier_residual_exchange
+  assert rejected is not None
+  assert rejected.status is (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
+    .RESIDUAL_REJECTION
+  )
+  assert rejected.converged is False
+  assert result.iterations[-1].research_step_verified is False
+  assert result.final_closure is result.iterations[-1].next_closure
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
 def test_global_boundary_state_joint_refinement_covers_cases_and_resolutions():
   cases = []
   for case_id, skews in (
