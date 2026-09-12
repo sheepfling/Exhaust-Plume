@@ -59,6 +59,12 @@ from exhaust_plume.validation.moc_global_mixed_regime_shock_frontier_refinement 
   run_reflected_domain_global_mixed_regime_shock_frontier_step,
   run_reflected_domain_global_mixed_regime_shock_frontier_refinement,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_characteristic_free_boundary_pressure_correction import (
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionRequest,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionStatus,
+  audit_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction,
+  run_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction,
+)
 from exhaust_plume.validation.moc_global_mixed_regime_frontier_residual_exchange import (
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason,
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus,
@@ -8865,6 +8871,91 @@ def test_global_mixed_regime_global_shock_frontier_offset_failure_is_typed():
   assert 'offset-field sampling' in result.message
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_characteristic_free_boundary_pressure_correction_consumes_fresh_closures():
+  closure = _global_physical_closure_for_mixed_regime()
+  frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='characteristic-free-boundary-pressure-correction',
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+    )
+  )
+  assert frontier.locally_verified
+  result = (
+    run_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction(
+      MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionRequest(
+        source_closure=closure,
+        source_frontier_step=frontier,
+      )
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionStatus
+    .CONVERGED_RESEARCH_PRESSURE_CORRECTION
+  )
+  assert result.converged_research_pressure_correction
+  assert result.selected_attempt is not None
+  assert result.selected_attempt.pressure_fraction > 0.0
+  assert result.baseline_max_cell_euler_residual is not None
+  assert result.selected_max_cell_euler_residual is not None
+  assert result.selected_max_cell_euler_residual < result.baseline_max_cell_euler_residual
+  assert result.pressure_trace_consumed
+  assert result.fresh_global_solve_verified
+  assert result.pressure_target_consumption_verified
+  assert result.strict_cell_residual_descent_verified
+  assert result.characteristic_geometry_segregated
+  assert all(
+    attempt.pressure_overlay is not None
+    and not attempt.pressure_overlay.boundary_points_m
+    and not attempt.target_geometry_consumed
+    for attempt in result.attempts
+  )
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = (
+    audit_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction(
+      result
+    )
+  )
+  assert audit.converged
+  assert audit.request_replayed
+  assert audit.source_lineage_replayed
+  assert audit.frontier_lineage_replayed
+  assert audit.base_target_replayed
+  assert audit.trial_ladder_replayed
+  assert audit.selected_closure_replayed
+  assert audit.independent_pressure_correction_verified
+  assert audit.characteristic_geometry_segregated
+  assert audit.global_coupling_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+
+  selected_index = result.selected_attempt_index
+  assert selected_index is not None
+  tampered_attempt = replace(
+    result.attempts[selected_index],
+    accepted=False,
+  )
+  tampered = replace(
+    result,
+    attempts=(
+      *result.attempts[:selected_index],
+      tampered_attempt,
+      *result.attempts[selected_index + 1:],
+    ),
+  )
+  tampered_audit = (
+    audit_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction(
+      tampered
+    )
+  )
+  assert tampered_audit.converged is False
+  assert tampered_audit.independent_pressure_correction_verified is False
 ####
 
 

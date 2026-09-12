@@ -8799,3 +8799,29 @@ measurement and makes the next simultaneous solver accountable for the full
 local boundary equation, but it remains research evidence: canonical/global
 closure, fixed-point convergence, physical shock-cell acceptance, provider
 validation, and release remain blocked.
+
+### P3.43x characteristic pressure-to-global closure correction checkpoint — 2026-09-12 (working tree)
+
+The new operator
+`op.moc.reflected-domain.global-mixed-regime-characteristic-free-boundary-pressure-correction-v1`
+consumes the audited local characteristic/free-boundary pressure trace through
+a bounded sequence of fresh global physical-closure solves.  The zero-fraction
+trial is a freshly re-solved baseline; positive fractions relax the complete
+solver-owned source-band pressure frame toward the local characteristic trace,
+and a trial is admitted only when its exact pressure target is consumed, the
+local physical-field gates pass, and the measured maximum cell Euler residual
+strictly decreases from that baseline.  The result and replay audit retain
+each target, candidate closure fingerprint, selection decision, and typed
+failure rather than collapsing the ladder to one scalar.
+
+The exercised mixed-regime case selects a positive pressure fraction and passes
+the independent replay regression.  The local free-boundary curve is not
+used as the global outer-boundary geometry: it is an interior characteristic
+branch with a different station frame, so the correction supplies pressure
+only and verifies that geometry consumption remains false.  This is a genuine
+fresh field consumer, but it is not yet the simultaneous closure required by
+the product suite.  The second characteristic family, conservative and
+entropy equations, normal/free-boundary geometry, downstream boundary,
+multi-case fixed point, physical shock-cell comparison, provider validation,
+and release gates remain open; canonical/global and production flags stay
+false.
