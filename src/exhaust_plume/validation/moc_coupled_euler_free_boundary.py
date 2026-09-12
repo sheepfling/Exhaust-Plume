@@ -23,6 +23,7 @@ import numpy as np
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerControlSectionCompatibility,
   MocReflectedDomainCoupledEulerFreeBoundaryFluxMode,
+  MocReflectedDomainCoupledEulerFreeBoundaryFluxTarget,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerPressureProfileCompatibility,
@@ -203,6 +204,49 @@ def _free_boundary_pressure_targets(request: Any) -> np.ndarray:
 ####
 
 
+def _conservative_flux_target_frame_matches(
+  target: MocReflectedDomainCoupledEulerFreeBoundaryFluxTarget,
+  first: np.ndarray,
+  second: np.ndarray,
+) -> bool:
+  """Verify a retained flux target against one independently built face."""
+
+  if not isinstance(
+    target,
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxTarget,
+  ):
+    return False
+  midpoint = (
+    0.5 * float(first[0] + second[0]),
+    0.5 * float(first[1] + second[1]),
+  )
+  midpoint_tolerance = max(
+    1.0e-10,
+    1.0e-8 * max(abs(midpoint[0]), abs(midpoint[1]), 1.0),
+  )
+  if any(
+    abs(target.midpoint_m[index] - midpoint[index]) > midpoint_tolerance
+    for index in range(2)
+  ):
+    return False
+  ####
+  delta = second - first
+  length = float(np.hypot(delta[0], delta[1]))
+  if not isfinite(length) or length <= 0.0:
+    return False
+  face_normal = (float(delta[1] / length), float(-delta[0] / length))
+  frame_tolerance = max(
+    1.0e-10,
+    1.0e-8 * max(length, target.segment_length_m, 1.0),
+  )
+  return bool(
+    abs(target.normal_m[0] - face_normal[0]) <= 1.0e-8
+    and abs(target.normal_m[1] - face_normal[1]) <= 1.0e-8
+    and abs(target.segment_length_m - length) <= frame_tolerance
+  )
+####
+
+
 class MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus(str, Enum):
   """Outcome for the independent conservative-field audit."""
 
@@ -300,6 +344,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
   centerline_report_verified: bool = False
   centerline_condition_verified: bool = False
   free_boundary_geometry_profile_verified: bool = False
+  free_boundary_conservative_flux_profile_verified: bool = False
   pressure_budget_verified: bool = False
   pressure_profile_compatibility_verified: bool = False
   transonic_transition_verified: bool = False
@@ -398,6 +443,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'centerline_report_verified',
       'centerline_condition_verified',
       'free_boundary_geometry_profile_verified',
+      'free_boundary_conservative_flux_profile_verified',
       'pressure_profile_compatibility_verified',
       'transonic_transition_verified',
       'transonic_frontier_compatibility_verified',
@@ -472,6 +518,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
           is not None
         )
         or self.free_boundary_geometry_profile_verified
+      )
+      and (
+        not (
+          self.candidate is not None
+          and self.candidate.request is not None
+          and self.candidate.request.free_boundary_conservative_flux_profile
+          is not None
+        )
+        or self.free_boundary_conservative_flux_profile_verified
       )
       and self.pressure_budget_verified
       and (
@@ -638,6 +693,9 @@ class MocReflectedDomainCoupledEulerFreeBoundaryAudit:
       'centerline_condition_verified': self.centerline_condition_verified,
       'free_boundary_geometry_profile_verified': (
         self.free_boundary_geometry_profile_verified
+      ),
+      'free_boundary_conservative_flux_profile_verified': (
+        self.free_boundary_conservative_flux_profile_verified
       ),
       'pressure_budget_verified': self.pressure_budget_verified,
       'pressure_profile_compatibility_verified': (
@@ -3049,6 +3107,13 @@ def _audit_field(
   speeds = []
   entropy_values = []
   inlet_entropy = []
+  conservative_flux_profile = request.free_boundary_conservative_flux_profile
+  conservative_flux_profile_verified = conservative_flux_profile is not None
+  if conservative_flux_profile is not None and len(conservative_flux_profile) != axial_count:
+    raise ValueError(
+      'conservative-flux profile audit requires one target per free-boundary '
+      'cell column'
+    )
   if inlet_override_states is not None:
     inlet_entropy_states = inlet_override_states
   else:
@@ -3148,7 +3213,22 @@ def _audit_field(
             gas_constant,
           )
         elif edge_index == 2 and j == transverse_count - 1:
-          if request.free_boundary_flux_mode is (
+          if conservative_flux_profile is not None:
+            target = conservative_flux_profile[i]
+            if not _conservative_flux_target_frame_matches(
+              target,
+              first,
+              second,
+            ):
+              conservative_flux_profile_verified = False
+              raise ValueError(
+                'audited conservative-flux target does not match the exact '
+                'free-boundary segment frame'
+              )
+            ####
+            flux = np.asarray(target.flux, dtype=float) * length
+            wave = target.maximum_wave_speed_m_s
+          elif request.free_boundary_flux_mode is (
             MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
             .CONSERVATIVE_STATE_TRACE_RUSANOV
           ):
@@ -3306,6 +3386,7 @@ def _audit_field(
   return {
     'geometry_verified': retained_vertices_verified,
     'free_boundary_geometry_profile_verified': geometry_profile_verified,
+    'conservative_flux_profile_verified': conservative_flux_profile_verified,
     'state_samples_verified': True,
     'thermodynamics_verified': thermodynamic_inputs_verified,
     'recomputed_channels': recomputed_channels,
@@ -3715,6 +3796,15 @@ def measure_reflected_domain_coupled_euler_free_boundary(
   free_boundary_geometry_profile_verified = bool(
     raw['free_boundary_geometry_profile_verified']
   )
+  conservative_flux_profile_active = (
+    candidate.request.free_boundary_conservative_flux_profile is not None
+  )
+  conservative_flux_profile_verified = bool(
+    conservative_flux_profile_active
+    and raw['conservative_flux_profile_verified']
+    and candidate.free_boundary_conservative_flux_profile_consumed
+    and candidate.free_boundary_conservative_flux_profile_frame_verified
+  )
   (
     control_section_compatibility_verified,
     control_section_pressure_jump,
@@ -3882,6 +3972,12 @@ def measure_reflected_domain_coupled_euler_free_boundary(
       'candidate retained free-boundary nodes do not reproduce the exact '
       'solver-owned geometry profile handoff'
     )
+  elif conservative_flux_profile_active and not conservative_flux_profile_verified:
+    status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
+    message = (
+      'candidate fixed conservative-flux handoff was not consumed on the exact '
+      'free-boundary segment frame'
+    )
   elif not physical_field_inlet_seam_verified:
     status = (
       MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
@@ -4036,13 +4132,16 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
     message = 'candidate free-boundary diagnostic arrays do not match the field'
   elif (
-    np.any(
-      np.abs(pressure - pressure_targets)
-      > candidate.request.free_boundary_pressure_tolerance_fraction
-      * pressure_targets
+    not conservative_flux_profile_active
+    and (
+      np.any(
+        np.abs(pressure - pressure_targets)
+        > candidate.request.free_boundary_pressure_tolerance_fraction
+        * pressure_targets
+      )
+      or normal_fraction
+      > candidate.request.free_boundary_normal_velocity_tolerance_fraction
     )
-    or normal_fraction
-    > candidate.request.free_boundary_normal_velocity_tolerance_fraction
   ):
     status = MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.BOUNDARY_FAILURE
     message = (
@@ -4094,6 +4193,9 @@ def measure_reflected_domain_coupled_euler_free_boundary(
     centerline_condition_verified=centerline_condition_verified,
     free_boundary_geometry_profile_verified=(
       free_boundary_geometry_profile_verified
+    ),
+    free_boundary_conservative_flux_profile_verified=(
+      conservative_flux_profile_verified
     ),
     pressure_budget_verified=pressure_budget_verified,
     pressure_profile_compatibility_verified=(

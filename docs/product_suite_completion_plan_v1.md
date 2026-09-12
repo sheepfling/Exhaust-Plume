@@ -7184,3 +7184,34 @@ equation: consume this flux packet in a coupled free-boundary re-solve,
 independently measure the signed mass/momentum/energy residuals, and require
 closure on disjoint cases and increasing resolutions before any downstream
 promotion is considered.
+
+### P3.25 opt-in fixed-flux interface gate — 2026-09-11 (working tree)
+
+The coupled-Euler request now has a typed, frame-locked conservative-flux
+target.  Each target retains its oriented four-component flux density,
+midpoint, outward normal, segment length, wave-speed bound, and scheme.  The
+solver checks that every target reproduces the current free-boundary segment
+before using it; a changed geometry cannot silently receive a regridded or
+translated packet.  The result records both packet consumption and frame
+verification, while the independent validator replays the same target flux
+and checks the conservative residual channels separately from the pressure
+and tangency diagnostics.
+
+The state consumer keeps this fixed-interface-flux experiment opt-in.  Its
+existing conservative-state trace path remains the locally converged research
+baseline.  On the retained mixed-regime case, enabling the fixed flux packet
+does enter the coupled finite-volume equations and settles the conservative
+residual, but it produces a measured entropy-loss residual of approximately
+``9.7%``.  The solver and independent audit therefore fail closed with
+``coupled-euler-audit-entropy-failure``; no fallback pressure-only boundary,
+global-coupling claim, or Signature/FPA promotion is allowed.  This is the
+first evidence that the packet is not by itself an admissible global
+free-boundary closure.
+
+The focused state-consumer tranche passes (``3 passed``), including the
+baseline resolve, four-channel state-equation audit, and fixed-flux entropy
+gate.  The next physics slice must supply an entropy-compatible interface
+law (or an independently justified entropy flux) and then repeat the actual
+upstream conservative equation, disjoint-case, and increasing-resolution
+gates.  External validation archives and provider-bound VIS/SIG/RAY/FPA
+comparisons remain separate release blockers.

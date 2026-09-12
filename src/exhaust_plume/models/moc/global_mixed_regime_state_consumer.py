@@ -33,6 +33,7 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
 )
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerFreeBoundaryFluxMode,
+  MocReflectedDomainCoupledEulerFreeBoundaryFluxTarget,
   MocReflectedDomainCoupledEulerFreeBoundaryRequest,
   MocReflectedDomainCoupledEulerFreeBoundaryResult,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
@@ -1010,15 +1011,27 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
 
 def solve_reflected_domain_global_mixed_regime_state_consumer(
   consumer: MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+  *,
+  apply_conservative_flux_profile: bool = False,
 ) -> MocReflectedDomainGlobalMixedRegimeStateResolveResult:
   """Fresh-solve the coupled field with the consumed full-state trace.
 
   This is the first numerical consumer of the full downstream state packet.
   It binds adjacent trace-state averages to the exact existing coupled
   cell-center frame and uses the explicit conservative Rusanov boundary flux.
-  It does not change the upstream global closure, so it cannot claim a global
-  fixed point or production validity.
+  ``apply_conservative_flux_profile`` additionally exercises the experimental
+  fixed-interface-flux handoff.  That opt-in path is kept separate because a
+  retained numerical flux is not automatically an entropy-compatible
+  free-boundary condition.  Neither path changes the upstream global closure,
+  so neither can claim a global fixed point or production validity.
   """
+
+  if not isinstance(apply_conservative_flux_profile, bool):
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT,
+      consumer=None,
+      message='apply_conservative_flux_profile must be a bool',
+    )
 
   if not isinstance(
     consumer,
@@ -1064,6 +1077,41 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
         consumer
       )
     )
+    flux_profile = (
+      tuple(
+        MocReflectedDomainCoupledEulerFreeBoundaryFluxTarget(
+          midpoint_m=sample.midpoint_m,
+          normal_m=sample.normal_m,
+          segment_length_m=sample.segment_length_m,
+          flux=(
+            sample.mass_flux_kg_m2_s,
+            sample.streamwise_momentum_flux_Pa,
+            sample.transverse_momentum_flux_Pa,
+            sample.energy_flux_W_m2,
+          ),
+          maximum_wave_speed_m_s=sample.maximum_wave_speed_m_s,
+          scheme=sample.flux_scheme,
+        )
+        for sample in consumer.conservative_flux_samples
+      )
+      if apply_conservative_flux_profile
+      else None
+    )
+    trace = consumer.trace
+    if trace is None:
+      raise ValueError('consumed state did not retain its boundary trace')
+    ####
+    coupled_field = downstream.coupled_field
+    if coupled_field is None or not coupled_field.cell_vertices_by_cell_m:
+      raise ValueError(
+        'consumed state did not retain the coupled mesh needed to bind the '
+        'flux frame'
+      )
+    lower_ordinate = min(
+      float(point[1])
+      for cell in coupled_field.cell_vertices_by_cell_m
+      for point in cell
+    )
     request = replace(
       baseline_request,
       source=(f'{baseline_request.source}:global-mixed-regime-state-consumer-v1'),
@@ -1076,6 +1124,22 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       free_boundary_conservative_state_profile_source=(
         'research-global-coupled-downstream-full-state-trace-v1'
       ),
+      free_boundary_conservative_flux_profile=flux_profile,
+      free_boundary_conservative_flux_profile_source=(
+        'research-global-mixed-regime-rusanov-flux-packet-v1'
+        if apply_conservative_flux_profile
+        else None
+      ),
+      free_boundary_geometry_profile_y_m=tuple(
+        float(sample.point_m[1]) for sample in trace.samples
+      ),
+      free_boundary_geometry_profile_x_stations_m=tuple(
+        float(sample.point_m[0]) for sample in trace.samples
+      ),
+      free_boundary_geometry_profile_source=(
+        'research-global-mixed-regime-rusanov-flux-frame-v1'
+      ),
+      free_boundary_geometry_profile_lower_ordinate_m=lower_ordinate,
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return MocReflectedDomainGlobalMixedRegimeStateResolveResult(

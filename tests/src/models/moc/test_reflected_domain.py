@@ -7494,9 +7494,13 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
   assert resolved.request.free_boundary_conservative_state_profile_source == (
     'research-global-coupled-downstream-full-state-trace-v1'
   )
+  assert resolved.request.free_boundary_conservative_flux_profile is None
+  assert resolved.request.free_boundary_conservative_flux_profile_source is None
   assert resolved.field is not None
   assert resolved.field.request is resolved.request
   assert resolved.field.free_boundary_conservative_state_profile_consumed
+  assert not resolved.field.free_boundary_conservative_flux_profile_consumed
+  assert not resolved.field.free_boundary_conservative_flux_profile_frame_verified
   assert resolved.field_audit is not None
   assert resolved.canonical_free_boundary_verified is False
   assert resolved.global_coupling_verified is False
@@ -7507,6 +7511,70 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
     'conservative-state-trace-rusanov-v1'
   )
   assert report['production_claim_allowed'] is False
+ ####
+
+
+def test_global_mixed_regime_fixed_flux_handoff_fails_closed_on_entropy_loss():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+
+  resolved = solve_reflected_domain_global_mixed_regime_state_consumer(
+    consumed,
+    apply_conservative_flux_profile=True,
+  )
+
+  assert resolved.status is (
+    MocReflectedDomainGlobalMixedRegimeStateResolveStatus.FRESH_SOLVER_FAILURE
+  )
+  assert resolved.request is not None
+  assert resolved.request.free_boundary_conservative_flux_profile is not None
+  assert resolved.request.free_boundary_conservative_flux_profile_source == (
+    'research-global-mixed-regime-rusanov-flux-packet-v1'
+  )
+  assert resolved.field is not None
+  assert resolved.field.free_boundary_conservative_flux_profile_consumed
+  assert resolved.field.free_boundary_conservative_flux_profile_frame_verified
+  assert not resolved.field.entropy_transport_verified
+  assert resolved.field_audit is not None
+  assert resolved.field_audit.free_boundary_conservative_flux_profile_verified
+  assert resolved.field_audit.residual_report_verified
+  assert resolved.field_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus.ENTROPY_FAILURE
+  )
+  targets = resolved.request.free_boundary_conservative_flux_profile
+  assert targets is not None
+  shifted_target = replace(
+    targets[0],
+    midpoint_m=(targets[0].midpoint_m[0] + 1.0e-3, targets[0].midpoint_m[1]),
+  )
+  frame_rejected = solve_reflected_domain_coupled_euler_free_boundary(
+    replace(
+      resolved.request,
+      free_boundary_conservative_flux_profile=(shifted_target, *targets[1:]),
+    )
+  )
+  assert frame_rejected.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryStatus.MESH_FAILURE
+  )
+  assert 'exact free-boundary segment frame' in frame_rejected.message
+  assert not frame_rejected.free_boundary_conservative_flux_profile_consumed
+  assert not frame_rejected.free_boundary_conservative_flux_profile_frame_verified
+  assert resolved.global_coupling_verified is False
+  assert resolved.chain_promotion_blocked
+  assert resolved.production_claim_allowed is False
  ####
 
 
