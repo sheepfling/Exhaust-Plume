@@ -22,6 +22,7 @@ import numpy as np
 
 from exhaust_plume.models.moc.coupled_euler_free_boundary import (
   MocReflectedDomainCoupledEulerControlSectionCompatibility,
+  MocReflectedDomainCoupledEulerFreeBoundaryFluxMode,
   MocReflectedDomainCoupledEulerFreeBoundaryStatus,
   MocReflectedDomainCoupledEulerInletBoundaryMode,
   MocReflectedDomainCoupledEulerPressureProfileCompatibility,
@@ -3147,15 +3148,38 @@ def _audit_field(
             gas_constant,
           )
         elif edge_index == 2 and j == transverse_count - 1:
-          flux, wave = _specified_pressure_wall_flux(
-            state,
-            float(pressure_targets[i]),
-            normal_x,
-            normal_y,
-            length,
-            gamma,
-            gas_constant,
-          )
+          if request.free_boundary_flux_mode is (
+            MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+            .CONSERVATIVE_STATE_TRACE_RUSANOV
+          ):
+            conservative_profile = (
+              request.free_boundary_conservative_state_profile
+            )
+            if conservative_profile is None or len(conservative_profile) != axial_count:
+              raise ValueError(
+                'conservative-state trace audit requires one complete state '
+                'per free-boundary cell column'
+              )
+            ####
+            flux, wave = _rusanov(
+              state,
+              np.asarray(conservative_profile[i], dtype=float),
+              normal_x,
+              normal_y,
+              length,
+              gamma,
+              gas_constant,
+            )
+          else:
+            flux, wave = _specified_pressure_wall_flux(
+              state,
+              float(pressure_targets[i]),
+              normal_x,
+              normal_y,
+              length,
+              gamma,
+              gas_constant,
+            )
           top_pressure[i] = pressure
           top_normal_velocity[i] = velocity_u * normal_x + velocity_v * normal_y
         elif edge_index == 2:

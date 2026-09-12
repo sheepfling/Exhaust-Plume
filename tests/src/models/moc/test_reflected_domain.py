@@ -7301,17 +7301,17 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
 
   resolved = solve_reflected_domain_global_mixed_regime_state_consumer(consumed)
 
-  assert resolved.status in (
+  assert resolved.status is (
     MocReflectedDomainGlobalMixedRegimeStateResolveStatus
-    .CONVERGED_LOCAL_RESEARCH_STATE_RESOLVE,
-    MocReflectedDomainGlobalMixedRegimeStateResolveStatus.FRESH_SOLVER_FAILURE,
-    MocReflectedDomainGlobalMixedRegimeStateResolveStatus
-    .INDEPENDENT_AUDIT_FAILURE,
+    .CONVERGED_LOCAL_RESEARCH_STATE_RESOLVE
   )
   assert resolved.consumer is consumed
   assert resolved.consumer_lineage_verified
   assert resolved.profile_frame_verified
   assert resolved.fresh_solver_invoked
+  assert resolved.fresh_local_research_state_resolve_verified
+  assert resolved.fresh_field_lineage_verified
+  assert resolved.independent_audit_verified
   assert resolved.request is not None
   assert resolved.request.free_boundary_flux_mode is (
     MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
