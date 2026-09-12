@@ -58,12 +58,12 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch with code checkpoint `9204f48` plus an audited release-evidence follow-on; the full repository suite is green at 1,311 tests, Ruff, Pyright, compilation, and isolated wheel/install smoke pass, and `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `530c966` after the `bc11337` entropy-compatible interface-law code checkpoint and its evidence follow-on; the reflected-domain and independent validation suites are green, Ruff, Pyright, compilation, whitespace, and offline wheel/install smoke pass, and `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
-| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; its exact 2-D frame is retained and can now be dimensionalized into measured residuals with explicit thermodynamic inputs, while the bounded pressure/geometry projection remains separate; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
+| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; the live entropy-compatible interface law is now a separate local gate, while upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
-| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked; no freeze rewrite, push, or tag is authorized yet |
+| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked at `530c966`; the candidate is clean, but the canonical/global, physical shock-cell, provider/archive, and release-freeze gates remain red; no freeze rewrite, push, or tag is authorized yet |
 
 The queue is dependency-ordered.  In particular, Visualization work may
 continue to improve evaluation surfaces, but it cannot turn an open physical
@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Current release-evidence checkpoint — 2026-09-11
+### Historical release-evidence checkpoint — 2026-09-11
 
 The candidate code checkpoint ``9204f48`` carries the release-manifest
 provenance hardening and its focused regression.  The product candidate has
@@ -91,7 +91,7 @@ the missing alignment/archive intake, reduced-order disjoint validation, and
 canonical physical closure/accepted shock-cell length evidence remain open.
 No push, tag, or production claim is authorized by this checkpoint.
 
-### Active execution card — code checkpoint `a92e0a2` plus release-evidence follow-on
+### Historical execution card — superseded by the current queue and P3.26
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
