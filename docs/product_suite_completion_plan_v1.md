@@ -8630,3 +8630,21 @@ closure.  The complete reflected-domain model module passes `259 passed in
 research-only cursor/exchange seam: canonical global/free-boundary closure,
 cross-case fixed-point convergence, accepted physical shock-cell lengths,
 provider-bound validation, and release promotion remain open.
+
+### P3.43r current-HEAD release evidence refresh — 2026-09-12 (candidate `3e1a016`)
+
+The complete reflected-domain module passes `259 passed in 497.41s` on the
+code candidate underlying this documentation follow-on.  The offline wheel
+build/install smoke exits successfully against the current checkout and
+includes the joint-feedback residual-exchange module.  The smoke emits known
+expansion-fan unattainable-target and legacy-compatibility warnings, but no
+package or installed-import failure.
+
+The lane-release validator was rerun against candidate `3e1a016` with a clean
+worktree.  It confirms local mission-time/FPA and active-lane evidence, but
+keeps `release_ready=false`: the recorded freeze is stale, provider-bound
+comparisons and accepted measurement-space mappings are missing, the raw
+Version 8/alignment archives are unavailable, reduced-order and planar-MOC
+physical gates remain open, and no accepted physical shock-cell comparison
+exists.  This refresh records the candidate state; it does not rewrite the
+freeze or authorize a push/tag.
