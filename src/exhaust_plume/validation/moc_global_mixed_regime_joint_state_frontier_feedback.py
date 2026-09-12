@@ -79,6 +79,9 @@ MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS 
   'frontier_state_equation_target_entropy',
   'frontier_compatibility_invariant',
   'frontier_compatibility_geometry',
+  'frontier_free_boundary_pressure',
+  'frontier_free_boundary_tangent',
+  'frontier_free_boundary_geometry',
   'frontier_normal_mass',
   'frontier_normal_normal_momentum',
   'frontier_normal_tangential_momentum',
@@ -976,6 +979,22 @@ def _build_aggregate_residual_vector(
       compatibility_request.geometry_tolerance,
     ),
   )
+  free_boundary = frontier.free_boundary
+  free_boundary_request = frontier.free_boundary_request
+  free_boundary_channels = (
+    _normalized(
+      free_boundary.maximum_absolute_pressure_residual,
+      free_boundary_request.pressure_tolerance,
+    ),
+    _normalized(
+      free_boundary.maximum_absolute_tangent_residual,
+      free_boundary_request.tangent_tolerance_rad,
+    ),
+    _normalized(
+      free_boundary.maximum_geometry_residual,
+      free_boundary_request.geometry_tolerance,
+    ),
+  )
   normal = frontier.normal_closure
   normal_request = frontier.normal_closure_request
   if not normal.closure_samples:
@@ -1040,6 +1059,7 @@ def _build_aggregate_residual_vector(
     + handoff_channels
     + equation_channels
     + compatibility_channels
+    + free_boundary_channels
     + normal_channels
     + overlap_channels
     + coupled_channels

@@ -16977,6 +16977,11 @@ def test_global_mixed_regime_joint_state_frontier_feedback_rebuilds_each_closure
     and item.aggregate_residual_vector_verified
     for item in result.iterations
   )
+  assert MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS[10:13] == (
+    'frontier_free_boundary_pressure',
+    'frontier_free_boundary_tangent',
+    'frontier_free_boundary_geometry',
+  )
   assert all(item.next_closure is not None for item in result.iterations)
   assert result.global_coupling_verified is False
   assert result.canonical_free_boundary_verified is False

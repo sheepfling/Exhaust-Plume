@@ -8785,3 +8785,17 @@ solver-length comparison has been accepted for shock-cell fitting.  The
 offline wheel/install smoke for this code candidate exits successfully; this
 plan entry is documentation-only follow-on evidence and does not rewrite the
 freeze or authorize a push or tag.
+
+### P3.43w free-boundary residual packet checkpoint — 2026-09-12 (working tree)
+
+The ordered joint-feedback residual packet now consumes the newly connected
+local characteristic/free-boundary equation as three additional, separately
+normalized channels: pressure, tangent, and geometry.  The packet still reads
+only retained typed solver results and fails closed when any channel is
+missing; it does not collapse these residuals into the existing normal-closure
+or downstream scalar.  The focused two-test feedback regression passes, and
+the new channel ordering is covered explicitly.  This improves cross-seam
+measurement and makes the next simultaneous solver accountable for the full
+local boundary equation, but it remains research evidence: canonical/global
+closure, fixed-point convergence, physical shock-cell acceptance, provider
+validation, and release remain blocked.
