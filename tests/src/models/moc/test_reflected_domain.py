@@ -65,6 +65,11 @@ from exhaust_plume.validation.moc_global_mixed_regime_characteristic_free_bounda
   audit_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction,
   run_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_characteristic_free_boundary_pressure_correction_refinement import (
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionRefinementCase,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionRefinementStatus,
+  run_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction_refinement,
+)
 from exhaust_plume.validation.moc_global_mixed_regime_frontier_residual_exchange import (
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason,
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus,
@@ -8956,6 +8961,66 @@ def test_global_mixed_regime_characteristic_free_boundary_pressure_correction_co
   )
   assert tampered_audit.converged is False
   assert tampered_audit.independent_pressure_correction_verified is False
+####
+
+
+def test_global_mixed_regime_characteristic_free_boundary_pressure_correction_refinement_covers_cases_and_resolutions():
+  cases = []
+  for case_id, skew in (
+    ('characteristic-pressure-negative', (-0.75, 0.0)),
+    ('characteristic-pressure-offset', (-0.75, -0.25)),
+  ):
+    for sample_count in (9, 11):
+      closure = _global_physical_closure_for_mixed_regime(
+        sample_count,
+        compression_envelope_skews=skew,
+      )
+      source_frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+        MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+          case_id=case_id,
+          closure=closure,
+          reference_total_temperature_K=1500.0,
+        )
+      )
+      assert source_frontier.locally_verified
+      cases.append(
+        MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionRefinementCase(
+          case_id=case_id,
+          source_closure=closure,
+          source_frontier_step=source_frontier,
+        )
+      )
+    ####
+  ####
+  measurement = (
+    run_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction_refinement(
+      cases,
+      expected_case_ids=(
+        'characteristic-pressure-negative',
+        'characteristic-pressure-offset',
+      ),
+    )
+  )
+  assert measurement.status is (
+    MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionRefinementStatus
+    .CONVERGED_CROSS_CASE_RESEARCH_COVERAGE
+  )
+  assert measurement.converged
+  assert measurement.local_case_resolution_ladders_verified
+  assert measurement.distinct_source_closures_verified
+  assert measurement.source_lineage_verified
+  assert measurement.correction_consumed_verified
+  assert measurement.strict_residual_descent_verified
+  assert measurement.independent_replay_verified
+  assert measurement.fidelity_isolation_verified
+  assert measurement.local_coverage_verified
+  assert measurement.cross_case_coverage_verified
+  assert all(step.locally_verified for step in measurement.steps)
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.global_coupling_verified is False
+  assert measurement.external_validation_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
 ####
 
 

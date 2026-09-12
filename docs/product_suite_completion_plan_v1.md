@@ -8839,3 +8839,27 @@ measurement-space comparisons are missing, reduced-order and planar physical
 gates remain open, and no accepted physical shock-cell comparison exists.
 This audit records the candidate boundary only; it does not rewrite the
 freeze or authorize a push/tag.
+
+### P3.43z characteristic pressure-correction disjoint coverage checkpoint — 2026-09-12 (working tree)
+
+The characteristic/free-boundary pressure consumer now has a dedicated
+refinement harness:
+`op.moc.reflected-domain.global-mixed-regime-characteristic-free-boundary-pressure-correction-refinement-v1`.
+It runs the exact pressure-correction ladder for named source closures at
+strictly increasing solver-derived frontier resolutions.  Each step retains
+the original closure and frontier objects, requires a fresh zero-fraction
+baseline and fresh positive trial solves, checks strict maximum cell-Euler
+residual descent, and independently replays the request, source lineage,
+target ladder, and selected closure.  The harness also keeps the pressure-only
+interior branch segregated from global geometry, canonical free-boundary, chain,
+and production claims.
+
+The regression passes two source families (`(-0.75, 0.0)` and
+`(-0.75, -0.25)`) at exact frontier resolutions `(9, 11)`; all four retained
+steps are locally verified and the measurement reports
+`CONVERGED_CROSS_CASE_RESEARCH_COVERAGE`.  The full mixed-regime slice passes
+(`43 passed, 219 deselected in 193.74s`), with Ruff, Pyright, scope markers,
+public-contract assets, and diff checks green.  This closes disjoint coverage
+for the pressure-only research consumer; it does not close the simultaneous
+characteristic/conservative/entropy/geometry/downstream system, physical
+shock-cell acceptance, provider/archive validation, or release promotion.
