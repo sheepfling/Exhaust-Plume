@@ -8825,3 +8825,17 @@ entropy equations, normal/free-boundary geometry, downstream boundary,
 multi-case fixed point, physical shock-cell comparison, provider validation,
 and release gates remain open; canonical/global and production flags stay
 false.
+
+### P3.43y exact-head candidate audit checkpoint — 2026-09-12 (code candidate `51cc6a8`)
+
+The pressure-correction code candidate is clean and package-complete.  The
+focused mixed-regime slice passes (`42 passed, 219 deselected in 176.23s`),
+the direct pressure-correction regression and neighboring joint-feedback
+regressions pass, and Ruff, Pyright, scope markers (`522` files), public
+contract assets, Markdown, diff, and offline wheel/install smoke checks are
+green.  The exact-head lane audit still reports `release_ready=false`: the
+recorded freeze is stale, provider/archive evidence and accepted
+measurement-space comparisons are missing, reduced-order and planar physical
+gates remain open, and no accepted physical shock-cell comparison exists.
+This audit records the candidate boundary only; it does not rewrite the
+freeze or authorize a push/tag.
