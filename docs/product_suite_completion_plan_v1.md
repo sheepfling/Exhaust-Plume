@@ -6660,3 +6660,26 @@ investigate the non-monotone disjoint case and close the actual global/free-
 boundary equation, then repeat the ladder with accepted physical shock-cell
 comparisons.  Provider validation archives/outputs, Signature/RAY/FPA
 acceptance, and the release freeze remain separate blockers.
+
+### P3.10 exact shape-trial replay audit checkpoint — 2026-09-11
+
+The implementation checkpoint ``c12b492`` closes a correctness defect in the
+independent conservative-residual audit.  Accepted multi-control shape-
+Jacobian records now retain the exact shape-control vectors and coefficients
+used by the solver.  The audit replays those geometry trials directly through
+the retained solver-owned field, rather than incorrectly treating every trial
+as a scalar pseudo-time step.  The retained vectors, coefficients, and replay
+path are serialized and validated as finite, aligned evidence.
+
+The strict dimensioned global boundary-state case now classifies its remaining
+non-convergence as a typed ``iteration-limit`` with consistent independent
+residual evidence: residual-vector retention, exact field re-solve, and descent
+checks pass, while directional correction and accepted physical convergence
+remain false.  This removes a false lineage/audit failure without relaxing any
+tolerance or promoting the case.
+
+The focused shape/global-corrector tranche passes (``3 passed``), the complete
+reflected-domain suite passes (``223 passed``), and Ruff, Pyright, compilation,
+and whitespace checks are clean.  Canonical global/free-boundary closure,
+accepted physical shock-cell comparisons, provider validation archives/outputs,
+Signature/RAY/FPA acceptance, and the release freeze remain open.
