@@ -155,29 +155,29 @@ class SignatureTimelineSelectionError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SignatureTimelineQuery:
-  """One exact, source-bound spectral radiant-intensity point query.
+    """One exact, source-bound spectral radiant-intensity point query.
 
-  The query preserves the product's declared intensity units, source position,
-  and lineage.
-  An invalid point has ``spectral_radiant_intensity_w_sr_m=None`` even when
-  the wire result carries its required zero placeholder.  This prevents a
-  consumer from treating a failed sample as a physical zero.
-  """
+    The query preserves the product's declared intensity units, source position,
+    and lineage.
+    An invalid point has ``spectral_radiant_intensity_w_sr_m=None`` even when
+    the wire result carries its required zero placeholder.  This prevents a
+    consumer from treating a failed sample as a physical zero.
+    """
 
-  source_result_id: str
-  time_s: float
-  position_frame_id: str
-  position_m: tuple[float, float, float]
-  direction_frame_id: str
-  direction_index: int
-  direction: tuple[float, float, float]
-  angular_coordinates: AngularCoordinates
-  wavelength_index: int
-  wavelength_m: float
-  spectral_radiant_intensity_w_sr_m: float | None
-  absolute_standard_uncertainty_w_sr_m: float | None
-  valid: bool
-  status: SampleStatus
+    source_result_id: str
+    time_s: float
+    position_frame_id: str
+    position_m: tuple[float, float, float]
+    direction_frame_id: str
+    direction_index: int
+    direction: tuple[float, float, float]
+    angular_coordinates: AngularCoordinates
+    wavelength_index: int
+    wavelength_m: float
+    spectral_radiant_intensity_w_sr_m: float | None
+    absolute_standard_uncertainty_w_sr_m: float | None
+    valid: bool
+    status: SampleStatus
 ####
 
 
