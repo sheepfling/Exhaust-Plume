@@ -1,14 +1,14 @@
 {
   "checks": {
     "all_active_lanes_have_local_release_evidence": true,
-    "candidate_worktree_clean": false,
-    "documentation_only_follow_on_verified": false,
+    "candidate_worktree_clean": true,
+    "documentation_only_follow_on_verified": true,
     "fpa_provider_guard_passed": true,
     "low_fidelity_promotion_detected": false,
     "mission_time_composition_passed": true,
     "provider_preflight_release_ready": false,
-    "release_freeze_matches_candidate_head": true,
-    "release_provenance_ready": false
+    "release_freeze_matches_candidate_head": false,
+    "release_provenance_ready": true
   },
   "lanes": [
     {
@@ -266,11 +266,11 @@
     "low_fidelity_promotion_forbidden": true
   },
   "release_provenance": {
-    "candidate_head_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2",
-    "candidate_head_matches_recorded_freeze": true,
-    "candidate_head_matches_validated_code_commit": true,
-    "candidate_worktree_clean": false,
-    "documentation_only_follow_on_verified": false,
+    "candidate_head_commit": "2d9414e471563a84b1c698004900cf955e653645",
+    "candidate_head_matches_recorded_freeze": false,
+    "candidate_head_matches_validated_code_commit": false,
+    "candidate_worktree_clean": true,
+    "documentation_only_follow_on_verified": true,
     "recorded_freeze_head_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2",
     "validated_code_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2"
   },
@@ -284,7 +284,6 @@
       "separately named MVP alignment archive is not yet verified",
       "planar MOC first-cell closure is not complete; the CJ-UEJ external reference comparison is quantified diagnostic evidence only and remains not accepted",
       "first-cell correlation has no accepted physical solver-length comparison while shock closure remains open",
-      "candidate worktree is not clean; release evidence must be generated from a committed candidate",
       "provider comparison preflight is not externally accepted"
     ],
     "release_ready": false
