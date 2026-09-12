@@ -41,6 +41,13 @@ from exhaust_plume.validation.moc_global_mixed_regime_frontier_residual_exchange
   MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult,
   run_reflected_domain_global_mixed_regime_frontier_residual_exchange,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_characteristic_free_boundary_pressure_correction import (
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionAudit,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionRequest,
+  MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionResult,
+  audit_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction,
+  run_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction,
+)
 from exhaust_plume.validation.moc_global_mixed_regime_shock_frontier_refinement import (
   MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase,
   MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep,
@@ -117,6 +124,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus(
   RESIDUAL_EXCHANGE_FAILURE = (
     'joint-state-frontier-feedback-residual-exchange-failure'
   )
+  PRESSURE_CORRECTION_FAILURE = (
+    'joint-state-frontier-feedback-characteristic-pressure-correction-failure'
+  )
   AGGREGATE_RESIDUAL_FAILURE = (
     'joint-state-frontier-feedback-aggregate-residual-failure'
   )
@@ -185,6 +195,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
   source: str = 'research-global-mixed-regime-joint-state-frontier-feedback-v1'
   consume_frontier_residual_exchange: bool = False
   frontier_residual_exchange_options: Mapping[str, Any] | None = None
+  consume_characteristic_pressure_correction: bool = False
+  characteristic_pressure_correction_options: Mapping[str, Any] | None = None
   require_aggregate_residual_tolerance: bool = False
   require_aggregate_residual_descent: bool = False
 
@@ -233,6 +245,11 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
     if not isinstance(self.consume_frontier_residual_exchange, bool):
       raise TypeError('consume_frontier_residual_exchange must be a bool')
     ####
+    if not isinstance(self.consume_characteristic_pressure_correction, bool):
+      raise TypeError(
+        'consume_characteristic_pressure_correction must be a bool'
+      )
+    ####
     object.__setattr__(
       self,
       'downstream_options',
@@ -253,6 +270,14 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       _mapping(
         self.frontier_residual_exchange_options,
         'frontier_residual_exchange_options',
+      ),
+    )
+    object.__setattr__(
+      self,
+      'characteristic_pressure_correction_options',
+      _mapping(
+        self.characteristic_pressure_correction_options,
+        'characteristic_pressure_correction_options',
       ),
     )
     source = str(self.source)
@@ -283,6 +308,12 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       ),
       'frontier_residual_exchange_options': dict(
         self.frontier_residual_exchange_options or {}
+      ),
+      'consume_characteristic_pressure_correction': (
+        self.consume_characteristic_pressure_correction
+      ),
+      'characteristic_pressure_correction_options': dict(
+        self.characteristic_pressure_correction_options or {}
       ),
       'require_aggregate_residual_tolerance': (
         self.require_aggregate_residual_tolerance
@@ -328,6 +359,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
   frontier_residual_exchange: MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult | None = None
   frontier_residual_norm: float | None = None
   frontier_residual_exchange_verified: bool = False
+  characteristic_pressure_correction: MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionResult | None = None
+  characteristic_pressure_correction_audit: MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionAudit | None = None
+  characteristic_pressure_correction_verified: bool = False
   aggregate_residual_vector: tuple[float, ...] = ()
   aggregate_residual_vector_verified: bool = False
   aggregate_residual_tolerance_verified: bool = False
@@ -350,6 +384,14 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
         'frontier_residual_exchange',
         MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult,
       ),
+      (
+        'characteristic_pressure_correction',
+        MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionResult,
+      ),
+      (
+        'characteristic_pressure_correction_audit',
+        MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionAudit,
+      ),
       ('next_closure', MocReflectedDomainGlobalPhysicalClosureResult),
     ):
       value = getattr(self, name)
@@ -363,6 +405,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       'frontier_step_verified',
       'joint_solve_verified',
       'frontier_residual_exchange_verified',
+      'characteristic_pressure_correction_verified',
       'aggregate_residual_vector_verified',
       'aggregate_residual_tolerance_verified',
       'aggregate_residual_descent_verified',
@@ -449,6 +492,20 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
           and self.frontier_residual_exchange.converged
         )
       )
+      and (
+        (
+          self.characteristic_pressure_correction is None
+          and self.characteristic_pressure_correction_audit is None
+          and not self.characteristic_pressure_correction_verified
+        )
+        or (
+          self.characteristic_pressure_correction is not None
+          and self.characteristic_pressure_correction_audit is not None
+          and self.characteristic_pressure_correction_verified
+          and self.characteristic_pressure_correction.converged_research_pressure_correction
+          and self.characteristic_pressure_correction_audit.converged
+        )
+      )
       and self.next_closure_lineage_verified
       and self.next_closure is not None
       and self.chain_promotion_blocked
@@ -477,6 +534,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       'joint_solve_verified': self.joint_solve_verified,
       'frontier_residual_exchange_verified': (
         self.frontier_residual_exchange_verified
+      ),
+      'characteristic_pressure_correction_verified': (
+        self.characteristic_pressure_correction_verified
       ),
       'aggregate_residual_channels': (
         MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
@@ -509,6 +569,16 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
         if self.frontier_residual_exchange is None
         else self.frontier_residual_exchange.as_report()
       ),
+      'characteristic_pressure_correction': (
+        None
+        if self.characteristic_pressure_correction is None
+        else self.characteristic_pressure_correction.as_report()
+      ),
+      'characteristic_pressure_correction_audit': (
+        None
+        if self.characteristic_pressure_correction_audit is None
+        else self.characteristic_pressure_correction_audit.as_report()
+      ),
       'message': self.message,
     }
   ####
@@ -536,6 +606,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
   production_claim_allowed: bool = False
   message: str = ''
   frontier_residual_exchange_chain_verified: bool = False
+  characteristic_pressure_correction_chain_verified: bool = False
   aggregate_residual_chain_verified: bool = False
   aggregate_residual_tolerance_verified: bool = False
   aggregate_residual_descent_verified: bool = False
@@ -578,6 +649,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       'frontier_chain_verified',
       'joint_solve_chain_verified',
       'frontier_residual_exchange_chain_verified',
+      'characteristic_pressure_correction_chain_verified',
       'aggregate_residual_chain_verified',
       'aggregate_residual_tolerance_verified',
       'aggregate_residual_descent_verified',
@@ -612,6 +684,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       and self.frontier_chain_verified
       and self.joint_solve_chain_verified
       and self.frontier_residual_exchange_chain_verified
+      and self.characteristic_pressure_correction_chain_verified
       and self.aggregate_residual_chain_verified
       and self.aggregate_residual_tolerance_verified
       and self.aggregate_residual_descent_verified
@@ -637,6 +710,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       'joint_solve_chain_verified': self.joint_solve_chain_verified,
       'frontier_residual_exchange_chain_verified': (
         self.frontier_residual_exchange_chain_verified
+      ),
+      'characteristic_pressure_correction_chain_verified': (
+        self.characteristic_pressure_correction_chain_verified
       ),
       'aggregate_residual_channels': (
         MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
@@ -698,6 +774,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
   production_claim_allowed: bool = False
   message: str = ''
   residual_exchange_chain_replayed: bool = False
+  characteristic_pressure_correction_chain_replayed: bool = False
   aggregate_residual_chain_replayed: bool = False
   aggregate_residual_tolerance_replayed: bool = False
   aggregate_residual_descent_replayed: bool = False
@@ -722,6 +799,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       'frontier_chain_replayed',
       'joint_chain_replayed',
       'residual_exchange_chain_replayed',
+      'characteristic_pressure_correction_chain_replayed',
       'aggregate_residual_chain_replayed',
       'aggregate_residual_tolerance_replayed',
       'aggregate_residual_descent_replayed',
@@ -768,6 +846,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       'joint_chain_replayed': self.joint_chain_replayed,
       'residual_exchange_chain_replayed': (
         self.residual_exchange_chain_replayed
+      ),
+      'characteristic_pressure_correction_chain_replayed': (
+        self.characteristic_pressure_correction_chain_replayed
       ),
       'aggregate_residual_chain_replayed': (
         self.aggregate_residual_chain_replayed
@@ -1313,6 +1394,105 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       )
     ####
     assert next_closure is not None
+    characteristic_pressure_correction = None
+    characteristic_pressure_correction_audit = None
+    characteristic_pressure_correction_verified = False
+    if request.consume_characteristic_pressure_correction:
+      pressure_options = dict(
+        request.characteristic_pressure_correction_options or {}
+      )
+      pressure_collisions = tuple(
+        key
+        for key in ('source_closure', 'source_frontier_step')
+        if key in pressure_options
+      )
+      if pressure_collisions:
+        return _failure(
+          status_type.PRESSURE_CORRECTION_FAILURE,
+          'characteristic pressure-correction options cannot override '
+          f'positional controls: {", ".join(pressure_collisions)}',
+          request=request,
+          source_closure=request.source_closure,
+          final_closure=current,
+          iterations=tuple(retained),
+          feedback_completed=False,
+          frontier_chain_verified=False,
+          joint_solve_chain_verified=False,
+          characteristic_pressure_correction_chain_verified=False,
+          independent_audit_verified=False,
+        )
+      ####
+      try:
+        pressure_frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+          MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+            case_id=f'joint-feedback-pressure-correction-{iteration_index}',
+            closure=next_closure,
+            reference_total_temperature_K=(
+              request.reference_total_temperature_K
+            ),
+            component_tolerance=request.frontier_component_tolerance,
+          )
+        )
+        characteristic_pressure_correction = (
+          run_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction(
+            MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionRequest(
+              source_closure=next_closure,
+              source_frontier_step=pressure_frontier,
+              **pressure_options,
+            )
+          )
+        )
+        characteristic_pressure_correction_audit = (
+          audit_reflected_domain_global_mixed_regime_characteristic_free_boundary_pressure_correction(
+            characteristic_pressure_correction
+          )
+        )
+      except (
+        ArithmeticError,
+        FloatingPointError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+      ) as error:
+        return _failure(
+          status_type.PRESSURE_CORRECTION_FAILURE,
+          f'characteristic pressure-correction iteration {iteration_index} '
+          f'raised: {error}',
+          request=request,
+          source_closure=request.source_closure,
+          final_closure=current,
+          iterations=tuple(retained),
+          feedback_completed=False,
+          frontier_chain_verified=False,
+          joint_solve_chain_verified=False,
+          characteristic_pressure_correction_chain_verified=False,
+          independent_audit_verified=False,
+        )
+      ####
+      characteristic_pressure_correction_verified = bool(
+        characteristic_pressure_correction.converged_research_pressure_correction
+        and characteristic_pressure_correction_audit.converged
+        and characteristic_pressure_correction.selected_closure is not None
+      )
+      if not characteristic_pressure_correction_verified:
+        return _failure(
+          status_type.PRESSURE_CORRECTION_FAILURE,
+          'characteristic pressure correction did not pass its local '
+          'selection and independent replay gates',
+          request=request,
+          source_closure=request.source_closure,
+          final_closure=current,
+          iterations=tuple(retained),
+          feedback_completed=False,
+          frontier_chain_verified=False,
+          joint_solve_chain_verified=False,
+          characteristic_pressure_correction_chain_verified=False,
+          independent_audit_verified=False,
+        )
+      ####
+      assert characteristic_pressure_correction.selected_closure is not None
+      next_closure = characteristic_pressure_correction.selected_closure
+    ####
     frontier_residual_exchange = None
     frontier_residual_exchange_verified = False
     if request.consume_frontier_residual_exchange:
@@ -1384,6 +1564,17 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         next_closure = frontier_residual_exchange.final_closure
       ####
     ####
+    next_closure_lineage_verified = bool(
+      next_closure is (
+        frontier_residual_exchange.final_closure
+        if frontier_residual_exchange is not None
+        else (
+          characteristic_pressure_correction.selected_closure
+          if characteristic_pressure_correction is not None
+          else joint.joint_state_solve.geometry_response_closure
+        )
+      )
+    )
     geometry_delta, pressure_delta = _closure_deltas(current, next_closure)
     residual_norm = (
       None
@@ -1414,13 +1605,14 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         frontier_step_verified=frontier_verified,
         joint_solve_verified=joint_verified,
         frontier_residual_exchange_verified=frontier_residual_exchange_verified,
-        next_closure_lineage_verified=(
-          (
-            next_closure is frontier_residual_exchange.final_closure
-            if frontier_residual_exchange is not None
-            else next_closure is joint.joint_state_solve.geometry_response_closure
-          )
+        characteristic_pressure_correction=characteristic_pressure_correction,
+        characteristic_pressure_correction_audit=(
+          characteristic_pressure_correction_audit
         ),
+        characteristic_pressure_correction_verified=(
+          characteristic_pressure_correction_verified
+        ),
+        next_closure_lineage_verified=next_closure_lineage_verified,
         chain_promotion_blocked=True,
         production_claim_allowed=False,
       )
@@ -1481,13 +1673,14 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       frontier_step_verified=frontier_verified,
       joint_solve_verified=joint_verified,
       frontier_residual_exchange_verified=frontier_residual_exchange_verified,
-      next_closure_lineage_verified=(
-        (
-          next_closure is frontier_residual_exchange.final_closure
-          if frontier_residual_exchange is not None
-          else next_closure is joint.joint_state_solve.geometry_response_closure
-        )
+      characteristic_pressure_correction=characteristic_pressure_correction,
+      characteristic_pressure_correction_audit=(
+        characteristic_pressure_correction_audit
       ),
+      characteristic_pressure_correction_verified=(
+        characteristic_pressure_correction_verified
+      ),
+      next_closure_lineage_verified=next_closure_lineage_verified,
       fixed_point_verified=fixed,
       residual_descent_verified=residual_descent,
       chain_promotion_blocked=True,
@@ -1664,6 +1857,20 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       strict=request.require_aggregate_residual_descent,
     )
   )
+  characteristic_pressure_correction_chain = bool(
+    not request.consume_characteristic_pressure_correction
+    or (
+      iterations
+      and all(
+        item.characteristic_pressure_correction_verified
+        and item.characteristic_pressure_correction is not None
+        and item.characteristic_pressure_correction_audit is not None
+        and item.characteristic_pressure_correction.converged_research_pressure_correction
+        and item.characteristic_pressure_correction_audit.converged
+        for item in iterations
+      )
+    )
+  )
   if request.require_aggregate_residual_tolerance and not aggregate_tolerance:
     status = status_type.AGGREGATE_RESIDUAL_FAILURE
     message = 'aggregate joint state/frontier channels remain outside their declared tolerance units'
@@ -1702,6 +1909,9 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     frontier_chain_verified=frontier_chain,
     joint_solve_chain_verified=joint_chain,
     frontier_residual_exchange_chain_verified=frontier_residual_exchange_chain,
+    characteristic_pressure_correction_chain_verified=(
+      characteristic_pressure_correction_chain
+    ),
     fixed_point_verified=fixed,
     residual_descent_verified=residual_descent,
     independent_audit_verified=independent,
@@ -1847,6 +2057,50 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       )
     )
   )
+  characteristic_pressure_correction_chain = bool(
+    count_replayed
+    and all(
+      replay_item.characteristic_pressure_correction_verified
+      == result_item.characteristic_pressure_correction_verified
+      and (
+        (
+          replay_item.characteristic_pressure_correction is None
+          and replay_item.characteristic_pressure_correction_audit is None
+          and result_item.characteristic_pressure_correction is None
+          and result_item.characteristic_pressure_correction_audit is None
+        )
+        or (
+          replay_item.characteristic_pressure_correction is not None
+          and replay_item.characteristic_pressure_correction_audit is not None
+          and result_item.characteristic_pressure_correction is not None
+          and result_item.characteristic_pressure_correction_audit is not None
+          and replay_item.characteristic_pressure_correction.status
+          is result_item.characteristic_pressure_correction.status
+          and replay_item.characteristic_pressure_correction.selected_attempt_index
+          == result_item.characteristic_pressure_correction.selected_attempt_index
+          and replay_item.characteristic_pressure_correction.selected_closure
+          is not None
+          and result_item.characteristic_pressure_correction.selected_closure
+          is not None
+          and moc_reflected_domain_global_physical_closure_fingerprint(
+            replay_item.characteristic_pressure_correction.selected_closure
+          )
+          == moc_reflected_domain_global_physical_closure_fingerprint(
+            result_item.characteristic_pressure_correction.selected_closure
+          )
+          and replay_item.characteristic_pressure_correction_audit.status
+          is result_item.characteristic_pressure_correction_audit.status
+          and replay_item.characteristic_pressure_correction_audit.converged
+          == result_item.characteristic_pressure_correction_audit.converged
+        )
+      )
+      for replay_item, result_item in zip(
+        replay.iterations,
+        result.iterations,
+        strict=True,
+      )
+    )
+  )
   aggregate_residual_chain = bool(
     count_replayed
     and all(
@@ -1872,6 +2126,8 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     and replay.joint_solve_chain_verified == result.joint_solve_chain_verified
     and replay.frontier_residual_exchange_chain_verified
     == result.frontier_residual_exchange_chain_verified
+    and replay.characteristic_pressure_correction_chain_verified
+    == result.characteristic_pressure_correction_chain_verified
     and replay.fixed_point_verified == result.fixed_point_verified
     and replay.residual_descent_verified == result.residual_descent_verified
     and replay.independent_audit_verified == result.independent_audit_verified
@@ -1889,6 +2145,7 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     and frontier_chain
     and joint_chain
     and residual_exchange_chain
+    and characteristic_pressure_correction_chain
     and aggregate_residual_chain
     and convergence_flags
     and replay.independent_audit_verified
@@ -1908,6 +2165,9 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     frontier_chain_replayed=frontier_chain,
     joint_chain_replayed=joint_chain,
     residual_exchange_chain_replayed=residual_exchange_chain,
+    characteristic_pressure_correction_chain_replayed=(
+      characteristic_pressure_correction_chain
+    ),
     aggregate_residual_chain_replayed=aggregate_residual_chain,
     aggregate_residual_tolerance_replayed=(
       replay.aggregate_residual_tolerance_verified

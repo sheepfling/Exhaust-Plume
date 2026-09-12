@@ -8863,3 +8863,24 @@ public-contract assets, and diff checks green.  This closes disjoint coverage
 for the pressure-only research consumer; it does not close the simultaneous
 characteristic/conservative/entropy/geometry/downstream system, physical
 shock-cell acceptance, provider/archive validation, or release promotion.
+
+### P3.43aa joint-feedback characteristic pressure consumer checkpoint — 2026-09-12 (working tree)
+
+The bounded joint state/frontier feedback runner now exposes an explicit
+`consume_characteristic_pressure_correction` opt-in.  After the joint global
+state solve, it builds a new exact shock-frontier step from that resulting
+physical closure, runs the audited characteristic/free-boundary pressure
+ladder, and carries the selected fresh closure into the next feedback cursor.
+The nested result and audit are retained per iteration; positional source
+controls cannot be overridden; and a failed pressure correction stops the
+chain rather than falling back to the uncorrected joint closure.  The default
+legacy feedback path remains unchanged.
+
+The new composition regression passes, and the full mixed-regime slice passes
+(`44 passed, 219 deselected in 204.31s`).  Ruff, Pyright, scope markers, and
+diff checks remain green.  This is the first explicit handoff from a joint
+global state solve into the characteristic pressure consumer, but it is still
+a bounded research cursor: the second characteristic family, simultaneous
+conservative/entropy/geometry/downstream closure, multi-step fixed point,
+physical shock-cell acceptance, provider/archive validation, and release gates
+remain open.  Canonical/global and production flags stay false.
