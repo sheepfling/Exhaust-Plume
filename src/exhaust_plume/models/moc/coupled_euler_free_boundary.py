@@ -5482,6 +5482,44 @@ def _cell_residuals(
   top_pressures = np.zeros(axial_count, dtype=float)
   top_normal_velocities = np.zeros(axial_count, dtype=float)
   centerline_normal_velocities = np.zeros(axial_count, dtype=float)
+  use_entropy_compatible_flux = free_boundary_flux_mode is (
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV
+  )
+
+  def live_rusanov_flux(
+    left: np.ndarray,
+    right: np.ndarray,
+    normal_x: float,
+    normal_y: float,
+    face_length: float,
+    gamma_value: float,
+    gas_constant_value: float,
+  ) -> tuple[np.ndarray, float]:
+    """Select the live interface law for every two-state face."""
+
+    if use_entropy_compatible_flux:
+      return _entropy_compatible_rusanov_flux(
+        left,
+        right,
+        normal_x,
+        normal_y,
+        face_length,
+        gamma_value,
+        gas_constant_value,
+      )
+    ####
+    return _rusanov_flux(
+      left,
+      right,
+      normal_x,
+      normal_y,
+      face_length,
+      gamma_value,
+      gas_constant_value,
+    )
+  ####
+
   for i in range(axial_count):
     for j in range(transverse_count):
       cell = corners[i, j]
@@ -5504,7 +5542,7 @@ def _cell_residuals(
           )
           centerline_normal_velocities[i] = u * normal_x + v * normal_y
         elif edge_index == 0:
-          flux, wave = _rusanov_flux(
+          flux, wave = live_rusanov_flux(
             state,
             states[i, j - 1],
             normal_x,
@@ -5532,7 +5570,7 @@ def _cell_residuals(
               gamma,
               gas_constant,
             )
-            flux, wave = _rusanov_flux(
+            flux, wave = live_rusanov_flux(
               state,
               outlet,
               normal_x,
@@ -5543,7 +5581,7 @@ def _cell_residuals(
             )
           ####
         elif edge_index == 1:
-          flux, wave = _rusanov_flux(
+          flux, wave = live_rusanov_flux(
             state,
             states[i + 1, j],
             normal_x,
@@ -5623,7 +5661,7 @@ def _cell_residuals(
               free_boundary_conservative_state_profile[i],
               dtype=float,
             )
-            flux, wave = _rusanov_flux(
+            flux, wave = live_rusanov_flux(
               state,
               target_state,
               normal_x,
@@ -5653,7 +5691,7 @@ def _cell_residuals(
           top_pressures[i] = pressure
           top_normal_velocities[i] = u * normal_x + v * normal_y
         elif edge_index == 2:
-          flux, wave = _rusanov_flux(
+          flux, wave = live_rusanov_flux(
             state,
             states[i, j + 1],
             normal_x,
@@ -5692,7 +5730,7 @@ def _cell_residuals(
               )
             ####
           ####
-          flux, wave = _rusanov_flux(
+          flux, wave = live_rusanov_flux(
             state,
             inlet,
             normal_x,
@@ -5702,7 +5740,7 @@ def _cell_residuals(
             gas_constant,
           )
         else:
-          flux, wave = _rusanov_flux(
+          flux, wave = live_rusanov_flux(
             state,
             states[i - 1, j],
             normal_x,

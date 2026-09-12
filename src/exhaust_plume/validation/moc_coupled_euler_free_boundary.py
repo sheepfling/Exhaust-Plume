@@ -3242,6 +3242,44 @@ def _audit_field(
       'conservative-flux profile audit requires one target per free-boundary '
       'cell column'
     )
+  use_entropy_compatible_flux = request.free_boundary_flux_mode is (
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV
+  )
+
+  def live_rusanov_flux(
+    left: np.ndarray,
+    right: np.ndarray,
+    normal_x: float,
+    normal_y: float,
+    face_length: float,
+    gamma_value: float,
+    gas_constant_value: float,
+  ) -> tuple[np.ndarray, float]:
+    """Mirror the solver's selected live two-state interface law."""
+
+    if use_entropy_compatible_flux:
+      return _entropy_compatible_rusanov(
+        left,
+        right,
+        normal_x,
+        normal_y,
+        face_length,
+        gamma_value,
+        gas_constant_value,
+      )
+    ####
+    return _rusanov(
+      left,
+      right,
+      normal_x,
+      normal_y,
+      face_length,
+      gamma_value,
+      gas_constant_value,
+    )
+  ####
+
   if inlet_override_states is not None:
     inlet_entropy_states = inlet_override_states
   else:
@@ -3294,7 +3332,7 @@ def _audit_field(
             velocity_u * normal_x + velocity_v * normal_y
           )
         elif edge_index == 0:
-          flux, wave = _rusanov(
+          flux, wave = live_rusanov_flux(
             state,
             states[i, j - 1],
             normal_x,
@@ -3320,7 +3358,7 @@ def _audit_field(
               gamma,
               gas_constant,
             )
-            flux, wave = _rusanov(
+            flux, wave = live_rusanov_flux(
               state,
               outlet,
               normal_x,
@@ -3331,7 +3369,7 @@ def _audit_field(
             )
           ####
         elif edge_index == 1:
-          flux, wave = _rusanov(
+          flux, wave = live_rusanov_flux(
             state,
             states[i + 1, j],
             normal_x,
@@ -3391,7 +3429,7 @@ def _audit_field(
                 'per free-boundary cell column'
               )
             ####
-            flux, wave = _rusanov(
+            flux, wave = live_rusanov_flux(
               state,
               np.asarray(conservative_profile[i], dtype=float),
               normal_x,
@@ -3413,7 +3451,7 @@ def _audit_field(
           top_pressure[i] = pressure
           top_normal_velocity[i] = velocity_u * normal_x + velocity_v * normal_y
         elif edge_index == 2:
-          flux, wave = _rusanov(
+          flux, wave = live_rusanov_flux(
             state,
             states[i, j + 1],
             normal_x,
@@ -3446,7 +3484,7 @@ def _audit_field(
               )
             ####
           ####
-          flux, wave = _rusanov(
+          flux, wave = live_rusanov_flux(
             state,
             inlet,
             normal_x,
@@ -3456,7 +3494,7 @@ def _audit_field(
             gas_constant,
           )
         else:
-          flux, wave = _rusanov(
+          flux, wave = live_rusanov_flux(
             state,
             states[i - 1, j],
             normal_x,
