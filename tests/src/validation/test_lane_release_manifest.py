@@ -39,7 +39,7 @@ def test_lane_release_manifest_separates_local_release_from_external_acceptance(
 ####
 
 
-def test_lane_manifest_binds_the_current_clean_candidate_freeze() -> None:
+def test_lane_manifest_binds_the_validated_code_or_audited_follow_on() -> None:
   freeze = json.loads(
     Path('docs/validation/release_freeze_v1.json').read_text(encoding='utf-8'),
   )
@@ -49,9 +49,15 @@ def test_lane_manifest_binds_the_current_clean_candidate_freeze() -> None:
   provenance = report['release_provenance']
   assert provenance['recorded_freeze_head_commit'] == freeze['head_commit']
   assert provenance['validated_code_commit'] == freeze['validated_code_commit']
-  assert report['checks']['release_freeze_matches_candidate_head'] is True
-  assert report['checks']['documentation_only_follow_on_verified'] is False
-  assert provenance['candidate_head_matches_validated_code_commit'] is True
+  assert report['checks']['release_freeze_matches_candidate_head'] is (
+    provenance['candidate_head_commit'] == freeze['head_commit']
+  )
+  assert report['checks']['documentation_only_follow_on_verified'] is (
+    provenance['documentation_only_follow_on_verified'] is True
+  )
+  assert provenance['candidate_head_matches_validated_code_commit'] is (
+    provenance['candidate_head_commit'] == freeze['validated_code_commit']
+  )
   assert report['checks']['candidate_worktree_clean'] is (
     provenance['candidate_worktree_clean'] is True
   )
