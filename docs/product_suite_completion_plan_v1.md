@@ -58,9 +58,9 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `2c02d81` (full-state global feedback projection checkpoint); the reflected-domain suite is green at 227 tests, the focused state-consumer/feedback tranche is green at 4 tests, and the local static/contract/package checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at the next state-equation audit checkpoint; the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
-| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace now drives a bounded pressure/geometry projection into a fresh global closure solve and passes the exercised research audit; mass, momentum, energy, and entropy remain audit-only, and the true conservative global feedback/free-boundary fixed point remains open |
+| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component, then drives a bounded pressure/geometry projection into a fresh global closure solve; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
 | 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked; no freeze rewrite, push, or tag is authorized yet |
@@ -79,9 +79,10 @@ The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
 shock-geometry response consumer, exact shape-trial replay, bounded shape-step
 records, the model-side full-state consumer, the bounded full-state feedback
-projection, and the local product/package gates in place.  The latest
-reflected-domain suite is green at 227 tests, and the focused full-state
-consumer/feedback tranche is green at 4 tests.  The five
+projection, the downstream full-state equation-consumption audit, and the
+local product/package gates in place.  The latest reflected-domain suite is
+green at 228 tests, and the focused full-state consumer/equation/feedback
+tranche is green at 5 tests.  The five
 Visualization bundles, local Signature/ray/FPA
 contracts, mission-time composition, and installed-package smoke pass locally;
 provider validation, the downstream boundary, canonical free-boundary,
@@ -120,6 +121,14 @@ It deliberately records coverage rather than a monotonic convergence claim:
 the observed research residuals are nonmonotonic and the operator does not
 hide that fact behind a status rename.
 
+The downstream equation-consumption audit now verifies the next boundary in
+the same lane.  It reconstructs the exact four-component trace-derived target
+profile, verifies the target and produced cell-column frames, retains signed
+and relative density/momentum/energy residuals, and rejects a pressure-only
+request masquerading as full-state consumption.  This is real downstream
+equation-use evidence, not upstream global feedback; the canonical fixed-point
+and production gates remain closed.
+
 The next implementation sprint is therefore to finish and independently
 qualify the physically justified update law after the terminal recheck:
 
@@ -144,6 +153,14 @@ qualify the physically justified update law after the terminal recheck:
    projection with a real global feedback loop that consumes the full
    conservative response in the upstream state equations.  Coverage is
    evidence for the next solver slice, not a promotion by itself.
+
+The downstream portion of this sprint now has a separate equation-level
+audit.  It verifies that the exact trace-derived density, streamwise and
+transverse momentum, and total-energy profile is bound to the fresh coupled
+Euler cell columns, that the conservative Rusanov mode consumed that profile,
+and that produced-versus-target state residuals are finite and retained.  It
+is useful evidence for the global consumer, but it does not make the
+upstream MOC equations conservative or establish a global fixed point.
 
 The sprint stops immediately, with a typed research failure retained, when
 the canonical state equation, boundary coverage, conservative residual, or
@@ -299,6 +316,30 @@ retained mass, momentum, energy, and entropy response into the actual upstream
 state equations, re-solve the same free-boundary frame, and repeat the
 independent disjoint-case/resolution audit before shock-cell or product
 promotion.
+
+### P3.18 downstream full-state equation-consumption audit checkpoint — 2026-09-11
+
+The new
+``moc_global_mixed_regime_state_equation`` validator closes the accounting
+gap between selecting the conservative Rusanov mode and demonstrating that a
+four-component state packet entered the downstream equations.  Given the exact
+consumer and its fresh coupled-Euler resolve, it reconstructs the target
+profile without interpolation, verifies the target and produced cell-column
+frames, extracts the top-row conservative states, and retains signed and
+relative residuals for density, streamwise momentum, transverse momentum, and
+total energy.
+
+The focused full-state consumer/equation/feedback tranche passes (``5
+passed``), and the complete reflected-domain suite passes (``228 passed in
+376.96s``).  Ruff, Pyright, Python compilation, whitespace, and public import
+checks pass.  Its success status means
+``full_state_equation_consumed`` only for the downstream research solver; the
+audit still reports ``global_coupling_verified=false``, canonical free-boundary
+false, chain promotion blocked, and production claims disabled.  A failed
+frame, missing profile, stale request, or omitted channel is typed as a
+consumption failure rather than being reduced to a pressure residual.  The
+next slice remains the actual upstream conservative global/free-boundary
+feedback equation and its disjoint case/resolution gate.
 
 ### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
 

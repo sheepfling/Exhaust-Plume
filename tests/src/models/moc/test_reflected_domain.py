@@ -400,6 +400,10 @@ from exhaust_plume.validation.moc_global_mixed_regime_state_feedback import (
   MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus,
   measure_reflected_domain_global_mixed_regime_state_feedback,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_state_equation import (
+  MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus,
+  measure_reflected_domain_global_mixed_regime_state_equations,
+)
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID,
@@ -7348,6 +7352,88 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
     'conservative-state-trace-rusanov-v1'
   )
   assert report['production_claim_allowed'] is False
+ ####
+
+
+def test_global_mixed_regime_state_equation_audit_retains_all_four_channels():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+  resolved = solve_reflected_domain_global_mixed_regime_state_consumer(consumed)
+
+  audit = measure_reflected_domain_global_mixed_regime_state_equations(
+    consumed,
+    resolved,
+  )
+
+  assert audit.status is (
+    MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus
+    .CONSUMED_RESEARCH_STATE_EQUATIONS
+  )
+  assert audit.research_state_equation_consumed
+  assert audit.consumer_lineage_verified
+  assert audit.target_frame_verified
+  assert audit.target_profile_consumed
+  assert audit.produced_frame_verified
+  assert audit.state_equation_residuals_measured
+  assert audit.density_equation_verified
+  assert audit.streamwise_momentum_equation_verified
+  assert audit.transverse_momentum_equation_verified
+  assert audit.total_energy_equation_verified
+  assert len(audit.signed_state_residuals) == 8
+  assert audit.maximum_relative_state_residual_norm is not None
+  assert audit.global_coupling_verified is False
+  assert audit.canonical_free_boundary_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  report = audit.as_report()
+  assert report['component_names'] == (
+    'density',
+    'streamwise_momentum',
+    'transverse_momentum',
+    'total_energy',
+  )
+  assert report['full_state_equation_consumed'] is True
+  assert report['global_coupling_verified'] is False
+  assert report['production_claim_allowed'] is False
+
+  pressure_only_request = replace(
+    resolved.request,
+    free_boundary_flux_mode=(
+      MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .SPECIFIED_PRESSURE_MATERIAL_STREAMLINE
+    ),
+    free_boundary_conservative_state_profile=None,
+    free_boundary_conservative_state_profile_x_stations_m=None,
+    free_boundary_conservative_state_profile_source=None,
+  )
+  pressure_only_resolved = replace(
+    resolved,
+    request=pressure_only_request,
+  )
+  rejected = measure_reflected_domain_global_mixed_regime_state_equations(
+    consumed,
+    pressure_only_resolved,
+  )
+  assert rejected.status is (
+    MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus
+    .CONSUMPTION_FAILURE
+  )
+  assert rejected.full_state_equation_consumed is False
+  assert rejected.chain_promotion_blocked
+  assert rejected.production_claim_allowed is False
  ####
 
 

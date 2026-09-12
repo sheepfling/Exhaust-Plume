@@ -253,6 +253,12 @@ from exhaust_plume.validation.moc_global_mixed_regime_state_feedback import (
   measure_reflected_domain_global_mixed_regime_state_feedback,
   run_reflected_domain_global_mixed_regime_state_feedback,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_state_equation import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_EQUATION_AUDIT_OPERATOR_ID,
+  MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus,
+  MocReflectedDomainGlobalMixedRegimeStateEquationAudit,
+  measure_reflected_domain_global_mixed_regime_state_equations,
+)
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_OPERATOR_ID,
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
@@ -1181,6 +1187,10 @@ __all__ = (
   'MocReflectedDomainGlobalMixedRegimeStateFeedbackRun',
   'measure_reflected_domain_global_mixed_regime_state_feedback',
   'run_reflected_domain_global_mixed_regime_state_feedback',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_EQUATION_AUDIT_OPERATOR_ID',
+  'MocReflectedDomainGlobalMixedRegimeStateEquationAuditStatus',
+  'MocReflectedDomainGlobalMixedRegimeStateEquationAudit',
+  'measure_reflected_domain_global_mixed_regime_state_equations',
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledDownstreamRefinementStatus',
