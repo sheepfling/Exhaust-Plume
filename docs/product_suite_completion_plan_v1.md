@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `0fef147` (downstream full-state equation-consumption audit checkpoint); the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `7c02399` (fail-closed upstream state-equation contract checkpoint); the reflected-domain suite is green at 228 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component, then drives a bounded pressure/geometry projection into a fresh global closure solve; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — code checkpoint `0fef147`
+### Active execution card — code checkpoint `7c02399`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -87,6 +87,11 @@ Visualization bundles, local Signature/ray/FPA
 contracts, mission-time composition, and installed-package smoke pass locally;
 provider validation, the downstream boundary, canonical free-boundary,
 production shock-cell, and release flags remain closed.
+
+The current state-feedback report also carries an explicit upstream
+state-equation contract.  Its exact conservative target frame is ready, but
+the global characteristic MOC equations report the contract as unavailable
+and consume no mass, momentum, energy, or entropy channel.
 
 The equation-level corrector has now also been exercised.  It sends the fresh
 joint closure through a terminal downstream -> global -> downstream recheck
@@ -340,6 +345,32 @@ frame, missing profile, stale request, or omitted channel is typed as a
 consumption failure rather than being reduced to a pressure residual.  The
 next slice remains the actual upstream conservative global/free-boundary
 feedback equation and its disjoint case/resolution gate.
+
+### P3.19 explicit upstream state-equation contract checkpoint — 2026-09-11 (`7c02399`)
+
+The new ``moc_global_mixed_regime_state_equation_contract`` operator makes the
+remaining upstream boundary executable without overstating it.  From a
+lineage-verified downstream consumer it reconstructs the exact conservative
+four-component target profile and ordered station frame, verifies mass,
+streamwise/transverse momentum, energy, and entropy channel availability, and
+attaches that packet to the existing feedback report.
+
+Its status is intentionally
+``UPSTREAM_EQUATION_CONTRACT_UNAVAILABLE``: the current global characteristic
+MOC solver has no conservative-state boundary equation, so the operator marks
+all upstream channels as unconsumed and never casts the packet into
+``CharacteristicState`` or calls the pressure-only global resolver on its
+behalf.  The existing bounded pressure/geometry projection remains a separate
+research result.  This is a real contract gate, not a canonical-coupling claim.
+
+The focused state-consumer/equation/feedback tranche passes (``5 passed``),
+Ruff, Pyright, compilation, public import, and whitespace checks pass, and
+the slice is committed at ``7c02399``.  The next implementation slice is the
+solver-owned mixed-regime upstream equation itself: it must consume the exact
+target in conservative variables, carry the entropy transition explicitly,
+re-solve the same global/free-boundary frame, and pass independent signed
+mass/momentum/energy/entropy residual and disjoint-resolution gates before any
+canonical or production flag can change.
 
 ### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
 
