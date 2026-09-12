@@ -396,6 +396,10 @@ from exhaust_plume.validation.moc_global_mixed_regime_state_consumer_refinement 
   MocReflectedDomainGlobalMixedRegimeStateConsumerRefinementStatus,
   run_reflected_domain_global_mixed_regime_state_consumer_refinement,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_state_feedback import (
+  MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus,
+  measure_reflected_domain_global_mixed_regime_state_feedback,
+)
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID,
@@ -7343,6 +7347,72 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
   assert report['request']['free_boundary_flux_model'] == (
     'conservative-state-trace-rusanov-v1'
   )
+  assert report['production_claim_allowed'] is False
+ ####
+
+
+def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_projection():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumer = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+
+  run = measure_reflected_domain_global_mixed_regime_state_feedback(
+    closure,
+    downstream,
+    consumer=consumer,
+    consumer_id='test-global-mixed-regime-state-feedback-v1',
+    boundary_condition_options={'consume_target_geometry': True},
+  )
+
+  assert run.status is (
+    MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus
+    .COMPLETED_RESEARCH_PRESSURE_GEOMETRY_FEEDBACK
+  )
+  assert run.research_feedback_completed
+  assert run.full_state_consumer_ready
+  assert run.full_state_lineage_verified
+  assert run.full_state_channels_audit_verified
+  assert run.pressure_geometry_projection_requested
+  assert run.pressure_geometry_projection_consumed_verified
+  assert run.fresh_global_resolve_verified
+  assert run.fidelity_isolation_verified
+  assert run.global_coupling_verified is False
+  assert run.canonical_free_boundary_verified is False
+  assert run.downstream_boundary_closure_verified is False
+  assert run.chain_promotion_blocked
+  assert run.production_claim_allowed is False
+  assert run.boundary_condition is not None
+  assert run.boundary_condition.target_geometry_consumed
+  assert run.boundary_condition.conditioned_closure is not None
+  assert run.boundary_condition.conditioned_closure is not closure
+  report = run.as_report()
+  assert report['full_state_channel_audit'] == {
+    'mass': True,
+    'streamwise_momentum': True,
+    'transverse_momentum': True,
+    'energy': True,
+    'entropy': True,
+  }
+  assert report['full_state_channel_consumed_by_global_equations'] == {
+    'mass': False,
+    'streamwise_momentum': False,
+    'transverse_momentum': False,
+    'energy': False,
+    'entropy': False,
+  }
+  assert report['global_coupling_verified'] is False
   assert report['production_claim_allowed'] is False
  ####
 
