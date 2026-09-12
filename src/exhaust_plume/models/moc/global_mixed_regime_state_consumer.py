@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import hypot, isfinite
+from math import hypot, isfinite, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.chain import (
@@ -44,6 +44,7 @@ from exhaust_plume.models.moc.global_physical_closure import (
 )
 
 __all__ = (
+  'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_CONSERVATIVE_FLUX_SCHEME',
   'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_CONSUMER_MODEL',
   'MocReflectedDomainGlobalMixedRegimeStateConsumerStatus',
   'MocReflectedDomainGlobalMixedRegimeConservativeFluxSample',
@@ -58,6 +59,9 @@ __all__ = (
 )
 
 
+MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_CONSERVATIVE_FLUX_SCHEME = (
+  'rusanov-local-lax-friedrichs-v1'
+)
 MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_CONSUMER_MODEL = (
   'research-global-mixed-regime-state-consumer-v1'
 )
@@ -78,11 +82,14 @@ class MocReflectedDomainGlobalMixedRegimeStateConsumerStatus(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
-  """Conservative flux through one oriented trace segment.
+  """Rusanov conservative flux through one oriented trace segment.
 
   The normal is the deterministic left normal of the retained boundary
   segment.  Its orientation is a reporting convention; no wall direction or
-  physical sign is inferred from the downstream mesh.
+  physical sign is inferred from the downstream mesh.  The flux is evaluated
+  from the two retained conservative endpoint states; it is not reconstructed
+  from one arithmetic average.  This is a local numerical-flux record for
+  the research handoff, not a global mixed-regime closure.
   """
 
   segment_index: int
@@ -94,6 +101,8 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
   transverse_momentum_flux_Pa: float
   energy_flux_W_m2: float
   entropy_proxy: float
+  maximum_wave_speed_m_s: float = 0.0
+  flux_scheme: str = MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_CONSERVATIVE_FLUX_SCHEME
 
   def __post_init__(self) -> None:
     if (
@@ -130,6 +139,14 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
     if not isfinite(entropy_proxy) or entropy_proxy <= 0.0:
       raise ValueError('entropy_proxy must be finite and positive')
     object.__setattr__(self, 'entropy_proxy', entropy_proxy)
+    wave_speed = float(self.maximum_wave_speed_m_s)
+    if not isfinite(wave_speed) or wave_speed < 0.0:
+      raise ValueError('maximum_wave_speed_m_s must be finite and nonnegative')
+    object.__setattr__(self, 'maximum_wave_speed_m_s', wave_speed)
+    flux_scheme = str(self.flux_scheme)
+    if not flux_scheme:
+      raise ValueError('flux_scheme must be non-empty')
+    object.__setattr__(self, 'flux_scheme', flux_scheme)
     ####
 
   def as_report(self) -> dict[str, Any]:
@@ -143,6 +160,8 @@ class MocReflectedDomainGlobalMixedRegimeConservativeFluxSample:
       'transverse_momentum_flux_Pa': self.transverse_momentum_flux_Pa,
       'energy_flux_W_m2': self.energy_flux_W_m2,
       'entropy_proxy': self.entropy_proxy,
+      'maximum_wave_speed_m_s': self.maximum_wave_speed_m_s,
+      'flux_scheme': self.flux_scheme,
     }
 
 
@@ -358,6 +377,46 @@ def _failure(
 def _build_flux_samples(
   trace: MocReflectedDomainGlobalCoupledDownstreamBoundaryTrace,
 ) -> tuple[MocReflectedDomainGlobalMixedRegimeConservativeFluxSample, ...]:
+  def physical_flux(
+    conservative_state: tuple[float, float, float, float],
+    gamma: float,
+    normal: tuple[float, float],
+  ) -> tuple[tuple[float, float, float, float], float, float]:
+    density, momentum_x, momentum_y, energy = (
+      float(value) for value in conservative_state
+    )
+    gamma_value = float(gamma)
+    if (
+      not all(isfinite(value) for value in (density, momentum_x, momentum_y, energy))
+      or density <= 0.0
+      or not isfinite(gamma_value)
+      or gamma_value <= 1.0
+    ):
+      raise ValueError('trace endpoint has an invalid conservative state')
+    velocity_u = momentum_x / density
+    velocity_v = momentum_y / density
+    pressure = (gamma_value - 1.0) * (
+      energy
+      - 0.5 * (momentum_x * momentum_x + momentum_y * momentum_y) / density
+    )
+    if not isfinite(pressure) or pressure <= 0.0:
+      raise ValueError('trace endpoint has a non-positive thermodynamic pressure')
+    normal_velocity = velocity_u * normal[0] + velocity_v * normal[1]
+    sound_speed = sqrt(gamma_value * pressure / density)
+    wave_speed = abs(normal_velocity) + sound_speed
+    if not isfinite(wave_speed) or wave_speed <= 0.0:
+      raise ValueError('trace endpoint has an invalid acoustic wave speed')
+    return (
+      (
+        density * normal_velocity,
+        momentum_x * normal_velocity + pressure * normal[0],
+        momentum_y * normal_velocity + pressure * normal[1],
+        (energy + pressure) * normal_velocity,
+      ),
+      wave_speed,
+      pressure / density ** gamma_value,
+    )
+
   samples = trace.samples
   flux_samples: list[MocReflectedDomainGlobalMixedRegimeConservativeFluxSample] = []
   for index, (left, right) in enumerate(zip(samples, samples[1:])):
@@ -368,26 +427,30 @@ def _build_flux_samples(
       raise ValueError('trace contains a non-positive segment length')
     nx = -dy / length
     ny = dx / length
-    conservative = tuple(
-      0.5 * (float(left.conservative_state[channel])
-             + float(right.conservative_state[channel]))
+    normal = (nx, ny)
+    left_flux, left_wave_speed, left_entropy_proxy = physical_flux(
+      left.conservative_state,
+      left.gamma,
+      normal,
+    )
+    right_flux, right_wave_speed, right_entropy_proxy = physical_flux(
+      right.conservative_state,
+      right.gamma,
+      normal,
+    )
+    maximum_wave_speed = max(left_wave_speed, right_wave_speed)
+    rusanov_flux = tuple(
+      0.5 * (left_flux[channel] + right_flux[channel])
+      - 0.5 * maximum_wave_speed
+      * (
+        float(right.conservative_state[channel])
+        - float(left.conservative_state[channel])
+      )
       for channel in range(4)
     )
-    density, momentum_x, momentum_y, energy = conservative
-    if density <= 0.0 or not isfinite(density):
-      raise ValueError('trace segment has a non-positive averaged density')
-    velocity_u = momentum_x / density
-    velocity_v = momentum_y / density
-    gamma = 0.5 * (float(left.gamma) + float(right.gamma))
-    pressure = (gamma - 1.0) * (
-      energy - 0.5 * density * (velocity_u * velocity_u + velocity_v * velocity_v)
-    )
-    if gamma <= 1.0 or not isfinite(gamma) or pressure <= 0.0:
-      raise ValueError('trace segment has an invalid averaged thermodynamic state')
-    entropy_proxy = pressure / density ** gamma
+    entropy_proxy = 0.5 * (left_entropy_proxy + right_entropy_proxy)
     if not isfinite(entropy_proxy) or entropy_proxy <= 0.0:
-      raise ValueError('trace segment has an invalid averaged entropy proxy')
-    normal_velocity = velocity_u * nx + velocity_v * ny
+      raise ValueError('trace segment has an invalid endpoint entropy proxy')
     flux_samples.append(
       MocReflectedDomainGlobalMixedRegimeConservativeFluxSample(
         segment_index=index,
@@ -395,17 +458,17 @@ def _build_flux_samples(
           0.5 * (left.point_m[0] + right.point_m[0]),
           0.5 * (left.point_m[1] + right.point_m[1]),
         ),
-        normal_m=(nx, ny),
+        normal_m=normal,
         segment_length_m=length,
-        mass_flux_kg_m2_s=density * normal_velocity,
-        streamwise_momentum_flux_Pa=(
-          density * velocity_u * normal_velocity + pressure * nx
-        ),
-        transverse_momentum_flux_Pa=(
-          density * velocity_v * normal_velocity + pressure * ny
-        ),
-        energy_flux_W_m2=(energy + pressure) * normal_velocity,
+        mass_flux_kg_m2_s=rusanov_flux[0],
+        streamwise_momentum_flux_Pa=rusanov_flux[1],
+        transverse_momentum_flux_Pa=rusanov_flux[2],
+        energy_flux_W_m2=rusanov_flux[3],
         entropy_proxy=entropy_proxy,
+        maximum_wave_speed_m_s=maximum_wave_speed,
+        flux_scheme=(
+          MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_CONSERVATIVE_FLUX_SCHEME
+        ),
       )
     )
   return tuple(flux_samples)

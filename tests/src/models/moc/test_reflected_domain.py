@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from math import atan2, cos, sin
+from math import atan2, cos, sin, sqrt
 
 import numpy as np
 import pytest
@@ -101,6 +101,7 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus,
   MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus,
+  MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_CONSERVATIVE_FLUX_SCHEME,
   MocReflectedDomainGlobalMixedRegimeStateConsumerStatus,
   MocReflectedDomainGlobalMixedRegimeStateResolveStatus,
   consume_reflected_domain_global_mixed_regime_state,
@@ -7304,6 +7305,57 @@ def test_global_mixed_regime_state_consumer_replays_full_trace_without_promotion
   assert consumed.trace is not None
   assert len(consumed.conservative_flux_samples) == consumed.trace.sample_count - 1
   assert consumed.entropy_proxy_range is not None
+  first_flux = consumed.conservative_flux_samples[0]
+  left_sample, right_sample = consumed.trace.samples[:2]
+  segment_dx = right_sample.point_m[0] - left_sample.point_m[0]
+  segment_dy = right_sample.point_m[1] - left_sample.point_m[1]
+  segment_length = (segment_dx**2 + segment_dy**2) ** 0.5
+  normal = (-segment_dy / segment_length, segment_dx / segment_length)
+
+  def physical_flux(sample):
+    density, momentum_x, momentum_y, energy = sample.conservative_state
+    pressure = (sample.gamma - 1.0) * (
+      energy
+      - 0.5 * (momentum_x**2 + momentum_y**2) / density
+    )
+    velocity_u = momentum_x / density
+    velocity_v = momentum_y / density
+    normal_velocity = velocity_u * normal[0] + velocity_v * normal[1]
+    sound_speed = sqrt(sample.gamma * pressure / density)
+    return (
+      (
+        density * normal_velocity,
+        momentum_x * normal_velocity + pressure * normal[0],
+        momentum_y * normal_velocity + pressure * normal[1],
+        (energy + pressure) * normal_velocity,
+      ),
+      abs(normal_velocity) + sound_speed,
+    )
+
+  left_flux, left_wave_speed = physical_flux(left_sample)
+  right_flux, right_wave_speed = physical_flux(right_sample)
+  maximum_wave_speed = max(left_wave_speed, right_wave_speed)
+  expected_flux = tuple(
+    0.5 * (left_flux[channel] + right_flux[channel])
+    - 0.5 * maximum_wave_speed
+    * (
+      right_sample.conservative_state[channel]
+      - left_sample.conservative_state[channel]
+    )
+    for channel in range(4)
+  )
+  assert first_flux.flux_scheme == (
+    MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_CONSERVATIVE_FLUX_SCHEME
+  )
+  assert first_flux.maximum_wave_speed_m_s == pytest.approx(
+    maximum_wave_speed
+  )
+  assert (
+    first_flux.mass_flux_kg_m2_s,
+    first_flux.streamwise_momentum_flux_Pa,
+    first_flux.transverse_momentum_flux_Pa,
+    first_flux.energy_flux_W_m2,
+  ) == pytest.approx(expected_flux)
   assert consumed.canonical_free_boundary_verified is False
   assert consumed.global_coupling_verified is False
   assert consumed.chain_promotion_blocked

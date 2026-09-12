@@ -488,6 +488,7 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   solve_reflected_domain_global_coupled_downstream,
 )
 from exhaust_plume.models.moc.global_mixed_regime_state_consumer import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_CONSERVATIVE_FLUX_SCHEME,
   MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_CONSUMER_MODEL,
   MocReflectedDomainGlobalMixedRegimeStateConsumerStatus,
   MocReflectedDomainGlobalMixedRegimeConservativeFluxSample,
@@ -1401,6 +1402,7 @@ __all__ = (
   'build_reflected_domain_global_coupled_downstream_boundary_trace',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'solve_reflected_domain_global_coupled_downstream',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_CONSERVATIVE_FLUX_SCHEME',
   'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_CONSUMER_MODEL',
   'MocReflectedDomainGlobalMixedRegimeStateConsumerStatus',
   'MocReflectedDomainGlobalMixedRegimeConservativeFluxSample',
