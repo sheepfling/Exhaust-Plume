@@ -90,6 +90,7 @@ from exhaust_plume.validation.moc_global_mixed_regime_joint_state_frontier_solve
   run_reflected_domain_global_mixed_regime_joint_state_frontier_solve,
 )
 from exhaust_plume.validation.moc_global_mixed_regime_joint_state_frontier_feedback import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS,
   MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest,
   MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus,
   audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback,
@@ -16854,6 +16855,17 @@ def test_global_mixed_regime_joint_state_frontier_feedback_rebuilds_each_closure
   assert result.final_closure is not None
   assert result.final_closure is not result.source_closure
   assert all(item.research_step_verified for item in result.iterations)
+  assert result.aggregate_residual_chain_verified
+  assert result.aggregate_residual_tolerance_verified is False
+  assert result.aggregate_residual_descent_verified is False
+  assert all(
+    len(item.aggregate_residual_vector)
+    == len(
+      MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+    )
+    and item.aggregate_residual_vector_verified
+    for item in result.iterations
+  )
   assert all(item.next_closure is not None for item in result.iterations)
   assert result.global_coupling_verified is False
   assert result.canonical_free_boundary_verified is False
@@ -16868,11 +16880,32 @@ def test_global_mixed_regime_joint_state_frontier_feedback_rebuilds_each_closure
   assert audit.closure_lineage_replayed
   assert audit.frontier_chain_replayed
   assert audit.joint_chain_replayed
+  assert audit.aggregate_residual_chain_replayed
+  assert audit.aggregate_residual_tolerance_replayed
+  assert audit.aggregate_residual_descent_replayed
   assert audit.convergence_flags_replayed
   assert audit.independent_joint_feedback_verified
   assert audit.global_coupling_verified is False
   assert audit.chain_promotion_blocked
   assert audit.production_claim_allowed is False
+  tampered_iteration = replace(
+    result.iterations[0],
+    aggregate_residual_vector=(
+      result.iterations[0].aggregate_residual_vector[0] + 1.0e-6,
+    ) + result.iterations[0].aggregate_residual_vector[1:],
+  )
+  tampered_result = replace(
+    result,
+    iterations=(tampered_iteration, *result.iterations[1:]),
+  )
+  tampered_audit = (
+    audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+      tampered_result
+    )
+  )
+  assert tampered_audit.converged is False
+  assert tampered_audit.aggregate_residual_chain_replayed is False
+  assert tampered_audit.independent_joint_feedback_verified is False
 ####
 
 

@@ -24,6 +24,9 @@ from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
   moc_reflected_domain_global_physical_closure_fingerprint,
 )
+from exhaust_plume.models.moc.global_coupled_downstream import (
+  GLOBAL_COUPLED_DOWNSTREAM_STATE_RESIDUAL_CHANNELS,
+)
 from exhaust_plume.validation.moc_global_boundary_state_feedback import (
   MocReflectedDomainGlobalBoundaryStateFeedbackResult,
   run_reflected_domain_global_boundary_state_feedback,
@@ -46,6 +49,7 @@ from exhaust_plume.validation.moc_global_mixed_regime_shock_frontier_refinement 
 
 __all__ = (
   'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_FEEDBACK_OPERATOR_ID',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS',
   'MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus',
   'MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest',
   'MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration',
@@ -59,6 +63,35 @@ __all__ = (
 
 MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_FEEDBACK_OPERATOR_ID = (
   'op.moc.reflected-domain.global-mixed-regime-joint-state-frontier-feedback-v1'
+)
+
+# This is an ordered measurement packet, not a scalar objective.  Each value
+# is expressed in the exact tolerance units owned by its source contract so a
+# later improvement in one equation cannot conceal a worsening in another.
+MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS = (
+  'joint_global_conservative_mass',
+  'joint_global_conservative_normal_momentum',
+  'joint_global_conservative_energy',
+  'boundary_handoff_mass',
+  'boundary_handoff_normal_momentum',
+  'boundary_handoff_energy',
+  'frontier_state_equation_conservative_euler',
+  'frontier_state_equation_target_entropy',
+  'frontier_compatibility_invariant',
+  'frontier_compatibility_geometry',
+  'frontier_normal_mass',
+  'frontier_normal_normal_momentum',
+  'frontier_normal_tangential_momentum',
+  'frontier_normal_energy',
+  'frontier_normal_entropy_proxy',
+  'frontier_normal_entropy_inequality',
+  'downstream_overlap_coordinate',
+  'downstream_overlap_tangent',
+  'downstream_overlap_pressure',
+  'downstream_overlap_normal_velocity',
+) + tuple(
+  f'downstream_coupled_{channel}'
+  for channel in GLOBAL_COUPLED_DOWNSTREAM_STATE_RESIDUAL_CHANNELS
 )
 
 
@@ -80,6 +113,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus(
   JOINT_SOLVE_FAILURE = 'joint-state-frontier-feedback-joint-solve-failure'
   RESIDUAL_EXCHANGE_FAILURE = (
     'joint-state-frontier-feedback-residual-exchange-failure'
+  )
+  AGGREGATE_RESIDUAL_FAILURE = (
+    'joint-state-frontier-feedback-aggregate-residual-failure'
   )
   RESIDUAL_DESCENT_FAILURE = (
     'joint-state-frontier-feedback-residual-descent-failure'
@@ -139,6 +175,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
   source: str = 'research-global-mixed-regime-joint-state-frontier-feedback-v1'
   consume_frontier_residual_exchange: bool = False
   frontier_residual_exchange_options: Mapping[str, Any] | None = None
+  require_aggregate_residual_tolerance: bool = False
+  require_aggregate_residual_descent: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -168,7 +206,12 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       'fixed_point_residual_tolerance',
     ):
       object.__setattr__(self, name, _positive(getattr(self, name), name))
-    for name in ('require_fixed_point', 'require_residual_descent'):
+    for name in (
+      'require_fixed_point',
+      'require_residual_descent',
+      'require_aggregate_residual_tolerance',
+      'require_aggregate_residual_descent',
+    ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
     if not isinstance(self.consume_frontier_residual_exchange, bool):
@@ -222,6 +265,12 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       'frontier_residual_exchange_options': dict(
         self.frontier_residual_exchange_options or {}
       ),
+      'require_aggregate_residual_tolerance': (
+        self.require_aggregate_residual_tolerance
+      ),
+      'require_aggregate_residual_descent': (
+        self.require_aggregate_residual_descent
+      ),
       'source_closure_fingerprint': moc_reflected_domain_global_physical_closure_fingerprint(
         self.source_closure
       ),
@@ -258,6 +307,10 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
   frontier_residual_exchange: MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult | None = None
   frontier_residual_norm: float | None = None
   frontier_residual_exchange_verified: bool = False
+  aggregate_residual_vector: tuple[float, ...] = ()
+  aggregate_residual_vector_verified: bool = False
+  aggregate_residual_tolerance_verified: bool = False
+  aggregate_residual_descent_verified: bool = False
 
   def __post_init__(self) -> None:
     if isinstance(self.iteration_index, bool) or not isinstance(self.iteration_index, int) or self.iteration_index < 0:
@@ -284,6 +337,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       'frontier_step_verified',
       'joint_solve_verified',
       'frontier_residual_exchange_verified',
+      'aggregate_residual_vector_verified',
+      'aggregate_residual_tolerance_verified',
+      'aggregate_residual_descent_verified',
       'next_closure_lineage_verified',
       'fixed_point_verified',
       'residual_descent_verified',
@@ -292,6 +348,35 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+    aggregate = tuple(float(value) for value in self.aggregate_residual_vector)
+    if aggregate and (
+      len(aggregate)
+      != len(MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS)
+      or any(not isfinite(value) or value < 0.0 for value in aggregate)
+    ):
+      raise ValueError(
+        'aggregate_residual_vector must contain the exact finite, nonnegative '
+        'joint state/frontier residual channels'
+      )
+    if self.aggregate_residual_vector_verified and not aggregate:
+      raise ValueError(
+        'aggregate_residual_vector_verified requires a retained residual vector'
+      )
+    if self.aggregate_residual_tolerance_verified and (
+      not self.aggregate_residual_vector_verified
+      or any(value > 1.0 for value in aggregate)
+    ):
+      raise ValueError(
+        'aggregate_residual_tolerance_verified requires every channel to be '
+        'within its declared tolerance'
+      )
+    if self.aggregate_residual_descent_verified and not (
+      self.aggregate_residual_vector_verified
+    ):
+      raise ValueError(
+        'aggregate_residual_descent_verified requires a retained residual vector'
+      )
+    object.__setattr__(self, 'aggregate_residual_vector', aggregate)
     for name in (
       'geometry_delta_m',
       'pressure_log_delta',
@@ -315,6 +400,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       and self.boundary_state_feedback_verified
       and self.frontier_step_verified
       and self.joint_solve_verified
+      and self.aggregate_residual_vector_verified
       and (
         (
           self.frontier_residual_exchange is None
@@ -353,6 +439,19 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       'joint_solve_verified': self.joint_solve_verified,
       'frontier_residual_exchange_verified': (
         self.frontier_residual_exchange_verified
+      ),
+      'aggregate_residual_channels': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+      ),
+      'aggregate_residual_vector': self.aggregate_residual_vector,
+      'aggregate_residual_vector_verified': (
+        self.aggregate_residual_vector_verified
+      ),
+      'aggregate_residual_tolerance_verified': (
+        self.aggregate_residual_tolerance_verified
+      ),
+      'aggregate_residual_descent_verified': (
+        self.aggregate_residual_descent_verified
       ),
       'next_closure_lineage_verified': self.next_closure_lineage_verified,
       'fixed_point_verified': self.fixed_point_verified,
@@ -397,6 +496,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
   production_claim_allowed: bool = False
   message: str = ''
   frontier_residual_exchange_chain_verified: bool = False
+  aggregate_residual_chain_verified: bool = False
+  aggregate_residual_tolerance_verified: bool = False
+  aggregate_residual_descent_verified: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus):
@@ -430,6 +532,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       'frontier_chain_verified',
       'joint_solve_chain_verified',
       'frontier_residual_exchange_chain_verified',
+      'aggregate_residual_chain_verified',
+      'aggregate_residual_tolerance_verified',
+      'aggregate_residual_descent_verified',
       'fixed_point_verified',
       'residual_descent_verified',
       'independent_audit_verified',
@@ -456,6 +561,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       and self.frontier_chain_verified
       and self.joint_solve_chain_verified
       and self.frontier_residual_exchange_chain_verified
+      and self.aggregate_residual_chain_verified
+      and self.aggregate_residual_tolerance_verified
+      and self.aggregate_residual_descent_verified
       and self.fixed_point_verified
       and self.residual_descent_verified
       and self.independent_audit_verified
@@ -477,6 +585,18 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       'joint_solve_chain_verified': self.joint_solve_chain_verified,
       'frontier_residual_exchange_chain_verified': (
         self.frontier_residual_exchange_chain_verified
+      ),
+      'aggregate_residual_channels': (
+        MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+      ),
+      'aggregate_residual_chain_verified': (
+        self.aggregate_residual_chain_verified
+      ),
+      'aggregate_residual_tolerance_verified': (
+        self.aggregate_residual_tolerance_verified
+      ),
+      'aggregate_residual_descent_verified': (
+        self.aggregate_residual_descent_verified
       ),
       'fixed_point_verified': self.fixed_point_verified,
       'residual_descent_verified': self.residual_descent_verified,
@@ -524,6 +644,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
   production_claim_allowed: bool = False
   message: str = ''
   residual_exchange_chain_replayed: bool = False
+  aggregate_residual_chain_replayed: bool = False
+  aggregate_residual_tolerance_replayed: bool = False
+  aggregate_residual_descent_replayed: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -543,6 +666,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       'frontier_chain_replayed',
       'joint_chain_replayed',
       'residual_exchange_chain_replayed',
+      'aggregate_residual_chain_replayed',
+      'aggregate_residual_tolerance_replayed',
+      'aggregate_residual_descent_replayed',
       'convergence_flags_replayed',
       'independent_joint_feedback_verified',
       'global_coupling_verified',
@@ -580,6 +706,15 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       'joint_chain_replayed': self.joint_chain_replayed,
       'residual_exchange_chain_replayed': (
         self.residual_exchange_chain_replayed
+      ),
+      'aggregate_residual_chain_replayed': (
+        self.aggregate_residual_chain_replayed
+      ),
+      'aggregate_residual_tolerance_replayed': (
+        self.aggregate_residual_tolerance_replayed
+      ),
+      'aggregate_residual_descent_replayed': (
+        self.aggregate_residual_descent_replayed
       ),
       'convergence_flags_replayed': self.convergence_flags_replayed,
       'independent_joint_feedback_verified': (
@@ -670,6 +805,225 @@ def _residual_descent(
   if len(values) < 2:
     return False
   return bool(all(right < left for left, right in zip(values, values[1:])))
+
+
+def _normalized(value: float | None, tolerance: float) -> float | None:
+  """Express one finite residual in the tolerance units that own it."""
+
+  if value is None:
+    return None
+  numeric_tolerance = float(tolerance)
+  numeric_value = float(value)
+  if (
+    not isfinite(numeric_tolerance)
+    or numeric_tolerance <= 0.0
+    or not isfinite(numeric_value)
+  ):
+    return None
+  normalized = abs(numeric_value) / numeric_tolerance
+  return normalized if isfinite(normalized) else None
+
+
+def _normalized_maximum(
+  values: tuple[float, ...],
+  tolerance: float,
+) -> float | None:
+  """Return a finite maximum for one aligned residual channel."""
+
+  if not values or any(not isfinite(float(value)) for value in values):
+    return None
+  return _normalized(max(abs(float(value)) for value in values), tolerance)
+
+
+def _build_aggregate_residual_vector(
+  iteration: MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration,
+) -> tuple[float, ...] | None:
+  """Assemble the exact cross-seam residual packet for one feedback step.
+
+  The packet deliberately reads only retained typed results.  It does not
+  infer missing channels from a scalar norm, pressure overlay, or status
+  string; an incomplete seam therefore fails closed instead of becoming a
+  partially populated acceptance vector.
+  """
+
+  frontier = iteration.source_frontier_step
+  joint = iteration.joint_solve
+  handoff = iteration.boundary_state_feedback.handoff
+  if frontier is None or joint is None or handoff is None:
+    return None
+  joint_state = joint.joint_state_solve
+  state_request = handoff.two_sided_result.request
+  if joint_state is None or state_request is None:
+    return None
+  global_channels = tuple(
+    float(value) for value in joint_state.refreshed_dimensioned_channel_maxima
+  )
+  if len(global_channels) != 3:
+    return None
+  handoff_channels = (
+    _normalized_maximum(
+      handoff.signed_mass_flux_residuals_kg_m2_s,
+      state_request.mass_flux_tolerance_kg_m2_s,
+    ),
+    _normalized_maximum(
+      handoff.signed_normal_momentum_residuals_Pa,
+      state_request.normal_momentum_tolerance_Pa,
+    ),
+    _normalized_maximum(
+      handoff.signed_energy_flux_residuals_W_m2,
+      state_request.energy_flux_tolerance_W_m2,
+    ),
+  )
+  equation = frontier.state_equation
+  equation_request = frontier.state_equation_request
+  equation_channels = (
+    _normalized(
+      equation.maximum_conservative_euler_residual,
+      equation_request.euler_residual_tolerance,
+    ),
+    _normalized(
+      equation.maximum_target_boundary_entropy_log_residual,
+      equation_request.target_entropy_consistency_tolerance,
+    ),
+  )
+  compatibility = frontier.compatibility
+  compatibility_request = frontier.compatibility_request
+  compatibility_channels = (
+    _normalized(
+      compatibility.maximum_invariant_residual,
+      compatibility_request.invariant_tolerance,
+    ),
+    _normalized(
+      compatibility.maximum_geometry_residual,
+      compatibility_request.geometry_tolerance,
+    ),
+  )
+  normal = frontier.normal_closure
+  normal_request = frontier.normal_closure_request
+  if not normal.closure_samples:
+    return None
+  normal_component_maxima = tuple(
+    max(sample.component_residuals[index] for sample in normal.closure_samples)
+    for index in range(5)
+  )
+  normal_channels = tuple(
+    _normalized(value, normal_request.component_tolerance)
+    for value in normal_component_maxima
+  ) + (
+    _normalized(
+      normal.maximum_entropy_inequality_violation,
+      normal_request.entropy_tolerance,
+    ),
+  )
+  boundary_feedback_run = iteration.boundary_state_feedback.boundary_feedback_run
+  if boundary_feedback_run is None or not boundary_feedback_run.iterations:
+    return None
+  boundary_feedback_iteration = boundary_feedback_run.iterations[-1]
+  downstream_feedback = boundary_feedback_iteration.downstream_feedback
+  if downstream_feedback is None or not downstream_feedback.iterations:
+    return None
+  downstream_iteration = downstream_feedback.iterations[-1]
+  downstream_response = downstream_iteration.response
+  downstream_result = downstream_iteration.result
+  if downstream_response is None:
+    return None
+  overlap_channels = (
+    _normalized_maximum(
+      downstream_response.coordinate_residuals_m,
+      downstream_response.coordinate_tolerance_m,
+    ),
+    _normalized_maximum(
+      downstream_response.tangent_residuals_rad,
+      downstream_response.tangent_tolerance_rad,
+    ),
+    _normalized_maximum(
+      downstream_response.pressure_residuals_Pa,
+      downstream_response.pressure_tolerance_Pa,
+    ),
+    _normalized_maximum(
+      downstream_response.normal_velocity_residuals_m_s,
+      downstream_response.normal_velocity_tolerance_m_s,
+    ),
+  )
+  coupled_channels = downstream_result.normalized_coupled_state_residual_vector
+  if coupled_channels is None:
+    return None
+  coupled_channels = tuple(float(value) for value in coupled_channels)
+  if len(coupled_channels) != len(GLOBAL_COUPLED_DOWNSTREAM_STATE_RESIDUAL_CHANNELS):
+    return None
+  channels = (
+    global_channels
+    + handoff_channels
+    + equation_channels
+    + compatibility_channels
+    + normal_channels
+    + overlap_channels
+    + coupled_channels
+  )
+  if len(channels) != len(
+    MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+  ):
+    return None
+  if any(value is None for value in channels):
+    return None
+  resolved = tuple(float(value) for value in channels)
+  if any(not isfinite(value) or value < 0.0 for value in resolved):
+    return None
+  return resolved
+
+
+def _aggregate_residual_tolerance_verified(
+  vectors: tuple[tuple[float, ...], ...],
+) -> bool:
+  """Require every retained physical channel to be within one tolerance."""
+
+  return bool(
+    vectors
+    and all(
+      len(vector)
+      == len(
+        MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+      )
+      and all(value <= 1.0 for value in vector)
+      for vector in vectors
+    )
+  )
+
+
+def _aggregate_residual_descent(
+  vectors: tuple[tuple[float, ...], ...],
+  *,
+  strict: bool,
+) -> bool:
+  """Check component-wise non-worsening, optionally with active descent."""
+
+  if not vectors or not vectors[0]:
+    return False
+  width = len(vectors[0])
+  if any(
+    len(vector) != width
+    or any(not isfinite(value) or value < 0.0 for value in vector)
+    for vector in vectors
+  ):
+    return False
+  if len(vectors) == 1:
+    return True
+  numerical_tolerance = 1.0e-12
+  for before, after in zip(vectors, vectors[1:], strict=True):
+    nonincreasing = all(
+      next_value
+      <= current_value + numerical_tolerance * max(1.0, abs(current_value))
+      for current_value, next_value in zip(before, after, strict=True)
+    )
+    if not nonincreasing:
+      return False
+    if strict and not any(
+      next_value
+      < current_value - numerical_tolerance * max(1.0, abs(current_value))
+      for current_value, next_value in zip(before, after, strict=True)
+    ):
+      return False
+  return True
 
 
 def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
@@ -914,6 +1268,52 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       or frontier_residual_exchange.final_packet is None
       else frontier_residual_exchange.final_packet.residual_norm
     )
+    aggregate_vector = _build_aggregate_residual_vector(
+      MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration(
+        iteration_index=iteration_index,
+        source_closure=current,
+        boundary_state_feedback=feedback,
+        source_frontier_step=frontier_step,
+        joint_solve=joint,
+        frontier_residual_exchange=frontier_residual_exchange,
+        next_closure=next_closure,
+        geometry_delta_m=geometry_delta,
+        pressure_log_delta=pressure_delta,
+        joint_residual_norm=residual_norm,
+        frontier_residual_norm=frontier_residual_norm,
+        source_lineage_verified=source_lineage,
+        boundary_state_feedback_verified=feedback.handoff_ready,
+        frontier_step_verified=frontier_verified,
+        joint_solve_verified=joint_verified,
+        frontier_residual_exchange_verified=frontier_residual_exchange_verified,
+        next_closure_lineage_verified=(
+          (
+            next_closure is frontier_residual_exchange.final_closure
+            if frontier_residual_exchange is not None
+            else next_closure is joint.joint_state_solve.geometry_response_closure
+          )
+        ),
+        chain_promotion_blocked=True,
+        production_claim_allowed=False,
+      )
+    )
+    aggregate_vector_verified = aggregate_vector is not None
+    aggregate_vectors = tuple(
+      item.aggregate_residual_vector
+      for item in retained
+      if item.aggregate_residual_vector_verified
+    )
+    aggregate_tolerance_verified = bool(
+      aggregate_vector is not None
+      and all(value <= 1.0 for value in aggregate_vector)
+    )
+    aggregate_descent_verified = bool(
+      aggregate_vector is not None
+      and _aggregate_residual_descent(
+        aggregate_vectors + (aggregate_vector,),
+        strict=request.require_aggregate_residual_descent,
+      )
+    )
     previous_residuals = tuple(
       item.joint_residual_norm
       for item in retained
@@ -975,8 +1375,84 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
           else '; fixed-point residuals remain open'
         )
       ),
+      aggregate_residual_vector=aggregate_vector or (),
+      aggregate_residual_vector_verified=aggregate_vector_verified,
+      aggregate_residual_tolerance_verified=aggregate_tolerance_verified,
+      aggregate_residual_descent_verified=aggregate_descent_verified,
     )
     retained.append(iteration)
+    if not aggregate_vector_verified:
+      return _failure(
+        status_type.AGGREGATE_RESIDUAL_FAILURE,
+        'joint state/frontier solve completed, but the exact aggregate '
+        'residual packet could not be assembled from retained typed channels',
+        request=request,
+        source_closure=request.source_closure,
+        final_closure=next_closure,
+        iterations=tuple(retained),
+        feedback_completed=False,
+        frontier_chain_verified=bool(
+          retained and all(item.frontier_step_verified for item in retained)
+        ),
+        joint_solve_chain_verified=False,
+        frontier_residual_exchange_chain_verified=bool(
+          not request.consume_frontier_residual_exchange
+        ),
+        aggregate_residual_chain_verified=False,
+        aggregate_residual_tolerance_verified=False,
+        aggregate_residual_descent_verified=False,
+        independent_audit_verified=False,
+      )
+    if (
+      request.require_aggregate_residual_tolerance
+      and not aggregate_tolerance_verified
+    ):
+      return _failure(
+        status_type.AGGREGATE_RESIDUAL_FAILURE,
+        'aggregate joint state/frontier residual channels exceeded their '
+        'declared tolerance units',
+        request=request,
+        source_closure=request.source_closure,
+        final_closure=next_closure,
+        iterations=tuple(retained),
+        feedback_completed=False,
+        frontier_chain_verified=bool(
+          retained and all(item.frontier_step_verified for item in retained)
+        ),
+        joint_solve_chain_verified=False,
+        frontier_residual_exchange_chain_verified=bool(
+          not request.consume_frontier_residual_exchange
+        ),
+        aggregate_residual_chain_verified=True,
+        aggregate_residual_tolerance_verified=False,
+        aggregate_residual_descent_verified=aggregate_descent_verified,
+        independent_audit_verified=False,
+      )
+    if (
+      request.require_aggregate_residual_descent
+      and not aggregate_descent_verified
+    ):
+      return _failure(
+        status_type.AGGREGATE_RESIDUAL_FAILURE,
+        'aggregate joint state/frontier residual channels did not satisfy '
+        'the requested component-wise descent policy',
+        request=request,
+        source_closure=request.source_closure,
+        final_closure=next_closure,
+        iterations=tuple(retained),
+        feedback_completed=False,
+        frontier_chain_verified=bool(
+          retained and all(item.frontier_step_verified for item in retained)
+        ),
+        joint_solve_chain_verified=False,
+        frontier_residual_exchange_chain_verified=bool(
+          not request.consume_frontier_residual_exchange
+        ),
+        aggregate_residual_chain_verified=True,
+        aggregate_residual_tolerance_verified=aggregate_tolerance_verified,
+        aggregate_residual_descent_verified=False,
+        independent_audit_verified=False,
+      )
     if (
       request.consume_frontier_residual_exchange
       and not frontier_residual_exchange_verified
@@ -1034,15 +1510,52 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       for item in iterations
     )
   )
-  if request.require_residual_descent and not residual_descent:
+  aggregate_vectors = tuple(
+    item.aggregate_residual_vector
+    for item in iterations
+    if item.aggregate_residual_vector_verified
+  )
+  aggregate_chain = bool(
+    iterations
+    and len(aggregate_vectors) == len(iterations)
+    and all(item.aggregate_residual_vector_verified for item in iterations)
+  )
+  aggregate_tolerance = bool(
+    aggregate_chain
+    and _aggregate_residual_tolerance_verified(aggregate_vectors)
+  )
+  aggregate_descent = bool(
+    aggregate_chain
+    and all(item.aggregate_residual_descent_verified for item in iterations)
+    and _aggregate_residual_descent(
+      aggregate_vectors,
+      strict=request.require_aggregate_residual_descent,
+    )
+  )
+  if request.require_aggregate_residual_tolerance and not aggregate_tolerance:
+    status = status_type.AGGREGATE_RESIDUAL_FAILURE
+    message = 'aggregate joint state/frontier channels remain outside their declared tolerance units'
+  elif request.require_aggregate_residual_descent and not aggregate_descent:
+    status = status_type.AGGREGATE_RESIDUAL_FAILURE
+    message = 'aggregate joint state/frontier channels did not satisfy component-wise descent'
+  elif request.require_residual_descent and not residual_descent:
     status = status_type.RESIDUAL_DESCENT_FAILURE
     message = 'joint feedback residuals did not satisfy the declared descent policy'
   elif request.require_fixed_point and not fixed:
     status = status_type.COMPLETED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK_WITH_OPEN_CONVERGENCE
     message = 'all bounded joint feedback steps completed, but fixed-point residuals remain open'
-  elif fixed and residual_descent and independent:
+  elif (
+    fixed
+    and residual_descent
+    and independent
+    and aggregate_tolerance
+    and aggregate_descent
+  ):
     status = status_type.CONVERGED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK
-    message = 'bounded joint state/frontier feedback met the declared research fixed-point and residual gates'
+    message = (
+      'bounded joint state/frontier feedback met the declared research '
+      'fixed-point, aggregate-channel, and residual gates'
+    )
   else:
     status = status_type.COMPLETED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK_WITH_OPEN_CONVERGENCE
     message = 'all bounded joint state/frontier feedback steps completed; fixed-point or residual convergence remains open'
@@ -1063,6 +1576,9 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     canonical_free_boundary_verified=False,
     chain_promotion_blocked=True,
     production_claim_allowed=False,
+    aggregate_residual_chain_verified=aggregate_chain,
+    aggregate_residual_tolerance_verified=aggregate_tolerance,
+    aggregate_residual_descent_verified=aggregate_descent,
     message=message,
   )
 
@@ -1194,6 +1710,24 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       )
     )
   )
+  aggregate_residual_chain = bool(
+    count_replayed
+    and all(
+      replay_item.aggregate_residual_vector_verified
+      == result_item.aggregate_residual_vector_verified
+      and replay_item.aggregate_residual_vector
+      == result_item.aggregate_residual_vector
+      and replay_item.aggregate_residual_tolerance_verified
+      == result_item.aggregate_residual_tolerance_verified
+      and replay_item.aggregate_residual_descent_verified
+      == result_item.aggregate_residual_descent_verified
+      for replay_item, result_item in zip(
+        replay.iterations,
+        result.iterations,
+        strict=True,
+      )
+    )
+  )
   convergence_flags = bool(
     replay.status is result.status
     and replay.feedback_completed == result.feedback_completed
@@ -1204,6 +1738,12 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     and replay.fixed_point_verified == result.fixed_point_verified
     and replay.residual_descent_verified == result.residual_descent_verified
     and replay.independent_audit_verified == result.independent_audit_verified
+    and replay.aggregate_residual_chain_verified
+    == result.aggregate_residual_chain_verified
+    and replay.aggregate_residual_tolerance_verified
+    == result.aggregate_residual_tolerance_verified
+    and replay.aggregate_residual_descent_verified
+    == result.aggregate_residual_descent_verified
   )
   independent = bool(
     request_replayed
@@ -1212,6 +1752,7 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     and frontier_chain
     and joint_chain
     and residual_exchange_chain
+    and aggregate_residual_chain
     and convergence_flags
     and replay.independent_audit_verified
     and replay.chain_promotion_blocked
@@ -1230,6 +1771,15 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     frontier_chain_replayed=frontier_chain,
     joint_chain_replayed=joint_chain,
     residual_exchange_chain_replayed=residual_exchange_chain,
+    aggregate_residual_chain_replayed=aggregate_residual_chain,
+    aggregate_residual_tolerance_replayed=(
+      replay.aggregate_residual_tolerance_verified
+      == result.aggregate_residual_tolerance_verified
+    ),
+    aggregate_residual_descent_replayed=(
+      replay.aggregate_residual_descent_verified
+      == result.aggregate_residual_descent_verified
+    ),
     convergence_flags_replayed=convergence_flags,
     independent_joint_feedback_verified=independent,
     global_coupling_verified=False,
