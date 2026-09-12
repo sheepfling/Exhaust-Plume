@@ -155,26 +155,29 @@ class SignatureTimelineSelectionError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SignatureTimelineQuery:
-    """One exact, source-bound spectral radiant-intensity point query.
+  """One exact, source-bound spectral radiant-intensity point query.
 
-    The query preserves the product's declared intensity units and lineage.
-    An invalid point has ``spectral_radiant_intensity_w_sr_m=None`` even when
-    the wire result carries its required zero placeholder.  This prevents a
-    consumer from treating a failed sample as a physical zero.
-    """
+  The query preserves the product's declared intensity units, source position,
+  and lineage.
+  An invalid point has ``spectral_radiant_intensity_w_sr_m=None`` even when
+  the wire result carries its required zero placeholder.  This prevents a
+  consumer from treating a failed sample as a physical zero.
+  """
 
-    source_result_id: str
-    time_s: float
-    direction_frame_id: str
-    direction_index: int
-    direction: tuple[float, float, float]
-    angular_coordinates: AngularCoordinates
-    wavelength_index: int
-    wavelength_m: float
-    spectral_radiant_intensity_w_sr_m: float | None
-    absolute_standard_uncertainty_w_sr_m: float | None
-    valid: bool
-    status: SampleStatus
+  source_result_id: str
+  time_s: float
+  position_frame_id: str
+  position_m: tuple[float, float, float]
+  direction_frame_id: str
+  direction_index: int
+  direction: tuple[float, float, float]
+  angular_coordinates: AngularCoordinates
+  wavelength_index: int
+  wavelength_m: float
+  spectral_radiant_intensity_w_sr_m: float | None
+  absolute_standard_uncertainty_w_sr_m: float | None
+  valid: bool
+  status: SampleStatus
 ####
 
 
@@ -182,8 +185,9 @@ class SignatureTimelineQuery:
 class SignatureTimeline:
     """Time-ordered compatible signature samples with no temporal interpolation.
 
-    All samples retain the same exact direction frame, direction vectors, and
-    wavelength axis.  This is deliberately stricter than a plotting helper:
+    All samples retain the same exact direction frame, source-pose frame,
+    direction vectors, and wavelength axis.  This is deliberately stricter
+    than a plotting helper:
     visual comparisons across changed angular or spectral grids must first be
     reconciled by an explicit product-level resampling process.
     """
@@ -202,10 +206,21 @@ class SignatureTimeline:
             raise ValueError("signature timeline sample times must be strictly increasing")
         ####
         reference = samples[0].request
+        reference_position_frame_id = (
+            samples[0].result.metadata.snapshot.source_pose.frame_id
+        )
         for sample in samples[1:]:
             request = sample.request
             if request.direction_frame_id != reference.direction_frame_id:
                 raise ValueError("signature timeline samples must use one direction_frame_id")
+            ####
+            if (
+                sample.result.metadata.snapshot.source_pose.frame_id
+                != reference_position_frame_id
+            ):
+                raise ValueError(
+                    "signature timeline samples must use one source-pose frame_id"
+                )
             ####
             if request.source_to_observer_directions != reference.source_to_observer_directions:
                 raise ValueError("signature timeline samples must use identical direction vectors")
@@ -230,6 +245,13 @@ class SignatureTimeline:
     @property
     def wavelengths_m(self) -> tuple[float, ...]:
         return self.samples[0].request.wavelengths_m
+    ####
+
+    @property
+    def position_frame_id(self) -> str:
+        """Return the common frame for the source positions in this timeline."""
+
+        return self.samples[0].result.metadata.snapshot.source_pose.frame_id
     ####
 
     @property
@@ -281,9 +303,12 @@ class SignatureTimeline:
             else None
         )
         direction = self.directions[selected_direction_index]
+        source_pose = sample.result.metadata.snapshot.source_pose
         return SignatureTimelineQuery(
             source_result_id=sample.result.metadata.result_id,
             time_s=sample.time_s,
+            position_frame_id=source_pose.frame_id,
+            position_m=source_pose.translation_m,
             direction_frame_id=self.direction_frame_id,
             direction_index=selected_direction_index,
             direction=direction,

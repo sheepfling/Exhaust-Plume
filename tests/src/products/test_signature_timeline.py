@@ -137,6 +137,8 @@ def test_point_query_returns_exact_value_and_source_lineage() -> None:
     assert isinstance(query, SignatureTimelineQuery)
     assert query.source_result_id == timeline.samples[1].result.metadata.result_id
     assert query.time_s == pytest.approx(2.0)
+    assert query.position_frame_id == "world"
+    assert query.position_m == (0.0, 0.0, 0.0)
     assert query.direction_frame_id == "source-local"
     assert query.direction_index == 2
     assert query.direction == (1.0, 0.0, 0.0)
@@ -245,6 +247,33 @@ def test_timeline_rejects_changed_direction_or_wavelength_axes() -> None:
 
     with pytest.raises(ValueError, match="one wavelength axis"):
         SignatureTimeline((timeline.samples[0], changed_sample))
+    ####
+####
+
+
+def test_timeline_rejects_mixed_source_position_frames() -> None:
+    timeline = _timeline()
+    changed_pose = timeline.samples[1].result.metadata.snapshot.source_pose.model_copy(
+        update={"frame_id": "different-world"}
+    )
+    changed_metadata = timeline.samples[1].result.metadata.model_copy(
+        update={
+            "snapshot": timeline.samples[1].result.metadata.snapshot.model_copy(
+                update={"source_pose": changed_pose}
+            )
+        }
+    )
+    changed_result = timeline.samples[1].result.model_copy(
+        update={"metadata": changed_metadata}
+    )
+
+    with pytest.raises(ValueError, match="one source-pose frame_id"):
+        SignatureTimeline(
+            (
+                timeline.samples[0],
+                SignatureTimelineSample(timeline.samples[1].request, changed_result),
+            )
+        )
     ####
 ####
 

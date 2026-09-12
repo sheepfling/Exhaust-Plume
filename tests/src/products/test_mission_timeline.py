@@ -303,6 +303,8 @@ def test_mission_signature_query_re_evaluates_an_arbitrary_time_without_output_i
 
     assert isinstance(query, SignatureTimelineQuery)
     assert query.time_s == pytest.approx(5.0)
+    assert query.position_frame_id == "world"
+    assert query.position_m == pytest.approx((50.0, 10.0, 500.0))
     assert query.direction == (1.0, 0.0, 0.0)
     assert query.wavelength_m == pytest.approx(2.0e-6)
     assert query.spectral_radiant_intensity_w_sr_m == pytest.approx(
