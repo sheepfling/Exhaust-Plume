@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `e923572` (anchored-shape/front-limit checkpoint); the reflected-domain suite is green at 219 tests and the local static/contract checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `f7e9f68` (bounded shape-step and local product/package checkpoint); the reflected-domain suite is green at 223 tests, the focused canonical-stop tranche is green at 4 tests, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -73,31 +73,31 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — code checkpoint `a510d73`
+### Active execution card — code checkpoint `f7e9f68`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
-shock-geometry response consumer, and a dimensioned joint-consumer refinement
-audit in place.  The latest audit exercises two distinct source-closure
-families at ordered 8/9-sample resolutions.  Each case independently
-re-samples the moving-shock proposal, refits the Euler curve, rebuilds the
-exact ambient field, and passes normalized mass-flux, normal-momentum, and
-energy-channel descent plus aggregate residual descent.  These are useful
-research results only.  The outer global/coupled result, downstream boundary,
-canonical free-boundary, production shock-cell, provider-validation, and
-release flags remain closed.
+shock-geometry response consumer, exact shape-trial replay, bounded shape-step
+records, and the local product/package gates in place.  The latest reflected-
+domain suite is green at 223 tests, and the focused canonical-stop tranche is
+green at 4 tests.  The five Visualization bundles, local Signature/ray/FPA
+contracts, mission-time composition, and installed-package smoke pass locally;
+provider validation, the downstream boundary, canonical free-boundary,
+production shock-cell, and release flags remain closed.
 
 The equation-level corrector has now also been exercised.  It sends the fresh
 joint closure through a terminal downstream -> global -> downstream recheck
 and then invokes the complete signed conservative state solver.  The terminal
 boundary equations and response lineage pass.  The corrector tightens any
 exploratory handoff to the strict accepted tolerances before measuring
-progress, and now exposes a solver-owned shape-Jacobian mode: the mass-derived
+progress, and exposes a solver-owned shape-Jacobian mode: the mass-derived
 normal update plus bounded interior normal shape controls are probed with
-fresh exact field re-solves.  On the exercised case, two multi-control shape
-updates reduce the dominant normal-momentum residual while retaining mass and
-energy inside their declared strict bands.  The state remains non-converged;
-this is physical research evidence, not a product or canonical-closure result.
+fresh exact field re-solves.  The accepted shape coefficients can exceed one
+within their declared vector bound while the common scalar record remains
+bounded and replayable.  Larger legal shape steps and additional interface
+iterations still leave the strict normal-momentum channel open, so the typed
+state failure remains physical research evidence rather than a product or
+canonical-closure result.
 
 The next implementation sprint is therefore to finish and independently
 qualify the physically justified update law after the terminal recheck:
@@ -129,6 +129,36 @@ interpolation/extrapolation, synthetic observation, manifest edit, or claim
 renaming may clear the stop.  Validation intake, provider-bound VIS/SIG/RAY/
 FPA comparisons, and release freeze remain parallel gates rather than
 substitutes for this physics sprint.
+
+### P3.13 canonical closure seam inspection checkpoint — 2026-09-11
+
+The existing entropy-characteristic/free-boundary implementations were traced
+against the global closure contract.  They can produce a bounded local
+entropy band and a typed reflected/free-boundary attempt, but they deliberately
+stop below global mixed-regime promotion: their source is a specialized local
+entropy field or continuation remesh, not the retained global reflected field,
+and their successful local field does not close the upstream frontier,
+downstream state, centerline, and conservative boundary response in one solve.
+
+The existing global-to-coupled feedback ladder also remains a research
+consumer.  It can fresh-solve target geometry/pressure and retain a complete
+signed mass/normal-momentum/energy response, but its target-guided global
+re-solves still use the research compression-envelope family.  The separate
+coupled-Euler boundary trace is intentionally kept as a full conservative
+state trace rather than being cast into a supersonic ``CharacteristicState``
+frontier.  This is the correct fidelity boundary; no adapter or status rename
+can make that trace a canonical MOC downstream condition.
+
+The focused canonical-stop tranche passes (``4 passed``), covering the
+compression-envelope non-promotion gate, the typed pressure-lowering stop,
+the subsonic-reference stop, and the fresh-resolve conservative residual
+admission failure.  The next implementation slice is therefore a real
+solver-owned mixed-regime state consumer: it must take the exact global field
+and the full downstream conservative trace, solve the coupled boundary/state
+equations, and independently remeasure mass, normal momentum, energy,
+entropy, ambient, centerline, and frame coverage.  Until that operator closes
+on a disjoint case/resolution ladder, the current local package evidence and
+research shock-cell fits remain below production Signature/FPA claims.
 
 ### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
 
