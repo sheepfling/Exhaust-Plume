@@ -265,6 +265,14 @@ from exhaust_plume.validation.moc_global_mixed_regime_state_equation_contract im
   MocReflectedDomainGlobalMixedRegimeStateEquationContract,
   prepare_reflected_domain_global_mixed_regime_state_equation_contract,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_upstream_state_target import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_UPSTREAM_STATE_TARGET_OPERATOR_ID,
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus,
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest,
+  MocReflectedDomainGlobalMixedRegimeConservativeStateSample,
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult,
+  measure_reflected_domain_global_mixed_regime_upstream_state_target,
+)
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_OPERATOR_ID,
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
@@ -1201,6 +1209,12 @@ __all__ = (
   'MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus',
   'MocReflectedDomainGlobalMixedRegimeStateEquationContract',
   'prepare_reflected_domain_global_mixed_regime_state_equation_contract',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_UPSTREAM_STATE_TARGET_OPERATOR_ID',
+  'MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus',
+  'MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest',
+  'MocReflectedDomainGlobalMixedRegimeConservativeStateSample',
+  'MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetResult',
+  'measure_reflected_domain_global_mixed_regime_upstream_state_target',
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_REFINEMENT_OPERATOR_ID',
   'MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID',
   'MocReflectedDomainGlobalCoupledDownstreamRefinementStatus',

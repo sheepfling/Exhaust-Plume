@@ -408,6 +408,11 @@ from exhaust_plume.validation.moc_global_mixed_regime_state_equation_contract im
   MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus,
   prepare_reflected_domain_global_mixed_regime_state_equation_contract,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_upstream_state_target import (
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus,
+  MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest,
+  measure_reflected_domain_global_mixed_regime_upstream_state_target,
+)
 from exhaust_plume.validation.moc_global_coupled_downstream_refinement import (
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_OPERATOR_ID,
   MOC_REFLECTED_DOMAIN_GLOBAL_COUPLED_DOWNSTREAM_TARGET_BOUND_REFINEMENT_RUN_OPERATOR_ID,
@@ -7526,6 +7531,60 @@ def test_global_mixed_regime_state_equation_audit_retains_all_four_channels():
   assert rejected.full_state_equation_consumed is False
   assert rejected.chain_promotion_blocked
   assert rejected.production_claim_allowed is False
+ ####
+
+
+def test_global_mixed_regime_upstream_state_target_probe_is_dimensional_only():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+  contract = prepare_reflected_domain_global_mixed_regime_state_equation_contract(
+    closure,
+    consumed,
+  )
+
+  result = measure_reflected_domain_global_mixed_regime_upstream_state_target(
+    contract,
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest(
+      reference_total_temperature_K=1500.0,
+      target_gamma=mixed_request.control_section.samples[0].gamma,
+    ),
+  )
+
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus
+    .MEASURED_LOCAL_RESEARCH_RESIDUALS
+  )
+  assert result.local_research_residuals_verified
+  assert result.target_frame_verified
+  assert result.dimensionalization_verified
+  assert result.global_field_sampling_verified
+  assert result.state_target_residuals_measured
+  assert len(result.sampled_states) == len(contract.conservative_state_profile)
+  assert result.entropy_channel_available
+  assert result.entropy_channel_consumed is False
+  assert result.upstream_equation_consumed is False
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  report = result.as_report()
+  assert report['operator_id'].endswith('upstream-state-target-v1')
+  assert report['entropy_channel_consumed'] is False
+  assert report['upstream_equation_consumed'] is False
+  assert report['production_claim_allowed'] is False
  ####
 
 
