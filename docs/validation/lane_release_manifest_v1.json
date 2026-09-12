@@ -266,7 +266,7 @@
     "low_fidelity_promotion_forbidden": true
   },
   "release_provenance": {
-    "candidate_head_commit": "2d9414e471563a84b1c698004900cf955e653645",
+    "candidate_head_commit": "7da64bf7d6afeef1a53239b265169501cb6594ed",
     "candidate_head_matches_recorded_freeze": false,
     "candidate_head_matches_validated_code_commit": false,
     "candidate_worktree_clean": true,
