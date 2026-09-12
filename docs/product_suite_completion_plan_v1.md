@@ -58,9 +58,9 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `d147f2a` (mixed-regime full-state consumer checkpoint); the reflected-domain suite is green at 224 tests, the focused canonical-stop tranche is green at 4 tests, and the local static/contract/package checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `d92d4f3` (fresh full-state consumer solve checkpoint); the reflected-domain suite is green at 225 tests, the focused state-consumer tranche is green at 2 tests, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
-| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | A model-side full-state consumer seam now exists; the true coupled feedback/free-boundary solve remains open |
+| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace now drives a fresh conservative-boundary solve, but its independent conservative residual audit still fails; the true global feedback/free-boundary fixed point remains open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
 | 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked; no freeze rewrite, push, or tag is authorized yet |
@@ -73,14 +73,15 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — code checkpoint `d147f2a`
+### Active execution card — code checkpoint `d92d4f3`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
 shock-geometry response consumer, exact shape-trial replay, bounded shape-step
-records, and the local product/package gates in place.  The latest reflected-
-domain suite is green at 224 tests, and the focused canonical-stop tranche is
-green at 4 tests.  The five Visualization bundles, local Signature/ray/FPA
+records, the model-side full-state consumer, and the local product/package
+gates in place.  The latest reflected-domain suite is green at 225 tests, and
+the focused full-state consumer tranche is green at 2 tests.  The five
+Visualization bundles, local Signature/ray/FPA
 contracts, mission-time composition, and installed-package smoke pass locally;
 provider validation, the downstream boundary, canonical free-boundary,
 production shock-cell, and release flags remain closed.
@@ -98,6 +99,16 @@ bounded and replayable.  Larger legal shape steps and additional interface
 iterations still leave the strict normal-momentum channel open, so the typed
 state failure remains physical research evidence rather than a product or
 canonical-closure result.
+
+The new full-state consumer is exercised on the retained mixed-regime case.
+It binds adjacent downstream conservative states to the exact fresh coupled
+cell-center frame and selects the explicit
+``conservative-state-trace-rusanov-v1`` free-boundary contract.  The fresh
+field reports its local closure status and retains the trace lineage, but the
+independent conservative residual audit returns ``RESIDUAL_FAILURE``.  The
+resolver records ``INDEPENDENT_AUDIT_FAILURE`` rather than promoting the field
+or falling back to the pressure-only boundary.  This is the intended fidelity
+boundary: state consumption is proven, physical closure is not.
 
 The next implementation sprint is therefore to finish and independently
 qualify the physically justified update law after the terminal recheck:
@@ -186,6 +197,33 @@ full state packet in the
 actual coupled global/free-boundary solve and close signed mass, momentum, and
 energy residuals on disjoint cases and increasing resolutions; pressure or
 geometry-only feedback remains insufficient.
+
+### P3.15 fresh full-state coupled solve checkpoint — 2026-09-11
+
+The implementation checkpoint ``d92d4f3`` adds the first numerical consumer
+of the retained full conservative boundary trace.  The coupled-Euler request
+now exposes an explicit ``conservative-state-trace-rusanov-v1`` flux mode with
+four conservative state components per axial cell column, positive-state
+validation, source lineage, and an exact cell-center coordinate frame.  The
+historical specified-pressure material-streamline mode remains the default and
+cannot silently consume a conservative profile.
+
+The global mixed-regime consumer averages adjacent retained trace states into
+the fresh solver's exact cell-column frame, invokes a new coupled solve, and
+independently measures the resulting field.  The focused state-consumer
+regression passes (``2 passed``), and the complete reflected-domain suite
+passes (``225 passed in 371.62s``).  Static checks also pass: Ruff, Pyright,
+Python compilation, and whitespace checks are clean.
+
+The exercised mixed-regime case reaches the local coupled field's closure
+status and retains the exact request/trace lineage, but the independent
+conservative residual audit returns ``RESIDUAL_FAILURE``.  The resolver
+therefore records ``INDEPENDENT_AUDIT_FAILURE``; it does not fall back to the
+pressure-only boundary, claim canonical free-boundary or global coupling, or
+enable production Signature/FPA or shock-cell claims.  The next physics slice
+must explain and close that independent residual mismatch, then repeat the
+fresh solve on disjoint cases and increasing resolutions before any canonical
+or production promotion is considered.
 
 ### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
 
