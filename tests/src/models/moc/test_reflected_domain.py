@@ -95,6 +95,11 @@ from exhaust_plume.validation.moc_global_mixed_regime_joint_state_frontier_feedb
   audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback,
   run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_joint_state_frontier_feedback_refinement import (
+  MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementCase,
+  MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementStatus,
+  run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_refinement,
+)
 from exhaust_plume.validation.moc_euler_two_sided_field_refinement import (
   MocEulerTwoSidedFieldIterationRefinementCase,
   MocEulerTwoSidedFieldRefinementAuditStatus,
@@ -16973,6 +16978,83 @@ def test_global_mixed_regime_joint_feedback_fails_closed_on_exchange_rejection()
   assert result.canonical_free_boundary_verified is False
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
+
+
+def test_global_mixed_regime_joint_feedback_refinement_covers_cases_and_resolutions():
+  cases = []
+  downstream_options = {
+    'axial_station_count': 7,
+    'axial_cell_count': 8,
+    'transverse_cell_count': 4,
+    'max_pseudo_iterations': 400,
+    'max_shape_iterations': 12,
+  }
+  for case_id, skew in (
+    ('joint-feedback-baseline', (-0.75, 0.0)),
+    ('joint-feedback-shifted', (-0.75, -0.25)),
+  ):
+    for sample_count in (9, 11):
+      cases.append(
+        MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementCase(
+          case_id=case_id,
+          request=MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest(
+            source_closure=_global_physical_closure_for_mixed_regime(
+              sample_count,
+              compression_envelope_skews=skew,
+            ),
+            reference_total_temperature_K=1500.0,
+            maximum_iterations=1,
+            downstream_feedback_iterations=2,
+            downstream_options=downstream_options,
+            two_sided_request_options={
+              'normal_momentum_tolerance_Pa': 100.0,
+            },
+            consume_frontier_residual_exchange=True,
+            frontier_residual_exchange_options={
+              'probe_displacement_m': 1.0e-5,
+              'line_search_scales': (1.0,),
+            },
+          ),
+        )
+      )
+  measurement = (
+    run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_refinement(
+      cases,
+      expected_case_ids=(
+        'joint-feedback-baseline',
+        'joint-feedback-shifted',
+      ),
+    )
+  )
+  assert measurement.status is (
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementStatus
+    .CONVERGED_CROSS_CASE_RESEARCH_COVERAGE
+  )
+  assert measurement.converged
+  assert measurement.local_case_resolution_ladders_verified
+  assert measurement.distinct_source_closures_verified
+  assert measurement.exact_closure_lineage_verified
+  assert measurement.feedback_chain_verified
+  assert measurement.nested_exchange_replay_verified
+  assert measurement.componentwise_admission_verified
+  assert measurement.fidelity_isolation_verified
+  assert measurement.local_coverage_verified
+  assert measurement.cross_case_coverage_verified
+  assert measurement.frontier_sample_count_ladders == (
+    (9, 11),
+    (9, 11),
+  )
+  assert all(step.locally_verified for step in measurement.steps)
+  assert all(
+    len(step.nested_exchange_audits) == 1
+    and step.nested_exchange_audits[0].converged
+    for step in measurement.steps
+  )
+  assert measurement.canonical_free_boundary_verified is False
+  assert measurement.global_coupling_verified is False
+  assert measurement.chain_promotion_blocked
+  assert measurement.production_claim_allowed is False
 ####
 
 
