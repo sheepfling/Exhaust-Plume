@@ -77,6 +77,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityStat
   COMPATIBILITY_FAILURE = (
     'upstream-characteristic-compatibility-residual-failure'
   )
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityAuditStatus(
@@ -95,6 +96,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityAudi
   LINEAGE_FAILURE = (
     'upstream-characteristic-compatibility-audit-lineage-failure'
   )
+####
 
 
 def _finite_positive(name: str, value: object) -> float:
@@ -220,6 +222,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilitySamp
     ####
     if not isinstance(self.state, CharacteristicState):
       raise TypeError('state must be a CharacteristicState')
+    ####
     if not isinstance(self.family, CharacteristicFamily):
       raise TypeError('family must be a CharacteristicFamily')
     ####
@@ -236,9 +239,11 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilitySamp
       ####
       if name == 'selected_invariant':
         object.__setattr__(self, name, numeric)
+      ####
     ####
     if abs(float(self.k_plus) - k_plus) > 1.0e-12:
       raise ValueError('k_plus must match the exact characteristic state')
+    ####
     if abs(float(self.k_minus) - k_minus) > 1.0e-12:
       raise ValueError('k_minus must match the exact characteristic state')
     ####
@@ -285,13 +290,13 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilitySegm
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
     ####
     if self.end_sample_index != self.start_sample_index + 1:
       raise ValueError('compatibility segment sample indices must be consecutive')
     ####
     for name in ('invariant_residual', 'geometry_residual'):
       value = _finite_nonnegative(name, getattr(self, name))
-      ####
       object.__setattr__(self, name, value)
     ####
     object.__setattr__(
@@ -306,6 +311,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilitySegm
     )
     if not isfinite(self.forward_margin_m):
       raise ValueError('forward_margin_m must be finite')
+    ####
   ####
 
   def as_report(self) -> dict[str, Any]:
@@ -413,6 +419,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityResu
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if (
       self.upstream_characteristic_equation_consumed
@@ -449,6 +456,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityResu
   def maximum_invariant_residual(self) -> float | None:
     if not self.segments:
       return None
+    ####
     return max(segment.invariant_residual for segment in self.segments)
   ####
 
@@ -456,6 +464,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityResu
   def maximum_geometry_residual(self) -> float | None:
     if not self.segments:
       return None
+    ####
     return max(segment.geometry_residual for segment in self.segments)
   ####
 
@@ -530,6 +539,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityAudi
         MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityResult,
       ):
         raise TypeError(f'{name} must be a typed compatibility result')
+      ####
     ####
     for name in (
       'handoff_lineage_replayed',
@@ -544,6 +554,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicCompatibilityAudi
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if (
       self.upstream_characteristic_equation_consumed

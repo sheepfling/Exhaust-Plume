@@ -88,6 +88,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus(
   GEOMETRY_UPDATE_FAILURE = 'frontier-residual-exchange-geometry-update-failure'
   FRONTIER_RECHECK_FAILURE = 'frontier-residual-exchange-frontier-recheck-failure'
   RESIDUAL_REJECTION = 'frontier-residual-exchange-residual-rejection'
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason(
@@ -100,6 +101,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
   NO_VALID_TRIAL_GEOMETRY = 'no-valid-trial-geometry'
   COMPONENT_WORSENING = 'component-worsening'
   NO_STRICT_COMPONENT_DESCENT = 'no-strict-component-descent'
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAuditStatus(
@@ -114,13 +116,16 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAuditStatus(
   INVALID_INPUT = 'invalid_input'
   REPLAY_FAILURE = 'frontier-residual-exchange-audit-replay-failure'
   LINEAGE_FAILURE = 'frontier-residual-exchange-audit-lineage-failure'
+####
 
 
 def _positive(value: object, name: str) -> float:
   numeric = float(value)
   if not isfinite(numeric) or numeric <= 0.0:
     raise ValueError(f'{name} must be finite and positive')
+  ####
   return numeric
+####
 
 
 def _digest(value: object, name: str) -> str:
@@ -129,7 +134,9 @@ def _digest(value: object, name: str) -> str:
     character not in '0123456789abcdef' for character in digest
   ):
     raise ValueError(f'{name} must be a lowercase SHA-256 digest')
+  ####
   return digest
+####
 
 
 def _normals(
@@ -137,6 +144,7 @@ def _normals(
 ) -> tuple[tuple[float, float], ...]:
   if len(points) < 2:
     raise ValueError('frontier geometry requires at least two points')
+  ####
   normals: list[tuple[float, float]] = []
   for index in range(len(points)):
     if index == 0:
@@ -145,13 +153,17 @@ def _normals(
       first, second = points[-2], points[-1]
     else:
       first, second = points[index - 1], points[index + 1]
+    ####
     tangent_x = second[0] - first[0]
     tangent_y = second[1] - first[1]
     length = hypot(tangent_x, tangent_y)
     if not isfinite(length) or length <= 0.0:
       raise ValueError('frontier geometry contains a degenerate tangent')
+    ####
     normals.append((-tangent_y / length, tangent_x / length))
+  ####
   return tuple(normals)
+####
 
 
 def _packet_fingerprint(
@@ -182,6 +194,7 @@ def _packet_fingerprint(
     default=str,
   )
   return sha256(serialized.encode('utf-8')).hexdigest()
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +218,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket:
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be non-empty')
+    ####
     if (
       isinstance(self.sample_start_index, bool)
       or not isinstance(self.sample_start_index, int)
@@ -229,6 +243,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket:
     )
     if any(len(channel) != len(points) for channel in channels):
       raise ValueError('signed frontier residual channels must align with points')
+    ####
     if any(not isfinite(value) for channel in channels for value in channel):
       raise ValueError('signed frontier residual channels must be finite')
     ####
@@ -241,6 +256,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket:
       for sample in residuals
     ):
       raise ValueError('component_residuals must align with five frontier channels')
+    ####
     if any(
       not isfinite(value) or value < 0.0
       for sample in residuals
@@ -263,10 +279,12 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket:
     object.__setattr__(self, 'signed_entropy_proxy_flux_residuals', channels[4])
     object.__setattr__(self, 'component_residuals', residuals)
     object.__setattr__(self, 'component_tolerance', tolerance)
+  ####
 
   @property
   def sample_count(self) -> int:
     return len(self.point_m)
+  ####
 
   @property
   def maximum_by_component(self) -> tuple[float, ...]:
@@ -274,6 +292,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket:
       max((sample[index] for sample in self.component_residuals), default=float('inf'))
       for index in range(len(FRONTIER_RESIDUAL_COMPONENT_NAMES))
     )
+  ####
 
   @property
   def residual_norm(self) -> float:
@@ -283,10 +302,12 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket:
       for value in sample
     )
     return max(values, default=float('inf'))
+  ####
 
   @property
   def fingerprint(self) -> str:
     return _packet_fingerprint(self)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -311,6 +332,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket:
       'research_only': True,
       'production_claim_allowed': False,
     }
+  ####
+####
 
 
 def build_reflected_domain_global_mixed_regime_frontier_residual_packet(
@@ -323,8 +346,10 @@ def build_reflected_domain_global_mixed_regime_frontier_residual_packet(
     MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep,
   ):
     raise TypeError('step must be a typed shock-frontier refinement step')
+  ####
   if not step.locally_verified:
     raise ValueError('frontier residual exchange requires a locally verified step')
+  ####
   samples = step.normal_closure.closure_samples
   if not samples:
     raise ValueError('frontier normal closure retained no residual samples')
@@ -364,6 +389,7 @@ def build_reflected_domain_global_mixed_regime_frontier_residual_packet(
     component_residuals=tuple(sample.component_residuals for sample in samples),
     component_tolerance=step.normal_closure_request.component_tolerance,
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -401,17 +427,22 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
       MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep,
     ):
       raise TypeError('source_frontier_step must be a typed frontier step')
+    ####
     if not self.source_frontier_step.locally_verified:
       raise ValueError('source_frontier_step must be locally verified')
+    ####
     if not isinstance(
       self.target_closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('target_closure must be a typed global physical closure')
+    ####
     if not self.target_closure.converged or not self.target_closure.physical_closure_verified:
       raise ValueError('target_closure must be locally physically verified')
+    ####
     if self.target_closure.global_euler is None or self.target_closure.global_euler.shock_boundary is None:
       raise ValueError('target_closure must retain a global Euler shock boundary')
+    ####
     if (
       isinstance(self.maximum_iterations, bool)
       or not isinstance(self.maximum_iterations, int)
@@ -429,28 +460,38 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
       'tangent_tolerance',
     ):
       object.__setattr__(self, name, _positive(getattr(self, name), name))
+    ####
     relaxation = _positive(self.relaxation, 'relaxation')
     if relaxation > 1.0:
       raise ValueError('relaxation must be no greater than one')
+    ####
     if self.probe_displacement_m > self.maximum_displacement_m:
       raise ValueError('probe_displacement_m cannot exceed maximum_displacement_m')
+    ####
     scales = tuple(float(value) for value in self.line_search_scales)
     if not scales or any(not isfinite(value) or value <= 0.0 or value > 1.0 for value in scales):
       raise ValueError('line_search_scales must contain finite values in (0, 1]')
+    ####
     if any(right >= left for left, right in zip(scales, scales[1:])):
       raise ValueError('line_search_scales must be strictly decreasing')
+    ####
     if not isinstance(self.try_opposite_direction, bool):
       raise TypeError('try_opposite_direction must be a bool')
+    ####
     if not isinstance(self.allow_attachment_tangent_update, bool):
       raise TypeError('allow_attachment_tangent_update must be a bool')
+    ####
     if not isinstance(self.branch, ShockBranch):
       raise TypeError('branch must be a ShockBranch')
+    ####
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
+    ####
     object.__setattr__(self, 'relaxation', relaxation)
     object.__setattr__(self, 'line_search_scales', scales)
     object.__setattr__(self, 'source', source)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -475,6 +516,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
       'research_only': True,
       'production_claim_allowed': False,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -505,8 +548,10 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
   def __post_init__(self) -> None:
     if isinstance(self.iteration_index, bool) or not isinstance(self.iteration_index, int) or self.iteration_index < 0:
       raise ValueError('iteration_index must be a nonnegative integer')
+    ####
     if not isinstance(self.source_packet, MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket):
       raise TypeError('source_packet must be a typed residual packet')
+    ####
     for name, expected in (
       ('trial_packet', MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket),
       ('source_closure', MocReflectedDomainGlobalPhysicalClosureResult),
@@ -516,9 +561,12 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected):
         raise TypeError(f'{name} must retain its typed result or None')
+      ####
+    ####
     points = tuple((float(point[0]), float(point[1])) for point in self.trial_points_m)
     if any(not all(isfinite(value) for value in point) for point in points):
       raise ValueError('trial_points_m must contain finite points')
+    ####
     for name in (
       'componentwise_non_worsening',
       'strict_component_descent',
@@ -528,29 +576,36 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if (
       isinstance(self.candidate_count, bool)
       or not isinstance(self.candidate_count, int)
       or self.candidate_count < 0
     ):
       raise ValueError('candidate_count must be a nonnegative integer')
+    ####
     for name in ('selected_direction_multiplier', 'selected_step_scale'):
       value = float(getattr(self, name))
       if not isfinite(value):
         raise ValueError(f'{name} must be finite')
+      ####
       object.__setattr__(self, name, value)
+    ####
     update_mode = str(self.selected_update_mode)
     if update_mode not in FRONTIER_RESIDUAL_UPDATE_MODES:
       raise ValueError(
         'selected_update_mode must be one of '
         f'{FRONTIER_RESIDUAL_UPDATE_MODES}'
       )
+    ####
     object.__setattr__(self, 'selected_update_mode', update_mode)
     if not isinstance(
       self.admission_reason,
       MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason,
     ):
       raise TypeError('admission_reason must be a typed admission reason')
+    ####
     if self.accepted and not (
       self.componentwise_non_worsening
       and self.strict_component_descent
@@ -559,8 +614,10 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
       and self.trial_frontier_step is not None
     ):
       raise ValueError('accepted exchange iterations require consumed improving trial evidence')
+    ####
     object.__setattr__(self, 'trial_points_m', points)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -586,6 +643,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration:
       'admission_reason': self.admission_reason.value,
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -613,8 +672,10 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus):
       raise TypeError('status must be a typed residual-exchange status')
+    ####
     if self.request is not None and not isinstance(self.request, MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest):
       raise TypeError('request must be a typed residual-exchange request')
+    ####
     for name, expected in (
       ('source_packet', MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket),
       ('final_packet', MocReflectedDomainGlobalMixedRegimeFrontierResidualPacket),
@@ -624,11 +685,15 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected):
         raise TypeError(f'{name} must retain a typed result or None')
+      ####
+    ####
     iterations = tuple(self.iterations)
     if any(not isinstance(item, MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration) for item in iterations):
       raise TypeError('iterations must contain typed residual-exchange iterations')
+    ####
     if tuple(item.iteration_index for item in iterations) != tuple(range(len(iterations))):
       raise ValueError('iterations must have contiguous zero-based indices')
+    ####
     object.__setattr__(self, 'iterations', iterations)
     for name in (
       'geometry_update_attempted',
@@ -643,11 +708,16 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or self.canonical_free_boundary_verified:
       raise ValueError('residual exchange cannot claim canonical closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('residual exchange must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -663,6 +733,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult:
       and not self.canonical_free_boundary_verified
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -690,6 +761,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult:
       'request': None if self.request is None else self.request.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -711,8 +784,10 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAudit:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAuditStatus):
       raise TypeError('status must be a typed residual-exchange audit status')
+    ####
     if self.candidate is not None and not isinstance(self.candidate, MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult):
       raise TypeError('candidate must be a typed residual-exchange result')
+    ####
     for name in (
       'request_replayed',
       'packet_replayed',
@@ -725,9 +800,13 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('residual-exchange audit must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -735,6 +814,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAudit:
       self.status is MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAuditStatus.VERIFIED_RESEARCH_FRONTIER_RESIDUAL_EXCHANGE
       and self.independent_exchange_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -752,6 +832,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAudit:
       'candidate': None if self.candidate is None else self.candidate.as_report(),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -767,6 +849,7 @@ def _failure(
     message=message,
     **values,
   )
+####
 
 
 def _comparison(
@@ -775,6 +858,7 @@ def _comparison(
 ) -> tuple[bool, bool]:
   if before.sample_count != after.sample_count:
     return False, False
+  ####
   before_max = before.maximum_by_component
   after_max = after.maximum_by_component
   tolerance = 1.0e-12
@@ -787,6 +871,7 @@ def _comparison(
     for before_value, after_value in zip(before_max, after_max, strict=True)
   )
   return bool(non_worsening), bool(strict)
+####
 
 
 def _trial_points(
@@ -800,14 +885,18 @@ def _trial_points(
 ) -> tuple[tuple[float, float], ...]:
   if closure.global_euler is None or closure.global_euler.shock_boundary is None:
     raise ValueError('target closure retains no global shock boundary')
+  ####
   curve = closure.global_euler.shock_boundary
   points = tuple(curve.shock_points_m)
   if len(points) <= packet.sample_start_index:
     raise ValueError('target shock boundary is shorter than the frontier packet')
+  ####
   if packet.sample_start_index + packet.sample_count > len(points):
     raise ValueError('frontier packet does not align with target shock boundary')
+  ####
   if update_mode not in FRONTIER_RESIDUAL_UPDATE_MODES:
     raise ValueError(f'unsupported frontier residual update mode: {update_mode}')
+  ####
   normals = _normals(points)
   updated = [list(point) for point in points]
   for local_index, signed_residual in enumerate(
@@ -817,6 +906,7 @@ def _trial_points(
     if update_mode == 'attachment-tangent':
       if global_index != 1 or not request.allow_attachment_tangent_update:
         continue
+      ####
       # Sample zero is a solver-owned zero-strength Mach-wave endpoint.  The
       # first compressive sample may move only along that fixed endpoint ray;
       # this preserves the attachment tangent while allowing the exact source
@@ -835,6 +925,7 @@ def _trial_points(
         )
       else:
         next_spacing = endpoint_length
+      ####
       step = min(
         request.probe_displacement_m,
         request.maximum_displacement_m,
@@ -862,6 +953,7 @@ def _trial_points(
     ####
     if abs(signed_residual) <= 0.0:
       continue
+    ####
     previous = points[global_index - 1]
     following = points[global_index + 1]
     spacing = min(
@@ -879,7 +971,9 @@ def _trial_points(
     direction = direction_multiplier * -copysign(1.0, signed_residual)
     updated[global_index][0] += direction * step * normals[global_index][0]
     updated[global_index][1] += direction * step * normals[global_index][1]
+  ####
   return tuple((point[0], point[1]) for point in updated)
+####
 
 
 def _run_trial(
@@ -907,8 +1001,10 @@ def _run_trial(
   )
   if current_closure.global_euler is None or current_closure.global_euler.shock_boundary is None:
     raise ValueError('target closure retains no global shock boundary')
+  ####
   if current_closure.source_band is None:
     raise ValueError('target closure retains no solver-owned source band')
+  ####
   curve = current_closure.global_euler.shock_boundary
   upstream_states = []
   upstream_pressures = []
@@ -930,6 +1026,7 @@ def _run_trial(
         point,
         position_tolerance_m=request.position_tolerance_m,
       )
+    ####
     if (
       state is None
       or pressure is None
@@ -939,6 +1036,7 @@ def _run_trial(
       raise ValueError(
         f'geometry-conditioned trial point {index} is outside the retained source band'
       )
+    ####
     upstream_states.append(state)
     upstream_pressures.append(float(pressure))
   ####
@@ -957,6 +1055,7 @@ def _run_trial(
   )
   if not trial_curve.converged or not trial_curve.local_euler_verified:
     raise ValueError(f'geometry-conditioned shock refit did not converge: {trial_curve.message}')
+  ####
   trial_closure = consume_reflected_domain_global_shock_geometry_response(
     current_closure,
     trial_curve,
@@ -968,6 +1067,7 @@ def _run_trial(
   )
   if not trial_closure.converged or not trial_closure.physical_closure_verified:
     raise ValueError(f'global geometry update did not close: {trial_closure.message}')
+  ####
   source_request = current_step.state_equation_request
   trial_step = run_reflected_domain_global_mixed_regime_shock_frontier_step(
     MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
@@ -986,6 +1086,7 @@ def _run_trial(
     )
   )
   return trial_points, trial_closure, trial_step
+####
 
 
 def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
@@ -996,12 +1097,14 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
   status_type = MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
   if not isinstance(request, MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest):
     return _failure(status_type.INVALID_INPUT, 'request must be a typed residual-exchange request')
+  ####
   try:
     source_packet = build_reflected_domain_global_mixed_regime_frontier_residual_packet(
       request.source_frontier_step
     )
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(status_type.INPUT_FAILURE, f'frontier residual packet failed: {error}', request=request)
+  ####
   current_closure = request.target_closure
   current_step = request.source_frontier_step
   current_packet = source_packet
@@ -1047,6 +1150,7 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
               f'scale={step_scale:g}: {error}'
             )
             continue
+          ####
           candidate = (
             trial_points,
             trial_closure,
@@ -1062,10 +1166,16 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
           if non_worsening and strict:
             accepted_candidate = candidate
             break
+          ####
+        ####
         if accepted_candidate is not None:
           break
+        ####
+      ####
       if accepted_candidate is not None:
         break
+      ####
+    ####
     if not candidates:
       error = '; '.join(failures) or 'no bounded line-search candidates were produced'
       iteration = MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeIteration(
@@ -1201,6 +1311,7 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
         production_claim_allowed=False,
         message=iteration.message,
       )
+    ####
     current_closure = trial_closure
     current_step = trial_step
     current_packet = trial_packet
@@ -1236,6 +1347,7 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       'and production promotion remain closed'
     ),
   )
+####
 
 
 def audit_reflected_domain_global_mixed_regime_frontier_residual_exchange(
@@ -1250,12 +1362,14 @@ def audit_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       candidate=None,
       message='result must be a typed residual-exchange result',
     )
+  ####
   if result.request is None:
     return MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAudit(
       status=audit_status.REPLAY_FAILURE,
       candidate=result,
       message='residual-exchange replay requires the retained request',
     )
+  ####
   try:
     replay = run_reflected_domain_global_mixed_regime_frontier_residual_exchange(result.request)
   except (ArithmeticError, FloatingPointError, RuntimeError, TypeError, ValueError) as error:
@@ -1264,6 +1378,7 @@ def audit_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       candidate=result,
       message=f'residual-exchange replay raised: {error}',
     )
+  ####
   request_replayed = replay.request is result.request
   packet_replayed = bool(
     replay.source_packet is not None
@@ -1319,3 +1434,4 @@ def audit_reflected_domain_global_mixed_regime_frontier_residual_exchange(
       else 'independent replay did not reproduce the exact residual exchange'
     ),
   )
+####

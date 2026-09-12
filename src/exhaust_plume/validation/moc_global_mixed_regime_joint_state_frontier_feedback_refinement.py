@@ -68,6 +68,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSta
   FEEDBACK_FAILURE = (
     'joint-state-frontier-feedback-refinement-feedback-failure'
   )
+####
 
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementCase:
@@ -83,30 +84,37 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementCas
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be non-empty')
+    ####
     if not isinstance(
       self.request,
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest,
     ):
       raise TypeError('request must be a typed joint-feedback request')
+    ####
     if not self.request.consume_frontier_residual_exchange:
       raise ValueError(
         'refinement cases must explicitly consume frontier residual exchange'
       )
+    ####
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
+    ####
     object.__setattr__(self, 'case_id', case_id)
     object.__setattr__(self, 'source', source)
+  ####
 
   @property
   def source_closure(self) -> MocReflectedDomainGlobalPhysicalClosureResult:
     return self.request.source_closure
+  ####
 
   @property
   def source_closure_fingerprint(self) -> str:
     return moc_reflected_domain_global_physical_closure_fingerprint(
       self.source_closure
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -120,6 +128,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementCas
       'research_only': True,
       'production_claim_allowed': False,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,16 +150,19 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementCase,
     ):
       raise TypeError('case must be a typed refinement case')
+    ####
     if not isinstance(
       self.result,
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult,
     ):
       raise TypeError('result must be a typed joint-feedback result')
+    ####
     if not isinstance(
       self.audit,
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit,
     ):
       raise TypeError('audit must be a typed joint-feedback audit')
+    ####
     audits = tuple(self.nested_exchange_audits)
     if any(
       not isinstance(
@@ -159,7 +172,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
       for audit in audits
     ):
       raise TypeError('nested_exchange_audits must contain typed audits')
+    ####
     object.__setattr__(self, 'nested_exchange_audits', audits)
+  ####
 
   @property
   def frontier_sample_counts(self) -> tuple[int, ...]:
@@ -168,6 +183,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
       for item in self.result.iterations
       if item.source_frontier_step is not None
     )
+  ####
 
   @property
   def exchange_results(
@@ -178,38 +194,51 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
       for item in self.result.iterations
       if item.frontier_residual_exchange is not None
     )
+  ####
 
   @property
   def exact_closure_lineage_verified(self) -> bool:
     expected = self.result.source_closure
     if expected is not self.case.source_closure:
       return False
+    ####
     for item in self.result.iterations:
       if item.source_closure is not expected:
         return False
+      ####
       if item.boundary_state_feedback.source_closure is not expected:
         return False
+      ####
       if item.source_frontier_step is None or item.joint_solve is None:
         return False
+      ####
       if item.joint_solve.joint_state_solve is None:
         return False
+      ####
       handoff = item.boundary_state_feedback.handoff
       if handoff is None or item.source_frontier_step.closure is not handoff.boundary_feedback_run.iterations[-1].source_closure:
         return False
+      ####
       if item.joint_solve.source_frontier_step is not item.source_frontier_step:
         return False
+      ####
       expected = item.next_closure
       if expected is None:
         return False
+      ####
       if item.frontier_residual_exchange is not None:
         if expected is not item.frontier_residual_exchange.final_closure:
           return False
+        ####
       elif expected is not item.joint_solve.joint_state_solve.geometry_response_closure:
         return False
+      ####
+    ####
     return bool(
       expected is not None
       and self.result.final_closure is expected
     )
+  ####
 
   @property
   def nested_exchange_replay_verified(self) -> bool:
@@ -219,6 +248,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
       and self.nested_exchange_audits
       and all(audit.converged for audit in self.nested_exchange_audits)
     )
+  ####
 
   @property
   def componentwise_admission_verified(self) -> bool:
@@ -229,6 +259,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
         for result in self.exchange_results
       )
     )
+  ####
 
   @property
   def feedback_chain_verified(self) -> bool:
@@ -239,13 +270,16 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
       and self.result.independent_audit_verified
       and all(item.research_step_verified for item in self.result.iterations)
     )
+  ####
 
   @property
   def fail_closed_rejection_verified(self) -> bool:
     if self.result.status is not MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus.RESIDUAL_EXCHANGE_FAILURE:
       return False
+    ####
     if not self.result.iterations:
       return False
+    ####
     exchange = self.result.iterations[-1].frontier_residual_exchange
     return bool(
       exchange is not None
@@ -253,6 +287,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
       and not self.result.iterations[-1].research_step_verified
       and self.result.final_closure is self.result.iterations[-1].next_closure
     )
+  ####
 
   @property
   def fidelity_isolation_verified(self) -> bool:
@@ -271,6 +306,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
         for audit in self.nested_exchange_audits
       )
     )
+  ####
 
   @property
   def locally_verified(self) -> bool:
@@ -281,6 +317,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
       and self.componentwise_admission_verified
       and self.fidelity_isolation_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -304,6 +341,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementSte
         'locally_verified': self.locally_verified,
       },
     }
+  ####
+####
 
 
 def _grouped_frontier_sample_count_ladders(
@@ -319,6 +358,7 @@ def _grouped_frontier_sample_count_ladders(
   ] = {}
   for step in steps:
     grouped.setdefault(step.case.case_id, []).append(step)
+  ####
   return tuple(
     tuple(
       count
@@ -327,6 +367,7 @@ def _grouped_frontier_sample_count_ladders(
     )
     for case_steps in grouped.values()
   )
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -364,6 +405,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementMea
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementStatus,
     ):
       raise TypeError('status must be a typed refinement status')
+    ####
     steps = tuple(self.steps)
     if any(
       not isinstance(
@@ -373,15 +415,19 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementMea
       for step in steps
     ):
       raise TypeError('steps must contain typed refinement steps')
+    ####
     case_ids = tuple(step.case.case_id for step in steps)
     ladders = _grouped_frontier_sample_count_ladders(steps)
     fingerprints = tuple(step.case.source_closure_fingerprint for step in steps)
     if self.case_ids and tuple(self.case_ids) != case_ids:
       raise ValueError('case_ids must match retained refinement steps')
+    ####
     if self.frontier_sample_count_ladders and tuple(self.frontier_sample_count_ladders) != ladders:
       raise ValueError('frontier_sample_count_ladders must match retained steps')
+    ####
     if self.source_closure_fingerprints and tuple(self.source_closure_fingerprints) != fingerprints:
       raise ValueError('source_closure_fingerprints must match retained steps')
+    ####
     for name in (
       'local_case_resolution_ladders_verified',
       'distinct_source_closures_verified',
@@ -401,15 +447,20 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementMea
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('refinement cannot claim canonical/global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('refinement must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'steps', steps)
     object.__setattr__(self, 'case_ids', case_ids)
     object.__setattr__(self, 'frontier_sample_count_ladders', ladders)
     object.__setattr__(self, 'source_closure_fingerprints', fingerprints)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -424,6 +475,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementMea
       and self.local_coverage_verified
       and self.fidelity_isolation_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -455,6 +507,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementMea
       'steps': tuple(step.as_report() for step in self.steps),
       'message': self.message,
     }
+  ####
+####
 
 
 def _measurement(
@@ -480,6 +534,7 @@ def _measurement(
     **flags,
     message=message,
   )
+####
 
 
 def _strictly_increasing(values: Sequence[int]) -> bool:
@@ -487,6 +542,7 @@ def _strictly_increasing(values: Sequence[int]) -> bool:
     len(values) >= 2
     and all(right > left for left, right in zip(values, values[1:]))
   )
+####
 
 
 def _resolution_ladder(
@@ -498,8 +554,11 @@ def _resolution_ladder(
   for step in steps:
     if not step.frontier_sample_counts:
       return False
+    ####
     counts.append(step.frontier_sample_counts[0])
+  ####
   return _strictly_increasing(counts)
+####
 
 
 def measure_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_refinement(
@@ -518,6 +577,7 @@ def measure_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_r
     retained = tuple(steps)
   except TypeError:
     return _measurement(status_type.INVALID_INPUT, 'steps must be iterable')
+  ####
   if len(retained) < 2 or any(
     not isinstance(
       step,
@@ -533,6 +593,7 @@ def measure_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_r
   grouped: dict[str, list[MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRefinementStep]] = {}
   for step in retained:
     grouped.setdefault(step.case.case_id, []).append(step)
+  ####
   actual_case_ids = tuple(grouped)
   expected = (
     None
@@ -594,6 +655,8 @@ def measure_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_r
   ):
     if not verified:
       open_gates.append(label)
+    ####
+  ####
   message = (
     'joint state/frontier feedback consumed the bounded five-channel frontier '
     'exchange across distinct source closures and increasing exact resolutions; '
@@ -622,6 +685,7 @@ def measure_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_r
     chain_promotion_blocked=True,
     production_claim_allowed=False,
   )
+####
 
 
 def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_refinement(
@@ -640,6 +704,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_refin
     retained_cases = tuple(cases)
   except TypeError:
     return _measurement(status_type.INVALID_INPUT, 'cases must be iterable')
+  ####
   if len(retained_cases) < 2 or any(
     not isinstance(
       case,
@@ -684,7 +749,10 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_refin
         f'joint state/frontier feedback refinement failed: {error}',
         steps=steps,
       )
+    ####
+  ####
   return measure_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_refinement(
     steps,
     expected_case_ids=expected_case_ids,
   )
+####

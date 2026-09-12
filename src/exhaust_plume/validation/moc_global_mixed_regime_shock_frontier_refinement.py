@@ -101,13 +101,16 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStatus(
   )
   INVALID_INPUT = 'invalid_input'
   FRONTIER_FAILURE = 'shock-frontier-refinement-frontier-failure'
+####
 
 
 def _positive(name: str, value: object) -> float:
   numeric = float(value)
   if not isfinite(numeric) or numeric <= 0.0:
     raise ValueError(f'{name} must be finite and positive')
+  ####
   return numeric
+####
 
 
 def _frontier_sample_count(
@@ -115,7 +118,9 @@ def _frontier_sample_count(
 ) -> int:
   if closure.global_euler is None or closure.global_euler.shock_boundary is None:
     return 0
+  ####
   return len(closure.global_euler.shock_boundary.shock_points_m)
+####
 
 
 def _increasing(values: Sequence[int]) -> bool:
@@ -123,6 +128,7 @@ def _increasing(values: Sequence[int]) -> bool:
     len(values) >= 2
     and all(right > left for left, right in zip(values, values[1:]))
   )
+####
 
 
 def _interface_normals(
@@ -130,6 +136,7 @@ def _interface_normals(
 ) -> tuple[tuple[float, float], ...]:
   if len(points) < 2:
     raise ValueError('shock-frontier interface requires at least two points')
+  ####
   normals: list[tuple[float, float]] = []
   for index, _point in enumerate(points):
     if index == 0:
@@ -138,13 +145,17 @@ def _interface_normals(
       first, second = points[-2], points[-1]
     else:
       first, second = points[index - 1], points[index + 1]
+    ####
     tangent_x = second[0] - first[0]
     tangent_y = second[1] - first[1]
     length = sqrt(tangent_x * tangent_x + tangent_y * tangent_y)
     if not isfinite(length) or length <= 0.0:
       raise ValueError('shock-frontier tangent must have positive length')
+    ####
     normals.append((-tangent_y / length, tangent_x / length))
+  ####
   return tuple(normals)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +177,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase:
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be non-empty')
+    ####
     if not isinstance(
       self.closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
@@ -173,6 +185,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase:
       raise TypeError(
         'closure must be a MocReflectedDomainGlobalPhysicalClosureResult'
       )
+    ####
     if (
       isinstance(self.sample_start_index, bool)
       or not isinstance(self.sample_start_index, int)
@@ -183,6 +196,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase:
     offset_side = float(self.offset_side)
     if not isfinite(offset_side) or abs(abs(offset_side) - 1.0) > 1.0e-12:
       raise ValueError('offset_side must be either -1 or +1')
+    ####
     object.__setattr__(self, 'case_id', case_id)
     object.__setattr__(
       self,
@@ -197,6 +211,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase:
       'target_entropy_consistency_tolerance',
     ):
       object.__setattr__(self, name, _positive(name, getattr(self, name)))
+    ####
     object.__setattr__(self, 'offset_side', offset_side)
   ####
 
@@ -242,6 +257,7 @@ def _ambient_profile(
   closure = case.closure
   if closure.global_euler is None or closure.global_euler.shock_boundary is None:
     raise ValueError('global closure retains no exact Euler shock frontier')
+  ####
   shock = closure.global_euler.shock_boundary
   states = tuple(shock.downstream_states[case.sample_start_index:])
   total_pressure = tuple(
@@ -280,7 +296,9 @@ def _ambient_profile(
         specific_gas_constant_J_kg_K=gas_constant,
       )
     )
+  ####
   return tuple(profile)
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,17 +328,20 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be non-empty')
+    ####
     if not isinstance(
       self.closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('closure must be a typed global physical closure')
+    ####
     if (
       isinstance(self.sample_start_index, bool)
       or not isinstance(self.sample_start_index, int)
       or self.sample_start_index < 0
     ):
       raise ValueError('sample_start_index must be a nonnegative integer')
+    ####
     typed = (
       (
         'state_equation_request',
@@ -386,6 +407,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep:
     for name, expected in typed:
       if not isinstance(getattr(self, name), expected):
         raise TypeError(f'{name} must retain its typed solver result')
+      ####
     ####
     object.__setattr__(self, 'case_id', case_id)
   ####
@@ -578,6 +600,7 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementMeasurement:
       MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStatus,
     ):
       raise TypeError('status must be a typed shock-frontier refinement status')
+    ####
     steps = tuple(self.steps)
     if any(
       not isinstance(
@@ -587,11 +610,13 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementMeasurement:
       for step in steps
     ):
       raise TypeError('steps must contain typed shock-frontier refinement steps')
+    ####
     case_ids = tuple(str(value) for value in self.case_ids)
     counts = tuple(int(value) for value in self.frontier_sample_counts)
     fingerprints = tuple(str(value) for value in self.source_closure_fingerprints)
     if not (len(case_ids) == len(counts) == len(fingerprints) == len(steps)):
       raise ValueError('measurement summaries must match the step count')
+    ####
     for name in (
       'local_case_resolution_ladders_verified',
       'distinct_source_closures_verified',
@@ -609,10 +634,14 @@ class MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('shock-frontier coverage cannot claim global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('shock-frontier coverage must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'steps', steps)
     object.__setattr__(self, 'case_ids', case_ids)
     object.__setattr__(self, 'frontier_sample_counts', counts)
@@ -696,6 +725,7 @@ def _measurement(
     **flags,
     message=message,
   )
+####
 
 
 def measure_reflected_domain_global_mixed_regime_shock_frontier_refinement(
@@ -710,11 +740,13 @@ def measure_reflected_domain_global_mixed_regime_shock_frontier_refinement(
     retained = tuple(steps)
   except TypeError:
     return _measurement(status_type.INVALID_INPUT, 'steps must be iterable')
+  ####
   if len(retained) < 2:
     return _measurement(
       status_type.INVALID_INPUT,
       'shock-frontier refinement requires at least two steps',
     )
+  ####
   if any(
     not isinstance(
       step,
@@ -730,6 +762,7 @@ def measure_reflected_domain_global_mixed_regime_shock_frontier_refinement(
   grouped: dict[str, list[MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep]] = defaultdict(list)
   for step in retained:
     grouped[step.case_id].append(step)
+  ####
   actual_case_ids = tuple(grouped)
   expected = (
     None
@@ -803,6 +836,7 @@ def measure_reflected_domain_global_mixed_regime_shock_frontier_refinement(
     chain_promotion_blocked=True,
     production_claim_allowed=False,
   )
+####
 
 
 def _run_case(
@@ -812,6 +846,7 @@ def _run_case(
     raise ValueError(
       'case closure must be a locally verified global physical closure'
     )
+  ####
   if case.frontier_sample_count <= case.sample_start_index + 1:
     raise ValueError(
       'case closure does not retain enough shock-frontier samples after the '
@@ -836,6 +871,7 @@ def _run_case(
   )
   if not state_equation.converged:
     raise ValueError(f'state equation did not converge: {state_equation.message}')
+  ####
   state_equation_audit = audit_reflected_domain_global_mixed_regime_upstream_state_equation(
     state_equation
   )
@@ -851,6 +887,7 @@ def _run_case(
   )
   if not frame.converged:
     raise ValueError(f'characteristic frame did not converge: {frame.message}')
+  ####
   frame_audit = audit_reflected_domain_global_mixed_regime_upstream_characteristic_frame(
     frame
   )
@@ -862,6 +899,7 @@ def _run_case(
   source_band = case.closure.source_band
   if source_band is None or source_band.ambient_pressure_Pa is None:
     raise ValueError('physical closure retains no ambient pressure for interface')
+  ####
   interface = solve_reflected_domain_global_mixed_regime_transonic_interface(
     MocReflectedDomainGlobalMixedRegimeTransonicInterfaceRequest(
       characteristic_frame=frame,
@@ -875,6 +913,7 @@ def _run_case(
   )
   if not interface.converged:
     raise ValueError(f'transonic interface did not converge: {interface.message}')
+  ####
   interface_audit = audit_reflected_domain_global_mixed_regime_transonic_interface(
     interface
   )
@@ -892,6 +931,7 @@ def _run_case(
   )
   if not handoff.interface_handoff_verified:
     raise ValueError(f'characteristic handoff failed: {handoff.message}')
+  ####
   handoff_audit = audit_reflected_domain_global_mixed_regime_upstream_characteristic_equation(
     handoff
   )
@@ -916,6 +956,7 @@ def _run_case(
     raise ValueError(
       f'characteristic compatibility did not pass its gate: {compatibility.message}'
     )
+  ####
   compatibility_audit = (
     audit_reflected_domain_global_mixed_regime_upstream_characteristic_compatibility(
       compatibility
@@ -941,6 +982,7 @@ def _run_case(
   )
   if not normal_closure.converged:
     raise ValueError(f'normal closure did not converge: {normal_closure.message}')
+  ####
   normal_closure_audit = audit_reflected_domain_global_mixed_regime_normal_closure(
     normal_closure
   )
@@ -969,6 +1011,7 @@ def _run_case(
     normal_closure=normal_closure,
     normal_closure_audit=normal_closure_audit,
   )
+####
 
 
 def run_reflected_domain_global_mixed_regime_shock_frontier_refinement(
@@ -983,11 +1026,13 @@ def run_reflected_domain_global_mixed_regime_shock_frontier_refinement(
     retained_cases = tuple(cases)
   except TypeError:
     return _measurement(status_type.INVALID_INPUT, 'cases must be iterable')
+  ####
   if len(retained_cases) < 2:
     return _measurement(
       status_type.INVALID_INPUT,
       'shock-frontier refinement requires at least two cases/resolutions',
     )
+  ####
   if any(
     not isinstance(
       case,
@@ -1010,10 +1055,13 @@ def run_reflected_domain_global_mixed_regime_shock_frontier_refinement(
         f'shock-frontier refinement execution failed: {error}',
         steps=steps,
       )
+    ####
+  ####
   return measure_reflected_domain_global_mixed_regime_shock_frontier_refinement(
     steps,
     expected_case_ids=expected_case_ids,
   )
+####
 
 
 def run_reflected_domain_global_mixed_regime_shock_frontier_step(
@@ -1035,4 +1083,6 @@ def run_reflected_domain_global_mixed_regime_shock_frontier_step(
     raise TypeError(
       'case must be a typed shock-frontier refinement case'
     )
+  ####
   return _run_case(case)
+####

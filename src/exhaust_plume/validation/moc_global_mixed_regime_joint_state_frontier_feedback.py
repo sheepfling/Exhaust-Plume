@@ -121,6 +121,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus(
     'joint-state-frontier-feedback-residual-descent-failure'
   )
   AUDIT_REQUIRED = 'joint-state-frontier-feedback-audit-required'
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAuditStatus(
@@ -135,6 +136,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAuditStatus(
   INVALID_INPUT = 'invalid_input'
   REPLAY_FAILURE = 'joint-state-frontier-feedback-audit-replay-failure'
   LINEAGE_FAILURE = 'joint-state-frontier-feedback-audit-lineage-failure'
+####
 
 
 def _mapping(
@@ -143,16 +145,21 @@ def _mapping(
 ) -> MappingProxyType[str, Any]:
   if value is None:
     return MappingProxyType({})
+  ####
   if not isinstance(value, Mapping):
     raise TypeError(f'{name} must be a mapping when supplied')
+  ####
   return MappingProxyType(dict(value))
+####
 
 
 def _positive(value: Any, name: str) -> float:
   numeric = float(value)
   if not isfinite(numeric) or numeric <= 0.0:
     raise ValueError(f'{name} must be finite and positive')
+  ####
   return numeric
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,11 +191,14 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('source_closure must be a typed global physical closure')
+    ####
     for name in ('maximum_iterations', 'downstream_feedback_iterations'):
       value = getattr(self, name)
       minimum = 1 if name == 'maximum_iterations' else 2
       if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
         raise ValueError(f'{name} must be an integer >= {minimum}')
+      ####
+    ####
     object.__setattr__(
       self,
       'reference_total_temperature_K',
@@ -206,6 +216,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       'fixed_point_residual_tolerance',
     ):
       object.__setattr__(self, name, _positive(getattr(self, name), name))
+    ####
     for name in (
       'require_fixed_point',
       'require_residual_descent',
@@ -214,8 +225,11 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if not isinstance(self.consume_frontier_residual_exchange, bool):
       raise TypeError('consume_frontier_residual_exchange must be a bool')
+    ####
     object.__setattr__(
       self,
       'downstream_options',
@@ -241,7 +255,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
+    ####
     object.__setattr__(self, 'source', source)
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -279,6 +295,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest:
       'research_only': True,
       'production_claim_allowed': False,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,10 +333,13 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
   def __post_init__(self) -> None:
     if isinstance(self.iteration_index, bool) or not isinstance(self.iteration_index, int) or self.iteration_index < 0:
       raise ValueError('iteration_index must be a nonnegative integer')
+    ####
     if not isinstance(self.source_closure, MocReflectedDomainGlobalPhysicalClosureResult):
       raise TypeError('source_closure must be a typed global physical closure')
+    ####
     if not isinstance(self.boundary_state_feedback, MocReflectedDomainGlobalBoundaryStateFeedbackResult):
       raise TypeError('boundary_state_feedback must be a typed result')
+    ####
     for name, expected in (
       ('source_frontier_step', MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep),
       ('joint_solve', MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult),
@@ -331,6 +352,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected):
         raise TypeError(f'{name} must retain its typed result or None')
+      ####
+    ####
     for name in (
       'source_lineage_verified',
       'boundary_state_feedback_verified',
@@ -348,6 +371,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     aggregate = tuple(float(value) for value in self.aggregate_residual_vector)
     if aggregate and (
       len(aggregate)
@@ -358,10 +383,12 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
         'aggregate_residual_vector must contain the exact finite, nonnegative '
         'joint state/frontier residual channels'
       )
+    ####
     if self.aggregate_residual_vector_verified and not aggregate:
       raise ValueError(
         'aggregate_residual_vector_verified requires a retained residual vector'
       )
+    ####
     if self.aggregate_residual_tolerance_verified and (
       not self.aggregate_residual_vector_verified
       or any(value > 1.0 for value in aggregate)
@@ -370,12 +397,14 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
         'aggregate_residual_tolerance_verified requires every channel to be '
         'within its declared tolerance'
       )
+    ####
     if self.aggregate_residual_descent_verified and not (
       self.aggregate_residual_vector_verified
     ):
       raise ValueError(
         'aggregate_residual_descent_verified requires a retained residual vector'
       )
+    ####
     object.__setattr__(self, 'aggregate_residual_vector', aggregate)
     for name in (
       'geometry_delta_m',
@@ -388,10 +417,15 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
         numeric = float(value)
         if not isfinite(numeric) or numeric < 0.0:
           raise ValueError(f'{name} must be finite and nonnegative')
+        ####
         object.__setattr__(self, name, numeric)
+      ####
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('feedback iterations must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def research_step_verified(self) -> bool:
@@ -417,6 +451,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       and self.chain_promotion_blocked
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -473,6 +508,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -503,11 +540,13 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus):
       raise TypeError('status must be a typed joint-feedback status')
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest,
     ):
       raise TypeError('request must be a typed joint-feedback request')
+    ####
     for name, expected in (
       ('source_closure', MocReflectedDomainGlobalPhysicalClosureResult),
       ('final_closure', MocReflectedDomainGlobalPhysicalClosureResult),
@@ -515,6 +554,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected):
         raise TypeError(f'{name} must retain a typed closure or None')
+      ####
+    ####
     iterations = tuple(self.iterations)
     if any(
       not isinstance(
@@ -524,8 +565,10 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       for iteration in iterations
     ):
       raise TypeError('iterations must contain typed joint-feedback iterations')
+    ####
     if tuple(item.iteration_index for item in iterations) != tuple(range(len(iterations))):
       raise ValueError('iterations must have contiguous zero-based indices')
+    ####
     object.__setattr__(self, 'iterations', iterations)
     for name in (
       'feedback_completed',
@@ -545,11 +588,16 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or self.canonical_free_boundary_verified:
       raise ValueError('joint feedback cannot claim canonical closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('joint feedback must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -572,6 +620,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       and not self.canonical_free_boundary_verified
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -624,6 +673,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -654,11 +705,13 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAuditStatus,
     ):
       raise TypeError('status must be a typed joint-feedback audit status')
+    ####
     if self.candidate is not None and not isinstance(
       self.candidate,
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult,
     ):
       raise TypeError('candidate must be a typed joint-feedback result')
+    ####
     for name in (
       'request_replayed',
       'iteration_count_replayed',
@@ -677,11 +730,16 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or not self.chain_promotion_blocked:
       raise ValueError('joint-feedback audit must remain promotion-blocked')
+    ####
     if self.production_claim_allowed:
       raise ValueError('joint-feedback audit cannot allow production claims')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -691,6 +749,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       .VERIFIED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK
       and self.independent_joint_feedback_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -728,6 +787,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -749,6 +810,7 @@ def _failure(
     message=message,
     **values,
   )
+####
 
 
 def _closure_deltas(
@@ -761,8 +823,10 @@ def _closure_deltas(
   candidate_shock = None if candidate_euler is None else candidate_euler.shock_boundary
   if source_shock is None or candidate_shock is None:
     return float('inf'), float('inf')
+  ####
   if len(source_shock.shock_points_m) != len(candidate_shock.shock_points_m):
     return float('inf'), float('inf')
+  ####
   geometry = max(
     (
       hypot(
@@ -781,6 +845,7 @@ def _closure_deltas(
   candidate_pressure = candidate_shock.downstream_total_pressure_Pa
   if len(source_pressure) != len(candidate_pressure):
     return geometry, float('inf')
+  ####
   pressure = max(
     (
       abs(log(float(left) / float(right)))
@@ -791,6 +856,7 @@ def _closure_deltas(
     default=float('inf'),
   )
   return float(geometry), float(pressure)
+####
 
 
 def _residual_descent(
@@ -800,11 +866,15 @@ def _residual_descent(
 ) -> bool:
   if any(not isfinite(value) or value < 0.0 for value in values):
     return False
+  ####
   if not required:
     return bool(values)
+  ####
   if len(values) < 2:
     return False
+  ####
   return bool(all(right < left for left, right in zip(values, values[1:])))
+####
 
 
 def _normalized(value: float | None, tolerance: float) -> float | None:
@@ -812,6 +882,7 @@ def _normalized(value: float | None, tolerance: float) -> float | None:
 
   if value is None:
     return None
+  ####
   numeric_tolerance = float(tolerance)
   numeric_value = float(value)
   if (
@@ -820,8 +891,10 @@ def _normalized(value: float | None, tolerance: float) -> float | None:
     or not isfinite(numeric_value)
   ):
     return None
+  ####
   normalized = abs(numeric_value) / numeric_tolerance
   return normalized if isfinite(normalized) else None
+####
 
 
 def _normalized_maximum(
@@ -832,7 +905,9 @@ def _normalized_maximum(
 
   if not values or any(not isfinite(float(value)) for value in values):
     return None
+  ####
   return _normalized(max(abs(float(value)) for value in values), tolerance)
+####
 
 
 def _build_aggregate_residual_vector(
@@ -851,15 +926,18 @@ def _build_aggregate_residual_vector(
   handoff = iteration.boundary_state_feedback.handoff
   if frontier is None or joint is None or handoff is None:
     return None
+  ####
   joint_state = joint.joint_state_solve
   state_request = handoff.two_sided_result.request
   if joint_state is None or state_request is None:
     return None
+  ####
   global_channels = tuple(
     float(value) for value in joint_state.refreshed_dimensioned_channel_maxima
   )
   if len(global_channels) != 3:
     return None
+  ####
   handoff_channels = (
     _normalized_maximum(
       handoff.signed_mass_flux_residuals_kg_m2_s,
@@ -902,6 +980,7 @@ def _build_aggregate_residual_vector(
   normal_request = frontier.normal_closure_request
   if not normal.closure_samples:
     return None
+  ####
   normal_component_maxima = tuple(
     max(sample.component_residuals[index] for sample in normal.closure_samples)
     for index in range(5)
@@ -918,15 +997,18 @@ def _build_aggregate_residual_vector(
   boundary_feedback_run = iteration.boundary_state_feedback.boundary_feedback_run
   if boundary_feedback_run is None or not boundary_feedback_run.iterations:
     return None
+  ####
   boundary_feedback_iteration = boundary_feedback_run.iterations[-1]
   downstream_feedback = boundary_feedback_iteration.downstream_feedback
   if downstream_feedback is None or not downstream_feedback.iterations:
     return None
+  ####
   downstream_iteration = downstream_feedback.iterations[-1]
   downstream_response = downstream_iteration.response
   downstream_result = downstream_iteration.result
   if downstream_response is None:
     return None
+  ####
   overlap_channels = (
     _normalized_maximum(
       downstream_response.coordinate_residuals_m,
@@ -948,9 +1030,11 @@ def _build_aggregate_residual_vector(
   coupled_channels = downstream_result.normalized_coupled_state_residual_vector
   if coupled_channels is None:
     return None
+  ####
   coupled_channels = tuple(float(value) for value in coupled_channels)
   if len(coupled_channels) != len(GLOBAL_COUPLED_DOWNSTREAM_STATE_RESIDUAL_CHANNELS):
     return None
+  ####
   channels = (
     global_channels
     + handoff_channels
@@ -964,12 +1048,16 @@ def _build_aggregate_residual_vector(
     MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
   ):
     return None
+  ####
   if any(value is None for value in channels):
     return None
+  ####
   resolved = tuple(float(value) for value in channels)
   if any(not isfinite(value) or value < 0.0 for value in resolved):
     return None
+  ####
   return resolved
+####
 
 
 def _aggregate_residual_tolerance_verified(
@@ -988,6 +1076,7 @@ def _aggregate_residual_tolerance_verified(
       for vector in vectors
     )
   )
+####
 
 
 def _aggregate_residual_descent(
@@ -999,6 +1088,7 @@ def _aggregate_residual_descent(
 
   if not vectors or not vectors[0]:
     return False
+  ####
   width = len(vectors[0])
   if any(
     len(vector) != width
@@ -1006,8 +1096,10 @@ def _aggregate_residual_descent(
     for vector in vectors
   ):
     return False
+  ####
   if len(vectors) == 1:
     return True
+  ####
   numerical_tolerance = 1.0e-12
   for before, after in zip(vectors, vectors[1:], strict=True):
     nonincreasing = all(
@@ -1017,13 +1109,17 @@ def _aggregate_residual_descent(
     )
     if not nonincreasing:
       return False
+    ####
     if strict and not any(
       next_value
       < current_value - numerical_tolerance * max(1.0, abs(current_value))
       for current_value, next_value in zip(before, after, strict=True)
     ):
       return False
+    ####
+  ####
   return True
+####
 
 
 def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
@@ -1040,6 +1136,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       status_type.INVALID_INPUT,
       'request must be a typed joint state/frontier feedback request',
     )
+  ####
   current = request.source_closure
   retained: list[
     MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration
@@ -1072,6 +1169,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         joint_solve_chain_verified=False,
         independent_audit_verified=False,
       )
+    ####
     source_lineage = bool(
       feedback.source_closure is current
       and feedback.boundary_feedback_run is not None
@@ -1091,6 +1189,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         joint_solve_chain_verified=False,
         independent_audit_verified=False,
       )
+    ####
     assert feedback.handoff is not None
     handoff_source = feedback.handoff.boundary_feedback_run.iterations[-1].source_closure
     if handoff_source is not current:
@@ -1107,6 +1206,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         joint_solve_chain_verified=False,
         independent_audit_verified=False,
       )
+    ####
     try:
       frontier_step = run_reflected_domain_global_mixed_regime_shock_frontier_step(
         MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
@@ -1129,6 +1229,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         joint_solve_chain_verified=False,
         independent_audit_verified=False,
       )
+    ####
     frontier_verified = bool(
       frontier_step.closure is handoff_source
       and frontier_step.locally_verified
@@ -1147,6 +1248,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         joint_solve_chain_verified=False,
         independent_audit_verified=False,
       )
+    ####
     try:
       joint = run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
         MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveRequest(
@@ -1169,6 +1271,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         joint_solve_chain_verified=False,
         independent_audit_verified=False,
       )
+    ####
     next_closure = (
       None
       if joint.joint_state_solve is None
@@ -1188,6 +1291,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         joint_solve_chain_verified=False,
         independent_audit_verified=False,
       )
+    ####
     assert next_closure is not None
     frontier_residual_exchange = None
     frontier_residual_exchange_verified = False
@@ -1218,6 +1322,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
           joint_solve_chain_verified=False,
           independent_audit_verified=False,
         )
+      ####
       try:
         frontier_residual_exchange = (
           run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
@@ -1251,11 +1356,14 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
           joint_solve_chain_verified=False,
           independent_audit_verified=False,
         )
+      ####
       frontier_residual_exchange_verified = (
         frontier_residual_exchange.converged
       )
       if frontier_residual_exchange.final_closure is not None:
         next_closure = frontier_residual_exchange.final_closure
+      ####
+    ####
     geometry_delta, pressure_delta = _closure_deltas(current, next_closure)
     residual_norm = (
       None
@@ -1403,6 +1511,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         aggregate_residual_descent_verified=False,
         independent_audit_verified=False,
       )
+    ####
     if (
       request.require_aggregate_residual_tolerance
       and not aggregate_tolerance_verified
@@ -1428,6 +1537,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         aggregate_residual_descent_verified=aggregate_descent_verified,
         independent_audit_verified=False,
       )
+    ####
     if (
       request.require_aggregate_residual_descent
       and not aggregate_descent_verified
@@ -1453,6 +1563,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         aggregate_residual_descent_verified=False,
         independent_audit_verified=False,
       )
+    ####
     if (
       request.consume_frontier_residual_exchange
       and not frontier_residual_exchange_verified
@@ -1474,6 +1585,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         frontier_residual_exchange_chain_verified=False,
         independent_audit_verified=False,
       )
+    ####
     current = next_closure
   ####
   iterations = tuple(retained)
@@ -1559,6 +1671,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
   else:
     status = status_type.COMPLETED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK_WITH_OPEN_CONVERGENCE
     message = 'all bounded joint state/frontier feedback steps completed; fixed-point or residual convergence remains open'
+  ####
   return MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult(
     status=status,
     request=request,
@@ -1581,6 +1694,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     aggregate_residual_descent_verified=aggregate_descent,
     message=message,
   )
+####
 
 
 def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
@@ -1600,12 +1714,14 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       candidate=None,
       message='result must be a typed joint-feedback result',
     )
+  ####
   if result.request is None:
     return MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit(
       status=audit_status.REPLAY_FAILURE,
       candidate=result,
       message='joint-feedback replay requires the retained request',
     )
+  ####
   try:
     replay = run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       result.request
@@ -1616,6 +1732,7 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       candidate=result,
       message=f'joint-feedback replay raised: {error}',
     )
+  ####
   request_replayed = replay.request is result.request
   count_replayed = len(replay.iterations) == len(result.iterations)
   source_fingerprints = tuple(
@@ -1791,3 +1908,4 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       else 'independent replay did not reproduce the bounded joint state/frontier chain'
     ),
   )
+####

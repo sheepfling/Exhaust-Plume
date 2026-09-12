@@ -73,6 +73,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationStatus(
   NORMAL_CLOSURE_REQUIRED = (
     'upstream-characteristic-equation-normal-closure-required'
   )
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationAuditStatus(
@@ -87,6 +88,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationAuditStat
   INVALID_INPUT = 'invalid_input'
   REPLAY_FAILURE = 'upstream-characteristic-equation-audit-replay-failure'
   LINEAGE_FAILURE = 'upstream-characteristic-equation-audit-lineage-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +126,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationRequest:
     for name in ('require_incoming_characteristic', 'require_normal_closure'):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if not isinstance(self.incoming_family, CharacteristicFamily):
       raise TypeError('incoming_family must be a CharacteristicFamily')
@@ -219,14 +222,18 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationResult:
     outgoing = tuple(int(index) for index in self.outgoing_characteristic_indices)
     if any(index < 0 for index in (*subsonic, *supersonic)):
       raise ValueError('sample indices must be nonnegative')
+    ####
     if set(subsonic).intersection(supersonic):
       raise ValueError('subsonic and supersonic sample indices must be disjoint')
+    ####
     if set(incoming).intersection(outgoing):
       raise ValueError('incoming and outgoing characteristic indices must be disjoint')
+    ####
     if not set(incoming).union(outgoing).issubset(set(supersonic)):
       raise ValueError(
         'incoming and outgoing characteristic indices must be supersonic samples'
       )
+    ####
     if set(incoming).union(outgoing) != set(supersonic):
       raise ValueError(
         'incoming and outgoing characteristic indices must partition supersonic samples'
@@ -262,6 +269,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if (
       self.upstream_characteristic_equation_consumed
@@ -383,6 +391,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationAudit:
         MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationResult,
       ):
         raise TypeError(f'{name} must be a typed upstream-equation result')
+      ####
     ####
     for name in (
       'interface_lineage_replayed',
@@ -396,6 +405,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamCharacteristicEquationAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if (
       self.upstream_characteristic_equation_consumed
@@ -531,6 +541,7 @@ def admit_reflected_domain_global_mixed_regime_upstream_characteristic_equation(
       incoming_indices.append(sample.sample_index)
     else:
       outgoing_indices.append(sample.sample_index)
+    ####
   ####
   incoming = tuple(incoming_indices)
   outgoing = tuple(outgoing_indices)

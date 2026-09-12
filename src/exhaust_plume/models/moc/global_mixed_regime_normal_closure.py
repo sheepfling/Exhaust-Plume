@@ -81,6 +81,7 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureStatus(str, Enum):
   AMBIENT_STATE_LINEAGE_FAILURE = 'normal-closure-ambient-state-lineage-failure'
   AMBIENT_STATE_EQUATION_FAILURE = 'normal-closure-ambient-state-equation-failure'
   FLUX_DECOMPOSITION_FAILURE = 'normal-closure-flux-decomposition-failure'
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeNormalClosureAuditStatus(str, Enum):
@@ -92,6 +93,7 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureAuditStatus(str, Enum):
   INVALID_INPUT = 'invalid_input'
   REPLAY_FAILURE = 'normal-closure-audit-replay-failure'
   LINEAGE_FAILURE = 'normal-closure-audit-lineage-failure'
+####
 
 
 def _finite(name: str, value: object) -> float:
@@ -179,14 +181,19 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureAmbientState:
     ####
     if self.density_kg_m3 <= 0.0:
       raise ValueError('density_kg_m3 must be positive')
+    ####
     if self.static_pressure_Pa <= 0.0:
       raise ValueError('static_pressure_Pa must be positive')
+    ####
     if self.static_temperature_K <= 0.0:
       raise ValueError('static_temperature_K must be positive')
+    ####
     if self.gamma <= 1.0:
       raise ValueError('gamma must be greater than one')
+    ####
     if self.specific_gas_constant_J_kg_K <= 0.0:
       raise ValueError('specific_gas_constant_J_kg_K must be positive')
+    ####
   ####
 
   @property
@@ -389,6 +396,7 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureSample:
       MocReflectedDomainGlobalMixedRegimeTransonicInterfaceFluxSample,
     ):
       raise TypeError('interface_flux must be a typed interface flux sample')
+    ####
     if not isinstance(
       self.ambient_state,
       MocReflectedDomainGlobalMixedRegimeNormalClosureAmbientState,
@@ -424,11 +432,14 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureSample:
     ):
       if getattr(self, name) < 0.0:
         raise ValueError(f'{name} must be nonnegative')
+      ####
     ####
     if self.sample_index != self.interface_flux.sample_index:
       raise ValueError('normal-closure sample index must match interface flux index')
+    ####
     if self.sample_index != self.ambient_state.sample_index:
       raise ValueError('normal-closure sample index must match ambient state index')
+    ####
   ####
 
   @property
@@ -551,9 +562,11 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('normal closure cannot claim canonical or global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('normal closure must remain promotion-blocked')
     ####
@@ -586,6 +599,7 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureResult:
   def maximum_component_residual(self) -> float | None:
     if not self.closure_samples:
       return None
+    ####
     return max(sample.maximum_component_residual for sample in self.closure_samples)
   ####
 
@@ -593,6 +607,7 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureResult:
   def maximum_entropy_inequality_violation(self) -> float | None:
     if not self.closure_samples:
       return None
+    ####
     return max(
       sample.entropy_inequality_violation for sample in self.closure_samples
     )
@@ -676,6 +691,7 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureAudit:
         MocReflectedDomainGlobalMixedRegimeNormalClosureResult,
       ):
         raise TypeError(f'{name} must be a typed normal-closure result')
+      ####
     ####
     for name in (
       'interface_lineage_replayed',
@@ -691,9 +707,11 @@ class MocReflectedDomainGlobalMixedRegimeNormalClosureAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('normal-closure audit cannot claim global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('normal-closure audit must remain promotion-blocked')
     ####
@@ -797,16 +815,19 @@ def _interface_gamma(
   request = interface.request
   if request is None:
     raise ValueError('interface request is required to recover exact gamma')
+  ####
   frame_request = request.characteristic_frame.request
   if frame_request is None:
     raise ValueError(
       'characteristic-frame request is required to recover exact gamma'
     )
+  ####
   equation_result = frame_request.upstream_state_equation
   if equation_result.request is None:
     raise ValueError(
       'upstream state-equation request is required to recover exact gamma'
     )
+  ####
   gamma = _finite('interface_gamma', equation_result.request.target_gamma)
   if gamma <= 1.0:
     raise ValueError('interface_gamma must be greater than one')
@@ -1023,7 +1044,6 @@ def solve_reflected_domain_global_mixed_regime_normal_closure(
         interface_flux,
         interface.request.interface_normal_speed_m_s,  # type: ignore[union-attr]
       )
-      ####
       entropy_log_jump = ambient.entropy_log_proxy - _entropy_log(
         interface_flux.static_pressure_Pa,
         interface_flux.density_kg_m3,
@@ -1070,6 +1090,7 @@ def solve_reflected_domain_global_mixed_regime_normal_closure(
           entropy_inequality_violation=entropy_inequality_violation,
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       status_type.FLUX_DECOMPOSITION_FAILURE,

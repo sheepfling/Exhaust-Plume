@@ -62,13 +62,16 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStatu
   )
   INVALID_INPUT = 'invalid_input'
   EXCHANGE_FAILURE = 'frontier-residual-exchange-refinement-exchange-failure'
+####
 
 
 def _positive(value: object, name: str) -> float:
   numeric = float(value)
   if numeric != numeric or numeric in (float('inf'), float('-inf')) or numeric <= 0.0:
     raise ValueError(f'{name} must be finite and positive')
+  ####
   return numeric
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,29 +92,36 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementCase:
     case_id = str(self.case_id)
     if not case_id:
       raise ValueError('case_id must be non-empty')
+    ####
     if not isinstance(
       self.source_frontier_step,
       MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep,
     ):
       raise TypeError('source_frontier_step must be a typed frontier step')
+    ####
     if not self.source_frontier_step.locally_verified:
       raise ValueError('source_frontier_step must be locally verified')
+    ####
     if self.source_frontier_step.case_id != case_id:
       raise ValueError('case_id must match source_frontier_step.case_id')
+    ####
     if not isinstance(
       self.target_closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('target_closure must be a typed global physical closure')
+    ####
     if (
       isinstance(self.maximum_iterations, bool)
       or not isinstance(self.maximum_iterations, int)
       or self.maximum_iterations < 1
     ):
       raise ValueError('maximum_iterations must be a positive integer')
+    ####
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
+    ####
     object.__setattr__(self, 'case_id', case_id)
     object.__setattr__(
       self,
@@ -123,21 +133,27 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementCase:
       'maximum_displacement_m',
     ):
       object.__setattr__(self, name, _positive(getattr(self, name), name))
+    ####
     relaxation = _positive(self.relaxation, 'relaxation')
     if relaxation > 1.0:
       raise ValueError('relaxation must be no greater than one')
+    ####
     if self.probe_displacement_m > self.maximum_displacement_m:
       raise ValueError('probe_displacement_m cannot exceed maximum_displacement_m')
+    ####
     object.__setattr__(self, 'relaxation', relaxation)
     object.__setattr__(self, 'source', source)
+  ####
 
   @property
   def frontier_sample_count(self) -> int:
     return self.source_frontier_step.frontier_sample_count
+  ####
 
   @property
   def source_closure_fingerprint(self) -> str:
     return self.source_frontier_step.source_closure_fingerprint
+  ####
 
   def as_request(self) -> MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
     return MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest(
@@ -150,6 +166,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementCase:
       relaxation=self.relaxation,
       source=self.source,
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -167,6 +184,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementCase:
       'research_only': True,
       'production_claim_allowed': False,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,16 +202,20 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep:
       MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementCase,
     ):
       raise TypeError('case must be a typed refinement case')
+    ####
     if not isinstance(
       self.result,
       MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult,
     ):
       raise TypeError('result must be a typed residual-exchange result')
+    ####
     if not isinstance(
       self.audit,
       MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAudit,
     ):
       raise TypeError('audit must be a typed residual-exchange audit')
+    ####
+  ####
 
   @property
   def exchange_consumed(self) -> bool:
@@ -200,6 +223,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep:
       self.result.geometry_update_attempted
       and self.result.geometry_update_consumed
     )
+  ####
 
   @property
   def independent_replay_verified(self) -> bool:
@@ -211,6 +235,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep:
       and self.audit.response_replayed
       and self.audit.independent_exchange_verified
     )
+  ####
 
   @property
   def componentwise_admission_verified(self) -> bool:
@@ -218,10 +243,12 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep:
       self.result.componentwise_non_worsening
       and self.result.strict_component_descent
     )
+  ####
 
   @property
   def accepted_update_verified(self) -> bool:
     return bool(self.result.converged and self.independent_replay_verified)
+  ####
 
   @property
   def source_lineage_verified(self) -> bool:
@@ -232,6 +259,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep:
       and self.result.source_packet.sample_count
       == self.case.frontier_sample_count - self.case.source_frontier_step.sample_start_index
     )
+  ####
 
   @property
   def fidelity_isolation_verified(self) -> bool:
@@ -244,6 +272,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep:
       and self.audit.chain_promotion_blocked
       and self.audit.production_claim_allowed is False
     )
+  ####
 
   @property
   def locally_verified(self) -> bool:
@@ -255,6 +284,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep:
       and self.accepted_update_verified
       and self.fidelity_isolation_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -272,6 +302,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep:
         'locally_verified': self.locally_verified,
       },
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,6 +338,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementMeasu
       MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStatus,
     ):
       raise TypeError('status must be a typed refinement status')
+    ####
     steps = tuple(self.steps)
     if any(
       not isinstance(
@@ -315,15 +348,19 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementMeasu
       for step in steps
     ):
       raise TypeError('steps must contain typed refinement steps')
+    ####
     case_ids = tuple(str(step.case.case_id) for step in steps)
     counts = tuple(step.case.frontier_sample_count for step in steps)
     fingerprints = tuple(step.case.source_closure_fingerprint for step in steps)
     if self.case_ids and tuple(self.case_ids) != case_ids:
       raise ValueError('case_ids must match retained refinement steps')
+    ####
     if self.frontier_sample_counts and tuple(self.frontier_sample_counts) != counts:
       raise ValueError('frontier_sample_counts must match retained refinement steps')
+    ####
     if self.source_closure_fingerprints and tuple(self.source_closure_fingerprints) != fingerprints:
       raise ValueError('source_closure_fingerprints must match retained refinement steps')
+    ####
     for name in (
       'local_case_resolution_ladders_verified',
       'distinct_source_closures_verified',
@@ -343,15 +380,20 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementMeasu
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('refinement cannot claim canonical/global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('refinement must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'steps', steps)
     object.__setattr__(self, 'case_ids', case_ids)
     object.__setattr__(self, 'frontier_sample_counts', counts)
     object.__setattr__(self, 'source_closure_fingerprints', fingerprints)
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -366,6 +408,7 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementMeasu
       and self.local_coverage_verified
       and self.fidelity_isolation_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -395,6 +438,8 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementMeasu
       'steps': tuple(step.as_report() for step in self.steps),
       'message': self.message,
     }
+  ####
+####
 
 
 def _measurement(
@@ -416,6 +461,7 @@ def _measurement(
     **flags,
     message=message,
   )
+####
 
 
 def _strictly_increasing(values: Sequence[int]) -> bool:
@@ -423,6 +469,7 @@ def _strictly_increasing(values: Sequence[int]) -> bool:
     len(values) >= 2
     and all(right > left for left, right in zip(values, values[1:]))
   )
+####
 
 
 def measure_reflected_domain_global_mixed_regime_frontier_residual_exchange_refinement(
@@ -437,6 +484,7 @@ def measure_reflected_domain_global_mixed_regime_frontier_residual_exchange_refi
     retained = tuple(steps)
   except TypeError:
     return _measurement(status_type.INVALID_INPUT, 'steps must be iterable')
+  ####
   if len(retained) < 2 or any(
     not isinstance(
       step,
@@ -452,6 +500,7 @@ def measure_reflected_domain_global_mixed_regime_frontier_residual_exchange_refi
   grouped: dict[str, list[MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRefinementStep]] = {}
   for step in retained:
     grouped.setdefault(step.case.case_id, []).append(step)
+  ####
   actual_case_ids = tuple(grouped)
   expected = (
     None
@@ -513,6 +562,8 @@ def measure_reflected_domain_global_mixed_regime_frontier_residual_exchange_refi
   ):
     if not verified:
       open_gates.append(label)
+    ####
+  ####
   message = (
     'frontier residual exchange passed independent replay across distinct '
     'source closures and strictly increasing exact shock resolutions; '
@@ -541,6 +592,7 @@ def measure_reflected_domain_global_mixed_regime_frontier_residual_exchange_refi
     chain_promotion_blocked=True,
     production_claim_allowed=False,
   )
+####
 
 
 def run_reflected_domain_global_mixed_regime_frontier_residual_exchange_refinement(
@@ -555,6 +607,7 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange_refineme
     retained_cases = tuple(cases)
   except TypeError:
     return _measurement(status_type.INVALID_INPUT, 'cases must be iterable')
+  ####
   if len(retained_cases) < 2 or any(
     not isinstance(
       case,
@@ -590,7 +643,10 @@ def run_reflected_domain_global_mixed_regime_frontier_residual_exchange_refineme
         f'frontier residual-exchange refinement failed: {error}',
         steps=steps,
       )
+    ####
+  ####
   return measure_reflected_domain_global_mixed_regime_frontier_residual_exchange_refinement(
     steps,
     expected_case_ids=expected_case_ids,
   )
+####

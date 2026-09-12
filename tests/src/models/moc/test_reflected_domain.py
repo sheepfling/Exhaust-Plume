@@ -8636,6 +8636,7 @@ def test_global_mixed_regime_global_shock_frontier_binds_supersonic_research_cha
       first, second = points[-2], points[-1]
     else:
       first, second = points[index - 1], points[index + 1]
+    ####
     tangent_x = second[0] - first[0]
     tangent_y = second[1] - first[1]
     length = sqrt(tangent_x * tangent_x + tangent_y * tangent_y)
@@ -8740,6 +8741,7 @@ def test_global_mixed_regime_global_shock_frontier_binds_supersonic_research_cha
     normal_closure
   )
   assert normal_audit.converged
+####
 
 
 def test_global_mixed_regime_global_shock_frontier_offset_failure_is_typed():
@@ -8762,6 +8764,7 @@ def test_global_mixed_regime_global_shock_frontier_offset_failure_is_typed():
   assert 'offset-field sampling' in result.message
   assert result.chain_promotion_blocked
   assert result.production_claim_allowed is False
+####
 
 
 def test_global_mixed_regime_shock_frontier_refinement_is_disjoint_and_fail_closed():
@@ -8828,6 +8831,7 @@ def test_global_mixed_regime_shock_frontier_refinement_is_disjoint_and_fail_clos
   assert measurement.frontier_sample_counts == (9, 11, 9, 11)
   assert len(set(measurement.source_closure_fingerprints)) == 4
   assert all(step.locally_verified for step in measurement.steps)
+####
 
 
 def test_global_mixed_regime_global_fixed_point_consumer_binds_frontier_and_recheck():
@@ -8921,6 +8925,7 @@ def test_global_mixed_regime_global_fixed_point_consumer_binds_frontier_and_rech
   assert missing_feedback.converged is False
   assert missing_feedback.chain_promotion_blocked
   assert missing_feedback.production_claim_allowed is False
+####
 
 
 def test_global_mixed_regime_joint_fixed_point_rechecks_every_feedback_closure():
@@ -9013,6 +9018,7 @@ def test_global_mixed_regime_joint_fixed_point_rechecks_every_feedback_closure()
   assert short_result.converged is False
   assert short_result.chain_promotion_blocked
   assert short_result.production_claim_allowed is False
+####
 
 
 def test_global_mixed_regime_transonic_interface_admits_subsonic_frame_without_coercion():
@@ -9072,6 +9078,7 @@ def test_global_mixed_regime_transonic_interface_admits_subsonic_frame_without_c
         points[index + 1][0] - points[index - 1][0],
         points[index + 1][1] - points[index - 1][1],
       )
+    ####
     length = sqrt(tangent[0] * tangent[0] + tangent[1] * tangent[1])
     normals.append((-tangent[1] / length, tangent[0] / length))
   ####
@@ -9208,6 +9215,7 @@ def test_global_mixed_regime_upstream_characteristic_equation_stops_on_all_subso
         points[index + 1][0] - points[index - 1][0],
         points[index + 1][1] - points[index - 1][1],
       )
+    ####
     length = sqrt(tangent[0] * tangent[0] + tangent[1] * tangent[1])
     normals.append((-tangent[1] / length, tangent[0] / length))
   ####
@@ -16658,6 +16666,8 @@ def test_global_mixed_regime_frontier_residual_exchange_refinement_covers_cases_
           probe_displacement_m=1.0e-5,
         )
       )
+    ####
+  ####
   measurement = (
     run_reflected_domain_global_mixed_regime_frontier_residual_exchange_refinement(
       cases,
@@ -17051,6 +17061,8 @@ def test_global_mixed_regime_joint_feedback_refinement_covers_cases_and_resoluti
           ),
         )
       )
+    ####
+  ####
   measurement = (
     run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback_refinement(
       cases,

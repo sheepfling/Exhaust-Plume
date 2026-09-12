@@ -79,6 +79,7 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerStatus(str, Enum):
   GLOBAL_FEEDBACK_REQUIRED = 'canonical-consumer-global-feedback-required'
   GLOBAL_FEEDBACK_FAILURE = 'canonical-consumer-global-feedback-failure'
   NORMAL_CLOSURE_REQUIRED = 'canonical-consumer-normal-closure-required'
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerAuditStatus(
@@ -93,6 +94,7 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerAuditStatus(
   INVALID_INPUT = 'invalid_input'
   REPLAY_FAILURE = 'canonical-consumer-audit-replay-failure'
   LINEAGE_FAILURE = 'canonical-consumer-audit-lineage-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +155,7 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRequest:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     source = str(self.source)
     if not source:
@@ -301,6 +304,7 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.source_closure_fingerprint is not None and not isinstance(
       self.source_closure_fingerprint,
@@ -447,6 +451,7 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('canonical-consumer audit cannot claim global closure')
@@ -692,6 +697,7 @@ def consume_reflected_domain_global_mixed_regime_canonical_source(
         global_feedback_lineage_verified=True,
         global_feedback=feedback,
       )
+    ####
   ####
   if feedback is None and not request.require_global_feedback:
     return _failure(
@@ -725,6 +731,7 @@ def consume_reflected_domain_global_mixed_regime_canonical_source(
         global_feedback_lineage_verified=feedback_lineage_verified,
         global_feedback=feedback,
       )
+    ####
   else:
     if not normal_closure.converged:
       return _failure(
@@ -919,6 +926,7 @@ def audit_reflected_domain_global_mixed_regime_canonical_source(
       and result.normal_closure_audit_verified
       and result.normal_closure_verified
     )
+  ####
   independent = bool(
     result.converged
     and compatibility_verified

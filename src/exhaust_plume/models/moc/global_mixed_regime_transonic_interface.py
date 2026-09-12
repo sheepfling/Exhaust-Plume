@@ -82,6 +82,7 @@ class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceStatus(
   CHARACTERISTIC_DATA_REQUIRED = (
     'transonic-interface-characteristic-data-required'
   )
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceAuditStatus(
@@ -96,6 +97,7 @@ class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceAuditStatus(
   INVALID_INPUT = 'invalid_input'
   REPLAY_FAILURE = 'transonic-interface-audit-replay-failure'
   LINEAGE_FAILURE = 'transonic-interface-audit-lineage-failure'
+####
 
 
 def _finite(name: str, value: object) -> float:
@@ -315,6 +317,7 @@ class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceFluxSample:
     if not isinstance(self.characteristic_data_admitted, bool):
       raise TypeError('characteristic_data_admitted must be a bool')
     ####
+  ####
   @property
   def point_m(self) -> tuple[float, float]:
     return self.frame_sample.point_m
@@ -376,6 +379,7 @@ class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceSegment:
       value = getattr(self, name)
       if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f'{name} must be a nonnegative integer')
+      ####
     ####
     if self.end_sample_index != self.start_sample_index + 1:
       raise ValueError('interface segment sample indices must be consecutive')
@@ -395,6 +399,7 @@ class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceSegment:
       ####
       object.__setattr__(self, name, value)
     ####
+  ####
   @property
   def component_residuals(self) -> tuple[float, ...]:
     return (
@@ -516,6 +521,7 @@ class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if (
       self.upstream_characteristic_equation_consumed
@@ -658,6 +664,7 @@ class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceAudit:
         MocReflectedDomainGlobalMixedRegimeTransonicInterfaceResult,
       ):
         raise TypeError(f'{name} must be a typed transonic-interface result')
+      ####
     ####
     for name in (
       'frame_lineage_replayed',
@@ -674,6 +681,7 @@ class MocReflectedDomainGlobalMixedRegimeTransonicInterfaceAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if (
       self.upstream_characteristic_equation_consumed
@@ -922,6 +930,7 @@ def solve_reflected_domain_global_mixed_regime_transonic_interface(
             frame_lineage_verified=True,
             interface_geometry_verified=True,
           )
+        ####
       ####
       flux_samples.append(
         _moving_flux_sample(
@@ -932,6 +941,7 @@ def solve_reflected_domain_global_mixed_regime_transonic_interface(
           request.ambient_pressure_Pa,
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
       status_type.STATE_FLUX_FAILURE,

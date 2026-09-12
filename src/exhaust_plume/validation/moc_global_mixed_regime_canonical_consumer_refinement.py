@@ -76,6 +76,7 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementStatus(
     'canonical-consumer-refinement-feedback-resolution-failure'
   )
   FIDELITY_FAILURE = 'canonical-consumer-refinement-fidelity-failure'
+####
 
 
 def _resolution(value: object, name: str) -> tuple[int, int]:
@@ -221,11 +222,13 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementStep:
       MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRequest,
     ):
       raise TypeError('request must be a typed canonical-consumer request')
+    ####
     if not isinstance(
       self.result,
       MocReflectedDomainGlobalMixedRegimeCanonicalConsumerResult,
     ):
       raise TypeError('result must be a typed canonical-consumer result')
+    ####
     if not isinstance(
       self.audit,
       MocReflectedDomainGlobalMixedRegimeCanonicalConsumerAudit,
@@ -234,6 +237,7 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementStep:
     ####
     if self.result.request is not self.request:
       raise ValueError('result must retain the exact case request')
+    ####
     if self.audit.candidate is not self.result:
       raise ValueError('audit must retain the exact canonical-consumer result')
     ####
@@ -405,9 +409,11 @@ class MocReflectedDomainGlobalMixedRegimeCanonicalConsumerRefinementMeasurement:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
     ####
     if self.canonical_free_boundary_verified or self.global_coupling_verified:
       raise ValueError('canonical-consumer refinement cannot claim global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError(
         'canonical-consumer refinement must remain promotion-blocked'
@@ -565,7 +571,6 @@ def measure_reflected_domain_global_mixed_regime_canonical_consumer_refinement(
     and len(actual_case_ids) == len(set(actual_case_ids))
     and (expected is None or actual_case_ids == expected)
   )
-  ####
   resolution_ladders_verified = bool(
     grouped
     and all(
@@ -697,6 +702,7 @@ def run_reflected_domain_global_mixed_regime_canonical_consumer_refinement(
           audit=audit,
         )
       )
+    ####
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _measurement(
       status_type.CONSUMER_FAILURE,

@@ -73,6 +73,7 @@ class MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerStatus(
   )
   AUDIT_REQUIRED = 'global-fixed-point-consumer-audit-required'
   FIDELITY_FAILURE = 'global-fixed-point-consumer-fidelity-failure'
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerAuditStatus(
@@ -85,6 +86,7 @@ class MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerAuditStatus(
   INVALID_INPUT = 'invalid_input'
   REPLAY_FAILURE = 'global-fixed-point-consumer-audit-replay-failure'
   LINEAGE_FAILURE = 'global-fixed-point-consumer-audit-lineage-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,20 +107,25 @@ class MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerRequest:
       MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep,
     ):
       raise TypeError('shock_frontier_step must be a typed frontier step')
+    ####
     if self.global_feedback is not None and not isinstance(
       self.global_feedback,
       MocReflectedDomainGlobalCoupledBoundaryConditionFeedbackRun,
     ):
       raise TypeError('global_feedback must be a typed feedback run or None')
+    ####
     for name in (
       'require_terminal_global_fixed_point',
       'require_terminal_global_downstream_recheck',
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
+    ####
     object.__setattr__(self, 'source', source)
   ####
 
@@ -173,26 +180,31 @@ class MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerResult:
       MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerStatus,
     ):
       raise TypeError('status must be a typed global fixed-point status')
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerRequest,
     ):
       raise TypeError('request must be a typed global fixed-point request')
+    ####
     if self.source_closure is not None and not isinstance(
       self.source_closure,
       MocReflectedDomainGlobalPhysicalClosureResult,
     ):
       raise TypeError('source_closure must be a typed physical closure or None')
+    ####
     if self.canonical_consumer is not None and not isinstance(
       self.canonical_consumer,
       MocReflectedDomainGlobalMixedRegimeCanonicalConsumerResult,
     ):
       raise TypeError('canonical_consumer must be a typed result or None')
+    ####
     if self.canonical_consumer_audit is not None and not isinstance(
       self.canonical_consumer_audit,
       MocReflectedDomainGlobalMixedRegimeCanonicalConsumerAudit,
     ):
       raise TypeError('canonical_consumer_audit must be a typed audit or None')
+    ####
     for name in (
       'shock_frontier_consumed',
       'shock_frontier_lineage_verified',
@@ -207,15 +219,20 @@ class MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.source_closure_fingerprint is not None and not isinstance(
       self.source_closure_fingerprint,
       str,
     ):
       raise TypeError('source_closure_fingerprint must be a string or None')
+    ####
     if self.global_coupling_verified or self.canonical_free_boundary_verified:
       raise ValueError('research composition cannot claim global closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('research composition must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -316,11 +333,13 @@ class MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerAudit:
       MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerAuditStatus,
     ):
       raise TypeError('status must be a typed composition audit status')
+    ####
     if self.candidate is not None and not isinstance(
       self.candidate,
       MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerResult,
     ):
       raise TypeError('candidate must be a typed composition result or None')
+    ####
     for name in (
       'shock_frontier_lineage_replayed',
       'terminal_feedback_lineage_replayed',
@@ -333,10 +352,14 @@ class MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or not self.chain_promotion_blocked:
       raise ValueError('composition audit must remain promotion-blocked')
+    ####
     if self.production_claim_allowed:
       raise ValueError('composition audit cannot allow production claims')
+    ####
     object.__setattr__(self, 'message', str(self.message))
   ####
 
@@ -395,6 +418,7 @@ def _failure(
     message=message,
     **values,
   )
+####
 
 
 def consume_reflected_domain_global_mixed_regime_global_fixed_point(
@@ -559,6 +583,7 @@ def consume_reflected_domain_global_mixed_regime_global_fixed_point(
       terminal_global_downstream_recheck_verified=downstream_recheck_verified,
       canonical_consumer=canonical,
     )
+  ####
   canonical_audit = audit_reflected_domain_global_mixed_regime_canonical_source(
     canonical
   )
@@ -623,6 +648,7 @@ def audit_reflected_domain_global_mixed_regime_global_fixed_point(
       candidate=None,
       message='result must be a typed global fixed-point consumer result',
     )
+  ####
   request = result.request
   if request is None:
     return MocReflectedDomainGlobalMixedRegimeGlobalFixedPointConsumerAudit(
@@ -641,6 +667,7 @@ def audit_reflected_domain_global_mixed_regime_global_fixed_point(
       candidate=result,
       message=f'independent composition replay raised: {error}',
     )
+  ####
   frontier_lineage = bool(
     replay.request is request
     and replay.source_closure is result.source_closure

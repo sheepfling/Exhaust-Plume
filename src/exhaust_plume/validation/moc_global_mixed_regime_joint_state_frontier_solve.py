@@ -64,6 +64,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveStatus(
   FRONTIER_RECHECK_FAILURE = 'joint-state-frontier-frontier-recheck-failure'
   FIDELITY_FAILURE = 'joint-state-frontier-fidelity-failure'
   AUDIT_REQUIRED = 'joint-state-frontier-audit-required'
+####
 
 
 class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveAuditStatus(
@@ -78,6 +79,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveAuditStatus(
   INVALID_INPUT = 'invalid_input'
   REPLAY_FAILURE = 'joint-state-frontier-audit-replay-failure'
   LINEAGE_FAILURE = 'joint-state-frontier-audit-lineage-failure'
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,39 +98,49 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveRequest:
       MocReflectedDomainGlobalBoundaryStateFeedbackHandoff,
     ):
       raise TypeError('handoff must be a typed boundary-state handoff')
+    ####
     if not isinstance(
       self.source_frontier_step,
       MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementStep,
     ):
       raise TypeError('source_frontier_step must be a typed frontier step')
+    ####
     source_iterations = self.handoff.boundary_feedback_run.iterations
     if not source_iterations:
       raise ValueError('handoff must retain a source boundary-feedback iteration')
+    ####
     if self.source_frontier_step.closure is not source_iterations[-1].source_closure:
       raise ValueError(
         'source_frontier_step must retain the exact closure consumed by the '
         'global boundary-state handoff'
       )
+    ####
     temperature = float(self.reference_total_temperature_K)
     tolerance = float(self.component_tolerance)
     if not isfinite(temperature) or temperature <= 0.0:
       raise ValueError('reference_total_temperature_K must be finite and positive')
+    ####
     if not isfinite(tolerance) or tolerance <= 0.0:
       raise ValueError('component_tolerance must be finite and positive')
+    ####
     source = str(self.source)
     if not source:
       raise ValueError('source must be non-empty')
+    ####
     object.__setattr__(self, 'reference_total_temperature_K', temperature)
     object.__setattr__(self, 'component_tolerance', tolerance)
     object.__setattr__(self, 'source', source)
+  ####
 
   @property
   def source_closure(self) -> MocReflectedDomainGlobalPhysicalClosureResult:
     return self.source_frontier_step.closure
+  ####
 
   @property
   def frontier_sample_count(self) -> int:
     return self.source_frontier_step.frontier_sample_count
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -147,6 +159,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveRequest:
       'research_only': True,
       'production_claim_allowed': False,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,11 +192,13 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult:
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveStatus,
     ):
       raise TypeError('status must be a typed joint state/frontier status')
+    ####
     if self.request is not None and not isinstance(
       self.request,
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveRequest,
     ):
       raise TypeError('request must be a typed joint state/frontier request')
+    ####
     for name, expected in (
       (
         'source_frontier_step',
@@ -197,6 +213,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult:
       value = getattr(self, name)
       if value is not None and not isinstance(value, expected):
         raise TypeError(f'{name} must retain its typed result or None')
+      ####
+    ####
     for name in (
       'source_frontier_lineage_verified',
       'source_frontier_locally_verified',
@@ -213,11 +231,16 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or self.canonical_free_boundary_verified:
       raise ValueError('joint state/frontier result cannot claim canonical closure')
+    ####
     if not self.chain_promotion_blocked or self.production_claim_allowed:
       raise ValueError('joint state/frontier result must remain promotion-blocked')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -238,6 +261,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult:
       and not self.canonical_free_boundary_verified
       and not self.production_claim_allowed
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -282,6 +306,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,11 +332,13 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveAudit:
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveAuditStatus,
     ):
       raise TypeError('status must be a typed joint state/frontier audit status')
+    ####
     if self.candidate is not None and not isinstance(
       self.candidate,
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult,
     ):
       raise TypeError('candidate must be a typed joint state/frontier result')
+    ####
     for name in (
       'request_replayed',
       'source_frontier_replayed',
@@ -323,11 +351,16 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveAudit:
     ):
       if not isinstance(getattr(self, name), bool):
         raise TypeError(f'{name} must be a bool')
+      ####
+    ####
     if self.global_coupling_verified or not self.chain_promotion_blocked:
       raise ValueError('joint state/frontier audit must remain promotion-blocked')
+    ####
     if self.production_claim_allowed:
       raise ValueError('joint state/frontier audit cannot allow production claims')
+    ####
     object.__setattr__(self, 'message', str(self.message))
+  ####
 
   @property
   def converged(self) -> bool:
@@ -337,6 +370,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveAudit:
       .VERIFIED_RESEARCH_JOINT_STATE_FRONTIER
       and self.independent_joint_state_frontier_verified
     )
+  ####
 
   def as_report(self) -> dict[str, Any]:
     return {
@@ -360,6 +394,8 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveAudit:
       ),
       'message': self.message,
     }
+  ####
+####
 
 
 def _failure(
@@ -375,6 +411,7 @@ def _failure(
     message=message,
     **values,
   )
+####
 
 
 def run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
@@ -391,6 +428,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       status_type.INVALID_INPUT,
       'request must be a typed joint state/frontier solve request',
     )
+  ####
   step = request.source_frontier_step
   source_iterations = request.handoff.boundary_feedback_run.iterations
   source_lineage = bool(
@@ -409,6 +447,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       source_frontier_lineage_verified=source_lineage,
       source_frontier_locally_verified=step.locally_verified,
     )
+  ####
   if not step.locally_verified:
     return _failure(
       status_type.FIDELITY_FAILURE,
@@ -439,6 +478,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       source_frontier_lineage_verified=True,
       source_frontier_locally_verified=True,
     )
+  ####
   if not joint.converged_research_joint_update:
     return _failure(
       status_type.GLOBAL_JOINT_SOLVE_FAILURE,
@@ -500,6 +540,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       frontier_resolution_consumed=True,
       global_joint_solve_verified=True,
     )
+  ####
   refreshed_lineage = refreshed.closure is candidate
   refreshed_verified = bool(refreshed_lineage and refreshed.locally_verified)
   if not refreshed_verified:
@@ -518,6 +559,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       refreshed_closure_lineage_verified=refreshed_lineage,
       refreshed_frontier_verified=False,
     )
+  ####
   return MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult(
     status=status_type.CONVERGED_RESEARCH_JOINT_STATE_FRONTIER,
     request=request,
@@ -546,6 +588,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       'open'
     ),
   )
+####
 
 
 def audit_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
@@ -565,12 +608,14 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       candidate=None,
       message='result must be a typed joint state/frontier solve result',
     )
+  ####
   if result.request is None:
     return MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveAudit(
       status=audit_status.REPLAY_FAILURE,
       candidate=result,
       message='joint state/frontier replay requires the retained request',
     )
+  ####
   try:
     replay = run_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       result.request
@@ -581,6 +626,7 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       candidate=result,
       message=f'joint state/frontier replay raised: {error}',
     )
+  ####
   source_replayed = bool(
     replay.source_frontier_step is result.request.source_frontier_step
     and replay.source_frontier_lineage_verified
@@ -642,3 +688,4 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_solve(
       else 'independent replay did not reproduce the exact joint state/frontier solve'
     ),
   )
+####
