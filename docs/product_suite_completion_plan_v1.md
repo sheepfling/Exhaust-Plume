@@ -279,51 +279,28 @@ explicit handoff after the release decision.
 
 ## Immediate next actions
 
-1. Review and commit the current P3.29/P3.30/P3.31/P3.32/P3.33/P3.34/P3.35/P3.36/P3.37/P3.38/P3.39/P3.40/P3.41/P3.42/P3.43 research checkpoints as bounded
-   integration units; keep their promotion flags closed.
-2. Run and extend the P3.32 coverage matrix over accepted disjoint source
-   closures and increasing resolutions, retaining its open component-wise
-   residuals and proving that no stale field or geometry handoff crosses the
-   moving-front refresh.
-3. Use the P3.33 solver-owned interface-strip equation and P3.34 coverage
-   runner as the audited conservative/entropy seam. P3.35 now consumes that
-   exact state frame before and after a moving/global research correction and
-   retains an independently checked combined residual vector. P3.37
-   evaluates bounded correction fractions from the same exact source and
-   accepts only a component-wise non-worsening candidate. P3.38 consumes the
-   resulting exact target in the live free-boundary field and independently
-   audits that handoff.
-4. Continue from the P3.41 upstream-equation handoff.  P3.42 now consumes
-   incoming characteristic data only from a contiguous admitted supersonic
-   subset, checks exact invariant/geometry/forward residuals, and retains the
-   primitive subsonic condition separately.  The current all-subsonic trace
-   must remain a typed missing-characteristic/normal-closure stop until a real
-   canonical equation and normal closure consume it.  The P3.35/P3.40/P3.41/
-   P3.42/P3.43/P3.43a research seams must not be relabeled as production
-   solvers.
-5. Use the P3.43 canonical-consumer gate across disjoint source closures and
-   increasing resolutions.  It must consume the exact characteristic
-   compatibility, state-equation, and audited global-feedback evidence before
-   the normal/free-boundary closure can be attempted; the current open state
-   residual must remain a typed blocker.  Add the solver-owned normal-closure
-   contract with an explicit two-sided ambient primitive/conservative profile;
-   pressure-only ambient input must stop before flux closure.  The new P3.43b
-   coverage runner must validate each declared resolution against the feedback
-   configuration and require distinct source fingerprints before it reports
-   cross-case coverage.  P3.43c must consume an independently audited local
-   normal closure before the canonical gate can report its remaining open
-   global closure.
-6. Use the P3.36 disjoint-case/increasing-resolution gate and P3.37 bounded
-   line search for that corrector, then
-   feed only an accepted canonical field into first-cell and continued shock
-   cell fitting.
-7. In parallel, obtain and bind the missing validation/alignment/provider
-   assets; do not synthesize an archive or treat a provenance-only corpus as
-   accepted validation.
-8. Run the standardized Visualization, Signature/RAY, and FPA measurement-space
-   acceptance once the corresponding source and provider gates are available.
-9. Re-freeze from the final exact `HEAD`, publish the release decision, and
-   push/tag only after explicit authorization.
+1. Keep the committed candidate on `work/washed-integral-visual`, run the
+   current full/static/package smoke ladder, and keep `main` untouched until a
+   release decision is explicitly authorized.
+2. Extend P3.43q into a disjoint case/resolution runner for the
+   exchange-enabled joint feedback cursor.  Require exact source/next-closure
+   fingerprints, replay of each nested exchange, component-wise frontier
+   admission, and typed fail-closed behavior when a later exchange is rejected.
+3. Advance the canonical physical closure only after that runner is green:
+   the global/free-boundary equations must consume the full characteristic,
+   conservative/entropy, normal-closure, frontier, ambient, centerline, and
+   downstream constraints together.  Keep fixed-point and promotion flags
+   open until independent multi-case evidence passes.
+4. Feed only an accepted canonical physical field into first-cell and
+   continued shock-cell fitting; retain diagnostic spacing as research-only
+   until an accepted physical solver-length comparison exists.
+5. Obtain and bind the missing Version 8/alignment archives and provider
+   outputs with immutable digests, measurement-space/frame contracts, and a
+   disjoint calibration/validation split.  Do not synthesize missing evidence.
+6. Run the standardized Visualization, Signature/RAY, and FPA acceptance
+   matrix against accepted source/provider pairs, then re-freeze the exact
+   candidate and push/tag only after the release decision and explicit
+   authorization.
 
 ## Non-negotiable stop rules
 
@@ -8648,7 +8625,8 @@ unchanged, a one-step exchange-enabled path reproduces the exchanged closure
 through independent replay, and a two-step path stops with typed
 `RESIDUAL_EXCHANGE_FAILURE` when its second exchange cannot achieve strict
 component descent.  The rejected path does not fall back to an unexchanged
-closure.  Ruff, Pyright, compile, and diff checks are green.  This is still a
+closure.  The complete reflected-domain model module passes `259 passed in
+497.41s`; Ruff, Pyright, compile, and diff checks are green.  This is still a
 research-only cursor/exchange seam: canonical global/free-boundary closure,
 cross-case fixed-point convergence, accepted physical shock-cell lengths,
 provider-bound validation, and release promotion remain open.
