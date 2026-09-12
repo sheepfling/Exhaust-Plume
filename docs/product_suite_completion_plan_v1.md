@@ -8551,4 +8551,7 @@ move solver-owned attachment/termination samples, or promote the residual
 exchange, canonical closure, shock-cell chain, provider comparisons, or
 release.  The raw Version 8 ZIP and separately named MVP alignment archive
 remain absent from the workspace, so the validation-intake blocker is
-unchanged.
+unchanged.  The current-HEAD wheel builds with the local build environment,
+installs in an isolated target, passes public-import and CLI-help smoke, and
+has SHA-256
+`43f93e4f4d0993c3327f92da30700723d1b92060bab505b79d91f952263b126b`.
