@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import scripts.validate_lane_releases as lane_release_validator
 from scripts.validate_lane_releases import build_lane_release_manifest
 
 
@@ -38,20 +39,59 @@ def test_lane_release_manifest_separates_local_release_from_external_acceptance(
 ####
 
 
-def test_lane_manifest_uses_validated_code_tranche_when_head_is_docs_only() -> None:
+def test_lane_manifest_binds_the_current_clean_candidate_freeze() -> None:
   freeze = json.loads(
     Path('docs/validation/release_freeze_v1.json').read_text(encoding='utf-8'),
   )
-  assert freeze['head_commit'] != freeze['validated_code_commit']
+  assert freeze['head_commit'] == freeze['validated_code_commit']
   report = build_lane_release_manifest()
   assert report['source_commit'] == freeze['validated_code_commit']
   provenance = report['release_provenance']
   assert provenance['recorded_freeze_head_commit'] == freeze['head_commit']
   assert provenance['validated_code_commit'] == freeze['validated_code_commit']
-  assert report['checks']['release_freeze_matches_candidate_head'] is (
-    provenance['candidate_head_commit'] == freeze['head_commit']
-  )
+  assert report['checks']['release_freeze_matches_candidate_head'] is True
+  assert report['checks']['documentation_only_follow_on_verified'] is False
+  assert provenance['candidate_head_matches_validated_code_commit'] is True
   assert report['checks']['candidate_worktree_clean'] is (
     provenance['candidate_worktree_clean'] is True
+  )
+
+
+def test_lane_manifest_accepts_allowlisted_documentation_follow_on(
+  monkeypatch,
+) -> None:
+  freeze = json.loads(
+    Path('docs/validation/release_freeze_v1.json').read_text(encoding='utf-8'),
+  )
+  candidate_head = 'documentation-follow-on'
+  monkeypatch.setattr(
+    lane_release_validator,
+    '_git_head_commit',
+    lambda: candidate_head,
+  )
+  monkeypatch.setattr(
+    lane_release_validator,
+    '_git_worktree_clean',
+    lambda: True,
+  )
+  monkeypatch.setattr(
+    lane_release_validator,
+    '_git_changed_paths',
+    lambda base_commit, candidate_commit: {
+      'docs/product_suite_completion_plan_v1.md',
+      'docs/validation/lane_release_manifest_v1.json',
+      'docs/validation/release_freeze_v1.json',
+    },
+  )
+
+  report = build_lane_release_manifest()
+  provenance = report['release_provenance']
+  assert candidate_head != freeze['head_commit']
+  assert provenance['documentation_only_follow_on_verified'] is True
+  assert report['checks']['release_freeze_matches_candidate_head'] is False
+  assert report['checks']['release_provenance_ready'] is True
+  assert not any(
+    'release freeze does not identify the current candidate HEAD' in blocker
+    for blocker in report['umbrella_release']['blockers']
   )
 ####

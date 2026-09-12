@@ -23,6 +23,11 @@ RELEASE_FREEZE_PATH = REPO_ROOT / 'docs' / 'validation' / 'release_freeze_v1.jso
 PROVIDER_PREFLIGHT_PATH = REPO_ROOT / 'docs' / 'validation' / 'provider_comparison_preflight_v1.json'
 MISSION_TIME_LANE_ID = 'mission-time-product-composition-v1'
 MISSION_TIME_SCHEDULE_S = (0.0, 5.0, 10.0)
+RELEASE_EVIDENCE_FOLLOW_ON_PATHS = frozenset({
+  'docs/product_suite_completion_plan_v1.md',
+  'docs/validation/lane_release_manifest_v1.json',
+  'docs/validation/release_freeze_v1.json',
+})
 
 
 def _git_head_commit() -> str | None:
@@ -71,6 +76,69 @@ def _git_worktree_clean() -> bool | None:
     return None
   ####
   return completed.stdout == ''
+####
+
+
+def _git_changed_paths(
+  base_commit: str,
+  candidate_head_commit: str,
+) -> set[str] | None:
+  """Return committed paths changed after a validated code snapshot."""
+
+  try:
+    completed = subprocess.run(
+      (
+        'git',
+        '-C',
+        str(REPO_ROOT),
+        'diff',
+        '--name-only',
+        '--diff-filter=ACDMRTUXB',
+        f'{base_commit}..{candidate_head_commit}',
+      ),
+      capture_output=True,
+      check=True,
+      text=True,
+    )
+  except (OSError, subprocess.CalledProcessError):
+    return None
+  ####
+  return {
+    path
+    for path in completed.stdout.splitlines()
+    if path
+  }
+####
+
+
+def _documentation_only_follow_on(
+  candidate_head_commit: str | None,
+  recorded_freeze_head_commit: Any,
+  validated_code_commit: Any,
+) -> bool:
+  """Allow only the named release-evidence files after code is frozen.
+
+  A tracked freeze cannot contain the hash of the commit that contains that
+  same freeze.  The release contract therefore treats a later commit as an
+  acceptable follow-on only when its committed tree differs from the
+  validated code snapshot in the explicitly allowlisted evidence files.
+  """
+
+  if not (
+    isinstance(candidate_head_commit, str)
+    and isinstance(recorded_freeze_head_commit, str)
+    and isinstance(validated_code_commit, str)
+  ):
+    return False
+  ####
+  if candidate_head_commit == recorded_freeze_head_commit:
+    return False
+  ####
+  changed_paths = _git_changed_paths(
+    validated_code_commit,
+    candidate_head_commit,
+  )
+  return bool(changed_paths) and changed_paths <= RELEASE_EVIDENCE_FOLLOW_ON_PATHS
 ####
 
 
@@ -154,11 +222,11 @@ def _mission_time_composition_status(
   visualization = record.get('visualization')
   signature = record.get('signature')
   focal_plane_array = record.get('focal_plane_array')
-  if not all(isinstance(value, dict) for value in (
-      visualization,
-      signature,
-      focal_plane_array,
-  )):
+  if not isinstance(visualization, dict):
+    return record, False
+  if not isinstance(signature, dict):
+    return record, False
+  if not isinstance(focal_plane_array, dict):
     return record, False
   ####
   return record, all(
@@ -319,12 +387,17 @@ def build_lane_release_manifest() -> dict[str, Any]:
     and isinstance(validated_code_commit, str)
     and candidate_head_commit == validated_code_commit
   )
+  documentation_only_follow_on = _documentation_only_follow_on(
+    candidate_head_commit,
+    recorded_freeze_head_commit,
+    validated_code_commit,
+  )
   if candidate_head_commit is None:
     blockers.append('candidate HEAD could not be resolved from the release checkout')
-  elif not freeze_matches_candidate_head:
+  elif not freeze_matches_candidate_head and not documentation_only_follow_on:
     blockers.append(
-      'release freeze does not identify the current candidate HEAD; refresh '
-      'release evidence after the final code and documentation commit'
+      'release freeze does not identify the current candidate HEAD and the '
+      'follow-on commit is not documentation-only release evidence'
     )
   ####
   if candidate_worktree_clean is not True:
@@ -343,7 +416,8 @@ def build_lane_release_manifest() -> dict[str, Any]:
     )
   ####
   release_provenance_ready = bool(
-    freeze_matches_candidate_head and candidate_worktree_clean is True
+    (freeze_matches_candidate_head or documentation_only_follow_on)
+    and candidate_worktree_clean is True
   )
   return {
     'report_id': 'exhaust-plume-lane-release-manifest-v1',
@@ -361,6 +435,7 @@ def build_lane_release_manifest() -> dict[str, Any]:
       'candidate_head_matches_validated_code_commit': (
         candidate_matches_validated_code_commit
       ),
+      'documentation_only_follow_on_verified': documentation_only_follow_on,
       'candidate_worktree_clean': candidate_worktree_clean,
     },
     'wheel_sha256': release_freeze.get('repository_quality', {}).get('wheel_sha256'),
@@ -377,6 +452,8 @@ def build_lane_release_manifest() -> dict[str, Any]:
       'mission_time_composition_passed': mission_time_passed,
       'provider_preflight_release_ready': provider_preflight.get('release_ready') is True,
       'release_freeze_matches_candidate_head': freeze_matches_candidate_head,
+      'documentation_only_follow_on_verified': documentation_only_follow_on,
+      'release_provenance_ready': release_provenance_ready,
       'candidate_worktree_clean': candidate_worktree_clean is True,
     },
     'lanes': lane_records,
