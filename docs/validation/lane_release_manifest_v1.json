@@ -266,17 +266,17 @@
     "low_fidelity_promotion_forbidden": true
   },
   "release_provenance": {
-    "candidate_head_commit": "7da64bf7d6afeef1a53239b265169501cb6594ed",
+    "candidate_head_commit": "93e715c9a9397ff22ceb088341976c6a44a4170e",
     "candidate_head_matches_recorded_freeze": false,
     "candidate_head_matches_validated_code_commit": false,
     "candidate_worktree_clean": true,
     "documentation_only_follow_on_verified": true,
-    "recorded_freeze_head_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2",
-    "validated_code_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2"
+    "recorded_freeze_head_commit": "9e33c794c507c7d30b21fa3373deac3fd6fdae82",
+    "validated_code_commit": "9e33c794c507c7d30b21fa3373deac3fd6fdae82"
   },
   "report_id": "exhaust-plume-lane-release-manifest-v1",
   "schema_version": "plume.lane-release-manifest@1",
-  "source_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2",
+  "source_commit": "9e33c794c507c7d30b21fa3373deac3fd6fdae82",
   "umbrella_release": {
     "blockers": [
       "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
@@ -288,5 +288,5 @@
     ],
     "release_ready": false
   },
-  "wheel_sha256": "f8ec75d837a4e67c35c985bf2a015279d6ceced8dc483402fa1ec67086e7a866"
+  "wheel_sha256": "a49e7ba3a71c05d77067b8f554d02a1f33a2a5d319bad3a839c0bd7ed9a1b611"
 }
