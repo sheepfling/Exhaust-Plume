@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import cos, hypot, isfinite, sin, sqrt
+from math import cos, hypot, isfinite, log, sin, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.euler_two_sided_interface_law import (
@@ -53,6 +53,9 @@ class MocEulerTwoSidedInterfaceLawAuditStatus(str, Enum):
   CONSERVATIVE_FLUX_FAILURE = (
     'two-sided-interface-law-audit-conservative-flux-failure'
   )
+  ENTROPY_TRANSITION_FAILURE = (
+    'two-sided-interface-law-audit-entropy-transition-failure'
+  )
   FLAG_FAILURE = 'two-sided-interface-law-audit-flag-failure'
 ####
 
@@ -75,6 +78,8 @@ class MocEulerTwoSidedInterfaceLawAudit:
   stationary_equilibrium_candidate: bool
   conservative_flux_closure_required: bool
   conservative_flux_closure_verified: bool
+  entropy_transition_required: bool
+  entropy_transition_verified: bool
   result_flags_verified: bool
   canonical_free_boundary_verified: bool
   canonical_euler_verified: bool
@@ -111,6 +116,8 @@ class MocEulerTwoSidedInterfaceLawAudit:
       'stationary_equilibrium_candidate',
       'conservative_flux_closure_required',
       'conservative_flux_closure_verified',
+      'entropy_transition_required',
+      'entropy_transition_verified',
       'result_flags_verified',
       'canonical_free_boundary_verified',
       'canonical_euler_verified',
@@ -169,6 +176,10 @@ class MocEulerTwoSidedInterfaceLawAudit:
         not self.conservative_flux_closure_required
         or self.conservative_flux_closure_verified
       )
+      and (
+        not self.entropy_transition_required
+        or self.entropy_transition_verified
+      )
       and self.result_flags_verified
       and not self.canonical_free_boundary_verified
       and not self.canonical_euler_verified
@@ -200,6 +211,8 @@ class MocEulerTwoSidedInterfaceLawAudit:
       'conservative_flux_closure_verified': (
         self.conservative_flux_closure_verified
       ),
+      'entropy_transition_required': self.entropy_transition_required,
+      'entropy_transition_verified': self.entropy_transition_verified,
       'result_flags_verified': self.result_flags_verified,
       'canonical_free_boundary_verified': False,
       'canonical_euler_verified': False,
@@ -241,6 +254,8 @@ def _failure(
   stationary_equilibrium_candidate: bool = False,
   conservative_flux_closure_required: bool = False,
   conservative_flux_closure_verified: bool = False,
+  entropy_transition_required: bool = False,
+  entropy_transition_verified: bool = False,
   result_flags_verified: bool = False,
   maximum_interface_normal_speed_m_s: float = 0.0,
   maximum_normal_displacement_m: float = 0.0,
@@ -263,6 +278,8 @@ def _failure(
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
     conservative_flux_closure_required=conservative_flux_closure_required,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    entropy_transition_required=entropy_transition_required,
+    entropy_transition_verified=entropy_transition_verified,
     result_flags_verified=result_flags_verified,
     canonical_free_boundary_verified=False,
     canonical_euler_verified=False,
@@ -536,10 +553,15 @@ def measure_moc_euler_two_sided_interface_law(
   response = result.response
   if response is None:
     status = (
+      MocEulerTwoSidedInterfaceLawAuditStatus.ENTROPY_TRANSITION_FAILURE
+      if request.require_entropy_transition
+      and result.status is MocEulerTwoSidedInterfaceLawStatus.ENTROPY_TRANSITION_FAILURE
+      else (
       MocEulerTwoSidedInterfaceLawAuditStatus.CONSERVATIVE_FLUX_FAILURE
       if request.require_conservative_flux_closure
       and result.status is MocEulerTwoSidedInterfaceLawStatus.CONSERVATIVE_FLUX_FAILURE
       else MocEulerTwoSidedInterfaceLawAuditStatus.RESPONSE_FAILURE
+      )
     )
     return _failure(
       status,
@@ -554,6 +576,7 @@ def measure_moc_euler_two_sided_interface_law(
       current_field_verified=True,
       source_lineage_verified=True,
       conservative_flux_closure_required=request.require_conservative_flux_closure,
+      entropy_transition_required=request.require_entropy_transition,
     )
   ####
   sample_count = len(current.shock_boundary.shock_points_m)
@@ -569,6 +592,7 @@ def measure_moc_euler_two_sided_interface_law(
   expected_signed_mass: list[float] = []
   expected_signed_momentum: list[float] = []
   expected_signed_energy: list[float] = []
+  expected_entropy_log_ratios: list[float] = []
   expected_mass: list[float] = []
   expected_momentum: list[float] = []
   expected_energy: list[float] = []
@@ -681,6 +705,16 @@ def measure_moc_euler_two_sided_interface_law(
           downstream_h * downstream_relative
           - upstream_h * upstream_relative
         )
+        expected_entropy_log_ratios.append(
+          (
+            log(downstream_static)
+            - float(declared_state.gamma) * log(downstream_density)
+          )
+          - (
+            log(upstream_static)
+            - float(upstream_state.gamma) * log(upstream_density)
+          )
+        )
         expected_signed_mass.append(signed_mass)
         expected_signed_momentum.append(signed_momentum)
         expected_signed_energy.append(signed_energy)
@@ -692,6 +726,26 @@ def measure_moc_euler_two_sided_interface_law(
       downstream_probe_verified = False
     ####
   ####
+  entropy_channels_verified = bool(
+    response.entropy_transition_log_ratios is not None
+    and len(response.entropy_transition_log_ratios) == sample_count
+    and len(expected_entropy_log_ratios) == sample_count
+    and all(
+      _close(actual, expected, max(1.0e-8, request.residual_tolerance))
+      for actual, expected in zip(
+        response.entropy_transition_log_ratios or (),
+        expected_entropy_log_ratios,
+        strict=True,
+      )
+    )
+  )
+  entropy_transition_verified = bool(
+    entropy_channels_verified
+    and all(
+      ratio >= -request.entropy_transition_tolerance
+      for ratio in expected_entropy_log_ratios
+    )
+  )
   signed_channels_verified = True
   if response.signed_residuals_available:
     signed_channels_verified = bool(
@@ -729,6 +783,7 @@ def measure_moc_euler_two_sided_interface_law(
   downstream_probe_verified = bool(
     downstream_probe_verified
     and signed_channels_verified
+    and entropy_channels_verified
     and all(
       _close(actual, expected, max(1.0e-8, request.source_state_tolerance))
       for actual, expected in zip(
@@ -759,13 +814,20 @@ def measure_moc_euler_two_sided_interface_law(
     <= request.energy_flux_tolerance_W_m2
   )
   if not downstream_probe_verified:
+    status = (
+      MocEulerTwoSidedInterfaceLawAuditStatus.ENTROPY_TRANSITION_FAILURE
+      if request.require_entropy_transition and not entropy_transition_verified
+      else MocEulerTwoSidedInterfaceLawAuditStatus.DOWNSTREAM_PROBE_FAILURE
+    )
     return _failure(
-      MocEulerTwoSidedInterfaceLawAuditStatus.DOWNSTREAM_PROBE_FAILURE,
+      status,
       'independent downstream state, normal, speed, or residual remeasurement failed',
       result_status=result.status.value,
       request_verified=True,
       current_field_verified=True,
       source_lineage_verified=True,
+      entropy_transition_required=request.require_entropy_transition,
+      entropy_transition_verified=entropy_transition_verified,
     )
   ####
   try:
@@ -859,6 +921,7 @@ def measure_moc_euler_two_sided_interface_law(
     == stationary_equilibrium_candidate
     and result.conservative_flux_closure_verified
     == conservative_flux_closure_verified
+    and result.entropy_transition_verified == entropy_transition_verified
     and result.response_ready == bool(
       response_lineage_verified
       and candidate_geometry_verified
@@ -868,6 +931,10 @@ def measure_moc_euler_two_sided_interface_law(
       and (
         not request.require_conservative_flux_closure
         or conservative_flux_closure_verified
+      )
+      and (
+        not request.require_entropy_transition
+        or entropy_transition_verified
       )
     )
     and result.as_report()['chain_promotion_blocked'] is True
@@ -883,9 +950,15 @@ def measure_moc_euler_two_sided_interface_law(
       not request.require_conservative_flux_closure
       or conservative_flux_closure_verified
     )
+    and (
+      not request.require_entropy_transition
+      or entropy_transition_verified
+    )
   )
   if expected_ready and result_flags_verified:
     status = MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
+  elif request.require_entropy_transition and not entropy_transition_verified:
+    status = MocEulerTwoSidedInterfaceLawAuditStatus.ENTROPY_TRANSITION_FAILURE
   elif request.require_conservative_flux_closure and not conservative_flux_closure_verified:
     status = MocEulerTwoSidedInterfaceLawAuditStatus.CONSERVATIVE_FLUX_FAILURE
   else:
@@ -913,6 +986,8 @@ def measure_moc_euler_two_sided_interface_law(
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
     conservative_flux_closure_required=request.require_conservative_flux_closure,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    entropy_transition_required=request.require_entropy_transition,
+    entropy_transition_verified=entropy_transition_verified,
     result_flags_verified=result_flags_verified,
     maximum_interface_normal_speed_m_s=max(
       (abs(value) for value in expected_speeds),

@@ -152,9 +152,11 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
   # conservative consumer must opt in and provide a tighter accepted budget.
   normal_momentum_tolerance_Pa: float = 100.0
   energy_flux_tolerance_W_m2: float = 1.0e-1
+  entropy_transition_tolerance: float = 1.0e-8
   require_interface_motion: bool = True
   allow_stationary_equilibrium: bool = False
   require_conservative_flux_closure: bool = False
+  require_entropy_transition: bool = False
   require_terminal_fixed_point: bool = False
   use_conservative_residual_line_search: bool = False
   # The default two-sided lane assembles its own downstream research field.
@@ -210,6 +212,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'mass_flux_tolerance_kg_m2_s',
       'normal_momentum_tolerance_Pa',
       'energy_flux_tolerance_W_m2',
+      'entropy_transition_tolerance',
     ):
       object.__setattr__(self, name, _positive_float(getattr(self, name), name))
     ####
@@ -285,6 +288,7 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'require_interface_motion',
       'allow_stationary_equilibrium',
       'require_conservative_flux_closure',
+      'require_entropy_transition',
       'require_terminal_fixed_point',
     ):
       if not isinstance(getattr(self, name), bool):
@@ -399,9 +403,11 @@ class MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest:
       'mass_flux_tolerance_kg_m2_s': self.mass_flux_tolerance_kg_m2_s,
       'normal_momentum_tolerance_Pa': self.normal_momentum_tolerance_Pa,
       'energy_flux_tolerance_W_m2': self.energy_flux_tolerance_W_m2,
+      'entropy_transition_tolerance': self.entropy_transition_tolerance,
       'require_interface_motion': self.require_interface_motion,
       'allow_stationary_equilibrium': self.allow_stationary_equilibrium,
       'require_conservative_flux_closure': self.require_conservative_flux_closure,
+      'require_entropy_transition': self.require_entropy_transition,
       'require_terminal_fixed_point': self.require_terminal_fixed_point,
       'use_conservative_residual_line_search': (
         self.use_conservative_residual_line_search
@@ -875,6 +881,8 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       mass_flux_tolerance_kg_m2_s=request.mass_flux_tolerance_kg_m2_s,
       normal_momentum_tolerance_Pa=request.normal_momentum_tolerance_Pa,
       energy_flux_tolerance_W_m2=request.energy_flux_tolerance_W_m2,
+      entropy_transition_tolerance=request.entropy_transition_tolerance,
+      require_entropy_transition=request.require_entropy_transition,
     )
     moving_request = MocEulerTwoSidedMovingInterfaceRequest(
       field_request=field_request,
@@ -886,6 +894,7 @@ def solve_reflected_domain_global_two_sided_moving_interface(
       require_interface_motion=request.require_interface_motion,
       allow_stationary_equilibrium=request.allow_stationary_equilibrium,
       require_conservative_flux_closure=request.require_conservative_flux_closure,
+      require_entropy_transition=request.require_entropy_transition,
       require_terminal_fixed_point=request.require_terminal_fixed_point,
     )
     moving_result: MocEulerTwoSidedMovingInterfaceResult | None = None

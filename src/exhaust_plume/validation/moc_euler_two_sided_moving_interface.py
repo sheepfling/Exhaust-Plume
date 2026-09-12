@@ -56,6 +56,9 @@ class MocEulerTwoSidedMovingInterfaceAuditStatus(str, Enum):
   CONSERVATIVE_FLUX_FAILURE = (
     'two_sided_moving_interface_audit_conservative_flux_failure'
   )
+  ENTROPY_TRANSITION_FAILURE = (
+    'two_sided_moving_interface_audit_entropy_transition_failure'
+  )
   ITERATION_LIMIT = 'two_sided_moving_interface_audit_iteration_limit'
 ####
 
@@ -82,6 +85,8 @@ class MocEulerTwoSidedMovingInterfaceAudit:
   production_claim_allowed: bool
   conservative_flux_closure_required: bool = False
   conservative_flux_closure_verified: bool = False
+  entropy_transition_required: bool = False
+  entropy_transition_verified: bool = False
   terminal_fixed_point_required: bool = False
   terminal_fixed_point_verified: bool = False
   maximum_normal_displacement_m: float = 0.0
@@ -124,6 +129,8 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       'production_claim_allowed',
       'conservative_flux_closure_required',
       'conservative_flux_closure_verified',
+      'entropy_transition_required',
+      'entropy_transition_verified',
       'terminal_fixed_point_required',
       'terminal_fixed_point_verified',
     ):
@@ -178,6 +185,10 @@ class MocEulerTwoSidedMovingInterfaceAudit:
         or self.conservative_flux_closure_verified
       )
       and (
+        not self.entropy_transition_required
+        or self.entropy_transition_verified
+      )
+      and (
         not self.terminal_fixed_point_required
         or self.terminal_fixed_point_verified
       )
@@ -215,6 +226,8 @@ class MocEulerTwoSidedMovingInterfaceAudit:
       'conservative_flux_closure_verified': (
         self.conservative_flux_closure_verified
       ),
+      'entropy_transition_required': self.entropy_transition_required,
+      'entropy_transition_verified': self.entropy_transition_verified,
       'terminal_fixed_point_required': self.terminal_fixed_point_required,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
       'maximum_normal_displacement_m': self.maximum_normal_displacement_m,
@@ -250,6 +263,8 @@ def _failure(
   moving_interface_verified: bool = False,
   conservative_flux_closure_required: bool = False,
   conservative_flux_closure_verified: bool = False,
+  entropy_transition_required: bool = False,
+  entropy_transition_verified: bool = False,
   terminal_fixed_point_required: bool = False,
   terminal_fixed_point_verified: bool = False,
   maximum_normal_displacement_m: float = 0.0,
@@ -276,6 +291,8 @@ def _failure(
     production_claim_allowed=False,
     conservative_flux_closure_required=conservative_flux_closure_required,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    entropy_transition_required=entropy_transition_required,
+    entropy_transition_verified=entropy_transition_verified,
     terminal_fixed_point_required=terminal_fixed_point_required,
     terminal_fixed_point_verified=terminal_fixed_point_verified,
     maximum_normal_displacement_m=maximum_normal_displacement_m,
@@ -476,6 +493,7 @@ def measure_moc_euler_two_sided_moving_interface(
   maximum_momentum = 0.0
   maximum_energy = 0.0
   conservative_flux_closure_verified = True
+  entropy_transition_verified = True
   terminal_fixed_point_verified = False
   failure_status: MocEulerTwoSidedMovingInterfaceAuditStatus | None = None
   failure_message = ''
@@ -522,6 +540,13 @@ def measure_moc_euler_two_sided_moving_interface(
       conservative_flux_closure_verified
       and response_conservative_flux_verified
     )
+    response_entropy_transition_verified = bool(
+      response.entropy_transition_verified
+      and response.entropy_transition_log_ratios is not None
+    )
+    entropy_transition_verified = (
+      entropy_transition_verified and response_entropy_transition_verified
+    )
     next_field = record.next_field_iteration
     field_resolve = False
     next_field_audit_verified = False
@@ -543,6 +568,10 @@ def measure_moc_euler_two_sided_moving_interface(
       and (
         not request.require_conservative_flux_closure
         or response_conservative_flux_verified
+      )
+      and (
+        not request.require_entropy_transition
+        or response_entropy_transition_verified
       )
     )
     expected_motion = moved
@@ -618,6 +647,16 @@ def measure_moc_euler_two_sided_moving_interface(
       )
       break
     ####
+    if request.require_entropy_transition and not response_entropy_transition_verified:
+      failure_status = (
+        MocEulerTwoSidedMovingInterfaceAuditStatus.ENTROPY_TRANSITION_FAILURE
+      )
+      failure_message = (
+        'strict moving-interface response did not retain verified '
+        'entropy-transition evidence'
+      )
+      break
+    ####
     if next_field is None or not field_resolve:
       failure_status = MocEulerTwoSidedMovingInterfaceAuditStatus.FIELD_RESOLVE_FAILURE
       failure_message = 'response was present but its exact two-sided field re-solve was not independently verified'
@@ -658,6 +697,10 @@ def measure_moc_euler_two_sided_moving_interface(
       or conservative_flux_closure_verified
     )
     and (
+      not request.require_entropy_transition
+      or entropy_transition_verified
+    )
+    and (
       not request.require_terminal_fixed_point
       or expected_terminal_fixed_point
     )
@@ -673,6 +716,10 @@ def measure_moc_euler_two_sided_moving_interface(
     == request.require_conservative_flux_closure
     and result.conservative_flux_closure_verified
     == conservative_flux_closure_verified
+    and result.entropy_transition_required
+    == request.require_entropy_transition
+    and result.entropy_transition_verified
+    == entropy_transition_verified
     and result.terminal_fixed_point_required
     == request.require_terminal_fixed_point
     and result.terminal_fixed_point_verified
@@ -720,6 +767,8 @@ def measure_moc_euler_two_sided_moving_interface(
     moving_interface_verified=expected_moving,
     conservative_flux_closure_required=request.require_conservative_flux_closure,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    entropy_transition_required=request.require_entropy_transition,
+    entropy_transition_verified=entropy_transition_verified,
     terminal_fixed_point_required=request.require_terminal_fixed_point,
     terminal_fixed_point_verified=expected_terminal_fixed_point,
     maximum_normal_displacement_m=maximum_displacement,

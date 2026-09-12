@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from math import cos, hypot, isfinite, sin, sqrt
+from math import cos, hypot, isfinite, log, sin, sqrt
 from typing import Any
 
 from exhaust_plume.models.moc.euler_characteristic_field import (
@@ -87,6 +87,9 @@ class MocEulerTwoSidedInterfaceLawStatus(str, Enum):
   COMPANION_FIELD_FAILURE = 'two-sided-interface-law-companion-field-failure'
   CONSERVATIVE_FLUX_FAILURE = (
     'two-sided-interface-law-conservative-flux-failure'
+  )
+  ENTROPY_TRANSITION_FAILURE = (
+    'two-sided-interface-law-entropy-transition-failure'
   )
   NO_INTERFACE_MOTION = 'two-sided-interface-law-no-interface-motion'
 ####
@@ -256,6 +259,11 @@ class MocEulerTwoSidedInterfaceLawRequest:
   mass_flux_tolerance_kg_m2_s: float = 1.0e-3
   normal_momentum_tolerance_Pa: float = 1.0e-2
   energy_flux_tolerance_W_m2: float = 1.0e-1
+  # Entropy is an inequality channel, not a fourth equality residual.  The
+  # retained log ratio is log((p/rho**gamma)_down/(p/rho**gamma)_up); a
+  # physically admissible front may produce entropy, but may not lose it.
+  entropy_transition_tolerance: float = 1.0e-8
+  require_entropy_transition: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -302,11 +310,15 @@ class MocEulerTwoSidedInterfaceLawRequest:
       'mass_flux_tolerance_kg_m2_s',
       'normal_momentum_tolerance_Pa',
       'energy_flux_tolerance_W_m2',
+      'entropy_transition_tolerance',
     ):
       object.__setattr__(self, name, _positive_float(getattr(self, name), name))
     ####
     if not isinstance(self.require_conservative_flux_closure, bool):
       raise TypeError('require_conservative_flux_closure must be a bool')
+    ####
+    if not isinstance(self.require_entropy_transition, bool):
+      raise TypeError('require_entropy_transition must be a bool')
     ####
     object.__setattr__(self, 'relaxation', _bounded_fraction(self.relaxation, 'relaxation'))
     object.__setattr__(
@@ -392,6 +404,8 @@ class MocEulerTwoSidedInterfaceLawRequest:
       'mass_flux_tolerance_kg_m2_s': self.mass_flux_tolerance_kg_m2_s,
       'normal_momentum_tolerance_Pa': self.normal_momentum_tolerance_Pa,
       'energy_flux_tolerance_W_m2': self.energy_flux_tolerance_W_m2,
+      'entropy_transition_tolerance': self.entropy_transition_tolerance,
+      'require_entropy_transition': self.require_entropy_transition,
       'production_claim_allowed': False,
     }
   ####
@@ -419,6 +433,8 @@ class MocEulerTwoSidedInterfaceLawResult:
   interface_motion_verified: bool = False
   stationary_equilibrium_candidate: bool = False
   conservative_flux_closure_verified: bool = False
+  entropy_transition_log_ratios: tuple[float, ...] = ()
+  entropy_transition_verified: bool = False
   downstream_field_source: str = 'unavailable'
   downstream_field_lineage_verified: bool = False
   message: str = ''
@@ -489,6 +505,14 @@ class MocEulerTwoSidedInterfaceLawResult:
         'downstream_probe_total_pressure_Pa must contain finite positive values'
       )
     ####
+    entropy_ratios = tuple(float(value) for value in self.entropy_transition_log_ratios)
+    if len(entropy_ratios) not in (0, len(points)) or any(
+      not isfinite(value) for value in entropy_ratios
+    ):
+      raise ValueError(
+        'entropy_transition_log_ratios must be empty or align with interface-law probes'
+      )
+    ####
     for name in (
       'source_lineage_verified',
       'downstream_probe_verified',
@@ -498,6 +522,7 @@ class MocEulerTwoSidedInterfaceLawResult:
       'interface_motion_verified',
       'stationary_equilibrium_candidate',
       'conservative_flux_closure_verified',
+      'entropy_transition_verified',
       'downstream_field_lineage_verified',
     ):
       if not isinstance(getattr(self, name), bool):
@@ -523,6 +548,10 @@ class MocEulerTwoSidedInterfaceLawResult:
         self.request.require_conservative_flux_closure
         and not self.conservative_flux_closure_verified
       )
+      or (
+        self.request.require_entropy_transition
+        and not self.entropy_transition_verified
+      )
     ):
       raise ValueError(
         'a ready interface-law response must retain every local response gate'
@@ -537,6 +566,7 @@ class MocEulerTwoSidedInterfaceLawResult:
       tuple(float(value) for value in self.downstream_probe_total_pressure_Pa),
     )
     object.__setattr__(self, 'message', str(self.message))
+    object.__setattr__(self, 'entropy_transition_log_ratios', entropy_ratios)
     object.__setattr__(self, 'downstream_field_source', downstream_source)
   ####
 
@@ -567,6 +597,8 @@ class MocEulerTwoSidedInterfaceLawResult:
       'conservative_flux_closure_verified': (
         self.conservative_flux_closure_verified
       ),
+      'entropy_transition_log_ratios': self.entropy_transition_log_ratios,
+      'entropy_transition_verified': self.entropy_transition_verified,
       'downstream_field_source': self.downstream_field_source,
       'downstream_field_lineage_verified': self.downstream_field_lineage_verified,
       'probe_points_m': self.probe_points_m,
@@ -1036,6 +1068,7 @@ def build_solver_owned_euler_two_sided_interface_response(
   mass_residuals: list[float] = []
   momentum_residuals: list[float] = []
   energy_residuals: list[float] = []
+  entropy_transition_log_ratios: list[float] = []
   signed_mass_residuals: list[float] = []
   signed_momentum_residuals: list[float] = []
   signed_energy_residuals: list[float] = []
@@ -1106,6 +1139,17 @@ def build_solver_owned_euler_two_sided_interface_response(
         downstream_h * downstream_relative_velocity
         - upstream_h * upstream_relative_velocity
       )
+      upstream_entropy_log = (
+        log(upstream_pressure_static)
+        - float(upstream_state.gamma) * log(upstream_density)
+      )
+      downstream_entropy_log = (
+        log(downstream_pressure_static)
+        - float(probe.state.gamma) * log(downstream_density)
+      )
+      entropy_transition_log_ratios.append(
+        downstream_entropy_log - upstream_entropy_log
+      )
       signed_mass_residuals.append(signed_mass_residual)
       signed_momentum_residuals.append(signed_momentum_residual)
       signed_energy_residuals.append(signed_energy_residual)
@@ -1155,6 +1199,36 @@ def build_solver_owned_euler_two_sided_interface_response(
     and max(energy_residuals, default=float('inf'))
     <= request.energy_flux_tolerance_W_m2
   )
+  entropy_transition_verified = bool(
+    len(entropy_transition_log_ratios) == len(probes)
+    and all(
+      ratio >= -request.entropy_transition_tolerance
+      for ratio in entropy_transition_log_ratios
+    )
+  )
+  if request.require_entropy_transition and not entropy_transition_verified:
+    return _failure(
+      MocEulerTwoSidedInterfaceLawStatus.ENTROPY_TRANSITION_FAILURE,
+      'solver-owned interface response did not satisfy the declared entropy '
+      'transition inequality; entropy loss is not admissible and no geometry '
+      'update was admitted',
+      request=request,
+      current_field_iteration=current_field_iteration,
+      source_lineage_verified=True,
+      downstream_probe_verified=True,
+      probe_points_m=tuple(probe.probe_point_m for probe in probes),
+      probe_normals=tuple((probe.normal_x, probe.normal_y) for probe in probes),
+      interface_normal_speeds_m_s=tuple(speeds),
+      downstream_probe_states=tuple(probe.state for probe in probes),
+      downstream_probe_total_pressure_Pa=tuple(
+        probe.total_pressure_Pa for probe in probes
+      ),
+      entropy_transition_log_ratios=tuple(entropy_transition_log_ratios),
+      entropy_transition_verified=False,
+      conservative_flux_closure_verified=conservative_flux_closure_verified,
+      downstream_field_source=downstream_field_source,
+      downstream_field_lineage_verified=downstream_field_lineage_verified,
+    )
   if (
     request.require_conservative_flux_closure
     and not conservative_flux_closure_verified
@@ -1176,6 +1250,8 @@ def build_solver_owned_euler_two_sided_interface_response(
         probe.total_pressure_Pa for probe in probes
       ),
       conservative_flux_closure_verified=False,
+      entropy_transition_log_ratios=tuple(entropy_transition_log_ratios),
+      entropy_transition_verified=entropy_transition_verified,
       downstream_field_source=downstream_field_source,
       downstream_field_lineage_verified=downstream_field_lineage_verified,
     )
@@ -1428,6 +1504,8 @@ def build_solver_owned_euler_two_sided_interface_response(
     signed_mass_flux_residuals_kg_m2_s=tuple(signed_mass_residuals),
     signed_normal_momentum_residuals_Pa=tuple(signed_momentum_residuals),
     signed_energy_flux_residuals_W_m2=tuple(signed_energy_residuals),
+    entropy_transition_log_ratios=tuple(entropy_transition_log_ratios),
+    entropy_transition_verified=entropy_transition_verified,
     response_source=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
     law_id=MOC_EULER_TWO_SIDED_INTERFACE_LAW_ID,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
@@ -1460,6 +1538,8 @@ def build_solver_owned_euler_two_sided_interface_response(
     interface_motion_verified=motion_verified,
     stationary_equilibrium_candidate=stationary_equilibrium_candidate,
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    entropy_transition_log_ratios=tuple(entropy_transition_log_ratios),
+    entropy_transition_verified=entropy_transition_verified,
     downstream_field_source=downstream_field_source,
     downstream_field_lineage_verified=downstream_field_lineage_verified,
     message=(

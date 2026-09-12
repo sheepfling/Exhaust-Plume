@@ -2316,6 +2316,9 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert law.response.signed_mass_flux_residuals_kg_m2_s is not None
   assert law.response.signed_normal_momentum_residuals_Pa is not None
   assert law.response.signed_energy_flux_residuals_W_m2 is not None
+  assert law.response.entropy_transition_log_ratios is not None
+  assert law.response.entropy_transition_verified
+  assert law.entropy_transition_verified
   assert all(
     abs(signed) == pytest.approx(magnitude)
     for signed, magnitude in zip(
@@ -2380,6 +2383,26 @@ def test_solver_owned_two_sided_interface_law_builds_research_response():
   assert strict_interior_audit.conservative_flux_closure_verified is False
   assert strict_interior_audit.chain_promotion_blocked
   assert strict_interior_audit.production_claim_allowed is False
+
+  strict_entropy_law = build_solver_owned_euler_two_sided_interface_response(
+    result,
+    replace(
+      law_request,
+      require_entropy_transition=True,
+    ),
+  )
+  assert strict_entropy_law.status is MocEulerTwoSidedInterfaceLawStatus.RESPONSE_READY
+  assert strict_entropy_law.entropy_transition_verified
+  assert strict_entropy_law.response is not None
+  assert strict_entropy_law.response.entropy_transition_verified
+  strict_entropy_audit = measure_moc_euler_two_sided_interface_law(
+    strict_entropy_law
+  )
+  assert strict_entropy_audit.status is (
+    MocEulerTwoSidedInterfaceLawAuditStatus.CONVERGED_LOCAL_AUDIT
+  )
+  assert strict_entropy_audit.entropy_transition_required
+  assert strict_entropy_audit.entropy_transition_verified
 
   center_probe_law = build_solver_owned_euler_two_sided_interface_response(
     result,
@@ -2958,6 +2981,19 @@ def test_global_closure_binds_exact_two_sided_moving_interface_ladder():
   assert strict.moving_result.converged is False
   assert strict.moving_result.chain_promotion_blocked
   assert strict.moving_result.production_claim_allowed is False
+
+  entropy_strict = solve_reflected_domain_global_two_sided_moving_interface(
+    replace(request, require_entropy_transition=True)
+  )
+  assert entropy_strict.status is (
+    MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus
+    .CONVERGED_RESEARCH_INTERFACE
+  )
+  assert entropy_strict.moving_result is not None
+  assert entropy_strict.moving_result.entropy_transition_required
+  assert entropy_strict.moving_result.entropy_transition_verified
+  assert entropy_strict.chain_promotion_blocked
+  assert entropy_strict.production_claim_allowed is False
 ####
 
 

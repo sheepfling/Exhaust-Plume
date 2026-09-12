@@ -68,6 +68,9 @@ class MocEulerTwoSidedMovingInterfaceStatus(str, Enum):
   CONSERVATIVE_FLUX_FAILURE = (
     'two_sided_moving_interface_conservative_flux_failure'
   )
+  ENTROPY_TRANSITION_FAILURE = (
+    'two_sided_moving_interface_entropy_transition_failure'
+  )
   FIELD_RESOLVE_FAILURE = 'two_sided_moving_interface_field_resolve_failure'
   ITERATION_LIMIT = 'two_sided_moving_interface_iteration_limit'
 ####
@@ -186,6 +189,12 @@ class MocEulerTwoSidedInterfaceResponse:
   signed_mass_flux_residuals_kg_m2_s: tuple[float, ...] | None = None
   signed_normal_momentum_residuals_Pa: tuple[float, ...] | None = None
   signed_energy_flux_residuals_W_m2: tuple[float, ...] | None = None
+  # Entropy is retained as a signed log transition ratio rather than folded
+  # into the dimensional Rankine--Hugoniot equality residuals.  The physical
+  # gate is an inequality: the downstream entropy proxy may increase, but may
+  # not decrease beyond the declared tolerance.
+  entropy_transition_log_ratios: tuple[float, ...] | None = None
+  entropy_transition_verified: bool = False
   downstream_field_source: str = 'solver-owned-two-sided-field-iteration'
   downstream_field_lineage_verified: bool = False
 
@@ -318,6 +327,19 @@ class MocEulerTwoSidedInterfaceResponse:
       ####
       object.__setattr__(self, signed_name, signed_residuals)
     ####
+    entropy_ratios = self.entropy_transition_log_ratios
+    if entropy_ratios is not None:
+      entropy_ratios = tuple(float(value) for value in entropy_ratios)
+      if len(entropy_ratios) != sample_count or any(
+        not isfinite(value) for value in entropy_ratios
+      ):
+        raise ValueError(
+          'entropy_transition_log_ratios must be finite and align with the '
+          'next shock boundary'
+        )
+      ####
+      object.__setattr__(self, 'entropy_transition_log_ratios', entropy_ratios)
+    ####
     source = str(self.response_source)
     law_id = str(self.law_id)
     if not source or not law_id:
@@ -328,6 +350,14 @@ class MocEulerTwoSidedInterfaceResponse:
     ####
     if not isinstance(self.conservative_flux_closure_verified, bool):
       raise TypeError('conservative_flux_closure_verified must be a bool')
+    ####
+    if not isinstance(self.entropy_transition_verified, bool):
+      raise TypeError('entropy_transition_verified must be a bool')
+    ####
+    if self.entropy_transition_verified and entropy_ratios is None:
+      raise ValueError(
+        'entropy_transition_verified requires retained entropy transition ratios'
+      )
     ####
     if not isinstance(self.downstream_field_lineage_verified, bool):
       raise TypeError('downstream_field_lineage_verified must be a bool')
@@ -399,6 +429,8 @@ class MocEulerTwoSidedInterfaceResponse:
       'signed_energy_flux_residuals_W_m2': (
         self.signed_energy_flux_residuals_W_m2
       ),
+      'entropy_transition_log_ratios': self.entropy_transition_log_ratios,
+      'entropy_transition_verified': self.entropy_transition_verified,
       'signed_residuals_available': self.signed_residuals_available,
       'maximum_mass_flux_residual_kg_m2_s': (
         self.maximum_mass_flux_residual_kg_m2_s
@@ -436,6 +468,7 @@ class MocEulerTwoSidedMovingInterfaceRequest:
   require_interface_motion: bool = True
   allow_stationary_equilibrium: bool = False
   require_conservative_flux_closure: bool = False
+  require_entropy_transition: bool = False
   # A residual-passing response is not necessarily a settled front.  When
   # enabled, keep consuming solver-owned responses until the terminal normal
   # update is zero or the bounded iteration budget is exhausted.
@@ -478,6 +511,9 @@ class MocEulerTwoSidedMovingInterfaceRequest:
     if not isinstance(self.require_conservative_flux_closure, bool):
       raise TypeError('require_conservative_flux_closure must be a bool')
     ####
+    if not isinstance(self.require_entropy_transition, bool):
+      raise TypeError('require_entropy_transition must be a bool')
+    ####
     if not isinstance(self.require_terminal_fixed_point, bool):
       raise TypeError('require_terminal_fixed_point must be a bool')
     ####
@@ -494,6 +530,7 @@ class MocEulerTwoSidedMovingInterfaceRequest:
       'require_interface_motion': self.require_interface_motion,
       'allow_stationary_equilibrium': self.allow_stationary_equilibrium,
       'require_conservative_flux_closure': self.require_conservative_flux_closure,
+      'require_entropy_transition': self.require_entropy_transition,
       'require_terminal_fixed_point': self.require_terminal_fixed_point,
       'production_claim_allowed': False,
     }
@@ -604,6 +641,8 @@ class MocEulerTwoSidedMovingInterfaceResult:
   production_claim_allowed: bool
   conservative_flux_closure_required: bool = False
   conservative_flux_closure_verified: bool = False
+  entropy_transition_required: bool = False
+  entropy_transition_verified: bool = False
   stationary_equilibrium_verified: bool = False
   terminal_fixed_point_required: bool = False
   terminal_fixed_point_verified: bool = False
@@ -660,6 +699,8 @@ class MocEulerTwoSidedMovingInterfaceResult:
       'production_claim_allowed',
       'conservative_flux_closure_required',
       'conservative_flux_closure_verified',
+      'entropy_transition_required',
+      'entropy_transition_verified',
       'terminal_fixed_point_required',
       'terminal_fixed_point_verified',
     ):
@@ -701,6 +742,16 @@ class MocEulerTwoSidedMovingInterfaceResult:
       raise ValueError(
         'strict moving-interface results require conservative flux closure '
         'evidence across every accepted response'
+      )
+    ####
+    if (
+      self.moving_interface_verified
+      and self.entropy_transition_required
+      and not self.entropy_transition_verified
+    ):
+      raise ValueError(
+        'strict moving-interface results require entropy-transition evidence '
+        'across every accepted response'
       )
     ####
     if (
@@ -751,6 +802,8 @@ class MocEulerTwoSidedMovingInterfaceResult:
       'conservative_flux_closure_verified': (
         self.conservative_flux_closure_verified
       ),
+      'entropy_transition_required': self.entropy_transition_required,
+      'entropy_transition_verified': self.entropy_transition_verified,
       'terminal_fixed_point_required': self.terminal_fixed_point_required,
       'terminal_fixed_point_verified': self.terminal_fixed_point_verified,
       'request': None if self.request is None else self.request.as_report(),
@@ -799,6 +852,8 @@ def _failure(
   conservative_flux_closure_verified: bool = False,
   terminal_fixed_point_required: bool = False,
   terminal_fixed_point_verified: bool = False,
+  entropy_transition_required: bool = False,
+  entropy_transition_verified: bool = False,
 ) -> MocEulerTwoSidedMovingInterfaceResult:
   return MocEulerTwoSidedMovingInterfaceResult(
     status=status,
@@ -821,6 +876,12 @@ def _failure(
       else conservative_flux_closure_required
     ),
     conservative_flux_closure_verified=conservative_flux_closure_verified,
+    entropy_transition_required=(
+      request.require_entropy_transition
+      if request is not None
+      else entropy_transition_required
+    ),
+    entropy_transition_verified=entropy_transition_verified,
     stationary_equilibrium_verified=stationary_equilibrium_verified,
     terminal_fixed_point_required=(
       request.require_terminal_fixed_point
@@ -904,6 +965,18 @@ def _response_conservative_flux_verified(
   return bool(
     _response_residuals_verified(response, request)
     and response.conservative_flux_closure_verified
+  )
+####
+
+
+def _response_entropy_transition_verified(
+  response: MocEulerTwoSidedInterfaceResponse,
+  request: MocEulerTwoSidedMovingInterfaceRequest,
+) -> bool:
+  del request
+  return bool(
+    response.entropy_transition_verified
+    and response.entropy_transition_log_ratios is not None
   )
 ####
 
@@ -1111,6 +1184,41 @@ def solve_euler_two_sided_moving_interface(
         conservative_flux_closure_verified=False,
       )
     ####
+    entropy_transition_verified = _response_entropy_transition_verified(
+      response,
+      request,
+    )
+    if request.require_entropy_transition and not entropy_transition_verified:
+      record = MocEulerTwoSidedMovingInterfaceIterationRecord(
+        iteration_index=iteration_index,
+        field_iteration=current_field,
+        response=response,
+        next_field_iteration=None,
+        response_lineage_verified=True,
+        interface_motion_verified=motion_verified,
+        response_residuals_verified=residuals_verified,
+        field_re_solve_verified=False,
+        message=(
+          'strict moving-interface mode rejected a response without verified '
+          'entropy-transition evidence; entropy loss is not admissible and no '
+          'geometry update was consumed'
+        ),
+      )
+      records.append(record)
+      return _failure(
+        MocEulerTwoSidedMovingInterfaceStatus.ENTROPY_TRANSITION_FAILURE,
+        record.message,
+        request=request,
+        records=records,
+        initial_field_iteration=initial,
+        final_field_iteration=current_field,
+        response_lineage_verified=True,
+        interface_motion_verified=motion_verified,
+        response_residuals_verified=residuals_verified,
+        entropy_transition_required=True,
+        entropy_transition_verified=False,
+      )
+    ####
     next_request = replace(
       current_request,
       shock_boundary=response.next_shock_boundary,
@@ -1222,6 +1330,8 @@ def solve_euler_two_sided_moving_interface(
           response_residuals_verified=True,
           field_re_solve_verified=True,
           conservative_flux_closure_verified=conservative_flux_verified,
+          entropy_transition_required=request.require_entropy_transition,
+          entropy_transition_verified=entropy_transition_verified,
           stationary_equilibrium_verified=False,
           terminal_fixed_point_verified=terminal_fixed_point_verified,
         )
@@ -1251,6 +1361,14 @@ def solve_euler_two_sided_moving_interface(
           request.require_conservative_flux_closure
         ),
         conservative_flux_closure_verified=conservative_flux_verified,
+        entropy_transition_required=request.require_entropy_transition,
+        entropy_transition_verified=bool(
+          all(
+            record.response is not None
+            and record.response.entropy_transition_verified
+            for record in records
+          )
+        ),
         stationary_equilibrium_verified=stationary_equilibrium_verified,
         terminal_fixed_point_required=request.require_terminal_fixed_point,
         terminal_fixed_point_verified=terminal_fixed_point_verified,
@@ -1294,6 +1412,12 @@ def solve_euler_two_sided_moving_interface(
       record.response is not None
       and record.response.conservative_flux_closure_verified
       and record.response_residuals_verified
+      for record in records
+    )),
+    entropy_transition_required=request.require_entropy_transition,
+    entropy_transition_verified=bool(records and all(
+      record.response is not None
+      and record.response.entropy_transition_verified
       for record in records
     )),
   )
