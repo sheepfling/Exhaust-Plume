@@ -7150,3 +7150,37 @@ shock-cell/first-cell gates on their own fidelity lanes.  Until those gates
 pass, the basic diagnostic series may support evaluation and visualization
 only, and no low-fidelity result may be promoted into the higher-fidelity
 Signature or FPA products.
+
+### P3.24 explicit Rusanov state-handoff checkpoint — 2026-09-11 (`b73cb60`)
+
+The mixed-regime state consumer now derives a local endpoint-based Rusanov
+(``rusanov-local-lax-friedrichs-v1``) numerical flux for every retained
+downstream trace segment.  It reconstructs primitive pressure and acoustic
+wave speed from each conservative endpoint, records the maximum local wave
+speed and scheme identity, and serializes those fields in the audit packet.
+The focused regression independently recomputes the first segment's physical
+Euler fluxes and Rusanov dissipation before checking mass, streamwise and
+transverse momentum, and energy channels.  This makes the handoff physically
+meaningful and replayable without relabeling a central average as a flux.
+
+This remains a research-local evidence packet, not a global/free-boundary
+closure, a wall condition, a characteristic frontier, or a production
+Signature/FPA input.  The upstream state-equation contract, canonical
+free-boundary solve, physical shock-cell/first-cell acceptance, provider-bound
+VIS/SIG/RAY/FPA comparisons, and separately named alignment archive remain
+open.  The existing fidelity matrix and lane release manifest continue to
+forbid promotion across those boundaries.
+
+The exact code checkpoint passes the complete repository regression (``1313
+passed, 18 warnings``), the focused state-consumer tranche (``3 passed``),
+Ruff, Pyright, compilation, whitespace checks, and the offline wheel/install
+smoke.  The wheel SHA-256 is
+``98ea144a29761f8cae9b63817c14fdb7fb1dffe1c3c8018e483ab57aee2403c3``.  The
+release freeze is rebound to the exact code commit above; the umbrella
+release remains red until the external and canonical gates close.
+
+The next implementation slice is still the actual solver-owned global state
+equation: consume this flux packet in a coupled free-boundary re-solve,
+independently measure the signed mass/momentum/energy residuals, and require
+closure on disjoint cases and increasing resolutions before any downstream
+promotion is considered.

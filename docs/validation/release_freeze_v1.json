@@ -3,9 +3,9 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/washed-integral-visual",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "9e33c794c507c7d30b21fa3373deac3fd6fdae82",
-  "validated_code_commit": "9e33c794c507c7d30b21fa3373deac3fd6fdae82",
-  "validated_code_commit_note": "The exact validated code tranche passed the full repository suite (1313 tests, 18 warnings), Ruff, Pyright, compilation, and isolated wheel/install smoke; the focused visual/provider-comparison tranche (43 passed) and diagnostic feature-series evidence are included without promoting external validation.",
+  "head_commit": "b73cb609066c0e35c2bf2f4377ba2bec5f22493a",
+  "validated_code_commit": "b73cb609066c0e35c2bf2f4377ba2bec5f22493a",
+  "validated_code_commit_note": "The exact validated code tranche passed the full repository suite (1313 tests, 18 warnings), Ruff, Pyright, compilation, and isolated wheel/install smoke; the focused mixed-regime state-consumer tranche (3 passed) and diagnostic feature-series evidence are included without promoting canonical closure or external validation.",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "candidate-branch-not-pushed; historical PRs-5-6-7-merged",
   "remote_pr_audit": {
@@ -46,7 +46,7 @@
     "public_schema_fixture_determinism": "passed",
     "fresh_wheel_build_and_installed_smoke": "passed",
     "wheel_package_version": "0.1.0a2.dev0",
-    "wheel_sha256": "a49e7ba3a71c05d77067b8f554d02a1f33a2a5d319bad3a839c0bd7ed9a1b611",
+    "wheel_sha256": "98ea144a29761f8cae9b63817c14fdb7fb1dffe1c3c8018e483ab57aee2403c3",
     "wheel_reproducibility": {
       "source_date_epoch": 1787670925,
       "independent_build_count": 2,
@@ -57,7 +57,8 @@
     "first_cell_correlation_status": "diagnostic-passed-physical-closure-pending",
     "moc_cj_uej_component_diagnostic": "partial-component-evidence-not-accepted",
     "committed_measurement_operator_count": 21,
-    "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully"
+    "known_installed_smoke_diagnostics": "legacy expansion-fan warnings and one expected unattainable pressure-target error log; smoke exited successfully",
+    "mixed_regime_state_consumer": "research-only endpoint-based Rusanov local flux handoff; independently replayed in the focused three-test tranche; no global closure promotion"
   },
   "product_lanes": {
     "visual": "passed-local-external-pending",
