@@ -22,7 +22,7 @@ from typing import Any
 
 from exhaust_plume.models.moc.global_mixed_regime_state_consumer import (
   MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
-  build_reflected_domain_global_mixed_regime_conservative_boundary_profile,
+  build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame,
 )
 from exhaust_plume.models.moc.global_physical_closure import (
   MocReflectedDomainGlobalPhysicalClosureResult,
@@ -99,6 +99,27 @@ def _ordered_stations(values: Any, name: str) -> tuple[float, ...]:
   return stations
 
 
+def _ordered_points(
+  values: Any,
+  name: str,
+) -> tuple[tuple[float, float], ...]:
+  points = tuple(
+    tuple(float(coordinate) for coordinate in point)
+    for point in values
+  )
+  if any(
+    len(point) != 2 or any(not isfinite(value) for value in point)
+    for point in points
+  ):
+    raise ValueError(f'{name} must contain finite 2-D points')
+  if any(
+    second[0] <= first[0]
+    for first, second in zip(points, points[1:])
+  ):
+    raise ValueError(f'{name} must be strictly ordered in x')
+  return points
+
+
 @dataclass(frozen=True, slots=True)
 class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
   """A complete state handoff that the current upstream MOC lane rejects."""
@@ -109,6 +130,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
   source_closure_fingerprint: str | None = None
   conservative_state_profile: tuple[tuple[float, float, float, float], ...] = ()
   conservative_state_profile_x_stations_m: tuple[float, ...] = ()
+  conservative_state_profile_points_m: tuple[tuple[float, float], ...] = ()
   available_channels: MappingProxyType = field(default_factory=_empty_channels)
   consumed_channels: MappingProxyType = field(default_factory=_empty_channels)
   closure_lineage_verified: bool = False
@@ -149,9 +171,14 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
       self.conservative_state_profile_x_stations_m,
       'conservative_state_profile_x_stations_m',
     )
-    if len(profile) != len(stations):
+    points = _ordered_points(
+      self.conservative_state_profile_points_m,
+      'conservative_state_profile_points_m',
+    )
+    if len(profile) != len(stations) or len(profile) != len(points):
       raise ValueError(
-        'conservative state profile and station frame must have equal lengths'
+        'conservative state profile, station frame, and 2-D point frame must '
+        'have equal lengths'
       )
     ####
     available = dict(self.available_channels)
@@ -203,6 +230,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
     if self.state_target_ready and not (
       profile
       and len(profile) >= 1
+      and points
       and self.closure_lineage_verified
       and self.state_target_frame_verified
       and all(available.values())
@@ -213,6 +241,7 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
     ####
     object.__setattr__(self, 'conservative_state_profile', profile)
     object.__setattr__(self, 'conservative_state_profile_x_stations_m', stations)
+    object.__setattr__(self, 'conservative_state_profile_points_m', points)
     object.__setattr__(self, 'available_channels', MappingProxyType(available))
     object.__setattr__(self, 'consumed_channels', MappingProxyType(consumed))
     if self.source_closure_fingerprint is not None:
@@ -234,6 +263,9 @@ class MocReflectedDomainGlobalMixedRegimeStateEquationContract:
       'conservative_state_profile': self.conservative_state_profile,
       'conservative_state_profile_x_stations_m': (
         self.conservative_state_profile_x_stations_m
+      ),
+      'conservative_state_profile_points_m': (
+        self.conservative_state_profile_points_m
       ),
       'available_channels': dict(self.available_channels),
       'consumed_channels': dict(self.consumed_channels),
@@ -345,12 +377,14 @@ def prepare_reflected_domain_global_mixed_regime_state_equation_contract(
     )
   ####
   try:
-    profile, stations = (
-      build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
+    profile, points = (
+      build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame(
         consumer
       )
     )
     profile = _finite_state_profile(profile, 'conservative state profile')
+    points = _ordered_points(points, 'conservative state profile points')
+    stations = tuple(point[0] for point in points)
     stations = _ordered_stations(stations, 'conservative state profile stations')
   except (ArithmeticError, FloatingPointError, TypeError, ValueError) as error:
     return _failure(
@@ -380,6 +414,7 @@ def prepare_reflected_domain_global_mixed_regime_state_equation_contract(
     source_closure_fingerprint=fingerprint,
     conservative_state_profile=profile,
     conservative_state_profile_x_stations_m=stations,
+    conservative_state_profile_points_m=points,
     available_channels=available,
     consumed_channels=consumed,
     closure_lineage_verified=True,

@@ -51,6 +51,7 @@ __all__ = (
   'consume_reflected_domain_global_mixed_regime_state',
   'MocReflectedDomainGlobalMixedRegimeStateResolveStatus',
   'MocReflectedDomainGlobalMixedRegimeStateResolveResult',
+  'build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame',
   'build_reflected_domain_global_mixed_regime_conservative_boundary_profile',
   'solve_reflected_domain_global_mixed_regime_state_consumer',
 )
@@ -648,18 +649,20 @@ def consume_reflected_domain_global_mixed_regime_state(
   )
 
 
-def build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
+def build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame(
   consumer: MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
 ) -> tuple[
   tuple[tuple[float, float, float, float], ...],
-  tuple[float, ...],
+  tuple[tuple[float, float], ...],
 ]:
-  """Build exact cell-column state targets from adjacent trace nodes.
+  """Build exact conservative targets and their retained 2-D trace frame.
 
-  The returned state profile is a conservative average on the retained trace
-  segments.  It is intentionally not interpolated onto a new grid; the
-  resolver below requires its x stations to match the fresh coupled solver's
-  cell centers exactly.
+  Each target is a conservative average on one retained trace segment, and
+  each point is that segment's geometric midpoint.  The frame is intentionally
+  not interpolated or projected onto a new grid.  The downstream Rusanov
+  request still consumes the x projection through the compatibility helper
+  below, while the full 2-D frame remains available for the future upstream
+  state equation.
   """
 
   if not isinstance(
@@ -678,7 +681,7 @@ def build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
   ####
   trace = consumer.trace
   states: list[tuple[float, float, float, float]] = []
-  x_stations: list[float] = []
+  points: list[tuple[float, float]] = []
   for left, right in zip(trace.samples, trace.samples[1:]):
     states.append(
       tuple(
@@ -687,13 +690,40 @@ def build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
         for index in range(4)
       )
     )
-    x_stations.append(0.5 * (left.point_m[0] + right.point_m[0]))
+    points.append(
+      (
+        0.5 * (left.point_m[0] + right.point_m[0]),
+        0.5 * (left.point_m[1] + right.point_m[1]),
+      )
+    )
   ####
   if not states or len(states) != trace.sample_count - 1:
     raise ValueError(
       'conservative boundary profile retained no complete trace segments'
     )
-  return tuple(states), tuple(float(value) for value in x_stations)
+  return tuple(states), tuple(points)
+
+
+def build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
+  consumer: MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+) -> tuple[
+  tuple[tuple[float, float, float, float], ...],
+  tuple[float, ...],
+]:
+  """Build the exact x-projected profile required by the downstream solver.
+
+  This compatibility view deliberately preserves the existing downstream
+  request contract.  Call
+  ``build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame``
+  when the full physical trace frame is required.
+  """
+
+  profile, points = (
+    build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame(
+      consumer
+    )
+  )
+  return profile, tuple(point[0] for point in points)
 
 
 class MocReflectedDomainGlobalMixedRegimeStateResolveStatus(str, Enum):
@@ -724,6 +754,7 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
     tuple[tuple[float, float, float, float], ...]
   ) = ()
   conservative_state_profile_x_stations_m: tuple[float, ...] = ()
+  conservative_state_profile_points_m: tuple[tuple[float, float], ...] = ()
   consumer_lineage_verified: bool = False
   profile_frame_verified: bool = False
   fresh_solver_invoked: bool = False
@@ -768,12 +799,33 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
     stations = tuple(float(value) for value in self.conservative_state_profile_x_stations_m)
     if any(not isfinite(value) for value in stations):
       raise ValueError('conservative_state_profile_x_stations_m must be finite')
-    if len(profile) != len(stations):
-      raise ValueError('conservative state profile and stations must align')
+    points = tuple(
+      tuple(float(value) for value in point)
+      for point in self.conservative_state_profile_points_m
+    )
+    if any(
+      len(point) != 2 or any(not isfinite(value) for value in point)
+      for point in points
+    ):
+      raise ValueError(
+        'conservative_state_profile_points_m must contain finite 2-D points'
+      )
+    if len(profile) != len(stations) or len(profile) != len(points):
+      raise ValueError(
+        'conservative state profile, x stations, and 2-D points must align'
+      )
     if any(second <= first for first, second in zip(stations, stations[1:])):
       raise ValueError('conservative state profile stations must be ordered')
+    if any(
+      second[0] <= first[0]
+      for first, second in zip(points, points[1:])
+    ):
+      raise ValueError(
+        'conservative state profile 2-D points must be ordered in x'
+      )
     object.__setattr__(self, 'conservative_state_profile', profile)
     object.__setattr__(self, 'conservative_state_profile_x_stations_m', stations)
+    object.__setattr__(self, 'conservative_state_profile_points_m', points)
     for name in (
       'consumer_lineage_verified',
       'profile_frame_verified',
@@ -823,6 +875,9 @@ class MocReflectedDomainGlobalMixedRegimeStateResolveResult:
       'conservative_state_profile': self.conservative_state_profile,
       'conservative_state_profile_x_stations_m': (
         self.conservative_state_profile_x_stations_m
+      ),
+      'conservative_state_profile_points_m': (
+        self.conservative_state_profile_points_m
       ),
       'request': None if self.request is None else self.request.as_report(),
       'field': None if self.field is None else self.field.as_report(),
@@ -884,11 +939,12 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
     )
   ####
   try:
-    profile, profile_x = (
-      build_reflected_domain_global_mixed_regime_conservative_boundary_profile(
+    profile, profile_points = (
+      build_reflected_domain_global_mixed_regime_conservative_boundary_state_frame(
         consumer
       )
     )
+    profile_x = tuple(point[0] for point in profile_points)
     request = replace(
       baseline_request,
       source=(f'{baseline_request.source}:global-mixed-regime-state-consumer-v1'),
@@ -919,6 +975,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       request=request,
       conservative_state_profile=profile,
       conservative_state_profile_x_stations_m=profile_x,
+      conservative_state_profile_points_m=profile_points,
       consumer_lineage_verified=True,
       profile_frame_verified=True,
       fresh_solver_invoked=True,
@@ -942,6 +999,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       field=field,
       conservative_state_profile=profile,
       conservative_state_profile_x_stations_m=profile_x,
+      conservative_state_profile_points_m=profile_points,
       consumer_lineage_verified=True,
       profile_frame_verified=True,
       fresh_solver_invoked=True,
@@ -987,6 +1045,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
     field_audit=field_audit,
     conservative_state_profile=profile,
     conservative_state_profile_x_stations_m=profile_x,
+    conservative_state_profile_points_m=profile_points,
     consumer_lineage_verified=True,
     profile_frame_verified=True,
     fresh_solver_invoked=True,

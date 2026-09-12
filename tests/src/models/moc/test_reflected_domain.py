@@ -7318,6 +7318,16 @@ def test_global_mixed_regime_state_consumer_replays_full_trace_without_promotion
   assert contract.state_target_ready
   assert contract.closure_lineage_verified
   assert contract.state_target_frame_verified
+  assert contract.conservative_state_profile_points_m == tuple(
+    (
+      0.5 * (left.point_m[0] + right.point_m[0]),
+      0.5 * (left.point_m[1] + right.point_m[1]),
+    )
+    for left, right in zip(
+      consumed.trace.samples,
+      consumed.trace.samples[1:],
+    )
+  )
   assert contract.available_channels == {
     'mass': True,
     'streamwise_momentum': True,
@@ -7407,6 +7417,17 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
   assert resolved.request.free_boundary_conservative_state_profile_x_stations_m == (
     resolved.conservative_state_profile_x_stations_m
   )
+  assert resolved.conservative_state_profile_points_m == tuple(
+    (
+      0.5 * (left.point_m[0] + right.point_m[0]),
+      0.5 * (left.point_m[1] + right.point_m[1]),
+    )
+    for left, right in zip(
+      consumed.trace.samples,
+      consumed.trace.samples[1:],
+    )
+  )
+  assert len({point[1] for point in resolved.conservative_state_profile_points_m}) > 1
   assert resolved.request.free_boundary_conservative_state_profile_source == (
     'research-global-coupled-downstream-full-state-trace-v1'
   )
