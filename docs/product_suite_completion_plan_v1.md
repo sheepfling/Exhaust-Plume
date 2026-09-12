@@ -58,9 +58,9 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `f7e9f68` (bounded shape-step and local product/package checkpoint); the reflected-domain suite is green at 223 tests, the focused canonical-stop tranche is green at 4 tests, and the local static/contract/package checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch at `404f539` (canonical-closure seam checkpoint); the reflected-domain suite is green at 224 tests, the focused canonical-stop tranche is green at 4 tests, and the local static/contract/package checks pass; the new full-state consumer slice is being verified before its checkpoint commit; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
-| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | Active next physics slice; current terminal-patch, profile-update, and global feedback results remain research-only |
+| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | A model-side full-state consumer seam now exists; the true coupled feedback/free-boundary solve remains open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
 | 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Blocked; no freeze rewrite, push, or tag is authorized yet |
@@ -79,7 +79,7 @@ The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
 shock-geometry response consumer, exact shape-trial replay, bounded shape-step
 records, and the local product/package gates in place.  The latest reflected-
-domain suite is green at 223 tests, and the focused canonical-stop tranche is
+domain suite is green at 224 tests, and the focused canonical-stop tranche is
 green at 4 tests.  The five Visualization bundles, local Signature/ray/FPA
 contracts, mission-time composition, and installed-package smoke pass locally;
 provider validation, the downstream boundary, canonical free-boundary,
@@ -159,6 +159,33 @@ equations, and independently remeasure mass, normal momentum, energy,
 entropy, ambient, centerline, and frame coverage.  Until that operator closes
 on a disjoint case/resolution ladder, the current local package evidence and
 research shock-cell fits remain below production Signature/FPA claims.
+
+### P3.14 solver-owned full-state consumer seam — 2026-09-11
+
+The model lane now has an explicit
+``consume_reflected_domain_global_mixed_regime_state`` operator.  It accepts
+the exact verified global physical closure together with the coupled-Euler
+downstream result, requires complete retained global-field state sampling,
+rebuilds the downstream boundary trace from the coupled conservative field,
+and rejects a stale or tampered trace even when its producer flags still say
+``verified``.
+
+The consumer derives an oriented conservative flux record for every retained
+trace segment and independently gates mass, streamwise momentum, transverse
+momentum, energy, entropy, ambient pressure, centerline, and frame coverage.
+The flux record is an evidence packet for the next joint state equation; it is
+not a wall condition, a supersonic characteristic frontier, or a global
+re-solve.  The result therefore keeps canonical free-boundary and global
+coupling false, chain promotion blocked, and production claims disabled.
+
+The focused trace/consumer regression passes (``2 passed``), including the
+tampered-trace rejection, and the complete reflected-domain suite passes
+(``224 passed in 372.65s``).  Ruff, Pyright, Python compilation, and
+whitespace checks are clean.  The next implementation slice must use this
+full state packet in the
+actual coupled global/free-boundary solve and close signed mass, momentum, and
+energy residuals on disjoint cases and increasing resolutions; pressure or
+geometry-only feedback remains insufficient.
 
 ### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
 

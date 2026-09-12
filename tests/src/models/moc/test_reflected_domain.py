@@ -101,6 +101,8 @@ from exhaust_plume.models.moc import (
   MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus,
   MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryTraceStatus,
+  MocReflectedDomainGlobalMixedRegimeStateConsumerStatus,
+  consume_reflected_domain_global_mixed_regime_state,
   MocReflectedDomainGlobalPhysicalFieldHandoff,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryGeometryProfile,
   MocReflectedDomainGlobalCoupledDownstreamBoundaryPressureProfile,
@@ -7200,6 +7202,80 @@ def test_global_coupled_downstream_retains_a_separate_full_state_boundary_trace(
     result
   )
   assert rebuilt == trace
+####
+
+
+def test_global_mixed_regime_state_consumer_replays_full_trace_without_promotion():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+
+  assert consumed.status is (
+    MocReflectedDomainGlobalMixedRegimeStateConsumerStatus
+    .CONSUMED_LOCAL_RESEARCH_STATE
+  )
+  assert consumed.consumed_local_research_state
+  assert consumed.closure_lineage_verified
+  assert consumed.global_field_consumed
+  assert consumed.full_state_trace_consumed
+  assert consumed.frame_coverage_verified
+  assert consumed.mass_channel_verified
+  assert consumed.streamwise_momentum_channel_verified
+  assert consumed.transverse_momentum_channel_verified
+  assert consumed.energy_channel_verified
+  assert consumed.entropy_channel_verified
+  assert consumed.ambient_channel_verified
+  assert consumed.centerline_channel_verified
+  assert consumed.trace is downstream.downstream_boundary_trace
+  assert consumed.trace is not None
+  assert len(consumed.conservative_flux_samples) == consumed.trace.sample_count - 1
+  assert consumed.entropy_proxy_range is not None
+  assert consumed.canonical_free_boundary_verified is False
+  assert consumed.global_coupling_verified is False
+  assert consumed.chain_promotion_blocked
+  assert consumed.production_claim_allowed is False
+  report = consumed.as_report()
+  assert report['model'] == 'research-global-mixed-regime-state-consumer-v1'
+  assert report['production_claim_allowed'] is False
+
+  tampered_trace = replace(
+    consumed.trace,
+    samples=(
+      replace(
+        consumed.trace.samples[0],
+        static_pressure_Pa=consumed.trace.samples[0].static_pressure_Pa + 1.0,
+      ),
+      *consumed.trace.samples[1:],
+    ),
+  )
+  tampered_downstream = replace(
+    downstream,
+    downstream_boundary_trace=tampered_trace,
+  )
+  rejected = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    tampered_downstream,
+  )
+  assert rejected.status is (
+    MocReflectedDomainGlobalMixedRegimeStateConsumerStatus
+    .TRACE_REPLAY_FAILURE
+  )
+  assert not rejected.consumed_local_research_state
+  assert rejected.chain_promotion_blocked
+  assert rejected.production_claim_allowed is False
 ####
 
 

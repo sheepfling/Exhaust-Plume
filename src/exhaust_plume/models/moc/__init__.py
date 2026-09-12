@@ -486,6 +486,13 @@ from exhaust_plume.models.moc.global_coupled_downstream import (
   measure_reflected_domain_global_coupled_downstream_boundary_response,
   solve_reflected_domain_global_coupled_downstream,
 )
+from exhaust_plume.models.moc.global_mixed_regime_state_consumer import (
+  MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_CONSUMER_MODEL,
+  MocReflectedDomainGlobalMixedRegimeStateConsumerStatus,
+  MocReflectedDomainGlobalMixedRegimeConservativeFluxSample,
+  MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
+  consume_reflected_domain_global_mixed_regime_state,
+)
 from exhaust_plume.models.moc.global_two_sided_moving_interface import (
   MOC_GLOBAL_TWO_SIDED_MOVING_INTERFACE_OPERATOR_ID,
   MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus,
@@ -1386,6 +1393,11 @@ __all__ = (
   'build_reflected_domain_global_coupled_downstream_boundary_trace',
   'measure_reflected_domain_global_coupled_downstream_boundary_response',
   'solve_reflected_domain_global_coupled_downstream',
+  'MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_STATE_CONSUMER_MODEL',
+  'MocReflectedDomainGlobalMixedRegimeStateConsumerStatus',
+  'MocReflectedDomainGlobalMixedRegimeConservativeFluxSample',
+  'MocReflectedDomainGlobalMixedRegimeStateConsumerResult',
+  'consume_reflected_domain_global_mixed_regime_state',
   'MOC_GLOBAL_TWO_SIDED_MOVING_INTERFACE_OPERATOR_ID',
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceStatus',
   'MocReflectedDomainGlobalTwoSidedMovingInterfaceRequest',
