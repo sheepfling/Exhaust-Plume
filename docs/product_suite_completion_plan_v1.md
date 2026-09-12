@@ -65,7 +65,16 @@ the handoff to the next slice.
 | 3a | Frontier residual-exchange ladder | One locally verified P3.43k source/target exchange | At least two distinct source-closure fingerprints and increasing exact shock resolutions, with per-case packet/update/response replay and component-wise admission evidence | The four-case refinement harness covers two source closures × `(9 -> 11)` exact shock-frontier resolutions with independent replay and explicit claim ceilings. With the bounded attachment-tangent mode enabled, all four cases are component-wise admitted and independently replayed, yielding cross-case research coverage. The explicit normal-only mode remains available and keeps the positive eleven-sample attachment-stencil case fail-closed with the typed `no-strict-component-descent` reason; no canonical/global or production claim is implied |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slices 2–3a | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3a; current fits are resolution evidence only |
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
-| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Not frozen. The code candidate `6ba22b8` was clean when the validator ran, and the attachment-tangent residual-exchange diagnostics are full-module/static-check and wheel-smoke verified; this plan update is a documentation follow-on. The validator still reports `release_ready=false` because the recorded freeze is stale and canonical/global, physical shock-cell, provider/archive, and external-validation gates remain red. No freeze rewrite, push, or tag is authorized by this plan. |
+| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Not frozen. The code/marker candidate `b61765b` was clean when the validator ran, and the aggregate-residual diagnostics are focused-regression/static-check and wheel-smoke verified; this plan update is a documentation follow-on. The validator still reports `release_ready=false` because the recorded freeze is stale and canonical/global, physical shock-cell, provider/archive, and external-validation gates remain red. No freeze rewrite, push, or tag is authorized by this plan. |
+
+Candidate-hygiene handoff update (2026-09-12): code checkpoint `9702bb1`
+adds the typed 30-channel aggregate residual packet and tamper-replay audit;
+plan checkpoint `a5f92c8` records it; and marker-only hygiene checkpoint
+`b61765b` leaves the mixed-regime scope-marker check clean across `520` files.
+The focused three-test joint-feedback regression, full static/public-contract/
+lane hygiene checks, and offline wheel/install smoke pass on `b61765b`.  The
+candidate remains dedicated-branch work, not a release freeze, and `main` is
+untouched.
 
 The queue is dependency-ordered.  In particular, Visualization work may
 continue to improve evaluation surfaces, but it cannot turn an open physical
@@ -212,8 +221,13 @@ Advance the current research evidence in the following order:
    independent replay checks the packet values and chain flags; optional
    all-channel tolerance and component-wise descent requirements fail closed.
    The implementation and tamper-replay regression are committed in
-   checkpoint `9702bb1`; the candidate remains on the dedicated branch and
-   `main` is untouched.
+   checkpoint `9702bb1`; the marker-only hygiene checkpoint is `b61765b`, and
+   the candidate remains on the dedicated branch with `main` untouched. The
+   focused three-test joint-feedback regression passes; Ruff, Pyright,
+   compile, public-contract, lane, Markdown, and scope-marker checks pass;
+   and the offline wheel/install smoke exits zero. The current-head release
+   audit still reports `release_ready=false` with the existing provider,
+   archive, canonical-closure, physical shock-cell, and stale-freeze blockers.
    This makes cross-seam evidence auditable, but it is still an acceptance
    contract around research solvers, not the missing simultaneous
    global/free-boundary equation.  These remain research seams until accepted
@@ -8691,3 +8705,25 @@ being coerced into it.  Public import, Ruff, Pyright, compile, and diff checks
 are green.  This closes the bounded research refinement queue item only; the
 canonical global/free-boundary solve, multi-step fixed-point convergence,
 physical shock-cell comparison, provider validation, and release remain open.
+
+### P3.43t aggregate residual packet and candidate hygiene checkpoint — 2026-09-12 (code/marker `b61765b`)
+
+The joint feedback cursor now carries one ordered, typed 30-channel aggregate
+residual packet per retained step. It covers the refreshed global
+conservative channels, conservative handoff, frontier state equation,
+characteristic compatibility, local normal closure, downstream overlap, and
+the complete coupled-field residual vector. Each channel is normalized in its
+own contract units; independent replay checks the exact packet and chain
+flags; and optional all-channel tolerance/descent requirements fail closed.
+The implementation and tamper-replay regression are in `9702bb1`, with the
+plan checkpoint in `a5f92c8`.
+
+The reported mixed-regime scope-marker hygiene repair is comment-only and is
+committed in `b61765b`; the repository scope-marker check passes all `520`
+files. The focused joint-feedback regression passes (`3 passed, 257
+deselected in 53.41s`), and Ruff, Pyright, compile, public-contract, lane,
+Markdown, and offline wheel/install smoke checks pass. The exact-head lane
+audit is clean but still returns `release_ready=false`: provider-bound
+comparisons, raw/alignment archives, reduced-order and planar physical gates,
+accepted physical shock-cell comparison, and a current release freeze remain
+open. No push or tag was performed.
