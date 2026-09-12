@@ -1582,9 +1582,14 @@ def solve_euler_two_sided_conservative_residual(
               accepted_response = shape_trial[0]
               accepted_measurement = shape_trial[2]
               accepted_after = shape_trial[3]
-              accepted_step = max(
-                (abs(value) for value in trial_coefficients),
-                default=0.0,
+              # ``step_fraction`` is the bounded scalar summary used by the
+              # common iteration record.  Shape coefficients are a separate
+              # multi-control step and may legally exceed one; the retained
+              # coefficient vector and ``shape_step_norm`` are the exact
+              # replay evidence for this branch.
+              accepted_step = min(
+                1.0,
+                max((abs(value) for value in trial_coefficients), default=0.0),
               )
               accepted_backtracks = shape_backtrack
               accepted_step_source = 'multi-control-shape-jacobian-correction'

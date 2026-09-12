@@ -3031,6 +3031,7 @@ def test_global_shape_jacobian_corrector_keeps_active_channels_strict():
       use_conservative_residual_directional_correction=False,
       use_conservative_residual_shape_jacobian_correction=True,
       maximum_shape_controls=8,
+      maximum_shape_step_fraction=2.0,
       maximum_residual_backtracks=2,
     )
   )
@@ -3052,7 +3053,13 @@ def test_global_shape_jacobian_corrector_keeps_active_channels_strict():
     and record.shape_jacobian_verified
     and len(record.shape_control_names) >= 2
     and len(record.shape_control_names) == len(record.shape_probe_residual_norms)
+    and len(record.shape_control_names) == len(record.shape_control_vectors)
+    and len(record.shape_control_names) == len(record.shape_control_coefficients)
     and record.shape_step_norm is not None
+    for record in residual.records
+  )
+  assert any(
+    max(abs(value) for value in record.shape_control_coefficients) > 1.0
     for record in residual.records
   )
   first = residual.records[0].measured_response
