@@ -8771,3 +8771,17 @@ candidate remains dedicated-branch research evidence; canonical/global
 closure, accepted physical shock-cell lengths, provider/archive validation,
 and release readiness remain open, with no push or tag authorized by this
 checkpoint.
+
+### P3.43v exact-head lane audit checkpoint — 2026-09-12 (code candidate `011f67c`)
+
+The characteristic/free-boundary seam is committed on the dedicated branch
+and the worktree is clean.  The exact-head lane validator records local
+Visualization, Signature, mission-time, and downstream FPA evidence as
+available, while keeping ``release_ready=false``.  The remaining blockers are
+unchanged and explicit: the recorded freeze is stale, provider-specific
+measurement-space comparisons and raw/alignment archives are missing,
+reduced-order and planar-MOC physical gates are not accepted, and no physical
+solver-length comparison has been accepted for shock-cell fitting.  The
+offline wheel/install smoke for this code candidate exits successfully; this
+plan entry is documentation-only follow-on evidence and does not rewrite the
+freeze or authorize a push or tag.
