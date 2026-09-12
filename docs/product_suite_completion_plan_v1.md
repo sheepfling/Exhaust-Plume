@@ -6628,3 +6628,35 @@ scope-marker, and whitespace checks are clean.  The next physics step is to
 extend this metric from overlap channels to the complete coupled state and
 conservative residual vector, then require the same fail-closed descent logic
 across disjoint cases and a declared resolution ladder.
+
+### P3.9 complete coupled-state descent and cross-case checkpoint — 2026-09-11
+
+The implementation checkpoint ``efab76e`` now exposes the retained coupled
+state as a named, tolerance-normalized ten-channel vector: conservative mass,
+streamwise and transverse momentum, energy, Euler residual, free-boundary
+pressure, free-boundary and centerline normal velocity, free-boundary shape,
+and the solver-declared entropy-transport loss tolerance.  The vector and its
+maximum are serialized through the downstream result and exported from the
+MOC public namespace.  It is explicitly a research comparison vector; it does
+not replace any physical-unit residual audit or lower a production claim
+ceiling.
+
+The outer global feedback runner now has an opt-in
+``require_complete_state_residual_descent`` gate.  It fails closed when a
+fresh solve cannot retain every channel or when the maximum complete-state
+metric does not strictly decrease.  The disjoint source/mesh refinement
+operator records the per-case metric sequence, checks finite retention,
+strict within-case descent, and—when requested—cross-resolution stability.
+The retained mixed-regime open-response case passes the complete-state gate
+over two fresh solves; a one-step request and a disjoint two-case ladder with
+one non-monotone source case both return typed failure statuses and remain
+promotion-blocked.  This is evidence that the gate detects unresolved physics,
+not evidence that the canonical closure is complete.
+
+The complete reflected-domain suite passes (``223 passed``); the focused
+descent/cross-case tranche passes (``6 passed``), with Ruff, Pyright,
+compilation, and whitespace checks clean.  The next physics step is to
+investigate the non-monotone disjoint case and close the actual global/free-
+boundary equation, then repeat the ladder with accepted physical shock-cell
+comparisons.  Provider validation archives/outputs, Signature/RAY/FPA
+acceptance, and the release freeze remain separate blockers.
