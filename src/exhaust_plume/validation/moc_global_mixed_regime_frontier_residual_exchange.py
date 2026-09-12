@@ -373,7 +373,15 @@ class MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest:
   probe_displacement_m: float = 1.0e-4
   maximum_displacement_m: float = 1.0e-3
   relaxation: float = 0.5
-  line_search_scales: tuple[float, ...] = (1.0, 0.5, 0.25, 0.1)
+  line_search_scales: tuple[float, ...] = (
+    1.0,
+    0.5,
+    0.25,
+    0.1,
+    0.05,
+    0.025,
+    0.01,
+  )
   try_opposite_direction: bool = True
   branch: ShockBranch = ShockBranch.WEAK
   position_tolerance_m: float = 1.0e-8

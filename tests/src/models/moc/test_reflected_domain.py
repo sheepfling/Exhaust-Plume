@@ -16692,6 +16692,58 @@ def test_global_mixed_regime_frontier_residual_exchange_refinement_keeps_open_ca
 ####
 
 
+def test_global_mixed_regime_frontier_residual_exchange_admits_fine_interior_stencil():
+  closure = _global_physical_closure_for_mixed_regime(
+    9,
+    compression_envelope_skews=(0.75, 0.0),
+  )
+  source_frontier = run_reflected_domain_global_mixed_regime_shock_frontier_step(
+    MocReflectedDomainGlobalMixedRegimeShockFrontierRefinementCase(
+      case_id='frontier-residual-exchange-interior-fine-step',
+      closure=closure,
+      reference_total_temperature_K=1500.0,
+      sample_start_index=2,
+      component_tolerance=1.0e-4,
+    )
+  )
+  assert source_frontier.locally_verified
+  result = run_reflected_domain_global_mixed_regime_frontier_residual_exchange(
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeRequest(
+      source_frontier_step=source_frontier,
+      target_closure=closure,
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      probe_displacement_m=1.0e-5,
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeStatus
+    .CONVERGED_RESEARCH_FRONTIER_RESIDUAL_EXCHANGE
+  )
+  assert result.converged
+  assert result.source_packet is not None
+  assert result.source_packet.sample_indices == tuple(range(2, 9))
+  iteration = result.iterations[0]
+  assert iteration.accepted
+  assert iteration.admission_reason is (
+    MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeAdmissionReason
+    .ACCEPTED
+  )
+  assert iteration.selected_step_scale == 0.01
+  assert iteration.componentwise_non_worsening
+  assert iteration.strict_component_descent
+  audit = audit_reflected_domain_global_mixed_regime_frontier_residual_exchange(
+    result
+  )
+  assert audit.converged
+  assert audit.independent_exchange_verified
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+####
+
+
 def test_global_mixed_regime_joint_state_frontier_feedback_rebuilds_each_closure():
   result = run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest(
