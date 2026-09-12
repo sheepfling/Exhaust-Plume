@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch with code checkpoint `a92e0a2` plus an audited release-evidence follow-on; the full repository suite is green at 1,310 tests, Ruff, Pyright, compilation, and isolated wheel/install smoke pass, and `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch with code checkpoint `9204f48` plus an audited release-evidence follow-on; the full repository suite is green at 1,310 tests, Ruff, Pyright, compilation, and isolated wheel/install smoke pass, and `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; its exact 2-D frame is retained and can now be dimensionalized into measured residuals with explicit thermodynamic inputs, while the bounded pressure/geometry projection remains separate; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -75,7 +75,7 @@ label.
 
 ### Current release-evidence checkpoint — 2026-09-11
 
-The candidate code checkpoint ``a92e0a2`` carries the release-manifest
+The candidate code checkpoint ``9204f48`` carries the release-manifest
 provenance hardening and its focused regression.  The product candidate has
 passed the full repository suite (``1310 passed, 18 warnings``), Ruff,
 Pyright, compilation, and isolated wheel/install smoke; the reproducible

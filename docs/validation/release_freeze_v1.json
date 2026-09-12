@@ -3,9 +3,9 @@
   "schema_version": "plume.release-freeze@1",
   "branch": "work/washed-integral-visual",
   "base_main_commit": "dd4d57611ba940c8fc4a9721d4b3464b6bbd7848",
-  "head_commit": "a92e0a20e657494adec129141527574a29332f87",
-  "validated_code_commit": "a92e0a20e657494adec129141527574a29332f87",
-  "validated_code_commit_note": "The product candidate passed the full repository suite (1310 tests), Ruff, Pyright, compilation, and isolated wheel/install smoke before this release-evidence validator/test hardening commit; the focused release-manifest tests pass on this commit and the entropy-target checkpoint is included.",
+  "head_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2",
+  "validated_code_commit": "9204f485d3c545446b2ce98cd3040585734a4fc2",
+  "validated_code_commit_note": "The product candidate passed the full repository suite (1310 tests), Ruff, Pyright, compilation, and isolated wheel/install smoke before release-evidence validator/test hardening; the focused release-manifest suite (3 passed) passes on this commit and the entropy-target checkpoint is included.",
   "completion_requirement_audit": "completion_requirement_audit_v1.json",
   "remote_publish_status": "candidate-branch-not-pushed; historical PRs-5-6-7-merged",
   "remote_pr_audit": {
