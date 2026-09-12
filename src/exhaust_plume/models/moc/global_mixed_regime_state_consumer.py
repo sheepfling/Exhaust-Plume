@@ -1013,14 +1013,17 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
   consumer: MocReflectedDomainGlobalMixedRegimeStateConsumerResult,
   *,
   apply_conservative_flux_profile: bool = False,
+  apply_entropy_compatible_flux: bool = False,
 ) -> MocReflectedDomainGlobalMixedRegimeStateResolveResult:
   """Fresh-solve the coupled field with the consumed full-state trace.
 
   This is the first numerical consumer of the full downstream state packet.
   It binds adjacent trace-state averages to the exact existing coupled
   cell-center frame and uses the explicit conservative Rusanov boundary flux.
-  ``apply_conservative_flux_profile`` additionally exercises the experimental
-  fixed-interface-flux handoff.  That opt-in path is kept separate because a
+  ``apply_entropy_compatible_flux`` selects the live trace law that enforces
+  the local discrete Euler entropy inequality.  The separate
+  ``apply_conservative_flux_profile`` option exercises the experimental fixed
+  interface-flux handoff; it is intentionally mutually exclusive because a
   retained numerical flux is not automatically an entropy-compatible
   free-boundary condition.  Neither path changes the upstream global closure,
   so neither can claim a global fixed point or production validity.
@@ -1031,6 +1034,21 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT,
       consumer=None,
       message='apply_conservative_flux_profile must be a bool',
+    )
+  if not isinstance(apply_entropy_compatible_flux, bool):
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT,
+      consumer=None,
+      message='apply_entropy_compatible_flux must be a bool',
+    )
+  if apply_conservative_flux_profile and apply_entropy_compatible_flux:
+    return MocReflectedDomainGlobalMixedRegimeStateResolveResult(
+      status=MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT,
+      consumer=None,
+      message=(
+        'fixed conservative-flux and entropy-compatible live-trace options '
+        'are mutually exclusive'
+      ),
     )
 
   if not isinstance(
@@ -1097,6 +1115,13 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
       if apply_conservative_flux_profile
       else None
     )
+    trace_flux_mode = (
+      MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV
+      if apply_entropy_compatible_flux
+      else MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .CONSERVATIVE_STATE_TRACE_RUSANOV
+    )
     trace = consumer.trace
     if trace is None:
       raise ValueError('consumed state did not retain its boundary trace')
@@ -1115,10 +1140,7 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
     request = replace(
       baseline_request,
       source=(f'{baseline_request.source}:global-mixed-regime-state-consumer-v1'),
-      free_boundary_flux_mode=(
-        MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
-        .CONSERVATIVE_STATE_TRACE_RUSANOV
-      ),
+      free_boundary_flux_mode=trace_flux_mode,
       free_boundary_conservative_state_profile=profile,
       free_boundary_conservative_state_profile_x_stations_m=profile_x,
       free_boundary_conservative_state_profile_source=(
@@ -1194,9 +1216,12 @@ def solve_reflected_domain_global_mixed_regime_state_consumer(
   ####
   field_lineage_verified = bool(
     field.request is request
-    and request.free_boundary_flux_mode
-    is MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
-    .CONSERVATIVE_STATE_TRACE_RUSANOV
+    and request.free_boundary_flux_mode in (
+      MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .CONSERVATIVE_STATE_TRACE_RUSANOV,
+      MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV,
+    )
     and field.free_boundary_conservative_state_profile_consumed
   )
   audit_verified = bool(

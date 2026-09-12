@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from math import isfinite, sqrt
+from math import isfinite, log, sqrt
 from types import MappingProxyType
 from typing import Any
 
@@ -426,16 +426,22 @@ class MocReflectedDomainCoupledEulerFreeBoundaryFluxMode(str, Enum):
   The specified-pressure material-streamline flux is the historical local
   research boundary.  The conservative-state trace mode consumes a complete
   four-component state at every free-boundary cell column and applies the
-  Rusanov flux against that retained state.  An optional retained flux packet
-  can instead be used as an explicit fixed interface-flux condition during a
-  research re-solve.  Both conservative modes are downstream research
-  handoffs, not proof of a canonical wall or global free-boundary closure.
+  Rusanov flux against that retained state.  The entropy-compatible trace
+  mode applies the same live state handoff with enough local Lax-Friedrichs
+  dissipation to satisfy the discrete Euler entropy inequality at the
+  interface.  An optional retained flux packet can instead be used as an
+  explicit fixed interface-flux condition during a research re-solve.  All
+  three conservative paths are downstream research handoffs, not proof of a
+  canonical wall or global free-boundary closure.
   """
 
   SPECIFIED_PRESSURE_MATERIAL_STREAMLINE = (
     'specified-pressure-material-streamline-v1'
   )
   CONSERVATIVE_STATE_TRACE_RUSANOV = 'conservative-state-trace-rusanov-v1'
+  CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV = (
+    'conservative-state-trace-entropy-compatible-rusanov-v1'
+  )
 ####
 
 
@@ -2150,10 +2156,15 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
         source,
       )
     ####
-    if self.free_boundary_flux_mode is (
+    conservative_state_trace_modes = (
       MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
-      .CONSERVATIVE_STATE_TRACE_RUSANOV
-    ) and self.free_boundary_conservative_state_profile is None:
+      .CONSERVATIVE_STATE_TRACE_RUSANOV,
+      MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+      .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV,
+    )
+    if self.free_boundary_flux_mode in conservative_state_trace_modes and (
+      self.free_boundary_conservative_state_profile is None
+    ):
       raise ValueError(
         'conservative-state trace flux mode requires an explicit '
         'free-boundary conservative-state profile'
@@ -2180,7 +2191,7 @@ class MocReflectedDomainCoupledEulerFreeBoundaryRequest:
       ):
         raise ValueError(
           'free-boundary conservative-flux targets require the explicit '
-          'conservative-state trace Rusanov mode'
+          'non-entropy-compatible conservative-state trace Rusanov mode'
         )
       targets = tuple(flux_profile)
       if len(targets) != self.axial_cell_count:
@@ -4974,6 +4985,152 @@ def _rusanov_flux(
 ####
 
 
+def _euler_entropy_variables(
+  state: np.ndarray,
+  normal_x: float,
+  normal_y: float,
+  gamma: float,
+  gas_constant: float,
+) -> tuple[np.ndarray, float]:
+  """Return ideal-gas mathematical entropy variables and normal potential.
+
+  The entropy is the negative physical entropy,
+  ``eta = -rho * log(p / rho**gamma) / (gamma - 1)``.  The additive
+  entropy constant is immaterial because only jumps in the entropy variables
+  are used.  For this normalization the normal entropy potential is
+  ``psi_n = rho * u_n``.
+  """
+
+  density, velocity_u, velocity_v, pressure, _temperature, _sound_speed = (
+    _primitive_from_conservative(state, gamma, gas_constant)
+  )
+  specific_entropy = log(pressure) - gamma * log(density)
+  beta = density / (2.0 * pressure)
+  variables = np.array(
+    (
+      (gamma - specific_entropy) / (gamma - 1.0)
+      - beta * (velocity_u * velocity_u + velocity_v * velocity_v),
+      2.0 * beta * velocity_u,
+      2.0 * beta * velocity_v,
+      -2.0 * beta,
+    ),
+    dtype=float,
+  )
+  potential = density * (velocity_u * normal_x + velocity_v * normal_y)
+  if not np.all(np.isfinite(variables)) or not isfinite(potential):
+    raise FloatingPointError(
+      'Euler entropy variables or entropy potential are non-finite'
+    )
+  ####
+  return variables, float(potential)
+####
+
+
+def _entropy_compatible_rusanov_flux(
+  left: np.ndarray,
+  right: np.ndarray,
+  normal_x: float,
+  normal_y: float,
+  face_length: float,
+  gamma: float,
+  gas_constant: float,
+) -> tuple[np.ndarray, float]:
+  """Return a live Rusanov flux satisfying the local Euler entropy bound.
+
+  The state trace is re-evaluated on every pseudo-time residual call.  The
+  usual arithmetic central flux is given at least the physical maximum wave
+  speed and is increased only when the Tadmor entropy inequality requires
+  more Lax-Friedrichs dissipation.  This is an interface law for the
+  downstream research field; it is not a proof of the surrounding moving
+  free-boundary or upstream global closure.
+  """
+
+  left_flux, left_wave = _euler_flux(
+    left,
+    normal_x,
+    normal_y,
+    gamma,
+    gas_constant,
+  )
+  right_flux, right_wave = _euler_flux(
+    right,
+    normal_x,
+    normal_y,
+    gamma,
+    gas_constant,
+  )
+  left_variables, left_potential = _euler_entropy_variables(
+    left,
+    normal_x,
+    normal_y,
+    gamma,
+    gas_constant,
+  )
+  right_variables, right_potential = _euler_entropy_variables(
+    right,
+    normal_x,
+    normal_y,
+    gamma,
+    gas_constant,
+  )
+  state_jump = right - left
+  variable_jump = right_variables - left_variables
+  central_flux = 0.5 * (left_flux + right_flux)
+  entropy_potential_jump = right_potential - left_potential
+  central_entropy_defect = float(
+    np.dot(variable_jump, central_flux) - entropy_potential_jump
+  )
+  convexity_measure = float(np.dot(variable_jump, state_jump))
+  if not isfinite(central_entropy_defect) or not isfinite(convexity_measure):
+    raise FloatingPointError(
+      'Euler entropy compatibility measure is non-finite'
+    )
+  ####
+  wave = max(left_wave, right_wave)
+  if central_entropy_defect > 0.0:
+    if convexity_measure <= 0.0:
+      raise FloatingPointError(
+        'Euler entropy compatibility has non-positive state-space convexity'
+      )
+    ####
+    wave = max(
+      wave,
+      2.0 * central_entropy_defect / convexity_measure,
+    )
+  ####
+  flux_density = central_flux - 0.5 * wave * state_jump
+  entropy_defect = float(
+    np.dot(variable_jump, flux_density) - entropy_potential_jump
+  )
+  entropy_scale = max(
+    abs(float(np.dot(variable_jump, flux_density))),
+    abs(entropy_potential_jump),
+    1.0,
+  )
+  if entropy_defect > 1.0e-12 * entropy_scale:
+    if convexity_measure <= 0.0:
+      raise FloatingPointError(
+        'Euler entropy-compatible flux cannot enforce its local inequality'
+      )
+    ####
+    wave = max(
+      wave,
+      (2.0 * central_entropy_defect / convexity_measure) * (1.0 + 1.0e-12),
+    )
+    flux_density = central_flux - 0.5 * wave * state_jump
+    entropy_defect = float(
+      np.dot(variable_jump, flux_density) - entropy_potential_jump
+    )
+    if entropy_defect > 1.0e-12 * entropy_scale:
+      raise FloatingPointError(
+        'Euler entropy-compatible Rusanov flux retained a positive '
+        'discrete entropy defect'
+      )
+  ####
+  return flux_density * face_length, wave
+####
+
+
 def _wall_flux(
   state: np.ndarray,
   normal_x: float,
@@ -5262,9 +5419,11 @@ def _validate_conservative_state_profile_frame(
 ) -> None:
   """Require an exact cell-center frame for the conservative trace handoff."""
 
-  if request.free_boundary_flux_mode is not (
+  if request.free_boundary_flux_mode not in (
     MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
-    .CONSERVATIVE_STATE_TRACE_RUSANOV
+    .CONSERVATIVE_STATE_TRACE_RUSANOV,
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV,
   ):
     return
   ####
@@ -5429,6 +5588,28 @@ def _cell_residuals(
               )
             flux = np.asarray(target.flux, dtype=float) * face_length
             wave = target.maximum_wave_speed_m_s
+          elif free_boundary_flux_mode is (
+            MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+            .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV
+          ):
+            if free_boundary_conservative_state_profile is None:
+              raise ValueError(
+                'entropy-compatible conservative-state trace mode retained '
+                'no boundary state profile'
+              )
+            target_state = np.asarray(
+              free_boundary_conservative_state_profile[i],
+              dtype=float,
+            )
+            flux, wave = _entropy_compatible_rusanov_flux(
+              state,
+              target_state,
+              normal_x,
+              normal_y,
+              face_length,
+              gamma,
+              gas_constant,
+            )
           elif free_boundary_flux_mode is (
             MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
             .CONSERVATIVE_STATE_TRACE_RUSANOV
@@ -6980,9 +7161,12 @@ def _result_from_field(
       request.free_boundary_geometry_profile_y_m is not None
     ),
     free_boundary_conservative_state_profile_consumed=(
-      request.free_boundary_flux_mode
-      is MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
-      .CONSERVATIVE_STATE_TRACE_RUSANOV
+      request.free_boundary_flux_mode in (
+        MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+        .CONSERVATIVE_STATE_TRACE_RUSANOV,
+        MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+        .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV,
+      )
       and request.free_boundary_conservative_state_profile is not None
     ),
     free_boundary_conservative_flux_profile_consumed=(

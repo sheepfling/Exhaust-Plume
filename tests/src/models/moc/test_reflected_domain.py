@@ -7514,6 +7514,63 @@ def test_global_mixed_regime_state_consumer_fresh_solves_from_full_state_trace()
  ####
 
 
+def test_global_mixed_regime_entropy_compatible_trace_uses_live_boundary_law():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=12,
+  )
+  consumed = consume_reflected_domain_global_mixed_regime_state(
+    closure,
+    downstream,
+  )
+
+  resolved = solve_reflected_domain_global_mixed_regime_state_consumer(
+    consumed,
+    apply_entropy_compatible_flux=True,
+  )
+
+  assert resolved.status is (
+    MocReflectedDomainGlobalMixedRegimeStateResolveStatus
+    .CONVERGED_LOCAL_RESEARCH_STATE_RESOLVE
+  )
+  assert resolved.request is not None
+  assert resolved.request.free_boundary_flux_mode is (
+    MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+    .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV
+  )
+  assert resolved.request.free_boundary_conservative_flux_profile is None
+  assert resolved.field is not None
+  assert resolved.field.free_boundary_conservative_state_profile_consumed
+  assert resolved.field.entropy_transport_verified
+  assert resolved.field_audit is not None
+  assert resolved.field_audit.status is (
+    MocReflectedDomainCoupledEulerFreeBoundaryAuditStatus
+    .CONVERGED_LOCAL_AUDIT
+  )
+  assert resolved.field_audit.entropy_transport_verified
+  assert resolved.global_coupling_verified is False
+  assert resolved.chain_promotion_blocked
+  assert resolved.production_claim_allowed is False
+
+  rejected = solve_reflected_domain_global_mixed_regime_state_consumer(
+    consumed,
+    apply_conservative_flux_profile=True,
+    apply_entropy_compatible_flux=True,
+  )
+  assert rejected.status is (
+    MocReflectedDomainGlobalMixedRegimeStateResolveStatus.INVALID_INPUT
+  )
+  assert 'mutually exclusive' in rejected.message
+ ####
+
+
 def test_global_mixed_regime_fixed_flux_handoff_fails_closed_on_entropy_loss():
   closure = _global_physical_closure_for_mixed_regime()
   mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)

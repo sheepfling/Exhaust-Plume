@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import isfinite, sqrt
+from math import isfinite, log, sqrt
 from typing import Any
 
 import numpy as np
@@ -1288,6 +1288,134 @@ def _rusanov(
     0.5 * (left_flux + right_flux)
     - 0.5 * wave * (right - left)
   ) * length, wave
+####
+
+
+def _entropy_variables(
+  state: np.ndarray,
+  normal_x: float,
+  normal_y: float,
+  gamma: float,
+  gas_constant: float,
+) -> tuple[np.ndarray, float]:
+  """Re-derive the ideal-gas entropy variables and normal potential."""
+
+  density, velocity_u, velocity_v, pressure, _temperature, _sound_speed = (
+    _primitive(state, gamma, gas_constant)
+  )
+  specific_entropy = log(pressure) - gamma * log(density)
+  beta = density / (2.0 * pressure)
+  variables = np.array(
+    (
+      (gamma - specific_entropy) / (gamma - 1.0)
+      - beta * (velocity_u * velocity_u + velocity_v * velocity_v),
+      2.0 * beta * velocity_u,
+      2.0 * beta * velocity_v,
+      -2.0 * beta,
+    ),
+    dtype=float,
+  )
+  potential = density * (velocity_u * normal_x + velocity_v * normal_y)
+  if not np.all(np.isfinite(variables)) or not isfinite(potential):
+    raise FloatingPointError(
+      'audited Euler entropy variables or entropy potential are non-finite'
+    )
+  ####
+  return variables, float(potential)
+####
+
+
+def _entropy_compatible_rusanov(
+  left: np.ndarray,
+  right: np.ndarray,
+  normal_x: float,
+  normal_y: float,
+  length: float,
+  gamma: float,
+  gas_constant: float,
+) -> tuple[np.ndarray, float]:
+  """Re-derive the live trace flux and its local entropy inequality."""
+
+  left_flux, left_wave = _flux(
+    left,
+    normal_x,
+    normal_y,
+    gamma,
+    gas_constant,
+  )
+  right_flux, right_wave = _flux(
+    right,
+    normal_x,
+    normal_y,
+    gamma,
+    gas_constant,
+  )
+  left_variables, left_potential = _entropy_variables(
+    left,
+    normal_x,
+    normal_y,
+    gamma,
+    gas_constant,
+  )
+  right_variables, right_potential = _entropy_variables(
+    right,
+    normal_x,
+    normal_y,
+    gamma,
+    gas_constant,
+  )
+  state_jump = right - left
+  variable_jump = right_variables - left_variables
+  central_flux = 0.5 * (left_flux + right_flux)
+  entropy_potential_jump = right_potential - left_potential
+  central_entropy_defect = float(
+    np.dot(variable_jump, central_flux) - entropy_potential_jump
+  )
+  convexity_measure = float(np.dot(variable_jump, state_jump))
+  if not isfinite(central_entropy_defect) or not isfinite(convexity_measure):
+    raise FloatingPointError(
+      'audited Euler entropy compatibility measure is non-finite'
+    )
+  ####
+  wave = max(left_wave, right_wave)
+  if central_entropy_defect > 0.0:
+    if convexity_measure <= 0.0:
+      raise FloatingPointError(
+        'audited Euler entropy compatibility has non-positive convexity'
+      )
+    ####
+    wave = max(wave, 2.0 * central_entropy_defect / convexity_measure)
+  ####
+  flux_density = central_flux - 0.5 * wave * state_jump
+  entropy_defect = float(
+    np.dot(variable_jump, flux_density) - entropy_potential_jump
+  )
+  entropy_scale = max(
+    abs(float(np.dot(variable_jump, flux_density))),
+    abs(entropy_potential_jump),
+    1.0,
+  )
+  if entropy_defect > 1.0e-12 * entropy_scale:
+    if convexity_measure <= 0.0:
+      raise FloatingPointError(
+        'audited entropy-compatible flux cannot enforce its inequality'
+      )
+    ####
+    wave = max(
+      wave,
+      (2.0 * central_entropy_defect / convexity_measure) * (1.0 + 1.0e-12),
+    )
+    flux_density = central_flux - 0.5 * wave * state_jump
+    entropy_defect = float(
+      np.dot(variable_jump, flux_density) - entropy_potential_jump
+    )
+    if entropy_defect > 1.0e-12 * entropy_scale:
+      raise FloatingPointError(
+        'audited entropy-compatible Rusanov flux retained a positive '
+        'discrete entropy defect'
+      )
+  ####
+  return flux_density * length, wave
 ####
 
 
@@ -3228,6 +3356,28 @@ def _audit_field(
             ####
             flux = np.asarray(target.flux, dtype=float) * length
             wave = target.maximum_wave_speed_m_s
+          elif request.free_boundary_flux_mode is (
+            MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
+            .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV
+          ):
+            conservative_profile = (
+              request.free_boundary_conservative_state_profile
+            )
+            if conservative_profile is None or len(conservative_profile) != axial_count:
+              raise ValueError(
+                'entropy-compatible state trace audit requires one complete '
+                'state per free-boundary cell column'
+              )
+            ####
+            flux, wave = _entropy_compatible_rusanov(
+              state,
+              np.asarray(conservative_profile[i], dtype=float),
+              normal_x,
+              normal_y,
+              length,
+              gamma,
+              gas_constant,
+            )
           elif request.free_boundary_flux_mode is (
             MocReflectedDomainCoupledEulerFreeBoundaryFluxMode
             .CONSERVATIVE_STATE_TRACE_RUSANOV
