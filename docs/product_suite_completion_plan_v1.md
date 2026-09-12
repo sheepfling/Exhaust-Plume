@@ -58,7 +58,7 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch with code checkpoint `7c3b6b4` and plan-only follow-on commits; the reflected-domain suite is green at 229 tests, the focused state-consumer/equation/feedback tranche is green, and the local static/contract/package checks pass; `main` is untouched |
+| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Clean dedicated branch with code checkpoint `34b1dc8` and plan-only follow-on commits; the reflected-domain suite is green at 229 tests, the focused state-consumer/equation/probe tranche is green, and the local static/contract/package checks pass; `main` is untouched |
 | 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
 | 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | The full-state trace is consumed by the downstream conservative state equations and audited component-by-component; its exact 2-D frame is retained and can now be dimensionalized into measured residuals with explicit thermodynamic inputs, while the bounded pressure/geometry projection remains separate; upstream mass, momentum, energy, and entropy feedback and the true conservative global fixed point remain open |
 | 4 | Physical shock-cell chain | Accepted canonical field/frontier from slice 3 | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3; current fits are resolution evidence only |
@@ -73,7 +73,7 @@ detector observations are accepted.  Missing data must stay a typed blocker,
 and a research solver may not be promoted by changing a manifest or claim
 label.
 
-### Active execution card — code checkpoint `7c3b6b4`
+### Active execution card — code checkpoint `34b1dc8`
 
 The current candidate is a clean dedicated integration branch with the
 disjoint signed pressure/geometry response refinement, the solver-owned global
@@ -81,8 +81,8 @@ shock-geometry response consumer, exact shape-trial replay, bounded shape-step
 records, the model-side full-state consumer, the bounded full-state feedback
 projection, the downstream full-state equation-consumption audit, and the
 local product/package gates in place.  The latest reflected-domain suite is
-green at 228 tests, and the focused full-state consumer/equation/feedback
-tranche is green at 5 tests.  The five
+green at 229 tests, and the focused full-state consumer/equation/probe
+tranche is green.  The five
 Visualization bundles, local Signature/ray/FPA
 contracts, mission-time composition, and installed-package smoke pass locally;
 provider validation, the downstream boundary, canonical free-boundary,
@@ -99,9 +99,10 @@ channel.
 A separate dimensional state-target probe now samples that exact 2-D frame from
 the retained global characteristic field.  It requires caller-owned total
 temperature, target gamma, and gas constant, records four-component signed and
-relative residuals, and keeps the entropy channel available-but-unconsumed.
-This is evidence for the next equation; it is not global feedback or a
-characteristic-state cast.
+relative residuals plus an aligned positive ``p/rho**gamma`` target and signed
+log residual at every midpoint, and keeps the entropy channel
+available-but-unconsumed.  This is evidence for the next equation; it is not
+global feedback, an entropy-jump law, or a characteristic-state cast.
 
 The solver-owned two-sided interface lane now retains an explicit entropy
 transition channel alongside signed mass, normal-momentum, and energy
@@ -471,6 +472,32 @@ slice must own the actual upstream conservative/entropy equation, define how
 the entropy channel enters the unknowns and residuals, re-solve the same
 global/free-boundary frame, and demonstrate disjoint case and resolution
 evidence before any coupling or product claim can change.
+
+### P3.23 entropy-proxy target residual checkpoint — 2026-09-11 (``34b1dc8``)
+
+The dimensional target seam now retains a positive ``p/rho**gamma`` proxy from
+the same segment-averaged conservative state used for the four-component
+target.  The proxy is carried through the flux sample, exact 2-D state frame,
+state resolve result, and upstream state-equation contract, with point and
+profile-length checks at each boundary.  This prevents a future equation from
+silently losing the entropy channel while preserving the existing x-only
+compatibility projection for the downstream Rusanov lane.
+
+The upstream state-target probe now samples that proxy from the
+dimensionalized global characteristic field and records a signed log residual
+``log(sampled / target)`` plus its maximum absolute value.  The local research
+gate requires the entropy residual measurement to be finite and aligned, but
+the result still explicitly reports ``entropy_channel_consumed=false``,
+``upstream_equation_consumed=false``, and promotion blocked.  This scalar is a
+target diagnostic, not an entropy jump, second-law interface gate, or global
+feedback equation.
+
+The full reflected-domain regression passes (``229 passed in 380.06s``), the
+focused consumer/equation/probe tests pass, and Ruff, Pyright, compilation,
+whitespace, and diff checks pass.  The code checkpoint is committed at
+``34b1dc8``.  The next physics slice remains the solver-owned conservative and
+entropy equation with an actual global/free-boundary re-solve and independent
+mass, momentum, energy, entropy, ambient, centerline, and downstream audits.
 
 ### P2.2e explicit free-boundary update-law checkpoint — 2026-09-11
 
