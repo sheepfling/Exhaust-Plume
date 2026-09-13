@@ -8964,3 +8964,27 @@ full product/validation suite passes (`370 passed in 536.04s`), the upstream
 model subset passes (`6 passed, 258 deselected`), and local product-lane
 validation remains passed with external/provider comparison, raw/alignment
 archives, physical shock-cell acceptance, and release-freeze gates still open.
+
+### P3.43af joint-feedback visualization packet checkpoint — 2026-09-12 (working tree)
+
+The standardized Visualization adapter now recognizes the typed global
+joint-state/frontier feedback result and retains its exact ordered aggregate
+residual packet by feedback iteration.  The packet is exposed as scalar
+diagnostics—channel count, valid-vector count, maximum, dominant channel, and
+dominant iteration—rather than being projected onto spatial stations.  Each
+retained iteration also contributes validated source/next shock-frontier paths
+when solver-owned geometry is available, so the evolution of the research
+cursor can be inspected without presenting a bounded iteration as a physical
+shock-cell solution.
+
+The result and iteration types expose the packet channel names directly, and
+the adapter fails closed for missing, malformed, non-finite, negative, or
+length-mismatched vectors; it never reconstructs component values from a
+scalar norm.  The real mixed-regime smoke produces the dedicated model id,
+the measured `frontier_state_equation_target_entropy` dominant channel, and
+the retained overlay path.  The focused product/validation contract slice
+passes (`29 passed`), Pyright reports zero errors, and the visualization
+regression covers serialization and promotion guards.  The approximately
+`47.16` normalized target-entropy residual remains an open formulation issue;
+fixed-point, canonical/global, physical shock-cell, provider/archive, and
+release-freeze gates remain open.

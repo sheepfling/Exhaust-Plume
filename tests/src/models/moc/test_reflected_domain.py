@@ -17140,6 +17140,12 @@ def test_global_mixed_regime_joint_state_frontier_feedback_rebuilds_each_closure
   assert result.final_closure is not result.source_closure
   assert all(item.research_step_verified for item in result.iterations)
   assert result.aggregate_residual_chain_verified
+  assert result.aggregate_residual_channels == (
+    MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+  )
+  assert result.iterations[0].aggregate_residual_channels == (
+    MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+  )
   assert result.aggregate_residual_tolerance_verified is False
   assert result.aggregate_residual_descent_verified is False
   assert all(

@@ -927,6 +927,98 @@ def test_moc_upstream_state_equation_visualization_exposes_interface_strip_diagn
 ####
 
 
+def test_moc_joint_state_frontier_feedback_visualization_exposes_packet_and_overlays() -> None:
+  source_closure = SimpleNamespace(
+    global_euler=SimpleNamespace(
+      shock_boundary=SimpleNamespace(
+        shock_points_m=((0.5, 0.4), (1.0, 0.3), (1.5, 0.2)),
+      ),
+    ),
+  )
+  next_closure = SimpleNamespace(
+    global_euler=SimpleNamespace(
+      shock_boundary=SimpleNamespace(
+        shock_points_m=((0.5, 0.42), (1.0, 0.32), (1.5, 0.22)),
+      ),
+    ),
+  )
+
+  class JointFeedbackResult(_MocResult):
+    status = 'completed-research-joint-state-frontier-feedback-with-open-convergence'
+    feedback_completed = True
+    frontier_chain_verified = True
+    joint_solve_chain_verified = True
+    frontier_residual_exchange_chain_verified = False
+    characteristic_pressure_correction_chain_verified = False
+    aggregate_residual_channels = ('joint_mass', 'frontier_entropy', 'downstream')
+    aggregate_residual_chain_verified = True
+    aggregate_residual_tolerance_verified = False
+    aggregate_residual_descent_verified = False
+    nested_consumer_lineage_chain_verified = True
+    fixed_point_verified = False
+    residual_descent_verified = False
+    independent_audit_verified = True
+    global_coupling_verified = False
+    canonical_free_boundary_verified = False
+    chain_promotion_blocked = True
+    production_claim_allowed = False
+  ####
+
+  JointFeedbackResult.iterations = (
+    SimpleNamespace(
+      iteration_index=0,
+      aggregate_residual_vector=(0.2, 4.5, 0.7),
+      source_closure=source_closure,
+      next_closure=next_closure,
+    ),
+    SimpleNamespace(
+      iteration_index=1,
+      aggregate_residual_vector=(0.1, 4.6, 0.8),
+      source_closure=next_closure,
+      next_closure=next_closure,
+    ),
+  )
+
+  bundle = standardize_model_visualization(
+    JointFeedbackResult(),
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-global-joint-state-frontier-feedback'
+  assert bundle.diagnostics['global_joint_state_frontier_feedback'] is True
+  assert bundle.diagnostics[
+    'global_joint_state_frontier_feedback_iteration_count'
+  ] == 2
+  assert bundle.diagnostics[
+    'global_joint_state_frontier_feedback_aggregate_residual_channel_count'
+  ] == 3
+  assert bundle.diagnostics[
+    'global_joint_state_frontier_feedback_aggregate_residual_vector_count'
+  ] == 2
+  assert bundle.diagnostics[
+    'global_joint_state_frontier_feedback_aggregate_residual_maximum'
+  ] == pytest.approx(4.6)
+  assert bundle.diagnostics[
+    'global_joint_state_frontier_feedback_aggregate_residual_dominant_channel'
+  ] == 'frontier_entropy'
+  assert bundle.diagnostics[
+    'global_joint_state_frontier_feedback_aggregate_residual_dominant_iteration'
+  ] == 1
+  assert {
+    path.path_id for path in bundle.paths
+  } >= {
+    'moc-joint-state-frontier-feedback-0-source-shock',
+    'moc-joint-state-frontier-feedback-0-next-shock',
+    'moc-joint-state-frontier-feedback-1-source-shock',
+    'moc-joint-state-frontier-feedback-1-next-shock',
+  }
+  assert bundle.claims.production_claim_allowed is False
+  assert any('per-iteration shock frontiers' in warning for warning in bundle.warnings)
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_moc_production_fit_visualization_exposes_candidate_boundary_without_promotion() -> None:
   class ProductionFitResult(_MocResult):
     candidate_field = _MocField()

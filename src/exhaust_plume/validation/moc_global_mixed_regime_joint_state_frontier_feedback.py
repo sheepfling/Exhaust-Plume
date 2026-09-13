@@ -519,6 +519,13 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
     )
   ####
 
+  @property
+  def aggregate_residual_channels(self) -> tuple[str, ...]:
+    """Return the ordered names for the retained cross-seam packet."""
+
+    return MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+  ####
+
   def as_report(self) -> dict[str, Any]:
     return {
       'iteration_index': self.iteration_index,
@@ -706,6 +713,13 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       and not self.canonical_free_boundary_verified
       and not self.production_claim_allowed
     )
+  ####
+
+  @property
+  def aggregate_residual_channels(self) -> tuple[str, ...]:
+    """Return the ordered names for every iteration residual packet."""
+
+    return MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
   ####
 
   def as_report(self) -> dict[str, Any]:

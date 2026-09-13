@@ -2526,6 +2526,93 @@ def _moc_solver_evidence_channels(
 ####
 
 
+def _moc_joint_feedback_residual_packet(
+  result: object,
+) -> tuple[tuple[str, ...], tuple[tuple[int, tuple[float, ...]], ...], bool]:
+  """Read the retained joint-feedback packet without spatial inference.
+
+  Aggregate residuals are indexed by feedback iteration rather than by the
+  spatial section stations.  They therefore stay in diagnostics instead of
+  being presented as a misleading spatial channel.  Invalid or incomplete
+  vectors are omitted and reported to the caller; no scalar residual norm is
+  expanded into missing component channels.
+  """
+
+  raw_channels = getattr(result, 'aggregate_residual_channels', ())
+  try:
+    channels = tuple(str(value) for value in raw_channels)
+  except TypeError:
+    return (), (), True
+  ####
+  if not channels or any(not value for value in channels):
+    return (), (), True
+  ####
+  if len(set(channels)) != len(channels):
+    return (), (), True
+  ####
+  iterations = getattr(result, 'iterations', ())
+  try:
+    raw_iterations = tuple(iterations)
+  except TypeError:
+    return channels, (), True
+  ####
+  retained: list[tuple[int, tuple[float, ...]]] = []
+  incomplete = False
+  for fallback_index, iteration in enumerate(raw_iterations):
+    raw_vector = getattr(iteration, 'aggregate_residual_vector', ())
+    try:
+      vector = tuple(float(value) for value in raw_vector)
+    except (TypeError, ValueError):
+      incomplete = True
+      continue
+    ####
+    if len(vector) != len(channels) or any(
+      not isfinite(value) or value < 0.0 for value in vector
+    ):
+      incomplete = True
+      continue
+    ####
+    raw_index = getattr(iteration, 'iteration_index', fallback_index)
+    if isinstance(raw_index, bool):
+      incomplete = True
+      continue
+    ####
+    try:
+      iteration_index = int(raw_index)
+    except (TypeError, ValueError):
+      incomplete = True
+      continue
+    ####
+    retained.append((iteration_index, vector))
+  ####
+  if len(retained) != len(raw_iterations):
+    incomplete = True
+  ####
+  return channels, tuple(retained), incomplete
+####
+
+
+def _moc_joint_feedback_shock_path(
+  closure: object | None,
+) -> tuple[Vector2, ...]:
+  """Return one validated shock path from a retained feedback closure."""
+
+  curve = getattr(getattr(closure, 'global_euler', None), 'shock_boundary', None)
+  raw_points = getattr(curve, 'shock_points_m', ())
+  try:
+    points = tuple(_vector2('joint feedback shock point', point) for point in raw_points)
+  except (TypeError, ValueError, IndexError):
+    return ()
+  ####
+  if len(points) < 2 or any(
+    right[0] <= left[0] for left, right in zip(points, points[1:])
+  ):
+    return ()
+  ####
+  return points
+####
+
+
 def _moc_visualization(
   result: object,
   *,
@@ -2617,9 +2704,23 @@ def _moc_visualization(
     and hasattr(result, 'final_closure')
     and hasattr(result, 'iterations')
   )
+  global_joint_state_frontier_feedback = bool(
+    all(
+      hasattr(result, name)
+      for name in (
+        'iterations',
+        'frontier_chain_verified',
+        'joint_solve_chain_verified',
+        'aggregate_residual_chain_verified',
+        'aggregate_residual_tolerance_verified',
+        'aggregate_residual_descent_verified',
+      )
+    )
+  )
   global_frontier_feedback = (
     global_frontier_feedback
     and not global_coupled_boundary_condition_feedback
+    and not global_joint_state_frontier_feedback
   )
   cell_polygons: list[tuple[Vector2, ...]] = []
   all_points: list[Vector2] = []
@@ -2725,6 +2826,54 @@ def _moc_visualization(
       path = _path3(path_id, semantic, points)
       if path is not None:
         paths.append(path)
+      ####
+    ####
+  ####
+  joint_feedback_path_warnings: list[str] = []
+  if global_joint_state_frontier_feedback:
+    for fallback_index, iteration in enumerate(
+      tuple(getattr(result, 'iterations', ()))
+    ):
+      raw_index = getattr(iteration, 'iteration_index', fallback_index)
+      if isinstance(raw_index, bool):
+        raw_index = fallback_index
+      try:
+        iteration_index = int(raw_index)
+      except (TypeError, ValueError):
+        iteration_index = fallback_index
+      ####
+      for prefix, closure_name, semantic in (
+        (
+          'source',
+          'source_closure',
+          'source closure shock frontier for joint feedback iteration',
+        ),
+        (
+          'next',
+          'next_closure',
+          'fresh next closure shock frontier for joint feedback iteration',
+        ),
+      ):
+        points = _moc_joint_feedback_shock_path(
+          getattr(iteration, closure_name, None)
+        )
+        if not points:
+          if getattr(iteration, closure_name, None) is not None:
+            joint_feedback_path_warnings.append(
+              f'joint feedback {prefix} shock frontier for iteration '
+              f'{iteration_index} has invalid or unavailable geometry'
+            )
+          continue
+        ####
+        path = _path3(
+          f'moc-joint-state-frontier-feedback-{iteration_index}-{prefix}-shock',
+          f'{semantic}; research-only and not a canonical free boundary',
+          points,
+        )
+        if path is not None:
+          paths.append(path)
+          all_points.extend(points)
+        ####
       ####
     ####
   ####
@@ -4742,6 +4891,74 @@ def _moc_visualization(
     ####
   ####
   diagnostics.update(solver_diagnostics)
+  if global_joint_state_frontier_feedback:
+    diagnostics['global_joint_state_frontier_feedback'] = True
+    diagnostics['global_joint_state_frontier_feedback_status'] = _status_value(
+      result
+    )
+    for name in (
+      'feedback_completed',
+      'frontier_chain_verified',
+      'joint_solve_chain_verified',
+      'frontier_residual_exchange_chain_verified',
+      'characteristic_pressure_correction_chain_verified',
+      'aggregate_residual_chain_verified',
+      'aggregate_residual_tolerance_verified',
+      'aggregate_residual_descent_verified',
+      'nested_consumer_lineage_chain_verified',
+      'fixed_point_verified',
+      'residual_descent_verified',
+      'independent_audit_verified',
+      'global_coupling_verified',
+      'canonical_free_boundary_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      value = getattr(result, name, None)
+      if isinstance(value, bool):
+        diagnostics[f'global_joint_state_frontier_feedback_{name}'] = value
+      ####
+    ####
+    feedback_iterations = tuple(getattr(result, 'iterations', ()))
+    diagnostics['global_joint_state_frontier_feedback_iteration_count'] = len(
+      feedback_iterations
+    )
+    aggregate_channel_names, vectors, incomplete_packet = (
+      _moc_joint_feedback_residual_packet(
+      result
+      )
+    )
+    diagnostics[
+      'global_joint_state_frontier_feedback_aggregate_residual_channel_count'
+    ] = len(aggregate_channel_names)
+    diagnostics[
+      'global_joint_state_frontier_feedback_aggregate_residual_vector_count'
+    ] = len(vectors)
+    if vectors:
+      dominant_iteration, dominant_vector = max(
+        vectors,
+        key=lambda item: max(item[1], default=0.0),
+      )
+      dominant_index = max(
+        range(len(dominant_vector)),
+        key=dominant_vector.__getitem__,
+      )
+      diagnostics[
+        'global_joint_state_frontier_feedback_aggregate_residual_maximum'
+      ] = max(dominant_vector)
+      diagnostics[
+        'global_joint_state_frontier_feedback_aggregate_residual_dominant_channel'
+      ] = aggregate_channel_names[dominant_index]
+      diagnostics[
+        'global_joint_state_frontier_feedback_aggregate_residual_dominant_iteration'
+      ] = dominant_iteration
+    if incomplete_packet:
+      joint_feedback_path_warnings.append(
+        'joint feedback aggregate residual packet is incomplete; unavailable '
+        'iteration vectors remain omitted rather than inferred from a scalar norm'
+      )
+    ####
+  ####
   if two_sided_field_iteration:
     diagnostics['two_sided_field_iteration'] = True
     status = getattr(result, 'status', '')
@@ -4813,6 +5030,7 @@ def _moc_visualization(
     *solver_warnings,
     *mixed_regime_overlay_warnings,
     *two_sided_visual_warnings,
+    *joint_feedback_path_warnings,
     *production_fit_overlay_warnings,
   ]
   if production_fit_result:
@@ -4911,6 +5129,14 @@ def _moc_visualization(
       'promotion remain unresolved'
     )
   ####
+  if global_joint_state_frontier_feedback:
+    warnings.append(
+      'joint state/frontier feedback overlays retain per-iteration shock '
+      'frontiers and the exact aggregate residual packet as research '
+      'diagnostics; entropy, fixed-point, canonical, and production claims '
+      'remain blocked'
+    )
+  ####
   if global_coupled_boundary_condition_feedback:
     if bool(getattr(result, 'target_geometry_consumed', False)):
       warnings.append(
@@ -4966,6 +5192,8 @@ def _moc_visualization(
   ####
   if upstream_state_equation:
     model_id = 'planar-moc-upstream-state-equation-interface-strip'
+  elif global_joint_state_frontier_feedback:
+    model_id = 'planar-moc-global-joint-state-frontier-feedback'
   elif global_frontier_boundary_condition_refinement:
     model_id = 'planar-moc-global-frontier-boundary-condition-refinement'
   elif global_frontier_boundary_condition:
