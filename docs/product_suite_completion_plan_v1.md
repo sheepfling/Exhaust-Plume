@@ -9033,3 +9033,15 @@ fidelity, or promotion gate.  The candidate remains on the dedicated branch;
 the release validator still reports the stale freeze, missing provider-bound
 comparisons/archives, open canonical closure, and unaccepted physical
 shock-cell gates.  No push or tag was performed.
+
+### P3.43ai all-five Signature readiness coverage checkpoint — 2026-09-12 (committed in `7deebff`)
+
+The Signature contract now has an explicit regression covering every one of
+the five standardized Visualization lanes.  Basic shock-cell, reduced-order,
+straight-integral, and washed/curved lanes use the existing gray bridge;
+planar-MOC requires its aligned per-cell planar profile.  All five retain the
+same Signature capability identity and `production_claim_allowed=false`, and
+the planar lane remains blocked when given a tube profile.  The focused
+Signature suite passes (`16 passed`) with Ruff and whitespace checks clean.
+This strengthens product-surface coverage without relaxing the planar flow,
+physical closure, provider comparison, or release gates.
