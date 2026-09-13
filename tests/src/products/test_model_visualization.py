@@ -841,6 +841,92 @@ def test_physical_field_euler_reconciliation_visualization_exposes_residual_fiel
 ####
 
 
+def test_moc_upstream_state_equation_visualization_exposes_interface_strip_diagnostics() -> None:
+  request = SimpleNamespace(
+    target_gamma=1.4,
+    gas_constant_J_kgK=287.05,
+    target_points_m=((0.0, 0.0), (1.0, 0.1), (2.0, 0.2)),
+  )
+  result = SimpleNamespace(
+    status='converged-local-research-upstream-state-equation',
+    request=request,
+    source_points_m=((0.0, 1.0), (1.0, 1.05), (2.0, 1.1)),
+    cell_vertices_by_cell_m=(
+      ((0.0, 0.0), (1.0, 0.1), (1.0, 1.05), (0.0, 1.0)),
+      ((1.0, 0.1), (2.0, 0.2), (2.0, 1.1), (1.0, 1.05)),
+    ),
+    final_conservative_states_by_cell=(
+      (1.0, 500.0, 0.0, 375_000.0),
+      (0.95, 446.5, 4.75, 342_439.375),
+    ),
+    entropy_closed_target_profile=(
+      (1.0, 500.0, 0.0, 375_000.0),
+      (0.95, 446.5, 4.75, 342_439.375),
+    ),
+    residual_channels_by_cell=(
+      (1.0e-4, 2.0e-4, 3.0e-4, 4.0e-4, 4.0e-4),
+      (2.0e-4, 3.0e-4, 4.0e-4, 5.0e-4, 5.0e-4),
+    ),
+    target_boundary_entropy_log_residuals=(1.0e-4, 2.0e-4),
+    research_state_equation_consumed=True,
+    target_frame_verified=True,
+    source_field_lineage_verified=True,
+    global_field_sampled=True,
+    target_conservative_state_consumed=True,
+    entropy_target_consumed=True,
+    upstream_state_equation_consumed=True,
+    conservative_residuals_measured=True,
+    conservative_residuals_verified=True,
+    entropy_flux_verified=True,
+    converged=True,
+    physical_closure_verified=False,
+    state_sampling_available=True,
+    chain_promotion_blocked=True,
+    production_claim_allowed=False,
+    pseudo_iteration_count=12,
+    maximum_conservative_euler_residual=5.0e-4,
+    maximum_target_boundary_entropy_log_residual=2.0e-3,
+    maximum_entropy_flux_defect=3.0e-5,
+  )
+
+  bundle = standardize_model_visualization(
+    result,
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    section_count=8,
+  )
+
+  assert bundle.model_id == 'planar-moc-upstream-state-equation-interface-strip'
+  assert len(bundle.fields) == 1
+  assert set(bundle.fields[0].channels) >= {
+    'density',
+    'temperature',
+    'velocity_u',
+    'velocity_v',
+    'entropy_proxy',
+    'mass_residual',
+    'euler_residual',
+    'target_entropy_log_residual',
+  }
+  assert bundle.fields[0].channels['euler_residual'] == pytest.approx(
+    (4.0e-4, 5.0e-4),
+  )
+  assert {path.path_id for path in bundle.paths} >= {
+    'moc-upstream-target-interface',
+    'moc-upstream-source-offset',
+    'moc-upstream-strip-midline',
+  }
+  assert bundle.diagnostics['upstream_state_equation_status'] == (
+    'converged-local-research-upstream-state-equation'
+  )
+  assert bundle.diagnostics['upstream_state_equation_research_state_equation_consumed'] is True
+  assert bundle.diagnostics['upstream_state_equation_conservative_residuals_verified'] is True
+  assert bundle.diagnostics['upstream_state_equation_pseudo_iteration_count'] == 12
+  assert bundle.claims.production_claim_allowed is False
+  assert any('interface strip' in warning for warning in bundle.warnings)
+  json.dumps(bundle.model_dump(), allow_nan=False)
+####
+
+
 def test_moc_production_fit_visualization_exposes_candidate_boundary_without_promotion() -> None:
   class ProductionFitResult(_MocResult):
     candidate_field = _MocField()

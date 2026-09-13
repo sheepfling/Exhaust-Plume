@@ -8941,3 +8941,26 @@ exposed as an opt-in production/research mode.  This isolates the open issue to
 the interface-strip boundary/closure formulation rather than the absence of a
 numerically usable entropy-conserving face identity.  The default solver,
 independent replay, and all promotion-blocking flags remain unchanged.
+
+### P3.43ae upstream equation visualization adapter checkpoint — 2026-09-12 (committed checkpoint)
+
+The standardized Visualization adapter now recognizes the retained upstream
+conservative/entropy interface-strip result before the generic coupled-Euler
+mesh adapter.  It reconstructs cell-center Mach, flow angle, static pressure,
+density, temperature, velocity components, total pressure, and entropy proxy
+from the retained conservative state, and carries the five normalized
+conservative residual channels plus the target-boundary entropy-log residual
+as renderer-neutral field channels.  The exact target interface, source offset
+boundary, and strip midline are exposed as separate paths so the target/source
+frame and the residual heat maps can be inspected without relabeling them as a
+shock or ambient boundary.
+
+The adapter is explicitly diagnostic: its model id, status diagnostics, claim
+note, and warning preserve the research interface-strip ceiling, force
+promotion false, and do not infer canonical global closure or physical
+shock-cell validity.  A focused regression covers the geometry, reconstructed
+primitive channels, residual channels, serialization, and claim guard.  The
+full product/validation suite passes (`370 passed in 536.04s`), the upstream
+model subset passes (`6 passed, 258 deselected`), and local product-lane
+validation remains passed with external/provider comparison, raw/alignment
+archives, physical shock-cell acceptance, and release-freeze gates still open.

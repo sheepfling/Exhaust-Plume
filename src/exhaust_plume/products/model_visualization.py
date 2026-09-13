@@ -1170,6 +1170,238 @@ class _CoupledEulerSample:
 ####
 
 
+class _UpstreamStateEquationFieldView:
+  """Adapt the research interface-strip equation to the MOC view protocol."""
+
+  def __init__(self, result: object) -> None:
+    polygons = tuple(
+      tuple(_vector2('upstream state-equation cell vertex', point) for point in polygon)
+      for polygon in getattr(result, 'cell_vertices_by_cell_m', ())
+    )
+    states = tuple(
+      tuple(
+        _finite('upstream state-equation conservative component', value)
+        for value in state
+      )
+      for state in getattr(result, 'final_conservative_states_by_cell', ())
+    )
+    if not polygons or any(len(polygon) != 4 for polygon in polygons):
+      raise ValueError(
+        'upstream state-equation visualization requires quadrilateral cells'
+      )
+    ####
+    if len(states) != len(polygons) or any(len(state) != 4 for state in states):
+      raise ValueError(
+        'upstream state-equation cells and conservative states must align'
+      )
+    ####
+    request = getattr(result, 'request', None)
+    if request is None:
+      raise ValueError('upstream state-equation visualization requires its request')
+    ####
+    gamma = _finite('upstream state-equation gamma', getattr(request, 'target_gamma'))
+    gas_constant = _finite(
+      'upstream state-equation gas constant',
+      getattr(request, 'gas_constant_J_kgK'),
+    )
+    if gamma <= 1.0 or gas_constant <= 0.0:
+      raise ValueError(
+        'upstream state-equation gamma and gas constant must be physical'
+      )
+    ####
+    target_points = tuple(
+      _vector2('upstream state-equation target point', point)
+      for point in getattr(request, 'target_points_m', ())
+    )
+    source_points = tuple(
+      _vector2('upstream state-equation source point', point)
+      for point in getattr(result, 'source_points_m', ())
+    )
+    if len(target_points) != len(polygons) + 1 or len(source_points) != len(polygons) + 1:
+      raise ValueError(
+        'upstream state-equation target/source paths must bound every cell'
+      )
+    ####
+    if any(
+      second[0] <= first[0]
+      for first, second in zip(target_points, target_points[1:])
+    ) or any(
+      second[0] <= first[0]
+      for first, second in zip(source_points, source_points[1:])
+    ):
+      raise ValueError(
+        'upstream state-equation target/source paths must be ordered in x'
+      )
+    ####
+    centers = tuple(
+      (
+        sum(point[0] for point in polygon) / len(polygon),
+        sum(point[1] for point in polygon) / len(polygon),
+      )
+      for polygon in polygons
+    )
+    primitive_rows: list[_CoupledEulerSample] = []
+    arrays: dict[str, list[float]] = {
+      'mach': [],
+      'static_pressure': [],
+      'density': [],
+      'temperature': [],
+      'velocity_u': [],
+      'velocity_v': [],
+      'total_pressure': [],
+      'entropy_proxy': [],
+    }
+    for state in states:
+      density = state[0]
+      if density <= 0.0:
+        raise ValueError('upstream state-equation density must be positive')
+      ####
+      velocity_u = state[1] / density
+      velocity_v = state[2] / density
+      speed_squared = velocity_u * velocity_u + velocity_v * velocity_v
+      pressure = (gamma - 1.0) * (state[3] - 0.5 * density * speed_squared)
+      if not isfinite(pressure) or pressure <= 0.0:
+        raise ValueError(
+          'upstream state-equation conservative state has non-positive pressure'
+        )
+      ####
+      sound_speed = sqrt(gamma * pressure / density)
+      temperature = pressure / (density * gas_constant)
+      speed = sqrt(speed_squared)
+      mach = speed / sound_speed
+      total_pressure = pressure * (
+        1.0 + 0.5 * (gamma - 1.0) * mach * mach
+      ) ** (gamma / (gamma - 1.0))
+      entropy_proxy = pressure / density ** gamma
+      values = (
+        pressure,
+        temperature,
+        mach,
+        total_pressure,
+        entropy_proxy,
+      )
+      if any(not isfinite(value) for value in values):
+        raise ValueError('upstream state-equation primitive state is non-finite')
+      ####
+      primitive_rows.append(_CoupledEulerSample(
+        x_m=0.0,
+        y_m=0.0,
+        theta_rad=atan2(velocity_v, velocity_u),
+        mach=mach,
+        gamma=gamma,
+        static_pressure_Pa=pressure,
+        density_kg_m3=density,
+        temperature_K=temperature,
+        velocity_u_m_s=velocity_u,
+        velocity_v_m_s=velocity_v,
+        total_pressure_Pa=total_pressure,
+        entropy_proxy=entropy_proxy,
+        entropy_production_fraction=None,
+      ))
+      arrays['mach'].append(mach)
+      arrays['static_pressure'].append(pressure)
+      arrays['density'].append(density)
+      arrays['temperature'].append(temperature)
+      arrays['velocity_u'].append(velocity_u)
+      arrays['velocity_v'].append(velocity_v)
+      arrays['total_pressure'].append(total_pressure)
+      arrays['entropy_proxy'].append(entropy_proxy)
+    ####
+    residual_rows = tuple(
+      tuple(
+        _finite('upstream state-equation residual component', value)
+        for value in row
+      )
+      for row in getattr(result, 'residual_channels_by_cell', ())
+    )
+    if residual_rows and (
+      len(residual_rows) != len(polygons)
+      or any(len(row) != 5 for row in residual_rows)
+    ):
+      raise ValueError(
+        'upstream state-equation residual channels must match every cell'
+      )
+    ####
+    entropy_logs = tuple(
+      _finite('upstream state-equation entropy residual', value)
+      for value in getattr(result, 'target_boundary_entropy_log_residuals', ())
+    )
+    if entropy_logs and len(entropy_logs) != len(polygons):
+      raise ValueError(
+        'upstream state-equation entropy residuals must match every cell'
+      )
+    ####
+    self.cells = tuple(_CoupledEulerCellView(polygon) for polygon in polygons)
+    self.nodes = tuple(sorted({point for polygon in polygons for point in polygon}))
+    self._centers = centers
+    self._primitive_rows = tuple(primitive_rows)
+    self._arrays = arrays
+    if residual_rows:
+      arrays.update({
+        'mass_residual': [row[0] for row in residual_rows],
+        'streamwise_momentum_residual': [row[1] for row in residual_rows],
+        'transverse_momentum_residual': [row[2] for row in residual_rows],
+        'energy_residual': [row[3] for row in residual_rows],
+        'euler_residual': [row[4] for row in residual_rows],
+      })
+    ####
+    if entropy_logs:
+      arrays['target_entropy_log_residual'] = list(entropy_logs)
+    ####
+    self.target_boundary_points_m = target_points
+    self.source_boundary_points_m = source_points
+    self.shock_boundary_points_m: tuple[Vector2, ...] = ()
+    self.ambient_boundary_points_m: tuple[Vector2, ...] = ()
+    self.centerline_boundary_points_m = tuple(
+      (
+        0.5 * (target[0] + source[0]),
+        0.5 * (target[1] + source[1]),
+      )
+      for target, source in zip(target_points, source_points, strict=True)
+    )
+    self.centerline_boundary_states = tuple(
+      self.state_at(point) for point in self.centerline_boundary_points_m
+    )
+    self.centerline_boundary_total_pressure_Pa = tuple(
+      self.total_pressure_at(point) for point in self.centerline_boundary_points_m
+    )
+    self.incoming_handoff_states = ()
+    self.physical_closure_verified = False
+    self.state_sampling_available = True
+    self.production_claim_allowed = False
+    self.upstream_state_equation_consumed = bool(
+      getattr(result, 'research_state_equation_consumed', False)
+    )
+    self.conservative_residuals_verified = bool(
+      getattr(result, 'conservative_residuals_verified', False)
+    )
+    self.entropy_flux_verified = bool(
+      getattr(result, 'entropy_flux_verified', False)
+    )
+    self._result = result
+  ####
+
+  def _nearest_index(self, point: tuple[float, float]) -> int:
+    return min(
+      range(len(self._centers)),
+      key=lambda index: (
+        (self._centers[index][0] - point[0]) ** 2
+        + (self._centers[index][1] - point[1]) ** 2,
+        index,
+      ),
+    )
+  ####
+
+  def state_at(self, point: tuple[float, float]) -> _CoupledEulerSample:
+    return self._primitive_rows[self._nearest_index(point)]
+  ####
+
+  def total_pressure_at(self, point: tuple[float, float]) -> float:
+    return self._arrays['total_pressure'][self._nearest_index(point)]
+  ####
+####
+
+
 class _CoupledEulerFieldView:
   """Adapt the retained coupled-Euler mesh to the planar-MOC view protocol."""
 
@@ -1679,6 +1911,25 @@ def _entropy_characteristic_field_from_result(result: object) -> object | None:
 ####
 
 
+def _upstream_state_equation_field_from_result(result: object) -> object | None:
+  """Return a view for a retained conservative/entropy interface strip."""
+
+  if not all(
+    hasattr(result, name)
+    for name in (
+      'cell_vertices_by_cell_m',
+      'final_conservative_states_by_cell',
+      'source_points_m',
+      'target_boundary_entropy_log_residuals',
+      'entropy_closed_target_profile',
+    )
+  ):
+    return None
+  ####
+  return _UpstreamStateEquationFieldView(result)
+####
+
+
 def _physical_field_euler_reconciliation_from_result(
   result: object,
 ) -> object | None:
@@ -1713,6 +1964,10 @@ def _coupled_euler_field_from_result(result: object) -> object | None:
 def _moc_field_from_result(result: object) -> tuple[object | None, object]:
   """Find a retained planar field without requiring one concrete MOC wrapper."""
 
+  upstream_state_equation = _upstream_state_equation_field_from_result(result)
+  if upstream_state_equation is not None:
+    return upstream_state_equation, result
+  ####
   target_pressure_reconciliation = getattr(result, 'reconciliation', None)
   if target_pressure_reconciliation is not None:
     target_field = _physical_field_euler_reconciliation_from_result(
@@ -1759,6 +2014,9 @@ def _moc_field_from_result(result: object) -> tuple[object | None, object]:
       'source_closure',
       'final_closure',
       'conditioned_closure',
+      'state_equation',
+      'upstream_state_equation',
+      'equation',
       'candidates',
       'reconciliation',
       'steps',
@@ -2282,6 +2540,7 @@ def _moc_visualization(
   ####
   coupled_euler = isinstance(field, _CoupledEulerFieldView)
   reconciled_euler = isinstance(field, _PhysicalFieldEulerReconciliationView)
+  upstream_state_equation = isinstance(field, _UpstreamStateEquationFieldView)
   target_pressure_detail = getattr(result, 'target_pressure_reconciliation', None)
   if target_pressure_detail is None:
     selected_candidate = getattr(result, 'selected_candidate', None)
@@ -2432,11 +2691,30 @@ def _moc_visualization(
     if two_sided_field_iteration
     else None
   )
-  boundary_specs = (
-    ('moc-shock-boundary', 'fitted shock boundary', getattr(field, 'shock_boundary_points_m', ())),
-    ('moc-ambient-boundary', 'ambient-pressure boundary', getattr(field, 'ambient_boundary_points_m', ())),
-    ('moc-centerline-boundary', 'centerline reflection boundary', getattr(field, 'centerline_boundary_points_m', ())),
-  )
+  if upstream_state_equation:
+    boundary_specs = (
+      (
+        'moc-upstream-target-interface',
+        'exact upstream state-equation target interface',
+        getattr(field, 'target_boundary_points_m', ()),
+      ),
+      (
+        'moc-upstream-source-offset',
+        'exact global-field offset source boundary',
+        getattr(field, 'source_boundary_points_m', ()),
+      ),
+      (
+        'moc-upstream-strip-midline',
+        'upstream state-equation interface-strip midline',
+        getattr(field, 'centerline_boundary_points_m', ()),
+      ),
+    )
+  else:
+    boundary_specs = (
+      ('moc-shock-boundary', 'fitted shock boundary', getattr(field, 'shock_boundary_points_m', ())),
+      ('moc-ambient-boundary', 'ambient-pressure boundary', getattr(field, 'ambient_boundary_points_m', ())),
+      ('moc-centerline-boundary', 'centerline reflection boundary', getattr(field, 'centerline_boundary_points_m', ())),
+    )
   paths: list[ModelVisualPath] = []
   boundary_points: dict[str, tuple[Vector2, ...]] = {}
   for path_id, semantic, raw_points in boundary_specs:
@@ -2952,7 +3230,11 @@ def _moc_visualization(
     ####
   ####
 
-  centerline = boundary_points.get('moc-centerline-boundary', ())
+  centerline = (
+    boundary_points.get('moc-upstream-strip-midline', ())
+    if upstream_state_equation
+    else boundary_points.get('moc-centerline-boundary', ())
+  )
   if len(centerline) < 2:
     x_values = sorted({point[0] for point in all_points})
     centerline = tuple((x_value, 0.0) for x_value in x_values)
@@ -3039,6 +3321,26 @@ def _moc_visualization(
   if len(pressure_values) == len(centerline):
     optional_channels.append(_section_channel('total_pressure', 'centerline MOC total pressure', 'Pa', pressure_values))
   ####
+  if upstream_state_equation:
+    axis_samples = tuple(state for state, _pressure in axis_states)
+    for channel_id, attribute, semantic, unit in (
+      ('static_pressure', 'static_pressure_Pa', 'upstream strip reconstructed static pressure', 'Pa'),
+      ('density', 'density_kg_m3', 'upstream strip conservative density', 'kg m^-3'),
+      ('temperature', 'temperature_K', 'upstream strip reconstructed static temperature', 'K'),
+      ('velocity_u', 'velocity_u_m_s', 'upstream strip streamwise velocity', 'm s^-1'),
+      ('velocity_v', 'velocity_v_m_s', 'upstream strip transverse velocity', 'm s^-1'),
+      ('entropy_proxy', 'entropy_proxy', 'upstream strip entropy proxy', '1'),
+    ):
+      values = tuple(
+        float(getattr(state, attribute))
+        for state in axis_samples
+        if hasattr(state, attribute)
+      )
+      if len(values) == len(centerline):
+        optional_channels.append(_section_channel(channel_id, semantic, unit, values))
+      ####
+    ####
+  ####
   if coupled_euler:
     axis_samples = tuple(state for state, _pressure in axis_states)
     for channel_id, attribute, semantic, unit in (
@@ -3118,6 +3420,21 @@ def _moc_visualization(
   ):
     field_channel_values['entropy_production_fraction'] = []
   ####
+  if upstream_state_equation:
+    field_channel_values.update({
+      'density': [],
+      'temperature': [],
+      'velocity_u': [],
+      'velocity_v': [],
+      'entropy_proxy': [],
+      'mass_residual': [],
+      'streamwise_momentum_residual': [],
+      'transverse_momentum_residual': [],
+      'energy_residual': [],
+      'euler_residual': [],
+      'target_entropy_log_residual': [],
+    })
+  ####
   if coupled_euler:
     field_channel_values.update({
       'subsonic_mask': [],
@@ -3125,7 +3442,7 @@ def _moc_visualization(
       'supersonic_mask': [],
     })
   ####
-  for polygon in cell_polygons:
+  for cell_index, polygon in enumerate(cell_polygons):
     centroid = (
       sum(point[0] for point in polygon) / len(polygon),
       sum(point[1] for point in polygon) / len(polygon),
@@ -3149,6 +3466,28 @@ def _moc_visualization(
       field_channel_values['entropy_production_fraction'].append(
         None if production is None else float(production)
       )
+    ####
+    if upstream_state_equation:
+      for channel_id in (
+        'density',
+        'temperature',
+        'velocity_u',
+        'velocity_v',
+        'entropy_proxy',
+        'mass_residual',
+        'streamwise_momentum_residual',
+        'transverse_momentum_residual',
+        'energy_residual',
+        'euler_residual',
+        'target_entropy_log_residual',
+      ):
+        values = getattr(field, '_arrays', {}).get(channel_id, ())
+        field_channel_values[channel_id].append(
+          None
+          if len(values) != len(cell_polygons)
+          else float(values[cell_index])
+        )
+      ####
     ####
     if coupled_euler:
       mach = None if state is None else float(getattr(state, 'mach'))
@@ -3215,6 +3554,34 @@ def _moc_visualization(
       'euler_residual': 'cell-local maximum normalized conservative Euler residual',
     })
   ####
+  if upstream_state_equation:
+    field_channel_units.update({
+      'density': 'kg m^-3',
+      'temperature': 'K',
+      'velocity_u': 'm s^-1',
+      'velocity_v': 'm s^-1',
+      'entropy_proxy': '1',
+      'mass_residual': '1',
+      'streamwise_momentum_residual': '1',
+      'transverse_momentum_residual': '1',
+      'energy_residual': '1',
+      'euler_residual': '1',
+      'target_entropy_log_residual': '1',
+    })
+    field_channel_semantics.update({
+      'density': 'cell-center density reconstructed from the retained conservative state',
+      'temperature': 'cell-center temperature reconstructed from the retained conservative state',
+      'velocity_u': 'cell-center streamwise velocity reconstructed from the retained conservative state',
+      'velocity_v': 'cell-center transverse velocity reconstructed from the retained conservative state',
+      'entropy_proxy': 'cell-center entropy proxy reconstructed from the retained conservative state',
+      'mass_residual': 'cell-local normalized mass residual from the upstream state equation',
+      'streamwise_momentum_residual': 'cell-local normalized streamwise momentum residual from the upstream state equation',
+      'transverse_momentum_residual': 'cell-local normalized transverse momentum residual from the upstream state equation',
+      'energy_residual': 'cell-local normalized energy residual from the upstream state equation',
+      'euler_residual': 'cell-local maximum normalized conservative Euler residual from the upstream state equation',
+      'target_entropy_log_residual': 'cell-local log entropy ratio to the declared target entropy',
+    })
+  ####
   if 'entropy_production_fraction' in field_channel_values:
     field_channel_units['entropy_production_fraction'] = '1'
     field_channel_semantics['entropy_production_fraction'] = (
@@ -3234,23 +3601,117 @@ def _moc_visualization(
       field_channel_units[channel_id] = '1'
       field_channel_semantics[channel_id] = semantic
     ####
+    ####
+  if upstream_state_equation:
+    field_channel_semantics.update({
+      'mach': 'upstream state-equation cell-center Mach number',
+      'flow_angle': 'upstream state-equation cell-center flow angle',
+      'static_pressure': 'upstream state-equation cell-center static pressure',
+      'total_pressure': 'upstream state-equation cell-center total pressure',
+    })
   ####
   moc_field = ModelVisualField(
-    field_id='planar-moc-cells',
-    semantic='retained planar characteristic field cells',
+    field_id=(
+      'planar-moc-upstream-state-equation-cells'
+      if upstream_state_equation
+      else 'planar-moc-cells'
+    ),
+    semantic=(
+      'retained upstream conservative/entropy interface-strip cells'
+      if upstream_state_equation
+      else 'retained planar characteristic field cells'
+    ),
     polygons_xr_m=tuple(cell_polygons),
     channels={name: tuple(values) for name, values in field_channel_values.items()},
     channel_units=field_channel_units,
     channel_semantics=field_channel_semantics,
   )
-  gates = getattr(source, 'production_promotion_gates', {})
+  diagnostic_source = (
+    getattr(field, '_result', source)
+    if upstream_state_equation
+    else source
+  )
+  gates = getattr(diagnostic_source, 'production_promotion_gates', {})
   diagnostics: dict[str, DiagnosticValue] = {
     'cell_count': len(cell_polygons),
     'node_count': len(getattr(field, 'nodes', ())),
-    'physical_closure_verified': bool(getattr(source, 'physical_closure_verified', getattr(field, 'physical_closure_verified', False))),
-    'state_sampling_available': bool(getattr(source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
-    'production_claim_allowed': bool(getattr(source, 'production_claim_allowed', False)),
+    'physical_closure_verified': bool(getattr(diagnostic_source, 'physical_closure_verified', getattr(field, 'physical_closure_verified', False))),
+    'state_sampling_available': bool(getattr(diagnostic_source, 'state_sampling_available', getattr(field, 'state_sampling_available', False))),
+    'production_claim_allowed': bool(getattr(diagnostic_source, 'production_claim_allowed', False)),
   }
+  if upstream_state_equation:
+    diagnostics['upstream_state_equation_status'] = _status_value(
+      diagnostic_source
+    )
+    diagnostics['upstream_state_equation_cell_count'] = len(cell_polygons)
+    diagnostics['upstream_state_equation_target_boundary_sample_count'] = len(
+      getattr(field, 'target_boundary_points_m', ())
+    )
+    diagnostics['upstream_state_equation_source_boundary_sample_count'] = len(
+      getattr(field, 'source_boundary_points_m', ())
+    )
+    diagnostics['upstream_state_equation_residual_channel_count'] = len(
+      getattr(diagnostic_source, 'residual_channels_by_cell', ())
+    )
+    diagnostics['upstream_state_equation_entropy_log_residual_count'] = len(
+      getattr(diagnostic_source, 'target_boundary_entropy_log_residuals', ())
+    )
+    for name in (
+      'converged',
+      'research_state_equation_consumed',
+      'target_frame_verified',
+      'source_field_lineage_verified',
+      'global_field_sampled',
+      'target_conservative_state_consumed',
+      'entropy_target_consumed',
+      'upstream_state_equation_consumed',
+      'conservative_residuals_measured',
+      'conservative_residuals_verified',
+      'entropy_flux_verified',
+      'canonical_free_boundary_verified',
+      'global_coupling_verified',
+      'chain_promotion_blocked',
+      'production_claim_allowed',
+    ):
+      value = getattr(diagnostic_source, name, None)
+      if isinstance(value, bool):
+        diagnostics[f'upstream_state_equation_{name}'] = value
+      ####
+    ####
+    pseudo_iteration_count = getattr(
+      diagnostic_source,
+      'pseudo_iteration_count',
+      None,
+    )
+    if isinstance(pseudo_iteration_count, int) and not isinstance(
+      pseudo_iteration_count,
+      bool,
+    ):
+      diagnostics['upstream_state_equation_pseudo_iteration_count'] = (
+        pseudo_iteration_count
+      )
+    ####
+    for name in (
+      'maximum_conservative_euler_residual',
+      'maximum_target_boundary_entropy_log_residual',
+      'maximum_entropy_flux_defect',
+    ):
+      value = getattr(diagnostic_source, name, None)
+      if value is not None and isfinite(float(value)):
+        diagnostics[f'upstream_state_equation_{name}'] = float(value)
+      ####
+    ####
+    audit = getattr(diagnostic_source, 'audit', None)
+    if audit is None:
+      audit = getattr(diagnostic_source, 'state_equation_audit', None)
+    if audit is not None:
+      diagnostics['upstream_state_equation_audit_verified'] = bool(
+        getattr(audit, 'converged', False)
+      )
+      operator_id = getattr(audit, 'operator_id', None)
+      if isinstance(operator_id, str) and operator_id:
+        diagnostics['upstream_state_equation_audit_operator'] = operator_id
+    ####
   if target_pressure_reconciliation:
     target = getattr(target_pressure_detail, 'target', None)
     if target is None:
@@ -4387,6 +4848,13 @@ def _moc_visualization(
       'refinement convergence, or production shock-cell validity'
     )
   ####
+  if upstream_state_equation:
+    warnings.append(
+      'the upstream conservative/entropy state equation is a research '
+      'interface strip; target/source paths and residual heat maps do not '
+      'establish canonical global closure or physical shock-cell validity'
+    )
+  ####
   if two_sided_field_iteration:
     warnings.append(
       'two-sided exact-Euler field and terminal-trace overlays are bounded '
@@ -4496,7 +4964,9 @@ def _moc_visualization(
   ):
     warnings.append('state samples were unavailable on the centerline; field values remain masked where unavailable')
   ####
-  if global_frontier_boundary_condition_refinement:
+  if upstream_state_equation:
+    model_id = 'planar-moc-upstream-state-equation-interface-strip'
+  elif global_frontier_boundary_condition_refinement:
     model_id = 'planar-moc-global-frontier-boundary-condition-refinement'
   elif global_frontier_boundary_condition:
     model_id = 'planar-moc-global-frontier-boundary-condition'
@@ -4529,7 +4999,12 @@ def _moc_visualization(
   else:
     model_id = 'planar-moc-reflected-domain'
   ####
-  if global_frontier_boundary_condition_refinement:
+  if upstream_state_equation:
+    claim_note = (
+      'upstream conservative/entropy interface-strip equation retained for '
+      'research visualization; canonical closure remains open'
+    )
+  elif global_frontier_boundary_condition_refinement:
     claim_note = (
       'global frontier pressure-consumer refinement retained for research '
       'visualization; canonical closure remains open'
