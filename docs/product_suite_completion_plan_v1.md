@@ -9045,3 +9045,22 @@ the planar lane remains blocked when given a tube profile.  The focused
 Signature suite passes (`16 passed`) with Ruff and whitespace checks clean.
 This strengthens product-surface coverage without relaxing the planar flow,
 physical closure, provider comparison, or release gates.
+
+### P3.43aj repository-wide regression after lane repair — 2026-09-12 (working tree)
+
+The repository-wide regression was rerun after assigning the new planar-MOC
+ray-transfer test module to the Signature lane.  The exact checkout reports
+`1358 passed, 18 warnings in 1149.29s`; no test failure or lane-partition
+failure remains.  `scripts/test_lanes.py --check` reports all `141` test
+modules assigned exactly once across `12` lanes.  Ruff and Python bytecode
+compilation are also clean.
+
+The release audit at candidate `84ad22f70cffa1fe90c5f9898b0ed050a50e7f5c`
+keeps `release_ready=false` while confirming the local gates:
+`all_active_lanes_have_local_release_evidence=true`,
+`low_fidelity_promotion_detected=false`, `fpa_provider_guard_passed=true`,
+`mission_time_composition_passed=true`, and a clean candidate worktree.
+The remaining blockers are unchanged: provider-bound measurement-space
+outputs and mappings, the missing raw/alignment archives, reduced-order and
+planar physical acceptance, an accepted physical shock-cell comparison, and
+a current release freeze.  No release-freeze rewrite, push, or tag was made.
