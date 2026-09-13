@@ -8906,7 +8906,7 @@ fails closed on the measured `frontier_state_equation_target_entropy` channel
 claim is made.  Physical shock-cell comparison, provider/archive validation,
 and release readiness remain open, and no push or tag was performed.
 
-### P3.43ac upstream entropy replay hardening checkpoint — 2026-09-12 (working tree)
+### P3.43ac upstream entropy replay hardening checkpoint — 2026-09-12 (committed `210dec0`)
 
 The upstream-state equation audit now independently recomputes both declared
 target entropy closure and the final target-boundary entropy diagnostics.  The
@@ -8921,3 +8921,23 @@ validator still reports `release_ready=false`.  The measured two-step
 frontier-state entropy residual, accepted physical shock-cell comparison,
 provider/archive evidence, and release-freeze update remain open; no push or
 tag was performed.
+
+### P3.43ad entropy-conserving flux candidate disposition — 2026-09-12 (diagnostic)
+
+An entropy-conserving Chandrashekar-style face-flux prototype was tested against
+the same exact global shock-frontier fixture and interface-strip geometry.  The
+prototype preserved positivity but did not converge within 400 pseudo-steps:
+the maximum normalized Euler residual stalled at approximately `1.19e-2`, while
+the default entropy-compatible Rusanov solve closes at approximately
+`4.32e-4`.  Its maximum target-boundary entropy log residual was approximately
+`2.84e-1`, materially worse than the default `4.72e-3`.
+
+A controlled hybrid sweep (entropy-conserving core plus bounded wave-speed
+dissipation) reached the local residual gate for dissipation fractions
+`0.1`, `0.25`, `0.5`, and `1.0`, but every fraction below the default path
+increased the target entropy layer; fractions `0.01` and `0.03` also remained
+above the residual gate.  The candidate is therefore not implemented or
+exposed as an opt-in production/research mode.  This isolates the open issue to
+the interface-strip boundary/closure formulation rather than the absence of a
+numerically usable entropy-conserving face identity.  The default solver,
+independent replay, and all promotion-blocking flags remain unchanged.
