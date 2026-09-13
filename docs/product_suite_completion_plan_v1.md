@@ -8884,3 +8884,24 @@ a bounded research cursor: the second characteristic family, simultaneous
 conservative/entropy/geometry/downstream closure, multi-step fixed point,
 physical shock-cell acceptance, provider/archive validation, and release gates
 remain open.  Canonical/global and production flags stay false.
+
+### P3.43ab nested consumer lineage checkpoint — 2026-09-12 (committed `0f3d8c3`)
+
+The joint state/frontier feedback cursor now has an explicit composition-lineage
+gate for its optional nested consumers.  When characteristic pressure
+correction is enabled, the frontier residual exchange must consume the exact
+fresh closure selected by that correction; with only the exchange enabled, it
+must consume the joint solver's fresh closure.  The gate is checked from the
+retained typed objects, serialized on each iteration and on the chain result,
+and independently recomputed during replay.  A tampered exchange source is
+therefore rejected even if its stored boolean flags are left unchanged.
+
+The one-step combined research composition passes with both optional consumers
+enabled, exact closure lineage, the 33-channel aggregate packet, independent
+replay, and all promotion-blocking flags intact.  The broader pressure-only,
+frontier-only, and legacy feedback regressions remain green; Ruff, Python
+compilation, whitespace, and diff checks pass.  A strict two-step attempt still
+fails closed on the measured `frontier_state_equation_target_entropy` channel
+(approximately 47.16 normalized units), so no fixed-point or canonical/global
+claim is made.  Physical shock-cell comparison, provider/archive validation,
+and release readiness remain open, and no push or tag was performed.
