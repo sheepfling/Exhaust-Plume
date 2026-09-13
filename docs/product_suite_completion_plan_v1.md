@@ -8905,3 +8905,19 @@ fails closed on the measured `frontier_state_equation_target_entropy` channel
 (approximately 47.16 normalized units), so no fixed-point or canonical/global
 claim is made.  Physical shock-cell comparison, provider/archive validation,
 and release readiness remain open, and no push or tag was performed.
+
+### P3.43ac upstream entropy replay hardening checkpoint — 2026-09-12 (working tree)
+
+The upstream-state equation audit now independently recomputes both declared
+target entropy closure and the final target-boundary entropy diagnostics.  The
+audit retains a separate `target_boundary_entropy_replayed` gate and rejects
+tampered boundary-entropy residuals even when the stored verification flags are
+unchanged.  This closes an audit-integrity gap without changing the physical
+residual gate or promoting the interface-strip solver.
+
+The focused upstream entropy regression passes, all five joint-feedback
+regressions pass, Ruff and Python compilation remain green, and the release
+validator still reports `release_ready=false`.  The measured two-step
+frontier-state entropy residual, accepted physical shock-cell comparison,
+provider/archive evidence, and release-freeze update remain open; no push or
+tag was performed.

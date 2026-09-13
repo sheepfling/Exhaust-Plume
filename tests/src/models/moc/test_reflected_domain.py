@@ -8352,6 +8352,7 @@ def test_global_mixed_regime_upstream_state_equation_consumes_exact_trace_and_en
   assert audit.target_boundary_replayed
   assert audit.source_boundary_replayed
   assert audit.entropy_target_replayed
+  assert audit.target_boundary_entropy_replayed
   assert audit.residual_report_verified
   assert audit.independent_research_equation_verified
   assert audit.canonical_free_boundary_verified is False
@@ -8376,6 +8377,22 @@ def test_global_mixed_regime_upstream_state_equation_consumes_exact_trace_and_en
   assert rejected.upstream_state_equation_consumed is False
   assert rejected.chain_promotion_blocked
   assert rejected.production_claim_allowed is False
+
+  tampered_boundary_entropy = replace(
+    result,
+    target_boundary_entropy_log_residuals=(
+      result.target_boundary_entropy_log_residuals[0] + 1.0e-6,
+      *result.target_boundary_entropy_log_residuals[1:],
+    ),
+  )
+  tampered_boundary_entropy_audit = (
+    audit_reflected_domain_global_mixed_regime_upstream_state_equation(
+      tampered_boundary_entropy
+    )
+  )
+  assert tampered_boundary_entropy_audit.converged is False
+  assert tampered_boundary_entropy_audit.target_boundary_entropy_replayed is False
+  assert tampered_boundary_entropy_audit.independent_research_equation_verified is False
 ####
 
 

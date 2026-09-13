@@ -1744,6 +1744,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationAudit:
   source_boundary_replayed: bool = False
   entropy_target_replayed: bool = False
   residual_report_verified: bool = False
+  target_boundary_entropy_replayed: bool = False
   independent_research_equation_verified: bool = False
   canonical_free_boundary_verified: bool = False
   global_coupling_verified: bool = False
@@ -1786,6 +1787,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationAudit:
       'source_boundary_replayed',
       'entropy_target_replayed',
       'residual_report_verified',
+      'target_boundary_entropy_replayed',
       'independent_research_equation_verified',
       'canonical_free_boundary_verified',
       'global_coupling_verified',
@@ -1830,6 +1832,7 @@ class MocReflectedDomainGlobalMixedRegimeUpstreamStateEquationAudit:
       'source_boundary_replayed': self.source_boundary_replayed,
       'entropy_target_replayed': self.entropy_target_replayed,
       'residual_report_verified': self.residual_report_verified,
+      'target_boundary_entropy_replayed': self.target_boundary_entropy_replayed,
       'independent_research_equation_verified': (
         self.independent_research_equation_verified
       ),
@@ -1901,13 +1904,61 @@ def audit_reflected_domain_global_mixed_regime_upstream_state_equation(
     maximum = float(np.max(recomputed[:, 4]))
     target_replayed = target_fluxes == result.target_boundary_fluxes
     source_replayed = source_fluxes == result.source_boundary_fluxes
+    request = result.request
+    _, _vertex_entropy_logs = _validate_target_entropy_closure(
+      request.target_conservative_state_profile,
+      request.target_entropy_proxy_profile,
+      request.target_gamma,
+      request.gas_constant_J_kgK,
+      request.target_entropy_consistency_tolerance,
+    )
+    segment_entropy_profile = _segment_average_scalars(
+      request.target_entropy_proxy_profile
+    )
+    segment_target_profile, segment_entropy_logs = _validate_target_entropy_closure(
+      _segment_average_profile(request.target_conservative_state_profile),
+      segment_entropy_profile,
+      request.target_gamma,
+      request.gas_constant_J_kgK,
+      request.target_entropy_consistency_tolerance,
+    )
     entropy_replayed = bool(
-      len(result.entropy_consistency_log_residuals)
-      == len(result.entropy_closed_target_profile)
+      segment_target_profile == result.entropy_closed_target_profile
+      and len(result.entropy_consistency_log_residuals)
+      == len(segment_entropy_logs)
       and all(
-        abs(value) <= result.request.target_entropy_consistency_tolerance
-        for value in result.entropy_consistency_log_residuals
+        actual == expected
+        for actual, expected in zip(
+          result.entropy_consistency_log_residuals,
+          segment_entropy_logs,
+          strict=True,
+        )
       )
+    )
+    recomputed_target_entropy_logs = tuple(
+      log(
+        _entropy_proxy(
+          states[index],
+          request.target_gamma,
+          request.gas_constant_J_kgK,
+        )
+        / segment_entropy_profile[index]
+      )
+      for index in range(len(result.cell_vertices_by_cell_m))
+    )
+    target_boundary_entropy_replayed = bool(
+      len(result.target_boundary_entropy_log_residuals)
+      == len(recomputed_target_entropy_logs)
+      and all(
+        actual == expected
+        for actual, expected in zip(
+          result.target_boundary_entropy_log_residuals,
+          recomputed_target_entropy_logs,
+          strict=True,
+        )
+      )
+      and result.maximum_target_boundary_entropy_log_residual
+      == max((abs(value) for value in recomputed_target_entropy_logs), default=0.0)
     )
     residual_report_verified = bool(
       len(recomputed_rows) == len(result.residual_channels_by_cell)
@@ -1925,6 +1976,7 @@ def audit_reflected_domain_global_mixed_regime_upstream_state_equation(
       target_replayed
       and source_replayed
       and entropy_replayed
+      and target_boundary_entropy_replayed
       and residual_report_verified
       and result.target_conservative_state_consumed
       and result.entropy_target_consumed
@@ -1946,6 +1998,7 @@ def audit_reflected_domain_global_mixed_regime_upstream_state_equation(
       source_boundary_replayed=source_replayed,
       entropy_target_replayed=entropy_replayed,
       residual_report_verified=residual_report_verified,
+      target_boundary_entropy_replayed=target_boundary_entropy_replayed,
       independent_research_equation_verified=independent,
       message=(
         'independent replay reproduced the exact target/source entropy-compatible '
