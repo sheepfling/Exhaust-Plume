@@ -17307,6 +17307,101 @@ def test_global_mixed_regime_joint_feedback_can_consume_characteristic_pressure_
 ####
 
 
+def test_global_mixed_regime_joint_feedback_composes_pressure_and_frontier_exchange():
+  result = run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest(
+      source_closure=_global_physical_closure_for_mixed_regime(),
+      reference_total_temperature_K=1500.0,
+      maximum_iterations=1,
+      downstream_feedback_iterations=2,
+      downstream_options={
+        'axial_station_count': 7,
+        'axial_cell_count': 8,
+        'transverse_cell_count': 4,
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 12,
+      },
+      two_sided_request_options={'normal_momentum_tolerance_Pa': 100.0},
+      consume_characteristic_pressure_correction=True,
+      consume_frontier_residual_exchange=True,
+      frontier_residual_exchange_options={
+        'probe_displacement_m': 1.0e-5,
+      },
+    )
+  )
+  assert result.status is (
+    MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus
+    .COMPLETED_RESEARCH_JOINT_STATE_FRONTIER_FEEDBACK_WITH_OPEN_CONVERGENCE
+  )
+  assert result.converged is False
+  assert result.feedback_completed
+  assert result.frontier_chain_verified
+  assert result.joint_solve_chain_verified
+  assert result.characteristic_pressure_correction_chain_verified
+  assert result.frontier_residual_exchange_chain_verified
+  assert result.nested_consumer_lineage_chain_verified
+  assert result.independent_audit_verified
+  assert len(result.iterations) == 1
+  iteration = result.iterations[0]
+  correction = iteration.characteristic_pressure_correction
+  exchange = iteration.frontier_residual_exchange
+  assert correction is not None
+  assert correction.converged_research_pressure_correction
+  assert iteration.characteristic_pressure_correction_audit is not None
+  assert iteration.characteristic_pressure_correction_audit.converged
+  assert iteration.characteristic_pressure_correction_verified
+  assert exchange is not None
+  assert exchange.converged
+  assert iteration.frontier_residual_exchange_verified
+  assert iteration.nested_consumer_lineage_verified
+  assert correction.selected_closure is not None
+  assert exchange.source_closure is correction.selected_closure
+  assert iteration.next_closure is exchange.final_closure
+  assert iteration.research_step_verified
+  assert len(iteration.aggregate_residual_vector) == len(
+    MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
+  )
+  assert iteration.aggregate_residual_vector_verified
+  assert result.global_coupling_verified is False
+  assert result.canonical_free_boundary_verified is False
+  assert result.chain_promotion_blocked
+  assert result.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+    result
+  )
+  assert audit.converged
+  assert audit.request_replayed
+  assert audit.closure_lineage_replayed
+  assert audit.frontier_chain_replayed
+  assert audit.joint_chain_replayed
+  assert audit.characteristic_pressure_correction_chain_replayed
+  assert audit.residual_exchange_chain_replayed
+  assert audit.nested_consumer_lineage_chain_replayed
+  assert audit.aggregate_residual_chain_replayed
+  assert audit.convergence_flags_replayed
+  assert audit.independent_joint_feedback_verified
+  assert audit.global_coupling_verified is False
+  assert audit.chain_promotion_blocked
+  assert audit.production_claim_allowed is False
+  assert iteration.joint_solve is not None
+  assert iteration.joint_solve.joint_state_solve is not None
+  tampered_exchange = replace(
+    exchange,
+    source_closure=iteration.joint_solve.joint_state_solve.geometry_response_closure,
+  )
+  tampered_iteration = replace(
+    iteration,
+    frontier_residual_exchange=tampered_exchange,
+  )
+  tampered_audit = audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
+    replace(result, iterations=(tampered_iteration,))
+  )
+  assert tampered_audit.converged is False
+  assert tampered_audit.nested_consumer_lineage_chain_replayed is False
+  assert tampered_audit.independent_joint_feedback_verified is False
+####
+
+
 def test_global_mixed_regime_joint_feedback_fails_closed_on_exchange_rejection():
   result = run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackRequest(

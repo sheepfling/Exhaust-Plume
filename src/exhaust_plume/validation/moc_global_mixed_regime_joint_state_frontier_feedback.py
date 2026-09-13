@@ -121,6 +121,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus(
   FEEDBACK_FAILURE = 'joint-state-frontier-feedback-boundary-state-failure'
   FRONTIER_FAILURE = 'joint-state-frontier-feedback-frontier-failure'
   JOINT_SOLVE_FAILURE = 'joint-state-frontier-feedback-joint-solve-failure'
+  CONSUMER_LINEAGE_FAILURE = (
+    'joint-state-frontier-feedback-consumer-lineage-failure'
+  )
   RESIDUAL_EXCHANGE_FAILURE = (
     'joint-state-frontier-feedback-residual-exchange-failure'
   )
@@ -362,6 +365,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
   characteristic_pressure_correction: MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionResult | None = None
   characteristic_pressure_correction_audit: MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionAudit | None = None
   characteristic_pressure_correction_verified: bool = False
+  nested_consumer_lineage_verified: bool = False
   aggregate_residual_vector: tuple[float, ...] = ()
   aggregate_residual_vector_verified: bool = False
   aggregate_residual_tolerance_verified: bool = False
@@ -406,6 +410,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       'joint_solve_verified',
       'frontier_residual_exchange_verified',
       'characteristic_pressure_correction_verified',
+      'nested_consumer_lineage_verified',
       'aggregate_residual_vector_verified',
       'aggregate_residual_tolerance_verified',
       'aggregate_residual_descent_verified',
@@ -506,6 +511,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
           and self.characteristic_pressure_correction_audit.converged
         )
       )
+      and self.nested_consumer_lineage_verified
       and self.next_closure_lineage_verified
       and self.next_closure is not None
       and self.chain_promotion_blocked
@@ -538,6 +544,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration:
       'characteristic_pressure_correction_verified': (
         self.characteristic_pressure_correction_verified
       ),
+      'nested_consumer_lineage_verified': self.nested_consumer_lineage_verified,
       'aggregate_residual_channels': (
         MOC_REFLECTED_DOMAIN_GLOBAL_MIXED_REGIME_JOINT_STATE_FRONTIER_RESIDUAL_CHANNELS
       ),
@@ -610,6 +617,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
   aggregate_residual_chain_verified: bool = False
   aggregate_residual_tolerance_verified: bool = False
   aggregate_residual_descent_verified: bool = False
+  nested_consumer_lineage_chain_verified: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(self.status, MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackStatus):
@@ -653,6 +661,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       'aggregate_residual_chain_verified',
       'aggregate_residual_tolerance_verified',
       'aggregate_residual_descent_verified',
+      'nested_consumer_lineage_chain_verified',
       'fixed_point_verified',
       'residual_descent_verified',
       'independent_audit_verified',
@@ -688,6 +697,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       and self.aggregate_residual_chain_verified
       and self.aggregate_residual_tolerance_verified
       and self.aggregate_residual_descent_verified
+      and self.nested_consumer_lineage_chain_verified
       and self.fixed_point_verified
       and self.residual_descent_verified
       and self.independent_audit_verified
@@ -725,6 +735,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackResult:
       ),
       'aggregate_residual_descent_verified': (
         self.aggregate_residual_descent_verified
+      ),
+      'nested_consumer_lineage_chain_verified': (
+        self.nested_consumer_lineage_chain_verified
       ),
       'fixed_point_verified': self.fixed_point_verified,
       'residual_descent_verified': self.residual_descent_verified,
@@ -778,6 +791,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
   aggregate_residual_chain_replayed: bool = False
   aggregate_residual_tolerance_replayed: bool = False
   aggregate_residual_descent_replayed: bool = False
+  nested_consumer_lineage_chain_replayed: bool = False
 
   def __post_init__(self) -> None:
     if not isinstance(
@@ -803,6 +817,7 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       'aggregate_residual_chain_replayed',
       'aggregate_residual_tolerance_replayed',
       'aggregate_residual_descent_replayed',
+      'nested_consumer_lineage_chain_replayed',
       'convergence_flags_replayed',
       'independent_joint_feedback_verified',
       'global_coupling_verified',
@@ -858,6 +873,9 @@ class MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackAudit:
       ),
       'aggregate_residual_descent_replayed': (
         self.aggregate_residual_descent_replayed
+      ),
+      'nested_consumer_lineage_chain_replayed': (
+        self.nested_consumer_lineage_chain_replayed
       ),
       'convergence_flags_replayed': self.convergence_flags_replayed,
       'independent_joint_feedback_verified': (
@@ -991,6 +1009,44 @@ def _normalized_maximum(
     return None
   ####
   return _normalized(max(abs(float(value)) for value in values), tolerance)
+####
+
+
+def _nested_consumer_lineage_verified(
+  joint: MocReflectedDomainGlobalMixedRegimeJointStateFrontierSolveResult | None,
+  pressure_correction: MocReflectedDomainGlobalMixedRegimeCharacteristicFreeBoundaryPressureCorrectionResult | None,
+  frontier_exchange: MocReflectedDomainGlobalMixedRegimeFrontierResidualExchangeResult | None,
+) -> bool:
+  """Verify the exact handoff order of the optional nested consumers.
+
+  The pressure correction and frontier exchange are separate operators.  If
+  both are enabled, the exchange must consume the fresh closure selected by
+  the pressure correction; it may not silently restart from the pre-correction
+  joint closure.  With only the exchange enabled, its source is the joint
+  solver's fresh closure.  Object identity is intentional here: the full
+  closure fingerprint is audited by each nested operator, while this gate
+  verifies the in-memory composition order itself.
+  """
+
+  if joint is None or joint.joint_state_solve is None:
+    return False
+  ####
+  joint_closure = joint.joint_state_solve.geometry_response_closure
+  expected_exchange_source = joint_closure
+  if pressure_correction is not None:
+    selected = pressure_correction.selected_closure
+    if (
+      selected is None
+      or pressure_correction.source_closure is not joint_closure
+    ):
+      return False
+    ####
+    expected_exchange_source = selected
+  ####
+  if frontier_exchange is None:
+    return True
+  ####
+  return frontier_exchange.source_closure is expected_exchange_source
 ####
 
 
@@ -1587,6 +1643,11 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       or frontier_residual_exchange.final_packet is None
       else frontier_residual_exchange.final_packet.residual_norm
     )
+    nested_consumer_lineage_verified = _nested_consumer_lineage_verified(
+      joint,
+      characteristic_pressure_correction,
+      frontier_residual_exchange,
+    )
     aggregate_vector = _build_aggregate_residual_vector(
       MocReflectedDomainGlobalMixedRegimeJointStateFrontierFeedbackIteration(
         iteration_index=iteration_index,
@@ -1611,6 +1672,9 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         ),
         characteristic_pressure_correction_verified=(
           characteristic_pressure_correction_verified
+        ),
+        nested_consumer_lineage_verified=(
+          nested_consumer_lineage_verified
         ),
         next_closure_lineage_verified=next_closure_lineage_verified,
         chain_promotion_blocked=True,
@@ -1680,6 +1744,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       characteristic_pressure_correction_verified=(
         characteristic_pressure_correction_verified
       ),
+      nested_consumer_lineage_verified=nested_consumer_lineage_verified,
       next_closure_lineage_verified=next_closure_lineage_verified,
       fixed_point_verified=fixed,
       residual_descent_verified=residual_descent,
@@ -1722,6 +1787,32 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
         aggregate_residual_chain_verified=False,
         aggregate_residual_tolerance_verified=False,
         aggregate_residual_descent_verified=False,
+        independent_audit_verified=False,
+      )
+    ####
+    if not nested_consumer_lineage_verified:
+      return _failure(
+        status_type.CONSUMER_LINEAGE_FAILURE,
+        'optional pressure-correction/frontier-exchange consumers did not '
+        'retain the exact declared handoff order',
+        request=request,
+        source_closure=request.source_closure,
+        final_closure=next_closure,
+        iterations=tuple(retained),
+        feedback_completed=False,
+        frontier_chain_verified=bool(
+          retained and all(item.frontier_step_verified for item in retained)
+        ),
+        joint_solve_chain_verified=False,
+        frontier_residual_exchange_chain_verified=bool(
+          not request.consume_frontier_residual_exchange
+        ),
+        characteristic_pressure_correction_chain_verified=bool(
+          not request.consume_characteristic_pressure_correction
+        ),
+        aggregate_residual_chain_verified=True,
+        aggregate_residual_tolerance_verified=aggregate_tolerance_verified,
+        aggregate_residual_descent_verified=aggregate_descent_verified,
         independent_audit_verified=False,
       )
     ####
@@ -1871,6 +1962,10 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       )
     )
   )
+  nested_consumer_lineage_chain = bool(
+    iterations
+    and all(item.nested_consumer_lineage_verified for item in iterations)
+  )
   if request.require_aggregate_residual_tolerance and not aggregate_tolerance:
     status = status_type.AGGREGATE_RESIDUAL_FAILURE
     message = 'aggregate joint state/frontier channels remain outside their declared tolerance units'
@@ -1912,6 +2007,7 @@ def run_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     characteristic_pressure_correction_chain_verified=(
       characteristic_pressure_correction_chain
     ),
+    nested_consumer_lineage_chain_verified=nested_consumer_lineage_chain,
     fixed_point_verified=fixed,
     residual_descent_verified=residual_descent,
     independent_audit_verified=independent,
@@ -2101,6 +2197,29 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
       )
     )
   )
+  nested_consumer_lineage_chain = bool(
+    count_replayed
+    and all(
+      replay_item.nested_consumer_lineage_verified
+      == result_item.nested_consumer_lineage_verified
+      and replay_item.nested_consumer_lineage_verified
+      and _nested_consumer_lineage_verified(
+        replay_item.joint_solve,
+        replay_item.characteristic_pressure_correction,
+        replay_item.frontier_residual_exchange,
+      )
+      and _nested_consumer_lineage_verified(
+        result_item.joint_solve,
+        result_item.characteristic_pressure_correction,
+        result_item.frontier_residual_exchange,
+      )
+      for replay_item, result_item in zip(
+        replay.iterations,
+        result.iterations,
+        strict=True,
+      )
+    )
+  )
   aggregate_residual_chain = bool(
     count_replayed
     and all(
@@ -2128,6 +2247,8 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     == result.frontier_residual_exchange_chain_verified
     and replay.characteristic_pressure_correction_chain_verified
     == result.characteristic_pressure_correction_chain_verified
+    and replay.nested_consumer_lineage_chain_verified
+    == result.nested_consumer_lineage_chain_verified
     and replay.fixed_point_verified == result.fixed_point_verified
     and replay.residual_descent_verified == result.residual_descent_verified
     and replay.independent_audit_verified == result.independent_audit_verified
@@ -2147,6 +2268,7 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     and residual_exchange_chain
     and characteristic_pressure_correction_chain
     and aggregate_residual_chain
+    and nested_consumer_lineage_chain
     and convergence_flags
     and replay.independent_audit_verified
     and replay.chain_promotion_blocked
@@ -2168,6 +2290,7 @@ def audit_reflected_domain_global_mixed_regime_joint_state_frontier_feedback(
     characteristic_pressure_correction_chain_replayed=(
       characteristic_pressure_correction_chain
     ),
+    nested_consumer_lineage_chain_replayed=nested_consumer_lineage_chain,
     aggregate_residual_chain_replayed=aggregate_residual_chain,
     aggregate_residual_tolerance_replayed=(
       replay.aggregate_residual_tolerance_verified
