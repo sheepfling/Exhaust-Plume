@@ -67,6 +67,12 @@ the handoff to the next slice.
 | 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
 | 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Not frozen. The code/marker candidate `b61765b` was clean when the validator ran, and the aggregate-residual diagnostics are focused-regression/static-check and wheel-smoke verified; this plan update is a documentation follow-on. The validator still reports `release_ready=false` because the recorded freeze is stale and canonical/global, physical shock-cell, provider/archive, and external-validation gates remain red. No freeze rewrite, push, or tag is authorized by this plan. |
 
+Candidate-hygiene update (2026-09-12): checkpoint `452d0d5` adds the typed
+joint-feedback Visualization packet/overlay diagnostics and keeps the
+worktree clean.  The complete `tests/src/products` plus
+`tests/src/validation` suite passes (`371 passed in 528.99s`), while the
+current-head lane audit still reports `release_ready=false`.
+
 Candidate-hygiene handoff update (2026-09-12): code checkpoint `9702bb1`
 adds the typed 33-channel aggregate residual packet and tamper-replay audit;
 plan checkpoint `a5f92c8` records it; and marker-only hygiene checkpoint
@@ -8983,7 +8989,8 @@ length-mismatched vectors; it never reconstructs component values from a
 scalar norm.  The real mixed-regime smoke produces the dedicated model id,
 the measured `frontier_state_equation_target_entropy` dominant channel, and
 the retained overlay path.  The focused product/validation contract slice
-passes (`29 passed`), Pyright reports zero errors, and the visualization
+passes (`29 passed`), the complete product/validation suite passes (`371
+passed in 528.99s`), and Pyright reports zero errors.  The visualization
 regression covers serialization and promotion guards.  The approximately
 `47.16` normalized target-entropy residual remains an open formulation issue;
 fixed-point, canonical/global, physical shock-cell, provider/archive, and
