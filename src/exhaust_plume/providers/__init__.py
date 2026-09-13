@@ -100,6 +100,12 @@ from exhaust_plume.providers.curved_visual import (
   CurvedIntegralVisualSession,
 )
 from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
+from exhaust_plume.providers.planar_moc_gray_ray_transfer import (
+  PlanarMocGrayRayTransferConfiguration,
+  PlanarMocGrayRayTransferDefinition,
+  PlanarMocGrayRayTransferProvider,
+  PlanarMocGrayRayTransferSession,
+)
 from exhaust_plume.providers.moc_visual import MocVisualConfiguration, MocVisualDefinition, MocVisualProvider, MocVisualSession
 
 __all__ = (
@@ -114,6 +120,10 @@ __all__ = (
     'MocVisualProvider',
     'MocVisualSession',
     'CurvedGrayRayTransferProvider',
+    'PlanarMocGrayRayTransferConfiguration',
+    'PlanarMocGrayRayTransferDefinition',
+    'PlanarMocGrayRayTransferProvider',
+    'PlanarMocGrayRayTransferSession',
     'EngineeringFluxSectionCapability',
     'ExecutionBackend',
     'LegacyPlumeProvider',

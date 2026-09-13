@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from exhaust_plume.models.gas import FrozenMixtureGas, SpeciesDefinition, SpeciesMassFraction
@@ -11,6 +13,7 @@ from exhaust_plume.products import (
     ModelSignatureBlockedError,
     ModelSignatureReadiness,
     ModelSignatureSampling,
+    PlanarMocGrayRadiationProfile,
     SectionedGrayRadiationProfile,
     SectionedLineRadiationProfile,
     SpectralLine,
@@ -187,6 +190,132 @@ def test_curved_lane_reaches_gray_transport_and_planar_moc_remains_blocked() -> 
     assert curved_signature.metadata.provenance.metadata["production_claim_allowed"] == "false"
     with pytest.raises(ModelSignatureBlockedError, match="planar-MOC field"):
         evaluate_model_signature(moc, _profile())
+    ####
+####
+
+
+def test_planar_moc_lane_reaches_research_signature_through_retained_cells() -> None:
+    class PlanarField:
+        cells = (
+            SimpleNamespace(
+                vertices_xr_m=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+            ),
+            SimpleNamespace(
+                vertices_xr_m=((1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)),
+            ),
+        )
+        nodes = ()
+        shock_boundary_points_m = ((0.0, 1.0), (2.0, 1.0))
+        ambient_boundary_points_m = ((0.0, 1.0), (2.0, 1.0))
+        centerline_boundary_points_m = ((0.0, 0.0), (1.0, 0.0), (2.0, 0.0))
+        centerline_boundary_states = tuple(
+            SimpleNamespace(mach=2.0, theta_rad=0.0)
+            for _ in centerline_boundary_points_m
+        )
+        centerline_boundary_total_pressure_Pa = (200_000.0, 190_000.0, 180_000.0)
+        physical_closure_verified = False
+        state_sampling_available = True
+
+        def state_at(self, point: tuple[float, float]) -> SimpleNamespace:
+            return SimpleNamespace(
+                x_m=point[0],
+                y_m=point[1],
+                mach=2.0,
+                theta_rad=0.0,
+                gamma=1.4,
+            )
+
+        def total_pressure_at(self, _point: tuple[float, float]) -> float:
+            return 180_000.0
+
+    class PlanarResult:
+        status = 'converged-planar-moc-research-field'
+        field = PlanarField()
+        physical_closure_verified = False
+        state_sampling_available = True
+        production_claim_allowed = False
+
+    visualization = standardize_model_visualization(
+        PlanarResult(),
+        lane=ModelVisualizationLane.PLANAR_MOC,
+    )
+    profile = PlanarMocGrayRadiationProfile(
+        wavelengths_m=(1.0e-6, 2.0e-6),
+        source_function_w_sr_m_by_cell=((2.0, 2.0), (4.0, 4.0)),
+        absorption_coefficient_per_m_by_cell=((1.0, 1.0), (1.0, 1.0)),
+        extrusion_depth_m=0.5,
+        profile_id='planar-research-profile',
+    )
+
+    assessment = assess_model_signature_readiness(
+        visualization,
+        optical_profile=profile,
+    )
+    signature = evaluate_model_signature(
+        visualization,
+        profile,
+        sampling=ModelSignatureSampling(
+            source_to_observer_directions=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+            transverse_sample_count=7,
+        ),
+    )
+
+    assert assessment.readiness is ModelSignatureReadiness.READY
+    assert assessment.production_claim_allowed is False
+    assert signature.metadata.provenance.provider_id == 'plume.adapter.far-field-from-rays'
+    assert signature.metadata.provenance.metadata['ray_transfer_provider_id'] == 'plume.planar-moc-gray-ray-transfer'
+    assert signature.metadata.claims.geometry.value == 'illustrative'
+    assert signature.metadata.claims.radiation.value == 'gray_approximate'
+    assert all(all(row) for row in signature.validity_mask)
+    assert any(
+        value > 0.0
+        for row in signature.spectral_radiant_intensity
+        for value in row
+    )
+    assert signature.metadata.provenance.metadata['optical_profile_mode'] == 'planar-cell-wise-gray-slice'
+    assert signature.metadata.provenance.metadata['production_claim_allowed'] == 'false'
+
+
+def test_planar_moc_signature_rejects_out_of_plane_sampling() -> None:
+    class PlanarResult:
+        field = SimpleNamespace(
+            cells=(
+                SimpleNamespace(
+                    vertices_xr_m=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+                ),
+            ),
+            nodes=(),
+            shock_boundary_points_m=((0.0, 1.0), (1.0, 1.0)),
+            ambient_boundary_points_m=((0.0, 1.0), (1.0, 1.0)),
+            centerline_boundary_points_m=((0.0, 0.0), (1.0, 0.0)),
+            centerline_boundary_states=(
+                SimpleNamespace(mach=2.0, theta_rad=0.0),
+                SimpleNamespace(mach=2.0, theta_rad=0.0),
+            ),
+            centerline_boundary_total_pressure_Pa=(100_000.0, 100_000.0),
+            state_sampling_available=True,
+        )
+        status = 'research'
+
+    visualization = standardize_model_visualization(
+        PlanarResult(),
+        lane=ModelVisualizationLane.PLANAR_MOC,
+    )
+    profile = PlanarMocGrayRadiationProfile(
+        wavelengths_m=(1.0e-6, 2.0e-6),
+        source_function_w_sr_m_by_cell=((1.0, 1.0),),
+        absorption_coefficient_per_m_by_cell=((1.0, 1.0),),
+    )
+
+    with pytest.raises(ModelSignatureBlockedError, match='x-r plane'):
+        evaluate_model_signature(
+            visualization,
+            profile,
+            sampling=ModelSignatureSampling(
+                source_to_observer_directions=((0.0, 0.0, 1.0),),
+                transverse_sample_count=5,
+            ),
+        )
     ####
 ####
 

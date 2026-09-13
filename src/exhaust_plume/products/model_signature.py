@@ -4,9 +4,11 @@ Flow models do not become spectral signatures merely because they contain
 temperature, pressure, or a visual envelope.  This module makes the missing
 radiation seam explicit.  The three straight lanes can be evaluated through
 the bounded ray-transfer provider when a caller supplies an optical profile;
-that profile may be gray or an explicit LTE line source.  Curved integral and
-planar-MOC lanes remain typed transport blocks until their own optical
-geometry providers exist.
+that profile may be gray or an explicit LTE line source.  Curved integral
+transport remains a separate path-aware lane.  The planar-MOC lane has a
+separate research-only cell-wise gray provider when the caller supplies an
+optical profile aligned to the retained 2-D field; it remains a planar slice
+and is not a production or FPA source.
 
 The resulting signature is either a gray approximation or explicit spectral
 engineering evidence.  It carries the flow-lane lineage and claim ceiling.
@@ -51,6 +53,10 @@ from exhaust_plume.providers.gray_ray_transfer import (
     GrayRayTransferProvider,
 )
 from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
+from exhaust_plume.providers.planar_moc_gray_ray_transfer import (
+    PlanarMocGrayRayTransferDefinition,
+    PlanarMocGrayRayTransferProvider,
+)
 from exhaust_plume.radiation import (
     FarFieldRayIntegration,
     LineRadiationProfile,
@@ -70,6 +76,7 @@ from exhaust_plume.validation.sensor_operators import (
 __all__ = (
     "GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA",
     "LINE_MODEL_SIGNATURE_ADAPTER_SCHEMA",
+    "PLANAR_MOC_GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA",
     "SECTIONED_LINE_MODEL_SIGNATURE_ADAPTER_SCHEMA",
     "GrayRadiationProfile",
     "GrayOpticalProfile",
@@ -83,6 +90,7 @@ __all__ = (
     "ModelSignatureBlockedError",
     "ModelSignatureReadiness",
     "ModelSignatureSampling",
+    "PlanarMocGrayRadiationProfile",
     "assess_model_signature_readiness",
     "evaluate_model_signature",
 )
@@ -90,6 +98,9 @@ __all__ = (
 
 GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA = "plume.signature.model-gray-bridge@1"
 LINE_MODEL_SIGNATURE_ADAPTER_SCHEMA = "plume.signature.model-lte-line-bridge@1"
+PLANAR_MOC_GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA = (
+    "plume.signature.model-planar-moc-gray-bridge@1"
+)
 SECTIONED_LINE_MODEL_SIGNATURE_ADAPTER_SCHEMA = (
     "plume.signature.model-lte-line-sectioned-bridge@1"
 )
@@ -104,6 +115,7 @@ _STRAIGHT_SIGNATURE_LANES = frozenset(
     }
 )
 _CURVED_SIGNATURE_LANES = frozenset({ModelVisualizationLane.CURVED_INTEGRAL})
+_PLANAR_SIGNATURE_LANES = frozenset({ModelVisualizationLane.PLANAR_MOC})
 
 
 def _finite(name: str, value: object) -> float:
@@ -326,9 +338,74 @@ class SectionedGrayRadiationProfile:
 
 
 
+@dataclass(frozen=True, slots=True)
+class PlanarMocGrayRadiationProfile:
+    """Caller-supplied gray spectra aligned one-to-one with planar field cells.
+
+    A planar MOC result is a 2-D flow field, not an axisymmetric volume.  The
+    profile therefore requires explicit source and absorption spectra for
+    every retained polygon and an explicit extrusion depth for the projected
+    image-plane area.  No optical property is inferred from a flow channel.
+    """
+
+    wavelengths_m: tuple[float, ...]
+    source_function_w_sr_m_by_cell: tuple[tuple[float, ...], ...]
+    absorption_coefficient_per_m_by_cell: tuple[tuple[float, ...], ...]
+    extrusion_depth_m: float = 1.0
+    profile_id: str = "planar-moc-cell-gray-profile"
+
+    def __post_init__(self) -> None:
+        wavelengths = _strict_axis("wavelengths_m", self.wavelengths_m)
+        source_cells = tuple(
+            _nonnegative_spectrum(
+                f"source_function_w_sr_m_by_cell[{index}]",
+                spectrum,
+            )
+            for index, spectrum in enumerate(self.source_function_w_sr_m_by_cell)
+        )
+        absorption_cells = tuple(
+            _nonnegative_spectrum(
+                f"absorption_coefficient_per_m_by_cell[{index}]",
+                spectrum,
+            )
+            for index, spectrum in enumerate(self.absorption_coefficient_per_m_by_cell)
+        )
+        if not source_cells or len(source_cells) != len(absorption_cells):
+            raise ValueError(
+                "planar MOC gray source and absorption arrays must have matching nonzero cell counts"
+            )
+        ####
+        if any(
+            len(spectrum) != len(wavelengths)
+            for spectrum in source_cells + absorption_cells
+        ):
+            raise ValueError(
+                "planar MOC gray optical arrays must match wavelengths_m"
+            )
+        ####
+        extrusion_depth = _finite("extrusion_depth_m", self.extrusion_depth_m)
+        if extrusion_depth <= 0.0:
+            raise ValueError("extrusion_depth_m must be positive")
+        ####
+        if not self.profile_id:
+            raise ValueError("profile_id must not be empty")
+        ####
+        object.__setattr__(self, "wavelengths_m", wavelengths)
+        object.__setattr__(self, "source_function_w_sr_m_by_cell", source_cells)
+        object.__setattr__(
+            self,
+            "absorption_coefficient_per_m_by_cell",
+            absorption_cells,
+        )
+        object.__setattr__(self, "extrusion_depth_m", extrusion_depth)
+    ####
+####
+
+
 GrayOpticalProfile: TypeAlias = (
     GrayRadiationProfile
     | SectionedGrayRadiationProfile
+    | PlanarMocGrayRadiationProfile
     | LineRadiationProfile
     | SectionedLineRadiationProfile
 )
@@ -336,7 +413,12 @@ GrayOpticalProfile: TypeAlias = (
 
 @dataclass(frozen=True, slots=True)
 class ModelSignatureSampling:
-    """Orthographic ray-grid policy for the bounded gray bridge."""
+    """Orthographic ray-grid policy for the bounded gray bridges.
+
+    Tube lanes use a square transverse grid; the planar-MOC lane uses the
+    same count as a one-dimensional in-plane quadrature and takes its second
+    projected dimension from the explicit slice extrusion depth.
+    """
 
     source_to_observer_directions: tuple[Vector3, ...] = (
         (1.0, 0.0, 0.0),
@@ -419,6 +501,9 @@ class ModelSignatureBlockedError(ValueError):
 
 
 def _profile_adapter_schema(profile: GrayOpticalProfile | None) -> str:
+    if isinstance(profile, PlanarMocGrayRadiationProfile):
+        return PLANAR_MOC_GRAY_MODEL_SIGNATURE_ADAPTER_SCHEMA
+    ####
     if isinstance(profile, SectionedLineRadiationProfile):
         return SECTIONED_LINE_MODEL_SIGNATURE_ADAPTER_SCHEMA
     ####
@@ -435,6 +520,25 @@ def _profile_claim_ceiling(
     *,
     explicit_atmospheric_path: bool = False,
 ) -> str:
+    if isinstance(profile, PlanarMocGrayRadiationProfile):
+        if explicit_atmospheric_path:
+            return (
+                "research-only gray transfer through an explicit retained 2-D "
+                "planar-MOC field with caller-supplied per-cell optical properties "
+                "and extrusion depth; no resolved 3-D radiation, chemistry, "
+                "detector, FPA, physical shock-cell, or external validation claim; "
+                "an explicit caller-supplied homogeneous atmospheric path "
+                "transfer only; no inferred atmosphere model"
+            )
+        ####
+        return (
+            "research-only gray transfer through an explicit retained 2-D "
+            "planar-MOC field with caller-supplied per-cell optical properties "
+            "and extrusion depth; no resolved 3-D radiation, chemistry, "
+            "atmosphere, detector, FPA, physical shock-cell, or external "
+            "validation claim"
+        )
+    ####
     if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile)):
         population_note = (
             "caller-bound LTE population closure from explicit transition data; "
@@ -469,6 +573,9 @@ def _profile_claim_ceiling(
 
 
 def _profile_mode(profile: GrayOpticalProfile) -> str:
+    if isinstance(profile, PlanarMocGrayRadiationProfile):
+        return "planar-cell-wise-gray-slice"
+    ####
     if isinstance(profile, SectionedLineRadiationProfile):
         return "piecewise-axial-lte-line-by-line-voigt"
     ####
@@ -497,6 +604,9 @@ def _profile_has_population_closure(profile: GrayOpticalProfile) -> bool:
 
 
 def _profile_section_count(profile: GrayOpticalProfile) -> int:
+    if isinstance(profile, PlanarMocGrayRadiationProfile):
+        return len(profile.source_function_w_sr_m_by_cell)
+    ####
     if isinstance(profile, (SectionedGrayRadiationProfile, SectionedLineRadiationProfile)):
         return len(profile.source_function_w_sr_m_by_section)
     ####
@@ -542,7 +652,7 @@ def assess_model_signature_readiness(
         raise TypeError("visualization must be StandardizedModelVisualization")
     ####
     lane = visualization.lane
-    profile_ready = isinstance(
+    tube_profile_ready = isinstance(
         optical_profile,
         (
             GrayRadiationProfile,
@@ -551,6 +661,7 @@ def assess_model_signature_readiness(
             SectionedLineRadiationProfile,
         ),
     )
+    planar_profile_ready = isinstance(optical_profile, PlanarMocGrayRadiationProfile)
     common_ceiling = _profile_claim_ceiling(optical_profile)
     if lane in _STRAIGHT_SIGNATURE_LANES or lane in _CURVED_SIGNATURE_LANES:
         support_ready, _support, support_reason = _support_readiness(
@@ -572,14 +683,14 @@ def assess_model_signature_readiness(
         if support_reason is not None:
             reasons.append(support_reason)
         ####
-        if not profile_ready:
+        if not tube_profile_ready:
             reasons.append(
                 "an explicit supported wavelength-resolved source/absorption profile is required"
             )
         ####
         if not support_ready:
             readiness = ModelSignatureReadiness.BLOCKED_INVALID_SUPPORT
-        elif not profile_ready:
+        elif not tube_profile_ready:
             readiness = ModelSignatureReadiness.BLOCKED_MISSING_OPTICAL_PROFILE
         else:
             readiness = ModelSignatureReadiness.READY
@@ -591,35 +702,62 @@ def assess_model_signature_readiness(
             readiness=readiness,
             signature_capability="plume.signature.spectral-radiant-intensity@1",
             flow_geometry_ready=support_ready,
-            optical_profile_ready=profile_ready,
+            optical_profile_ready=tube_profile_ready,
             transport_geometry_ready=support_ready,
             production_claim_allowed=False,
             claim_ceiling=common_ceiling,
             reasons=tuple(reasons) if reasons else ("straight section support and explicit optical profile are available",),
         )
     ####
-    planar_reasons = [
-        "planar-MOC field requires a planar field/ray transport provider",
-        "the sectioned-tube envelope is illustrative and cannot stand in for the MOC field",
+    planar_field_ready = len(visualization.fields) == 1
+    planar_cell_alignment_ready = planar_field_ready and planar_profile_ready
+    planar_reasons: list[str] = [
+        "the planar-MOC field Signature bridge consumes retained planar-MOC polygons, not the sectioned-tube envelope",
     ]
+    if not planar_field_ready:
+        planar_reasons.append(
+            "planar-MOC Signature transport requires exactly one retained field with cell polygons"
+        )
+    ####
+    if not planar_profile_ready:
+        planar_reasons.append(
+            "an explicit PlanarMocGrayRadiationProfile aligned to every retained field cell is required"
+        )
+    elif isinstance(optical_profile, PlanarMocGrayRadiationProfile) and planar_field_ready:
+        cell_count = len(visualization.fields[0].polygons_xr_m)
+        if len(optical_profile.source_function_w_sr_m_by_cell) != cell_count:
+            planar_cell_alignment_ready = False
+            planar_reasons.append(
+                "planar-MOC optical cell count must match the retained field polygon count"
+            )
+    ####
     if visualization.diagnostics.get('production_fit_physical_length_accepted') is False:
         planar_reasons.append(
             'solver-generated shock-cell fit geometry has no accepted physical '
-            'length and cannot enter Signature transport'
+            'length; any planar Signature result remains research-only'
         )
     ####
     return ModelSignatureAssessment(
         schema=_profile_adapter_schema(optical_profile),
         lane_id=visualization.lane_id,
         model_id=visualization.model_id,
-        readiness=ModelSignatureReadiness.BLOCKED_PLANAR_TRANSPORT,
+        readiness=(
+            ModelSignatureReadiness.READY
+            if planar_cell_alignment_ready
+            else ModelSignatureReadiness.BLOCKED_PLANAR_TRANSPORT
+        ),
         signature_capability="plume.signature.spectral-radiant-intensity@1",
-        flow_geometry_ready=True,
-        optical_profile_ready=profile_ready,
-        transport_geometry_ready=False,
+        flow_geometry_ready=planar_field_ready,
+        optical_profile_ready=planar_profile_ready,
+        transport_geometry_ready=planar_cell_alignment_ready,
         production_claim_allowed=False,
         claim_ceiling=common_ceiling,
-        reasons=tuple(planar_reasons),
+        reasons=tuple(planar_reasons)
+        if len(planar_reasons) > 1
+        else (
+            "retained planar-MOC field and aligned per-cell optical profile are available; "
+            "the result remains a research-only planar slice",
+        ),
     )
 ####
 
@@ -720,6 +858,101 @@ def _build_ray_grid(
     )
     integration = FarFieldRayIntegration(
         direction_frame_id=support.frame_id,
+        source_to_observer_directions=sampling.source_to_observer_directions,
+        ray_direction_indices=tuple(direction_indices),
+        ray_projected_area_weights_m2=tuple(weights),
+    )
+    return request, integration
+####
+
+
+def _build_planar_ray_grid(
+    visualization: StandardizedModelVisualization,
+    sampling: ModelSignatureSampling,
+    wavelengths_m: tuple[float, ...],
+    extrusion_depth_m: float,
+) -> tuple[SpectralRayTransferRequest, FarFieldRayIntegration]:
+    """Build one-dimensional in-plane rays over the retained MOC polygons.
+
+    The 2-D field is explicit in ``x-r`` coordinates.  Each ray is therefore
+    sampled only across the in-plane normal and carries an area weight equal
+    to that transverse width times the caller-declared slice depth.  An
+    out-of-plane observer direction would require a 3-D field and is rejected
+    instead of being projected onto the planar mesh.
+    """
+
+    if len(visualization.fields) != 1:
+        raise ModelSignatureBlockedError(
+            "planar-MOC Signature transport requires exactly one retained field"
+        )
+    ####
+    field = visualization.fields[0]
+    points = tuple(point for polygon in field.polygons_xr_m for point in polygon)
+    if not points:
+        raise ModelSignatureBlockedError(
+            "planar-MOC Signature transport requires retained field polygons"
+        )
+    ####
+    depth = _finite("extrusion_depth_m", extrusion_depth_m)
+    if depth <= 0.0:
+        raise ModelSignatureBlockedError("planar-MOC Signature extrusion depth must be positive")
+    ####
+    origins: list[Vector3] = []
+    directions: list[Vector3] = []
+    t_min: list[float] = []
+    t_max: list[float] = []
+    direction_indices: list[int] = []
+    weights: list[float] = []
+    count = sampling.transverse_sample_count
+    point_array = np.asarray(points, dtype=float)
+    reference = np.mean(point_array, axis=0)
+    for direction_index, direction in enumerate(sampling.source_to_observer_directions):
+        if abs(direction[2]) > 1.0e-10:
+            raise ModelSignatureBlockedError(
+                "planar-MOC Signature sampling requires source-to-observer directions in the x-r plane"
+            )
+        ####
+        observer = np.asarray(direction[:2], dtype=float)
+        observer_norm = float(np.linalg.norm(observer))
+        if abs(observer_norm - 1.0) > 1.0e-6:
+            raise ModelSignatureBlockedError(
+                "planar-MOC Signature sampling requires unit in-plane directions"
+            )
+        ####
+        transverse = np.asarray((-observer[1], observer[0]), dtype=float)
+        relative = point_array - reference
+        transverse_projection = relative @ transverse
+        longitudinal_projection = relative @ observer
+        lower = float(np.min(transverse_projection))
+        upper = float(np.max(transverse_projection))
+        span = upper - lower
+        margin = sampling.plane_margin_fraction * max(span, 1.0e-9)
+        lower -= margin
+        upper += margin
+        ray_depth = float(np.max(np.abs(longitudinal_projection))) + margin + 1.0e-9
+        step = (upper - lower) / count
+        weight = step * depth
+        for sample_index in range(count):
+            transverse_coordinate = lower + (sample_index + 0.5) * step
+            origin = reference + observer * ray_depth + transverse * transverse_coordinate
+            origins.append((float(origin[0]), float(origin[1]), 0.0))
+            directions.append((float(-observer[0]), float(-observer[1]), 0.0))
+            t_min.append(0.0)
+            t_max.append(2.0 * ray_depth)
+            direction_indices.append(direction_index)
+            weights.append(weight)
+        ####
+    ####
+    request = SpectralRayTransferRequest(
+        ray_frame_id=visualization.frame_id,
+        ray_origins_m=tuple(origins),
+        ray_directions=tuple(directions),
+        ray_t_min_m=tuple(t_min),
+        ray_t_max_m=tuple(t_max),
+        wavelengths_m=wavelengths_m,
+    )
+    integration = FarFieldRayIntegration(
+        direction_frame_id=visualization.frame_id,
         source_to_observer_directions=sampling.source_to_observer_directions,
         ray_direction_indices=tuple(direction_indices),
         ray_projected_area_weights_m2=tuple(weights),
@@ -838,7 +1071,12 @@ def _attach_flow_lineage(
         "optical_profile_digest": optical_profile_digest,
         "optical_profile_mode": _profile_mode(profile),
         "optical_profile_section_count": str(_profile_section_count(profile)),
-        "ray_grid_policy": f"{sampling.transverse_sample_count}x{sampling.transverse_sample_count} per observer direction",
+        "ray_grid_policy": (
+            f"{sampling.transverse_sample_count} in-plane samples per observer direction; "
+            "explicit planar-slice extrusion depth"
+            if isinstance(profile, PlanarMocGrayRadiationProfile)
+            else f"{sampling.transverse_sample_count}x{sampling.transverse_sample_count} per observer direction"
+        ),
         "signature_time_model": time_model.value,
         "production_claim_allowed": "false",
         "atmospheric_path_operator_id": (
@@ -902,7 +1140,11 @@ def _attach_flow_lineage(
     )
     metadata_update: dict[str, object] = {
         "claims": ProductClaims(
-            geometry=GeometryClaim.NOT_APPLICABLE,
+            geometry=(
+                GeometryClaim.ILLUSTRATIVE
+                if isinstance(profile, PlanarMocGrayRadiationProfile)
+                else GeometryClaim.NOT_APPLICABLE
+            ),
             radiation=(
                 RadiationClaim.SPECTRAL_ENGINEERING
                 if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile))
@@ -931,7 +1173,12 @@ def _attach_flow_lineage(
                 "population closure was inferred"
             )
             if isinstance(profile, (LineRadiationProfile, SectionedLineRadiationProfile))
-            else "signature uses an explicit gray optical profile; no chemistry or molecular spectral source was inferred",
+            else (
+                "signature uses an explicit per-cell gray optical profile over a retained planar-MOC slice; "
+                "no flow-to-radiation inference or chemistry was performed"
+                if isinstance(profile, PlanarMocGrayRadiationProfile)
+                else "signature uses an explicit gray optical profile; no chemistry or molecular spectral source was inferred"
+            ),
             f"flow geometry came from {visualization.lane_id} and retains its declared fidelity ceiling",
         )
         + atmospheric_path_warnings,
@@ -983,6 +1230,7 @@ def evaluate_model_signature(
         (
             GrayRadiationProfile,
             SectionedGrayRadiationProfile,
+            PlanarMocGrayRadiationProfile,
             LineRadiationProfile,
             SectionedLineRadiationProfile,
         ),
@@ -990,7 +1238,7 @@ def evaluate_model_signature(
         raise TypeError(
             "optical_profile must be a GrayRadiationProfile, "
             "SectionedGrayRadiationProfile, LineRadiationProfile, or "
-            "SectionedLineRadiationProfile"
+            "SectionedLineRadiationProfile, or PlanarMocGrayRadiationProfile"
         )
     ####
     if not isinstance(allow_partial_results, bool):
@@ -1020,58 +1268,91 @@ def evaluate_model_signature(
     if not assessment.ready:
         raise ModelSignatureBlockedError(f"{visualization.lane_id} cannot enter the gray signature bridge ({assessment.readiness.value}): {'; '.join(assessment.reasons)}")
     ####
-    support_ready, support, support_reason = _support_readiness(
-        visualization,
-        allow_curved=visualization.lane in _CURVED_SIGNATURE_LANES,
-    )
-    if visualization.lane in _CURVED_SIGNATURE_LANES and support is not None and support.is_straight:
-        support_ready = False
-        support_reason = "the curved signature lane requires a non-straight section support"
-    ####
-    if not support_ready or support is None:
-        raise ModelSignatureBlockedError(support_reason or "flow support is not transport-ready")
-    ####
-    request, integration = _build_ray_grid(support, selected_sampling, optical_profile.wavelengths_m)
-    if isinstance(
-        optical_profile,
-        (SectionedGrayRadiationProfile, SectionedLineRadiationProfile),
-    ):
-        definition = GrayRayTransferDefinition(
-            frame_id=support.frame_id,
-            support=support,
-            wavelengths_m=optical_profile.wavelengths_m,
-            source_function_w_sr_m_by_section=optical_profile.source_function_w_sr_m_by_section,
-            absorption_coefficient_per_m_by_section=optical_profile.absorption_coefficient_per_m_by_section,
-            asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
-        )
-    else:
-        definition = GrayRayTransferDefinition(
-            frame_id=support.frame_id,
-            support=support,
-            wavelengths_m=optical_profile.wavelengths_m,
-            source_function_w_sr_m=optical_profile.source_function_w_sr_m,
-            absorption_coefficient_per_m=optical_profile.absorption_coefficient_per_m,
-            asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
-            allow_curved_support=visualization.lane in _CURVED_SIGNATURE_LANES,
-        )
-    ####
-    if visualization.lane in _CURVED_SIGNATURE_LANES:
-        provider = CurvedGrayRayTransferProvider()
-    else:
-        provider = GrayRayTransferProvider(
-            GrayRayTransferConfiguration(
-                provider_id="plume.adapter.model-gray-ray-transfer",
-                provider_version="1.0.0",
+    if visualization.lane in _PLANAR_SIGNATURE_LANES:
+        if not isinstance(optical_profile, PlanarMocGrayRadiationProfile):
+            raise ModelSignatureBlockedError(
+                "planar-MOC field requires an aligned PlanarMocGrayRadiationProfile"
             )
+        ####
+        request, integration = _build_planar_ray_grid(
+            visualization,
+            selected_sampling,
+            optical_profile.wavelengths_m,
+            optical_profile.extrusion_depth_m,
         )
+        definition = PlanarMocGrayRayTransferDefinition(
+            frame_id=visualization.frame_id,
+            polygons_xr_m=visualization.fields[0].polygons_xr_m,
+            wavelengths_m=optical_profile.wavelengths_m,
+            source_function_w_sr_m_by_cell=optical_profile.source_function_w_sr_m_by_cell,
+            absorption_coefficient_per_m_by_cell=optical_profile.absorption_coefficient_per_m_by_cell,
+            extrusion_depth_m=optical_profile.extrusion_depth_m,
+            field_id=visualization.fields[0].field_id,
+            asset_id=f"model-planar-moc-optics:{visualization.lane_id}:{optical_profile.profile_id}",
+        )
+        provider = PlanarMocGrayRayTransferProvider()
+        ray_frame_id = visualization.frame_id
+        session = provider.create_session(definition=definition)
+    else:
+        if isinstance(optical_profile, PlanarMocGrayRadiationProfile):
+            raise ModelSignatureBlockedError(
+                "PlanarMocGrayRadiationProfile is only supported by the planar-MOC lane"
+            )
+        ####
+        support_ready, support, support_reason = _support_readiness(
+            visualization,
+            allow_curved=visualization.lane in _CURVED_SIGNATURE_LANES,
+        )
+        if visualization.lane in _CURVED_SIGNATURE_LANES and support is not None and support.is_straight:
+            support_ready = False
+            support_reason = "the curved signature lane requires a non-straight section support"
+        ####
+        if not support_ready or support is None:
+            raise ModelSignatureBlockedError(support_reason or "flow support is not transport-ready")
+        ####
+        request, integration = _build_ray_grid(support, selected_sampling, optical_profile.wavelengths_m)
+        if isinstance(
+            optical_profile,
+            (SectionedGrayRadiationProfile, SectionedLineRadiationProfile),
+        ):
+            definition = GrayRayTransferDefinition(
+                frame_id=support.frame_id,
+                support=support,
+                wavelengths_m=optical_profile.wavelengths_m,
+                source_function_w_sr_m_by_section=optical_profile.source_function_w_sr_m_by_section,
+                absorption_coefficient_per_m_by_section=optical_profile.absorption_coefficient_per_m_by_section,
+                asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
+            )
+        else:
+            definition = GrayRayTransferDefinition(
+                frame_id=support.frame_id,
+                support=support,
+                wavelengths_m=optical_profile.wavelengths_m,
+                source_function_w_sr_m=optical_profile.source_function_w_sr_m,
+                absorption_coefficient_per_m=optical_profile.absorption_coefficient_per_m,
+                asset_id=f"model-gray-optics:{visualization.lane_id}:{optical_profile.profile_id}",
+                allow_curved_support=visualization.lane in _CURVED_SIGNATURE_LANES,
+            )
+        ####
+        if visualization.lane in _CURVED_SIGNATURE_LANES:
+            provider = CurvedGrayRayTransferProvider()
+        else:
+            provider = GrayRayTransferProvider(
+                GrayRayTransferConfiguration(
+                    provider_id="plume.adapter.model-gray-ray-transfer",
+                    provider_version="1.0.0",
+                )
+            )
+        ####
+        ray_frame_id = support.frame_id
     ####
-    session = provider.create_session(definition=definition)
+        session = provider.create_session(definition=definition)
     try:
         snapshot = session.create_snapshot(
             time_s=resolved_time_s,
             source_pose=source_pose
             or Pose(
-                frame_id=support.frame_id,
+                frame_id=ray_frame_id,
                 translation_m=(0.0, 0.0, 0.0),
                 rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
             ),

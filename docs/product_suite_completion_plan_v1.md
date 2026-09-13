@@ -8995,3 +8995,26 @@ regression covers serialization and promotion guards.  The approximately
 `47.16` normalized target-entropy residual remains an open formulation issue;
 fixed-point, canonical/global, physical shock-cell, provider/archive, and
 release-freeze gates remain open.
+
+### P3.43ag planar-MOC research Signature transport checkpoint — 2026-09-12 (working tree)
+
+The planar-MOC lane now has a separate `plume.planar-moc-gray-ray-transfer`
+provider and `PlanarMocGrayRadiationProfile`.  The adapter consumes only the
+retained planar field polygons and requires one explicit source/absorption
+spectrum per cell plus a caller-declared slice extrusion depth.  It traces
+in-plane rays through the polygon mesh, interpolates requested wavelengths
+within the declared profile domain, composes cell-wise gray transfer in ray
+order, and feeds the existing projected-area Signature operator.  The final
+Signature lineage records the underlying ray provider and its planar
+cell-wise mode.
+
+The new lane is intentionally separate from both the frozen straight
+optical-transfer lane and the planar flow-closure lane.  It reports
+illustrative geometry, preserves miss and out-of-plane validity masks, rejects
+positive-length overlapping cells, and remains research-only: it does not
+infer optical properties from flow channels, promote physical shock-cell
+length, claim resolved 3-D radiation, or provide a detector/FPA source.  The
+fidelity matrix and product-lane ledger now carry this companion experimental
+lane.  Provider, Signature, ray-contract, and static checks pass locally; the
+provider-bound planar path comparison, external spectral evidence, canonical
+flow closure, and release gates remain open.  No push or tag was performed.

@@ -31,6 +31,34 @@
       "complexity_policy": "isolated high-fidelity foundation; cannot replace the basic solver before topology, convergence, and measurement gates pass"
     },
     {
+      "lane_id": "planar-moc-gray-transfer-v1",
+      "status": "experimental",
+      "provider_ids": [
+        "plume.planar-moc-gray-ray-transfer"
+      ],
+      "advertised_capabilities": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "forbidden_capabilities": [
+        "plume.signature.spectral-radiant-intensity@1",
+        "plume.image.spectral-radiance@1"
+      ],
+      "target_capabilities": [
+        "plume.optical.spectral-ray-transfer@1"
+      ],
+      "focal_plane_array": "not_supported",
+      "model_axes": {
+        "morphology": "retained-planar-moc-field",
+        "flow": "caller-selected-planar-field",
+        "mixing": "not_solved",
+        "thermochemistry": "not_solved",
+        "radiation": "explicit-per-cell-gray-source-and-absorption",
+        "validation": "local polygon-ray analytic checks; provider and external comparison pending"
+      },
+      "claim_ceiling": "Research-only gray transfer through an explicit retained 2-D planar-MOC slice and caller-supplied extrusion depth; no resolved 3-D, chemistry, detector, FPA, or external-validation claim",
+      "complexity_policy": "separate planar slice transport lane; does not change the planar flow closure or straight optical-transfer ceiling"
+    },
+    {
       "lane_id": "shock-cell-basic-v1",
       "status": "active",
       "provider_ids": [

@@ -183,6 +183,12 @@ from exhaust_plume.providers.gray_ray_transfer import (
   GrayRayTransferSession,
 )
 from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
+from exhaust_plume.providers.planar_moc_gray_ray_transfer import (
+    PlanarMocGrayRayTransferConfiguration,
+    PlanarMocGrayRayTransferDefinition,
+    PlanarMocGrayRayTransferProvider,
+    PlanarMocGrayRayTransferSession,
+)
 from exhaust_plume.providers.moc_visual import MocVisualConfiguration, MocVisualDefinition, MocVisualProvider, MocVisualSession
 from exhaust_plume.providers.curved_visual import (
   CurvedIntegralVisualConfiguration,
@@ -331,6 +337,10 @@ __all__ = (
   'GrayRayTransferProvider',
     'GrayRayTransferSession',
     'CurvedGrayRayTransferProvider',
+    'PlanarMocGrayRayTransferConfiguration',
+    'PlanarMocGrayRayTransferDefinition',
+    'PlanarMocGrayRayTransferProvider',
+    'PlanarMocGrayRayTransferSession',
     'MocVisualConfiguration',
     'MocVisualDefinition',
     'MocVisualProvider',

@@ -272,6 +272,8 @@ def far_field_from_rays(
         'integration_operator': 'orthographic_projected_area_sum',
         'ray_request_digest_sha256': ray_request_digest,
         'wavelength_grid_digest_sha256': canonical_digest(ray_request.wavelengths_m),
+        'ray_transfer_provider_id': parent_provenance.provider_id,
+        'ray_transfer_provider_version': parent_provenance.provider_version,
         'ray_count': str(ray_count),
         'direction_count': str(direction_count),
         'area_weight_units': 'm^2 projected image-plane cell area',

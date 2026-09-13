@@ -6,6 +6,7 @@ from typing import Any
 
 from exhaust_plume.providers import (
   GrayRayTransferProvider,
+  PlanarMocGrayRayTransferProvider,
   ShockCellVisualProvider,
   SignatureTableProvider,
   StraightAnalyticalProvider,
@@ -48,6 +49,25 @@ def test_fidelity_matrix_has_separate_active_and_downstream_lanes() -> None:
   assert lanes['optical-transfer-v1']['status'] == 'active'
   assert lanes['focal-plane-array-v1']['status'] == 'validated-downstream'
   assert lanes['shock-cell-basic-v1']['focal_plane_array'] == 'not_supported'
+####
+
+
+def test_planar_moc_gray_transfer_is_a_separate_experimental_lane() -> None:
+  lane = next(
+    lane for lane in _matrix()['lanes']
+    if lane['lane_id'] == 'planar-moc-gray-transfer-v1'
+  )
+  descriptor = PlanarMocGrayRayTransferProvider().descriptor
+
+  assert lane['status'] == 'experimental'
+  assert lane['provider_ids'] == ['plume.planar-moc-gray-ray-transfer']
+  assert lane['advertised_capabilities'] == ['plume.optical.spectral-ray-transfer@1']
+  assert set(lane['advertised_capabilities']).isdisjoint(lane['forbidden_capabilities'])
+  assert {capability.wire_id for capability in descriptor.supported_capabilities} == {
+    'plume.optical.spectral-ray-transfer@1'
+  }
+  assert 'fidelity profile: planar-moc-gray-transfer-v1' in descriptor.notes
+  assert 'research-only' in lane['claim_ceiling'].lower()
 ####
 
 
