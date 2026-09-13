@@ -8996,7 +8996,7 @@ regression covers serialization and promotion guards.  The approximately
 fixed-point, canonical/global, physical shock-cell, provider/archive, and
 release-freeze gates remain open.
 
-### P3.43ag planar-MOC research Signature transport checkpoint — 2026-09-12 (working tree)
+### P3.43ag planar-MOC research Signature transport checkpoint — 2026-09-12 (committed in `1e9a22c`)
 
 The planar-MOC lane now has a separate `plume.planar-moc-gray-ray-transfer`
 provider and `PlanarMocGrayRadiationProfile`.  The adapter consumes only the
@@ -9018,3 +9018,18 @@ fidelity matrix and product-lane ledger now carry this companion experimental
 lane.  Provider, Signature, ray-contract, and static checks pass locally; the
 provider-bound planar path comparison, external spectral evidence, canonical
 flow closure, and release gates remain open.  No push or tag was performed.
+
+### P3.43ah full-suite lane-partition hygiene checkpoint — 2026-09-12 (committed in `f2b24ec`)
+
+The repository-wide regression after P3.43ag completed with `1356 passed`,
+`18` warnings, and one integration failure: the new planar ray-transfer test
+module was not assigned to the focused-test lane manifest.  The manifest now
+assigns `tests/src/providers/test_planar_moc_gray_ray_transfer.py` to the
+Signature lane.  The corrected partition check reports all `141` test modules
+assigned exactly once; the new provider plus partition regressions pass
+(`5 passed`) and Ruff remains clean.  The full suite should be rerun at the
+release-freeze boundary; this hygiene correction does not change any solver,
+fidelity, or promotion gate.  The candidate remains on the dedicated branch;
+the release validator still reports the stale freeze, missing provider-bound
+comparisons/archives, open canonical closure, and unaccepted physical
+shock-cell gates.  No push or tag was performed.
