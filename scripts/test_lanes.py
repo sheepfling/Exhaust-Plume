@@ -138,6 +138,7 @@ TEST_LANES = (
             "tests/src/products/test_signature_timeline.py",
             "tests/src/providers/test_gray_ray_transfer.py",
             "tests/src/providers/test_curved_gray_ray_transfer.py",
+            "tests/src/providers/test_planar_moc_gray_ray_transfer.py",
             "tests/src/providers/test_signature_table.py",
             "tests/src/radiation/test_*.py",
             "tests/src/validation/test_measurement_operators.py",
