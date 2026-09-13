@@ -9046,7 +9046,7 @@ Signature suite passes (`16 passed`) with Ruff and whitespace checks clean.
 This strengthens product-surface coverage without relaxing the planar flow,
 physical closure, provider comparison, or release gates.
 
-### P3.43aj repository-wide regression after lane repair — 2026-09-12 (working tree)
+### P3.43aj repository-wide regression after lane repair — 2026-09-12 (committed `639d0cd`)
 
 The repository-wide regression was rerun after assigning the new planar-MOC
 ray-transfer test module to the Signature lane.  The exact checkout reports
