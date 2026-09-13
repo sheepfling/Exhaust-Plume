@@ -92,6 +92,63 @@ def test_all_three_straight_lanes_reach_gray_signature() -> None:
 ####
 
 
+def test_all_five_visual_lanes_have_explicit_signature_readiness() -> None:
+    curved = standardize_model_visualization(
+        _curved_result(),
+        lane=ModelVisualizationLane.CURVED_INTEGRAL,
+    )
+    planar = standardize_model_visualization(
+        _patch()[0],
+        lane=ModelVisualizationLane.PLANAR_MOC,
+    )
+    planar_cell_count = len(planar.fields[0].polygons_xr_m)
+    planar_profile = PlanarMocGrayRadiationProfile(
+        wavelengths_m=(1.0e-6, 2.0e-6),
+        source_function_w_sr_m_by_cell=tuple(
+            (1.0, 2.0) for _ in range(planar_cell_count)
+        ),
+        absorption_coefficient_per_m_by_cell=tuple(
+            (0.1, 0.2) for _ in range(planar_cell_count)
+        ),
+        profile_id="all-five-planar-profile",
+    )
+    bundles = (*_straight_bundles(), curved, planar)
+    assessments = tuple(
+        assess_model_signature_readiness(
+            bundle,
+            optical_profile=(
+                planar_profile
+                if bundle.lane is ModelVisualizationLane.PLANAR_MOC
+                else _profile()
+            ),
+        )
+        for bundle in bundles
+    )
+
+    assert tuple(bundle.lane for bundle in bundles) == (
+        ModelVisualizationLane.BASIC_SHOCK_CELL,
+        ModelVisualizationLane.REDUCED_ORDER_SHOCK_TRAIN,
+        ModelVisualizationLane.STRAIGHT_INTEGRAL,
+        ModelVisualizationLane.CURVED_INTEGRAL,
+        ModelVisualizationLane.PLANAR_MOC,
+    )
+    assert all(assessment.ready for assessment in assessments)
+    assert all(
+        assessment.signature_capability
+        == "plume.signature.spectral-radiant-intensity@1"
+        for assessment in assessments
+    )
+    assert all(not assessment.production_claim_allowed for assessment in assessments)
+    assert assessments[-1].claim_ceiling is not None
+    assert "planar-MOC" in assessments[-1].claim_ceiling
+    assert assess_model_signature_readiness(
+        planar,
+        optical_profile=_profile(),
+    ).readiness is ModelSignatureReadiness.BLOCKED_PLANAR_TRANSPORT
+    ####
+####
+
+
 def test_signature_accepts_explicit_atmospheric_path_without_promoting_claims() -> None:
     bundle = _straight_bundles()[0]
     sampling = ModelSignatureSampling(
