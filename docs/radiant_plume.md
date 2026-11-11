@@ -4,7 +4,7 @@
 
 **Radiant Plume** is the human-facing name for the propulsive-plume capability developed in this repository.
 
-**Descriptor:** A modular propulsive-plume capability for visualization, infrared signatures, and resolved spectral ray transfer.
+**Descriptor:** A modular propulsive-plume capability for visualization, source signatures, and downstream focal-plane evaluation.
 
 **Tagline:** *From shape, to signature, to sightline.*
 
@@ -12,18 +12,19 @@ The name is deliberately scoped below a complete IR scene, propagation, sensor, 
 
 The repository/package name `exhaust-plume`, Python namespace `exhaust_plume`, and versioned `plume.*` capability identifiers are technical contracts and are not renamed by this branding decision.
 
-## Three product lanes
+## Product suite and technical capabilities
 
-Radiant Plume has three independently versioned consumer-facing lanes behind the common provider/session/snapshot lifecycle.
+The Exhaust-Plume suite is organized around three user-facing products. Visualization and Signature describe plume-source products; Focal-Plane Array (FPA) is a downstream composition product.
 
-| Human-facing name | Technical product | Capability ID | Consumer intent |
+| Suite product | Presentation name | Technical contract or output | Boundary |
 | --- | --- | --- | --- |
-| **Radiant Plume Shape** | Visual sectioned-tube geometry | `plume.visual.sectioned-tube@1` | Coarse visualization, scene placement, geometry-driven integration |
-| **Radiant Plume Signature** | Unresolved spectral radiant intensity | `plume.signature.spectral-radiant-intensity@1` | Far-field or unresolved source-signature consumers |
-| **Radiant Plume Sightline** | Resolved spectral ray transfer | `plume.optical.spectral-ray-transfer@1` | Imaging, focal-plane, and ray-resolved integrations |
+| **Visualization** | Radiant Plume Shape | `plume.visual.sectioned-tube@1` | Renderer-neutral geometry and supported field views; display geometry does not establish physical support or radiometric validity. |
+| **Signature** | Radiant Plume Signature | `plume.signature.spectral-radiant-intensity@1` | Unresolved source spectral radiant intensity over wavelength and direction; table-backed engineering results do not claim validated physical spectra. |
+| **Focal-Plane Array (FPA)** | Focal-Plane Array | `plume.image.spectral-radiance@1` (registered downstream image identity) | Composes eligible source/ray results through camera, optics, exposure, and detector operators. Current deterministic adapters are not an externally validated FPA provider. |
 
-These product names are presentation language only. They do not create a new omnibus result type, and support for one lane does not imply support for the others.
+The current provider lifecycle also exposes the resolved spectral ray-transfer capability, `plume.optical.spectral-ray-transfer@1`. **Sightline** is its optional human-facing label. Ray transfer is a supporting capability for downstream image formation, not a fourth top-level suite product. No provider currently advertises a validated FPA image capability, and no measured-image claim is accepted.
 
+Product names are presentation language; capability IDs remain the durable machine-facing contract names. Support for a source product does not imply support for downstream ray transfer or FPA composition.
 ### Radiant Plume Shape
 
 Shape is the human-facing name for the visual geometry lane. Its v1 technical product is a sectioned centerline tube with oriented sections, radii, optional feature channels, and visual bounds.
@@ -43,11 +44,11 @@ as a function of time, wavelength, and source-to-observer direction.
 
 Signature is source-only unless a different capability explicitly includes atmosphere, range, optics, or detector effects.
 
-### Radiant Plume Sightline
+### Sightline: resolved ray-transfer capability
 
-Sightline is the human-facing name for resolved spectral ray transfer. Its v1 technical product returns source radiance and background transmittance separately over requested rays and wavelengths.
+Sightline is the optional human-facing label for resolved spectral ray transfer. Its v1 technical capability returns source radiance and background transmittance separately over requested rays and wavelengths.
 
-This separation allows a caller-owned scene background to remain outside the plume model. Sightline is the intended lane for future participating-medium rendering, imaging, and focal-plane integrations, but the existence of the contract does not itself claim that a validated physical radiation provider is implemented.
+This separation allows a caller-owned scene background to remain outside the plume model. Sightline supports participating-medium rendering and downstream image composition, but it is not a separate top-level suite product and the contract does not claim that a validated physical radiation provider is implemented.
 
 ## Provider model
 
@@ -93,11 +94,13 @@ Keeping those concerns outside the Radiant Plume brand avoids over-claiming matu
 
 Use **Radiant Plume** in presentations, roadmaps, product sheets, demonstrations, and high-level documentation.
 
-Use the following human-facing product names when an audience benefits from concise lane names:
+Use these human-facing names for the three suite products:
 
-- **Radiant Plume Shape**
-- **Radiant Plume Signature**
-- **Radiant Plume Sightline**
+- **Radiant Plume Shape** for Visualization
+- **Radiant Plume Signature** for unresolved source emission
+- **Focal-Plane Array (FPA)** for downstream camera/detector composition
+
+Use **Sightline** only as an optional label for the resolved ray-transfer capability; do not present it as a fourth suite product.
 
 Use the existing technical capability IDs in code, schemas, fixtures, tests, and transport contracts:
 
@@ -115,7 +118,8 @@ At the current repository boundary:
 
 - the visual lane has deterministic prescribed and analytical sectioned-tube workflows;
 - the signature lane has a neutral table-backed lookup workflow and does not infer physical spectra from plume thermodynamics;
-- the resolved ray-transfer lane has a public contract but does not yet claim a validated physical ray-transfer provider;
+- the resolved ray-transfer capability has a public contract but does not yet claim a validated physical provider;
+- the deterministic downstream FPA adapters are engineering boundaries only; there is no provider-bound or measured-image validation claim;
 - the active analytical plume physics remains a constant-`gamma` ideal-gas study model;
 - curved/washed plume work, advanced radiation, thermochemistry, detector effects, and accelerated execution remain separate follow-on fidelity paths unless explicitly implemented and validated.
 
@@ -123,4 +127,4 @@ Provider claims, applicability, provenance, uncertainty, and validation evidence
 
 ## Executive summary copy
 
-> **Radiant Plume** is a modular propulsive-plume capability spanning three independently usable product lanes: **Shape** for geometry and visualization, **Signature** for unresolved spectral source intensity, and **Sightline** for resolved spectral ray transfer. Providers can range from prescribed and analytical models to curved, washed, imported-field, and future accelerated implementations while preserving common consumer contracts and explicit fidelity, provenance, and applicability semantics.
+> **Radiant Plume** is a modular propulsive-plume capability with three user-facing products: **Shape/Visualization** for renderer-neutral plume views, **Signature** for unresolved source spectral radiant intensity, and **Focal-Plane Array** for downstream camera and detector composition. **Sightline** names the supporting resolved ray-transfer capability. Providers and adapters retain explicit fidelity, provenance, applicability, and validation boundaries.
