@@ -6,7 +6,7 @@
 
 **Descriptor:** A modular propulsive-plume capability for visualization, source signatures, and downstream focal-plane evaluation.
 
-**Tagline:** *From shape, to signature, to sightline.*
+**Tagline:** *Visualize the plume. Evaluate its signature. Compose the focal plane.*
 
 The name is deliberately scoped below a complete IR scene, propagation, sensor, or detector simulation environment. Radiant Plume is intended to remain one composable capability family inside a possible broader future simulation ecosystem.
 
@@ -25,6 +25,7 @@ The Exhaust-Plume suite is organized around three user-facing products. Visualiz
 The current provider lifecycle also exposes the resolved spectral ray-transfer capability, `plume.optical.spectral-ray-transfer@1`. **Sightline** is its optional human-facing label. Ray transfer is a supporting capability for downstream image formation, not a fourth top-level suite product. No provider currently advertises a validated FPA image capability, and no measured-image claim is accepted.
 
 Product names are presentation language; capability IDs remain the durable machine-facing contract names. Support for a source product does not imply support for downstream ray transfer or FPA composition.
+
 ### Radiant Plume Shape
 
 Shape is the human-facing name for the visual geometry lane. Its v1 technical product is a sectioned centerline tube with oriented sections, radii, optional feature channels, and visual bounds.
@@ -106,7 +107,8 @@ Use the existing technical capability IDs in code, schemas, fixtures, tests, and
 
 - `plume.visual.sectioned-tube@1`
 - `plume.signature.spectral-radiant-intensity@1`
-- `plume.optical.spectral-ray-transfer@1`
+- `plume.optical.spectral-ray-transfer@1` (supporting ray-transfer capability)
+- `plume.image.spectral-radiance@1` (registered downstream image identity; not advertised by current providers)
 
 Do not create `radiant_plume.*` duplicate capability IDs solely for branding.
 
