@@ -73,6 +73,49 @@ from exhaust_plume.models.moc import (
   validate_ambient_pressure_boundary,
   validate_moc_mesh,
 )
+from exhaust_plume.models.moc.physical_cell import (
+  _CELL_SAMPLES_TOLERANCE_CACHE_LIMIT,
+  _build_point_spatial_index,
+  _first_point_index_within_tolerance,
+)
+
+
+def test_cell_sample_point_index_preserves_radius_and_source_order() -> None:
+  tolerance = 1.0e-10
+  source_points = (
+    (tolerance, 0.0),
+    (-tolerance, 0.0),
+    (0.0, 1.0001 * tolerance),
+  )
+  spatial_index = _build_point_spatial_index(source_points, tolerance)
+  assert spatial_index is not None
+  assert _first_point_index_within_tolerance(
+    (0.0, 0.0),
+    source_points,
+    spatial_index,
+    tolerance,
+  ) == 0
+  assert _first_point_index_within_tolerance(
+    (0.0, 2.0002 * tolerance),
+    source_points,
+    spatial_index,
+    tolerance,
+  ) is None
+
+  unindexable_points = ((1.0, 0.0),)
+  tiny_tolerance = 1.0e-309
+  unindexable_index = _build_point_spatial_index(
+    unindexable_points,
+    tiny_tolerance,
+  )
+  assert unindexable_index is None
+  assert _first_point_index_within_tolerance(
+    unindexable_points[0],
+    unindexable_points,
+    unindexable_index,
+    tiny_tolerance,
+  ) == 0
+####
 
 
 def test_centerline_seam_comparison_reports_pointwise_residuals() -> None:
@@ -1864,6 +1907,23 @@ def _manufactured_closed_physical_field(
     ),
     post_shock_boundary_total_pressure_Pa=(1.8e6, 1.8e6, 1.8e6),
   )
+####
+
+
+def test_cell_sample_tolerance_cache_is_bounded_and_keeps_default() -> None:
+  field = _manufactured_closed_physical_field()
+  default_samples = field.cell_state_samples(position_tolerance_m=1.0e-10)
+
+  for tolerance in (1.0e-9, 1.0e-8, 1.0e-7, 1.0e-6):
+    samples = field.cell_state_samples(position_tolerance_m=tolerance)
+    assert len(samples) == len(field.cells)
+
+  assert len(field._cell_samples_tolerance_cache) == (
+    _CELL_SAMPLES_TOLERANCE_CACHE_LIMIT
+  )
+  assert 1.0e-10 in field._cell_samples_tolerance_cache
+  assert 1.0e-9 not in field._cell_samples_tolerance_cache
+  assert field.cell_state_samples(position_tolerance_m=1.0e-10) is default_samples
 ####
 
 

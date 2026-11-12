@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from math import cos, hypot, isfinite, sin, sqrt
+from math import cos, floor, hypot, isfinite, sin, sqrt
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 from exhaust_plume.models.moc.ambient_boundary import (
@@ -72,6 +72,8 @@ from exhaust_plume.models.moc.terminal_patch_solver import (
   solve_marched_attached_shock_from_terminal_reflection_patch,
 )
 from exhaust_plume.util.aero.shock_validity import ShockBranch
+
+_CELL_SAMPLES_TOLERANCE_CACHE_LIMIT = 4
 
 if TYPE_CHECKING:
   from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
@@ -611,6 +613,12 @@ class MocPhysicalPostShockFieldResult:
     repr=False,
     compare=False,
   )
+  _cell_samples_tolerance_cache: dict[float, Any] = field(
+    init=False,
+    default_factory=dict,
+    repr=False,
+    compare=False,
+  )
   _state_sampling_available_cache: bool | None = field(
     init=False,
     default=None,
@@ -984,11 +992,12 @@ class MocPhysicalPostShockFieldResult:
       raise ValueError('position_tolerance_m must be finite and positive')
     ####
     default_tolerance = 1.0e-10
-    if position_tolerance_m == default_tolerance:
-      cached = self._default_cell_samples_cache
-      if cached is not None:
-        return cached
-      ####
+    resolved_tolerance = float(position_tolerance_m)
+    cached = self._cell_samples_tolerance_cache.get(resolved_tolerance)
+    if cached is not None:
+      self._cell_samples_tolerance_cache.pop(resolved_tolerance)
+      self._cell_samples_tolerance_cache[resolved_tolerance] = cached
+      return cached
     ####
     sources: list[
       tuple[tuple[float, float], CharacteristicState, float | None]
@@ -1045,6 +1054,11 @@ class MocPhysicalPostShockFieldResult:
     for point, state, pressure in sources:
       source_by_point.setdefault(point, (state, pressure))
     ####
+    source_points = tuple(source[0] for source in sources)
+    source_spatial_index = _build_point_spatial_index(
+      source_points,
+      position_tolerance_m,
+    )
 
     def resolve(
       point: tuple[float, float],
@@ -1053,12 +1067,17 @@ class MocPhysicalPostShockFieldResult:
       if exact is not None:
         return exact
       ####
-      for source_point, state, pressure in sources:
-        if hypot(point[0] - source_point[0], point[1] - source_point[1]) <= position_tolerance_m:
-          return state, pressure
-        ####
+      source_index = _first_point_index_within_tolerance(
+        point,
+        source_points,
+        source_spatial_index,
+        position_tolerance_m,
+      )
+      if source_index is None:
+        return None
       ####
-      return None
+      _source_point, state, pressure = sources[source_index]
+      return state, pressure
     ####
 
     resolved_cells: list[
@@ -1083,7 +1102,23 @@ class MocPhysicalPostShockFieldResult:
       )
     ####
     resolved_result = tuple(resolved_cells)
-    if position_tolerance_m == default_tolerance:
+    tolerance_cache = self._cell_samples_tolerance_cache
+    if (
+      resolved_tolerance not in tolerance_cache
+      and len(tolerance_cache) >= _CELL_SAMPLES_TOLERANCE_CACHE_LIMIT
+    ):
+      eviction_tolerance = next(
+        (
+          tolerance
+          for tolerance in tolerance_cache
+          if tolerance != default_tolerance
+        ),
+        next(iter(tolerance_cache)),
+      )
+      del tolerance_cache[eviction_tolerance]
+    ####
+    tolerance_cache[resolved_tolerance] = resolved_result
+    if resolved_tolerance == default_tolerance:
       object.__setattr__(self, '_default_cell_samples_cache', resolved_result)
     ####
     return resolved_result
@@ -2125,6 +2160,71 @@ def _finite_interpolation_point(
     raise ValueError('position_tolerance_m must be finite and positive')
   ####
   return float(point_m[0]), float(point_m[1])
+####
+
+
+def _point_grid_key(
+  point: tuple[float, float],
+  cell_size_m: float,
+) -> tuple[int, int] | None:
+  scaled_x = point[0] / cell_size_m
+  scaled_y = point[1] / cell_size_m
+  if not isfinite(scaled_x) or not isfinite(scaled_y):
+    return None
+  ####
+  return floor(scaled_x), floor(scaled_y)
+####
+
+
+def _build_point_spatial_index(
+  points: Sequence[tuple[float, float]],
+  cell_size_m: float,
+) -> dict[tuple[int, int], tuple[int, ...]] | None:
+  """Index source points in tolerance-sized buckets without changing order."""
+
+  buckets: dict[tuple[int, int], list[int]] = {}
+  for index, point in enumerate(points):
+    key = _point_grid_key(point, cell_size_m)
+    if key is None:
+      return None
+    ####
+    buckets.setdefault(key, []).append(index)
+  ####
+  return {key: tuple(indices) for key, indices in buckets.items()}
+####
+
+
+def _first_point_index_within_tolerance(
+  point: tuple[float, float],
+  source_points: Sequence[tuple[float, float]],
+  spatial_index: dict[tuple[int, int], tuple[int, ...]] | None,
+  tolerance_m: float,
+) -> int | None:
+  """Return the first source-order point inside the requested Euclidean radius."""
+
+  key = _point_grid_key(point, tolerance_m)
+  if spatial_index is None or key is None:
+    candidate_indices: Sequence[int] = range(len(source_points))
+  else:
+    candidate_indices = tuple(
+      sorted(
+        index
+        for x_offset in (-1, 0, 1)
+        for y_offset in (-1, 0, 1)
+        for index in spatial_index.get(
+          (key[0] + x_offset, key[1] + y_offset),
+          (),
+        )
+      )
+    )
+  ####
+  for index in candidate_indices:
+    source_point = source_points[index]
+    if hypot(point[0] - source_point[0], point[1] - source_point[1]) <= tolerance_m:
+      return index
+    ####
+  ####
+  return None
 ####
 
 
