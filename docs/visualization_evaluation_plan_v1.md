@@ -122,13 +122,17 @@ linked layer/pixel controls and view-spec export. Declared camera metadata is
 limited to image-plane coordinates; the view does not infer ray directions,
 hit masks, optical depth, noise realizations, detections, or measured counts.
 
-The prior Version 8 intake report is content-verified, but the raw archive is
-not present in the current workspace and it has no camera,
-detector, pixel-image, or FPA observation member. The separate product-
-alignment archive is also still missing. The reproducible readiness result is
-[`fpa_visualization_readiness_v1.json`](validation/fpa_visualization_readiness_v1.json);
-its future detector-pixel-count measurement operator remains blocked pending
-the required observation dataset and metadata.
+The Version 8 source archive and the separate product-alignment archive are
+now recovered and verified by their content digests; the intake report also
+records all internal checksums as valid. The corpus remains source-centric and
+contains no camera, detector, pixel-image, or FPA observation member. The
+regenerated readiness report
+[`fpa_visualization_readiness_v1.json`](validation/fpa_visualization_readiness_v1.json)
+therefore reports `blocked-pending-fpa-measurement`, with both archives
+verified and no accepted external claim. Its detector-pixel-count operator
+still needs a dedicated observation dataset and required camera/detector
+metadata. Archive redistribution and alignment-metadata rights review also
+remain open.
 
 This lane is downstream composition. It does not create an FPA provider or a
 measured-image claim by itself.
@@ -201,7 +205,16 @@ evaluation layers for the four strict `ProductResult` families:
 - `exhaust_plume.products.workflow_interactive` writes an optional standalone,
   no-network HTML gallery with linked selectors for station/channel,
   direction/wavelength, ray/wavelength, or species. The page can export the
-  current selection as a source-bound view-spec JSON file.
+  current selection as a source-bound view-state JSON file. The
+  `plume.visualization.interactive-spec-export@1` payload keeps the exact
+  hashed base `view_spec` unchanged and stores the live `current_selection`
+  separately. `resolve_interactive_spec_export` verifies the source identity
+  and base digest, applies the selection through the typed `ViewSelection`
+  contract, and checks that selection against the result before returning a
+  new spec with its own digest. This avoids pairing a changed selection with
+  the digest of an older spec. The ray view highlights origin/direction
+  display segments only; its display length does not imply a physical path or
+  intersection.
 - `exhaust_plume.products.workflow_comparison` provides same-axis, same-frame
   diagnostics for all four standard product families, retaining both source
   lineages and validity counts. Mismatched domains are reported as blocked;

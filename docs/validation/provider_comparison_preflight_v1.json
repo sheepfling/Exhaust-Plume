@@ -1,4 +1,15 @@
 {
+  "alignment_archive": {
+    "actual_sha256": "569aa7f0572f454a1a539b2fbecd977107aced9cab8eb2e65f01c814f8494ceb",
+    "archive_id": "mvp-validation-alignment-v1",
+    "duplicate_members": [],
+    "errors": [],
+    "expected_sha256": "569aa7f0572f454a1a539b2fbecd977107aced9cab8eb2e65f01c814f8494ceb",
+    "filename": "plume_mvp_validation_alignment_v1.zip",
+    "member_count": 16,
+    "status": "verified",
+    "unsafe_members": []
+  },
   "archive": {
     "actual_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
     "expected_sha256": "79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa",
@@ -21,6 +32,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "VIS-MVP-A-061",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.extract.sectioned_tube_mach_disk_position",
       "metric_ids": [
         "metric.geometry.mach_disk_position_rmse"
@@ -70,14 +82,50 @@
       "operator_execution": {
         "available_provider_outputs": [
           "core_radius_fraction",
-          "opacity_weight"
+          "mach_disk_position_m",
+          "opacity_weight",
+          "operating_pressure_or_branch_id"
         ],
         "claim_status": "not_accepted",
         "comparison_method": "branch-aware-no-extrapolation",
-        "missing_provider_outputs": [
-          "mach_disk_position_m",
-          "operating_pressure_or_branch_id"
+        "comparison_operator_id": "op.visual.feature-series.no-extrapolation-v1",
+        "diagnostic_provider_feature_series": [
+          {
+            "branch_ids": [
+              "underexpanded",
+              "underexpanded",
+              "underexpanded"
+            ],
+            "coordinate_frame_id": "straight-axisymmetric-xr",
+            "coordinate_id": "nozzle_exit_total_pressure_Pa",
+            "coordinate_unit": "Pa",
+            "coordinates": [
+              24571288.556890905,
+              26805042.062062804,
+              29038795.567234702
+            ],
+            "feature_id": "mach_disk_position_m",
+            "feature_unit": "m",
+            "measurement_space": "physical-geometry-diagnostic",
+            "model_lane_id": "shock-cell-basic-v1",
+            "operator_id": "operator.model.shock-cell-basic.mach-disk-endpoint-diagnostic-v1",
+            "scenario_id": "repository-local-visual-feature-probe-v1",
+            "schema": "exhaust-plume.visual-feature-series@1",
+            "source_id": "plume.shock-cell-analytical:fa91aacb2791e189c1124c61:mach-disk-diagnostic-proxy",
+            "uncertainties": null,
+            "validity_mask": [
+              true,
+              true,
+              true
+            ],
+            "values": [
+              17.567257848696432,
+              19.194153280237416,
+              20.909125215129983
+            ]
+          }
         ],
+        "missing_provider_outputs": [],
         "observed_branch_id_field_present": false,
         "observed_columns": [
           "benchmark_id",
@@ -102,18 +150,35 @@
         ],
         "observed_point_count": 606,
         "operator_id": "op.visual.feature-extractor",
-        "reason": "current visual providers do not emit a Mach-disk feature and operating-branch channel",
+        "reason": "diagnostic model feature series is available, but it is not bound to the provider-specific observed scenario, branch crosswalk, and external measurement semantics",
         "required_provider_outputs": [
           "mach_disk_position_m",
           "operating_pressure_or_branch_id"
         ],
-        "status": "blocked-missing-provider-feature"
+        "required_series_metadata": [
+          "feature_id",
+          "coordinate_id_and_unit",
+          "feature_unit",
+          "source_id_and_digest",
+          "scenario_id",
+          "coordinate_frame_id",
+          "measurement_space",
+          "operator_id",
+          "validity_mask",
+          "branch_ids_for_hysteretic_features",
+          "one_sigma_uncertainty_when_available"
+        ],
+        "status": "not-executed-provider-sample-not-bound",
+        "uncertainty_policy": "report uncertainty coverage and normalized residuals when both series supply nonzero one-sigma uncertainties; never treat missing uncertainty as zero",
+        "visual_feature_series_schema": "exhaust-plume.visual-feature-series@1"
       },
       "product_id": "plume.visual.sectioned-tube@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "plume.straight-analytical",
         "plume.shock-cell-analytical"
       ],
+      "required_measurement_space": "physical-geometry",
       "required_provider_outputs": [
         "mach_disk_position_m",
         "operating_pressure_or_branch_id"
@@ -133,6 +198,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "SIG-MVP-A-043",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.sensor.bsuv2_los_fov",
       "metric_ids": [
         "metric.signature.log_spectral_rmse"
@@ -189,9 +255,11 @@
         "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "signature.table-lookup"
       ],
+      "required_measurement_space": "sensor-space-radiance",
       "required_provider_outputs": [
         "bsuv2_los_fov_sensor_space_radiance"
       ]
@@ -210,6 +278,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "SIG-MVP-A-064",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.spectrum.peak_normalize_after_sensor_sampling",
       "metric_ids": [
         "metric.signature.relative_shape_rmse",
@@ -264,9 +333,11 @@
         "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "signature.table-lookup"
       ],
+      "required_measurement_space": "relative-shape",
       "required_provider_outputs": [
         "sensor_sampled_peak_normalized_spectral_shape"
       ]
@@ -285,6 +356,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "SIG-MVP-A-066",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.spectrum.peak_normalize_after_sensor_sampling",
       "metric_ids": [
         "metric.signature.relative_shape_rmse",
@@ -339,9 +411,11 @@
         "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "signature.table-lookup"
       ],
+      "required_measurement_space": "relative-shape",
       "required_provider_outputs": [
         "sensor_sampled_peak_normalized_spectral_shape"
       ]
@@ -359,6 +433,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "SIG-MVP-A-073",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.sensor.alsi_thermal_band",
       "metric_ids": [
         "metric.signature.band_power_relative_error",
@@ -405,9 +480,11 @@
         "status": "not-executed"
       },
       "product_id": "plume.signature.spectral-radiant-intensity@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "signature.table-lookup"
       ],
+      "required_measurement_space": "band-integrated-radiance",
       "required_provider_outputs": [
         "band_integrated_radiance",
         "formulation_sweep"
@@ -428,6 +505,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-044",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.sensor.bsuv2_los_fov",
       "metric_ids": [
         "metric.ray.sensor_space_log_rmse"
@@ -503,9 +581,11 @@
         "status": "no-overlap"
       },
       "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "plume.gray-ray-transfer"
       ],
+      "required_measurement_space": "sensor-space-radiance",
       "required_provider_outputs": [
         "bsuv2_los_fov_sensor_space_radiance"
       ]
@@ -525,6 +605,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-065",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.spectrum.peak_normalize_after_los_transfer",
       "metric_ids": [
         "metric.ray.relative_spectral_shape_rmse"
@@ -578,9 +659,11 @@
         "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "plume.gray-ray-transfer"
       ],
+      "required_measurement_space": "relative-shape",
       "required_provider_outputs": [
         "line_of_sight_peak_normalized_spectral_shape"
       ]
@@ -600,6 +683,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-067",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.spectrum.peak_normalize_after_los_transfer",
       "metric_ids": [
         "metric.ray.relative_spectral_shape_rmse"
@@ -653,9 +737,11 @@
         "status": "blocked-measurement-space-mismatch"
       },
       "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "plume.gray-ray-transfer"
       ],
+      "required_measurement_space": "relative-shape",
       "required_provider_outputs": [
         "line_of_sight_peak_normalized_spectral_shape"
       ]
@@ -676,6 +762,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-068",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.surface.gardon_band_integral",
       "metric_ids": [
         "metric.ray.surface_flux_log_rmse"
@@ -723,9 +810,11 @@
         "status": "not-executed"
       },
       "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "plume.gray-ray-transfer"
       ],
+      "required_measurement_space": "surface-band-flux",
       "required_provider_outputs": [
         "surface_detector_band_integrated_flux_time_history"
       ]
@@ -745,6 +834,7 @@
       "claim_status": "not_accepted",
       "comparison_id": "RAY-MVP-A-074",
       "comparison_status": "blocked",
+      "evidence_status": "blocked",
       "measurement_operator_id": "operator.image.integrate_alsi_band_and_area",
       "metric_ids": [
         "metric.ray.band_radiance_relative_error"
@@ -790,9 +880,11 @@
         "status": "not-executed"
       },
       "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_bound_evidence": null,
       "provider_ids": [
         "plume.gray-ray-transfer"
       ],
+      "required_measurement_space": "band-integrated-projected-power",
       "required_provider_outputs": [
         "alsi_band_integrated_radiance_and_projected_power"
       ]
@@ -1349,14 +1441,50 @@
     "VIS-MVP-A-061": {
       "available_provider_outputs": [
         "core_radius_fraction",
-        "opacity_weight"
+        "mach_disk_position_m",
+        "opacity_weight",
+        "operating_pressure_or_branch_id"
       ],
       "claim_status": "not_accepted",
       "comparison_method": "branch-aware-no-extrapolation",
-      "missing_provider_outputs": [
-        "mach_disk_position_m",
-        "operating_pressure_or_branch_id"
+      "comparison_operator_id": "op.visual.feature-series.no-extrapolation-v1",
+      "diagnostic_provider_feature_series": [
+        {
+          "branch_ids": [
+            "underexpanded",
+            "underexpanded",
+            "underexpanded"
+          ],
+          "coordinate_frame_id": "straight-axisymmetric-xr",
+          "coordinate_id": "nozzle_exit_total_pressure_Pa",
+          "coordinate_unit": "Pa",
+          "coordinates": [
+            24571288.556890905,
+            26805042.062062804,
+            29038795.567234702
+          ],
+          "feature_id": "mach_disk_position_m",
+          "feature_unit": "m",
+          "measurement_space": "physical-geometry-diagnostic",
+          "model_lane_id": "shock-cell-basic-v1",
+          "operator_id": "operator.model.shock-cell-basic.mach-disk-endpoint-diagnostic-v1",
+          "scenario_id": "repository-local-visual-feature-probe-v1",
+          "schema": "exhaust-plume.visual-feature-series@1",
+          "source_id": "plume.shock-cell-analytical:fa91aacb2791e189c1124c61:mach-disk-diagnostic-proxy",
+          "uncertainties": null,
+          "validity_mask": [
+            true,
+            true,
+            true
+          ],
+          "values": [
+            17.567257848696432,
+            19.194153280237416,
+            20.909125215129983
+          ]
+        }
       ],
+      "missing_provider_outputs": [],
       "observed_branch_id_field_present": false,
       "observed_columns": [
         "benchmark_id",
@@ -1381,12 +1509,27 @@
       ],
       "observed_point_count": 606,
       "operator_id": "op.visual.feature-extractor",
-      "reason": "current visual providers do not emit a Mach-disk feature and operating-branch channel",
+      "reason": "diagnostic model feature series is available, but it is not bound to the provider-specific observed scenario, branch crosswalk, and external measurement semantics",
       "required_provider_outputs": [
         "mach_disk_position_m",
         "operating_pressure_or_branch_id"
       ],
-      "status": "blocked-missing-provider-feature"
+      "required_series_metadata": [
+        "feature_id",
+        "coordinate_id_and_unit",
+        "feature_unit",
+        "source_id_and_digest",
+        "scenario_id",
+        "coordinate_frame_id",
+        "measurement_space",
+        "operator_id",
+        "validity_mask",
+        "branch_ids_for_hysteretic_features",
+        "one_sigma_uncertainty_when_available"
+      ],
+      "status": "not-executed-provider-sample-not-bound",
+      "uncertainty_policy": "report uncertainty coverage and normalized residuals when both series supply nonzero one-sigma uncertainties; never treat missing uncertainty as zero",
+      "visual_feature_series_schema": "exhaust-plume.visual-feature-series@1"
     }
   },
   "operator_reconciliation": {
@@ -2259,7 +2402,27 @@
     "semantic_crosswalk_status": "complete-scoped",
     "unreviewed_external_only": []
   },
+  "provider_bound_asset_manifest_source": null,
+  "provider_bound_asset_verification": {
+    "reason": "no provider-bound evidence handoff was supplied",
+    "status": "not-required"
+  },
+  "provider_bound_evidence_schema": "exhaust-plume.provider-bound-comparison-evidence@1",
+  "provider_bound_evidence_source": null,
   "providers": {
+    "curved_optical": {
+      "claim_ceiling": "Gray engineering transfer through conservative piecewise capsule supports only; no resolved curved-flow radiation or detector claim.",
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_ids": [
+        "plume.curved-gray-ray-transfer"
+      ],
+      "required_external_evidence": [
+        "curved-support path/operator comparison",
+        "provider-bound observer and scenario asset",
+        "external validation metric and uncertainty treatment"
+      ],
+      "status": "local-analytic-provider-validation-pending"
+    },
     "focal_plane_array": {
       "claim_ceiling": "Deterministic expected-electron and expected-ADC-count adapters only; no externally validated FPA image, measured detector-count, noise-realization, or detection claim.",
       "provider_ids": [],
@@ -2267,7 +2430,7 @@
     },
     "optical": {
       "analytic_transfer_passed": true,
-      "claim_ceiling": "Homogeneous gray transfer through a straight constant-radius support only; no chemistry, atmosphere, detector, or FPA claim.",
+      "claim_ceiling": "Homogeneous or piecewise-axial gray transfer through a straight support only; no chemistry, atmosphere, detector, or FPA claim.",
       "measurement_probe": {
         "ray_index": 0,
         "source_spectral_radiance_w_m2_sr_m": [
@@ -2305,7 +2468,7 @@
       "asset_id": "repository-synthetic-signature-contract-fixture-v1",
       "asset_sha256": "2a35604852b25b7b0efff7def5a4feb142964b23d2e38767e60c5148494ac341",
       "asset_source": "repository synthetic contract fixture",
-      "claim_ceiling": "Versioned table and interpolation behavior only; no intrinsic physical validation claim.",
+      "claim_ceiling": "Versioned table/interpolation and caller-bound LTE line-source/population spectral engineering only; no reactions, non-LTE inference, atmosphere, detector, or external validation claim.",
       "lane_id": "signature-table-mvp-v1",
       "local_contract_invariants": {
         "all_requested_samples_valid": true,
@@ -2365,6 +2528,46 @@
     },
     "visual": {
       "claim_ceiling": "Engineering-approximate straight visual geometry and named display features only.",
+      "diagnostic_feature_series": [
+        {
+          "branch_ids": [
+            "underexpanded",
+            "underexpanded",
+            "underexpanded"
+          ],
+          "coordinate_frame_id": "straight-axisymmetric-xr",
+          "coordinate_id": "nozzle_exit_total_pressure_Pa",
+          "coordinate_unit": "Pa",
+          "coordinates": [
+            24571288.556890905,
+            26805042.062062804,
+            29038795.567234702
+          ],
+          "feature_id": "mach_disk_position_m",
+          "feature_unit": "m",
+          "measurement_space": "physical-geometry-diagnostic",
+          "model_lane_id": "shock-cell-basic-v1",
+          "operator_id": "operator.model.shock-cell-basic.mach-disk-endpoint-diagnostic-v1",
+          "scenario_id": "repository-local-visual-feature-probe-v1",
+          "schema": "exhaust-plume.visual-feature-series@1",
+          "source_id": "plume.shock-cell-analytical:fa91aacb2791e189c1124c61:mach-disk-diagnostic-proxy",
+          "uncertainties": null,
+          "validity_mask": [
+            true,
+            true,
+            true
+          ],
+          "values": [
+            17.567257848696432,
+            19.194153280237416,
+            20.909125215129983
+          ]
+        }
+      ],
+      "feature_outputs": [
+        "mach_disk_position_m",
+        "operating_pressure_or_branch_id"
+      ],
       "lane_id": "shock-cell-basic-v1",
       "local_geometry_invariants": "passed",
       "output_channels": [
@@ -2379,8 +2582,7 @@
     }
   },
   "release_blockers": [
-    "all current provider-specific external comparisons remain blocked by missing provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings",
-    "separately named MVP alignment archive is not yet verified"
+    "provider-specific external comparisons remain unaccepted because provider-bound measurement-space outputs, physical scenario assets, or accepted product-specific measurement-operator mappings are still missing"
   ],
   "release_ready": false,
   "report_id": "exhaust-plume-provider-comparison-preflight-v1",
@@ -2395,6 +2597,19 @@
       "required_prerequisites": [
         "source radiance and transmittance separation",
         "provider-bound sensor-space comparison scenario and accepted metrics"
+      ],
+      "status": "external-validation-pending"
+    },
+    {
+      "claim_status": "not_accepted",
+      "product_id": "plume.optical.spectral-ray-transfer@1",
+      "provider_ids": [
+        "plume.curved-gray-ray-transfer"
+      ],
+      "required_prerequisites": [
+        "curved-support path/operator comparison",
+        "provider-bound observer and scenario asset",
+        "external validation metric and uncertainty treatment"
       ],
       "status": "external-validation-pending"
     },
@@ -2415,14 +2630,50 @@
   "visual_feature_operator": {
     "available_provider_outputs": [
       "core_radius_fraction",
-      "opacity_weight"
+      "mach_disk_position_m",
+      "opacity_weight",
+      "operating_pressure_or_branch_id"
     ],
     "claim_status": "not_accepted",
     "comparison_method": "branch-aware-no-extrapolation",
-    "missing_provider_outputs": [
-      "mach_disk_position_m",
-      "operating_pressure_or_branch_id"
+    "comparison_operator_id": "op.visual.feature-series.no-extrapolation-v1",
+    "diagnostic_provider_feature_series": [
+      {
+        "branch_ids": [
+          "underexpanded",
+          "underexpanded",
+          "underexpanded"
+        ],
+        "coordinate_frame_id": "straight-axisymmetric-xr",
+        "coordinate_id": "nozzle_exit_total_pressure_Pa",
+        "coordinate_unit": "Pa",
+        "coordinates": [
+          24571288.556890905,
+          26805042.062062804,
+          29038795.567234702
+        ],
+        "feature_id": "mach_disk_position_m",
+        "feature_unit": "m",
+        "measurement_space": "physical-geometry-diagnostic",
+        "model_lane_id": "shock-cell-basic-v1",
+        "operator_id": "operator.model.shock-cell-basic.mach-disk-endpoint-diagnostic-v1",
+        "scenario_id": "repository-local-visual-feature-probe-v1",
+        "schema": "exhaust-plume.visual-feature-series@1",
+        "source_id": "plume.shock-cell-analytical:fa91aacb2791e189c1124c61:mach-disk-diagnostic-proxy",
+        "uncertainties": null,
+        "validity_mask": [
+          true,
+          true,
+          true
+        ],
+        "values": [
+          17.567257848696432,
+          19.194153280237416,
+          20.909125215129983
+        ]
+      }
     ],
+    "missing_provider_outputs": [],
     "observed_branch_id_field_present": false,
     "observed_columns": [
       "benchmark_id",
@@ -2447,11 +2698,26 @@
     ],
     "observed_point_count": 606,
     "operator_id": "op.visual.feature-extractor",
-    "reason": "current visual providers do not emit a Mach-disk feature and operating-branch channel",
+    "reason": "diagnostic model feature series is available, but it is not bound to the provider-specific observed scenario, branch crosswalk, and external measurement semantics",
     "required_provider_outputs": [
       "mach_disk_position_m",
       "operating_pressure_or_branch_id"
     ],
-    "status": "blocked-missing-provider-feature"
+    "required_series_metadata": [
+      "feature_id",
+      "coordinate_id_and_unit",
+      "feature_unit",
+      "source_id_and_digest",
+      "scenario_id",
+      "coordinate_frame_id",
+      "measurement_space",
+      "operator_id",
+      "validity_mask",
+      "branch_ids_for_hysteretic_features",
+      "one_sigma_uncertainty_when_available"
+    ],
+    "status": "not-executed-provider-sample-not-bound",
+    "uncertainty_policy": "report uncertainty coverage and normalized residuals when both series supply nonzero one-sigma uncertainties; never treat missing uncertainty as zero",
+    "visual_feature_series_schema": "exhaust-plume.visual-feature-series@1"
   }
 }

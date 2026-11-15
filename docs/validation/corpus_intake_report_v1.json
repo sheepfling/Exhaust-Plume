@@ -1,6 +1,7 @@
 {
   "report_id": "exhaust-plume-validation-corpus-intake-report-v1",
   "manifest_id": "exhaust-plume-validation-corpus-intake-v1",
+  "verified_at_utc": "2026-11-15T20:52:11Z",
   "retrieval_source": "user-provided conversation attachment",
   "archive": {
     "archive_id": "validation-corpus-v8",
@@ -34,8 +35,23 @@
     "archive_id": "mvp-validation-alignment-v1",
     "filename": "plume_mvp_validation_alignment_v1.zip",
     "sha256": "569aa7f0572f454a1a539b2fbecd977107aced9cab8eb2e65f01c814f8494ceb",
-    "status": "missing"
+    "status": "verified",
+    "zip_member_count": 16,
+    "internal_checksum_entries": 15,
+    "internal_checksums": "verified",
+    "alignment_mappings": 78,
+    "cross_product_rules": 7,
+    "validation_gates": 11,
+    "structure_status": "valid",
+    "semantic_crosswalk_status": "complete-scoped",
+    "operator_namespace_reconciliation": "pending"
   },
-  "claim_boundary": "Corpus integrity is verified; product claims remain gated by provider-specific measurement-operator comparisons and the separate alignment archive release rule.",
+  "provider_comparison_preflight": {
+    "status": "comparisons-recorded-pending-provider-bindings",
+    "comparison_count": 10,
+    "blocked_comparison_count": 10,
+    "release_ready": false
+  },
+  "claim_boundary": "Both archive packages and their internal checksums are verified, and the isolated corpus suite passes; product claims remain gated by provider-specific measurement-operator bindings and applicable rights review.",
   "license_status": "Source provenance is documented in the corpus; derived-corpus redistribution status remains under review."
 }

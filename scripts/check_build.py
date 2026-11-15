@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     ####
     wheel_install = [python, "-m", "pip", "install"]
     if arguments.offline:
-      wheel_install.extend(["--no-index", "--no-deps"])
+      wheel_install.extend(["--no-index", "--no-deps", "--ignore-installed"])
     ####
     wheel_install.append(str(wheels[0]))
     install_commands.append(wheel_install)

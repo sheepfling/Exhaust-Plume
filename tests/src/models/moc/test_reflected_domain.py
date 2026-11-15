@@ -512,6 +512,19 @@ from exhaust_plume.validation.moc_global_mixed_regime_state_equation_contract im
   MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus,
   prepare_reflected_domain_global_mixed_regime_state_equation_contract,
 )
+from exhaust_plume.validation.moc_global_mixed_regime_conservative_mesh_overlap import (
+  MocReflectedDomainGlobalMixedRegimeConservativeMeshOverlapRequest,
+  MocReflectedDomainGlobalMixedRegimeConservativeMeshOverlapStatus,
+  audit_reflected_domain_global_mixed_regime_conservative_mesh_overlap,
+  measure_reflected_domain_global_mixed_regime_conservative_mesh_overlap,
+)
+from exhaust_plume.validation.moc_global_mixed_regime_overlap_boundary_solve import (
+  MocReflectedDomainGlobalMixedRegimeOverlapBoundaryConditionMode,
+  MocReflectedDomainGlobalMixedRegimeOverlapBoundarySolveRequest,
+  MocReflectedDomainGlobalMixedRegimeOverlapBoundarySolveStatus,
+  audit_reflected_domain_global_mixed_regime_overlap_boundary,
+  solve_reflected_domain_global_mixed_regime_overlap_boundary,
+)
 from exhaust_plume.validation.moc_global_mixed_regime_upstream_state_target import (
   MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetStatus,
   MocReflectedDomainGlobalMixedRegimeUpstreamStateTargetRequest,
@@ -7747,6 +7760,7 @@ def test_global_mixed_regime_fixed_flux_handoff_fails_closed_on_entropy_loss():
   assert resolved.field is not None
   assert resolved.field.free_boundary_conservative_flux_profile_consumed
   assert resolved.field.free_boundary_conservative_flux_profile_frame_verified
+  assert not resolved.field.free_boundary_conservative_state_profile_consumed
   assert not resolved.field.entropy_transport_verified
   assert resolved.field_audit is not None
   assert resolved.field_audit.free_boundary_conservative_flux_profile_verified
@@ -8007,10 +8021,194 @@ def test_global_mixed_regime_upstream_conservative_reconciliation_consumes_fixed
   )
   assert invalid.chain_promotion_blocked
   assert invalid.production_claim_allowed is False
+
+  assert result.reconciliation is not None
+  overlap_request = MocReflectedDomainGlobalMixedRegimeConservativeMeshOverlapRequest(
+    closure=closure,
+    contract=contract,
+    source_reconciliation=result.reconciliation,
+    downstream=downstream,
+  )
+  overlap = measure_reflected_domain_global_mixed_regime_conservative_mesh_overlap(
+    overlap_request
+  )
+
+  assert overlap.status is (
+    MocReflectedDomainGlobalMixedRegimeConservativeMeshOverlapStatus
+    .VERIFIED_RESEARCH_OVERLAP
+  )
+  assert overlap.local_overlap_verified
+  assert overlap.target_boundary_face_midpoints_verified
+  assert overlap.source_lineage_verified
+  assert overlap.downstream_lineage_verified
+  assert overlap.full_downstream_coverage_verified
+  assert overlap.conservative_remap_verified
+  assert overlap.independent_audit_verified
+  assert len(overlap.downstream_cell_areas_m2) == 32
+  assert len(overlap.overlap_fragments) > len(overlap.downstream_cell_areas_m2)
+  assert all(
+    fraction == pytest.approx(1.0, abs=1.0e-8)
+    for fraction in overlap.downstream_coverage_fractions
+  )
+  assert all(
+    state is not None
+    for state in overlap.source_remapped_states_by_downstream_cell
+  )
+  assert all(
+    value is not None
+    for value in overlap.source_remapped_entropy_density_by_downstream_cell_J_m3K
+  )
+  assert all(
+    np.isfinite(value)
+    for value in (
+      *overlap.integrated_state_residual,
+      *overlap.integrated_relative_state_residual,
+      overlap.source_entropy_inventory_on_overlap_J_K_per_m,
+      overlap.downstream_entropy_inventory_on_overlap_J_K_per_m,
+      overlap.integrated_entropy_inventory_residual_J_K_per_m,
+      overlap.integrated_relative_entropy_inventory_residual,
+    )
+  )
+  assert overlap.maximum_absolute_entropy_proxy_log_residual is not None
+  assert overlap.global_coupling_verified is False
+  assert overlap.production_claim_allowed is False
+  audit = audit_reflected_domain_global_mixed_regime_conservative_mesh_overlap(
+    overlap
+  )
+  assert audit.verified
+  assert audit.geometry_recomputed
+  assert audit.coverage_recomputed
+  assert audit.remap_recomputed
+  assert audit.residuals_recomputed
+  assert audit.lineage_recomputed
+
+  tampered = replace(overlap, integrated_state_residual=(0.0, 0.0, 0.0, 0.0))
+  tampered_audit = (
+    audit_reflected_domain_global_mixed_regime_conservative_mesh_overlap(tampered)
+  )
+  assert tampered_audit.verified is False
+
+  overlap_boundary = solve_reflected_domain_global_mixed_regime_overlap_boundary(
+    MocReflectedDomainGlobalMixedRegimeOverlapBoundarySolveRequest(overlap)
+  )
+  assert overlap_boundary.status is (
+    MocReflectedDomainGlobalMixedRegimeOverlapBoundarySolveStatus
+    .VERIFIED_RESEARCH_CONSUMPTION
+  )
+  assert overlap_boundary.verified_research_consumption
+  assert overlap_boundary.source_cell_indices == tuple(range(3, 32, 4))
+  assert np.allclose(
+    overlap_boundary.boundary_face_midpoints_m,
+    contract.conservative_state_profile_points_m,
+    rtol=0.0,
+    atol=1.0e-8,
+  )
+  assert overlap_boundary.request_binding_verified
+  assert overlap_boundary.state_profile_consumed
+  assert overlap_boundary.field is not None
+  assert overlap_boundary.field.free_boundary_conservative_state_profile_consumed
+  assert overlap_boundary.field_audit is not None
+  assert overlap_boundary.field_audit.residual_channels_recomputed
+  assert overlap_boundary.field_audit.entropy_transport_verified
+  assert overlap_boundary.field_audit.converged is False
+  assert overlap_boundary.local_pde_residuals_pass is False
+  residual_values = (
+    overlap_boundary.field_audit.maximum_conservative_mass_residual,
+    overlap_boundary.field_audit.maximum_conservative_streamwise_momentum_residual,
+    overlap_boundary.field_audit.maximum_conservative_transverse_momentum_residual,
+    overlap_boundary.field_audit.maximum_conservative_energy_residual,
+    overlap_boundary.field_audit.maximum_conservative_euler_residual,
+  )
+  assert all(
+    value is not None
+    and value > overlap_boundary.fresh_request.euler_residual_tolerance
+    for value in residual_values
+  )
+  assert overlap_boundary.global_coupling_verified is False
+  assert overlap_boundary.chain_promotion_blocked
+  assert overlap_boundary.production_claim_allowed is False
+  overlap_boundary_audit = audit_reflected_domain_global_mixed_regime_overlap_boundary(
+    overlap_boundary
+  )
+  assert overlap_boundary_audit.verified
+  assert overlap_boundary_audit.face_cell_map_recomputed
+  assert overlap_boundary_audit.source_profile_recomputed
+  assert overlap_boundary_audit.request_binding_recomputed
+  assert overlap_boundary_audit.field_consumption_recomputed
+  assert overlap_boundary_audit.residuals_recomputed
+  assert overlap_boundary_audit.promotion_flags_verified
+  first_state = overlap_boundary.source_state_profile[0]
+  tampered_overlap_boundary = replace(
+    overlap_boundary,
+    source_state_profile=(
+      (first_state[0] + 1.0e-5, *first_state[1:]),
+      *overlap_boundary.source_state_profile[1:],
+    ),
+  )
+  assert (
+    audit_reflected_domain_global_mixed_regime_overlap_boundary(
+      tampered_overlap_boundary
+    ).verified
+    is False
+  )
+
+  overlap_flux_boundary = solve_reflected_domain_global_mixed_regime_overlap_boundary(
+    MocReflectedDomainGlobalMixedRegimeOverlapBoundarySolveRequest(
+      overlap,
+      boundary_condition_mode=(
+        MocReflectedDomainGlobalMixedRegimeOverlapBoundaryConditionMode
+        .REMAPPED_EULER_NORMAL_FLUX
+      ),
+    )
+  )
+  assert overlap_flux_boundary.verified_research_consumption
+  assert overlap_flux_boundary.source_cell_indices == tuple(range(3, 32, 4))
+  assert len(overlap_flux_boundary.source_flux_profile) == 8
+  assert not overlap_flux_boundary.state_profile_consumed
+  assert overlap_flux_boundary.flux_profile_consumed
+  assert overlap_flux_boundary.flux_profile_frame_verified
+  assert overlap_flux_boundary.boundary_geometry_consumed
+  assert overlap_flux_boundary.field is not None
+  assert not overlap_flux_boundary.field.free_boundary_conservative_state_profile_consumed
+  assert overlap_flux_boundary.field.free_boundary_conservative_flux_profile_consumed
+  assert overlap_flux_boundary.field.free_boundary_conservative_flux_profile_frame_verified
+  assert overlap_flux_boundary.field.free_boundary_geometry_profile_consumed
+  assert overlap_flux_boundary.field_audit is not None
+  assert overlap_flux_boundary.field_audit.residual_channels_recomputed
+  assert not overlap_flux_boundary.local_pde_residuals_pass
+  assert overlap_flux_boundary.field_audit.maximum_conservative_euler_residual is not None
+  assert (
+    overlap_flux_boundary.field_audit.maximum_conservative_euler_residual
+    <= 2.0 * overlap_flux_boundary.fresh_request.euler_residual_tolerance
+  )
+  assert overlap_flux_boundary.field_audit.maximum_entropy_transport_residual is not None
+  assert overlap_flux_boundary.field_audit.maximum_entropy_transport_residual > 0.1
+  assert not overlap_flux_boundary.global_coupling_verified
+  assert overlap_flux_boundary.chain_promotion_blocked
+  assert not overlap_flux_boundary.production_claim_allowed
+  overlap_flux_audit = audit_reflected_domain_global_mixed_regime_overlap_boundary(
+    overlap_flux_boundary
+  )
+  assert overlap_flux_audit.verified
+  assert overlap_flux_audit.request_binding_recomputed
+  assert overlap_flux_audit.field_consumption_recomputed
+  assert overlap_flux_audit.residuals_recomputed
+  tampered_flux = replace(
+    overlap_flux_boundary.source_flux_profile[0],
+    flux=(overlap_flux_boundary.source_flux_profile[0].flux[0] + 1.0e-5,
+          *overlap_flux_boundary.source_flux_profile[0].flux[1:]),
+  )
+  tampered_flux_boundary = replace(
+    overlap_flux_boundary,
+    source_flux_profile=(tampered_flux, *overlap_flux_boundary.source_flux_profile[1:]),
+  )
+  assert not audit_reflected_domain_global_mixed_regime_overlap_boundary(
+    tampered_flux_boundary
+  ).verified
 ####
 
 
-def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_projection():
+def test_global_mixed_regime_state_feedback_keeps_geometry_solver_owned():
   closure = _global_physical_closure_for_mixed_regime()
   mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
   downstream = solve_reflected_domain_global_coupled_downstream(
@@ -8032,7 +8230,6 @@ def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_proj
     downstream,
     consumer=consumer,
     consumer_id='test-global-mixed-regime-state-feedback-v1',
-    boundary_condition_options={'consume_target_geometry': True},
   )
 
   assert run.status is (
@@ -8049,7 +8246,7 @@ def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_proj
     MocReflectedDomainGlobalMixedRegimeStateEquationContractStatus
     .UPSTREAM_EQUATION_CONTRACT_UNAVAILABLE
   )
-  assert run.pressure_geometry_projection_requested
+  assert run.pressure_geometry_projection_requested is False
   assert run.pressure_geometry_projection_consumed_verified
   assert run.fresh_global_resolve_verified
   assert run.fidelity_isolation_verified
@@ -8059,7 +8256,7 @@ def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_proj
   assert run.chain_promotion_blocked
   assert run.production_claim_allowed is False
   assert run.boundary_condition is not None
-  assert run.boundary_condition.target_geometry_consumed
+  assert run.boundary_condition.target_geometry_consumed is False
   assert run.boundary_condition.conditioned_closure is not None
   assert run.boundary_condition.conditioned_closure is not closure
   report = run.as_report()
@@ -8082,6 +8279,24 @@ def test_global_mixed_regime_state_feedback_consumes_only_pressure_geometry_proj
   assert report['upstream_state_equation_consumed'] is False
   assert report['global_coupling_verified'] is False
   assert report['production_claim_allowed'] is False
+
+  requested_geometry = measure_reflected_domain_global_mixed_regime_state_feedback(
+    closure,
+    downstream,
+    consumer=consumer,
+    consumer_id='test-global-mixed-regime-state-feedback-geometry-request-v1',
+    boundary_condition_options={'consume_target_geometry': True},
+  )
+  assert requested_geometry.status is (
+    MocReflectedDomainGlobalMixedRegimeStateFeedbackStatus.GLOBAL_RESOLVE_FAILURE
+  )
+  assert requested_geometry.pressure_geometry_projection_requested is True
+  assert requested_geometry.pressure_geometry_projection_consumed_verified is False
+  assert requested_geometry.fresh_global_resolve_verified is False
+  assert requested_geometry.global_coupling_verified is False
+  assert requested_geometry.chain_promotion_blocked
+  assert requested_geometry.production_claim_allowed is False
+  assert 'boundary tangent residuals' in requested_geometry.message
 ####
 
 
@@ -10066,6 +10281,92 @@ def test_global_mixed_regime_moving_upstream_state_equation_corrector_consumes_c
   assert report['upstream_state_equation_consumed'] is True
   assert report['global_coupling_verified'] is False
   assert report['production_claim_allowed'] is False
+####
+
+
+def test_global_mixed_regime_moving_corrector_uses_bounded_ambient_profile_support():
+  closure = _global_physical_closure_for_mixed_regime()
+  mixed_request = build_reflected_domain_mixed_regime_boundary_request(closure)
+  continuation_mode = (
+    MocReflectedDomainCoupledEulerInletBoundaryMode
+    .SOLVER_OWNED_PHYSICAL_FIELD_CONTINUATION_PROFILE
+  )
+  downstream = solve_reflected_domain_global_coupled_downstream(
+    closure,
+    reference_total_temperature_K=1500.0,
+    ambient_pressure_Pa=mixed_request.control_section.samples[-1].static_pressure_Pa,
+    axial_cell_count=8,
+    transverse_cell_count=4,
+    max_pseudo_iterations=400,
+    max_shape_iterations=60,
+    inlet_boundary_mode=continuation_mode,
+  )
+
+  result = (
+    run_reflected_domain_global_mixed_regime_moving_upstream_state_equation_corrector(
+      closure,
+      downstream,
+      reference_total_temperature_K=1500.0,
+      equation_options={'normal_offset_m': 1.0e-4},
+      max_equation_pseudo_iterations=80,
+      require_componentwise_residual_descent=False,
+      moving_interface_options={
+        'maximum_field_iterations': 3,
+        'maximum_interface_iterations': 1,
+      },
+      downstream_options={
+        'axial_cell_count': 8,
+        'transverse_cell_count': 4,
+        'max_pseudo_iterations': 400,
+        'max_shape_iterations': 60,
+        'inlet_boundary_mode': continuation_mode,
+      },
+    )
+  )
+
+  step = result.moving_global_step
+  assert step is not None
+  state_step = step.state_step
+  assert state_step is not None
+  feedback = state_step.global_feedback
+  assert feedback is not None
+  base_target = feedback.base_target
+  assert base_target is not None
+  source_field = closure.global_euler.physical_field.field
+  assert source_field is not None
+  support_x = tuple(
+    vertex[0]
+    for cell in source_field.cells
+    for vertex in cell.vertices_xr_m
+  )
+  assert base_target.x_stations_m == pytest.approx(
+    (min(support_x), max(support_x))
+  )
+  assert base_target.static_pressure_Pa == pytest.approx(
+    (closure.source_band.ambient_pressure_Pa,) * 2
+  )
+  assert base_target.boundary_points_m == ()
+  assert base_target.tangent_rad == ()
+
+  boundary_condition = feedback.boundary_condition
+  assert boundary_condition is not None
+  assert boundary_condition.converged_research_resolve
+  assert boundary_condition.target_boundary_condition_consumed
+  assert boundary_condition.solver_owned_geometry_verified
+  assert boundary_condition.target_geometry_consumed is False
+  fresh_closure = boundary_condition.conditioned_closure
+  assert fresh_closure is not None
+  assert fresh_closure.physical_closure_verified
+  assert fresh_closure.variable_entropy_transport_verified
+  assert fresh_closure.global_audit is not None
+  assert fresh_closure.global_audit.converged
+
+  assert result.upstream_state_equation_consumed
+  assert result.global_coupling_verified is False
+  assert result.production_claim_allowed is False
+  assert len(result.initial_combined_residual_vector) == 17
+  assert len(result.final_combined_residual_vector) == 17
+  assert result.combined_componentwise_residual_descent_verified is False
 ####
 
 

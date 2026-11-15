@@ -7556,6 +7556,7 @@ def _result_from_field(
         .CONSERVATIVE_STATE_TRACE_ENTROPY_COMPATIBLE_RUSANOV,
       )
       and request.free_boundary_conservative_state_profile is not None
+      and request.free_boundary_conservative_flux_profile is None
     ),
     upstream_state_equation_consumed=upstream_state_equation_consumed,
     upstream_state_equation_target_frame_verified=(

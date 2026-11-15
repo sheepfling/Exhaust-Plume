@@ -37,6 +37,7 @@
     "benchmark_id": "CJ-UEJ-001",
     "claim_id": "VAL-003-CJ-UEJ-MOC-CENTERLINE-MACH-DIAGNOSTIC",
     "claim_role": "validation",
+    "comparison_evidence": null,
     "evidence_level": 3,
     "limitations": [
       "The source is a convergent/choked cold jet while the MOC state contract requires M > 1.",

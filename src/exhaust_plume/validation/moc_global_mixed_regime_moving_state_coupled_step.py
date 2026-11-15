@@ -8,9 +8,10 @@ end-to-end step:
 
 Every front movement is owned by the conservative residual solver and every
 updated global field is independently rebuilt from the retained source band.
-The characteristic upstream state equation and the canonical free-boundary
-fixed point are still unavailable, so this operator remains promotion-blocked
-even when all local research gates pass.
+The upstream interface-strip state/entropy equation exists as a separate
+local research seam, but this moving/global update does not consume its
+solution. The canonical free-boundary fixed point also remains open, so this
+operator stays promotion-blocked even when its local research gates pass.
 """
 
 from __future__ import annotations

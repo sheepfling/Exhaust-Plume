@@ -103,11 +103,26 @@ external product claim is promoted to accepted status merely because a
 semantic crosswalk entry exists; every reviewed entry remains explicitly
 `not_accepted` until its provider-bound comparison closes.
 
-The separate `plume_mvp_validation_alignment_v1.zip` named by the handoff is
-still required. When recovered, compare its operator registry and crosswalk to
-both inventories. If it does not provide an authoritative crosswalk, add one
-explicitly with semantic review and tests; do not use string similarity or
-prefix replacement as an automatic mapping rule.
+## Recovered separate alignment archive
+
+The separately named `plume_mvp_validation_alignment_v1.zip` is now
+recovered and verified by the intake manifest (SHA-256
+`569aa7f0572f454a1a539b2fbecd977107aced9cab8eb2e65f01c814f8494ceb`, 16
+members, 15 internal checksums). Its `measurement_operator_registry.csv`
+contains 16 unique `op.*` IDs and exactly matches the first 16 rows of the
+committed 21-ID registry. The five additional committed entries are
+`op.sensor.spectral-sampling`,
+`op.sensor.peak-normalize-spectrum`,
+`op.sensor.band-integral`,
+`op.sensor.fpa-pixel-detector`, and
+`op.sensor.fpa-digitization`.
+
+The archive's source manifest points to the Version 7 source corpus. It does
+not provide aliases for the 35 Version 8 embedded `operator.*` IDs or replace
+the scoped semantic crosswalk. This comparison closes archive recovery and
+registry provenance review; exact namespace reconciliation and
+provider-bound execution remain pending. Similar names must not be converted
+to automatic aliases.
 
 ## Consequence for product gates
 

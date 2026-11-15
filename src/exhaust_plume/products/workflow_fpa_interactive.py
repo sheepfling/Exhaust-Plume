@@ -115,23 +115,22 @@ pre {{ white-space:pre-wrap; color:var(--muted); line-height:1.4; }}
 </style></head><body><main>
 <h1>Focal-plane-array downstream view</h1>
 <div class="banner">Deterministic expected detector output only — not a measured image, noise realization, detection result, or external validation claim.</div>
+<p class="small">The source signal is integrated over the declared wavelength grid. Pixel layers show whole-band detector outputs; this input contains no wavelength-resolved pixel cube.</p>
 <div class="controls">
 <label>Layer<select id="layer">{layer_options}</select></label>
 <label>Row<input id="row" type="number" min="0" max="{inputs.image.height_px - 1}" value="0"></label>
 <label>Column<input id="column" type="number" min="0" max="{inputs.image.width_px - 1}" value="0"></label>
-<label>Wavelength index<input id="wavelength" type="number" min="0" max="{len(inputs.image.wavelengths_m) - 1}" value="0"></label>
 <button id="export">Export current view spec</button>
 </div>
 <div class="grid"><section class="panel"><svg id="plot" viewBox="0 0 760 560" role="img" aria-label="FPA pixel grid"></svg><div class="small" id="caption"></div></section>
 <aside class="panel"><h2>Selected pixel</h2><pre id="pixel"></pre><h2>Source</h2><pre id="source"></pre></aside></div>
 <script>
 const DATA = {_json_script(payload)};
-const state = {{layer:Object.keys(DATA.layers)[0],row:0,column:0,wavelength:0}};
+const state = {{layer:Object.keys(DATA.layers)[0],row:0,column:0}};
 const svg = document.getElementById('plot');
 const layerControl = document.getElementById('layer');
 const rowControl = document.getElementById('row');
 const columnControl = document.getElementById('column');
-const wavelengthControl = document.getElementById('wavelength');
 function esc(value) {{ return String(value).replace(/[&<>"']/g, char => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[char])); }}
 function current() {{ return DATA.layers[state.layer]; }}
 function color(value, min, max, valid) {{ if (!valid) return '#29313b'; const fraction = max===min ? 0.5 : (value-min)/(max-min); const hue = 215-215*Math.max(0,Math.min(1,fraction)); return 'hsl('+hue+' 85% 58%)'; }}
@@ -149,16 +148,16 @@ function draw() {{
   parts.push('<text x="'+(left+width/2)+'" y="'+(top+height+32)+'" text-anchor="middle" fill="#aab7c4">pixel column [index]</text>');
   parts.push('<text x="18" y="'+(top+height/2)+'" text-anchor="middle" transform="rotate(-90 18 '+(top+height/2)+')" fill="#aab7c4">pixel row [index]</text>');
   svg.innerHTML=parts.join('');
-  const imageWavelength=DATA.wavelengths_m[state.wavelength];
   const digitized=DATA.digitized_counts===null?null:DATA.digitized_counts[state.row][state.column];
   const saturated=DATA.saturated_mask===null?null:DATA.saturated_mask[state.row][state.column];
-  document.getElementById('pixel').textContent=JSON.stringify({{row_index:state.row,column_index:state.column,valid:mask[state.row][state.column],value:matrix[state.row][state.column],wavelength_m:imageWavelength,digitized_count:digitized,saturated:saturated}},null,2);
+  document.getElementById('pixel').textContent=JSON.stringify({{row_index:state.row,column_index:state.column,valid:mask[state.row][state.column],value:matrix[state.row][state.column],digitized_count:digitized,saturated:saturated}},null,2);
   document.getElementById('source').textContent=JSON.stringify({{content_sha256:DATA.source.content_sha256,provider_id:DATA.source.provider_id,snapshot_id:DATA.source.snapshot_id,frame_id:DATA.source.frame_id,operator_ids:DATA.operator_ids,source_semantics:DATA.source_semantics,claim_ceiling:DATA.claim_ceiling}},null,2);
-  document.getElementById('caption').textContent='Exposure '+DATA.exposure_s+' s | detector '+DATA.detector_response_id+' | validation status '+DATA.validation_status;
+  const lowerUm=Number(DATA.wavelengths_m[0])*1e6, upperUm=Number(DATA.wavelengths_m[DATA.wavelengths_m.length-1])*1e6;
+  document.getElementById('caption').textContent='Source integration band '+lowerUm.toPrecision(4)+'–'+upperUm.toPrecision(4)+' μm | pixel signal is spectrally integrated | exposure '+DATA.exposure_s+' s | detector '+DATA.detector_response_id+' | validation status '+DATA.validation_status;
 }}
-function update() {{ state.layer=layerControl.value; state.row=Math.max(0,Math.min(DATA.height_px-1,Number(rowControl.value)||0)); state.column=Math.max(0,Math.min(DATA.width_px-1,Number(columnControl.value)||0)); state.wavelength=Math.max(0,Math.min(DATA.wavelengths_m.length-1,Number(wavelengthControl.value)||0)); rowControl.value=state.row; columnControl.value=state.column; wavelengthControl.value=state.wavelength; draw(); }}
-[layerControl,rowControl,columnControl,wavelengthControl].forEach(control=>control.addEventListener('input',update));
-document.getElementById('export').addEventListener('click',()=>{{ const exported={{...DATA.view_spec,selection:{{row_index:state.row,column_index:state.column,wavelength_index:state.wavelength}},display_layer:state.layer,view_kind:'fpa.interactive.export'}}; const blob=new Blob([JSON.stringify(exported,null,2)+'\\n'],{{type:'application/json'}}); const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download='fpa-visualization-spec.json'; link.click(); URL.revokeObjectURL(link.href); }});
+function update() {{ state.layer=layerControl.value; state.row=Math.max(0,Math.min(DATA.height_px-1,Number(rowControl.value)||0)); state.column=Math.max(0,Math.min(DATA.width_px-1,Number(columnControl.value)||0)); rowControl.value=state.row; columnControl.value=state.column; draw(); }}
+[layerControl,rowControl,columnControl].forEach(control=>control.addEventListener('input',update));
+document.getElementById('export').addEventListener('click',()=>{{ const exported={{...DATA.view_spec,selection:{{row_index:state.row,column_index:state.column}},display_layer:state.layer,view_kind:'fpa.interactive.export'}}; const blob=new Blob([JSON.stringify(exported,null,2)+'\\n'],{{type:'application/json'}}); const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download='fpa-visualization-spec.json'; link.click(); URL.revokeObjectURL(link.href); }});
 update();
 </script></main></body></html>'''
   output.write_text(html, encoding='utf-8')

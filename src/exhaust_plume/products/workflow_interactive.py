@@ -19,6 +19,7 @@ from exhaust_plume.api import (
   SpectralRadiantIntensityResult,
   SpectralRayTransferResult,
   VisualizationSpec,
+  ViewSelection,
   WavelengthDisplayUnit,
   project_plume_flux_view,
   project_sectioned_tube_view,
@@ -29,10 +30,13 @@ from exhaust_plume.products.workflow_gallery import _source_metadata
 
 __all__ = (
   'INTERACTIVE_GALLERY_SCHEMA',
+  'INTERACTIVE_SPEC_EXPORT_SCHEMA',
+  'resolve_interactive_spec_export',
   'write_interactive_product_gallery',
 )
 
 INTERACTIVE_GALLERY_SCHEMA = 'plume.visualization.interactive-gallery@1'
+INTERACTIVE_SPEC_EXPORT_SCHEMA = 'plume.visualization.interactive-spec-export@1'
 
 
 def _resolve_spec(
@@ -60,10 +64,61 @@ def _common_payload(result: ProductResult, spec: VisualizationSpec, product: str
   return {
     'schema': INTERACTIVE_GALLERY_SCHEMA,
     'product': product,
+    'interactive_spec_export_schema': INTERACTIVE_SPEC_EXPORT_SCHEMA,
     'source': _source_metadata(result),
     'view_spec': spec.model_dump(mode='json'),
     'view_spec_digest_sha256': spec.digest_sha256(),
   }
+####
+
+
+def resolve_interactive_spec_export(
+  payload: Mapping[str, Any],
+  result: ProductResult,
+) -> VisualizationSpec:
+  """Restore an interactive selection onto its exact source-bound base spec."""
+
+  if not isinstance(payload, Mapping):
+    raise TypeError('interactive spec export must be a mapping')
+  ####
+  expected_keys = {
+    'schema',
+    'view_spec',
+    'view_spec_digest_sha256',
+    'current_selection',
+    'source',
+  }
+  if set(payload) != expected_keys:
+    raise ValueError('interactive spec export has an invalid field set')
+  ####
+  if payload['schema'] != INTERACTIVE_SPEC_EXPORT_SCHEMA:
+    raise ValueError('interactive spec export schema is unsupported')
+  ####
+  if payload['source'] != _source_metadata(result):
+    raise ValueError('interactive spec export is bound to a different source result')
+  ####
+  base_spec = VisualizationSpec.model_validate(payload['view_spec'], strict=False)
+  base_spec.validate_for_result(result)
+  if payload['view_spec_digest_sha256'] != base_spec.digest_sha256():
+    raise ValueError('interactive spec export base view-spec digest does not match')
+  ####
+  selection = ViewSelection.model_validate(payload['current_selection'])
+  resolved_payload = base_spec.model_dump(mode='json')
+  resolved_payload['selection'] = selection.model_dump(mode='json')
+  resolved_spec = VisualizationSpec.model_validate(resolved_payload, strict=False)
+  resolved_spec.validate_for_result(result)
+  if isinstance(result, SectionedTubeResult):
+    project_sectioned_tube_view(result, resolved_spec)
+  elif isinstance(result, SpectralRadiantIntensityResult):
+    project_spectral_radiant_intensity_view(result, resolved_spec)
+  elif isinstance(result, SpectralRayTransferResult):
+    project_spectral_ray_transfer_view(result, resolved_spec)
+  elif isinstance(result, PlumeFluxSectionResult):
+    project_plume_flux_view(result, resolved_spec)
+  else:
+    raise TypeError('result must be one of the standard exhaust_plume.api product results')
+  ####
+  return resolved_spec
 ####
 
 
@@ -214,7 +269,20 @@ function addControl(label,id,options,selected,onChange){
   select.value=String(selected); select.addEventListener('change',()=>{onChange(select.value);draw();}); wrap.appendChild(select); controls.appendChild(wrap);
 }
 function addButton(label,onClick){const button=document.createElement('button');button.type='button';button.textContent=label;button.addEventListener('click',onClick);controls.appendChild(button);}
-function currentSelection(){return JSON.parse(JSON.stringify(state));}
+function currentSelection(){
+  if(DATA.product==='visual'){
+    let channel_id=null,component_index=null;
+    if(state.channel_key!==null){
+      const selected=DATA.channels.find(channel=>channel.channel_id+':'+channel.component_index===state.channel_key);
+      if(selected){channel_id=selected.channel_id;component_index=selected.component_index;}
+    }
+    return {station_index:state.station_index,channel_id,component_index};
+  }
+  if(DATA.product==='signature')return {direction_index:state.direction_index,wavelength_index:state.wavelength_index};
+  if(DATA.product==='ray-transfer')return {ray_id:state.ray_id,wavelength_index:state.wavelength_index};
+  if(DATA.product==='flux')return {component_index:state.species_index};
+  return {};
+}
 function installControls(){
   if(DATA.product==='visual'){
     addControl('station','station',DATA.geometry.arc_length_m.map((value,index)=>({value:index,label:index+' — s='+value+' m'})),state.station_index,value=>{state.station_index=Number(value);});
@@ -233,8 +301,8 @@ function installControls(){
     const options=[{value:'none',label:'no species selection'}].concat(DATA.species.map((value,index)=>({value:index,label:index+' — '+value.species_id})));
     addControl('species','species',options,state.species_index??'none',value=>{state.species_index=value==='none'?null:Number(value);});
   }
-  addButton('Export current view spec',()=>{
-    const exportPayload={schema:'plume.visualization.spec-export@1',view_spec:{...DATA.view_spec,selection:currentSelection()},view_spec_digest_sha256:DATA.view_spec_digest_sha256,source:{capability_id:DATA.source.capability_id,schema_version:DATA.source.schema_version,snapshot_id:DATA.source.snapshot_id,content_sha256:DATA.source.content_sha256,frame_id:DATA.source.frame.frame_id}};
+  addButton('Export current view state',()=>{
+    const exportPayload={schema:DATA.interactive_spec_export_schema,view_spec:DATA.view_spec,view_spec_digest_sha256:DATA.view_spec_digest_sha256,current_selection:currentSelection(),source:DATA.source};
     const blob=new Blob([JSON.stringify(exportPayload,null,2)+'\n'],{type:'application/json'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='visualization_spec.json';link.click();URL.revokeObjectURL(link.href);
   });
 }
@@ -246,10 +314,12 @@ function frame(parts,x,y,w,h,title,xlabel,ylabel){parts.push('<rect x="'+x+'" y=
 function pathFor(points,xf,yf){let d='',open=false;for(const point of points){if(point[1]===null||!finite(point[1])){open=false;continue;}const command=open?'L':'M';d+=command+xf(point[0])+','+yf(point[1])+' ';open=true;}return d;}
 function lineChart(parts,x,y,w,h,title,xs,series,xlabel,ylabel,selectedIndex=-1){const pad={l:48,r:12,t:28,b:30},px=x+pad.l,py=y+pad.t,pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;const xr=range(xs),all=series.flatMap(item=>item.values),yr=range(all);frame(parts,x,y,w,h,title,xlabel,ylabel);for(let i=0;i<=4;i++){const gx=px+pw*i/4,gy=py+ph*i/4;parts.push('<path d="M'+gx+' '+py+'V'+(py+ph)+' M'+px+' '+gy+'H'+(px+pw)+'" stroke="var(--line)" opacity=".35"/>');text(parts,gx,py+ph+15,(xr[0]+(xr[1]-xr[0])*i/4).toPrecision(4),9,'middle','var(--muted)');text(parts,px-6,gy+3,(yr[1]-(yr[1]-yr[0])*i/4).toPrecision(4),9,'end','var(--muted)');}series.forEach((item,index)=>{const points=xs.map((value,column)=>[value,item.values[column]]);const d=pathFor(points,value=>sx(value,xr[0],xr[1],px,pw),value=>sy(value,yr[0],yr[1],py,ph));if(d)parts.push('<path d="'+d+'" fill="none" stroke="'+colors[index%colors.length]+'" stroke-width="'+(index===selectedIndex?2.8:1.4)+'"/>');const valid=points.filter(point=>point[1]!==null);for(const point of valid)parts.push('<circle cx="'+sx(point[0],xr[0],xr[1],px,pw)+'" cy="'+sy(point[1],yr[0],yr[1],py,ph)+'" r="'+(index===selectedIndex?4:2.5)+'" fill="'+colors[index%colors.length]+'"/>');text(parts,px+8+index*105,py+12,item.label,9,'start',colors[index%colors.length]);});}
 function scatterChart(parts,x,y,w,h,title,points,xlabel,ylabel,selectedIndex=-1){const pad={l:45,r:12,t:28,b:30},px=x+pad.l,py=y+pad.t,pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;const xr=range(points.map(item=>item[0])),yr=range(points.map(item=>item[1]));frame(parts,x,y,w,h,title,xlabel,ylabel);for(let index=0;index<points.length;index++){const point=points[index];parts.push('<circle cx="'+sx(point[0],xr[0],xr[1],px,pw)+'" cy="'+sy(point[1],yr[0],yr[1],py,ph)+'" r="'+(index===selectedIndex?7:4)+'" fill="'+(index===selectedIndex?'var(--accent)':'var(--blue)')+'"/>');text(parts,sx(point[0],xr[0],xr[1],px,pw)+6,sy(point[1],yr[0],yr[1],py,ph)-5,String(index),9);}}
+function rayRouteChart(parts,x,y,w,h,rays,selectedIndex,displayLength){const pad={l:48,r:16,t:34,b:36},px=x+pad.l,py=y+pad.t,pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;const segments=rays.map(ray=>({origin:ray.origin_m,end:ray.origin_m.map((value,index)=>value+displayLength*ray.direction[index])}));const xr=range(segments.flatMap(segment=>[segment.origin[0],segment.end[0]])),yr=range(segments.flatMap(segment=>[segment.origin[1],segment.end[1]]));frame(parts,x,y,w,h,'ray origins and straight display directions — '+displayLength+' m (no hit or path inferred)','x [m]','y [m]');for(let index=0;index<segments.length;index++){const segment=segments[index],x1=sx(segment.origin[0],xr[0],xr[1],px,pw),y1=sy(segment.origin[1],yr[0],yr[1],py,ph),x2=sx(segment.end[0],xr[0],xr[1],px,pw),y2=sy(segment.end[1],yr[0],yr[1],py,ph),color=index===selectedIndex?'var(--accent)':'var(--blue)';parts.push('<path d="M'+x1+' '+y1+'L'+x2+' '+y2+'" fill="none" stroke="'+color+'" stroke-width="'+(index===selectedIndex?3:1.5)+'"/>');parts.push('<circle cx="'+x1+'" cy="'+y1+'" r="'+(index===selectedIndex?6:4)+'" fill="'+color+'"/>');text(parts,x1+7,y1-6,rays[index].ray_id,9,'start',color);}}
+function wavelengthMarker(parts,x,y,w,h,xs,index){if(index<0||index>=xs.length)return;const pad={l:48,r:12,t:28,b:30},px=x+pad.l,py=y+pad.t,pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,xr=range(xs),gx=sx(xs[index],xr[0],xr[1],px,pw);parts.push('<path d="M'+gx+' '+py+'V'+(py+ph)+'" stroke="var(--accent)" stroke-dasharray="5 4" stroke-width="1.5"/>');text(parts,gx+4,py+11,'selected λ='+Number(xs[index]).toPrecision(5)+' μm',9,'start','var(--accent)');}
 function barChart(parts,x,y,w,h,title,labels,values,ylabel,selectedIndex=null){const pad={l:48,r:12,t:30,b:45},px=x+pad.l,py=y+pad.t,pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;const yr=range(values);frame(parts,x,y,w,h,title,'',''+ylabel);const step=pw/Math.max(values.length,1);values.forEach((value,index)=>{const top=sy(value,yr[0],yr[1],py,ph);const bottom=sy(0,yr[0],yr[1],py,ph);const height=Math.max(1,bottom-top);parts.push('<rect x="'+(px+step*index+step*.14)+'" y="'+top+'" width="'+step*.72+'" height="'+height+'" fill="'+(index===selectedIndex?'var(--accent)':'var(--blue)')+'"/>');text(parts,px+step*(index+.5),py+ph+16,labels[index],10,'middle');text(parts,px+step*(index+.5),top-5,Number(value).toPrecision(4),9,'middle');});}
 function drawVisual(){const g=DATA.geometry,parts=[];svg.setAttribute('viewBox','0 0 1200 720');const projections=[[0,1,'XY'],[0,2,'XZ'],[1,2,'YZ']];projections.forEach((item,index)=>{const points=g.centerline_m.map(point=>[point[item[0]],point[item[1]]]);const station=[points[state.station_index]];scatterChart(parts,20+index*395,20,370,260,item[2]+' projection',points,item[0]===0?'x [m]':'y [m]',item[1]===1?'y [m]':'z [m]',state.station_index);});const channelKey=state.channel_key;const selectedChannels=channelKey?DATA.channels.filter(channel=>channel.channel_id+':'+channel.component_index===channelKey):DATA.channels;lineChart(parts,20,315,760,370,'axial declared feature channels',g.arc_length_m,selectedChannels.map(channel=>({label:channel.channel_id+'['+channel.component_index+']',values:channel.values})), 'arc length [m]','value',channelKey?0:-1);const station=state.station_index,semi1=g.semi_axis_1_m[station],semi2=g.semi_axis_2_m[station],cross=[];for(let i=0;i<=96;i++){const t=2*Math.PI*i/96;cross.push([semi1*Math.cos(t),semi2*Math.sin(t)]);}scatterChart(parts,810,315,370,370,'station '+station+' cross-section',cross,'local normal_1 [m]','local normal_2 [m]',-1);text(parts,825,695,'center='+g.centerline_m[station].map(value=>value.toFixed(3)).join(', ')+' m | tangent='+g.tangent[station].map(value=>value.toFixed(3)).join(', '),9,'start','var(--muted)');svg.innerHTML=parts.join('');}
 function drawSignature(){const parts=[],xs=DATA.wavelengths_m.map(value=>value*1e6),series=DATA.values.map((values,index)=>({label:'dir '+index,values:values}));svg.setAttribute('viewBox','0 0 1200 720');lineChart(parts,20,20,740,670,'spectral radiant intensity by direction',xs,series,'wavelength [μm]','Jλ [W sr⁻¹ m⁻¹]',state.direction_index);const points=DATA.directions.map((direction,index)=>[direction[0],direction[1]]);scatterChart(parts,785,20,395,670,'direction x/y projection at λ '+xs[state.wavelength_index].toPrecision(5)+' μm',points,'direction x [1]','direction y [1]',state.direction_index);points.forEach((point,index)=>text(parts,sx(point[0],...range(points.map(item=>item[0])),830,330)+6,sy(point[1],...range(points.map(item=>item[1])),48,580)-5,'z='+DATA.directions[index][2].toFixed(3),9));svg.innerHTML=parts.join('');}
-function drawRay(){const parts=[],rayIndex=DATA.rays.findIndex(ray=>ray.ray_id===state.ray_id),xs=DATA.wavelengths_m.map(value=>value*1e6),rays=DATA.rays;svg.setAttribute('viewBox','0 0 1200 720');const bundlePoints=[];rays.forEach(ray=>{const end=ray.origin_m.map((value,index)=>value+DATA.view_spec.ray_display_length_m*ray.direction[index]);bundlePoints.push([ray.origin_m[0],ray.origin_m[1]], [end[0],end[1]]);});scatterChart(parts,20,20,440,670,'ray origins and display directions (XY)',bundlePoints,'x [m]','y [m]',rayIndex*2);rays.forEach((ray,index)=>{const end=ray.origin_m.map((value,component)=>value+DATA.view_spec.ray_display_length_m*ray.direction[component]);parts.push('<path d="M'+(70+end[0]*220)+' '+(650-end[1]*220)+'L'+(70+ray.origin_m[0]*220)+' '+(650-ray.origin_m[1]*220)+'" stroke="'+(index===rayIndex?'var(--accent)':'var(--blue)')+'"/>');});lineChart(parts,485,20,695,320,'source radiance',xs,rays.map(ray=>({label:ray.ray_id,values:ray.source_radiance})), 'wavelength [μm]','source radiance',rayIndex);lineChart(parts,485,370,695,320,'background transmittance',xs,rays.map(ray=>({label:ray.ray_id,values:ray.background_transmittance})), 'wavelength [μm]','transmittance',rayIndex);svg.innerHTML=parts.join('');}
+function drawRay(){const parts=[],rayIndex=DATA.rays.findIndex(ray=>ray.ray_id===state.ray_id),xs=DATA.wavelengths_m.map(value=>value*1e6),rays=DATA.rays;svg.setAttribute('viewBox','0 0 1200 720');rayRouteChart(parts,20,20,440,670,rays,rayIndex,DATA.view_spec.ray_display_length_m);lineChart(parts,485,20,695,320,'source radiance',xs,rays.map(ray=>({label:ray.ray_id,values:ray.source_radiance})), 'wavelength [μm]','source radiance',rayIndex);wavelengthMarker(parts,485,20,695,320,xs,state.wavelength_index);lineChart(parts,485,370,695,320,'background transmittance',xs,rays.map(ray=>({label:ray.ray_id,values:ray.background_transmittance})), 'wavelength [μm]','transmittance',rayIndex);wavelengthMarker(parts,485,370,695,320,xs,state.wavelength_index);svg.innerHTML=parts.join('');}
 function drawFlux(){const parts=[];svg.setAttribute('viewBox','0 0 1200 720');barChart(parts,20,20,370,300,'section normal components',['x','y','z'],DATA.normal,'component [1]',null);barChart(parts,410,20,370,300,'momentum-flux components',['x','y','z'],DATA.momentum_flux_N,'N',null);barChart(parts,800,20,380,300,'species mass flow',DATA.species.map(value=>value.species_id),DATA.species.map(value=>value.mass_flow_kgps), 'kg/s',state.species_index);const labels=['area [m²]','mass [kg/s]','energy [W]','pressure [Pa]','ambient [Pa]','residual [1]'];const values=[DATA.area_m2,DATA.mass_flow_kgps,DATA.total_energy_flow_W,DATA.pressure_Pa,DATA.ambient_pressure_Pa,DATA.pressure_match_relative_residual];barChart(parts,20,350,760,330,'declared engineering scalars',labels,values,'value',null);text(parts,820,410,'section translation [m]: '+DATA.translation_m.map(value=>value.toFixed(4)).join(', '),12);text(parts,820,440,'selected species: '+(state.species_index===null?'none':DATA.species[state.species_index].species_id),12);text(parts,820,480,'second moment [m²]:',12);text(parts,820,505,JSON.stringify(DATA.second_moment_m2),11,'start','var(--muted)');svg.innerHTML=parts.join('');}
 function draw(){if(DATA.product==='visual')drawVisual();if(DATA.product==='signature')drawSignature();if(DATA.product==='ray-transfer')drawRay();if(DATA.product==='flux')drawFlux();selectionBox.textContent='Current linked selection:\n'+JSON.stringify(currentSelection(),null,2);}
 installControls();draw();

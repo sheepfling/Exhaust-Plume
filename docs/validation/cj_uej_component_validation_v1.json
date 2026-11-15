@@ -36,6 +36,7 @@
     "benchmark_id": "CJ-UEJ-001",
     "claim_id": "VAL-002-CJ-UEJ-LOCAL-FIELD-DIAGNOSTIC",
     "claim_role": "validation",
+    "comparison_evidence": null,
     "evidence_level": 3,
     "limitations": [
       "The source does not publish a total-temperature boundary condition.",

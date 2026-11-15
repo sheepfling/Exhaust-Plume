@@ -58,6 +58,7 @@ from exhaust_plume.models.moc.ambient_boundary import (
   MocAmbientBoundarySample,
   MocAmbientPressureBoundaryResult,
   validate_ambient_pressure_boundary,
+  validate_ambient_pressure_profile_boundary,
 )
 from exhaust_plume.models.moc.chain import (
   MocChainBoundaryKind,
@@ -142,6 +143,9 @@ from exhaust_plume.models.moc.terminal_patch import (
 from exhaust_plume.models.moc.topology import MocTopologyResult, validate_moc_mesh
 from exhaust_plume.models.moc.zone import MocCharacteristicCell, MocCharacteristicNode
 from exhaust_plume.models.moc.free_boundary import MocFreeBoundaryShockResult
+from exhaust_plume.models.moc.physical_field_euler_reconciliation import (
+  MocPhysicalFieldEulerBoundaryPressureTarget,
+)
 from exhaust_plume.util.aero.shock_validity import ShockBranch
 from exhaust_plume.util.aero.shock_validity import theta_beta_mach_residual
 
@@ -17012,6 +17016,14 @@ def measure_moc_reflected_domain_alternating_source(
   state_tolerance = result.invariant_tolerance
   pressure_tolerance = result.pressure_tolerance
   ambient_pressure = result.ambient_pressure_Pa
+  pressure_profile = result.ambient_pressure_target
+  measure_pressure_profile = bool(
+    isinstance(
+      pressure_profile,
+      MocPhysicalFieldEulerBoundaryPressureTarget,
+    )
+    and not result.ambient_pressure_target_geometry_consumed
+  )
 
   if patch is None or not isinstance(
     patch,
@@ -17162,19 +17174,69 @@ def measure_moc_reflected_domain_alternating_source(
         boundary_recomputed_verified = False
         break
       ####
-      boundary_result = solve_ambient_pressure_free_boundary_point(
-        centerline[index],
-        previous_outer,
-        CharacteristicFamily.PLUS,
-        total_pressure_Pa=centerline_pressures[index],
-        ambient_pressure_Pa=ambient_pressure,
-        position_tolerance_m=tolerance,
-        pressure_tolerance=pressure_tolerance,
-      )
-      expected_outer = boundary_result.state
+      expected_outer: CharacteristicState | None = None
+      if measure_pressure_profile:
+        assert pressure_profile is not None
+        trial_pressure = pressure_profile.pressure_at_x(
+          previous_outer.x_m,
+          position_tolerance_m=tolerance,
+        )
+        if trial_pressure is not None:
+          for _ in range(32):
+            boundary_result = solve_ambient_pressure_free_boundary_point(
+              centerline[index],
+              previous_outer,
+              CharacteristicFamily.PLUS,
+              total_pressure_Pa=centerline_pressures[index],
+              ambient_pressure_Pa=trial_pressure,
+              position_tolerance_m=tolerance,
+              pressure_tolerance=pressure_tolerance,
+              maximum_iterations=16,
+            )
+            if (
+              not boundary_result.converged
+              or boundary_result.state is None
+              or boundary_result.point_m is None
+            ):
+              break
+            ####
+            target_pressure = pressure_profile.pressure_at_x(
+              boundary_result.point_m[0],
+              position_tolerance_m=tolerance,
+            )
+            if target_pressure is None:
+              break
+            ####
+            actual_pressure = _static_pressure_from_total_pressure_for_measurement(
+              boundary_result.state,
+              centerline_pressures[index],
+            )
+            profile_residual = abs(actual_pressure - target_pressure) / max(
+              1.0,
+              abs(actual_pressure),
+              abs(target_pressure),
+            )
+            if profile_residual <= pressure_tolerance:
+              expected_outer = boundary_result.state
+              break
+            ####
+            trial_pressure = target_pressure
+          ####
+        ####
+      else:
+        boundary_result = solve_ambient_pressure_free_boundary_point(
+          centerline[index],
+          previous_outer,
+          CharacteristicFamily.PLUS,
+          total_pressure_Pa=centerline_pressures[index],
+          ambient_pressure_Pa=ambient_pressure,
+          position_tolerance_m=tolerance,
+          pressure_tolerance=pressure_tolerance,
+        )
+        expected_outer = boundary_result.state
+      ####
       boundary_matches = bool(
-        boundary_result.converged
-        and expected_outer is not None
+        expected_outer is not None
         and _caustic_state_matches(
           outer[index],
           expected_outer,
@@ -17254,7 +17316,33 @@ def measure_moc_reflected_domain_alternating_source(
   )
 
   recomputed_ambient_boundary: MocAmbientPressureBoundaryResult | None = None
-  if row_shape_verified and ambient_pressure is not None:
+  if row_shape_verified and measure_pressure_profile:
+    assert pressure_profile is not None
+    sampled_target_pressures = tuple(
+      pressure_profile.pressure_at_x(
+        state.x_m,
+        position_tolerance_m=tolerance,
+      )
+      for state in outer
+    )
+    if all(value is not None for value in sampled_target_pressures):
+      recomputed_ambient_boundary = validate_ambient_pressure_profile_boundary(
+        tuple(
+          MocAmbientBoundarySample(
+            point_m=(state.x_m, state.y_m),
+            state=state,
+            total_pressure_Pa=pressure,
+          )
+          for state, pressure in zip(outer, outer_pressures, strict=True)
+        ),
+        tuple(float(value) for value in sampled_target_pressures),
+        target_source=pressure_profile.source_id,
+        position_tolerance_m=tolerance,
+        pressure_tolerance=pressure_tolerance,
+        tangent_tolerance=pressure_tolerance,
+      )
+    ####
+  elif row_shape_verified and ambient_pressure is not None:
     recomputed_ambient_boundary = validate_ambient_pressure_boundary(
       tuple(
         MocAmbientBoundarySample(
@@ -17273,6 +17361,14 @@ def measure_moc_reflected_domain_alternating_source(
   ambient_boundary_verified = bool(
     recomputed_ambient_boundary is not None
     and recomputed_ambient_boundary.converged
+    and (
+      not measure_pressure_profile
+      or (
+        result.ambient_boundary is not None
+        and result.ambient_boundary.ambient_pressure_target_source
+        == pressure_profile.source_id
+      )
+    )
   )
 
   source_sampling_verified = False

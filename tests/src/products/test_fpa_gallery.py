@@ -108,6 +108,9 @@ def test_interactive_fpa_gallery_is_self_contained_and_exports_view_state(tmp_pa
   assert 'fetch(' not in html
   assert 'expected_electrons' in html
   assert 'digitized_counts' in html
+  assert 'Wavelength index' not in html
+  assert 'source signal is integrated over the declared wavelength grid' in html
+  assert 'wavelength_index:state' not in html
 ####
 
 

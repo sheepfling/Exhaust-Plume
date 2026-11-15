@@ -39,12 +39,12 @@
     "message": "at least one calibration and one validation case are required; unassigned cases remain visible and cannot serve both roles",
     "operator_id": "op.reduce.shock-train-calibration-validation-split",
     "status": "missing-calibration-or-validation-cases",
-    "unknown_case_ids": [],
     "unassigned_available_case_ids": [],
     "unassigned_case_count": 1,
     "unassigned_case_ids": [
       "CJ-UEJ-001"
     ],
+    "unknown_case_ids": [],
     "validation_case_count": 0,
     "validation_case_ids": [],
     "verified": false

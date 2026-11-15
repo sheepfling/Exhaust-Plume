@@ -78,6 +78,8 @@ from exhaust_plume.products.workflow_gallery import (
 )
 from exhaust_plume.products.workflow_interactive import (
     INTERACTIVE_GALLERY_SCHEMA,
+    INTERACTIVE_SPEC_EXPORT_SCHEMA,
+    resolve_interactive_spec_export,
     write_interactive_product_gallery,
 )
 from exhaust_plume.products.workflow_comparison import (
@@ -218,6 +220,7 @@ __all__ = (
     'LteTransition',
     'GalleryArtifact',
     'INTERACTIVE_GALLERY_SCHEMA',
+    'INTERACTIVE_SPEC_EXPORT_SCHEMA',
     'MODEL_VISUALIZATION_LANES',
     'MODEL_VISUALIZATION_SCHEMA',
     'MODEL_GALLERY_MANIFEST_SCHEMA',
@@ -316,6 +319,7 @@ __all__ = (
     'write_model_gallery_manifest',
     'write_model_gallery_set_manifest',
     'write_interactive_product_gallery',
+    'resolve_interactive_spec_export',
     'write_interactive_fpa_gallery',
     'write_fpa_gallery_manifest',
     'write_product_comparison_report',

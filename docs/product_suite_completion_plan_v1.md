@@ -2,6 +2,11 @@
 
 Status: active long-running execution plan.
 
+The concise, ordered work sequence and current next packet are in
+[`product_suite_execution_roadmap_v1.md`](product_suite_execution_roadmap_v1.md).
+This document remains the detailed contract, research checkpoint, and
+evidence ledger for that roadmap.
+
 This plan coordinates the three products and the solver lanes that feed them:
 
 - **Visualization** — standardized, renderer-neutral inspection of geometry,
@@ -16,6 +21,271 @@ does not become radiation, a Signature table does not become resolved
 radiance, and an FPA image is not a plume provider. The release gate must
 prove each boundary independently.
 
+## Current working checkpoint — 2026-11-15
+
+This checkpoint supersedes older status rows below wherever they conflict.
+The active product-suite goal continues on `feature/global-state-feedback`
+from integrated candidate `49f39a73`; the original broad checkout remains
+separate. The current code packet adds an exact conservative mesh-overlap
+remap for the global fixed-front reconciliation and the local downstream
+Euler field. It is research evidence only and does not mark global coupling
+or production admission.
+
+| Gate | Current position | Remaining acceptance evidence |
+| --- | --- | --- |
+| Visualization | Five-lane API/view contracts and local galleries are substantially covered. | Compare provider features with qualified observations using declared coordinate/frame/operator semantics. |
+| Signature / Sightline | Exact mission-time/state queries and angular products exist locally; intensity and ray radiance remain distinct quantities. | Validate physical radiation, straight/curved transfer, uncertainty, and evolving-state outputs against source-bound observations. |
+| Focal-Plane Array | Deterministic camera/exposure/detector composition exists; source admission stays fail-closed. The interactive pixel view identifies its signal layers as band-integrated and no longer offers a wavelength selector for an unavailable spectral pixel cube. | Qualify a source-to-ray-radiance path and obtain camera/detector observations for held-out image comparisons. |
+| Validation evidence | Version 8 and the separately named alignment archive have been recovered in `/tmp/exhaust-plume-corpus-intake-20261115`; outer hashes and all 152 internal checksums pass, and the isolated corpus suite passes (`57 passed`). | Review redistribution rights, preserve a reproducible intake record, bind eligible model outputs to accepted measurement operators, create disjoint calibration/validation sets, and acquire a separate FPA measurement corpus. |
+| Global physical closure | Bounded pressure-profile source replay and exact cell-overlap remap audits pass. A state-trace downstream solve fails conservative residuals. A separate geometry-locked Euler-flux solve brings conservative residuals to about `5e-4` but fails entropy and pseudo-time gates. | Establish and audit a geometry-bound entropy-consistent interface law; solve reciprocal global/downstream exchange and pass independent component-wise, multi-case, and refinement gates. |
+| Production shock cells | Existing chains remain diagnostic. | Fit and validate first and continued cells only after global source acceptance and qualified observations. |
+| Packaging/release | The current dirty tree builds a wheel, installs it into a fresh virtual environment, and passes `tests/installed_smoke.py` with `scripts.check_build --offline`. | Repeat on one clean exact-HEAD candidate; close physical, product, rights, provider, and FPA measurement gates; regenerate the release manifest and require `release_ready=true`. |
+
+### Bounded ambient-profile closure checkpoint — 2026-11-15
+
+The default downstream inlet mode is not compatible with the global ambient
+boundary on the exercised fixture. Its free boundary lies near `y=0.05 m`,
+while the global physical boundary lies near `y=0.51 m`; the maximum geometry
+residual is `0.46313 m`, with pressure and normal-velocity residuals of about
+`350.9 kPa` and `18.16 m/s`. Its local solver convergence does not make this a
+valid coupled boundary.
+
+The solver-owned physical-field continuation mode is a better grounded
+handoff: its downstream free-boundary geometry matches the global boundary
+within the `1 mm` tolerance, and the overlap audit reports maximum pressure
+and normal-velocity residuals of about `4.43 kPa` and `4.49 m/s`. The initial
+ambient-boundary node interval (`4.6412–5.8552 m`) did not extend the pressure
+target and still failed at sample 8. The retained physical-field cells span
+`4.6412245–6.3423851 m`; using those exact cell-vertex extrema as the bounded
+support for a pressure-only profile at the declared scalar ambient pressure
+(`212165.997 Pa`) covers the moved boundary. The target carries no geometry,
+so the fresh boundary remains solver-owned. The source measurement now
+independently re-solves the characteristic boundary against the retained
+pressure profile and validates pressure at each produced station, instead of
+assuming a uniform scalar-pressure boundary. This profile audit passes, as
+does the fresh global Euler/source audit.
+
+The integrated moving corrector now completes its local closure gates. The
+fresh closure reports variable-entropy lineage residual `6.66e-16`, maximum
+cell Euler residual `3.54e-4`, and a converged independent global audit. The
+seven-channel upstream equation is consumed and replayed, but the global
+pressure/geometry feedback still does not consume its mass, momentum, energy,
+and entropy response as upstream equation data. Strict admission of the
+combined 17-channel residual vector remains open: normalized upstream
+conservative channels rise slightly, entropy rises from `441.1605` to
+`441.1796` tolerance units, and several downstream channels also increase.
+The solver remains research-only; `global_coupling_verified` and
+`production_claim_allowed` are false. The next physical step is to make the
+audited downstream response affect the upstream equations and then recover
+strict component-wise descent across disjoint cases and resolutions. Any
+target outside the retained cell-geometry support still fails closed.
+
+The new bounded-support moving-corrector regression passes (`1 passed`), Ruff
+passes on the changed implementation and test, and `git diff --check` passes.
+
+The validation intake refresh verified the Version 8 archive and alignment
+archive by their recorded digests, verified all 137 and 15 internal
+checksums, and passed the isolated corpus suite (`57 passed`). The fresh
+provider preflight records ten product comparisons; all ten remain blocked
+because provider-bound outputs or product-specific operator/scenario bindings
+are absent. The scoped CJ-UEJ component reports remain
+`partial_component_evidence` and `not_accepted`: the fast-cell local pressure
+comparison covers only 15.9% of centerline samples and has range-normalized
+RMSE about `0.47`; the reduced-order run uses an engineering seed without a
+disjoint fit/validation split; the planar-MOC run remains an assumption-bound
+open-field diagnostic. This evidence supports component investigation, not a
+product or production claim. Redistribution review and exact operator
+namespace reconciliation also remain open.
+
+The interactive FPA gallery now states that the source signal is integrated
+over the declared wavelength grid and that the pixel layers are whole-band
+detector outputs. Its pixel inspector no longer presents wavelength
+selection as if a wavelength-resolved pixel cube were available. The focused gallery
+regression passes (`1 passed`), Ruff passes on the touched source and test,
+and `git diff --check` passes. This is a display-contract correction; it does
+not add wavelength-resolved detector evidence or change the FPA claim ceiling.
+The full repository run reached 100% with `1364 passed` and one failure: an
+intake test still expected the alignment archive to be missing. That assertion
+now matches the verified manifest. The focused FPA-gallery and corpus-intake
+modules pass together (`11 passed`); the full repository suite has not yet been
+rerun after this test-only correction.
+
+### Verification refresh — 2026-11-15
+
+The current focused rerun passes `35` Visualization-gallery, FPA-gallery, and
+corpus-intake tests. The two global mixed-regime conservative-overlap and
+fixed-flux fail-closed regressions pass (`2 passed`). Ruff passes on all
+changed Python implementation and test files. Generated interactive HTML for
+the four standard result families (Visualization, Signature, ray transfer,
+and flux section) also pass Node JavaScript syntax checking. These checks
+cover the current local packet.
+
+The fresh repository-wide run initially exposed one stale regression
+expectation: the state-feedback test explicitly required target geometry even
+though the bounded ambient target now carries pressure over solver-owned
+geometry. The test now verifies that the default solver-owned geometry path
+completes its research audit and that explicitly requesting incompatible
+target geometry fails closed on characteristic/tangent residuals. The focused
+regression passes, and the complete rerun reports `1366 passed, 18 warnings`
+in `1405.85s`. Physical/global admission, provider-bound comparisons, FPA
+measurement validation, and release gates remain open.
+
+The current-source package gate also passes: `python3 -m scripts.check_build
+--offline` builds the wheel, installs it into a fresh virtual environment, and
+completes `tests/installed_smoke.py`. The offline helper now uses pip's
+`--ignore-installed` option so a separate global editable installation cannot
+be uninstalled during the isolated smoke. This is local packaging evidence;
+the dirty candidate has not been release-frozen.
+
+The overlap operator verified the downstream target coordinates as exact
+midpoints of its retained free-boundary faces. Every downstream cell has full
+area coverage to floating-point precision. The common-area integrated
+downstream-minus-source residual, normalized per conservative component, is
+`(0.51852, 0.06090, -0.50417, 0.47746)` for mass, streamwise momentum,
+transverse momentum, and energy. The maximum absolute log mismatch in the
+entropy proxy is `0.01482`; the relative integrated entropy-inventory
+residual is `0.51873` using the operator's declared ideal-gas entropy
+reference. Geometry, lineage, remap conservation, and independent replay
+pass. These mismatches are open solver residuals, not acceptance thresholds
+or evidence of coupling.
+
+The overlap states have now been consumed by a fresh downstream PDE solve.
+All eight retained free-boundary faces map to unique downstream cells
+`(3, 7, 11, 15, 19, 23, 27, 31)`, and their remapped source averages match the
+contract midpoint frame. The downstream solver used its explicit
+entropy-compatible conservative-state trace mode, and an independent field
+audit recomputed the Euler residuals and entropy transport. The solve stopped
+at 4,800 pseudo-iterations with maximum residuals `(1755.78, 1035.85, 8.05,
+1221.68)` for mass, streamwise momentum, transverse momentum, and energy,
+against a `5e-4` tolerance; the maximum combined Euler residual was `1755.78`.
+Entropy transport was verified, but the local PDE residual gates failed. The
+remapped entropy-density inventory remains measured evidence rather than an
+independently imposed boundary variable. This one-way boundary experiment
+does not close the global/downstream loop.
+
+The focused regression for the overlap-fed solve passes (`1 passed`), and
+Ruff passes on the changed source, export, and regression files. The current
+worktree contains the packet on `feature/global-state-feedback` and is
+uncommitted. `global_coupling_verified` and `production_claim_allowed` remain
+false. The next physical step must solve the reciprocal global/downstream
+exchange and replay the full residual vector; repeating the one-way state
+substitution or treating remapping as closure would not advance this gate.
+
+A second, explicit one-way handoff now transfers the Euler normal flux computed
+from each remapped source cell average, locked to the exact retained downstream
+free-boundary face geometry. Its independent replay confirms the flux values,
+face normals/lengths, geometry profile, and consumed solver request. In the
+`8×4` fixture, the conservative residuals are approximately `(4.9991e-4,
+8.6203e-5, 3.3560e-4, 4.1989e-4)` for mass, streamwise momentum, transverse
+momentum, and energy, with a maximum Euler residual of `4.9991e-4` against a
+`5e-4` tolerance. The solve still reports pseudo-time failure, and the
+independently measured entropy-transport residual is `0.2249`; the local PDE
+gate therefore remains closed. The result is research-only and does not
+establish a common interface law or reciprocal coupling. A regression now
+checks this flux path and its fail-closed result (`1 passed`), and the existing
+fixed-flux entropy-failure regression also passes (`1 passed`). The core field
+result now reports fixed-flux consumption without claiming that a boundary
+state trace was consumed.
+
+The state-only moving-state composition regression also passes (`1 passed` in
+`3.68s`) on the same source closure. Its conservative moving-interface flux,
+entropy transition, global physical-field consumption, shock-geometry
+reconciliation, and fresh final downstream trace all pass their local audits.
+That state-only step remains open because
+`upstream_state_equation_consumed` and global coupling are false. Its strict
+componentwise check rejects a `7.49e-12` increase in the normalized
+centerline-normal-velocity channel; a second fresh step from the exact first
+output leaves all ten normalized comparison channels unchanged.
+
+The full moving upstream-state-equation corrector was also exercised. It
+consumes and independently replays the seven-channel upstream
+conservative/entropy equation, then completes the moving-interface,
+global-geometry, and downstream refresh audits. Strict admission still fails:
+the normalized upstream target-entropy residual is about `22,050` at the
+default `10 mm` strip offset. Reducing the offset to `0.1 mm` lowers its raw
+log residual from `0.2205` to `0.0456`, but it remains open. The raw maximum
+stays around `0.0456–0.0480` from downstream resolutions `8×4` through
+`12×6`; at `16×8` the downstream Euler solve fails to converge. A fresh
+three-fraction line search at `0.1 mm` produces identical candidate vectors
+and no strict admission; the centerline-normal-velocity channel worsens.
+The equation is therefore present and locally consumed. The open seam is
+reciprocal coupling: the audited strip state/entropy response must affect the
+upstream global field update rather than being recorded alongside the moving
+geometry refresh.
+
+A targeted `8×4` probe at a `0.1 mm` normal offset clarifies why the update
+cannot simply copy the strip states into the global field. The downstream
+trace runs from approximately `(5.26625, 0.05000) m` to
+`(5.46625, 0.04891) m`; the retained global shock frontier ends at
+`(5.24625, 0 m)`. At the first target point, the downstream target state has
+`rho≈1.426 kg/m³`, `p≈563.1 kPa`, and normal velocity `≈−1.51 m/s`, while the
+nearby global offset sample has `rho≈0.649 kg/m³`, `p≈186.6 kPa`, and normal
+velocity `≈+2.90 m/s`. Their `p/rho^gamma` proxies are close (log ratio
+`≈0.00153`), even though the final strip solution's target-entropy log
+residual is `≈0.0456`. This establishes a substantial state/interface mismatch
+in the current research composition; it does not identify whether the physical
+interface should use smooth Euler continuity, a shock jump, or a moving
+free-boundary/contact law. Derive and audit that law before feeding strip
+states or fluxes back into the global field.
+
+A follow-up compatibility probe tested the exact conservative pairs rather
+than inferring a law from pressure alone. Across the `0.1 mm` strip's eight
+faces, independent strip audits replayed the exact source and target profiles
+at both tested cases while the Euler equation itself retained open residuals.
+The pressure ratio is `2.82–3.01`; pressure continuity fails for a
+contact. With the strip normal treated as a shock normal, the mass-matched
+moving Rankine–Hugoniot normal-momentum residual is `352–376 kPa`. The
+velocity jump is mostly axial, so a separate state-jump normal was also
+evaluated. It gives
+upstream/downstream Mach numbers near `1.56/0.68` and positive entropy change,
+but the observed pressure ratio exceeds the stationary normal-shock limit
+from the source state by `8.7%` on the `8×4` case and `14.1%` on the `12×6`
+case. The mass-matched moving-shock normal-momentum residual averages
+`66.3 kPa` (`12.0%` of the pressure scale) at `8×4`, rising to `96.1 kPa`
+(`16.5%`) at `12×6`. The inferred normal has no matching retained front
+geometry, and the paired samples lie on displaced model boundaries rather
+than a verified two-sided shock surface. These are compatibility diagnostics,
+not a shock identification or rejection of a properly aligned front. They
+rule out feeding the current pair directly through the existing contact or
+Rankine–Hugoniot law. The next physical seam is a geometry-bound common
+interface/front with conservative exchange, independently replayed on the
+same spatial support; if that geometry cannot be established, the coupling
+must remain fail-closed.
+
+The standalone ray-transfer gallery now has a locally exercised interaction
+and export path: selecting a ray and wavelength updates the highlighted
+origin/direction display and spectral wavelength marker, and export retains
+the source-bound base `VisualizationSpec` and its digest while carrying the
+current selection separately. The display length remains a visualization
+setting; the view does not infer intersections, physical path length, or an
+FPA image. The focused interactive-gallery regressions pass (`9 passed,
+15 deselected`), Ruff passes, and a Node DOM-stub smoke exercised selection
+changes and source-bound export for all four standard product result families;
+each export also resolved back to a typed spec. This closes the local ray
+selection/export check; provider-bound comparisons remain open.
+
+## Active long-running goal roadmap
+
+The Codex long-running goal for the full Exhaust-Plume suite is already
+active. This is its current operating sequence; dated checkpoints below are
+evidence history, not a second backlog. Advance one reviewable packet at a
+time and keep each solver's fidelity and promotion ceiling explicit.
+
+| Step | Work | Exit gate | State and dependency |
+| --- | --- | --- | --- |
+| 0. Candidate baseline and fidelity boundaries | Continue on `feature/global-state-feedback`; reconcile contracts and preserve separate basic, reduced-order, washed/curved, planar/reflected MOC, global, ray, and FPA lanes. | Reviewed candidate identity, focused evidence, lane registry and public contracts agree; no implicit promotion. | No open PRs were returned for `sheepfling/Exhaust-Plume`; local `main` and `upstream/main` are ancestors of the active branch. The overlap packet and plan edits remain uncommitted. |
+| 1. Local product surfaces | Finish common Visualization views; preserve time/position lineage in Signature; complete the FPA downstream composition and metadata. | Deterministic local contracts and galleries cover all five plume bundles and each product's query/composition surface. | Can proceed in parallel with physical closure. Ray selection and source-bound view-state export pass locally; provider comparisons remain. |
+| 2. Reciprocal global physical closure | Preserve solver-owned physical-field continuation and bounded pressure-target support; independently audit exact cell-overlap remapping; establish a geometry-bound, entropy-consistent interface law and solve reciprocal conservative/entropy exchange across both fields. Keep displaced-strip compatibility evidence separate until its interface law is established. | Independent replay passes geometry/lineage, positivity, mass, momentum, energy, entropy, pressure-target coverage, and boundary gates with strict component-wise admission across disjoint cases and increasing resolutions. | Active research gate. State-trace remapping fails conservative PDE residuals. A geometry-locked normal-flux handoff brings conservative residuals near `5e-4` but fails entropy/pseudo-time gates. The combined 17-channel corrector still fails strict descent; global coupling remains unverified. |
+| 3. Physical shock-cell chain | Fit first and continued cells only from an accepted physical field/frontier. | Length, uncertainty, termination and lineage comparisons pass on held-out cases in the declared measurement space. | Gated on Step 2 and qualified observations; existing fits remain diagnostic. |
+| 4. Validation intake and product acceptance | Preserve the recovered Version 8 and alignment archives; complete rights/operator review, freeze disjoint data splits, bind provider outputs, and compare Visualization, Signature/ray, and FPA in their own measurement spaces. | Immutable provenance/digests, rights review, disjoint calibration/validation manifests, explicit operators/frames/units/uncertainty, and passed held-out comparisons. | Archive checksums and local intake audit are recorded; rights/operator review, provider-bound outputs, disjoint comparison splits, and FPA observations remain open. |
+| 5. Release | Freeze one reviewed exact-`HEAD` candidate and regenerate the entire local, package, public-contract and external evidence matrix. | Clean exact-`HEAD` manifest reports `release_ready=true`; release handoff is separately authorized. | Not ready while physical closure, shock-cell acceptance, archive/provider comparisons, or product gates remain open. |
+
+Step 1 can move forward while Step 2 is open, provided every output retains
+its source-lane ceiling. Step 3 and production admission for Signature/FPA
+depend on accepted physical sources and measurement evidence. Step 4 is an
+external-input dependency; local contracts can continue while it is
+unavailable, but release cannot pass without the required evidence.
+
 ## Execution order
 
 The work is organized as gated waves. A later wave may consume an earlier
@@ -24,13 +294,13 @@ claim ceiling.
 
 | Wave | Workstream | Exit evidence | Current position |
 | --- | --- | --- | --- |
-| 0 | Integration and branch hygiene | Clean dedicated branch, reconciled API/contracts, deterministic local checks | Active integration branch; `main` untouched |
-| 1 | Standardized Visualization | Exactly five model bundles, common view schema, slices/views/paths, masks, galleries, and local acceptance artifacts | Local implementation complete; external provider comparisons pending |
+| 0 | Integration and branch hygiene | Clean dedicated branch, reconciled API/contracts, deterministic local checks | `feature/global-state-feedback` at `49f39a73`; current packet is uncommitted; `main` untouched |
+| 1 | Standardized Visualization | Exactly five model bundles, common view schema, slices/views/paths, masks, galleries, and local acceptance artifacts | Local contracts and galleries are substantially covered; ray selection/export passes locally, while external provider comparisons remain |
 | 2 | Mission-time product composition | Immutable state/cursor, explicit flow/optics/ray/FPA resolvers, exact source lineage, time-bound visual/signature/FPA views | Implemented; exact Signature point-query seam is available |
 | 3 | Solver-fidelity separation | Independent basic, reduced-order, straight/washed, and planar-MOC lanes with claim ceilings and promotion guards | Basic/straight/washed local lanes exist; reduced-order and planar-MOC remain non-production |
 | 4 | Physical Signature and optical chain | Chemistry/radiation/atmosphere inputs, resolved ray-transfer evidence, measurement-space operators, and accepted comparisons | Gray/table paths are local engineering evidence; physical/external gates remain open |
 | 5 | FPA downstream product | Explicit camera geometry, detector response, expected electrons, ADC, metadata, and accepted camera/detector comparisons | Deterministic downstream boundary exists; no FPA provider or external image claim |
-| 6 | Validation and release | Provider-bound evidence, disjoint calibration/validation, current manifests, CI, package smoke, and `release_ready=true` | Blocked by the release gates listed below |
+| 6 | Validation and release | Provider-bound evidence, disjoint calibration/validation, current manifests, CI, package smoke, and `release_ready=true` | Archive intake is present; provider-bound evidence, FPA observations, and open physical/product gates remain |
 
 ## Full-suite definition of done
 
@@ -41,13 +311,13 @@ does not substitute for the provider-bound evidence in the final column.
 
 | Product or gate | Must exist in the candidate | Must be independently checked | Current state |
 | --- | --- | --- | --- |
-| Visualization | Five isolated model lanes, common bundle/view schema, slices, station and path inspectors, masks, region/cell geometry, provenance, and galleries | Provider-bound geometry/feature comparison with declared coordinate/frame/operator semantics | Local contract and gallery complete; provider comparison pending |
+| Visualization | Five isolated model lanes, common bundle/view schema, slices, station and path inspectors, masks, region/cell geometry, provenance, and galleries | Provider-bound geometry/feature comparison with declared coordinate/frame/operator semantics | Local contracts and galleries are substantially covered; ray selection/export is covered locally; provider comparison remains |
 | Signature | Source-bound chemistry/radiation inputs, wavelength/angular/time query, resolved ray radiance, atmospheric composition, units, masks, and uncertainty lineage | Spectral/radiance comparison in the named measurement space; gray/table paths remain diagnostic unless the source is accepted | Local table, LTE engineering, gray, time, angular, and query seams exist; resolved physical/provider evidence pending |
 | Ray transfer | Straight and curved operators with explicit path, hit, validity, and source identity | Analytic or provider ray/path comparison per operator and convergence/refinement evidence for curved paths | Straight local checks pass; curved refinement is nonmonotonic and remains diagnostic |
 | FPA | Camera geometry, pixel mapping, detector response, expected electrons, optional ADC, invalid-ray propagation, and visualization metadata | Source-bound camera/detector image comparison with calibration and validation cases kept disjoint | Deterministic downstream boundary passes; observation corpus/provider comparison missing |
 | Canonical flow | One solver-owned reflected/mixed-regime field that closes frontier, shock, ambient, centerline, entropy, conservative residual, and downstream boundary together | Independent re-derivation plus multi-case/multi-resolution stability and physical observation comparison | Research ladders and target-guided re-solves exist; canonical feedback/free-boundary closure remains open |
 | Shock cells | First and continued cells fit from the accepted physical field/frontier, with uncertainties and termination semantics | Accepted physical solver-length comparison; diagnostic pressure-extrema spacing is insufficient | Research-only fitter and chain planners exist; blocked by canonical closure and observations |
-| Validation intake | Raw archives, member digests, provenance/license, provider snapshots, operators, units/frames, uncertainty, and disjoint calibration/validation manifest | Exact source/output identity and reproducible intake audit | Version 8 provenance record exists; raw archive, alignment archive, and provider-bound outputs are unavailable |
+| Validation intake | Raw archives, member digests, provenance/license, provider snapshots, operators, units/frames, uncertainty, and disjoint calibration/validation manifest | Exact source/output identity and reproducible intake audit | Both archives are integrity-verified and corpus tests pass; source redistribution review, provider-bound outputs, disjoint comparison splits, and FPA observations remain open |
 | Release | Current candidate freeze, clean checkout, full tests/static/docs/public-contract checks, wheel build, installed-wheel smoke, and manifest with `release_ready=true` | Re-run from the exact frozen `HEAD`, with no stale commit or branch references | Not releasable; current local checks pass but promotion gates are open |
 
 ## Current execution queue
@@ -58,14 +328,12 @@ the handoff to the next slice.
 
 | Order | Slice | Entry condition | Required exit evidence | Current state |
 | --- | --- | --- | --- | --- |
-| 1 | Candidate hygiene | Clean dedicated branch and no unresolved conflicts | Committed candidate, focused regression, package smoke, and a recorded `HEAD` | Dedicated branch `work/washed-integral-visual` is based on the integration line; implementation checkpoint `963fcd6` commits the P3.29–P3.43k research consumers, physical frontier builders, validation runners, public exports, regressions, and plan updates. Checkpoint `9fc59ab` adds typed residual-exchange admission diagnostics and its regression. Checkpoint `4841935` adds bounded attachment-tangent frontier exchange, explicit normal-only opt-out coverage, and the now-green disjoint ladder regression. Plan-sync checkpoint `6ba22b8` records the current candidate and wheel smoke. Checkpoints `6b03e12` and `39dcda6` add source-position lineage to exact Signature point queries and preserve the existing formatting contract. Checkpoint `5180ac2` wires the bounded five-channel frontier residual exchange into the opt-in joint feedback cursor with replay and fail-closed rejection coverage. Checkpoint `754eb37` adds the disjoint joint-feedback refinement ladder and nested exchange audits. The P3.43k residual-exchange operator and four-case refinement ladder are committed and tested; the candidate is still not release-frozen because the recorded freeze/provenance and external gates are stale. `main` is untouched. |
-| 2 | Validation intake | Owner-supplied archives/provider outputs are present | Immutable archive digests, provenance/license, coordinate/frame contract, and disjoint calibration/validation split | Blocked: the raw Version 8 ZIP and separately named alignment archive are not present in the checkout |
-| 2a | Upstream characteristic frame, transonic interface, equation handoff, and bounded compatibility | Independently consumed conservative/entropy target | Exact primitive conversion, explicit regime segregation, moving-interface flux channels, component-wise residual report, replay audit, contiguous incoming-family compatibility, and typed missing-characteristic/normal-closure stop | P3.39–P3.42 remain locally verified. The coupled downstream free-boundary top-row trace is all subsonic/sonic (maximum Mach approximately `0.68023`) and correctly stops with `MISSING_INCOMING_CHARACTERISTIC`; the separate solver-owned global Euler shock frontier is now the physically grounded supersonic source for the next research handoff |
-| 3 | Canonical physical closure | Existing exact field, signed residual vector, and solver-owned frame handoff | One solver-owned global/free-boundary solve that closes topology, entropy, mass, normal momentum, energy, ambient, centerline, and downstream boundary; independent audit plus disjoint case/resolution ladder | P3.31–P3.43aa provide independently audited research consumers, frontier ladders, joint feedback, a 33-channel aggregate residual packet, a characteristic pressure consumer, and explicit nested handoff lineage. The combined one-step composition is now covered, but the target-entropy residual prevents the strict multi-step fixed-point gate; canonical/global closure, physical shock-cell acceptance, and promotion remain open |
-| 3a | Frontier residual-exchange ladder | One locally verified P3.43k source/target exchange | At least two distinct source-closure fingerprints and increasing exact shock resolutions, with per-case packet/update/response replay and component-wise admission evidence | The four-case refinement harness covers two source closures × `(9 -> 11)` exact shock-frontier resolutions with independent replay and explicit claim ceilings. With the bounded attachment-tangent mode enabled, all four cases are component-wise admitted and independently replayed, yielding cross-case research coverage. The explicit normal-only mode remains available and keeps the positive eleven-sample attachment-stencil case fail-closed with the typed `no-strict-component-descent` reason; no canonical/global or production claim is implied |
-| 4 | Physical shock-cell chain | Accepted canonical field/frontier from slices 2–3a | First and continued cell fits with solver-owned lengths, uncertainty, termination, exact lineage, and accepted disjoint physical comparison | Blocked by slices 2–3a; current fits are resolution evidence only |
-| 5 | Product measurement-space acceptance | Provider scenario/operator crosswalks and accepted source data | Five-lane Visualization comparisons, Signature/ray measurement-space comparisons, and FPA camera/detector comparisons with uncertainty and split evidence | Local contracts and gallery are wired; provider-bound outputs are missing |
-| 6 | Release freeze and handoff | Slices 1–5 green | Fresh exact-`HEAD` freeze, full release matrix, `release_ready=true`, then an explicit push/tag handoff | Not frozen. The code/marker candidate `b61765b` was clean when the validator ran, and the aggregate-residual diagnostics are focused-regression/static-check and wheel-smoke verified; this plan update is a documentation follow-on. The validator still reports `release_ready=false` because the recorded freeze is stale and canonical/global, physical shock-cell, provider/archive, and external-validation gates remain red. No freeze rewrite, push, or tag is authorized by this plan. |
+| 1 | Candidate and contract hygiene | Dedicated branch; current packet identified | Reviewed packet, focused evidence, clean integration boundary, and accurate open-gate manifest | Active on `feature/global-state-feedback` from `49f39a73`; overlap operator, exports, regression, and plan edits are uncommitted. Focused overlap regression and Ruff checks passed. |
+| 2 | Reciprocal global physical closure | Solver-owned continuation, cell-geometry-bounded ambient profile, and exact mesh-overlap evidence | Independent profile/source replay, fresh global closure, and strict 17-channel residual descent across multiple cases/resolutions | Target coverage now passes using retained cell support `[4.6412, 6.3424] m`; fresh global and source/profile audits pass, with entropy-lineage residual `6.66e-16` and max cell Euler residual `3.54e-4`. The corrector completes its local steps but not component-wise descent: entropy increases from `441.1605` to `441.1796` tolerance units and some conservative/downstream channels worsen. Global coupling and production remain false. The default inlet remains incompatible; the prior `0.1 mm` trace/global-offset compatibility experiment remains diagnostic and does not define an interface law. |
+| 3 | Local Visualization, Signature, and FPA surfaces | Current source/fidelity contracts | Retain time/position and source lineage in Signature; close local FPA composition, masks, and metadata | Parallel work can continue. Five-lane contracts/galleries and deterministic downstream composition exist; product-specific physical/provider acceptance remains open. |
+| 4 | Validation intake | Version 8 and alignment archives recovered | Immutable digests, provenance/use-rights review, coordinate/frame contract, measurement operators, uncertainty, and disjoint calibration/validation sets | Archive integrity and source-corpus tests are verified from the temporary intake directory. Redistribution review remains pending; provider outputs and separate FPA observations are still missing. |
+| 5 | Physical shock-cell chain and held-out product comparisons | Accepted canonical field plus qualified observations | First and continued cell fits, uncertainty/termination/lineage, plus Visualization, Signature/ray, and FPA comparisons in their own measurement spaces | Gated on physical closure and validation evidence; current fits remain diagnostic. |
+| 6 | Release freeze and handoff | All product and validation gates green | Fresh exact-`HEAD` freeze, complete release matrix, `release_ready=true`, then authorized release handoff | Not ready while canonical closure, physical shock-cell acceptance, archive, provider, or product gates remain open. |
 
 Candidate-hygiene update (2026-09-12): checkpoint `452d0d5` adds the typed
 joint-feedback Visualization packet/overlay diagnostics and keeps the
@@ -162,11 +430,10 @@ cross-time or cross-position reuse of a stale spectrum or detector frame.
 
 Advance the current research evidence in the following order:
 
-1. Use the P3.31 moving/global composition and P3.32 coverage runner as a
-   research harness: together they now consume the full state target in the
-   downstream finite-volume equations,
-   closes the strict moving conservative/entropy response, independently
-   reconciles the returned shock geometry, and replays a fresh final trace.
+1. Use the P3.31 moving/global composition and P3.32 coverage runner only as
+   research harnesses. They consume downstream state and refresh geometry,
+   but strict moving conservative/entropy descent remains open; neither is a
+   reciprocal global/downstream closure.
 2. Use the P3.33 interface-strip equation and P3.34 coverage runner as the
    audited conservative/entropy seam across disjoint source closures and
    increasing resolutions.
@@ -250,9 +517,12 @@ Advance the current research evidence in the following order:
    research-only: its pressure boundary is not conservative or entropy
    closure, and it cannot satisfy the canonical global/free-boundary,
    physical shock-cell, provider, or release gates.
-4. Consume the complete conservative and entropy target in the upstream
-   moving shock/free-boundary equations, not only in a fixed-front re-solve,
-   downstream solve, or pressure/geometry projection.
+4. Derive the admissible law for the exact downstream-trace/global-offset
+   interface, including regime, moving-frame, normal-flux, entropy, and any
+   shock/contact conditions. Then feed the independently audited
+   conservative/entropy response into the upstream global state update. Local
+   strip-equation consumption, fixed-front re-solves, downstream-only solves,
+   and pressure/geometry projections do not satisfy reciprocal closure.
 5. Re-solve the same global/free-boundary frame with bounded solver-owned
    geometry controls and fresh field solves for every trial.
 6. Independently remeasure signed mass, streamwise/transverse momentum, total
@@ -323,35 +593,36 @@ explicit handoff after the release decision.
 
 ## Immediate next actions
 
-1. Keep the committed candidate on `work/washed-integral-visual`, run the
-   current full/static/package smoke ladder, and keep `main` untouched until a
-   release decision is explicitly authorized.
-2. Use the P3.43s disjoint ladder as the local research acceptance boundary
-   for the exchange-enabled joint feedback cursor.  Any longer multi-step
-   case must retain the same exact source/next-closure fingerprints, nested
-   exchange replay, component-wise frontier admission, and typed fail-closed
-   behavior when a later exchange is rejected.  P3.43t adds the required
-   33-channel cross-seam packet and replay; use its channel-level report to
-   identify the next physical equation to close rather than relying on a
-   scalar residual.
-3. Advance the canonical physical closure now that the bounded ladder is
-   green:
-   the global/free-boundary equations must consume the full characteristic,
-   conservative/entropy, normal-closure, frontier, ambient, centerline, and
-   downstream constraints together.  The aggregate packet is a measurement
-   and admission prerequisite, not that solver.  Keep fixed-point and
-   promotion flags open until an actual simultaneous solve and independent
-   multi-case evidence pass.
-4. Feed only an accepted canonical physical field into first-cell and
-   continued shock-cell fitting; retain diagnostic spacing as research-only
-   until an accepted physical solver-length comparison exists.
-5. Obtain and bind the missing Version 8/alignment archives and provider
-   outputs with immutable digests, measurement-space/frame contracts, and a
-   disjoint calibration/validation split.  Do not synthesize missing evidence.
-6. Run the standardized Visualization, Signature/RAY, and FPA acceptance
-   matrix against accepted source/provider pairs, then re-freeze the exact
-   candidate and push/tag only after the release decision and explicit
-   authorization.
+1. Review the new bounded ambient-target builder and pressure-profile source
+   audit on `feature/global-state-feedback`; retain the passing fresh-closure
+   regression, residual vectors, and all promotion blockers in the checkpoint.
+2. Derive the reciprocal upstream equation update for the exact
+   downstream-trace/global-field seam. The `8×4` and `12×6` displaced-strip
+   probes still reject pressure continuity for a contact and fail moving-shock
+   momentum closure for both tested normals. The new cell-bounded pressure
+   target closes the local global/source/profile audit, but the full corrector
+   still fails strict 17-channel descent and the global equations do not yet
+   consume the audited downstream mass, momentum, energy, and entropy response.
+   Do not copy displaced states into the global field. Feed an independently
+   audited common-interface response into the upstream equations, compose it
+   with the moving interface, global geometry, and fresh downstream solve, and
+   require strict component-wise descent plus multi-step, multi-case
+   refinement. Keep global/production admission false unless every gate passes.
+3. In parallel, compare standardized Visualization features with qualified
+   providers using the declared coordinate/frame/operator mapping. Keep the
+   five bundles' solver/fidelity labels and provenance visible in all views.
+4. Preserve and refine the time/position state contract for Signature and
+   FPA. Evaluate source eligibility per lane; the basic fast solver may serve
+   bounded Visualization or exploratory Signature use, while FPA source
+   admission requires a qualified ray-radiance path.
+5. Keep the recovered Version 8 and alignment archives bound to their verified
+   digests; complete the redistribution review and use the fresh provider
+   preflight to bind eligible outputs to their measurement operators. Keep
+   calibration and validation cases disjoint, and acquire a separate FPA
+   measurement corpus before claiming image validation.
+6. Fit physical shock cells only after global source acceptance. Then run the
+   product-specific Visualization, Signature/ray, and FPA comparison matrix,
+   refresh the exact candidate manifest, and complete the release ladder.
 
 ## Non-negotiable stop rules
 
@@ -367,115 +638,9 @@ explicit handoff after the release decision.
   Signature or FPA production claim.
 - A dirty or stale candidate cannot be release-frozen.
 
-## Long-running goal operating plan
+## Long-running goal operating protocol
 
-The goal is executed as a sequence of small, reviewable checkpoints.  Each
-checkpoint must leave the repository runnable and must record what was
-consumed, what was independently re-derived, and what remains blocked.  A
-checkpoint may add evidence without changing a higher-level promotion flag;
-promotion is a separate decision after the evidence matrix is complete.
-
-### Stage A — Establish the candidate baseline
-
-1. Keep the dedicated integration branch as the working line and leave
-   `main` untouched until a release candidate is explicitly authorized.
-2. Reconcile the current working-tree research checkpoints into coherent
-   commits, one contract family at a time.  Run focused tests after each
-   family and run the full suite/static/package matrix at the freeze boundary.
-3. Refresh the lane-release manifest from the exact candidate `HEAD`.  Treat
-   dirty-tree, stale-freeze, missing-archive, and missing-provider evidence as
-   blockers rather than paperwork to be deferred.
-
-Exit gate: a committed candidate with deterministic local checks, no
-unresolved conflicts, and a manifest that accurately reports every open gate.
-
-### Stage B — Finish the physical source without crossing fidelities
-
-1. P3.40: add the explicit transonic interface law.  Consume the P3.39
-   boundary frame and the exact conservative trace, retain subsonic data as a
-   subsonic interface condition, and admit a `CharacteristicState` only when
-   the supplied sample is genuinely supersonic.  Report mass, normal and
-   tangential momentum, energy, entropy, and frame-alignment residuals as
-   separate channels.
-2. P3.41: connect the admissible interface data to the solver-owned upstream
-   characteristic/free-boundary equation.  The equation must state which
-   characteristics enter, which boundary variables are solved, and which
-   quantities are supplied by the subsonic side.  A missing incoming
-   characteristic or normal closure must return a typed research stop.
-3. P3.42: consume only the admitted incoming characteristic family on a
-   contiguous supersonic subset.  Require exact invariant, characteristic
-   geometry, forward-direction, interface-lineage, and independent replay
-   evidence; do not bridge a subsonic gap or invent the second family.  Keep
-   the primitive subsonic condition and normal/free-boundary closure as open
-   gates.
-4. P3.43: compose the exact incoming-family compatibility, conservative/
-   entropy state equation, and solver-owned global-feedback result on
-   disjoint source closures and increasing spatial resolutions.  Require
-   independent lower-lane replay, exact closure fingerprints, component-wise
-   residual admission, entropy-law consistency, and topology/frame coverage.
-   The P3.43b runner now checks this coverage boundary; any open state-equation
-   residual must remain a typed stop, the feedback configuration must carry the
-   declared resolution, and one locally closed fixture cannot stand in for a
-   disjoint case/resolution gate or a canonical fixed point.
-5. P3.43a: consume that exact mixed-regime chain only with a solver-owned
-   two-sided ambient primitive state, moving-control-volume fluxes, component
-   residuals, and an oriented entropy inequality.  Missing ambient density,
-   velocity, temperature, or gas-law consistency must be a typed blocker;
-   copying pressure into a normal closure is not sufficient.  Keep global
-   coupling, free-boundary promotion, and production flags closed until this
-   contract is exercised over disjoint cases and resolutions.
-6. P3.43c: let the canonical-consumer gate optionally require and consume the
-   P3.43a result plus its independent audit.  A consumed local normal closure
-   changes only the typed research status to ``open-global-closure``; it must
-   not set the global fixed-point or production flags.
-7. P3.44: fit the first and continued shock cells only from an accepted
-   physical field/frontier.  Retain length uncertainty, termination reason,
-   solver/fidelity lineage, and an external comparison in the same measurement
-   space.  Pressure-extrema spacing remains a diagnostic fallback.
-
-Exit gate: the canonical source is accepted on the declared case/resolution
-matrix, or the result is an explicit typed research blocker.  In either case,
-the lower-fidelity Visualization and engineering Signature lanes remain
-usable without being relabeled as the canonical source.
-
-### Stage C — Complete the three product surfaces in parallel
-
-These tracks may proceed while Stage B is open, but they must consume only the
-source lane named in their request and must expose that lane in their output.
-
-- Visualization: finish the five standardized bundles, axial/cross-section/
-  station/path/angular/time views, region and shock-cell overlays, masks,
-  provenance, and deterministic galleries.  Every image or field view must
-  state whether it is diagnostic, engineering, or physical-field evidence.
-- Signature: finish time/position/wavelength/direction point queries, source
-  fingerprints, chemistry/radiation/atmosphere composition, straight versus
-  curved ray-transfer status, uncertainty, and invalid-region propagation.
-  A lookup table or gray/LTE result must retain its source and claim ceiling.
-- FPA: finish camera pose/projection, ray hits and misses, spectral-to-detector
-  integration, detector response/noise, electrons, pixel indexing, optional
-  ADC, saturation, and metadata.  FPA acceptance is downstream of an
-  explicitly selected Signature/ray lane.
-
-Exit gate: deterministic local fixtures and measurement-space reports exist
-for each product, with provider/calibration comparisons still clearly marked
-pending when their source data are unavailable.
-
-### Stage D — Validation intake and release
-
-1. Add the owner-supplied validation archives only through an immutable intake
-   record: member digests, provenance/license, scenario mapping, frames/units,
-   measurement operators, uncertainty, and disjoint calibration/validation
-   assignments.
-2. Run provider-bound comparisons separately for Visualization, Signature/ray,
-   and FPA.  Record pass/fail/tolerance and the exact model/source/operator
-   fingerprints; never treat a provenance-only or synthetic fixture as an
-   external validation result.
-3. Freeze the exact candidate `HEAD`, rerun the complete local and package
-   matrix from that freeze, and require the release manifest to report
-   `release_ready=true` with no stale references.
-4. Only after the release decision is green, and only with explicit user
-   authorization, merge/push/tag.  If any gate is red, publish the blocker
-   report and continue the long-running goal at the next typed seam.
+The active phase order and acceptance gates are in **Active long-running goal roadmap** above. Use the checklist below for each slice. The dated P3 checkpoints that follow this protocol are evidence history; their old "next" actions are not the current task queue.
 
 ### Per-checkpoint checklist
 

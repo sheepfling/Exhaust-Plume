@@ -11,6 +11,7 @@ from exhaust_plume.api import (
   ENGINEERING_FLUX_SECTION_V1,
   OPTICAL_SPECTRAL_RAY_TRANSFER_V1,
   SIGNATURE_SPECTRAL_RADIANT_INTENSITY_V1,
+  VISUAL_SECTIONED_TUBE_V1,
   Applicability,
   FidelityClaim,
   FrameRef,
@@ -41,6 +42,7 @@ from exhaust_plume.products import (
   render_product_gallery,
   write_product_comparison_report,
   write_interactive_product_gallery,
+  resolve_interactive_spec_export,
 )
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -313,9 +315,104 @@ def test_interactive_gallery_embeds_linked_state_without_network_dependencies(re
   html = output.read_text(encoding='utf-8')
 
   assert '<svg id="plot"' in html
-  assert 'Export current view spec' in html
+  assert 'Export current view state' in html
   assert result.envelope.content_sha256 in html
   assert 'fetch(' not in html
+####
+
+
+def test_interactive_ray_selection_is_exported_separately_from_hashed_spec(tmp_path: Path) -> None:
+  result = _ray_result()
+  spec = VisualizationSpec.for_result(
+    result,
+    view_kind='ray-transfer.interactive',
+    selection=ViewSelection(ray_id='ray-1', wavelength_index=0),
+    ray_display_length_m=2.5,
+  )
+  output = write_interactive_product_gallery(result, tmp_path / 'ray.html', spec=spec)
+  html = output.read_text(encoding='utf-8')
+  embedded = html.split('<script>const DATA=', 1)[1].split(';\nconst SVG_NS=', 1)[0]
+  payload = json.loads(embedded)
+
+  assert payload['product'] == 'ray-transfer'
+  assert payload['initial_selection'] == {'ray_id': 'ray-1', 'wavelength_index': 0}
+  assert payload['view_spec']['ray_display_length_m'] == 2.5
+  assert 'rayRouteChart(parts' in html
+  assert 'wavelengthMarker(parts,485,20,695,320,xs,state.wavelength_index)' in html
+  assert payload['interactive_spec_export_schema'] == 'plume.visualization.interactive-spec-export@1'
+  assert 'view_spec:DATA.view_spec' in html
+  assert 'view_spec_digest_sha256:DATA.view_spec_digest_sha256' in html
+  assert 'current_selection:currentSelection()' in html
+  assert 'return {station_index:state.station_index,channel_id,component_index};' in html
+  assert 'return {direction_index:state.direction_index,wavelength_index:state.wavelength_index};' in html
+  assert 'return {ray_id:state.ray_id,wavelength_index:state.wavelength_index};' in html
+  assert 'return {component_index:state.species_index};' in html
+  assert 'no hit or path inferred' in html
+
+  export_payload = {
+    'schema': payload['interactive_spec_export_schema'],
+    'view_spec': payload['view_spec'],
+    'view_spec_digest_sha256': payload['view_spec_digest_sha256'],
+    'current_selection': {'ray_id': 'ray-2', 'wavelength_index': 1},
+    'source': payload['source'],
+  }
+  resolved = resolve_interactive_spec_export(export_payload, result)
+  assert resolved.selection.ray_id == 'ray-2'
+  assert resolved.selection.wavelength_index == 1
+  assert resolved.digest_sha256() != payload['view_spec_digest_sha256']
+
+  tampered = {**export_payload, 'view_spec_digest_sha256': '0' * 64}
+  with pytest.raises(ValueError, match='digest'):
+    resolve_interactive_spec_export(tampered, result)
+####
+
+
+@pytest.mark.parametrize(
+  'result_factory',
+  (_visual_result, _signature_result, _ray_result, _flux_result),
+)
+def test_interactive_view_state_export_roundtrips_all_standard_products(result_factory, tmp_path: Path) -> None:
+  result = result_factory()
+  product = {
+    VISUAL_SECTIONED_TUBE_V1: 'visual',
+    SIGNATURE_SPECTRAL_RADIANT_INTENSITY_V1: 'signature',
+    OPTICAL_SPECTRAL_RAY_TRANSFER_V1: 'ray-transfer',
+    ENGINEERING_FLUX_SECTION_V1: 'flux',
+  }[result.envelope.capability_id]
+  spec = VisualizationSpec.for_result(result, view_kind=f'{product}.interactive')
+  output = write_interactive_product_gallery(result, tmp_path / f'{product}.html', spec=spec)
+  html = output.read_text(encoding='utf-8')
+  embedded = html.split('<script>const DATA=', 1)[1].split(';\nconst SVG_NS=', 1)[0]
+  gallery = json.loads(embedded)
+
+  if product == 'visual':
+    selection = {
+      'station_index': len(gallery['geometry']['arc_length_m']) - 1,
+      'channel_id': gallery['channels'][-1]['channel_id'],
+      'component_index': gallery['channels'][-1]['component_index'],
+    }
+  elif product == 'signature':
+    selection = {
+      'direction_index': len(gallery['directions']) - 1,
+      'wavelength_index': len(gallery['wavelengths_m']) - 1,
+    }
+  elif product == 'ray-transfer':
+    selection = {
+      'ray_id': gallery['rays'][-1]['ray_id'],
+      'wavelength_index': len(gallery['wavelengths_m']) - 1,
+    }
+  else:
+    selection = {'component_index': len(gallery['species']) - 1}
+
+  resolved = resolve_interactive_spec_export({
+    'schema': gallery['interactive_spec_export_schema'],
+    'view_spec': gallery['view_spec'],
+    'view_spec_digest_sha256': gallery['view_spec_digest_sha256'],
+    'current_selection': selection,
+    'source': gallery['source'],
+  }, result)
+  assert resolved.selection == ViewSelection.model_validate(selection)
+  assert resolved.digest_sha256() != gallery['view_spec_digest_sha256']
 ####
 
 

@@ -9,18 +9,24 @@ condition explicit.
 
 ## Global prerequisites
 
-The repository records a prior user-provided Version 8 archive as
-integrity-valid, but its raw ZIP is not present in the current workspace:
+The Version 8 corpus and separately named MVP alignment archive have now been
+recovered in the temporary intake directory and verified against their
+content-addressed manifests:
 
-- SHA-256: `79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa`
-- 138 members, 137 internal checksum entries, and 57 isolated corpus tests
-- embedded MVP alignment overlay present and verified in the prior intake
-- separately named `plume_mvp_validation_alignment_v1.zip` still missing
+- `plume_validation_data_v8.zip`: SHA-256
+  `79c2a34dd4c43bd976ceb8773fdccd78a2592d903bf03ca57c2aef82f882e9aa`, 138
+  members, 137 internal checksum entries, and 57 isolated corpus tests
+  passing.
+- `plume_mvp_validation_alignment_v1.zip`: SHA-256
+  `569aa7f0572f454a1a539b2fbecd977107aced9cab8eb2e65f01c814f8494ceb`, 16
+  members and 15 internal checksum entries passing; the 78-record alignment
+  structure is valid.
 
-Both the raw Version 8 archive and the separately named alignment archive must
-be reacquired or explicitly removed from the release requirement by their
-owner. Neither may be reconstructed from committed reports, the embedded
-overlay, or digitized source figures.
+The archive payloads remain outside the repository while derived-corpus
+redistribution review is pending. Integrity is now verified; provider-bound
+model outputs, product-specific operator reconciliation, held-out splits, and
+FPA observations are still release gates. The fresh machine-readable result
+is [`provider_comparison_preflight_v1.json`](provider_comparison_preflight_v1.json).
 
 The repository already has generic LOS/FOV, path-transfer, spectral sampling,
 peak-normalization, bandpass, ray-to-signature, and FPA boundary operators.

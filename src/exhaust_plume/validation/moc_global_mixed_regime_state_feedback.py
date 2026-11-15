@@ -424,22 +424,33 @@ def _build_solver_owned_base_target(
   if field is None:
     raise ValueError('source closure retained no physical field geometry')
   ####
-  boundary = field.ambient_boundary
-  points = tuple(boundary.points_m)
-  states = tuple(boundary.states)
-  pressures = tuple(boundary.static_pressure_Pa)
-  if not (len(points) == len(states) == len(pressures) >= 2):
+  source_band = closure.source_band
+  ambient_pressure = (
+    None if source_band is None else source_band.ambient_pressure_Pa
+  )
+  if ambient_pressure is None:
+    raise ValueError('source closure retained no scalar ambient pressure')
+  ####
+  support_x = tuple(
+    float(vertex[0])
+    for cell in field.cells
+    for vertex in cell.vertices_xr_m
+  )
+  if len(support_x) < 2 or min(support_x) >= max(support_x):
     raise ValueError(
-      'source closure ambient boundary must retain aligned solver-owned '
-      'points, states, and pressure samples'
+      'source physical-field cells must retain a non-degenerate axial support'
     )
   ####
+  # The source declares uniform ambient pressure, while its retained cell
+  # geometry bounds where that condition may be queried. The free-boundary
+  # geometry remains solver-owned; the proposal is composed as a pressure
+  # overlay and cannot extend this support.
   return MocPhysicalFieldEulerBoundaryPressureTarget(
-    x_stations_m=tuple(point[0] for point in points),
-    static_pressure_Pa=pressures,
-    boundary_points_m=points,
-    tangent_rad=tuple(state.theta_rad for state in states),
-    source_id=f'{consumer_id}:base:{request.source_closure_fingerprint}',
+    x_stations_m=(min(support_x), max(support_x)),
+    static_pressure_Pa=(float(ambient_pressure), float(ambient_pressure)),
+    source_id=(
+      f'{consumer_id}:bounded-ambient:{request.source_closure_fingerprint}'
+    ),
     source_closure_fingerprint=request.source_closure_fingerprint,
     source_proposal_fingerprint=request.source_proposal_fingerprint,
   )
@@ -733,7 +744,7 @@ def measure_reflected_domain_global_mixed_regime_state_feedback(
       full_state_channels_audit_verified=channels_verified,
     )
   ####
-  boundary_options.setdefault('consume_target_geometry', True)
+  boundary_options.setdefault('consume_target_geometry', False)
   try:
     boundary_condition = run_reflected_domain_global_frontier_boundary_conditioned_resolve(
       request,
