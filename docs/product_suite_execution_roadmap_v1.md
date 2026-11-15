@@ -66,7 +66,7 @@ another lane's behavior or claim level.
 
 | Phase | Deliverables | Exit criteria | Dependency/status |
 | --- | --- | --- | --- |
-| 0. Candidate and contract baseline | Review the active branch's uncommitted packet; map each changed contract, test, and solver lane; group separable changes; check the intended base and outstanding PR state; resolve conflicts at contract boundaries. | Reviewed candidate identity, a change-to-contract map, no unresolved conflicts, focused evidence for touched contracts, and accurate lane claims. | Baseline review confirms no open PRs, both local `main` refs are ancestors of `49f39a73`, and no unresolved index conflicts or conflict markers. The 26-path dirty packet separates into Visualization/FPA interactions, global-closure research, validation evidence, and plan/evaluation docs. Focused product/corpus tests pass (`35`), closure handoff regressions pass (`2`), Ruff/JSON/whitespace checks pass, and generated JavaScript parses for all four standard result families. The full suite passes (`1366 passed, 18 warnings`); implementation-level packet/commit boundary review remains open. |
+| 0. Candidate and contract baseline | Review the candidate packet; map each changed contract, test, and solver lane; group separable changes; check the intended base and outstanding PR state; resolve conflicts at contract boundaries. | Reviewed candidate identity, a change-to-contract map, no unresolved conflicts, focused evidence for touched contracts, and accurate lane claims. | Baseline is recorded in commit `05a59582` on `feature/global-state-feedback`, pushed to `upstream/feature/global-state-feedback`. The working tree is clean; no open PRs or merge conflicts were found, and both local `main` refs are ancestors of the candidate. The packet groups Visualization/FPA interactions, global-closure research, validation evidence, and plan/evaluation docs. The full suite passes (`1366 passed, 18 warnings`); Ruff, JSON/whitespace checks, generated gallery JavaScript, and offline wheel/installed smoke pass. |
 | 1. Complete local product surfaces | **Visualization:** common views for each standard result API and all five plume lanes: 3-D/orthographic overview, XY/XZ/YZ and cross-plume slices, stations/channels, region and shock-cell overlays, named paths, masks, provenance, comparison, export, and time selection. **Signature:** immutable mission state/cursor for time, position/altitude, attitude, ambient state, throttle/burn state, chemistry, and solver selection; exact point lookup; angular heat maps and trajectories over time. **FPA:** camera pose/projection, exposure and spectral integration, detector response, expected electrons/noise variance, pixels, optional ADC, invalid/saturation masks, and provenance views. | Deterministic typed contracts and galleries; source-bound export/replay; explicit units, frames, validity, uncertainty, time/position, and fidelity; no inferred physical quantities from display geometry. | Can proceed alongside Phase 2. The five-lane galleries, Signature time/query seams, and deterministic FPA composition exist; remaining local completeness and provider comparisons are open. |
 | 2. Close the canonical physical source | Establish shared solver-owned support and a geometry-bound interface; derive and independently audit the physical interface law; exchange conservative flux and entropy response reciprocally; solve the global and downstream fields together. | Independent replay of geometry/lineage, positivity, mass, both momentum components, energy, entropy, boundary closure, and strict component-wise residual admission over disjoint cases, multiple steps, and increasing resolutions. | Critical path and open research gate. Bounded pressure-profile replay and exact cell-overlap remapping audit pass. State-trace consumption fails conservative residuals. A geometry-locked Euler-flux handoff reaches about `5e-4` conservative residual but fails entropy/pseudo-time gates. Reciprocal closure is not established. |
 | 3. Fit the physical shock-cell chain | Fit first and continued cells from an accepted physical field/frontier; retain cell identity, length, uncertainty, termination, and solver lineage. Keep planner mocks and diagnostic fits separate. | Independent solver-length/topology audit and held-out comparisons pass across cases/refinements; continuation stops with typed physical semantics. | Depends on accepted Phase 2 closure and qualified observations. Current fits are diagnostic/research-only. |
@@ -83,13 +83,7 @@ status while independent product work continues.
 
 ## Current next work packet
 
-1. **Finish candidate packet review.** Complete the file-level change map for
-   the four identified groups, check their contract/fidelity boundaries, and
-   define reviewable change boundaries. The PR/base and merge-conflict checks
-   are clear; the packet remains uncommitted. The full suite passes, and the
-   next review should choose coherent commit boundaries without combining
-   product surfaces with physical promotion claims.
-2. **Advance the Phase 2 physical closure gate.** Retain the bounded ambient
+1. **Advance the Phase 2 physical closure gate.** Retain the bounded ambient
    profile and its independent source replay as established local evidence.
    Review the exact conservative cell-overlap remap and its independent audit:
    geometry, full coverage, and conservative remap are verified, while the
@@ -103,19 +97,19 @@ status while independent product work continues.
    full residual vector across multiple steps, disjoint cases, and increasing
    resolutions. If the interface law or common support cannot be established,
    fail closed and retain research status.
-3. **Finish product-local contracts in parallel.** Audit standard API
+2. **Finish product-local contracts in parallel.** Audit standard API
    adapters against every result family and all five gallery lanes; close
    missing slices/views, Signature exact-state queries and angular/time-series
    products, and FPA validity/provenance views. Exercise planner mocks as
    visibly mock outputs. Preserve source identity, units, frames, validity,
    uncertainty, and replayable provenance in every product.
-4. **Close evidence intake and comparisons.** Preserve the verified archive
+3. **Close evidence intake and comparisons.** Preserve the verified archive
    digests and internal manifests; finish provenance and redistribution
    review; resolve operator identity and semantics without guessed aliases;
    freeze disjoint calibration/validation sets; and bind provider outputs to
    each product's operator and scenario. Acquire separate camera/detector
    observations for FPA. Keep absent or unbound evidence explicitly pending.
-5. **Gate shock-cell fitting and release.** After Phase 2 source acceptance,
+4. **Gate shock-cell fitting and release.** After Phase 2 source acceptance,
    fit first and continued shock cells and pass held-out topology/length
    comparisons. Then freeze one exact-HEAD candidate and regenerate local,
    public-contract, package, installed-package, lane, and external-evidence
@@ -131,9 +125,9 @@ qualified sources and observations.
 
 ## Work sequence and checkpoint rules
 
-1. Finish Phase 0 by auditing the current dirty packet against the contract
-   and model matrices above. Record which changes belong together and what
-   focused evidence each group needs.
+1. Phase 0 is complete for the current candidate: commit `05a59582` is pushed,
+   the tree is clean, and its full suite/package checks are recorded. Keep
+   later implementation changes in separately reviewable packets.
 2. Pick the next implementation packet from either (a) a contract gap exposed
    by that review or (b) one falsifiable Phase 2 interface-law experiment.
    Do not combine unrelated work just to produce a larger checkpoint.

@@ -25,11 +25,12 @@ prove each boundary independently.
 
 This checkpoint supersedes older status rows below wherever they conflict.
 The active product-suite goal continues on `feature/global-state-feedback`
-from integrated candidate `49f39a73`; the original broad checkout remains
-separate. The current code packet adds an exact conservative mesh-overlap
-remap for the global fixed-front reconciliation and the local downstream
-Euler field. It is research evidence only and does not mark global coupling
-or production admission.
+at checkpoint commit `05a59582`, based on integrated candidate `49f39a73` and
+pushed to `upstream/feature/global-state-feedback`; the original broad checkout
+remains separate. The current code packet adds an exact conservative
+mesh-overlap remap for the global fixed-front reconciliation and the local
+downstream Euler field. It is research evidence only and does not mark global
+coupling or production admission.
 
 | Gate | Current position | Remaining acceptance evidence |
 | --- | --- | --- |
@@ -39,7 +40,7 @@ or production admission.
 | Validation evidence | Version 8 and the separately named alignment archive have been recovered in `/tmp/exhaust-plume-corpus-intake-20261115`; outer hashes and all 152 internal checksums pass, and the isolated corpus suite passes (`57 passed`). | Review redistribution rights, preserve a reproducible intake record, bind eligible model outputs to accepted measurement operators, create disjoint calibration/validation sets, and acquire a separate FPA measurement corpus. |
 | Global physical closure | Bounded pressure-profile source replay and exact cell-overlap remap audits pass. A state-trace downstream solve fails conservative residuals. A separate geometry-locked Euler-flux solve brings conservative residuals to about `5e-4` but fails entropy and pseudo-time gates. | Establish and audit a geometry-bound entropy-consistent interface law; solve reciprocal global/downstream exchange and pass independent component-wise, multi-case, and refinement gates. |
 | Production shock cells | Existing chains remain diagnostic. | Fit and validate first and continued cells only after global source acceptance and qualified observations. |
-| Packaging/release | The current dirty tree builds a wheel, installs it into a fresh virtual environment, and passes `tests/installed_smoke.py` with `scripts.check_build --offline`. | Repeat on one clean exact-HEAD candidate; close physical, product, rights, provider, and FPA measurement gates; regenerate the release manifest and require `release_ready=true`. |
+| Packaging/release | Checkpoint `05a59582` builds a wheel, installs it into a fresh virtual environment, and passes `tests/installed_smoke.py` with `scripts.check_build --offline`; the commit is pushed and the tree is clean. | Run the exact-HEAD release matrix; close physical, product, rights, provider, and FPA measurement gates; regenerate the release manifest and require `release_ready=true`. |
 
 ### Bounded ambient-profile closure checkpoint — 2026-11-15
 
