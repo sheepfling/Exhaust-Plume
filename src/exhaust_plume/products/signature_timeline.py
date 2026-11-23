@@ -23,6 +23,7 @@ from exhaust_plume.api.v1 import (
     SampleStatus,
     SpectralSignatureRequest,
     SpectralSignatureResult,
+    canonical_digest,
 )
 
 __all__ = (
@@ -125,6 +126,11 @@ class SignatureTimelineSample:
         ####
         if not isinstance(self.result, SpectralSignatureResult):
             raise TypeError("result must be SpectralSignatureResult")
+        ####
+        if self.result.metadata.request_digest_sha256 != canonical_digest(self.request):
+            raise ValueError(
+                "signature result request digest must exactly match the supplied request"
+            )
         ####
         if self.request.direction_frame_id != self.result.metadata.output_frame_id:
             raise ValueError("request direction_frame_id must equal the signature result output frame")

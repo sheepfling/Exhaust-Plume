@@ -13,6 +13,9 @@ from exhaust_plume.api.v1 import (
   GeometryClaim,
   ImmutableProductSnapshot,
   InvalidProductRequestError,
+  MODEL_LANE_VISUALIZATION_CAPABILITY,
+  ModelLaneVisualizationRequest,
+  ModelLaneVisualizationResult,
   OperatingStateDomainError,
   Pose,
   ProductOutsideApplicabilityError,
@@ -22,6 +25,7 @@ from exhaust_plume.api.v1 import (
   RadiationClaim,
   SessionMetadata,
   SnapshotMetadata,
+  SPATIAL_LOCAL_FIELD_CAPABILITY,
   TimeModel,
   VISUAL_SECTIONED_TUBE_CAPABILITY,
   VisualSection,
@@ -48,6 +52,11 @@ from exhaust_plume.providers.shock_diamond import (
   ShockCellAnalyticalDefinition,
   ShockCellAnalyticalOperatingState,
 )
+from exhaust_plume.products.model_visualization import (
+  ModelVisualizationLane,
+  evaluate_model_lane_visualization,
+)
+from exhaust_plume.providers.model_lane_local_field import ModelLaneLocalFieldEvaluator
 
 __all__ = (
   'ShockTrainVisualConfiguration',
@@ -121,7 +130,11 @@ def _descriptor(configuration: ShockTrainVisualConfiguration) -> ProviderDescrip
   return ProviderDescriptor(
     provider_id=configuration.provider_id,
     provider_version=configuration.provider_version,
-    supported_capabilities=(VISUAL_SECTIONED_TUBE_CAPABILITY,),
+    supported_capabilities=(
+      VISUAL_SECTIONED_TUBE_CAPABILITY,
+      MODEL_LANE_VISUALIZATION_CAPABILITY,
+      SPATIAL_LOCAL_FIELD_CAPABILITY,
+    ),
     provider_definition_schema_id='plume.visual.shock-train-definition.v1',
     dynamic_state_schema_id='plume.visual.shock-train-operating-state.v1',
     configuration_schema_id='plume.visual.shock-train-configuration.v1',
@@ -399,6 +412,36 @@ class _ShockTrainVisualEvaluator:
 ####
 
 
+class _ShockTrainModelLaneEvaluator:
+  def __init__(
+      self,
+      definition: ShockTrainVisualDefinition,
+      configuration: ShockTrainVisualConfiguration,
+      result: ShockTrainResult,
+  ) -> None:
+    self._definition = definition
+    self._configuration = configuration
+    self._result = result
+  ####
+
+  def evaluate(
+      self,
+      request: ModelLaneVisualizationRequest,
+      snapshot: SnapshotMetadata,
+  ) -> ModelLaneVisualizationResult:
+    return evaluate_model_lane_visualization(
+      self._result,
+      ModelVisualizationLane.REDUCED_ORDER_SHOCK_TRAIN,
+      request,
+      snapshot,
+      frame_id=self._definition.plume_frame_id,
+      provider_id=self._configuration.provider_id,
+      provider_version=self._configuration.provider_version,
+    )
+  ####
+####
+
+
 class ShockTrainVisualProvider:
   """Canonical visual provider for the calibrated reduced-order train lane."""
 
@@ -559,15 +602,24 @@ class ShockTrainVisualSession:
       ambient_state_digest_sha256=ambient_digest,
       provider_state_digest_sha256=provider_digest,
     )
-    return ImmutableProductSnapshot(
-      metadata=metadata,
-      _evaluators={VISUAL_SECTIONED_TUBE_CAPABILITY: _ShockTrainVisualEvaluator(
+    evaluators = {VISUAL_SECTIONED_TUBE_CAPABILITY: _ShockTrainVisualEvaluator(
         self._definition,
         self._configuration,
         result,
         operating_state.nozzle_exit,
-      )},
-    )
+      )}
+    if result.cells:
+      model_lane_evaluator = _ShockTrainModelLaneEvaluator(
+        self._definition,
+        self._configuration,
+        result,
+      )
+      evaluators[MODEL_LANE_VISUALIZATION_CAPABILITY] = model_lane_evaluator
+      evaluators[SPATIAL_LOCAL_FIELD_CAPABILITY] = ModelLaneLocalFieldEvaluator(
+        model_lane_evaluator,
+      )
+    ####
+    return ImmutableProductSnapshot(metadata=metadata, _evaluators=evaluators)
   ####
 
   def close(self) -> None:

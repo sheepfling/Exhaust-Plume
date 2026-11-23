@@ -1,0 +1,144 @@
+{
+  "atmospheric_path_layer_digest": null,
+  "atmospheric_path_layer_ids": [],
+  "atmospheric_path_operator_id": null,
+  "camera_mapping_model_id": "fixture-mapping-v1",
+  "camera_optics": {
+    "angular_projection_model_id": null,
+    "aperture_area_m2": 0.0001,
+    "camera_id": "fixture-camera",
+    "field_of_view_rad": null,
+    "focal_length_m": 0.05,
+    "mapping_model_id": "fixture-mapping-v1",
+    "on_axis_pixel_ifov_rad": null,
+    "pixel_pitch_m": [
+      5e-06,
+      5e-06
+    ],
+    "point_spread_function": {
+      "digest_sha256": "b241fece14e599c4a8bc97990e2fed7d90c1a0cbd834d40634a590405dcd39dd",
+      "edge_policy": "mask-incomplete-support",
+      "kernel_weights": [
+        [
+          1.0
+        ]
+      ],
+      "model_id": "fixture-delta-psf-v1",
+      "spectral_scope": "achromatic"
+    },
+    "principal_point_px": [
+      0.5,
+      0.5
+    ]
+  },
+  "camera_optics_id": "fixture-camera",
+  "claim_ceiling": "Expected detector electrons and deterministic ADC expectations only; not measured images, noise realizations, or detection claims.",
+  "dark_electrons_e": [
+    [
+      6.0
+    ]
+  ],
+  "detector": {
+    "dark_current_e_per_s": 2.0,
+    "optical_throughput": [
+      0.8,
+      0.9
+    ],
+    "quantum_efficiency": [
+      0.5,
+      0.6
+    ],
+    "read_noise_std_e": 2.0,
+    "response_id": "fixture-detector",
+    "wavelengths_m": [
+      1e-06,
+      2e-06
+    ]
+  },
+  "digitization_input_sha256": "f72fec0da72f9a65d6a6249df22f13e5a6bf6c96ceb1111d7d34ee9ab8a16311",
+  "digitization_operator_id": "op.sensor.fpa-digitization",
+  "digitization_policy": {
+    "bit_depth": 12,
+    "electrons_per_count": 1.0,
+    "invalid_count": 0,
+    "offset_counts": 0.0,
+    "policy_id": "fixture-adc",
+    "rounding_mode": "nearest_even",
+    "saturation_mode": "clip"
+  },
+  "digitized_counts": [
+    [
+      16
+    ]
+  ],
+  "digitized_validity_mask": [
+    [
+      true
+    ]
+  ],
+  "expected_electrons_e": [
+    [
+      16.0
+    ]
+  ],
+  "exposure_s": 3.0,
+  "height_px": 1,
+  "measurement_operator_sha256": "131cd6354a927a7eed4ac83df2959711c33cfe7a5afbaadc0bd2edde808c2a84",
+  "noise_variance_e2": [
+    [
+      20.0
+    ]
+  ],
+  "operator_input_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "pixel_geometry_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "pixel_indexing": "zero-based-row-column",
+  "pixel_operator_id": "op.sensor.fpa-pixel-detector",
+  "point_spread_operator_id": "op.sensor.fpa-point-spread",
+  "saturated_mask": [
+    [
+      false
+    ]
+  ],
+  "schema_id": "plume.fpa.detector-frame@1",
+  "source": {
+    "capability_id": "plume.optical.spectral-ray-transfer@1",
+    "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "frame_id": "fixture-ray-frame",
+    "operator_chain": [
+      "op.sensor.fpa-pixel-detector"
+    ],
+    "provider_id": "fixture-provider",
+    "schema_version": "1.0.0",
+    "session_id": "fixture-session",
+    "snapshot_id": "fixture-snapshot",
+    "source_applicability": {
+      "status": "inside",
+      "supported": true
+    },
+    "source_fidelity": {
+      "radiation": "engineering-approximate"
+    },
+    "source_kind": "ray-transfer",
+    "source_provenance": {
+      "fixture": "synthetic-contract-example"
+    },
+    "source_status": "inside",
+    "source_time_s": 5.0
+  },
+  "source_semantics": "source-only",
+  "source_times_s": [
+    5.0
+  ],
+  "temporal_integration_operator_id": null,
+  "validation_status": "deterministic-operator-output; external-detector-validation-open",
+  "validity_mask": [
+    [
+      true
+    ]
+  ],
+  "wavelengths_m": [
+    1e-06,
+    2e-06
+  ],
+  "width_px": 1
+}

@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "description": "Query selected provider-declared channels at ordered points in one frame.",
+  "properties": {
+    "allow_partial_results": {
+      "default": false,
+      "title": "Allow Partial Results",
+      "type": "boolean"
+    },
+    "coordinate_frame_id": {
+      "minLength": 1,
+      "title": "Coordinate Frame Id",
+      "type": "string"
+    },
+    "field_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Field Ids",
+      "type": "array"
+    },
+    "points_m": {
+      "items": {
+        "maxItems": 3,
+        "minItems": 3,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "minItems": 1,
+      "title": "Points M",
+      "type": "array"
+    }
+  },
+  "required": [
+    "coordinate_frame_id",
+    "points_m",
+    "field_ids"
+  ],
+  "title": "SpatialLocalFieldRequest",
+  "type": "object"
+}

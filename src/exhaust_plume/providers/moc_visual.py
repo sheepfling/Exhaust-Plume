@@ -8,10 +8,14 @@ from typing import Any, Mapping
 
 from exhaust_plume.api.v1 import (
   ImmutableProductSnapshot,
+  MODEL_LANE_VISUALIZATION_CAPABILITY,
+  ModelLaneVisualizationRequest,
+  ModelLaneVisualizationResult,
   Pose,
   ProviderClosedError,
   ProviderConfigurationError,
   ProviderDescriptor,
+  SPATIAL_LOCAL_FIELD_CAPABILITY,
   SessionMetadata,
   SnapshotMetadata,
   VisualSectionedTubeRequest,
@@ -21,9 +25,11 @@ from exhaust_plume.api.v1 import (
 )
 from exhaust_plume.products.model_visualization import (
   ModelVisualizationLane,
+  evaluate_model_lane_visualization,
   evaluate_standardized_model_visualization,
   standardize_model_visualization,
 )
+from exhaust_plume.providers.model_lane_local_field import ModelLaneLocalFieldEvaluator
 
 __all__ = ('MocVisualDefinition', 'MocVisualProvider', 'MocVisualSession')
 
@@ -57,7 +63,11 @@ def _descriptor(configuration: MocVisualConfiguration) -> ProviderDescriptor:
   return ProviderDescriptor(
     provider_id=configuration.provider_id,
     provider_version=configuration.provider_version,
-    supported_capabilities=(VISUAL_SECTIONED_TUBE_CAPABILITY,),
+    supported_capabilities=(
+      VISUAL_SECTIONED_TUBE_CAPABILITY,
+      MODEL_LANE_VISUALIZATION_CAPABILITY,
+      SPATIAL_LOCAL_FIELD_CAPABILITY,
+    ),
     provider_definition_schema_id='plume.visual.planar-moc-definition.v1',
     dynamic_state_schema_id='plume.visual.planar-moc-dynamic-state.v1',
     configuration_schema_id='plume.visual.planar-moc-configuration.v1',
@@ -92,6 +102,30 @@ class _Evaluator:
       visualization,
       request,
       snapshot,
+      provider_id=self.configuration.provider_id,
+      provider_version=self.configuration.provider_version,
+    )
+  ####
+####
+
+
+class _ModelLaneEvaluator:
+  def __init__(self, definition: MocVisualDefinition, configuration: MocVisualConfiguration) -> None:
+    self.definition = definition
+    self.configuration = configuration
+  ####
+
+  def evaluate(
+      self,
+      request: ModelLaneVisualizationRequest,
+      snapshot: SnapshotMetadata,
+  ) -> ModelLaneVisualizationResult:
+    return evaluate_model_lane_visualization(
+      self.definition.result,
+      lane=ModelVisualizationLane.PLANAR_MOC,
+      request=request,
+      snapshot=snapshot,
+      frame_id=self.definition.frame_id,
       provider_id=self.configuration.provider_id,
       provider_version=self.configuration.provider_version,
     )
@@ -168,7 +202,17 @@ class MocVisualSession:
       ambient_state_digest_sha256=ambient_digest,
       provider_state_digest_sha256=state_digest,
     )
-    return ImmutableProductSnapshot(metadata=snapshot, _evaluators={VISUAL_SECTIONED_TUBE_CAPABILITY: _Evaluator(self._definition, self._configuration)})
+    model_lane_evaluator = _ModelLaneEvaluator(
+      self._definition,
+      self._configuration,
+    )
+    return ImmutableProductSnapshot(metadata=snapshot, _evaluators={
+      VISUAL_SECTIONED_TUBE_CAPABILITY: _Evaluator(self._definition, self._configuration),
+      MODEL_LANE_VISUALIZATION_CAPABILITY: model_lane_evaluator,
+      SPATIAL_LOCAL_FIELD_CAPABILITY: ModelLaneLocalFieldEvaluator(
+        model_lane_evaluator,
+      ),
+    })
   ####
 
   def close(self) -> None:

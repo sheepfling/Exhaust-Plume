@@ -1,0 +1,7 @@
+{
+  "additionalProperties": false,
+  "description": "Request the finite axisymmetric zones retained by this exact snapshot.",
+  "properties": {},
+  "title": "AxisymmetricZoneFieldRequest",
+  "type": "object"
+}

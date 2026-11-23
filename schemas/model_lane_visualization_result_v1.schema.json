@@ -1,0 +1,973 @@
+{
+  "$defs": {
+    "ApplicabilityReport": {
+      "additionalProperties": false,
+      "properties": {
+        "reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/ApplicabilityStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ApplicabilityReport",
+      "type": "object"
+    },
+    "ApplicabilityStatus": {
+      "enum": [
+        "inside",
+        "marginal",
+        "outside"
+      ],
+      "title": "ApplicabilityStatus",
+      "type": "string"
+    },
+    "CapabilityIdentity": {
+      "additionalProperties": false,
+      "description": "A stable dotted capability name and positive major version.",
+      "properties": {
+        "major": {
+          "minimum": 1,
+          "title": "Major",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9-]*)+$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "major"
+      ],
+      "title": "CapabilityIdentity",
+      "type": "object"
+    },
+    "ConsistencyLevel": {
+      "enum": [
+        "independent",
+        "calibrated",
+        "co_generated"
+      ],
+      "title": "ConsistencyLevel",
+      "type": "string"
+    },
+    "Derivation": {
+      "enum": [
+        "native",
+        "adapted",
+        "tabulated",
+        "surrogate"
+      ],
+      "title": "Derivation",
+      "type": "string"
+    },
+    "GeometryClaim": {
+      "enum": [
+        "not_applicable",
+        "illustrative",
+        "physics_informed",
+        "engineering_approximate",
+        "conservative",
+        "validated"
+      ],
+      "title": "GeometryClaim",
+      "type": "string"
+    },
+    "ModelLaneField": {
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelLaneFieldChannel"
+          },
+          "title": "Channels",
+          "type": "object"
+        },
+        "coordinate_system": {
+          "const": "axial-radial-xr",
+          "default": "axial-radial-xr",
+          "title": "Coordinate System",
+          "type": "string"
+        },
+        "field_id": {
+          "minLength": 1,
+          "title": "Field Id",
+          "type": "string"
+        },
+        "polygons_xr_m": {
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Polygons Xr M",
+          "type": "array"
+        },
+        "region_labels": {
+          "default": [],
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Region Labels",
+          "type": "array"
+        },
+        "region_types": {
+          "default": [],
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Region Types",
+          "type": "array"
+        },
+        "semantic": {
+          "minLength": 1,
+          "title": "Semantic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field_id",
+        "semantic",
+        "polygons_xr_m"
+      ],
+      "title": "ModelLaneField",
+      "type": "object"
+    },
+    "ModelLaneFieldChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "semantic": {
+          "minLength": 1,
+          "title": "Semantic",
+          "type": "string"
+        },
+        "uncertainties": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uncertainties"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "semantic",
+        "unit",
+        "values"
+      ],
+      "title": "ModelLaneFieldChannel",
+      "type": "object"
+    },
+    "ModelLanePath": {
+      "additionalProperties": false,
+      "properties": {
+        "path_id": {
+          "minLength": 1,
+          "title": "Path Id",
+          "type": "string"
+        },
+        "points_m": {
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 2,
+          "title": "Points M",
+          "type": "array"
+        },
+        "semantic": {
+          "minLength": 1,
+          "title": "Semantic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path_id",
+        "semantic",
+        "points_m"
+      ],
+      "title": "ModelLanePath",
+      "type": "object"
+    },
+    "ModelLaneSectionChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "association": {
+          "const": "section",
+          "default": "section",
+          "title": "Association",
+          "type": "string"
+        },
+        "channel_id": {
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "semantic": {
+          "minLength": 1,
+          "title": "Semantic",
+          "type": "string"
+        },
+        "uncertainties": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uncertainties"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "channel_id",
+        "semantic",
+        "unit",
+        "values"
+      ],
+      "title": "ModelLaneSectionChannel",
+      "type": "object"
+    },
+    "ModelLaneVisualizationClaims": {
+      "additionalProperties": false,
+      "description": "Lane-specific claim ceiling, separate from display geometry metadata.",
+      "properties": {
+        "claim_notes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Claim Notes",
+          "type": "array"
+        },
+        "geometry_claim": {
+          "$ref": "#/$defs/GeometryClaim"
+        },
+        "model_fidelity": {
+          "minLength": 1,
+          "title": "Model Fidelity",
+          "type": "string"
+        },
+        "production_claim_allowed": {
+          "title": "Production Claim Allowed",
+          "type": "boolean"
+        },
+        "validation_level": {
+          "minLength": 1,
+          "title": "Validation Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_fidelity",
+        "validation_level",
+        "geometry_claim",
+        "production_claim_allowed"
+      ],
+      "title": "ModelLaneVisualizationClaims",
+      "type": "object"
+    },
+    "ModelVisualizationLaneId": {
+      "enum": [
+        "shock-cell-basic-v1",
+        "shock-cell-reduced-order-v1",
+        "straight-integral-v1",
+        "washed-integral-v1",
+        "planar-moc-primitives-v1"
+      ],
+      "title": "ModelVisualizationLaneId",
+      "type": "string"
+    },
+    "Pose": {
+      "additionalProperties": false,
+      "description": "Right-handed SI pose with quaternion components ordered ``x,y,z,w``.",
+      "properties": {
+        "frame_id": {
+          "minLength": 1,
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "rotation_xyzw": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Rotation Xyzw",
+          "type": "array"
+        },
+        "translation_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Translation M",
+          "type": "array"
+        }
+      },
+      "required": [
+        "frame_id",
+        "translation_m",
+        "rotation_xyzw"
+      ],
+      "title": "Pose",
+      "type": "object"
+    },
+    "ProductClaims": {
+      "additionalProperties": false,
+      "description": "Independent claim axes; no scalar fidelity label is implied.",
+      "properties": {
+        "consistency": {
+          "$ref": "#/$defs/ConsistencyLevel"
+        },
+        "derivation": {
+          "$ref": "#/$defs/Derivation"
+        },
+        "geometry": {
+          "$ref": "#/$defs/GeometryClaim"
+        },
+        "radiation": {
+          "$ref": "#/$defs/RadiationClaim"
+        },
+        "time_model": {
+          "$ref": "#/$defs/TimeModel"
+        }
+      },
+      "required": [
+        "geometry",
+        "radiation",
+        "time_model",
+        "derivation",
+        "consistency"
+      ],
+      "title": "ProductClaims",
+      "type": "object"
+    },
+    "RadiationClaim": {
+      "enum": [
+        "not_applicable",
+        "appearance_only",
+        "gray_approximate",
+        "spectral_engineering",
+        "tabulated",
+        "validated"
+      ],
+      "title": "RadiationClaim",
+      "type": "string"
+    },
+    "ResultMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/ApplicabilityReport"
+        },
+        "capability": {
+          "$ref": "#/$defs/CapabilityIdentity"
+        },
+        "claims": {
+          "$ref": "#/$defs/ProductClaims"
+        },
+        "output_frame_id": {
+          "minLength": 1,
+          "title": "Output Frame Id",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ResultProvenance"
+        },
+        "request_digest_sha256": {
+          "minLength": 1,
+          "title": "Request Digest Sha256",
+          "type": "string"
+        },
+        "result_id": {
+          "minLength": 1,
+          "title": "Result Id",
+          "type": "string"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/SnapshotMetadata"
+        },
+        "warnings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "capability",
+        "result_id",
+        "request_digest_sha256",
+        "snapshot",
+        "output_frame_id",
+        "claims",
+        "applicability",
+        "provenance"
+      ],
+      "title": "ResultMetadata",
+      "type": "object"
+    },
+    "ResultProvenance": {
+      "additionalProperties": false,
+      "description": "Lineage and asset identity attached to one public result.",
+      "properties": {
+        "asset_digests_sha256": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Asset Digests Sha256",
+          "type": "array"
+        },
+        "configuration_digest_sha256": {
+          "minLength": 1,
+          "title": "Configuration Digest Sha256",
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Metadata",
+          "type": "object"
+        },
+        "model_lineage_id": {
+          "minLength": 1,
+          "title": "Model Lineage Id",
+          "type": "string"
+        },
+        "parent_result_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Result Ids",
+          "type": "array"
+        },
+        "provider_id": {
+          "minLength": 1,
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "provider_version": {
+          "minLength": 1,
+          "title": "Provider Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_lineage_id",
+        "provider_id",
+        "provider_version",
+        "configuration_digest_sha256"
+      ],
+      "title": "ResultProvenance",
+      "type": "object"
+    },
+    "SnapshotMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "ambient_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Ambient State Digest Sha256",
+          "type": "string"
+        },
+        "dynamic_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Dynamic State Digest Sha256",
+          "type": "string"
+        },
+        "expires_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At Utc"
+        },
+        "provider_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Provider State Digest Sha256",
+          "type": "string"
+        },
+        "session_id": {
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "minLength": 1,
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "source_pose": {
+          "$ref": "#/$defs/Pose"
+        },
+        "time_s": {
+          "title": "Time S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "session_id",
+        "time_s",
+        "source_pose",
+        "dynamic_state_digest_sha256",
+        "ambient_state_digest_sha256",
+        "provider_state_digest_sha256"
+      ],
+      "title": "SnapshotMetadata",
+      "type": "object"
+    },
+    "TimeModel": {
+      "enum": [
+        "steady",
+        "quasi_steady",
+        "prescribed_transient",
+        "solved_transient"
+      ],
+      "title": "TimeModel",
+      "type": "string"
+    },
+    "VisualBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Maximum M",
+          "type": "array"
+        },
+        "minimum_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Minimum M",
+          "type": "array"
+        }
+      },
+      "required": [
+        "minimum_m",
+        "maximum_m"
+      ],
+      "title": "VisualBounds",
+      "type": "object"
+    },
+    "VisualSection": {
+      "additionalProperties": false,
+      "description": "One oriented elliptical section in the requested output frame.",
+      "properties": {
+        "arc_length_m": {
+          "minimum": 0.0,
+          "title": "Arc Length M",
+          "type": "number"
+        },
+        "center_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Center M",
+          "type": "array"
+        },
+        "radius_major_m": {
+          "exclusiveMinimum": 0.0,
+          "title": "Radius Major M",
+          "type": "number"
+        },
+        "radius_minor_m": {
+          "exclusiveMinimum": 0.0,
+          "title": "Radius Minor M",
+          "type": "number"
+        },
+        "section_to_output_xyzw": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Section To Output Xyzw",
+          "type": "array"
+        }
+      },
+      "required": [
+        "arc_length_m",
+        "center_m",
+        "section_to_output_xyzw",
+        "radius_major_m",
+        "radius_minor_m"
+      ],
+      "title": "VisualSection",
+      "type": "object"
+    },
+    "VisualSectionedTubeResult": {
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "additionalProperties": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Channels",
+          "type": "object"
+        },
+        "metadata": {
+          "$ref": "#/$defs/ResultMetadata"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/VisualSection"
+          },
+          "minItems": 2,
+          "title": "Sections",
+          "type": "array"
+        },
+        "summary": {
+          "$ref": "#/$defs/VisualTubeSummary"
+        },
+        "visual_bounds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VisualBounds"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "metadata",
+        "sections",
+        "summary"
+      ],
+      "title": "VisualSectionedTubeResult",
+      "type": "object"
+    },
+    "VisualTubeSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "length_m": {
+          "minimum": 0.0,
+          "title": "Length M",
+          "type": "number"
+        },
+        "maximum_radius_m": {
+          "exclusiveMinimum": 0.0,
+          "title": "Maximum Radius M",
+          "type": "number"
+        },
+        "nominal_divergence_angle_rad": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nominal Divergence Angle Rad"
+        }
+      },
+      "required": [
+        "length_m",
+        "maximum_radius_m"
+      ],
+      "title": "VisualTubeSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Complete renderer-neutral lane result with nested exact tube lineage.",
+  "properties": {
+    "applicability": {
+      "$ref": "#/$defs/ApplicabilityReport"
+    },
+    "claims": {
+      "$ref": "#/$defs/ModelLaneVisualizationClaims"
+    },
+    "diagnostics": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Diagnostics",
+      "type": "object"
+    },
+    "fields": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ModelLaneField"
+      },
+      "title": "Fields",
+      "type": "array"
+    },
+    "lane_id": {
+      "$ref": "#/$defs/ModelVisualizationLaneId"
+    },
+    "metadata": {
+      "$ref": "#/$defs/ResultMetadata"
+    },
+    "model_id": {
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_version": {
+      "minLength": 1,
+      "title": "Model Version",
+      "type": "string"
+    },
+    "paths": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ModelLanePath"
+      },
+      "title": "Paths",
+      "type": "array"
+    },
+    "section_channels": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ModelLaneSectionChannel"
+      },
+      "title": "Section Channels",
+      "type": "array"
+    },
+    "sectioned_tube": {
+      "$ref": "#/$defs/VisualSectionedTubeResult"
+    },
+    "source_status": {
+      "minLength": 1,
+      "title": "Source Status",
+      "type": "string"
+    },
+    "standardization_schema": {
+      "const": "plume.visual.model-lane@1",
+      "default": "plume.visual.model-lane@1",
+      "title": "Standardization Schema",
+      "type": "string"
+    },
+    "visual_request_digest_sha256": {
+      "minLength": 1,
+      "title": "Visual Request Digest Sha256",
+      "type": "string"
+    },
+    "warnings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "metadata",
+    "lane_id",
+    "model_id",
+    "model_version",
+    "source_status",
+    "applicability",
+    "claims",
+    "visual_request_digest_sha256",
+    "sectioned_tube"
+  ],
+  "title": "ModelLaneVisualizationResult",
+  "type": "object"
+}

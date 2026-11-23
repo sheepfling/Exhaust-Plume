@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from math import cos, isfinite, pi, sin, sqrt
+from math import cos, isclose, isfinite, pi, sin, sqrt
 from types import MappingProxyType
 from typing import Mapping
 
@@ -26,6 +26,9 @@ class PlumeFluxSection:
   pressure_Pa: float
   characteristic_radius_m: float
   provider_metadata: Mapping[str, object] = field(default_factory=dict)
+  ambient_pressure_Pa: float | None = None
+  advective_momentum_flux_plume_n: tuple[float, float, float] | None = None
+  pressure_thrust_flux_plume_n: tuple[float, float, float] | None = None
 
   def __post_init__(self) -> None:
     center = tuple(float(value) for value in self.center_plume_m)
@@ -55,17 +58,65 @@ class PlumeFluxSection:
     species = tuple((str(name), float(rate)) for name, rate in self.species_mass_flow_rates_kg_s)
     if any(not name or not isfinite(rate) or rate < 0.0 for name, rate in species):
       raise ValueError("species mass-flow rates must be finite and non-negative")
+    if len({name for name, _ in species}) != len(species):
+      raise ValueError("species mass-flow rates must have unique species names")
+    if not isclose(sum(rate for _, rate in species), self.mass_flow_kg_s, rel_tol=1.0e-8, abs_tol=1.0e-12):
+      raise ValueError("species mass-flow rates must reconcile with total mass flow")
+    ####
+    ambient_pressure = self.ambient_pressure_Pa
+    if ambient_pressure is not None and (not isfinite(ambient_pressure) or ambient_pressure <= 0.0):
+      raise ValueError("ambient_pressure_Pa must be finite and positive")
+    ####
+    advective = self.advective_momentum_flux_plume_n
+    pressure_thrust = self.pressure_thrust_flux_plume_n
+    if (advective is None) != (pressure_thrust is None):
+      raise ValueError("advective and pressure-thrust momentum components must be supplied together")
+    ####
+    if advective is not None and pressure_thrust is not None:
+      advective = tuple(float(value) for value in advective)
+      pressure_thrust = tuple(float(value) for value in pressure_thrust)
+      if len(advective) != 3 or len(pressure_thrust) != 3:
+        raise ValueError("momentum component vectors must have three components")
+      if any(not isfinite(value) for value in (*advective, *pressure_thrust)):
+        raise ValueError("momentum component vectors must be finite")
+      if ambient_pressure is None:
+        raise ValueError("ambient_pressure_Pa is required when pressure-thrust components are supplied")
+      ####
+      for total, advective_component, pressure_component in zip(momentum, advective, pressure_thrust):
+        if not isclose(total, advective_component + pressure_component, rel_tol=1.0e-10, abs_tol=1.0e-10):
+          raise ValueError("momentum flux must equal advective momentum plus pressure thrust")
+      ####
+      expected_pressure_thrust = tuple(
+        (self.pressure_Pa - ambient_pressure) * self.area_m2 * component for component in normal
+      )
+      for observed, expected in zip(pressure_thrust, expected_pressure_thrust):
+        if not isclose(observed, expected, rel_tol=1.0e-10, abs_tol=1.0e-10):
+          raise ValueError("pressure-thrust momentum does not close against pressure, ambient, area, and normal")
+      ####
+      object.__setattr__(self, "advective_momentum_flux_plume_n", advective)
+      object.__setattr__(self, "pressure_thrust_flux_plume_n", pressure_thrust)
     ####
     object.__setattr__(self, "center_plume_m", center)
     object.__setattr__(self, "normal_plume", normal)
     object.__setattr__(self, "momentum_flux_plume_n", momentum)
     object.__setattr__(self, "species_mass_flow_rates_kg_s", species)
     object.__setattr__(self, "provider_metadata", MappingProxyType(dict(self.provider_metadata)))
+    object.__setattr__(self, "ambient_pressure_Pa", ambient_pressure)
   ####
 
   @property
   def species_mass_flow_kg_s(self) -> tuple[tuple[str, float], ...]:
     return self.species_mass_flow_rates_kg_s
+  ####
+
+  @property
+  def pressure_match_relative_residual(self) -> float | None:
+    """Return the static-to-ambient pressure residual when ambient is retained."""
+
+    if self.ambient_pressure_Pa is None:
+      return None
+    ####
+    return abs(self.pressure_Pa - self.ambient_pressure_Pa) / self.ambient_pressure_Pa
   ####
 
   @classmethod
@@ -81,11 +132,11 @@ class PlumeFluxSection:
     flow_angle = exit_state.flow_angle_rad
     normal = (cos(flow_angle), sin(flow_angle), 0.0)
     velocity = (speed * normal[0], speed * normal[1], 0.0)
-    momentum = (
-        exit_state.mass_flow_rate_kgps * velocity[0] + (exit_state.static_pressure_Pa - ambient_pressure_Pa) * area * normal[0],
-        exit_state.mass_flow_rate_kgps * velocity[1] + (exit_state.static_pressure_Pa - ambient_pressure_Pa) * area * normal[1],
-        exit_state.mass_flow_rate_kgps * velocity[2] + (exit_state.static_pressure_Pa - ambient_pressure_Pa) * area * normal[2],
+    advective_momentum = tuple(exit_state.mass_flow_rate_kgps * component for component in velocity)
+    pressure_thrust = tuple(
+      (exit_state.static_pressure_Pa - ambient_pressure_Pa) * area * component for component in normal
     )
+    momentum = tuple(advective + pressure for advective, pressure in zip(advective_momentum, pressure_thrust))
     species = tuple((item.species, exit_state.mass_flow_rate_kgps * item.mass_fraction) for item in gas.species_mass_fractions)
     return cls(
         center_plume_m=(0.0, 0.0, 0.0),
@@ -98,6 +149,9 @@ class PlumeFluxSection:
         pressure_Pa=exit_state.static_pressure_Pa,
         characteristic_radius_m=exit_state.radius_m,
         provider_metadata={"source": "uniform-nozzle-exit", "gamma": str(gas.gamma)},
+        ambient_pressure_Pa=ambient_pressure_Pa,
+        advective_momentum_flux_plume_n=advective_momentum,
+        pressure_thrust_flux_plume_n=pressure_thrust,
     )
   ####
 ####

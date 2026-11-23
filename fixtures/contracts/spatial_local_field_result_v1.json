@@ -1,0 +1,123 @@
+{
+  "metadata": {
+    "capability": {
+      "name": "plume.spatial.local-field",
+      "major": 1
+    },
+    "result_id": "fixture-local-field-result",
+    "request_digest_sha256": "52b20cdc8fce5599a955dd550da2a2ac0f9844761d3ecb2f1d14f0d07efbe166",
+    "snapshot": {
+      "snapshot_id": "fixture-snapshot-1",
+      "session_id": "fixture-session-1",
+      "time_s": 0.0,
+      "source_pose": {
+        "frame_id": "world",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "dynamic_state_digest_sha256": "fixture-dynamic",
+      "ambient_state_digest_sha256": "fixture-ambient",
+      "provider_state_digest_sha256": "fixture-provider",
+      "expires_at_utc": null
+    },
+    "output_frame_id": "world",
+    "claims": {
+      "geometry": "illustrative",
+      "radiation": "appearance_only",
+      "time_model": "steady",
+      "derivation": "native",
+      "consistency": "co_generated"
+    },
+    "applicability": {
+      "status": "inside",
+      "reasons": []
+    },
+    "provenance": {
+      "model_lineage_id": "fixture-lineage",
+      "provider_id": "provider.fixture",
+      "provider_version": "1.0.0",
+      "configuration_digest_sha256": "fixture-configuration",
+      "asset_digests_sha256": [],
+      "parent_result_ids": [],
+      "metadata": {}
+    },
+    "warnings": []
+  },
+  "coordinate_frame_id": "world",
+  "points_m": [
+    [
+      0.5,
+      0.0,
+      0.0
+    ],
+    [
+      1.0,
+      0.1,
+      0.0
+    ]
+  ],
+  "field_ids": [
+    "static-pressure",
+    "temperature"
+  ],
+  "channels": [
+    {
+      "field_id": "static-pressure",
+      "semantic": "static pressure",
+      "unit": "Pa",
+      "sampling_method": "point-evaluation",
+      "values": [
+        180000.0,
+        195000.0
+      ],
+      "sample_status": [
+        {
+          "code": "ok",
+          "message": null,
+          "retryable": false
+        },
+        {
+          "code": "ok",
+          "message": null,
+          "retryable": false
+        }
+      ],
+      "absolute_standard_uncertainty": [
+        100.0,
+        120.0
+      ]
+    },
+    {
+      "field_id": "temperature",
+      "semantic": "static temperature",
+      "unit": "K",
+      "sampling_method": "provider-interpolated",
+      "values": [
+        1200.0,
+        1250.0
+      ],
+      "sample_status": [
+        {
+          "code": "ok",
+          "message": null,
+          "retryable": false
+        },
+        {
+          "code": "ok",
+          "message": null,
+          "retryable": false
+        }
+      ],
+      "absolute_standard_uncertainty": null
+    }
+  ]
+}

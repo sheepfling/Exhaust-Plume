@@ -406,6 +406,31 @@
   },
   "additionalProperties": false,
   "properties": {
+    "absolute_standard_uncertainty": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Absolute Standard Uncertainty"
+    },
     "background_transmittance": {
       "items": {
         "items": {

@@ -1,16 +1,15 @@
 """Standardized visualization adapters for the five plume-model lanes.
 
 The public visualization product remains the renderer-neutral
-``plume.visual.sectioned-tube@1`` result.  This module adds the evaluation
-seam around that product: every model lane is converted to the same oriented
-section stations, unit-bearing channel descriptions, optional region fields,
-and boundary paths.  Claim metadata is retained beside the display geometry
-so a renderer cannot accidentally present a lower-fidelity envelope as a
-higher-fidelity solution.
+``plume.visual.sectioned-tube@1`` result. This module adapts each model lane
+to that geometry contract and binds the richer retained data through the
+supporting ``plume.visual.model-lane@1`` result. Claim metadata stays beside
+the display geometry so a renderer cannot present a lower-fidelity envelope
+as a higher-fidelity solution.
 
-The bundle is an evaluation adapter, not a new physics or product capability.
-In particular, the planar MOC lane keeps its 2-D field polygons and boundary
-paths in addition to its optional sectioned-tube display envelope.
+The bundle is an evaluation adapter, not a new solver or physical claim. In
+particular, the planar MOC lane keeps its 2-D field polygons and boundary paths
+in addition to its optional sectioned-tube display envelope.
 """
 
 from __future__ import annotations
@@ -38,7 +37,23 @@ from exhaust_plume.api.v1 import (
   VisualSectionedTubeResult,
   canonical_digest,
 )
+from exhaust_plume.contracts.capability import MODEL_LANE_VISUALIZATION_CAPABILITY
+from exhaust_plume.contracts.common_v1 import ApplicabilityReport, ResultMetadata
+from exhaust_plume.contracts.model_lane_visualization_v1 import (
+  ModelLaneField,
+  ModelLaneFieldChannel,
+  ModelLanePath,
+  ModelLaneSectionChannel,
+  ModelLaneVisualizationClaims,
+  ModelLaneVisualizationRequest,
+  ModelLaneVisualizationResult,
+  ModelVisualizationLaneId,
+)
 from exhaust_plume.models.integral.straight import IntegralStraightResult
+from exhaust_plume.models.moc.euler_thermodynamics import (
+  dimensionalize_characteristic_state,
+)
+from exhaust_plume.models.moc.fan import MocExpansionFanResult
 from exhaust_plume.models.plume.curved_plume_closures import CurvedPlumeResult
 from exhaust_plume.models.plume.curved_plume_geometry import calculateRotationMinimizingFrames
 from exhaust_plume.models.shock_cells.contracts import (
@@ -62,6 +77,10 @@ __all__ = (
   'ModelVisualPath',
   'StandardizedModelVisualization',
   'evaluate_standardized_model_visualization',
+  'bind_model_lane_visualization_result',
+  'evaluate_model_lane_visualization',
+  'standardize_model_lane_visualization_result',
+  'standardize_moc_expansion_fan_visualization',
   'standardize_all_model_visualizations',
   'standardize_model_result',
   'standardize_model_visualization',
@@ -101,6 +120,9 @@ _NEAR_SONIC_MACH_HALF_WIDTH = 0.05
 
 
 def _finite(name: str, value: object) -> float:
+  if isinstance(value, bool):
+    raise ValueError(f'{name} must not be a boolean')
+  ####
   try:
     numeric = float(cast(Any, value))
   except (TypeError, ValueError) as error:
@@ -110,6 +132,35 @@ def _finite(name: str, value: object) -> float:
     raise ValueError(f'{name} must be finite')
   ####
   return numeric
+####
+
+
+def _uncertainties(
+  name: str,
+  values: Sequence[float | None] | None,
+  expected_length: int,
+) -> tuple[float | None, ...] | None:
+  """Normalize optional source-declared absolute uncertainties.
+
+  ``None`` is retained for an unavailable sample.  The visualization layer
+  does not assign a confidence interpretation; callers must provide that
+  meaning in the channel or field semantic metadata.
+  """
+
+  if values is None:
+    return None
+  ####
+  normalized = tuple(
+    None if value is None else _finite(f'{name} uncertainty', value)
+    for value in values
+  )
+  if len(normalized) != expected_length:
+    raise ValueError(f'{name} uncertainties must match the sample count')
+  ####
+  if any(value is not None and value < 0.0 for value in normalized):
+    raise ValueError(f'{name} uncertainties must be nonnegative')
+  ####
+  return normalized
 ####
 
 
@@ -288,6 +339,17 @@ class ModelVisualizationClaims:
     if not isinstance(self.production_claim_allowed, bool):
       raise TypeError('production_claim_allowed must be a bool')
     ####
+    if self.production_claim_allowed and self.validation_level != 'VALIDATED':
+      raise ValueError(
+        'production claims require the explicit VALIDATED level; local or exploratory evidence is insufficient'
+      )
+    ####
+    if self.production_claim_allowed and self.geometry_claim is not GeometryClaim.VALIDATED:
+      raise ValueError(
+        'production geometry claims require geometry_claim=VALIDATED; '
+        'approximate or illustrative geometry is insufficient'
+      )
+    ####
     object.__setattr__(self, 'claim_notes', tuple(str(note) for note in self.claim_notes))
   ####
 
@@ -305,13 +367,19 @@ class ModelVisualizationClaims:
 
 @dataclass(frozen=True, slots=True)
 class ModelVisualChannel:
-  """A unit-bearing scalar trace aligned with section stations."""
+  """A unit-bearing scalar trace aligned with section stations.
+
+  ``uncertainties`` are optional source-declared absolute quantities in the
+  same unit as ``values``.  They are display metadata only; the renderer does
+  not infer confidence level, covariance, or validation status.
+  """
 
   channel_id: str
   semantic: str
   unit: str
   values: tuple[float, ...]
   association: Literal['section'] = 'section'
+  uncertainties: tuple[float | None, ...] | None = None
 
   def __post_init__(self) -> None:
     if not _CHANNEL_NAME.fullmatch(self.channel_id):
@@ -327,7 +395,13 @@ class ModelVisualChannel:
     if len(values) < 2:
       raise ValueError('model visualization channels require at least two samples')
     ####
+    uncertainties = _uncertainties(
+      self.channel_id,
+      self.uncertainties,
+      len(values),
+    )
     object.__setattr__(self, 'values', values)
+    object.__setattr__(self, 'uncertainties', uncertainties)
   ####
 
   def model_dump(self) -> dict[str, object]:
@@ -337,6 +411,11 @@ class ModelVisualChannel:
       'unit': self.unit,
       'association': self.association,
       'values': list(self.values),
+      'uncertainties': (
+        None
+        if self.uncertainties is None
+        else list(self.uncertainties)
+      ),
     }
   ####
 ####
@@ -381,6 +460,7 @@ class ModelVisualField:
   channels: Mapping[str, tuple[Scalar, ...]] = field(default_factory=dict)
   channel_units: Mapping[str, str] = field(default_factory=dict)
   channel_semantics: Mapping[str, str] = field(default_factory=dict)
+  channel_uncertainties: Mapping[str, tuple[float | None, ...]] = field(default_factory=dict)
   region_types: tuple[str | None, ...] = ()
   region_labels: tuple[str | None, ...] = ()
 
@@ -398,6 +478,7 @@ class ModelVisualField:
     normalized_channels: dict[str, tuple[Scalar, ...]] = {}
     normalized_units: dict[str, str] = {}
     normalized_semantics: dict[str, str] = {}
+    normalized_uncertainties: dict[str, tuple[float | None, ...]] = {}
     for channel_id, values in self.channels.items():
       if not _CHANNEL_NAME.fullmatch(channel_id):
         raise ValueError(f'invalid field channel: {channel_id!r}')
@@ -417,16 +498,28 @@ class ModelVisualField:
       ####
       normalized_units[channel_id] = unit
       normalized_semantics[channel_id] = semantic
+      if channel_id in self.channel_uncertainties:
+        normalized = _uncertainties(
+          f'{channel_id} field',
+          self.channel_uncertainties[channel_id],
+          len(polygons),
+        )
+        if normalized is not None:
+          normalized_uncertainties[channel_id] = normalized
+        ####
+      ####
     ####
     unknown_units = set(self.channel_units) - set(normalized_channels)
     unknown_semantics = set(self.channel_semantics) - set(normalized_channels)
-    if unknown_units or unknown_semantics:
+    unknown_uncertainties = set(self.channel_uncertainties) - set(normalized_channels)
+    if unknown_units or unknown_semantics or unknown_uncertainties:
       raise ValueError('field channel metadata must describe declared channels only')
     ####
     object.__setattr__(self, 'polygons_xr_m', polygons)
     object.__setattr__(self, 'channels', normalized_channels)
     object.__setattr__(self, 'channel_units', normalized_units)
     object.__setattr__(self, 'channel_semantics', normalized_semantics)
+    object.__setattr__(self, 'channel_uncertainties', normalized_uncertainties)
     for name in ('region_types', 'region_labels'):
       values = tuple(
         None if value is None else str(value)
@@ -452,6 +545,11 @@ class ModelVisualField:
           'semantic': self.channel_semantics[channel_id],
           'unit': self.channel_units[channel_id],
           'values': list(values),
+          'uncertainties': (
+            None
+            if channel_id not in self.channel_uncertainties
+            else list(self.channel_uncertainties[channel_id])
+          ),
         }
         for channel_id, values in self.channels.items()
       },
@@ -738,9 +836,10 @@ def _basic_visualization(
       model_fidelity='EXPLORATORY_ANALYTICAL',
       validation_level='UNVERIFIED',
       geometry_claim=GeometryClaim.ENGINEERING_APPROXIMATE,
-      production_claim_allowed=True,
+      production_claim_allowed=False,
       claim_notes=(
         'fast straight low-order shock-cell construction',
+        'opt-in exploratory tool; not a mainline or production-validated model',
         'visualization geometry only; no radiation, signature, or detector claim',
       ),
     ),
@@ -841,6 +940,7 @@ def _reduced_order_visualization(
   result: ShockTrainResult,
   *,
   frame_id: str,
+  section_count: int,
   maximum_axial_extent_m: float | None,
 ) -> StandardizedModelVisualization:
   if not result.cells:
@@ -872,6 +972,8 @@ def _reduced_order_visualization(
   ####
   if len(stations) < 2:
     raise ValueError('maximum_axial_extent_m leaves fewer than two shock-train stations')
+  ####
+  stations = [stations[index] for index in _sample_indices(len(stations), section_count)]
   ####
   x_values = tuple(station[0] for station in stations)
   radius_values = tuple(max(1.0e-9, float(station[1].effective_core_diameter_m) / 2.0) for station in stations)
@@ -1022,7 +1124,10 @@ def _straight_integral_visualization(
       'pressure': tuple((first.pressure_Pa + second.pressure_Pa) / 2.0 for first, second in zip(selected, selected[1:])),
     },
     channel_units={'temperature': 'K', 'pressure': 'Pa'},
-    channel_semantics={'temperature': 'interval-average top-hat temperature', 'pressure': 'interval-average top-hat pressure'},
+    channel_semantics={
+      'temperature': 'endpoint arithmetic mean assigned to the displayed top-hat interval; not a retained interval average',
+      'pressure': 'endpoint arithmetic mean assigned to the displayed top-hat interval; not a retained interval average',
+    },
   )
   return _bundle(
     lane=ModelVisualizationLane.STRAIGHT_INTEGRAL,
@@ -1061,6 +1166,7 @@ def _straight_integral_visualization(
     warnings=(
       'mixing_weight is intentionally not synthesized from species or radiance',
       'straight top-hat geometry has no resolved shear layer or shock-diamond field',
+      'polygon temperature and pressure are endpoint arithmetic-mean display estimates; section channels retain selected source-state values',
     ),
   )
 ####
@@ -1331,6 +1437,16 @@ class _UpstreamStateEquationFieldView:
         'upstream state-equation entropy residuals must match every cell'
       )
     ####
+    cell_entropy_logs = tuple(
+      _finite('upstream state-equation target-cell entropy residual', value)
+      for value in getattr(result, 'target_cell_entropy_log_residuals', ())
+    )
+    if cell_entropy_logs and len(cell_entropy_logs) != len(polygons):
+      raise ValueError(
+        'upstream state-equation target-cell entropy residuals must match '
+        'every cell'
+      )
+    ####
     self.cells = tuple(_CoupledEulerCellView(polygon) for polygon in polygons)
     self.nodes = tuple(sorted({point for polygon in polygons for point in polygon}))
     self._centers = centers
@@ -1347,6 +1463,9 @@ class _UpstreamStateEquationFieldView:
     ####
     if entropy_logs:
       arrays['target_entropy_log_residual'] = list(entropy_logs)
+    ####
+    if cell_entropy_logs:
+      arrays['target_cell_entropy_log_residual'] = list(cell_entropy_logs)
     ####
     self.target_boundary_points_m = target_points
     self.source_boundary_points_m = source_points
@@ -2781,6 +2900,7 @@ def _moc_visualization(
   ####
   mixed_regime_overlay_warnings: list[str] = []
   two_sided_visual_warnings: list[str] = []
+  downstream_response_warnings: list[str] = []
   two_sided_field_iteration = bool(
     hasattr(result, 'records')
     and hasattr(result, 'final_physical_field')
@@ -2816,6 +2936,7 @@ def _moc_visualization(
       ('moc-ambient-boundary', 'ambient-pressure boundary', getattr(field, 'ambient_boundary_points_m', ())),
       ('moc-centerline-boundary', 'centerline reflection boundary', getattr(field, 'centerline_boundary_points_m', ())),
     )
+  ####
   paths: list[ModelVisualPath] = []
   boundary_points: dict[str, tuple[Vector2, ...]] = {}
   for path_id, semantic, raw_points in boundary_specs:
@@ -2826,8 +2947,63 @@ def _moc_visualization(
       path = _path3(path_id, semantic, points)
       if path is not None:
         paths.append(path)
-      ####
     ####
+  ####
+  downstream_boundary_response = getattr(
+    source,
+    'downstream_boundary_response',
+    None,
+  )
+  if downstream_boundary_response is not None:
+    try:
+      response_points = _finite_path(
+        getattr(downstream_boundary_response, 'coupled_boundary_points_m', ())
+      )
+    except (TypeError, ValueError, IndexError):
+      response_points = ()
+      downstream_response_warnings.append(
+        'coupled downstream overlap response has invalid geometry and remains unavailable'
+      )
+    ####
+    response_path = _path3(
+      'moc-coupled-downstream-boundary-response',
+      (
+        'retained coupled-Euler downstream boundary overlap response; '
+        'geometric chord and physical flow-tangent channels remain '
+        'research-only'
+      ),
+      response_points,
+    )
+    if response_path is not None:
+      paths.append(response_path)
+      all_points.extend(response_points)
+    ####
+    downstream_trace = getattr(source, 'downstream_boundary_trace', None)
+    trace_points = tuple(
+      getattr(sample, 'point_m')
+      for sample in getattr(downstream_trace, 'samples', ())
+    )
+    try:
+      trace_path_points = _finite_path(trace_points)
+    except (TypeError, ValueError, IndexError):
+      trace_path_points = ()
+      downstream_response_warnings.append(
+        'coupled downstream physical trace has invalid geometry and remains unavailable'
+      )
+    ####
+    trace_path = _path3(
+      'moc-coupled-downstream-physical-trace',
+      (
+        'solver-owned coupled-Euler downstream physical-state trace; '
+        'flow-angle samples are not a canonical MOC boundary'
+      ),
+      trace_path_points,
+    )
+    if trace_path is not None:
+      paths.append(trace_path)
+      all_points.extend(trace_path_points)
+    ####
+  ####
   ####
   joint_feedback_path_warnings: list[str] = []
   if global_joint_state_frontier_feedback:
@@ -2837,6 +3013,7 @@ def _moc_visualization(
       raw_index = getattr(iteration, 'iteration_index', fallback_index)
       if isinstance(raw_index, bool):
         raw_index = fallback_index
+      ####
       try:
         iteration_index = int(raw_index)
       except (TypeError, ValueError):
@@ -2863,6 +3040,7 @@ def _moc_visualization(
               f'joint feedback {prefix} shock frontier for iteration '
               f'{iteration_index} has invalid or unavailable geometry'
             )
+          ####
           continue
         ####
         path = _path3(
@@ -3582,6 +3760,7 @@ def _moc_visualization(
       'energy_residual': [],
       'euler_residual': [],
       'target_entropy_log_residual': [],
+      'target_cell_entropy_log_residual': [],
     })
   ####
   if coupled_euler:
@@ -3629,6 +3808,7 @@ def _moc_visualization(
         'energy_residual',
         'euler_residual',
         'target_entropy_log_residual',
+        'target_cell_entropy_log_residual',
       ):
         values = getattr(field, '_arrays', {}).get(channel_id, ())
         field_channel_values[channel_id].append(
@@ -3716,6 +3896,7 @@ def _moc_visualization(
       'energy_residual': '1',
       'euler_residual': '1',
       'target_entropy_log_residual': '1',
+      'target_cell_entropy_log_residual': '1',
     })
     field_channel_semantics.update({
       'density': 'cell-center density reconstructed from the retained conservative state',
@@ -3729,6 +3910,11 @@ def _moc_visualization(
       'energy_residual': 'cell-local normalized energy residual from the upstream state equation',
       'euler_residual': 'cell-local maximum normalized conservative Euler residual from the upstream state equation',
       'target_entropy_log_residual': 'cell-local log entropy ratio to the declared target entropy',
+      'target_cell_entropy_log_residual': (
+        'cell-local log entropy ratio reconstructed from the converged '
+        'interior cell state; diagnostic, distinct from target-boundary '
+        'consistency'
+      ),
     })
   ####
   if 'entropy_production_fraction' in field_channel_values:
@@ -3750,7 +3936,7 @@ def _moc_visualization(
       field_channel_units[channel_id] = '1'
       field_channel_semantics[channel_id] = semantic
     ####
-    ####
+  ####
   if upstream_state_equation:
     field_channel_semantics.update({
       'mach': 'upstream state-equation cell-center Mach number',
@@ -3805,6 +3991,9 @@ def _moc_visualization(
     diagnostics['upstream_state_equation_entropy_log_residual_count'] = len(
       getattr(diagnostic_source, 'target_boundary_entropy_log_residuals', ())
     )
+    diagnostics['upstream_state_equation_target_cell_entropy_log_residual_count'] = len(
+      getattr(diagnostic_source, 'target_cell_entropy_log_residuals', ())
+    )
     for name in (
       'converged',
       'research_state_equation_consumed',
@@ -3843,6 +4032,7 @@ def _moc_visualization(
     for name in (
       'maximum_conservative_euler_residual',
       'maximum_target_boundary_entropy_log_residual',
+      'maximum_target_cell_entropy_log_residual',
       'maximum_entropy_flux_defect',
     ):
       value = getattr(diagnostic_source, name, None)
@@ -3853,6 +4043,7 @@ def _moc_visualization(
     audit = getattr(diagnostic_source, 'audit', None)
     if audit is None:
       audit = getattr(diagnostic_source, 'state_equation_audit', None)
+    ####
     if audit is not None:
       diagnostics['upstream_state_equation_audit_verified'] = bool(
         getattr(audit, 'converged', False)
@@ -3860,7 +4051,9 @@ def _moc_visualization(
       operator_id = getattr(audit, 'operator_id', None)
       if isinstance(operator_id, str) and operator_id:
         diagnostics['upstream_state_equation_audit_operator'] = operator_id
+      ####
     ####
+  ####
   if target_pressure_reconciliation:
     target = getattr(target_pressure_detail, 'target', None)
     if target is None:
@@ -3966,6 +4159,18 @@ def _moc_visualization(
     diagnostics[
       'global_coupled_boundary_condition_feedback_target_coverage_verified'
     ] = bool(getattr(result, 'target_coverage_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_target_match_verified'
+    ] = bool(getattr(result, 'target_match_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_target_residuals_finite_verified'
+    ] = bool(getattr(result, 'target_residuals_finite_verified', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_open_target_mismatch_allowed'
+    ] = bool(getattr(result, 'open_target_mismatch_allowed', False))
+    diagnostics[
+      'global_coupled_boundary_condition_feedback_open_target_mismatch_accepted'
+    ] = bool(getattr(result, 'open_target_mismatch_accepted', False))
     diagnostics[
       'global_coupled_boundary_condition_feedback_target_geometry_consumed'
     ] = bool(getattr(result, 'target_geometry_consumed', False))
@@ -4510,6 +4715,58 @@ def _moc_visualization(
     diagnostics['coupled_euler_shape_iteration_count'] = int(
       getattr(source, 'shape_iteration_count', 0)
     )
+    downstream_response = getattr(source, 'downstream_boundary_response', None)
+    if downstream_response is not None:
+      response_status = getattr(downstream_response, 'status', '')
+      diagnostics['coupled_euler_downstream_response_status'] = str(
+        getattr(response_status, 'value', response_status)
+      )
+      for name in (
+        'overlap_coverage_verified',
+        'residuals_verified',
+        'flow_tangent_response_verified',
+        'converged',
+      ):
+        value = getattr(downstream_response, name, None)
+        if isinstance(value, bool):
+          diagnostics[f'coupled_euler_downstream_response_{name}'] = value
+        ####
+      ####
+      for name in (
+        'maximum_coordinate_residual_m',
+        'maximum_tangent_residual_rad',
+        'maximum_flow_tangent_offset_rad',
+        'maximum_pressure_residual_Pa',
+        'maximum_normal_velocity_residual_m_s',
+      ):
+        value = getattr(downstream_response, name, None)
+        if value is not None and isfinite(float(value)):
+          diagnostics[f'coupled_euler_downstream_response_{name}'] = float(value)
+        ####
+      ####
+      flow_tangent_source = getattr(
+        downstream_response,
+        'flow_tangent_response_source',
+        None,
+      )
+      if flow_tangent_source is not None:
+        diagnostics['coupled_euler_downstream_response_flow_tangent_source'] = str(
+          flow_tangent_source
+        )
+      ####
+      trace = getattr(source, 'downstream_boundary_trace', None)
+      if trace is not None:
+        diagnostics['coupled_euler_downstream_trace_status'] = str(
+          getattr(
+            getattr(trace, 'status', ''),
+            'value',
+            getattr(trace, 'status', ''),
+          )
+        )
+        diagnostics['coupled_euler_downstream_trace_sample_count'] = int(
+          len(getattr(trace, 'samples', ()))
+        )
+      ####
     diagnostics['coupled_euler_near_sonic_mach_half_width'] = (
       _NEAR_SONIC_MACH_HALF_WIDTH
     )
@@ -4952,6 +5209,7 @@ def _moc_visualization(
       diagnostics[
         'global_joint_state_frontier_feedback_aggregate_residual_dominant_iteration'
       ] = dominant_iteration
+    ####
     if incomplete_packet:
       joint_feedback_path_warnings.append(
         'joint feedback aggregate residual packet is incomplete; unavailable '
@@ -5031,6 +5289,7 @@ def _moc_visualization(
     *mixed_regime_overlay_warnings,
     *two_sided_visual_warnings,
     *joint_feedback_path_warnings,
+    *downstream_response_warnings,
     *production_fit_overlay_warnings,
   ]
   if production_fit_result:
@@ -5051,6 +5310,12 @@ def _moc_visualization(
       'coupled-Euler/free-boundary channels are research diagnostics; '
       'local closure does not authorize canonical or production use'
     )
+    if downstream_boundary_response is not None:
+      warnings.append(
+        'coupled-Euler downstream overlap and solver-owned flow-tangent '
+        'paths are research evidence; they do not close the global frontier '
+        'or authorize a physical shock-cell claim'
+      )
     if coupled_interface_profile is not None:
       warnings.append(
         'the spatial shock-interface profile is an audited field-inlet '
@@ -5351,6 +5616,7 @@ def standardize_model_visualization(
     return _reduced_order_visualization(
       source,
       frame_id=frame_id,
+      section_count=section_count,
       maximum_axial_extent_m=maximum_axial_extent_m,
     )
   ####
@@ -5395,6 +5661,315 @@ def standardize_model_visualization(
 
 
 standardize_model_result = standardize_model_visualization
+
+
+def standardize_moc_expansion_fan_visualization(
+  fan: MocExpansionFanResult,
+  *,
+  reference_total_temperature_K: float,
+  gas_constant_J_kgK: float = 287.05,
+  frame_id: str = 'source-local',
+  section_count: int = 64,
+  maximum_axial_extent_m: float | None = None,
+) -> StandardizedModelVisualization:
+  """Adapt a retained point-source fan to the common planar-MOC display.
+
+  The fan has no absolute temperature in its characteristic state. This
+  adapter therefore requires the total temperature and gas constant explicitly
+  before emitting density, temperature, and velocity. Its sectioned tube is an
+  illustrative envelope around the retained two-dimensional fan cells; the
+  cells, declared regions, and unit-bearing physical channels remain the
+  authoritative visualization data.
+  """
+
+  if not isinstance(fan, MocExpansionFanResult):
+    raise TypeError('fan must be a MocExpansionFanResult')
+  if (
+    not fan.converged
+    or fan.total_pressure_Pa is None
+    or fan.source_point_m is None
+    or fan.terminal_pressure_Pa is None
+    or fan.terminal_pressure_residual is None
+    or fan.terminal_turn_rad is None
+  ):
+    raise ValueError(
+      'fan visualization requires a converged fan with source and total-pressure lineage'
+    )
+  if (
+    not fan.cells
+    or len(fan.centerline_states) != len(fan.centerline_points_m)
+    or len(fan.lip_ray_centerline_points_m) != len(fan.centerline_states)
+  ):
+    raise ValueError('fan visualization requires aligned cells and centerline states')
+  if not frame_id:
+    raise ValueError('frame_id must not be empty')
+  if isinstance(section_count, bool) or not isinstance(section_count, int) or section_count < 2:
+    raise ValueError('section_count must be an integer greater than or equal to two')
+  total_temperature = _finite(
+    'reference_total_temperature_K',
+    reference_total_temperature_K,
+  )
+  gas_constant = _finite('gas_constant_J_kgK', gas_constant_J_kgK)
+  if total_temperature <= 0.0 or gas_constant <= 0.0:
+    raise ValueError('total temperature and gas constant must be positive')
+  ####
+  gamma_values = {
+    float(cell.state.gamma)
+    for cell in fan.cells
+  }
+  gamma_values.update(float(state.gamma) for state in fan.centerline_states)
+  if len(gamma_values) != 1:
+    raise ValueError('fan visualization requires one caloric gamma across the fan')
+  ####
+  cell_polygons = tuple(
+    tuple(_vector2('expansion-fan cell vertex', point) for point in cell.vertices_xr_m)
+    for cell in fan.cells
+  )
+  if any(len(polygon) != 3 for polygon in cell_polygons):
+    raise ValueError('expansion-fan visualization requires triangular fan cells')
+  ####
+  total_pressure = float(fan.total_pressure_Pa)
+  cell_primitives = tuple(
+    dimensionalize_characteristic_state(
+      cell.state,
+      total_pressure,
+      total_temperature,
+      gas_constant,
+    )
+    for cell in fan.cells
+  )
+  centerline_primitives = tuple(
+    dimensionalize_characteristic_state(
+      state,
+      total_pressure,
+      total_temperature,
+      gas_constant,
+    )
+    for state in fan.centerline_states
+  )
+  ####
+  centerline = tuple(
+    (float(point[0]), float(point[1]))
+    for point in fan.centerline_points_m
+  )
+  if len(centerline) < 2 or any(
+    second[0] <= first[0]
+    for first, second in zip(centerline, centerline[1:])
+  ):
+    raise ValueError('fan centerline stations must be strictly downstream ordered')
+  if any(abs(point[1]) > 1.0e-10 for point in centerline):
+    raise ValueError('fan centerline stations must lie on the symmetry axis')
+  ####
+  if maximum_axial_extent_m is not None:
+    extent = _finite('maximum_axial_extent_m', maximum_axial_extent_m)
+    if extent <= 0.0:
+      raise ValueError('maximum_axial_extent_m must be positive')
+    limit = centerline[0][0] + extent
+    retained = tuple(
+      index for index, point in enumerate(centerline)
+      if point[0] <= limit + 1.0e-12
+    )
+    if len(retained) < 2:
+      raise ValueError('maximum axial extent leaves fewer than two fan stations')
+    centerline = tuple(centerline[index] for index in retained)
+    centerline_primitives = tuple(centerline_primitives[index] for index in retained)
+  ####
+  if len(centerline) > section_count:
+    retained = _sample_indices(len(centerline), section_count)
+    centerline = tuple(centerline[index] for index in retained)
+    centerline_primitives = tuple(centerline_primitives[index] for index in retained)
+  ####
+  def radius_at_x(x_value: float) -> float:
+    intersections: list[float] = []
+    for polygon in cell_polygons:
+      for first, second in zip(polygon, (*polygon[1:], polygon[0]), strict=True):
+        x0, y0 = first
+        x1, y1 = second
+        tolerance = 1.0e-12 * max(abs(x_value), abs(x0), abs(x1), 1.0)
+        if abs(x1 - x0) <= tolerance:
+          if abs(x_value - x0) <= tolerance:
+            intersections.extend((y0, y1))
+          continue
+        if min(x0, x1) - tolerance <= x_value <= max(x0, x1) + tolerance:
+          fraction = (x_value - x0) / (x1 - x0)
+          if -1.0e-12 <= fraction <= 1.0 + 1.0e-12:
+            intersections.append(y0 + fraction * (y1 - y0))
+    if not intersections:
+      raise ValueError('fan cells do not cover a requested centerline station')
+    return max(1.0e-9, max(intersections))
+  ####
+  sections = tuple(
+    VisualSection(
+      arc_length_m=point[0] - centerline[0][0],
+      center_m=(point[0], 0.0, 0.0),
+      section_to_output_xyzw=_AXIAL_SECTION_QUATERNION,
+      radius_major_m=radius_at_x(point[0]),
+      radius_minor_m=radius_at_x(point[0]),
+    )
+    for point in centerline
+  )
+  ####
+  centerline_channel_values = (
+    ('mach', 'centerline Mach number', '1', tuple(
+      float(state.mach) for state in fan.centerline_states
+    )),
+    ('flow_angle', 'centerline flow angle', 'rad', tuple(
+      float(state.theta_rad) for state in fan.centerline_states
+    )),
+    ('static_pressure', 'centerline isentropic static pressure', 'Pa', tuple(
+      primitive.static_pressure_Pa for primitive in centerline_primitives
+    )),
+    ('total_pressure', 'centerline total pressure', 'Pa', (total_pressure,) * len(centerline)),
+    ('density', 'centerline ideal-gas density', 'kg m^-3', tuple(
+      primitive.density_kg_m3 for primitive in centerline_primitives
+    )),
+    ('temperature', 'centerline ideal-gas static temperature', 'K', tuple(
+      primitive.static_temperature_K for primitive in centerline_primitives
+    )),
+    ('velocity_u', 'centerline streamwise velocity', 'm s^-1', tuple(
+      primitive.velocity_u_m_s for primitive in centerline_primitives
+    )),
+    ('velocity_v', 'centerline transverse velocity', 'm s^-1', tuple(
+      primitive.velocity_v_m_s for primitive in centerline_primitives
+    )),
+  )
+  section_channels = tuple(
+    _section_channel(channel_id, semantic, unit, values)
+    for channel_id, semantic, unit, values in centerline_channel_values
+  )
+  ####
+  field_channels = {
+    'mach': tuple(float(cell.state.mach) for cell in fan.cells),
+    'flow_angle': tuple(float(cell.state.theta_rad) for cell in fan.cells),
+    'static_pressure': tuple(
+      primitive.static_pressure_Pa for primitive in cell_primitives
+    ),
+    'total_pressure': (total_pressure,) * len(fan.cells),
+    'density': tuple(primitive.density_kg_m3 for primitive in cell_primitives),
+    'temperature': tuple(
+      primitive.static_temperature_K for primitive in cell_primitives
+    ),
+    'velocity_u': tuple(primitive.velocity_u_m_s for primitive in cell_primitives),
+    'velocity_v': tuple(primitive.velocity_v_m_s for primitive in cell_primitives),
+  }
+  field_units = {
+    'mach': '1',
+    'flow_angle': 'rad',
+    'static_pressure': 'Pa',
+    'total_pressure': 'Pa',
+    'density': 'kg m^-3',
+    'temperature': 'K',
+    'velocity_u': 'm s^-1',
+    'velocity_v': 'm s^-1',
+  }
+  field_semantics = {
+    'mach': 'fan-cell centroid Mach number',
+    'flow_angle': 'fan-cell centroid characteristic flow angle',
+    'static_pressure': 'fan-cell centroid isentropic static pressure',
+    'total_pressure': 'constant total pressure retained by the simple-wave fan',
+    'density': 'fan-cell centroid density under the declared ideal-gas model',
+    'temperature': 'fan-cell centroid static temperature under the declared ideal-gas model',
+    'velocity_u': 'fan-cell centroid streamwise velocity under the declared ideal-gas model',
+    'velocity_v': 'fan-cell centroid transverse velocity under the declared ideal-gas model',
+  }
+  field = ModelVisualField(
+    field_id='moc-expansion-fan',
+    semantic='centered Prandtl-Meyer fan sectors',
+    polygons_xr_m=cell_polygons,
+    channels=field_channels,
+    channel_units=field_units,
+    channel_semantics=field_semantics,
+    region_types=('source_point_expansion_fan',) * len(fan.cells),
+    region_labels=tuple(f'fan-sector-{cell.cell_index}' for cell in fan.cells),
+  )
+  ####
+  paths = [
+    ModelVisualPath(
+      path_id='fan-centerline-characteristic-compatibility',
+      semantic='centerline points from characteristic compatibility construction',
+      points_m=tuple((point[0], point[1], 0.0) for point in fan.centerline_points_m),
+    ),
+    ModelVisualPath(
+      path_id='fan-centerline-direct-ray-intersections',
+      semantic='direct source-ray intersections with the symmetry axis',
+      points_m=tuple(
+        (float(point[0]), float(point[1]), 0.0)
+        for point in fan.lip_ray_centerline_points_m
+      ),
+    ),
+  ]
+  source_point = _vector2('fan source point', fan.source_point_m)
+  for path_id, ray_index, semantic in (
+    (
+      'fan-inner-boundary-characteristic-ray',
+      0,
+      'first retained direct source ray bounding the displayed fan region',
+    ),
+    (
+      'fan-outer-boundary-characteristic-ray',
+      len(fan.lip_ray_centerline_points_m) - 1,
+      'last retained direct source ray bounding the displayed fan region',
+    ),
+  ):
+    endpoint = fan.lip_ray_centerline_points_m[ray_index]
+    paths.append(
+      ModelVisualPath(
+        path_id=path_id,
+        semantic=semantic,
+        points_m=(
+          (source_point[0], source_point[1], 0.0),
+          (float(endpoint[0]), float(endpoint[1]), 0.0),
+        ),
+      )
+    )
+  ####
+  return _bundle(
+    lane=ModelVisualizationLane.PLANAR_MOC,
+    model_id='planar-moc-source-point-expansion-fan',
+    model_version='1',
+    result=fan,
+    frame_id=frame_id,
+    sections=sections,
+    channels=section_channels,
+    claims=ModelVisualizationClaims(
+      model_fidelity='REFERENCE_NUMERICAL',
+      validation_level='RESEARCH_ONLY',
+      geometry_claim=GeometryClaim.ILLUSTRATIVE,
+      production_claim_allowed=False,
+      claim_notes=(
+        'open source-point Prandtl-Meyer fan; no global contact or shock closure',
+        'density, temperature, and velocity use the explicitly supplied calorically-perfect gas inputs',
+      ),
+    ),
+    applicability_status=ApplicabilityStatus.MARGINAL,
+    applicability_reasons=(
+      'open expansion-fan diagnostic; global source/shock/contact closure remains unresolved',
+    ),
+    paths=paths,
+    fields=(field,),
+    diagnostics={
+      'fan_cell_count': len(fan.cells),
+      'fan_source_x_m': source_point[0],
+      'fan_source_y_m': source_point[1],
+      'fan_exit_pressure_Pa': float(fan.exit_pressure_Pa),
+      'fan_ambient_pressure_target_Pa': float(fan.ambient_pressure_Pa),
+      'fan_terminal_pressure_Pa': float(fan.terminal_pressure_Pa),
+      'fan_terminal_pressure_residual': float(fan.terminal_pressure_residual),
+      'fan_terminal_turn_rad': float(fan.terminal_turn_rad),
+      'reference_total_temperature_K': total_temperature,
+      'gas_constant_J_kgK': gas_constant,
+      'gamma': next(iter(gamma_values)),
+      'global_coupling_verified': False,
+      'physical_closure_verified': False,
+      'production_claim_allowed': False,
+    },
+    warnings=(
+      'fan-cell physical channels use a calorically-perfect ideal-gas dimensionalization with caller-supplied total temperature and gas constant',
+      'the displayed fan is an open source-expansion region; it does not include a solved plume contact, reflected shock field, or downstream Euler closure',
+      'the sectioned tube is an illustrative envelope projected from the two-dimensional fan cells',
+    ),
+  )
+####
 
 
 def standardize_all_model_visualizations(
@@ -5491,4 +6066,231 @@ def evaluate_standardized_model_visualization(
   return result.model_copy(update={
     'metadata': result.metadata.model_copy(update={'provenance': provenance}),
   })
+####
+
+
+def bind_model_lane_visualization_result(
+    visualization: StandardizedModelVisualization,
+    request: ModelLaneVisualizationRequest,
+    sectioned_tube: VisualSectionedTubeResult,
+) -> ModelLaneVisualizationResult:
+  """Bind retained lane fields and paths to the matching canonical tube result."""
+
+  if not isinstance(visualization, StandardizedModelVisualization):
+    raise TypeError('visualization must be a StandardizedModelVisualization')
+  ####
+  if not isinstance(request, ModelLaneVisualizationRequest):
+    raise TypeError('request must be a ModelLaneVisualizationRequest')
+  ####
+  if not isinstance(sectioned_tube, VisualSectionedTubeResult):
+    raise TypeError('sectioned_tube must be a VisualSectionedTubeResult')
+  ####
+  tube_metadata = sectioned_tube.metadata
+  if tube_metadata.output_frame_id != visualization.frame_id:
+    raise ValueError('standardized model lane and sectioned tube frames must match')
+  ####
+  if tube_metadata.request_digest_sha256 != canonical_digest(request.visual_request):
+    raise ValueError('sectioned tube result does not match the nested visual request')
+  ####
+  applicability = ApplicabilityReport(
+    status=visualization.applicability_status,
+    reasons=visualization.applicability_reasons,
+  )
+  provenance = tube_metadata.provenance.model_copy(update={
+    'metadata': {
+      **tube_metadata.provenance.metadata,
+      'model_lane_bundle_digest_sha256': visualization.digest_sha256(),
+    },
+  })
+  metadata = ResultMetadata(
+    capability=MODEL_LANE_VISUALIZATION_CAPABILITY,
+    result_id=canonical_digest({
+      'capability': MODEL_LANE_VISUALIZATION_CAPABILITY.wire_id,
+      'request': request,
+      'snapshot_id': tube_metadata.snapshot.snapshot_id,
+      'bundle_digest_sha256': visualization.digest_sha256(),
+      'sectioned_tube_result_id': tube_metadata.result_id,
+    })[:24],
+    request_digest_sha256=canonical_digest(request),
+    snapshot=tube_metadata.snapshot,
+    output_frame_id=tube_metadata.output_frame_id,
+    claims=tube_metadata.claims,
+    applicability=applicability,
+    provenance=provenance,
+    warnings=visualization.warnings,
+  )
+  return ModelLaneVisualizationResult(
+    metadata=metadata,
+    lane_id=ModelVisualizationLaneId(visualization.lane.value),
+    model_id=visualization.model_id,
+    model_version=visualization.model_version,
+    source_status=visualization.source_status,
+    applicability=applicability,
+    claims=ModelLaneVisualizationClaims(
+      model_fidelity=visualization.claims.model_fidelity,
+      validation_level=visualization.claims.validation_level,
+      geometry_claim=visualization.claims.geometry_claim,
+      production_claim_allowed=visualization.claims.production_claim_allowed,
+      claim_notes=visualization.claims.claim_notes,
+    ),
+    visual_request_digest_sha256=tube_metadata.request_digest_sha256,
+    sectioned_tube=sectioned_tube,
+    section_channels=tuple(
+      ModelLaneSectionChannel(
+        channel_id=channel.channel_id,
+        semantic=channel.semantic,
+        unit=channel.unit,
+        values=channel.values,
+        uncertainties=channel.uncertainties,
+      )
+      for channel in visualization.section_channels
+      if channel.channel_id in sectioned_tube.channels
+    ),
+    paths=tuple(
+      ModelLanePath(
+        path_id=path.path_id,
+        semantic=path.semantic,
+        points_m=path.points_m,
+      )
+      for path in visualization.paths
+    ),
+    fields=tuple(
+      ModelLaneField(
+        field_id=field_data.field_id,
+        semantic=field_data.semantic,
+        polygons_xr_m=field_data.polygons_xr_m,
+        channels={
+          channel_id: ModelLaneFieldChannel(
+            semantic=field_data.channel_semantics[channel_id],
+            unit=field_data.channel_units[channel_id],
+            values=values,
+            uncertainties=field_data.channel_uncertainties.get(channel_id),
+          )
+          for channel_id, values in field_data.channels.items()
+        },
+        region_types=field_data.region_types,
+        region_labels=field_data.region_labels,
+      )
+      for field_data in visualization.fields
+    ),
+    diagnostics=dict(visualization.diagnostics),
+    warnings=visualization.warnings,
+  )
+####
+
+
+def evaluate_model_lane_visualization(
+    result: object,
+    lane: ModelVisualizationLane | str,
+    request: ModelLaneVisualizationRequest,
+    snapshot: SnapshotMetadata,
+    *,
+    frame_id: str,
+    provider_id: str,
+    provider_version: str,
+    time_model: TimeModel = TimeModel.STEADY,
+) -> ModelLaneVisualizationResult:
+  """Evaluate one retained model result through the source-bound lane contract."""
+
+  if not isinstance(request, ModelLaneVisualizationRequest):
+    raise TypeError('request must be a ModelLaneVisualizationRequest')
+  ####
+  if request.visual_request.output_frame_id != frame_id:
+    raise ProviderConfigurationError(
+      f'model-lane provider supports output frame {frame_id!r}, '
+      f'not {request.visual_request.output_frame_id!r}'
+    )
+  ####
+  visualization = standardize_model_visualization(
+    result,
+    lane=lane,
+    frame_id=frame_id,
+    section_count=request.visual_request.sampling.maximum_section_count,
+    maximum_axial_extent_m=request.visual_request.sampling.maximum_axial_extent_m,
+  )
+  tube_result = evaluate_standardized_model_visualization(
+    visualization,
+    request.visual_request,
+    snapshot,
+    provider_id=provider_id,
+    provider_version=provider_version,
+    time_model=time_model,
+  )
+  return bind_model_lane_visualization_result(visualization, request, tube_result)
+####
+
+
+def standardize_model_lane_visualization_result(
+    result: ModelLaneVisualizationResult,
+) -> StandardizedModelVisualization:
+  """Adapt a public model-lane result for the standard static gallery."""
+
+  if not isinstance(result, ModelLaneVisualizationResult):
+    raise TypeError('result must be a ModelLaneVisualizationResult')
+  ####
+  visualization = StandardizedModelVisualization(
+    lane=ModelVisualizationLane(result.lane_id.value),
+    model_id=result.model_id,
+    model_version=result.model_version,
+    source_status=result.source_status,
+    applicability_status=result.applicability.status,
+    applicability_reasons=result.applicability.reasons,
+    claims=ModelVisualizationClaims(
+      model_fidelity=result.claims.model_fidelity,
+      validation_level=result.claims.validation_level,
+      geometry_claim=result.claims.geometry_claim,
+      production_claim_allowed=result.claims.production_claim_allowed,
+      claim_notes=result.claims.claim_notes,
+    ),
+    sectioned_tube=PrescribedVisualDefinition(
+      frame_id=result.metadata.output_frame_id,
+      sections=result.sectioned_tube.sections,
+      channels=result.sectioned_tube.channels,
+    ),
+    section_channels=tuple(
+      ModelVisualChannel(
+        channel_id=channel.channel_id,
+        semantic=channel.semantic,
+        unit=channel.unit,
+        values=channel.values,
+        uncertainties=channel.uncertainties,
+      )
+      for channel in result.section_channels
+    ),
+    paths=tuple(
+      ModelVisualPath(path.path_id, path.semantic, path.points_m)
+      for path in result.paths
+    ),
+    fields=tuple(
+      ModelVisualField(
+        field_id=field_data.field_id,
+        semantic=field_data.semantic,
+        polygons_xr_m=field_data.polygons_xr_m,
+        channels={
+          channel_id: channel.values
+          for channel_id, channel in field_data.channels.items()
+        },
+        channel_units={
+          channel_id: channel.unit
+          for channel_id, channel in field_data.channels.items()
+        },
+        channel_semantics={
+          channel_id: channel.semantic
+          for channel_id, channel in field_data.channels.items()
+        },
+        channel_uncertainties={
+          channel_id: channel.uncertainties
+          for channel_id, channel in field_data.channels.items()
+          if channel.uncertainties is not None
+        },
+        region_types=field_data.region_types,
+        region_labels=field_data.region_labels,
+      )
+      for field_data in result.fields
+    ),
+    diagnostics=dict(result.diagnostics),
+    warnings=result.warnings,
+    schema=result.standardization_schema,
+  )
+  return visualization
 ####

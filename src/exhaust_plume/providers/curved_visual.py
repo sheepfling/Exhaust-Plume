@@ -15,6 +15,9 @@ from typing import Any, Mapping
 from exhaust_plume.api.v1 import (
   GeometryClaim,
   ImmutableProductSnapshot,
+  MODEL_LANE_VISUALIZATION_CAPABILITY,
+  ModelLaneVisualizationRequest,
+  ModelLaneVisualizationResult,
   Pose,
   ProviderClosedError,
   ProviderConfigurationError,
@@ -31,6 +34,7 @@ from exhaust_plume.api.v1 import (
 from exhaust_plume.models.plume.curved_plume_closures import CurvedPlumeResult
 from exhaust_plume.products.model_visualization import (
   ModelVisualizationLane,
+  evaluate_model_lane_visualization,
   evaluate_standardized_model_visualization,
   standardize_model_visualization,
 )
@@ -114,7 +118,10 @@ def _descriptor(configuration: CurvedIntegralVisualConfiguration) -> ProviderDes
   return ProviderDescriptor(
     provider_id=configuration.provider_id,
     provider_version=configuration.provider_version,
-    supported_capabilities=(VISUAL_SECTIONED_TUBE_CAPABILITY,),
+    supported_capabilities=(
+      VISUAL_SECTIONED_TUBE_CAPABILITY,
+      MODEL_LANE_VISUALIZATION_CAPABILITY,
+    ),
     provider_definition_schema_id='plume.visual.curved-integral-definition.v1',
     dynamic_state_schema_id='plume.visual.curved-integral-dynamic-state.v1',
     configuration_schema_id='plume.visual.curved-integral-configuration.v1',
@@ -157,6 +164,35 @@ class _CurvedIntegralVisualEvaluator:
       visualization,
       request,
       snapshot,
+      provider_id=self._configuration.provider_id,
+      provider_version=self._configuration.provider_version,
+      time_model=self._configuration.time_model,
+    )
+  ####
+####
+
+
+class _CurvedIntegralModelLaneEvaluator:
+  def __init__(
+      self,
+      definition: CurvedIntegralVisualDefinition,
+      configuration: CurvedIntegralVisualConfiguration,
+  ) -> None:
+    self._definition = definition
+    self._configuration = configuration
+  ####
+
+  def evaluate(
+      self,
+      request: ModelLaneVisualizationRequest,
+      snapshot: SnapshotMetadata,
+  ) -> ModelLaneVisualizationResult:
+    return evaluate_model_lane_visualization(
+      self._definition.result,
+      ModelVisualizationLane.CURVED_INTEGRAL,
+      request,
+      snapshot,
+      frame_id=self._definition.frame_id,
       provider_id=self._configuration.provider_id,
       provider_version=self._configuration.provider_version,
       time_model=self._configuration.time_model,
@@ -265,7 +301,16 @@ class CurvedIntegralVisualSession:
     )
     return ImmutableProductSnapshot(
       metadata=metadata,
-      _evaluators={VISUAL_SECTIONED_TUBE_CAPABILITY: _CurvedIntegralVisualEvaluator(self._definition, self._configuration)},
+      _evaluators={
+        VISUAL_SECTIONED_TUBE_CAPABILITY: _CurvedIntegralVisualEvaluator(
+          self._definition,
+          self._configuration,
+        ),
+        MODEL_LANE_VISUALIZATION_CAPABILITY: _CurvedIntegralModelLaneEvaluator(
+          self._definition,
+          self._configuration,
+        ),
+      },
     )
   ####
 

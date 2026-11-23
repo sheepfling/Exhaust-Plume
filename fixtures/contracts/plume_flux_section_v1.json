@@ -1,0 +1,104 @@
+{
+  "time_s": 0.0,
+  "frame": {
+    "frame_id": "plume-local",
+    "parent_frame_id": "world",
+    "pose_parent_from_frame": {
+      "translation_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation_xyzw": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "section_pose": {
+    "translation_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation_xyzw": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "center_m": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "normal": [
+    1.0,
+    0.0,
+    0.0
+  ],
+  "area_m2": 0.2,
+  "mass_flow_kg_s": 1.5,
+  "momentum_flux_N": [
+    60.0,
+    0.0,
+    0.0
+  ],
+  "advective_momentum_flux_N": [
+    60.0,
+    0.0,
+    0.0
+  ],
+  "pressure_thrust_N": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "stagnation_enthalpy_flux_W": 800000.0,
+  "total_energy_flow_W": null,
+  "species_mass_flows_kg_s": [
+    {
+      "species_id": "exhaust",
+      "mass_flow_kg_s": 1.5
+    }
+  ],
+  "pressure_Pa": 101325.0,
+  "ambient_pressure_Pa": 101325.0,
+  "pressure_match_relative_residual": 0.0,
+  "cross_section_second_moment_m2": [
+    [
+      0.01,
+      0.0
+    ],
+    [
+      0.0,
+      0.01
+    ]
+  ],
+  "characteristic_radius_m": 0.252313252202016,
+  "provenance": {
+    "model_id": "fixture-source",
+    "model_version": "1.0.0",
+    "code_revision": "fixture-revision",
+    "configuration_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "asset_digests_sha256": [],
+    "producer_metadata": {}
+  },
+  "applicability": {
+    "supported": true,
+    "domain": {
+      "mach": [
+        2.0,
+        3.0
+      ]
+    },
+    "violations": []
+  },
+  "uncertainty": {
+    "mass_flow_kg_s": 0.01,
+    "pressure_Pa": 50.0
+  }
+}

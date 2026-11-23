@@ -52,9 +52,19 @@ class FarFieldRayIntegration:
     if not isinstance(self.direction_frame_id, str) or not self.direction_frame_id:
       raise ValueError('direction_frame_id must not be empty')
     ####
+    raw_directions = tuple(
+      tuple(direction) for direction in self.source_to_observer_directions
+    )
+    if any(
+      isinstance(component, bool)
+      for direction in raw_directions
+      for component in direction
+    ):
+      raise ValueError('source-to-observer directions must be finite 3-vectors')
+    ####
     directions = tuple(
       tuple(float(component) for component in direction)
-      for direction in self.source_to_observer_directions
+      for direction in raw_directions
     )
     if not directions:
       raise ValueError('source_to_observer_directions must not be empty')
@@ -69,7 +79,11 @@ class FarFieldRayIntegration:
       ####
     ####
     indices = tuple(self.ray_direction_indices)
-    weights = tuple(float(weight) for weight in self.ray_projected_area_weights_m2)
+    raw_weights = tuple(self.ray_projected_area_weights_m2)
+    if any(isinstance(weight, bool) for weight in raw_weights):
+      raise ValueError('ray projected-area weights must be finite and positive')
+    ####
+    weights = tuple(float(weight) for weight in raw_weights)
     if len(indices) != len(weights) or not indices:
       raise ValueError('ray direction indices and projected-area weights must have matching non-empty lengths')
     ####

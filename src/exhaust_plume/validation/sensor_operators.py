@@ -21,6 +21,7 @@ from exhaust_plume.radiation.gray import HomogeneousSegment, compose_homogeneous
 ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID = 'op.atmosphere.path-transfer'
 BANDPASS_DETECTOR_OPERATOR_ID = 'op.sensor.bandpass-detector'
 LOS_FOV_SPECTRUM_OPERATOR_ID = 'op.sensor.los-fov-spectrum'
+SURFACE_RADIANCE_INTENSITY_OPERATOR_ID = 'op.radiometry.surface-radiance-to-intensity'
 
 FloatMatrix = tuple[tuple[float, ...], ...]
 BoolMatrix = tuple[tuple[bool, ...], ...]
@@ -329,6 +330,213 @@ class SensorFovSpectrum:
   output_units: str
   source_semantics: str
   operator_id: str = LOS_FOV_SPECTRUM_OPERATOR_ID
+####
+
+
+@dataclass(frozen=True, slots=True)
+class SurfaceRadianceIntensity:
+  """Projected-area integral of a source-resolved spectral radiance field."""
+
+  wavelengths_m: tuple[float, ...]
+  observer_direction: tuple[float, float, float]
+  radiant_intensity_W_sr_m: tuple[float, ...]
+  validity_mask: tuple[bool, ...]
+  projected_area_weights_m2: tuple[float, ...]
+  surface_element_ids: tuple[str, ...]
+  source_state_fingerprint: str
+  frame_id: str
+  time_s: float
+  standard_uncertainty_W_sr_m: tuple[float, ...] | None = None
+  operator_id: str = SURFACE_RADIANCE_INTENSITY_OPERATOR_ID
+
+  def __post_init__(self) -> None:
+    wavelengths = _axis(self.wavelengths_m, 'wavelengths_m')
+    observer = _unit_direction(self.observer_direction, 'observer_direction')
+    values = tuple(float(value) for value in self.radiant_intensity_W_sr_m)
+    mask = tuple(self.validity_mask)
+    weights = tuple(float(value) for value in self.projected_area_weights_m2)
+    identifiers = tuple(str(value) for value in self.surface_element_ids)
+    if len(values) != len(wavelengths) or len(mask) != len(wavelengths):
+      raise ValueError('radiant intensity and validity mask must match wavelengths_m')
+    if any(not isfinite(value) or value < 0.0 for value in values):
+      raise ValueError('radiant_intensity_W_sr_m must be finite and nonnegative')
+    if any(not isinstance(value, bool) for value in mask):
+      raise ValueError('validity_mask must contain bool values')
+    if any(not valid and value != 0.0 for value, valid in zip(values, mask, strict=True)):
+      raise ValueError('invalid radiant-intensity samples must be zeroed')
+    if len(weights) != len(identifiers) or not identifiers:
+      raise ValueError('projected area weights and surface element ids must be non-empty and aligned')
+    if any(not identifier for identifier in identifiers) or len(set(identifiers)) != len(identifiers):
+      raise ValueError('surface_element_ids must be non-empty and unique')
+    if any(not isfinite(value) or value < 0.0 for value in weights):
+      raise ValueError('projected_area_weights_m2 must be finite and nonnegative')
+    fingerprint = str(self.source_state_fingerprint)
+    if len(fingerprint) != 64 or any(character not in '0123456789abcdef' for character in fingerprint):
+      raise ValueError('source_state_fingerprint must be a lowercase SHA-256 digest')
+    frame_id = str(self.frame_id)
+    if not frame_id:
+      raise ValueError('frame_id must not be empty')
+    time_s = float(self.time_s)
+    if not isfinite(time_s):
+      raise ValueError('time_s must be finite')
+    uncertainty = self.standard_uncertainty_W_sr_m
+    if uncertainty is not None:
+      uncertainty = tuple(float(value) for value in uncertainty)
+      if len(uncertainty) != len(wavelengths) or any(
+        not isfinite(value) or value < 0.0 for value in uncertainty
+      ):
+        raise ValueError('standard_uncertainty_W_sr_m must be finite, nonnegative, and match wavelengths_m')
+      if any(
+        not valid and value != 0.0
+        for value, valid in zip(uncertainty, mask, strict=True)
+      ):
+        raise ValueError('invalid radiant-intensity uncertainty samples must be zeroed')
+    if self.operator_id != SURFACE_RADIANCE_INTENSITY_OPERATOR_ID:
+      raise ValueError('operator_id must match the surface-radiance operator')
+    object.__setattr__(self, 'wavelengths_m', wavelengths)
+    object.__setattr__(self, 'observer_direction', observer)
+    object.__setattr__(self, 'radiant_intensity_W_sr_m', values)
+    object.__setattr__(self, 'validity_mask', mask)
+    object.__setattr__(self, 'projected_area_weights_m2', weights)
+    object.__setattr__(self, 'surface_element_ids', identifiers)
+    object.__setattr__(self, 'source_state_fingerprint', fingerprint)
+    object.__setattr__(self, 'frame_id', frame_id)
+    object.__setattr__(self, 'time_s', time_s)
+    object.__setattr__(self, 'standard_uncertainty_W_sr_m', uncertainty)
+  ####
+
+  @property
+  def output_units(self) -> str:
+    return 'W sr^-1 m^-1'
+  ####
+####
+
+
+def integrate_surface_radiance_to_intensity(
+  wavelengths_m: tuple[float, ...] | list[float],
+  surface_element_ids: tuple[str, ...] | list[str],
+  surface_areas_m2: tuple[float, ...] | list[float],
+  surface_normals: tuple[tuple[float, float, float], ...]
+  | list[tuple[float, float, float]],
+  spectral_radiance_W_m2_sr_m: tuple[tuple[float, ...], ...]
+  | list[tuple[float, ...]]
+  | list[list[float]],
+  *,
+  observer_direction: tuple[float, float, float] | list[float],
+  source_state_fingerprint: str,
+  frame_id: str,
+  time_s: float,
+  validity_mask: tuple[tuple[bool, ...], ...]
+  | list[tuple[bool, ...]]
+  | list[list[bool]]
+  | None = None,
+  visibility_mask: tuple[bool, ...] | list[bool] | None = None,
+  standard_uncertainty_W_m2_sr_m: tuple[tuple[float, ...], ...]
+  | list[tuple[float, ...]]
+  | list[list[float]]
+  | None = None,
+  allow_partial_results: bool = False,
+) -> SurfaceRadianceIntensity:
+  """Integrate directional surface radiance into spectral radiant intensity.
+
+  For each wavelength this evaluates ``sum(L_i * A_i * max(n_i dot d, 0))``
+  over visible source elements. Radiance is already evaluated toward the exact
+  observer direction. Occlusion and invalid data are explicit inputs; missing
+  contributing elements invalidate the wavelength rather than being silently
+  omitted. Supplied element uncertainties are propagated as independent
+  standard uncertainties.
+  """
+
+  wavelengths = _axis(wavelengths_m, 'wavelengths_m')
+  identifiers = tuple(str(value) for value in surface_element_ids)
+  if not identifiers or any(not value for value in identifiers) or len(set(identifiers)) != len(identifiers):
+    raise ValueError('surface_element_ids must be non-empty and unique')
+  areas = tuple(float(value) for value in surface_areas_m2)
+  if len(areas) != len(identifiers) or any(not isfinite(value) or value <= 0.0 for value in areas):
+    raise ValueError('surface_areas_m2 must be finite, positive, and match surface_element_ids')
+  normals = tuple(
+    _unit_direction(normal, 'surface_normals') for normal in surface_normals
+  )
+  if len(normals) != len(identifiers):
+    raise ValueError('surface_normals must match surface_element_ids')
+  direction = _unit_direction(observer_direction, 'observer_direction')
+  radiance = _matrix(
+    spectral_radiance_W_m2_sr_m,
+    column_count=len(wavelengths),
+    field_name='spectral_radiance_W_m2_sr_m',
+    minimum=0.0,
+  )
+  if len(radiance) != len(identifiers):
+    raise ValueError('spectral radiance rows must match surface_element_ids')
+  mask = _mask(
+    validity_mask,
+    row_count=len(identifiers),
+    column_count=len(wavelengths),
+  )
+  visible = tuple(True for _ in identifiers) if visibility_mask is None else tuple(visibility_mask)
+  if len(visible) != len(identifiers) or any(not isinstance(value, bool) for value in visible):
+    raise ValueError('visibility_mask must contain one bool per surface element')
+  uncertainty: FloatMatrix | None = None
+  if standard_uncertainty_W_m2_sr_m is not None:
+    uncertainty = _matrix(
+      standard_uncertainty_W_m2_sr_m,
+      column_count=len(wavelengths),
+      field_name='standard_uncertainty_W_m2_sr_m',
+      minimum=0.0,
+    )
+    if len(uncertainty) != len(identifiers):
+      raise ValueError('radiance uncertainty rows must match surface_element_ids')
+  if not isinstance(allow_partial_results, bool):
+    raise TypeError('allow_partial_results must be a bool')
+  projected_weights = tuple(
+    area * max(0.0, sum(n * d for n, d in zip(normal, direction, strict=True)))
+    if is_visible else 0.0
+    for area, normal, is_visible in zip(areas, normals, visible, strict=True)
+  )
+  contributing = tuple(index for index, weight in enumerate(projected_weights) if weight > 0.0)
+  values: list[float] = []
+  output_mask: list[bool] = []
+  output_uncertainty: list[float] | None = [] if uncertainty is not None else None
+  for wavelength_index in range(len(wavelengths)):
+    valid = all(mask[index][wavelength_index] for index in contributing)
+    if not valid and not allow_partial_results:
+      raise ValueError('visible projected surface contains invalid radiance samples')
+    output_mask.append(valid)
+    if not valid:
+      values.append(0.0)
+      if output_uncertainty is not None:
+        output_uncertainty.append(0.0)
+      continue
+    values.append(
+      fsum(
+        radiance[index][wavelength_index] * projected_weights[index]
+        for index in contributing
+      )
+    )
+    if output_uncertainty is not None and uncertainty is not None:
+      output_uncertainty.append(
+        sqrt(
+          fsum(
+            (uncertainty[index][wavelength_index] * projected_weights[index]) ** 2
+            for index in contributing
+          )
+        )
+      )
+  ####
+  return SurfaceRadianceIntensity(
+    wavelengths_m=wavelengths,
+    observer_direction=direction,
+    radiant_intensity_W_sr_m=tuple(values),
+    validity_mask=tuple(output_mask),
+    projected_area_weights_m2=projected_weights,
+    surface_element_ids=identifiers,
+    source_state_fingerprint=source_state_fingerprint,
+    frame_id=frame_id,
+    time_s=time_s,
+    standard_uncertainty_W_sr_m=(
+      None if output_uncertainty is None else tuple(output_uncertainty)
+    ),
+  )
 ####
 
 

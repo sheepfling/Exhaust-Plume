@@ -1,0 +1,985 @@
+{
+  "$defs": {
+    "ApplicabilityReport": {
+      "additionalProperties": false,
+      "properties": {
+        "reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/ApplicabilityStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ApplicabilityReport",
+      "type": "object"
+    },
+    "ApplicabilityStatus": {
+      "enum": [
+        "inside",
+        "marginal",
+        "outside"
+      ],
+      "title": "ApplicabilityStatus",
+      "type": "string"
+    },
+    "CapabilityIdentity": {
+      "additionalProperties": false,
+      "description": "A stable dotted capability name and positive major version.",
+      "properties": {
+        "major": {
+          "minimum": 1,
+          "title": "Major",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9-]*)+$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "major"
+      ],
+      "title": "CapabilityIdentity",
+      "type": "object"
+    },
+    "ConsistencyLevel": {
+      "enum": [
+        "independent",
+        "calibrated",
+        "co_generated"
+      ],
+      "title": "ConsistencyLevel",
+      "type": "string"
+    },
+    "Derivation": {
+      "enum": [
+        "native",
+        "adapted",
+        "tabulated",
+        "surrogate"
+      ],
+      "title": "Derivation",
+      "type": "string"
+    },
+    "EngineeringFluxSectionRequest": {
+      "additionalProperties": false,
+      "description": "Query conservative sections at centerline arc-length stations.\n\nArc length is measured from the caller-named source handoff centerline\nreference. Providers return their native station state unless interpolation\nis explicitly enabled. The requested frame and source reference are part of\nthe query identity.",
+      "properties": {
+        "allow_interpolation": {
+          "default": false,
+          "title": "Allow Interpolation",
+          "type": "boolean"
+        },
+        "allow_partial_results": {
+          "default": false,
+          "title": "Allow Partial Results",
+          "type": "boolean"
+        },
+        "centerline_arclength_m": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 1,
+          "title": "Centerline Arclength M",
+          "type": "array"
+        },
+        "centerline_reference_id": {
+          "minLength": 1,
+          "title": "Centerline Reference Id",
+          "type": "string"
+        },
+        "output_frame_id": {
+          "minLength": 1,
+          "title": "Output Frame Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "output_frame_id",
+        "centerline_reference_id",
+        "centerline_arclength_m"
+      ],
+      "title": "EngineeringFluxSectionRequest",
+      "type": "object"
+    },
+    "EngineeringFluxSectionSampleV1": {
+      "additionalProperties": false,
+      "description": "One source-bound section sample or one explicit failed sample.",
+      "properties": {
+        "centerline_position_m": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centerline Position M"
+        },
+        "centerline_tangent": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Centerline Tangent"
+        },
+        "sampling_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "native",
+                "provider-interpolated"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sampling Method"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlumeFluxSectionV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "station_arclength_m": {
+          "minimum": 0.0,
+          "title": "Station Arclength M",
+          "type": "number"
+        },
+        "status": {
+          "$ref": "#/$defs/SampleStatus"
+        }
+      },
+      "required": [
+        "station_arclength_m",
+        "status"
+      ],
+      "title": "EngineeringFluxSectionSampleV1",
+      "type": "object"
+    },
+    "GeometryClaim": {
+      "enum": [
+        "not_applicable",
+        "illustrative",
+        "physics_informed",
+        "engineering_approximate",
+        "conservative",
+        "validated"
+      ],
+      "title": "GeometryClaim",
+      "type": "string"
+    },
+    "HandoffApplicabilityV1": {
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "additionalProperties": true,
+          "title": "Domain",
+          "type": "object"
+        },
+        "supported": {
+          "title": "Supported",
+          "type": "boolean"
+        },
+        "violations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Violations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "supported"
+      ],
+      "title": "HandoffApplicabilityV1",
+      "type": "object"
+    },
+    "HandoffFrameV1": {
+      "additionalProperties": false,
+      "description": "Frame identity and pose of that frame in its optional parent frame.",
+      "properties": {
+        "frame_id": {
+          "minLength": 1,
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "parent_frame_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Frame Id"
+        },
+        "pose_parent_from_frame": {
+          "$ref": "#/$defs/HandoffPoseV1"
+        }
+      },
+      "required": [
+        "frame_id",
+        "pose_parent_from_frame"
+      ],
+      "title": "HandoffFrameV1",
+      "type": "object"
+    },
+    "HandoffPoseV1": {
+      "additionalProperties": false,
+      "description": "Pose coordinates with quaternion order ``(x, y, z, w)``.",
+      "properties": {
+        "rotation_xyzw": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Rotation Xyzw",
+          "type": "array"
+        },
+        "translation_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Translation M",
+          "type": "array"
+        }
+      },
+      "required": [
+        "translation_m",
+        "rotation_xyzw"
+      ],
+      "title": "HandoffPoseV1",
+      "type": "object"
+    },
+    "HandoffProvenanceV1": {
+      "additionalProperties": false,
+      "description": "Source identity retained from the producer of this section.",
+      "properties": {
+        "asset_digests_sha256": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Asset Digests Sha256",
+          "type": "array"
+        },
+        "code_revision": {
+          "minLength": 1,
+          "title": "Code Revision",
+          "type": "string"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        },
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_version": {
+          "minLength": 1,
+          "title": "Model Version",
+          "type": "string"
+        },
+        "producer_metadata": {
+          "additionalProperties": true,
+          "title": "Producer Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "model_id",
+        "model_version",
+        "code_revision",
+        "configuration_sha256"
+      ],
+      "title": "HandoffProvenanceV1",
+      "type": "object"
+    },
+    "HandoffSpeciesMassFlowV1": {
+      "additionalProperties": false,
+      "properties": {
+        "mass_flow_kg_s": {
+          "minimum": 0.0,
+          "title": "Mass Flow Kg S",
+          "type": "number"
+        },
+        "species_id": {
+          "minLength": 1,
+          "title": "Species Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "species_id",
+        "mass_flow_kg_s"
+      ],
+      "title": "HandoffSpeciesMassFlowV1",
+      "type": "object"
+    },
+    "PlumeFluxSectionV1": {
+      "additionalProperties": false,
+      "description": "Canonical conservative section data for provider-to-provider handoff.\n\n``section_pose.translation_m`` is the section centre. ``normal`` and all\nmomentum vectors are expressed in ``frame.frame_id``. The section pose's\nlocal +x axis is the positive downstream normal; its local y-z plane defines\nthe basis of the cross-section moment matrix. Total momentum is advective\nmomentum plus pressure\nthrust, where pressure thrust is ``(pressure_Pa - ambient_pressure_Pa) *\narea_m2 * normal``. ``total_energy_flow_W`` is retained only for legacy\ninterchange and is never treated as stagnation-enthalpy flux. The second\nmoment matrix uses the oriented section's local transverse basis and is\ninvariant under a rigid change of its containing frame.",
+      "properties": {
+        "advective_momentum_flux_N": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Advective Momentum Flux N",
+          "type": "array"
+        },
+        "ambient_pressure_Pa": {
+          "exclusiveMinimum": 0.0,
+          "title": "Ambient Pressure Pa",
+          "type": "number"
+        },
+        "applicability": {
+          "$ref": "#/$defs/HandoffApplicabilityV1"
+        },
+        "area_m2": {
+          "exclusiveMinimum": 0.0,
+          "title": "Area M2",
+          "type": "number"
+        },
+        "center_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Center M",
+          "type": "array"
+        },
+        "characteristic_radius_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Characteristic Radius M"
+        },
+        "cross_section_second_moment_m2": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            }
+          ],
+          "title": "Cross Section Second Moment M2",
+          "type": "array"
+        },
+        "frame": {
+          "$ref": "#/$defs/HandoffFrameV1"
+        },
+        "mass_flow_kg_s": {
+          "exclusiveMinimum": 0.0,
+          "title": "Mass Flow Kg S",
+          "type": "number"
+        },
+        "momentum_flux_N": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Momentum Flux N",
+          "type": "array"
+        },
+        "normal": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Normal",
+          "type": "array"
+        },
+        "pressure_Pa": {
+          "exclusiveMinimum": 0.0,
+          "title": "Pressure Pa",
+          "type": "number"
+        },
+        "pressure_match_relative_residual": {
+          "minimum": 0.0,
+          "title": "Pressure Match Relative Residual",
+          "type": "number"
+        },
+        "pressure_thrust_N": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Pressure Thrust N",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/HandoffProvenanceV1"
+        },
+        "section_pose": {
+          "$ref": "#/$defs/HandoffPoseV1"
+        },
+        "species_mass_flows_kg_s": {
+          "items": {
+            "$ref": "#/$defs/HandoffSpeciesMassFlowV1"
+          },
+          "minItems": 1,
+          "title": "Species Mass Flows Kg S",
+          "type": "array"
+        },
+        "stagnation_enthalpy_flux_W": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stagnation Enthalpy Flux W"
+        },
+        "time_s": {
+          "title": "Time S",
+          "type": "number"
+        },
+        "total_energy_flow_W": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Energy Flow W"
+        },
+        "uncertainty": {
+          "additionalProperties": true,
+          "title": "Uncertainty",
+          "type": "object"
+        }
+      },
+      "required": [
+        "time_s",
+        "frame",
+        "section_pose",
+        "center_m",
+        "normal",
+        "area_m2",
+        "mass_flow_kg_s",
+        "momentum_flux_N",
+        "advective_momentum_flux_N",
+        "pressure_thrust_N",
+        "species_mass_flows_kg_s",
+        "pressure_Pa",
+        "ambient_pressure_Pa",
+        "pressure_match_relative_residual",
+        "cross_section_second_moment_m2",
+        "provenance",
+        "applicability"
+      ],
+      "title": "PlumeFluxSectionV1",
+      "type": "object"
+    },
+    "Pose": {
+      "additionalProperties": false,
+      "description": "Right-handed SI pose with quaternion components ordered ``x,y,z,w``.",
+      "properties": {
+        "frame_id": {
+          "minLength": 1,
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "rotation_xyzw": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Rotation Xyzw",
+          "type": "array"
+        },
+        "translation_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Translation M",
+          "type": "array"
+        }
+      },
+      "required": [
+        "frame_id",
+        "translation_m",
+        "rotation_xyzw"
+      ],
+      "title": "Pose",
+      "type": "object"
+    },
+    "ProductClaims": {
+      "additionalProperties": false,
+      "description": "Independent claim axes; no scalar fidelity label is implied.",
+      "properties": {
+        "consistency": {
+          "$ref": "#/$defs/ConsistencyLevel"
+        },
+        "derivation": {
+          "$ref": "#/$defs/Derivation"
+        },
+        "geometry": {
+          "$ref": "#/$defs/GeometryClaim"
+        },
+        "radiation": {
+          "$ref": "#/$defs/RadiationClaim"
+        },
+        "time_model": {
+          "$ref": "#/$defs/TimeModel"
+        }
+      },
+      "required": [
+        "geometry",
+        "radiation",
+        "time_model",
+        "derivation",
+        "consistency"
+      ],
+      "title": "ProductClaims",
+      "type": "object"
+    },
+    "RadiationClaim": {
+      "enum": [
+        "not_applicable",
+        "appearance_only",
+        "gray_approximate",
+        "spectral_engineering",
+        "tabulated",
+        "validated"
+      ],
+      "title": "RadiationClaim",
+      "type": "string"
+    },
+    "ResultMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/ApplicabilityReport"
+        },
+        "capability": {
+          "$ref": "#/$defs/CapabilityIdentity"
+        },
+        "claims": {
+          "$ref": "#/$defs/ProductClaims"
+        },
+        "output_frame_id": {
+          "minLength": 1,
+          "title": "Output Frame Id",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ResultProvenance"
+        },
+        "request_digest_sha256": {
+          "minLength": 1,
+          "title": "Request Digest Sha256",
+          "type": "string"
+        },
+        "result_id": {
+          "minLength": 1,
+          "title": "Result Id",
+          "type": "string"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/SnapshotMetadata"
+        },
+        "warnings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "capability",
+        "result_id",
+        "request_digest_sha256",
+        "snapshot",
+        "output_frame_id",
+        "claims",
+        "applicability",
+        "provenance"
+      ],
+      "title": "ResultMetadata",
+      "type": "object"
+    },
+    "ResultProvenance": {
+      "additionalProperties": false,
+      "description": "Lineage and asset identity attached to one public result.",
+      "properties": {
+        "asset_digests_sha256": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Asset Digests Sha256",
+          "type": "array"
+        },
+        "configuration_digest_sha256": {
+          "minLength": 1,
+          "title": "Configuration Digest Sha256",
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Metadata",
+          "type": "object"
+        },
+        "model_lineage_id": {
+          "minLength": 1,
+          "title": "Model Lineage Id",
+          "type": "string"
+        },
+        "parent_result_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Result Ids",
+          "type": "array"
+        },
+        "provider_id": {
+          "minLength": 1,
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "provider_version": {
+          "minLength": 1,
+          "title": "Provider Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_lineage_id",
+        "provider_id",
+        "provider_version",
+        "configuration_digest_sha256"
+      ],
+      "title": "ResultProvenance",
+      "type": "object"
+    },
+    "SampleStatus": {
+      "additionalProperties": false,
+      "description": "Status for one direction or ray when partial evaluation is enabled.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/SampleStatusCode"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "SampleStatus",
+      "type": "object"
+    },
+    "SampleStatusCode": {
+      "enum": [
+        "ok",
+        "outside_applicability",
+        "invalid_sample",
+        "backend_failure"
+      ],
+      "title": "SampleStatusCode",
+      "type": "string"
+    },
+    "SnapshotMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "ambient_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Ambient State Digest Sha256",
+          "type": "string"
+        },
+        "dynamic_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Dynamic State Digest Sha256",
+          "type": "string"
+        },
+        "expires_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At Utc"
+        },
+        "provider_state_digest_sha256": {
+          "minLength": 1,
+          "title": "Provider State Digest Sha256",
+          "type": "string"
+        },
+        "session_id": {
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "minLength": 1,
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "source_pose": {
+          "$ref": "#/$defs/Pose"
+        },
+        "time_s": {
+          "title": "Time S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "session_id",
+        "time_s",
+        "source_pose",
+        "dynamic_state_digest_sha256",
+        "ambient_state_digest_sha256",
+        "provider_state_digest_sha256"
+      ],
+      "title": "SnapshotMetadata",
+      "type": "object"
+    },
+    "TimeModel": {
+      "enum": [
+        "steady",
+        "quasi_steady",
+        "prescribed_transient",
+        "solved_transient"
+      ],
+      "title": "TimeModel",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Ordered conservative sections bound to one exact request and snapshot.",
+  "properties": {
+    "metadata": {
+      "$ref": "#/$defs/ResultMetadata"
+    },
+    "request": {
+      "$ref": "#/$defs/EngineeringFluxSectionRequest"
+    },
+    "samples": {
+      "items": {
+        "$ref": "#/$defs/EngineeringFluxSectionSampleV1"
+      },
+      "minItems": 1,
+      "title": "Samples",
+      "type": "array"
+    }
+  },
+  "required": [
+    "metadata",
+    "request",
+    "samples"
+  ],
+  "title": "EngineeringFluxSectionResult",
+  "type": "object"
+}

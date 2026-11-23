@@ -1,0 +1,417 @@
+{
+  "$defs": {
+    "HandoffApplicabilityV1": {
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "additionalProperties": true,
+          "title": "Domain",
+          "type": "object"
+        },
+        "supported": {
+          "title": "Supported",
+          "type": "boolean"
+        },
+        "violations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Violations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "supported"
+      ],
+      "title": "HandoffApplicabilityV1",
+      "type": "object"
+    },
+    "HandoffFrameV1": {
+      "additionalProperties": false,
+      "description": "Frame identity and pose of that frame in its optional parent frame.",
+      "properties": {
+        "frame_id": {
+          "minLength": 1,
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "parent_frame_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Frame Id"
+        },
+        "pose_parent_from_frame": {
+          "$ref": "#/$defs/HandoffPoseV1"
+        }
+      },
+      "required": [
+        "frame_id",
+        "pose_parent_from_frame"
+      ],
+      "title": "HandoffFrameV1",
+      "type": "object"
+    },
+    "HandoffPoseV1": {
+      "additionalProperties": false,
+      "description": "Pose coordinates with quaternion order ``(x, y, z, w)``.",
+      "properties": {
+        "rotation_xyzw": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Rotation Xyzw",
+          "type": "array"
+        },
+        "translation_m": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Translation M",
+          "type": "array"
+        }
+      },
+      "required": [
+        "translation_m",
+        "rotation_xyzw"
+      ],
+      "title": "HandoffPoseV1",
+      "type": "object"
+    },
+    "HandoffProvenanceV1": {
+      "additionalProperties": false,
+      "description": "Source identity retained from the producer of this section.",
+      "properties": {
+        "asset_digests_sha256": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Asset Digests Sha256",
+          "type": "array"
+        },
+        "code_revision": {
+          "minLength": 1,
+          "title": "Code Revision",
+          "type": "string"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        },
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_version": {
+          "minLength": 1,
+          "title": "Model Version",
+          "type": "string"
+        },
+        "producer_metadata": {
+          "additionalProperties": true,
+          "title": "Producer Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "model_id",
+        "model_version",
+        "code_revision",
+        "configuration_sha256"
+      ],
+      "title": "HandoffProvenanceV1",
+      "type": "object"
+    },
+    "HandoffSpeciesMassFlowV1": {
+      "additionalProperties": false,
+      "properties": {
+        "mass_flow_kg_s": {
+          "minimum": 0.0,
+          "title": "Mass Flow Kg S",
+          "type": "number"
+        },
+        "species_id": {
+          "minLength": 1,
+          "title": "Species Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "species_id",
+        "mass_flow_kg_s"
+      ],
+      "title": "HandoffSpeciesMassFlowV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Canonical conservative section data for provider-to-provider handoff.\n\n``section_pose.translation_m`` is the section centre. ``normal`` and all\nmomentum vectors are expressed in ``frame.frame_id``. The section pose's\nlocal +x axis is the positive downstream normal; its local y-z plane defines\nthe basis of the cross-section moment matrix. Total momentum is advective\nmomentum plus pressure\nthrust, where pressure thrust is ``(pressure_Pa - ambient_pressure_Pa) *\narea_m2 * normal``. ``total_energy_flow_W`` is retained only for legacy\ninterchange and is never treated as stagnation-enthalpy flux. The second\nmoment matrix uses the oriented section's local transverse basis and is\ninvariant under a rigid change of its containing frame.",
+  "properties": {
+    "advective_momentum_flux_N": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Advective Momentum Flux N",
+      "type": "array"
+    },
+    "ambient_pressure_Pa": {
+      "exclusiveMinimum": 0.0,
+      "title": "Ambient Pressure Pa",
+      "type": "number"
+    },
+    "applicability": {
+      "$ref": "#/$defs/HandoffApplicabilityV1"
+    },
+    "area_m2": {
+      "exclusiveMinimum": 0.0,
+      "title": "Area M2",
+      "type": "number"
+    },
+    "center_m": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Center M",
+      "type": "array"
+    },
+    "characteristic_radius_m": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Characteristic Radius M"
+    },
+    "cross_section_second_moment_m2": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        }
+      ],
+      "title": "Cross Section Second Moment M2",
+      "type": "array"
+    },
+    "frame": {
+      "$ref": "#/$defs/HandoffFrameV1"
+    },
+    "mass_flow_kg_s": {
+      "exclusiveMinimum": 0.0,
+      "title": "Mass Flow Kg S",
+      "type": "number"
+    },
+    "momentum_flux_N": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Momentum Flux N",
+      "type": "array"
+    },
+    "normal": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Normal",
+      "type": "array"
+    },
+    "pressure_Pa": {
+      "exclusiveMinimum": 0.0,
+      "title": "Pressure Pa",
+      "type": "number"
+    },
+    "pressure_match_relative_residual": {
+      "minimum": 0.0,
+      "title": "Pressure Match Relative Residual",
+      "type": "number"
+    },
+    "pressure_thrust_N": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Pressure Thrust N",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/HandoffProvenanceV1"
+    },
+    "section_pose": {
+      "$ref": "#/$defs/HandoffPoseV1"
+    },
+    "species_mass_flows_kg_s": {
+      "items": {
+        "$ref": "#/$defs/HandoffSpeciesMassFlowV1"
+      },
+      "minItems": 1,
+      "title": "Species Mass Flows Kg S",
+      "type": "array"
+    },
+    "stagnation_enthalpy_flux_W": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stagnation Enthalpy Flux W"
+    },
+    "time_s": {
+      "title": "Time S",
+      "type": "number"
+    },
+    "total_energy_flow_W": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Energy Flow W"
+    },
+    "uncertainty": {
+      "additionalProperties": true,
+      "title": "Uncertainty",
+      "type": "object"
+    }
+  },
+  "required": [
+    "time_s",
+    "frame",
+    "section_pose",
+    "center_m",
+    "normal",
+    "area_m2",
+    "mass_flow_kg_s",
+    "momentum_flux_N",
+    "advective_momentum_flux_N",
+    "pressure_thrust_N",
+    "species_mass_flows_kg_s",
+    "pressure_Pa",
+    "ambient_pressure_Pa",
+    "pressure_match_relative_residual",
+    "cross_section_second_moment_m2",
+    "provenance",
+    "applicability"
+  ],
+  "title": "PlumeFluxSectionV1",
+  "type": "object"
+}

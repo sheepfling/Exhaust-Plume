@@ -73,6 +73,7 @@ class SpectralRayTransferResult(ApiModel):
   validity_mask: MatrixBool
   ray_status: tuple[SampleStatus, ...] = Field(min_length=1)
   hit_mask: tuple[bool, ...] = Field(min_length=1)
+  absolute_standard_uncertainty: tuple[tuple[float | None, ...], ...] | None = None
   optical_depth: MatrixFloat | None = None
   plume_intersection_t_m: tuple[tuple[float, float] | None, ...] | None = None
 
@@ -98,6 +99,30 @@ class SpectralRayTransferResult(ApiModel):
         'optical_depth',
     ) != (ray_count, wavelength_count):
       raise ValueError('ray matrices must have matching rectangular shapes')
+    ####
+    if self.absolute_standard_uncertainty is not None:
+      if validate_rectangular_matrix(
+          self.absolute_standard_uncertainty,
+          'absolute_standard_uncertainty',
+      ) != (ray_count, wavelength_count):
+        raise ValueError('ray matrices must have matching rectangular shapes')
+      ####
+      for ray_index, row in enumerate(self.absolute_standard_uncertainty):
+        for wavelength_index, value in enumerate(row):
+          if value is None:
+            continue
+          ####
+          if not isfinite(value) or value < 0.0:
+            raise ValueError(
+              'absolute standard uncertainty must be finite and nonnegative'
+            )
+          ####
+          if not self.validity_mask[ray_index][wavelength_index]:
+            raise ValueError(
+              'invalid ray samples must not report standard uncertainty'
+            )
+        ####
+      ####
     ####
     if len(self.ray_status) != ray_count or len(self.hit_mask) != ray_count:
       raise ValueError('ray status and hit-mask counts must equal ray count')

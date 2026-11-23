@@ -38,6 +38,9 @@ SPEED_OF_LIGHT_M_S = 299792458.0
 
 
 def _finite_positive(name: str, value: object) -> float:
+  if isinstance(value, bool):
+    raise ValueError(f'{name} must be numeric')
+  ####
   numeric = float(cast(Any, value))
   if not isfinite(numeric) or numeric <= 0.0:
     raise ValueError(f'{name} must be finite and positive')
@@ -47,6 +50,9 @@ def _finite_positive(name: str, value: object) -> float:
 
 
 def _finite_nonnegative(name: str, value: object) -> float:
+  if isinstance(value, bool):
+    raise ValueError(f'{name} must be numeric')
+  ####
   numeric = float(cast(Any, value))
   if not isfinite(numeric) or numeric < 0.0:
     raise ValueError(f'{name} must be finite and nonnegative')
@@ -203,8 +209,11 @@ class LtePopulationClosure:
       'upper_number_density_per_m3',
       self.upper_number_density_per_m3,
     )
-    stimulated = float(self.stimulated_emission_factor)
-    if not isfinite(stimulated) or not 0.0 < stimulated <= 1.0:
+    stimulated = _finite_positive(
+      'stimulated_emission_factor',
+      self.stimulated_emission_factor,
+    )
+    if stimulated > 1.0:
       raise ValueError('stimulated_emission_factor must be finite and in (0, 1]')
     ####
     integrated = _finite_nonnegative(
@@ -407,15 +416,15 @@ class SpectralLine:
 
   def __post_init__(self) -> None:
     center = _finite_positive('center_wavelength_m', self.center_wavelength_m)
-    integrated = float(self.integrated_optical_depth_m)
-    if not isfinite(integrated) or integrated < 0.0:
-      raise ValueError('integrated_optical_depth_m must be finite and nonnegative')
-    ####
+    integrated = _finite_nonnegative(
+      'integrated_optical_depth_m',
+      self.integrated_optical_depth_m,
+    )
     sigma = _finite_positive('doppler_sigma_m', self.doppler_sigma_m)
-    lorentz = float(self.lorentz_half_width_m)
-    if not isfinite(lorentz) or lorentz < 0.0:
-      raise ValueError('lorentz_half_width_m must be finite and nonnegative')
-    ####
+    lorentz = _finite_nonnegative(
+      'lorentz_half_width_m',
+      self.lorentz_half_width_m,
+    )
     label = str(self.label)
     if not label:
       raise ValueError('label must not be empty')
@@ -738,7 +747,10 @@ class SectionedLineRadiationProfile:
 
     lines = tuple(tuple(section) for section in lines_by_section)
     states = tuple(mixture_states)
-    path_lengths = tuple(float(value) for value in path_lengths_m)
+    path_lengths = tuple(
+      _finite_positive(f'path_lengths_m[{index}]', value)
+      for index, value in enumerate(path_lengths_m)
+    )
     if not lines or len(lines) != len(states) or len(lines) != len(path_lengths):
       raise ValueError(
         'lines_by_section, mixture_states, and path_lengths_m must have equal nonzero lengths'

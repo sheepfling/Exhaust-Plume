@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "description": "Query conservative sections at centerline arc-length stations.\n\nArc length is measured from the caller-named source handoff centerline\nreference. Providers return their native station state unless interpolation\nis explicitly enabled. The requested frame and source reference are part of\nthe query identity.",
+  "properties": {
+    "allow_interpolation": {
+      "default": false,
+      "title": "Allow Interpolation",
+      "type": "boolean"
+    },
+    "allow_partial_results": {
+      "default": false,
+      "title": "Allow Partial Results",
+      "type": "boolean"
+    },
+    "centerline_arclength_m": {
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Centerline Arclength M",
+      "type": "array"
+    },
+    "centerline_reference_id": {
+      "minLength": 1,
+      "title": "Centerline Reference Id",
+      "type": "string"
+    },
+    "output_frame_id": {
+      "minLength": 1,
+      "title": "Output Frame Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "output_frame_id",
+    "centerline_reference_id",
+    "centerline_arclength_m"
+  ],
+  "title": "EngineeringFluxSectionRequest",
+  "type": "object"
+}

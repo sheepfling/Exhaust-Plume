@@ -1,0 +1,191 @@
+{
+  "metadata": {
+    "capability": {
+      "name": "plume.engineering.flux-section",
+      "major": 1
+    },
+    "result_id": "fixture-engineering-flux-result",
+    "request_digest_sha256": "f46040f78455a0ea65dd8076a07e8e5ad977be04c943c0904c5d240656e7e66d",
+    "snapshot": {
+      "snapshot_id": "fixture-snapshot-1",
+      "session_id": "fixture-session-1",
+      "time_s": 0.0,
+      "source_pose": {
+        "frame_id": "world",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "dynamic_state_digest_sha256": "fixture-dynamic",
+      "ambient_state_digest_sha256": "fixture-ambient",
+      "provider_state_digest_sha256": "fixture-provider",
+      "expires_at_utc": null
+    },
+    "output_frame_id": "plume-local",
+    "claims": {
+      "geometry": "illustrative",
+      "radiation": "appearance_only",
+      "time_model": "steady",
+      "derivation": "native",
+      "consistency": "co_generated"
+    },
+    "applicability": {
+      "status": "inside",
+      "reasons": []
+    },
+    "provenance": {
+      "model_lineage_id": "fixture-lineage",
+      "provider_id": "provider.fixture",
+      "provider_version": "1.0.0",
+      "configuration_digest_sha256": "fixture-configuration",
+      "asset_digests_sha256": [],
+      "parent_result_ids": [],
+      "metadata": {
+        "centerline_reference_id": "fixture-source-centerline"
+      }
+    },
+    "warnings": []
+  },
+  "request": {
+    "output_frame_id": "plume-local",
+    "centerline_reference_id": "fixture-source-centerline",
+    "centerline_arclength_m": [
+      0.0
+    ],
+    "allow_interpolation": false,
+    "allow_partial_results": false
+  },
+  "samples": [
+    {
+      "station_arclength_m": 0.0,
+      "centerline_position_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "centerline_tangent": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "sampling_method": "native",
+      "status": {
+        "code": "ok",
+        "message": null,
+        "retryable": false
+      },
+      "section": {
+        "time_s": 0.0,
+        "frame": {
+          "frame_id": "plume-local",
+          "parent_frame_id": "world",
+          "pose_parent_from_frame": {
+            "translation_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation_xyzw": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        "section_pose": {
+          "translation_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        "center_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "area_m2": 0.2,
+        "mass_flow_kg_s": 1.5,
+        "momentum_flux_N": [
+          60.0,
+          0.0,
+          0.0
+        ],
+        "advective_momentum_flux_N": [
+          60.0,
+          0.0,
+          0.0
+        ],
+        "pressure_thrust_N": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "stagnation_enthalpy_flux_W": 800000.0,
+        "total_energy_flow_W": null,
+        "species_mass_flows_kg_s": [
+          {
+            "species_id": "exhaust",
+            "mass_flow_kg_s": 1.5
+          }
+        ],
+        "pressure_Pa": 101325.0,
+        "ambient_pressure_Pa": 101325.0,
+        "pressure_match_relative_residual": 0.0,
+        "cross_section_second_moment_m2": [
+          [
+            0.01,
+            0.0
+          ],
+          [
+            0.0,
+            0.01
+          ]
+        ],
+        "characteristic_radius_m": 0.252313252202016,
+        "provenance": {
+          "model_id": "fixture-source",
+          "model_version": "1.0.0",
+          "code_revision": "fixture-revision",
+          "configuration_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+          "asset_digests_sha256": [],
+          "producer_metadata": {}
+        },
+        "applicability": {
+          "supported": true,
+          "domain": {
+            "mach": [
+              2.0,
+              3.0
+            ]
+          },
+          "violations": []
+        },
+        "uncertainty": {
+          "mass_flow_kg_s": 0.01,
+          "pressure_Pa": 50.0
+        }
+      }
+    }
+  ]
+}

@@ -96,6 +96,15 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> Path:
 
 
 def _source_metadata(inputs: FpaVisualizationInput) -> dict[str, Any]:
+  camera_optics = inputs.camera_optics
+  camera_fov = (
+    None
+    if camera_optics is None
+    else camera_optics.field_of_view_rad(
+      width_px=inputs.image.width_px,
+      height_px=inputs.image.height_px,
+    )
+  )
   return {
     'source': inputs.source.model_dump(mode='json'),
     'operator_ids': list(inputs.operator_ids),
@@ -109,6 +118,9 @@ def _source_metadata(inputs: FpaVisualizationInput) -> dict[str, Any]:
       'camera_optics_id': inputs.image.camera_optics_id,
       'camera_mapping_model_id': inputs.image.camera_mapping_model_id,
       'operator_id': inputs.image.operator_id,
+      'point_spread_operator_id': inputs.image.point_spread_operator_id,
+      'point_spread_function_id': inputs.image.point_spread_function_id,
+      'point_spread_function_sha256': inputs.image.point_spread_function_sha256,
       'atmospheric_path_operator_id': inputs.image.atmospheric_path_operator_id,
       'atmospheric_path_layer_digest': inputs.image.atmospheric_path_layer_digest,
       'atmospheric_path_layer_ids': list(inputs.image.atmospheric_path_layer_ids),
@@ -125,13 +137,38 @@ def _source_metadata(inputs: FpaVisualizationInput) -> dict[str, Any]:
       'dark_current_e_per_s': inputs.detector_response.dark_current_e_per_s,
       'read_noise_std_e': inputs.detector_response.read_noise_std_e,
     },
-    'camera_optics': None if inputs.camera_optics is None else {
-      'camera_id': inputs.camera_optics.camera_id,
-      'focal_length_m': inputs.camera_optics.focal_length_m,
-      'pixel_pitch_m': list(inputs.camera_optics.pixel_pitch_m),
-      'principal_point_px': list(inputs.camera_optics.principal_point_px),
-      'aperture_area_m2': inputs.camera_optics.aperture_area_m2,
-      'mapping_model_id': inputs.camera_optics.mapping_model_id,
+    'camera_optics': None if camera_optics is None else {
+      'camera_id': camera_optics.camera_id,
+      'focal_length_m': camera_optics.focal_length_m,
+      'pixel_pitch_m': list(camera_optics.pixel_pitch_m),
+      'principal_point_px': list(camera_optics.principal_point_px),
+      'aperture_area_m2': camera_optics.aperture_area_m2,
+      'mapping_model_id': camera_optics.mapping_model_id,
+      'angular_projection_model_id': (
+        camera_optics.angular_projection_model_id
+      ),
+      'on_axis_pixel_ifov_rad': (
+        None
+        if camera_optics.on_axis_pixel_ifov_rad is None
+        else list(camera_optics.on_axis_pixel_ifov_rad)
+      ),
+      'field_of_view_rad': (
+        None if camera_fov is None else list(camera_fov)
+      ),
+      'point_spread_function': (
+        None
+        if camera_optics.point_spread_function is None
+        else {
+          'operator_id': inputs.image.point_spread_operator_id,
+          'model_id': camera_optics.point_spread_function.model_id,
+          'digest_sha256': camera_optics.point_spread_function.digest_sha256,
+          'kernel_weights': [
+            list(row) for row in camera_optics.point_spread_function.kernel_weights
+          ],
+          'spectral_scope': camera_optics.point_spread_function.spectral_scope,
+          'edge_policy': camera_optics.point_spread_function.edge_policy,
+        }
+      ),
     },
     'digitization': None if inputs.digitization_policy is None else {
       'policy_id': inputs.digitization_policy.policy_id,
@@ -183,13 +220,39 @@ def _render_pixel_grid(
   values = _masked_array(projection.layer_values, projection.validity_mask, np)
   figure, axis = plt.subplots(figsize=(7.4, 5.8))
   image = axis.imshow(values, origin='upper', cmap=spec.color_map, interpolation='nearest')
+  if projection.angular_projection_model_id is None:
+    angular_summary = 'IFOV/FOV not declared; supplied ray mapping retained'
+  else:
+    assert projection.on_axis_pixel_ifov_rad is not None
+    assert projection.field_of_view_rad is not None
+    ifov_urad = tuple(value * 1.0e6 for value in projection.on_axis_pixel_ifov_rad)
+    fov_urad = tuple(value * 1.0e6 for value in projection.field_of_view_rad)
+    angular_summary = (
+      f'pinhole IFOV H/V={ifov_urad[0]:.3g}/{ifov_urad[1]:.3g} μrad | '
+      f'FOV H/V={fov_urad[0]:.3g}/{fov_urad[1]:.3g} μrad'
+    )
+  psf_summary = (
+    'PSF: none'
+    if projection.point_spread_function_id is None
+    else (
+      f'PSF {projection.point_spread_function_id} '
+      f'({projection.point_spread_spectral_scope}; '
+      f'{projection.point_spread_edge_policy})'
+    )
+  )
   axis.set_title(
     f'{title}\n{projection.width_px}×{projection.height_px} px | '
-    f'exposure={projection.exposure_s:g} s | {projection.validation_status}'
+    f'exposure={projection.exposure_s:g} s | {projection.validation_status}\n'
+    f'{angular_summary}\n{psf_summary}',
+    fontsize=10,
   )
   axis.set_xlabel('pixel column [index]')
   axis.set_ylabel('pixel row [index]')
-  figure.colorbar(image, ax=axis, label=spec.display_layer.value)
+  figure.colorbar(
+    image,
+    ax=axis,
+    label=f'{projection.layer_quantity} [{projection.layer_unit}]',
+  )
   selected = projection.selected_pixel
   axis.scatter([selected.column_index], [selected.row_index], marker='+', color='cyan', s=100, linewidths=1.5)
   _save_figure(
@@ -286,7 +349,7 @@ def _render_detector_response(
 def _write_pixel_table(inputs: FpaVisualizationInput, output: Path) -> Path:
   path = output / 'fpa_pixel_values.csv'
   with path.open('w', newline='', encoding='utf-8') as stream:
-    writer = csv.writer(stream)
+    writer = csv.writer(stream, lineterminator='\n')
     writer.writerow((
       'row_index',
       'column_index',
@@ -355,8 +418,8 @@ def render_fpa_gallery(
   ####
   output = Path(output_dir)
   output.mkdir(parents=True, exist_ok=True)
-  base_spec = spec or FpaVisualizationSpec.for_source(inputs.source, view_kind='fpa.overview')
-  base_spec.validate_for_source(inputs.source)
+  base_spec = spec or FpaVisualizationSpec.for_input(inputs, view_kind='fpa.overview')
+  base_spec.validate_for_input(inputs)
   view_specs: list[FpaVisualizationSpec] = []
   artifacts: list[GalleryArtifact] = []
   expected_spec = base_spec.model_copy(update={

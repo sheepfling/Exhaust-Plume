@@ -11,11 +11,18 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from math import fsum, isfinite
+from math import atan, fsum, isclose, isfinite
 
 from exhaust_plume.validation.measurement_operators import sample_spectral_rows
-from exhaust_plume.contracts.ray_transfer_v1 import SpectralRayTransferResult
-from exhaust_plume.contracts.common_v1 import canonical_digest
+from exhaust_plume.contracts.ray_transfer_v1 import (
+  SpectralRayTransferRequest,
+  SpectralRayTransferResult,
+)
+from exhaust_plume.contracts.common_v1 import ApplicabilityStatus, canonical_digest
+from exhaust_plume.contracts.fpa_detector_v1 import (
+  FPA_PINHOLE_RECTILINEAR_PROJECTION_MODEL_ID,
+  fpa_measurement_operator_digest,
+)
 from exhaust_plume.validation.sensor_operators import (
   ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
   AtmosphericPathLayer,
@@ -25,7 +32,11 @@ from exhaust_plume.validation.sensor_operators import (
 
 
 FPA_PIXEL_DETECTOR_OPERATOR_ID = 'op.sensor.fpa-pixel-detector'
+FPA_POINT_SPREAD_OPERATOR_ID = 'op.sensor.fpa-point-spread'
 FPA_DIGITIZATION_OPERATOR_ID = 'op.sensor.fpa-digitization'
+FPA_TEMPORAL_EXPOSURE_OPERATOR_ID = 'op.sensor.fpa-temporal-exposure-integral'
+FPA_PSF_SPECTRAL_SCOPE_ACHROMATIC = 'achromatic'
+FPA_PSF_EDGE_POLICY_MASK_INCOMPLETE_SUPPORT = 'mask-incomplete-support'
 PLANCK_CONSTANT_J_S = 6.62607015e-34
 SPEED_OF_LIGHT_M_PER_S = 299792458.0
 
@@ -33,7 +44,20 @@ FloatMatrix = tuple[tuple[float, ...], ...]
 BoolMatrix = tuple[tuple[bool, ...], ...]
 
 
+def _reject_boolean_numeric(value: object, field_name: str) -> None:
+  if isinstance(value, bool):
+    raise ValueError(f'{field_name} must be numeric, not boolean')
+  ####
+  if isinstance(value, (tuple, list)):
+    for item in value:
+      _reject_boolean_numeric(item, field_name)
+    ####
+  ####
+####
+
+
 def _positive_axis(values: tuple[float, ...] | list[float], field_name: str) -> tuple[float, ...]:
+  _reject_boolean_numeric(values, field_name)
   axis = tuple(float(value) for value in values)
   if len(axis) < 2 or not all(isfinite(value) and value > 0.0 for value in axis):
     raise ValueError(f'{field_name} must contain at least two finite positive values')
@@ -52,6 +76,7 @@ def _finite_vector(
     minimum: float | None = None,
     maximum: float | None = None,
 ) -> tuple[float, ...]:
+  _reject_boolean_numeric(values, field_name)
   vector = tuple(float(value) for value in values)
   if not vector or any(not isfinite(value) for value in vector):
     raise ValueError(f'{field_name} must contain finite values')
@@ -75,6 +100,7 @@ def _matrix(
     minimum: float | None = None,
     maximum: float | None = None,
 ) -> FloatMatrix:
+  _reject_boolean_numeric(values, field_name)
   matrix = tuple(tuple(float(value) for value in row) for row in values)
   if len(matrix) != row_count or any(len(row) != column_count for row in matrix):
     raise ValueError(f'{field_name} must have shape ({row_count}, {column_count})')
@@ -132,8 +158,9 @@ class FpaCameraOptics:
 
   This record does not generate rays or infer a projection.  The caller must
   provide the explicit pixel indices and ``m² sr`` collection weights in
-  :class:`FpaPixelGeometry`; this record preserves the camera/optics identity
-  that was used to produce that mapping.
+  :class:`FpaPixelGeometry`. IFOV and sensor FOV are derived only when the
+  caller explicitly declares the supported pinhole/rectilinear projection;
+  those angular values do not alter the supplied ray mapping.
   """
 
   camera_id: str
@@ -142,30 +169,167 @@ class FpaCameraOptics:
   principal_point_px: tuple[float, float]
   aperture_area_m2: float
   mapping_model_id: str = 'declared-ray-to-pixel-mapping-v1'
+  angular_projection_model_id: str | None = None
+  point_spread_function: FpaPointSpreadFunction | None = None
 
   def __post_init__(self) -> None:
     if not self.camera_id:
       raise ValueError('camera_id must not be empty')
     ####
+    _reject_boolean_numeric(self.focal_length_m, 'focal_length_m')
     if not isfinite(self.focal_length_m) or self.focal_length_m <= 0.0:
       raise ValueError('focal_length_m must be finite and positive')
     ####
+    _reject_boolean_numeric(self.pixel_pitch_m, 'pixel_pitch_m')
     pixel_pitch = tuple(float(value) for value in self.pixel_pitch_m)
     if len(pixel_pitch) != 2 or not all(isfinite(value) and value > 0.0 for value in pixel_pitch):
       raise ValueError('pixel_pitch_m must contain two finite positive values')
     ####
+    _reject_boolean_numeric(self.principal_point_px, 'principal_point_px')
     principal_point = tuple(float(value) for value in self.principal_point_px)
     if len(principal_point) != 2 or not all(isfinite(value) for value in principal_point):
       raise ValueError('principal_point_px must contain two finite values')
     ####
+    _reject_boolean_numeric(self.aperture_area_m2, 'aperture_area_m2')
     if not isfinite(self.aperture_area_m2) or self.aperture_area_m2 <= 0.0:
       raise ValueError('aperture_area_m2 must be finite and positive')
     ####
     if not self.mapping_model_id:
       raise ValueError('mapping_model_id must not be empty')
     ####
+    if self.angular_projection_model_id not in (
+        None,
+        FPA_PINHOLE_RECTILINEAR_PROJECTION_MODEL_ID,
+    ):
+      raise ValueError(
+        'angular_projection_model_id must be None or '
+        f'{FPA_PINHOLE_RECTILINEAR_PROJECTION_MODEL_ID!r}'
+      )
+    ####
+    if self.point_spread_function is not None and not isinstance(
+        self.point_spread_function,
+        FpaPointSpreadFunction,
+    ):
+      raise ValueError('point_spread_function must be FpaPointSpreadFunction when supplied')
+    ####
     object.__setattr__(self, 'pixel_pitch_m', pixel_pitch)
     object.__setattr__(self, 'principal_point_px', principal_point)
+  ####
+
+  @property
+  def on_axis_pixel_ifov_rad(self) -> tuple[float, float] | None:
+    """Return the pinhole on-axis pixel IFOV in the two sensor axes.
+
+    This is the angular width subtended by one pixel centered on the
+    principal point. It describes the declared focal length and pixel pitch;
+    it does not generate or alter the explicit ray mapping. The result is
+    available only when the pinhole projection model is explicitly declared.
+    """
+
+    if self.angular_projection_model_id is None:
+      return None
+    return tuple(
+      2.0 * atan(pitch_m / (2.0 * self.focal_length_m))
+      for pitch_m in self.pixel_pitch_m
+    )
+  ####
+
+  def field_of_view_rad(
+    self,
+    *,
+    width_px: int,
+    height_px: int,
+  ) -> tuple[float, float] | None:
+    """Return horizontal and vertical pinhole FOV over the sensor edges.
+
+    Pixel centers use zero-based column/row coordinates, matching
+    ``principal_point_px``. The sensor edges therefore lie half a pixel beyond
+    the first and last pixel centers. Returned extents are camera-local and in
+    radians.
+    """
+
+    if self.angular_projection_model_id is None:
+      return None
+    width = _positive_dimension(width_px, 'width_px')
+    height = _positive_dimension(height_px, 'height_px')
+    principal_x, principal_y = self.principal_point_px
+    pitch_x, pitch_y = self.pixel_pitch_m
+    horizontal = atan(
+      ((width - 0.5 - principal_x) * pitch_x) / self.focal_length_m
+    ) - atan(((-0.5 - principal_x) * pitch_x) / self.focal_length_m)
+    vertical = atan(
+      ((height - 0.5 - principal_y) * pitch_y) / self.focal_length_m
+    ) - atan(((-0.5 - principal_y) * pitch_y) / self.focal_length_m)
+    return horizontal, vertical
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
+class FpaPointSpreadFunction:
+  """Discrete achromatic PSF stencil applied before detector noise.
+
+  ``kernel_weights[row, column]`` distributes a source pixel to the output
+  pixel offset by ``(row - center_row, column - center_column)``. The kernel
+  is normalized to unit sum. Outputs are invalid when any nonzero kernel
+  support lies beyond the finite sensor or touches an unobserved/invalid input
+  pixel; the kernel is never renormalized at an edge. This first model is
+  achromatic and does not represent aberrations or wavelength-dependent blur.
+  """
+
+  model_id: str
+  kernel_weights: FloatMatrix
+  spectral_scope: str = FPA_PSF_SPECTRAL_SCOPE_ACHROMATIC
+  edge_policy: str = FPA_PSF_EDGE_POLICY_MASK_INCOMPLETE_SUPPORT
+
+  def __post_init__(self) -> None:
+    if not isinstance(self.model_id, str) or not self.model_id.strip():
+      raise ValueError('model_id must be a nonempty string')
+    ####
+    if not self.kernel_weights or not self.kernel_weights[0]:
+      raise ValueError('kernel_weights must be a nonempty rectangular matrix')
+    ####
+    width = len(self.kernel_weights[0])
+    if len(self.kernel_weights) % 2 != 1 or width % 2 != 1:
+      raise ValueError('PSF kernel dimensions must be odd to define a center sample')
+    ####
+    if any(len(row) != width for row in self.kernel_weights):
+      raise ValueError('kernel_weights must be rectangular')
+    ####
+    if any(
+        isinstance(value, bool)
+        for row in self.kernel_weights
+        for value in row
+    ):
+      raise ValueError('kernel_weights must contain numeric values, not booleans')
+    ####
+    kernel = tuple(tuple(float(value) for value in row) for row in self.kernel_weights)
+    if any(not isfinite(value) or value < 0.0 for row in kernel for value in row):
+      raise ValueError('kernel_weights must contain finite nonnegative values')
+    ####
+    if not isclose(fsum(value for row in kernel for value in row), 1.0, rel_tol=0.0, abs_tol=1.0e-12):
+      raise ValueError('kernel_weights must sum to one within 1e-12')
+    ####
+    if self.spectral_scope != FPA_PSF_SPECTRAL_SCOPE_ACHROMATIC:
+      raise ValueError('spectral_scope must be achromatic for this PSF operator')
+    ####
+    if self.edge_policy != FPA_PSF_EDGE_POLICY_MASK_INCOMPLETE_SUPPORT:
+      raise ValueError('edge_policy must be mask-incomplete-support')
+    ####
+    object.__setattr__(self, 'model_id', self.model_id.strip())
+    object.__setattr__(self, 'kernel_weights', kernel)
+  ####
+
+  @property
+  def digest_sha256(self) -> str:
+    """Digest the exact kernel and the scope/policy that define its use."""
+
+    return canonical_digest({
+      'model_id': self.model_id,
+      'kernel_weights': self.kernel_weights,
+      'spectral_scope': self.spectral_scope,
+      'edge_policy': self.edge_policy,
+    })
   ####
 ####
 
@@ -240,6 +404,18 @@ class FpaPixelGeometry:
   def camera_mapping_model_id(self) -> str | None:
     return None if self.camera_optics is None else self.camera_optics.mapping_model_id
   ####
+
+  @property
+  def field_of_view_rad(self) -> tuple[float, float] | None:
+    """Return the camera-local sensor FOV when camera geometry is declared."""
+
+    if self.camera_optics is None:
+      return None
+    return self.camera_optics.field_of_view_rad(
+      width_px=self.width_px,
+      height_px=self.height_px,
+    )
+  ####
 ####
 
 
@@ -280,9 +456,11 @@ class DetectorResponse:
     if not self.response_id:
       raise ValueError('response_id must not be empty')
     ####
+    _reject_boolean_numeric(self.dark_current_e_per_s, 'dark_current_e_per_s')
     if not isfinite(self.dark_current_e_per_s) or self.dark_current_e_per_s < 0.0:
       raise ValueError('dark_current_e_per_s must be finite and nonnegative')
     ####
+    _reject_boolean_numeric(self.read_noise_std_e, 'read_noise_std_e')
     if not isfinite(self.read_noise_std_e) or self.read_noise_std_e < 0.0:
       raise ValueError('read_noise_std_e must be finite and nonnegative')
     ####
@@ -310,6 +488,33 @@ class DetectorResponse:
 
 
 @dataclass(frozen=True, slots=True)
+class FpaRaySourceBinding:
+  """Identity of the exact ray result, or composite exposure, behind an image."""
+
+  capability_id: str
+  snapshot_id: str
+  frame_id: str
+  content_sha256: str
+
+  def __post_init__(self) -> None:
+    for name in ('capability_id', 'snapshot_id', 'frame_id'):
+      value = getattr(self, name)
+      if not isinstance(value, str) or not value.strip():
+        raise ValueError(f'{name} must be a nonempty string')
+    ####
+    digest = self.content_sha256
+    if (
+        not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in '0123456789abcdef' for character in digest)
+    ):
+      raise ValueError('content_sha256 must be a lowercase SHA-256 digest')
+    ####
+  ####
+####
+
+
+@dataclass(frozen=True, slots=True)
 class FpaPixelImage:
   """Expected detector image produced by the explicit downstream operator."""
 
@@ -325,15 +530,23 @@ class FpaPixelImage:
   detector_response_id: str
   camera_optics_id: str | None = None
   camera_mapping_model_id: str | None = None
+  point_spread_operator_id: str | None = None
+  point_spread_function_id: str | None = None
+  point_spread_function_sha256: str | None = None
   operator_id: str = FPA_PIXEL_DETECTOR_OPERATOR_ID
   atmospheric_path_operator_id: str | None = None
   atmospheric_path_layer_digest: str | None = None
   atmospheric_path_layer_ids: tuple[str, ...] = ()
+  source_binding: FpaRaySourceBinding | None = None
+  operator_input_sha256: str | None = None
+  pixel_geometry_sha256: str | None = None
+  measurement_operator_sha256: str | None = None
 
   def __post_init__(self) -> None:
     width = _positive_dimension(self.width_px, 'width_px')
     height = _positive_dimension(self.height_px, 'height_px')
     wavelengths = _positive_axis(self.wavelengths_m, 'wavelengths_m')
+    _reject_boolean_numeric(self.exposure_s, 'exposure_s')
     if not isfinite(self.exposure_s) or self.exposure_s <= 0.0:
       raise ValueError('exposure_s must be finite and positive')
     ####
@@ -373,6 +586,42 @@ class FpaPixelImage:
     if not isinstance(self.operator_id, str) or self.operator_id != FPA_PIXEL_DETECTOR_OPERATOR_ID:
       raise ValueError(f'operator_id must be {FPA_PIXEL_DETECTOR_OPERATOR_ID!r}')
     ####
+    if self.source_binding is not None and not isinstance(
+        self.source_binding,
+        FpaRaySourceBinding,
+    ):
+      raise TypeError('source_binding must be an FpaRaySourceBinding or None')
+    ####
+    operator_input_sha256 = _optional_identity(
+      self.operator_input_sha256,
+      'operator_input_sha256',
+    )
+    if operator_input_sha256 is not None and (
+        len(operator_input_sha256) != 64
+        or any(character not in '0123456789abcdef' for character in operator_input_sha256)
+    ):
+      raise ValueError('operator_input_sha256 must be a lowercase SHA-256 digest')
+    ####
+    pixel_geometry_sha256 = _optional_identity(
+      self.pixel_geometry_sha256,
+      'pixel_geometry_sha256',
+    )
+    if pixel_geometry_sha256 is not None and (
+        len(pixel_geometry_sha256) != 64
+        or any(character not in '0123456789abcdef' for character in pixel_geometry_sha256)
+    ):
+      raise ValueError('pixel_geometry_sha256 must be a lowercase SHA-256 digest')
+    ####
+    measurement_operator_sha256 = _optional_identity(
+      self.measurement_operator_sha256,
+      'measurement_operator_sha256',
+    )
+    if measurement_operator_sha256 is not None and (
+        len(measurement_operator_sha256) != 64
+        or any(character not in '0123456789abcdef' for character in measurement_operator_sha256)
+    ):
+      raise ValueError('measurement_operator_sha256 must be a lowercase SHA-256 digest')
+    ####
     atmospheric_path_operator_id = _optional_identity(
       self.atmospheric_path_operator_id,
       'atmospheric_path_operator_id',
@@ -397,6 +646,36 @@ class FpaPixelImage:
     elif atmospheric_path_layer_digest is not None or atmospheric_path_layer_ids:
       raise ValueError('atmospheric path lineage requires its operator identity')
     ####
+    point_spread_operator_id = _optional_identity(
+      self.point_spread_operator_id,
+      'point_spread_operator_id',
+    )
+    point_spread_function_id = _optional_identity(
+      self.point_spread_function_id,
+      'point_spread_function_id',
+    )
+    point_spread_function_sha256 = _optional_identity(
+      self.point_spread_function_sha256,
+      'point_spread_function_sha256',
+    )
+    if any(value is not None for value in (
+        point_spread_operator_id,
+        point_spread_function_id,
+        point_spread_function_sha256,
+    )):
+      if point_spread_operator_id != FPA_POINT_SPREAD_OPERATOR_ID:
+        raise ValueError('point-spread metadata requires the FPA point-spread operator')
+      ####
+      if point_spread_function_id is None or point_spread_function_sha256 is None:
+        raise ValueError('point-spread metadata requires a model identity and digest')
+      ####
+      if (
+          len(point_spread_function_sha256) != 64
+          or any(character not in '0123456789abcdef' for character in point_spread_function_sha256)
+      ):
+        raise ValueError('point_spread_function_sha256 must be a lowercase SHA-256 digest')
+      ####
+    ####
     object.__setattr__(self, 'width_px', width)
     object.__setattr__(self, 'height_px', height)
     object.__setattr__(self, 'wavelengths_m', wavelengths)
@@ -407,6 +686,12 @@ class FpaPixelImage:
     object.__setattr__(self, 'validity_mask', validity)
     object.__setattr__(self, 'camera_optics_id', _optional_identity(self.camera_optics_id, 'camera_optics_id'))
     object.__setattr__(self, 'camera_mapping_model_id', _optional_identity(self.camera_mapping_model_id, 'camera_mapping_model_id'))
+    object.__setattr__(self, 'point_spread_operator_id', point_spread_operator_id)
+    object.__setattr__(self, 'point_spread_function_id', point_spread_function_id)
+    object.__setattr__(self, 'point_spread_function_sha256', point_spread_function_sha256)
+    object.__setattr__(self, 'operator_input_sha256', operator_input_sha256)
+    object.__setattr__(self, 'pixel_geometry_sha256', pixel_geometry_sha256)
+    object.__setattr__(self, 'measurement_operator_sha256', measurement_operator_sha256)
     object.__setattr__(self, 'atmospheric_path_operator_id', atmospheric_path_operator_id)
     object.__setattr__(self, 'atmospheric_path_layer_digest', atmospheric_path_layer_digest)
     object.__setattr__(self, 'atmospheric_path_layer_ids', atmospheric_path_layer_ids)
@@ -432,9 +717,11 @@ class FpaDigitizationPolicy:
   policy_id: str = 'fpa-digitization-v1'
 
   def __post_init__(self) -> None:
+    _reject_boolean_numeric(self.electrons_per_count, 'electrons_per_count')
     if not isfinite(self.electrons_per_count) or self.electrons_per_count <= 0.0:
       raise ValueError('electrons_per_count must be finite and positive')
     ####
+    _reject_boolean_numeric(self.offset_counts, 'offset_counts')
     if not isfinite(self.offset_counts):
       raise ValueError('offset_counts must be finite')
     ####
@@ -476,6 +763,7 @@ class FpaDigitizedExpectation:
   saturated_mask: BoolMatrix
   source_operator_id: str
   digitization_policy_id: str
+  digitization_policy_sha256: str | None = None
   camera_optics_id: str | None = None
   camera_mapping_model_id: str | None = None
   operator_id: str = FPA_DIGITIZATION_OPERATOR_ID
@@ -511,6 +799,16 @@ class FpaDigitizedExpectation:
     if not isinstance(self.digitization_policy_id, str) or not self.digitization_policy_id:
       raise ValueError('digitization_policy_id must be a nonempty string')
     ####
+    policy_sha256 = _optional_identity(
+      self.digitization_policy_sha256,
+      'digitization_policy_sha256',
+    )
+    if policy_sha256 is not None and (
+        len(policy_sha256) != 64
+        or any(character not in '0123456789abcdef' for character in policy_sha256)
+    ):
+      raise ValueError('digitization_policy_sha256 must be a lowercase SHA-256 digest')
+    ####
     if not isinstance(self.operator_id, str) or self.operator_id != FPA_DIGITIZATION_OPERATOR_ID:
       raise ValueError(f'operator_id must be {FPA_DIGITIZATION_OPERATOR_ID!r}')
     ####
@@ -519,6 +817,7 @@ class FpaDigitizedExpectation:
     object.__setattr__(self, 'counts', counts)
     object.__setattr__(self, 'validity_mask', validity)
     object.__setattr__(self, 'saturated_mask', saturation)
+    object.__setattr__(self, 'digitization_policy_sha256', policy_sha256)
     object.__setattr__(self, 'camera_optics_id', _optional_identity(self.camera_optics_id, 'camera_optics_id'))
     object.__setattr__(self, 'camera_mapping_model_id', _optional_identity(self.camera_mapping_model_id, 'camera_mapping_model_id'))
   ####
@@ -555,6 +854,7 @@ def integrate_ray_transfer_to_fpa(
   evidence.
   """
 
+  _reject_boolean_numeric(exposure_s, 'exposure_s')
   if not isfinite(exposure_s) or exposure_s <= 0.0:
     raise ValueError('exposure_s must be finite and positive')
   ####
@@ -655,6 +955,69 @@ def integrate_ray_transfer_to_fpa(
     )
     signal_by_pixel[row][column] += exposure_s * _trapezoid_integral(source_axis, spectral_electrons)
   ####
+  point_spread_function = (
+    None
+    if geometry.camera_optics is None
+    else geometry.camera_optics.point_spread_function
+  )
+  if point_spread_function is not None:
+    source_signal = signal_by_pixel
+    blurred_signal = [
+      [0.0 for _ in range(geometry.width_px)]
+      for _ in range(geometry.height_px)
+    ]
+    blurred_validity = [
+      [False for _ in range(geometry.width_px)]
+      for _ in range(geometry.height_px)
+    ]
+    center_row = len(point_spread_function.kernel_weights) // 2
+    center_column = len(point_spread_function.kernel_weights[0]) // 2
+    for output_row in range(geometry.height_px):
+      for output_column in range(geometry.width_px):
+        output_is_valid = True
+        output_signal = 0.0
+        for kernel_row, kernel_values in enumerate(point_spread_function.kernel_weights):
+          for kernel_column, kernel_weight in enumerate(kernel_values):
+            if kernel_weight == 0.0:
+              continue
+            ####
+            source_row = output_row - (kernel_row - center_row)
+            source_column = output_column - (kernel_column - center_column)
+            if (
+                source_row < 0
+                or source_row >= geometry.height_px
+                or source_column < 0
+                or source_column >= geometry.width_px
+            ):
+              output_is_valid = False
+              break
+            ####
+            if (
+                not pixel_has_rays[source_row][source_column]
+                or not pixel_validity[source_row][source_column]
+            ):
+              output_is_valid = False
+              break
+            ####
+            output_signal += kernel_weight * source_signal[source_row][source_column]
+          ####
+          if not output_is_valid:
+            break
+          ####
+        ####
+        if output_is_valid:
+          blurred_signal[output_row][output_column] = output_signal
+          blurred_validity[output_row][output_column] = True
+        ####
+      ####
+    ####
+    signal_by_pixel = blurred_signal
+    pixel_validity = blurred_validity
+    pixel_has_rays = [
+      [True for _ in range(geometry.width_px)]
+      for _ in range(geometry.height_px)
+    ]
+  ####
   expected_rows: list[tuple[float, ...]] = []
   dark_rows: list[tuple[float, ...]] = []
   variance_rows: list[tuple[float, ...]] = []
@@ -678,6 +1041,20 @@ def integrate_ray_transfer_to_fpa(
     variance_rows.append(tuple(variance_row))
     validity_rows.append(tuple(validity_row))
   ####
+  operator_input = {
+    'operator_id': FPA_PIXEL_DETECTOR_OPERATOR_ID,
+    'wavelengths_m': source_axis,
+    'source_spectral_radiance': source_matrix,
+    'geometry': geometry,
+    'detector': detector,
+    'exposure_s': float(exposure_s),
+    'validity_mask': mask,
+    'background_transmittance': transmittance_matrix,
+    'background_spectral_radiance': background_matrix,
+  }
+  if point_spread_function is not None:
+    operator_input['point_spread_operator_id'] = FPA_POINT_SPREAD_OPERATOR_ID
+  ####
   return FpaPixelImage(
     width_px=geometry.width_px,
     height_px=geometry.height_px,
@@ -694,13 +1071,32 @@ def integrate_ray_transfer_to_fpa(
     detector_response_id=detector.response_id,
     camera_optics_id=geometry.camera_optics_id,
     camera_mapping_model_id=geometry.camera_mapping_model_id,
+    point_spread_operator_id=(
+      None if point_spread_function is None else FPA_POINT_SPREAD_OPERATOR_ID
+    ),
+    point_spread_function_id=(
+      None if point_spread_function is None else point_spread_function.model_id
+    ),
+    point_spread_function_sha256=(
+      None if point_spread_function is None else point_spread_function.digest_sha256
+    ),
+    pixel_geometry_sha256=canonical_digest(geometry),
+    measurement_operator_sha256=fpa_measurement_operator_digest(
+      pixel_operator_id=FPA_PIXEL_DETECTOR_OPERATOR_ID,
+      temporal_operator_id=None,
+      pixel_geometry_sha256=canonical_digest(geometry),
+      wavelengths_m=source_axis,
+      exposure_s=float(exposure_s),
+      detector_response=detector,
+    ),
+    operator_input_sha256=canonical_digest(operator_input),
   )
 ####
 
 
 def integrate_spectral_ray_result_to_fpa(
+    request: SpectralRayTransferRequest,
     result: SpectralRayTransferResult,
-    wavelengths_m: tuple[float, ...] | list[float],
     *,
     geometry: FpaPixelGeometry,
     detector: DetectorResponse,
@@ -713,8 +1109,10 @@ def integrate_spectral_ray_result_to_fpa(
 ) -> FpaPixelImage:
   """Adapt a lifecycle ray-transfer result into the deterministic FPA operator.
 
-  The wavelength axis is supplied by the original ray request because the
-  ray-transfer result intentionally carries matrix data but not request axes.
+  The exact request travels with the result because the ray-transfer result
+  intentionally carries matrix data but not request axes. Its canonical
+  digest, output frame, ray count, and wavelength count must match the result
+  before the request's wavelength axis can be used.
   When ``background_spectral_radiance`` is supplied, the result's explicit
   ``background_transmittance`` matrix is used to compose
   ``L_source + L_background * tau``.  When ``atmospheric_path_layers`` is
@@ -723,8 +1121,34 @@ def integrate_spectral_ray_result_to_fpa(
   contribution.  Neither option infers an atmosphere or a detector model.
   """
 
+  if not isinstance(request, SpectralRayTransferRequest):
+    raise TypeError('request must be SpectralRayTransferRequest')
+  ####
   if not isinstance(result, SpectralRayTransferResult):
     raise TypeError('result must be SpectralRayTransferResult')
+  ####
+  if result.metadata.request_digest_sha256 != canonical_digest(request):
+    raise ValueError('ray-transfer result request digest does not match the exact request')
+  ####
+  if result.metadata.output_frame_id != request.ray_frame_id:
+    raise ValueError('ray-transfer result output frame does not match the request frame')
+  ####
+  source_matrix = result.source_spectral_radiance
+  if not source_matrix or not source_matrix[0]:
+    raise ValueError('ray-transfer result matrix must have non-empty request axes')
+  ####
+  expected_shape = (len(request.ray_origins_m), len(request.wavelengths_m))
+  actual_shape = (
+    len(source_matrix),
+    len(source_matrix[0]),
+  )
+  if actual_shape != expected_shape:
+    raise ValueError('ray-transfer result matrix shape does not match the request axes')
+  ####
+  if result.metadata.applicability.status is ApplicabilityStatus.OUTSIDE:
+    raise ValueError(
+      'an outside-applicability ray-transfer result cannot feed the FPA operator'
+    )
   ####
   source_spectral_radiance = result.source_spectral_radiance
   validity_mask = result.validity_mask
@@ -733,7 +1157,7 @@ def integrate_spectral_ray_result_to_fpa(
   selected_path_layers = None if atmospheric_path_layers is None else tuple(atmospheric_path_layers)
   if path_applied:
     transferred = apply_atmospheric_path_layers(
-      wavelengths_m,
+      request.wavelengths_m,
       source_spectral_radiance,
       selected_path_layers or (),
       validity_mask=validity_mask,
@@ -742,7 +1166,7 @@ def integrate_spectral_ray_result_to_fpa(
     validity_mask = transferred.validity_mask
     if background_spectral_radiance is not None:
       path_transfer = compose_atmospheric_path_layers(
-        wavelengths_m,
+        request.wavelengths_m,
         selected_path_layers or (),
       )
       effective_background_transmittance = tuple(
@@ -761,7 +1185,7 @@ def integrate_spectral_ray_result_to_fpa(
     effective_background_transmittance = result.background_transmittance
   ####
   image = integrate_ray_transfer_to_fpa(
-    wavelengths_m,
+    request.wavelengths_m,
     source_spectral_radiance,
     geometry=geometry,
     detector=detector,
@@ -770,8 +1194,25 @@ def integrate_spectral_ray_result_to_fpa(
     background_transmittance=effective_background_transmittance,
     background_spectral_radiance=background_spectral_radiance,
   )
+  source_binding = FpaRaySourceBinding(
+    capability_id=result.metadata.capability.wire_id,
+    snapshot_id=result.metadata.snapshot.snapshot_id,
+    frame_id=result.metadata.output_frame_id,
+    content_sha256=canonical_digest(result),
+  )
+  operator_input_sha256 = canonical_digest({
+    'operator_id': FPA_PIXEL_DETECTOR_OPERATOR_ID,
+    'pixel_operator_input_sha256': image.operator_input_sha256,
+    'ray_request': request,
+    'ray_result_sha256': canonical_digest(result),
+    'atmospheric_path_layers': selected_path_layers,
+  })
   if not path_applied:
-    return image
+    return replace(
+      image,
+      source_binding=source_binding,
+      operator_input_sha256=operator_input_sha256,
+    )
   ####
   semantics = (
     'source-after-explicit-atmospheric-path-plus-transmitted-background'
@@ -785,6 +1226,217 @@ def integrate_spectral_ray_result_to_fpa(
     atmospheric_path_operator_id=ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID,
     atmospheric_path_layer_digest=canonical_digest(selected_path_layers),
     atmospheric_path_layer_ids=tuple(layer.layer_id for layer in selected_path_layers),
+    source_binding=source_binding,
+    operator_input_sha256=operator_input_sha256,
+  )
+####
+
+
+def integrate_fpa_exposure_samples(
+  sample_times_s: Sequence[float],
+  instantaneous_images: Sequence[FpaPixelImage],
+  *,
+  detector: DetectorResponse,
+) -> FpaPixelImage:
+  """Integrate one-second FPA images over an explicitly sampled exposure.
+
+  Each input image represents the source and detector rate at one exact time,
+  evaluated with a one-second exposure. The returned expected electrons and
+  dark electrons use composite trapezoidal integration over ``sample_times_s``.
+  A pixel is valid only when it is valid at every supplied time. Shot variance
+  uses integrated expected electrons, while read-noise variance is added once
+  for the complete exposure.
+  """
+
+  if not isinstance(detector, DetectorResponse):
+    raise TypeError('detector must be a DetectorResponse')
+  ####
+  try:
+    raw_times = tuple(sample_times_s)
+  except TypeError as error:
+    raise TypeError('sample_times_s must be an iterable of numeric values') from error
+  ####
+  if any(isinstance(value, bool) for value in raw_times):
+    raise TypeError('sample_times_s must not contain boolean values')
+  ####
+  try:
+    times = tuple(float(value) for value in raw_times)
+  except (TypeError, ValueError) as error:
+    raise TypeError('sample_times_s must contain numeric values') from error
+  ####
+  if len(times) < 2:
+    raise ValueError('at least two time samples are required for an exposure')
+  ####
+  if any(not isfinite(value) for value in times):
+    raise ValueError('sample_times_s must contain finite values')
+  ####
+  if any(right <= left for left, right in zip(times, times[1:])):
+    raise ValueError('sample_times_s must be strictly increasing')
+  ####
+  try:
+    images = tuple(instantaneous_images)
+  except TypeError as error:
+    raise TypeError(
+      'instantaneous_images must be an iterable of FpaPixelImage values'
+    ) from error
+  ####
+  if len(images) != len(times):
+    raise ValueError('one instantaneous image is required for every time sample')
+  ####
+  if any(not isinstance(image, FpaPixelImage) for image in images):
+    raise TypeError('instantaneous_images must contain FpaPixelImage values')
+  ####
+  reference = images[0]
+  if any(image.exposure_s != 1.0 for image in images):
+    raise ValueError('each instantaneous image must use exposure_s=1.0')
+  ####
+  if any(
+      image.width_px != reference.width_px
+      or image.height_px != reference.height_px
+      or image.wavelengths_m != reference.wavelengths_m
+      or image.detector_response_id != detector.response_id
+      or image.camera_optics_id != reference.camera_optics_id
+      or image.camera_mapping_model_id != reference.camera_mapping_model_id
+      or image.point_spread_operator_id != reference.point_spread_operator_id
+      or image.point_spread_function_id != reference.point_spread_function_id
+      or image.point_spread_function_sha256 != reference.point_spread_function_sha256
+      or image.pixel_geometry_sha256 != reference.pixel_geometry_sha256
+      for image in images
+  ):
+    raise ValueError(
+      'instantaneous images must share one pixel grid, wavelength axis, camera, and detector'
+    )
+  ####
+  for image in images:
+    if (image.pixel_geometry_sha256 is None) != (
+        image.measurement_operator_sha256 is None
+    ):
+      raise ValueError(
+        'instantaneous images must carry both geometry and measurement-operator digests'
+      )
+    ####
+    if image.pixel_geometry_sha256 is not None:
+      expected_sample_operator_digest = fpa_measurement_operator_digest(
+        pixel_operator_id=FPA_PIXEL_DETECTOR_OPERATOR_ID,
+        temporal_operator_id=None,
+        pixel_geometry_sha256=image.pixel_geometry_sha256,
+        wavelengths_m=image.wavelengths_m,
+        exposure_s=1.0,
+        detector_response=detector,
+      )
+      if image.measurement_operator_sha256 != expected_sample_operator_digest:
+        raise ValueError(
+          'instantaneous measurement-operator digest must match the exposure detector inputs'
+        )
+      ####
+    ####
+  ####
+
+  duration_s = times[-1] - times[0]
+  quadrature_weights_s = [0.0] * len(times)
+  for index, (left, right) in enumerate(zip(times, times[1:])):
+    half_interval_s = 0.5 * (right - left)
+    quadrature_weights_s[index] += half_interval_s
+    quadrature_weights_s[index + 1] += half_interval_s
+  ####
+  expected_rows: list[tuple[float, ...]] = []
+  dark_rows: list[tuple[float, ...]] = []
+  variance_rows: list[tuple[float, ...]] = []
+  validity_rows: list[tuple[bool, ...]] = []
+  for row in range(reference.height_px):
+    expected_row: list[float] = []
+    dark_row: list[float] = []
+    variance_row: list[float] = []
+    validity_row: list[bool] = []
+    for column in range(reference.width_px):
+      valid = all(image.validity_mask[row][column] for image in images)
+      expected = (
+        fsum(
+          weight * image.expected_electrons[row][column]
+          for weight, image in zip(quadrature_weights_s, images, strict=True)
+        )
+        if valid
+        else 0.0
+      )
+      dark = (
+        fsum(
+          weight * image.dark_electrons[row][column]
+          for weight, image in zip(quadrature_weights_s, images, strict=True)
+        )
+        if valid
+        else 0.0
+      )
+      expected_row.append(expected)
+      dark_row.append(dark)
+      variance_row.append(
+        expected + detector.read_noise_std_e**2 if valid else 0.0
+      )
+      validity_row.append(valid)
+    ####
+    expected_rows.append(tuple(expected_row))
+    dark_rows.append(tuple(dark_row))
+    variance_rows.append(tuple(variance_row))
+    validity_rows.append(tuple(validity_row))
+  ####
+  semantics = ','.join(sorted({image.source_semantics for image in images}))
+  path_samples = tuple(
+    (
+      time_s,
+      image.atmospheric_path_layer_digest,
+      image.atmospheric_path_layer_ids,
+    )
+    for time_s, image in zip(times, images, strict=True)
+  )
+  path_applied = any(
+    image.atmospheric_path_operator_id is not None for image in images
+  )
+  path_digest = canonical_digest(path_samples) if path_applied else None
+  path_layer_ids = tuple(dict.fromkeys(
+    layer_id
+    for image in images
+    for layer_id in image.atmospheric_path_layer_ids
+  ))
+  return FpaPixelImage(
+    width_px=reference.width_px,
+    height_px=reference.height_px,
+    wavelengths_m=reference.wavelengths_m,
+    exposure_s=duration_s,
+    expected_electrons=tuple(expected_rows),
+    dark_electrons=tuple(dark_rows),
+    noise_variance_e2=tuple(variance_rows),
+    validity_mask=tuple(validity_rows),
+    source_semantics=f'mission-time-integrated:{semantics}',
+    detector_response_id=detector.response_id,
+    camera_optics_id=reference.camera_optics_id,
+    camera_mapping_model_id=reference.camera_mapping_model_id,
+    point_spread_operator_id=reference.point_spread_operator_id,
+    point_spread_function_id=reference.point_spread_function_id,
+    point_spread_function_sha256=reference.point_spread_function_sha256,
+    pixel_geometry_sha256=reference.pixel_geometry_sha256,
+    measurement_operator_sha256=(
+      None
+      if reference.pixel_geometry_sha256 is None
+      else fpa_measurement_operator_digest(
+        pixel_operator_id=FPA_PIXEL_DETECTOR_OPERATOR_ID,
+        temporal_operator_id=FPA_TEMPORAL_EXPOSURE_OPERATOR_ID,
+        pixel_geometry_sha256=reference.pixel_geometry_sha256,
+        wavelengths_m=reference.wavelengths_m,
+        exposure_s=duration_s,
+        detector_response=detector,
+        source_times_s=times,
+      )
+    ),
+    atmospheric_path_operator_id=(
+      ATMOSPHERE_PATH_TRANSFER_OPERATOR_ID if path_applied else None
+    ),
+    atmospheric_path_layer_digest=path_digest,
+    atmospheric_path_layer_ids=path_layer_ids,
+    operator_input_sha256=canonical_digest({
+      'operator_id': FPA_TEMPORAL_EXPOSURE_OPERATOR_ID,
+      'sample_times_s': times,
+      'detector': detector,
+      'instantaneous_images': images,
+    }),
   )
 ####
 
@@ -853,6 +1505,7 @@ def digitize_expected_electrons(
     saturated_mask=tuple(saturation_rows),
     source_operator_id=image.operator_id,
     digitization_policy_id=policy.policy_id,
+    digitization_policy_sha256=canonical_digest(policy),
     camera_optics_id=image.camera_optics_id,
     camera_mapping_model_id=image.camera_mapping_model_id,
   )
@@ -861,14 +1514,21 @@ def digitize_expected_electrons(
 
 __all__ = (
   'FPA_DIGITIZATION_OPERATOR_ID',
+  'FPA_POINT_SPREAD_OPERATOR_ID',
+  'FPA_PSF_EDGE_POLICY_MASK_INCOMPLETE_SUPPORT',
+  'FPA_PSF_SPECTRAL_SCOPE_ACHROMATIC',
   'DetectorResponse',
   'FPA_PIXEL_DETECTOR_OPERATOR_ID',
+  'FPA_TEMPORAL_EXPOSURE_OPERATOR_ID',
   'FpaCameraOptics',
+  'FpaPointSpreadFunction',
   'FpaDigitizationPolicy',
   'FpaDigitizedExpectation',
   'FpaPixelGeometry',
   'FpaPixelImage',
+  'FpaRaySourceBinding',
   'digitize_expected_electrons',
+  'integrate_fpa_exposure_samples',
   'integrate_ray_transfer_to_fpa',
   'integrate_spectral_ray_result_to_fpa',
 )

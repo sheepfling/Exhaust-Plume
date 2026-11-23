@@ -15,6 +15,14 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 from exhaust_plume.api.errors import PlumeApiError, PlumeErrorCode
+from exhaust_plume.api.contracts import (
+  Applicability as LegacyApplicability,
+  FrameRef as LegacyFrameRef,
+  PlumeFluxSection as LegacyPlumeFluxSection,
+  Pose3 as LegacyPose3,
+  Provenance as LegacyProvenance,
+  SpeciesMassFlow as LegacySpeciesMassFlow,
+)
 from exhaust_plume.api.lifecycle import (
   PlumeSession as LegacyPlumeSession,
   PlumeSnapshot as LegacyPlumeSnapshot,
@@ -37,6 +45,14 @@ from exhaust_plume.contracts.lifecycle_v1 import (
   CapabilitySpec,
   ProductSession,
   ProductSnapshot,
+)
+from exhaust_plume.contracts.handoff_v1 import (
+  HandoffApplicabilityV1,
+  HandoffFrameV1,
+  HandoffPoseV1,
+  HandoffProvenanceV1,
+  HandoffSpeciesMassFlowV1,
+  PlumeFluxSectionV1,
 )
 from exhaust_plume.contracts.specs_v1 import get_product_capability_spec
 
@@ -76,6 +92,125 @@ def canonical_spec_from_legacy_request(
   """Resolve a legacy request through the one canonical v1 product registry."""
 
   return get_product_capability_spec(canonical_capability_from_legacy_request(request))
+####
+
+
+def plume_flux_section_v1_from_legacy(section: LegacyPlumeFluxSection) -> PlumeFluxSectionV1:
+  """Adapt representable legacy flux fields without conflating energy terms.
+
+  The legacy ``total_energy_flow_W`` value is retained under that exact name;
+  stagnation enthalpy and characteristic radius remain absent because the
+  legacy payload does not define them. Inputs that fail the canonical species
+  or pressure-thrust closure are rejected by the v1 model.
+  """
+
+  pressure_thrust = tuple(
+    (section.pressure_Pa - section.ambient_pressure_Pa) * section.area_m2 * component
+    for component in section.normal
+  )
+  advective = tuple(total - thrust for total, thrust in zip(section.momentum_flux_N, pressure_thrust, strict=True))
+  return PlumeFluxSectionV1(
+    time_s=section.time_s,
+    frame=HandoffFrameV1(
+      frame_id=section.frame.frame_id,
+      parent_frame_id=section.frame.parent_frame_id,
+      pose_parent_from_frame=HandoffPoseV1(
+        translation_m=section.frame.pose_parent_from_frame.translation_m,
+        rotation_xyzw=section.frame.pose_parent_from_frame.rotation_xyzw,
+      ),
+    ),
+    section_pose=HandoffPoseV1(
+      translation_m=section.section_pose.translation_m,
+      rotation_xyzw=section.section_pose.rotation_xyzw,
+    ),
+    center_m=section.section_pose.translation_m,
+    normal=section.normal,
+    area_m2=section.area_m2,
+    mass_flow_kg_s=section.mass_flow_kgps,
+    momentum_flux_N=section.momentum_flux_N,
+    advective_momentum_flux_N=advective,
+    pressure_thrust_N=pressure_thrust,
+    total_energy_flow_W=section.total_energy_flow_W,
+    stagnation_enthalpy_flux_W=None,
+    species_mass_flows_kg_s=tuple(
+      HandoffSpeciesMassFlowV1(species_id=item.species_id, mass_flow_kg_s=item.mass_flow_kgps)
+      for item in section.species_mass_flows_kgps
+    ),
+    pressure_Pa=section.pressure_Pa,
+    ambient_pressure_Pa=section.ambient_pressure_Pa,
+    pressure_match_relative_residual=section.pressure_match_relative_residual,
+    cross_section_second_moment_m2=section.cross_section_second_moment_m2,
+    characteristic_radius_m=None,
+    provenance=HandoffProvenanceV1(
+      model_id=section.provenance.model_id,
+      model_version=section.provenance.model_version,
+      code_revision=section.provenance.code_revision,
+      configuration_sha256=section.provenance.configuration_sha256,
+      asset_digests_sha256=section.provenance.asset_digests_sha256,
+    ),
+    applicability=HandoffApplicabilityV1(
+      supported=section.applicability.supported,
+      domain=section.applicability.domain,
+      violations=section.applicability.violations,
+    ),
+    uncertainty=section.uncertainty,
+  )
+####
+
+
+def plume_flux_section_v1_to_legacy(section: PlumeFluxSectionV1) -> LegacyPlumeFluxSection:
+  """Return a legacy DTO only when no canonical-only value would be lost."""
+
+  if section.stagnation_enthalpy_flux_W is not None:
+    raise ValueError('legacy flux DTO cannot preserve stagnation_enthalpy_flux_W')
+  if section.characteristic_radius_m is not None:
+    raise ValueError('legacy flux DTO cannot preserve characteristic_radius_m')
+  if section.provenance.producer_metadata:
+    raise ValueError('legacy flux DTO cannot preserve provenance producer_metadata')
+  if section.total_energy_flow_W is None:
+    raise ValueError('legacy flux DTO requires its separately named total_energy_flow_W')
+  ####
+  return LegacyPlumeFluxSection(
+    time_s=section.time_s,
+    frame=LegacyFrameRef(
+      frame_id=section.frame.frame_id,
+      parent_frame_id=section.frame.parent_frame_id,
+      pose_parent_from_frame=LegacyPose3(
+        translation_m=section.frame.pose_parent_from_frame.translation_m,
+        rotation_xyzw=section.frame.pose_parent_from_frame.rotation_xyzw,
+      ),
+    ),
+    section_pose=LegacyPose3(
+      translation_m=section.section_pose.translation_m,
+      rotation_xyzw=section.section_pose.rotation_xyzw,
+    ),
+    normal=section.normal,
+    area_m2=section.area_m2,
+    mass_flow_kgps=section.mass_flow_kg_s,
+    momentum_flux_N=section.momentum_flux_N,
+    total_energy_flow_W=section.total_energy_flow_W,
+    species_mass_flows_kgps=tuple(
+      LegacySpeciesMassFlow(species_id=item.species_id, mass_flow_kgps=item.mass_flow_kg_s)
+      for item in section.species_mass_flows_kg_s
+    ),
+    pressure_Pa=section.pressure_Pa,
+    ambient_pressure_Pa=section.ambient_pressure_Pa,
+    pressure_match_relative_residual=section.pressure_match_relative_residual,
+    cross_section_second_moment_m2=section.cross_section_second_moment_m2,
+    provenance=LegacyProvenance(
+      model_id=section.provenance.model_id,
+      model_version=section.provenance.model_version,
+      code_revision=section.provenance.code_revision,
+      configuration_sha256=section.provenance.configuration_sha256,
+      asset_digests_sha256=section.provenance.asset_digests_sha256,
+    ),
+    applicability=LegacyApplicability(
+      supported=section.applicability.supported,
+      domain=section.applicability.domain,
+      violations=section.applicability.violations,
+    ),
+    uncertainty=section.uncertainty,
+  )
 ####
 
 
@@ -310,4 +445,6 @@ __all__ = (
   'canonical_spec_from_legacy_request',
   'legacy_error_from_canonical',
   'legacy_request_from_capability',
+  'plume_flux_section_v1_from_legacy',
+  'plume_flux_section_v1_to_legacy',
 )

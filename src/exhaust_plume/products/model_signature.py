@@ -119,6 +119,9 @@ _PLANAR_SIGNATURE_LANES = frozenset({ModelVisualizationLane.PLANAR_MOC})
 
 
 def _finite(name: str, value: object) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be numeric")
+    ####
     try:
         numeric = float(cast(Any, value))
     except (TypeError, ValueError) as error:
@@ -310,12 +313,18 @@ class SectionedGrayRadiationProfile:
     ) -> SectionedGrayRadiationProfile:
         """Build one explicit Planck continuum source per support section."""
 
-        wavelengths = tuple(float(value) for value in wavelengths_m)
+        wavelengths = _strict_axis("wavelengths_m", wavelengths_m)
         temperatures = tuple(_finite(f"temperatures_K[{index}]", value) for index, value in enumerate(temperatures_K))
         absorption_sections = tuple(
-            tuple(float(value) for value in spectrum)
-            for spectrum in absorption_coefficient_per_m_by_section
+            _nonnegative_spectrum(
+                f"absorption_coefficient_per_m_by_section[{index}]",
+                spectrum,
+            )
+            for index, spectrum in enumerate(absorption_coefficient_per_m_by_section)
         )
+        gray_emissivity = _finite("emissivity", emissivity)
+        if not 0.0 <= gray_emissivity <= 1.0:
+            raise ValueError("emissivity must be finite and in [0, 1]")
         if len(temperatures) != len(absorption_sections):
             raise ValueError("temperatures_K must match absorption section count")
         ####
@@ -323,7 +332,7 @@ class SectionedGrayRadiationProfile:
             planck_spectral_radiance_W_m2_sr_m(
                 wavelengths,
                 temperature,
-                emissivity=emissivity,
+                emissivity=gray_emissivity,
             )
             for temperature in temperatures
         )
@@ -432,13 +441,22 @@ class ModelSignatureSampling:
         if not directions:
             raise ValueError("source_to_observer_directions must not be empty")
         ####
-        if isinstance(self.transverse_sample_count, bool) or not 3 <= self.transverse_sample_count <= 128:
+        if (
+            isinstance(self.transverse_sample_count, bool)
+            or not isinstance(self.transverse_sample_count, int)
+            or not 3 <= self.transverse_sample_count <= 128
+        ):
             raise ValueError("transverse_sample_count must be an integer in [3, 128]")
         ####
-        if not isfinite(self.plane_margin_fraction) or not 0.0 <= self.plane_margin_fraction <= 1.0:
+        plane_margin_fraction = _finite(
+            "plane_margin_fraction",
+            self.plane_margin_fraction,
+        )
+        if not 0.0 <= plane_margin_fraction <= 1.0:
             raise ValueError("plane_margin_fraction must be finite and in [0, 1]")
         ####
         object.__setattr__(self, "source_to_observer_directions", directions)
+        object.__setattr__(self, "plane_margin_fraction", plane_margin_fraction)
     ####
 ####
 
@@ -730,6 +748,7 @@ def assess_model_signature_readiness(
             planar_reasons.append(
                 "planar-MOC optical cell count must match the retained field polygon count"
             )
+        ####
     ####
     if visualization.diagnostics.get('production_fit_physical_length_accepted') is False:
         planar_reasons.append(
@@ -1345,8 +1364,8 @@ def evaluate_model_signature(
             )
         ####
         ray_frame_id = support.frame_id
-    ####
         session = provider.create_session(definition=definition)
+    ####
     try:
         snapshot = session.create_snapshot(
             time_s=resolved_time_s,

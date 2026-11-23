@@ -3,31 +3,58 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from math import isfinite
+from math import isfinite, pi
 from typing import Any, Mapping, Sequence
 
 from exhaust_plume.api.v1 import (
+  ApplicabilityReport,
   ApplicabilityStatus,
+  AxisymmetricZone,
+  AxisymmetricZoneField,
+  AxisymmetricZoneFieldRequest,
+  AxisymmetricZoneFieldResult,
   ConsistencyLevel,
   Derivation,
   GeometryClaim,
   ImmutableProductSnapshot,
   InvalidProductRequestError,
+  MODEL_LANE_VISUALIZATION_CAPABILITY,
+  ModelLaneVisualizationRequest,
+  ModelLaneVisualizationResult,
   OperatingStateDomainError,
   Pose,
   ProductOutsideApplicabilityError,
   ProviderClosedError,
   ProviderConfigurationError,
   ProviderDescriptor,
+  ProjectedAreaCapability,
+  ProductClaims,
   RadiationClaim,
+  ResultMetadata,
+  ResultProvenance,
   SessionMetadata,
   SnapshotMetadata,
+  SpatialSupport,
+  SPATIAL_PROJECTED_AREA_CAPABILITY,
+  SPATIAL_PROJECTED_AREA_V1,
+  SPATIAL_AXISYMMETRIC_ZONE_FIELD_CAPABILITY,
+  SPATIAL_AXISYMMETRIC_ZONE_FIELD_V1,
+  SPATIAL_LOCAL_FIELD_CAPABILITY,
+  SPATIAL_SUPPORT_CAPABILITY,
+  SPATIAL_SUPPORT_V1,
+  ProjectedAreaRequest,
+  ProjectedAreaResult,
+  SpatialSupportRequest,
+  SpatialSupportResult,
   TimeModel,
   VISUAL_SECTIONED_TUBE_CAPABILITY,
   VisualSection,
   VisualSectionedTubeRequest,
   VisualSectionedTubeResult,
+  bind_axisymmetric_zone_field_result,
   canonical_digest,
+  bind_projected_area_result,
+  bind_spatial_support_result,
 )
 from exhaust_plume.models.nozzle.contracts import AmbientState, NozzleExitState
 from exhaust_plume.models.shock_cells import (
@@ -45,6 +72,11 @@ from exhaust_plume.providers.shock_diamond import (
   ShockCellAnalyticalDefinition,
   ShockCellAnalyticalOperatingState,
 )
+from exhaust_plume.products.model_visualization import (
+  ModelVisualizationLane,
+  evaluate_model_lane_visualization,
+)
+from exhaust_plume.providers.model_lane_local_field import ModelLaneLocalFieldEvaluator
 from exhaust_plume.validation.visual_comparisons import VisualFeatureSeries
 
 __all__ = (
@@ -116,7 +148,14 @@ def _descriptor(configuration: ShockCellVisualConfiguration) -> ProviderDescript
   return ProviderDescriptor(
     provider_id=configuration.provider_id,
     provider_version=configuration.provider_version,
-    supported_capabilities=(VISUAL_SECTIONED_TUBE_CAPABILITY,),
+    supported_capabilities=(
+      VISUAL_SECTIONED_TUBE_CAPABILITY,
+      MODEL_LANE_VISUALIZATION_CAPABILITY,
+      SPATIAL_LOCAL_FIELD_CAPABILITY,
+      SPATIAL_AXISYMMETRIC_ZONE_FIELD_CAPABILITY,
+      SPATIAL_SUPPORT_CAPABILITY,
+      SPATIAL_PROJECTED_AREA_CAPABILITY,
+    ),
     provider_definition_schema_id='plume.visual.shock-cell-definition.v1',
     dynamic_state_schema_id='plume.visual.shock-cell-operating-state.v1',
     configuration_schema_id='plume.visual.shock-cell-configuration.v1',
@@ -124,7 +163,8 @@ def _descriptor(configuration: ShockCellVisualConfiguration) -> ProviderDescript
     deterministic=True,
     notes=(
       'bounded straight calorically-perfect shock-cell construction',
-      'visual sectioned-tube output only; no signature or ray-transfer capability',
+      'basic shock-cell geometry, declared support, and nozzle-exit reference-area capabilities',
+      'no spectral Signature or ray-transfer capability',
       'fidelity profile: shock-cell-basic-v1',
     ),
   )
@@ -307,6 +347,262 @@ class _ShockCellVisualEvaluator:
       snapshot,
     )
   ####
+####
+
+
+class _ShockCellModelLaneEvaluator:
+  def __init__(
+      self,
+      definition: ShockCellVisualDefinition,
+      configuration: ShockCellVisualConfiguration,
+      solution: ShockCellSolveResult,
+  ) -> None:
+    self._definition = definition
+    self._configuration = configuration
+    self._solution = solution
+  ####
+
+  def evaluate(
+      self,
+      request: ModelLaneVisualizationRequest,
+      snapshot: SnapshotMetadata,
+  ) -> ModelLaneVisualizationResult:
+    return evaluate_model_lane_visualization(
+      self._solution,
+      ModelVisualizationLane.BASIC_SHOCK_CELL,
+      request,
+      snapshot,
+      frame_id=self._definition.plume_frame_id,
+      provider_id=self._configuration.provider_id,
+      provider_version=self._configuration.provider_version,
+    )
+  ####
+####
+
+
+class _ShockCellSpatialSupportEvaluator:
+  def __init__(
+      self,
+      definition: ShockCellVisualDefinition,
+      configuration: ShockCellVisualConfiguration,
+      session: SessionMetadata,
+      solution: ShockCellSolveResult,
+  ) -> None:
+    self._definition = definition
+    self._configuration = configuration
+    self._session = session
+    self._solution = solution
+  ####
+
+  def evaluate(
+      self,
+      request: SpatialSupportRequest,
+      snapshot: SnapshotMetadata,
+  ) -> SpatialSupportResult:
+    if not isinstance(request, SpatialSupportRequest):
+      raise InvalidProductRequestError('spatial-support capability requires SpatialSupportRequest')
+    ####
+    points = tuple(
+      (float(point[0]), float(point[1]))
+      for zone in self._solution.zones
+      for point in zone.vertices_xr_m
+    )
+    if points:
+      x_min = min(point[0] for point in points)
+      x_max = max(point[0] for point in points)
+      radial_max = max(abs(point[1]) for point in points)
+      definition = (
+        'AABB of the solver-produced x-r polygons embedded in plume-frame z=0; '
+        'bounds describe this modeled 2D section and do not claim a 3D plume envelope'
+      )
+    else:
+      x_min = x_max = 0.0
+      radial_max = self._solution.exit_state.radius_m
+      definition = (
+        'no finite solver zones; nozzle-exit section only, embedded in plume-frame z=0; '
+        'no downstream plume extent is inferred'
+      )
+    ####
+    support = SpatialSupport(
+      plume_frame_aabb_min_m=(x_min, -radial_max, 0.0),
+      plume_frame_aabb_max_m=(x_max, radial_max, 0.0),
+      characteristic_extent_m=max(1.0e-12, x_max - x_min, 2.0 * radial_max),
+      support_definition=definition,
+      is_conservative=True,
+    )
+    metadata = _spatial_result_metadata(
+      SPATIAL_SUPPORT_V1.capability,
+      request,
+      snapshot,
+      self._definition,
+      self._configuration,
+      self._session,
+      warnings=(
+        'basic shock-cell output is engineering approximate and exploratory',
+        'support bounds apply to the retained x-r section and are not a physical 3D boundary',
+      ),
+    )
+    return bind_spatial_support_result(support, metadata)
+  ####
+####
+
+
+class _ShockCellZoneFieldEvaluator:
+  def __init__(
+      self,
+      definition: ShockCellVisualDefinition,
+      configuration: ShockCellVisualConfiguration,
+      session: SessionMetadata,
+      solution: ShockCellSolveResult,
+  ) -> None:
+    self._definition = definition
+    self._configuration = configuration
+    self._session = session
+    self._solution = solution
+  ####
+
+  def evaluate(
+      self,
+      request: AxisymmetricZoneFieldRequest,
+      snapshot: SnapshotMetadata,
+  ) -> AxisymmetricZoneFieldResult:
+    if not isinstance(request, AxisymmetricZoneFieldRequest):
+      raise InvalidProductRequestError(
+        'axisymmetric-zone-field capability requires AxisymmetricZoneFieldRequest'
+      )
+    ####
+    if not self._solution.zones:
+      raise ProductOutsideApplicabilityError(
+        'matched-flow shock-cell solution has no retained finite zones'
+      )
+    ####
+    zones = tuple(
+      AxisymmetricZone(
+        zone_id=zone.zone_id,
+        polygon_xr_m=zone.vertices_xr_m,
+        static_pressure_Pa=zone.flow.static_pressure,
+        static_temperature_K=zone.flow.static_temperature,
+        density_kgpm3=zone.flow.static_density,
+        mach=zone.flow.mach,
+        phase=zone.region_type or 'closed-zone',
+        cell_index=zone.cell_index,
+        geometry_status=zone.geometry_status,
+        region_type=zone.region_type,
+        region_label=zone.region_label,
+        shock_angle_rad=zone.shock_angle_rad,
+        turn_angle_rad=zone.turn_angle_rad,
+      )
+      for zone in self._solution.zones
+    )
+    field = AxisymmetricZoneField(zones=zones)
+    metadata = _spatial_result_metadata(
+      SPATIAL_AXISYMMETRIC_ZONE_FIELD_V1.capability,
+      request,
+      snapshot,
+      self._definition,
+      self._configuration,
+      self._session,
+      warnings=(
+        'basic shock-cell zones are engineering approximate and exploratory',
+        'zones are finite modeled regions in the x-r plane and are not a continuous or 3D plume field',
+        'shock and turn angles are included only where the retained solver zone declares them',
+      ),
+    )
+    return bind_axisymmetric_zone_field_result(field, metadata)
+  ####
+####
+
+
+class _ShockCellProjectedAreaEvaluator:
+  def __init__(
+      self,
+      definition: ShockCellVisualDefinition,
+      configuration: ShockCellVisualConfiguration,
+      session: SessionMetadata,
+      solution: ShockCellSolveResult,
+  ) -> None:
+    self._definition = definition
+    self._configuration = configuration
+    self._session = session
+    self._solution = solution
+  ####
+
+  def evaluate(
+      self,
+      request: ProjectedAreaRequest,
+      snapshot: SnapshotMetadata,
+  ) -> ProjectedAreaResult:
+    if not isinstance(request, ProjectedAreaRequest):
+      raise InvalidProductRequestError('projected-area capability requires ProjectedAreaRequest')
+    ####
+    reference_area = pi * self._solution.exit_state.radius_m**2
+    projected_area = ProjectedAreaCapability(
+      reference_area_m2=reference_area,
+      closed_zone_count=len(self._solution.zones),
+    )
+    metadata = _spatial_result_metadata(
+      SPATIAL_PROJECTED_AREA_V1.capability,
+      request,
+      snapshot,
+      self._definition,
+      self._configuration,
+      self._session,
+      warnings=(
+        'reference area is the nozzle-exit disk area and is not view-direction dependent',
+        'basic shock-cell output is engineering approximate and exploratory',
+      ),
+    )
+    return bind_projected_area_result(projected_area, metadata)
+  ####
+####
+
+
+def _spatial_result_metadata(
+    capability: Any,
+  request: SpatialSupportRequest | ProjectedAreaRequest | AxisymmetricZoneFieldRequest,
+    snapshot: SnapshotMetadata,
+    definition: ShockCellVisualDefinition,
+    configuration: ShockCellVisualConfiguration,
+    session: SessionMetadata,
+    *,
+    warnings: tuple[str, ...],
+) -> ResultMetadata:
+  request_digest = canonical_digest(request)
+  return ResultMetadata(
+    capability=capability,
+    result_id=canonical_digest({
+      'snapshot_id': snapshot.snapshot_id,
+      'request_digest_sha256': request_digest,
+      'capability': capability.wire_id,
+    })[:24],
+    request_digest_sha256=request_digest,
+    snapshot=snapshot,
+    output_frame_id=definition.plume_frame_id,
+    claims=ProductClaims(
+      geometry=GeometryClaim.ENGINEERING_APPROXIMATE,
+      radiation=RadiationClaim.NOT_APPLICABLE,
+      time_model=TimeModel.STEADY,
+      derivation=Derivation.NATIVE,
+      consistency=ConsistencyLevel.INDEPENDENT,
+    ),
+    applicability=ApplicabilityReport(
+      status=ApplicabilityStatus.MARGINAL,
+      reasons=(
+        'bounded basic shock-cell lane; supporting spatial outputs inherit its exploratory claim ceiling',
+      ),
+    ),
+    provenance=ResultProvenance(
+      model_lineage_id='shock-cell-basic-v1',
+      provider_id=session.provider_id,
+      provider_version=session.provider_version,
+      configuration_digest_sha256=session.configuration_digest_sha256,
+      metadata={
+        'definition_digest_sha256': canonical_digest(definition),
+        'provider_configuration_digest_sha256': canonical_digest(configuration),
+      },
+    ),
+    warnings=warnings,
+  )
 ####
 
 
@@ -541,14 +837,43 @@ class ShockCellVisualSession:
       ambient_state_digest_sha256=ambient_digest,
       provider_state_digest_sha256=provider_digest,
     )
-    return ImmutableProductSnapshot(
-      metadata=metadata,
-      _evaluators={VISUAL_SECTIONED_TUBE_CAPABILITY: _ShockCellVisualEvaluator(
+    evaluators = {
+      VISUAL_SECTIONED_TUBE_CAPABILITY: _ShockCellVisualEvaluator(
         self._definition,
         self._configuration,
         solution,
-      )},
-    )
+      ),
+      SPATIAL_SUPPORT_CAPABILITY: _ShockCellSpatialSupportEvaluator(
+        self._definition,
+        self._configuration,
+        self._metadata,
+        solution,
+      ),
+      SPATIAL_PROJECTED_AREA_CAPABILITY: _ShockCellProjectedAreaEvaluator(
+        self._definition,
+        self._configuration,
+        self._metadata,
+        solution,
+      ),
+    }
+    if solution.zones:
+      evaluators[SPATIAL_AXISYMMETRIC_ZONE_FIELD_CAPABILITY] = _ShockCellZoneFieldEvaluator(
+        self._definition,
+        self._configuration,
+        self._metadata,
+        solution,
+      )
+      model_lane_evaluator = _ShockCellModelLaneEvaluator(
+        self._definition,
+        self._configuration,
+        solution,
+      )
+      evaluators[MODEL_LANE_VISUALIZATION_CAPABILITY] = model_lane_evaluator
+      evaluators[SPATIAL_LOCAL_FIELD_CAPABILITY] = ModelLaneLocalFieldEvaluator(
+        model_lane_evaluator,
+      )
+    ####
+    return ImmutableProductSnapshot(metadata=metadata, _evaluators=evaluators)
   ####
 
   def close(self) -> None:

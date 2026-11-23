@@ -1,0 +1,98 @@
+{
+  "additionalProperties": false,
+  "description": "Bind a pixel grid to one exact ray result and pixel quadrature.",
+  "properties": {
+    "aggregation_policy": {
+      "const": "normalized-collection-weighted-mean",
+      "default": "normalized-collection-weighted-mean",
+      "title": "Aggregation Policy",
+      "type": "string"
+    },
+    "height_px": {
+      "exclusiveMinimum": 0,
+      "title": "Height Px",
+      "type": "integer"
+    },
+    "pixel_frame_id": {
+      "minLength": 1,
+      "title": "Pixel Frame Id",
+      "type": "string"
+    },
+    "pixel_geometry_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Pixel Geometry Sha256",
+      "type": "string"
+    },
+    "pixel_indexing": {
+      "const": "zero-based-row-column",
+      "default": "zero-based-row-column",
+      "title": "Pixel Indexing",
+      "type": "string"
+    },
+    "ray_collection_weights_m2_sr": {
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Ray Collection Weights M2 Sr",
+      "type": "array"
+    },
+    "ray_frame_id": {
+      "minLength": 1,
+      "title": "Ray Frame Id",
+      "type": "string"
+    },
+    "ray_pixel_indices_row_col": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "integer"
+          }
+        ],
+        "type": "array"
+      },
+      "minItems": 1,
+      "title": "Ray Pixel Indices Row Col",
+      "type": "array"
+    },
+    "ray_transfer_request_digest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Ray Transfer Request Digest Sha256",
+      "type": "string"
+    },
+    "ray_transfer_result_digest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Ray Transfer Result Digest Sha256",
+      "type": "string"
+    },
+    "ray_transfer_result_id": {
+      "minLength": 1,
+      "title": "Ray Transfer Result Id",
+      "type": "string"
+    },
+    "width_px": {
+      "exclusiveMinimum": 0,
+      "title": "Width Px",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "pixel_frame_id",
+    "ray_frame_id",
+    "ray_transfer_request_digest_sha256",
+    "ray_transfer_result_id",
+    "ray_transfer_result_digest_sha256",
+    "pixel_geometry_sha256",
+    "width_px",
+    "height_px",
+    "ray_pixel_indices_row_col",
+    "ray_collection_weights_m2_sr"
+  ],
+  "title": "SpectralRadianceImageRequest",
+  "type": "object"
+}

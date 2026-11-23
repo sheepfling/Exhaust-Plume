@@ -8,7 +8,7 @@ populations, non-LTE effects, atmospheric transfer, or detector response.
 from __future__ import annotations
 
 from math import expm1, isfinite
-from typing import Sequence
+from typing import Any, Sequence, cast
 
 __all__ = (
   'PLANCK_C1_W_M2',
@@ -16,13 +16,26 @@ __all__ = (
   'planck_spectral_radiance_W_m2_sr_m',
 )
 
+
+def _numeric(name: str, value: object) -> float:
+  if isinstance(value, bool):
+    raise ValueError(f'{name} must be numeric')
+  ####
+  try:
+    numeric = float(cast(Any, value))
+  except (TypeError, ValueError) as error:
+    raise ValueError(f'{name} must be numeric') from error
+  ####
+  return numeric
+####
+
 # Exact SI constants used by the Planck law.
 PLANCK_C1_W_M2 = 2.0 * 6.62607015e-34 * 299792458.0**2
 PLANCK_C2_M_K = 6.62607015e-34 * 299792458.0 / 1.380649e-23
 
 
 def _axis(wavelengths_m: Sequence[float]) -> tuple[float, ...]:
-  values = tuple(float(value) for value in wavelengths_m)
+  values = tuple(_numeric('wavelengths_m', value) for value in wavelengths_m)
   if not values:
     raise ValueError('wavelengths_m must not be empty')
   ####
@@ -47,11 +60,11 @@ def planck_spectral_radiance_W_m2_sr_m(
   """
 
   wavelengths = _axis(wavelengths_m)
-  temperature = float(temperature_K)
+  temperature = _numeric('temperature_K', temperature_K)
   if not isfinite(temperature) or temperature <= 0.0:
     raise ValueError('temperature_K must be finite and positive')
   ####
-  gray_emissivity = float(emissivity)
+  gray_emissivity = _numeric('emissivity', emissivity)
   if not isfinite(gray_emissivity) or not 0.0 <= gray_emissivity <= 1.0:
     raise ValueError('emissivity must be finite and in [0, 1]')
   ####

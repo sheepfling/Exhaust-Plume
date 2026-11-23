@@ -238,8 +238,12 @@ class ShockCellAnalyticalSession:
             static_temperature_K=zone.flow.static_temperature,
             density_kgpm3=zone.flow.static_density,
             mach=zone.flow.mach,
-            phase="closed-zone",
+            phase=zone.region_type or "closed-zone",
             cell_index=zone.cell_index,
+            region_type=zone.region_type,
+            region_label=zone.region_label,
+            shock_angle_rad=zone.shock_angle_rad,
+            turn_angle_rad=zone.turn_angle_rad,
         ) for zone in result.zones
     )
     field = AxisymmetricZoneField(zones=zones)

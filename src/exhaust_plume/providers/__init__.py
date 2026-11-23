@@ -99,6 +99,13 @@ from exhaust_plume.providers.curved_visual import (
   CurvedIntegralVisualProvider,
   CurvedIntegralVisualSession,
 )
+from exhaust_plume.providers.straight_integral_visual import (
+  STRAIGHT_INTEGRAL_CENTERLINE_REFERENCE_ID,
+  StraightIntegralVisualConfiguration,
+  StraightIntegralVisualDefinition,
+  StraightIntegralVisualProvider,
+  StraightIntegralVisualSession,
+)
 from exhaust_plume.providers.curved_gray_ray_transfer import CurvedGrayRayTransferProvider
 from exhaust_plume.providers.planar_moc_gray_ray_transfer import (
   PlanarMocGrayRayTransferConfiguration,
@@ -161,6 +168,11 @@ __all__ = (
     'StraightVisualConfiguration',
     'StraightVisualDefinition',
     'StraightVisualProvider',
+    'StraightIntegralVisualConfiguration',
+    'StraightIntegralVisualDefinition',
+    'StraightIntegralVisualProvider',
+    'StraightIntegralVisualSession',
+    'STRAIGHT_INTEGRAL_CENTERLINE_REFERENCE_ID',
     'TimeAccessMode',
     'UnsupportedCapabilityError',
     'VisualSectionedTubeCapability',

@@ -1,0 +1,728 @@
+{
+  "$defs": {
+    "FpaCameraOpticsContract": {
+      "additionalProperties": false,
+      "description": "Camera metadata attached to the ray-to-pixel mapping.",
+      "properties": {
+        "angular_projection_model_id": {
+          "anyOf": [
+            {
+              "const": "pinhole-rectilinear-v1",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Angular Projection Model Id"
+        },
+        "aperture_area_m2": {
+          "exclusiveMinimum": 0.0,
+          "title": "Aperture Area M2",
+          "type": "number"
+        },
+        "camera_id": {
+          "minLength": 1,
+          "title": "Camera Id",
+          "type": "string"
+        },
+        "field_of_view_rad": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Horizontal and vertical sensor FOV in camera-local radians.",
+          "title": "Field Of View Rad"
+        },
+        "focal_length_m": {
+          "exclusiveMinimum": 0.0,
+          "title": "Focal Length M",
+          "type": "number"
+        },
+        "mapping_model_id": {
+          "minLength": 1,
+          "title": "Mapping Model Id",
+          "type": "string"
+        },
+        "on_axis_pixel_ifov_rad": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "On-axis horizontal and vertical pixel IFOV in camera-local radians.",
+          "title": "On Axis Pixel Ifov Rad"
+        },
+        "pixel_pitch_m": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Pixel Pitch M",
+          "type": "array"
+        },
+        "point_spread_function": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FpaPointSpreadFunctionContract"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "principal_point_px": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Principal Point Px",
+          "type": "array"
+        }
+      },
+      "required": [
+        "camera_id",
+        "focal_length_m",
+        "pixel_pitch_m",
+        "principal_point_px",
+        "aperture_area_m2",
+        "mapping_model_id"
+      ],
+      "title": "FpaCameraOpticsContract",
+      "type": "object"
+    },
+    "FpaDetectorResponseContract": {
+      "additionalProperties": false,
+      "description": "Spectral detector response and deterministic noise parameters.",
+      "properties": {
+        "dark_current_e_per_s": {
+          "minimum": 0.0,
+          "title": "Dark Current E Per S",
+          "type": "number"
+        },
+        "optical_throughput": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Optical Throughput",
+          "type": "array"
+        },
+        "quantum_efficiency": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Quantum Efficiency",
+          "type": "array"
+        },
+        "read_noise_std_e": {
+          "minimum": 0.0,
+          "title": "Read Noise Std E",
+          "type": "number"
+        },
+        "response_id": {
+          "minLength": 1,
+          "title": "Response Id",
+          "type": "string"
+        },
+        "wavelengths_m": {
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "title": "Wavelengths M",
+          "type": "array"
+        }
+      },
+      "required": [
+        "response_id",
+        "wavelengths_m",
+        "quantum_efficiency",
+        "optical_throughput",
+        "dark_current_e_per_s",
+        "read_noise_std_e"
+      ],
+      "title": "FpaDetectorResponseContract",
+      "type": "object"
+    },
+    "FpaDetectorSourceReference": {
+      "additionalProperties": false,
+      "description": "Exact ray-result identity and source metadata consumed by the detector.",
+      "properties": {
+        "capability_id": {
+          "const": "plume.optical.spectral-ray-transfer@1",
+          "title": "Capability Id",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "frame_id": {
+          "minLength": 1,
+          "title": "Frame Id",
+          "type": "string"
+        },
+        "operator_chain": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Operator Chain",
+          "type": "array"
+        },
+        "provider_id": {
+          "minLength": 1,
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "minLength": 1,
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "minLength": 1,
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "source_applicability": {
+          "additionalProperties": true,
+          "title": "Source Applicability",
+          "type": "object"
+        },
+        "source_fidelity": {
+          "additionalProperties": true,
+          "title": "Source Fidelity",
+          "type": "object"
+        },
+        "source_kind": {
+          "const": "ray-transfer",
+          "default": "ray-transfer",
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "source_provenance": {
+          "additionalProperties": true,
+          "title": "Source Provenance",
+          "type": "object"
+        },
+        "source_status": {
+          "minLength": 1,
+          "title": "Source Status",
+          "type": "string"
+        },
+        "source_time_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Time S"
+        }
+      },
+      "required": [
+        "capability_id",
+        "schema_version",
+        "provider_id",
+        "session_id",
+        "snapshot_id",
+        "content_sha256",
+        "frame_id",
+        "source_status",
+        "operator_chain"
+      ],
+      "title": "FpaDetectorSourceReference",
+      "type": "object"
+    },
+    "FpaDigitizationPolicyContract": {
+      "additionalProperties": false,
+      "description": "Deterministic expected-electron-to-ADC-count transfer settings.",
+      "properties": {
+        "bit_depth": {
+          "maximum": 32,
+          "minimum": 1,
+          "title": "Bit Depth",
+          "type": "integer"
+        },
+        "electrons_per_count": {
+          "exclusiveMinimum": 0.0,
+          "title": "Electrons Per Count",
+          "type": "number"
+        },
+        "invalid_count": {
+          "minimum": 0,
+          "title": "Invalid Count",
+          "type": "integer"
+        },
+        "offset_counts": {
+          "title": "Offset Counts",
+          "type": "number"
+        },
+        "policy_id": {
+          "minLength": 1,
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "rounding_mode": {
+          "const": "nearest_even",
+          "title": "Rounding Mode",
+          "type": "string"
+        },
+        "saturation_mode": {
+          "const": "clip",
+          "title": "Saturation Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy_id",
+        "electrons_per_count",
+        "offset_counts",
+        "bit_depth",
+        "rounding_mode",
+        "saturation_mode",
+        "invalid_count"
+      ],
+      "title": "FpaDigitizationPolicyContract",
+      "type": "object"
+    },
+    "FpaPointSpreadFunctionContract": {
+      "additionalProperties": false,
+      "description": "Exact achromatic PSF stencil and finite-sensor validity policy.",
+      "properties": {
+        "digest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Digest Sha256",
+          "type": "string"
+        },
+        "edge_policy": {
+          "const": "mask-incomplete-support",
+          "title": "Edge Policy",
+          "type": "string"
+        },
+        "kernel_weights": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Kernel Weights",
+          "type": "array"
+        },
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "spectral_scope": {
+          "const": "achromatic",
+          "title": "Spectral Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_id",
+        "kernel_weights",
+        "spectral_scope",
+        "edge_policy",
+        "digest_sha256"
+      ],
+      "title": "FpaPointSpreadFunctionContract",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Source-bound detector result with explicit units, masks, and pixel lineage.\n\n``expected_electrons_e`` is the expected total signal plus dark electrons.\n``dark_electrons_e`` is the dark-current component, and\n``noise_variance_e2`` is the expected variance including shot and read noise.\nNone of these fields represents a sampled measurement.",
+  "properties": {
+    "atmospheric_path_layer_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Atmospheric Path Layer Digest"
+    },
+    "atmospheric_path_layer_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Atmospheric Path Layer Ids",
+      "type": "array"
+    },
+    "atmospheric_path_operator_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Atmospheric Path Operator Id"
+    },
+    "camera_mapping_model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Camera Mapping Model Id"
+    },
+    "camera_optics": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FpaCameraOpticsContract"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "camera_optics_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Camera Optics Id"
+    },
+    "claim_ceiling": {
+      "const": "Expected detector electrons and deterministic ADC expectations only; not measured images, noise realizations, or detection claims.",
+      "default": "Expected detector electrons and deterministic ADC expectations only; not measured images, noise realizations, or detection claims.",
+      "title": "Claim Ceiling",
+      "type": "string"
+    },
+    "dark_electrons_e": {
+      "description": "Dark-current contribution per pixel, in electrons.",
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "title": "Dark Electrons E",
+      "type": "array"
+    },
+    "detector": {
+      "$ref": "#/$defs/FpaDetectorResponseContract"
+    },
+    "digitization_input_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Digitization Input Sha256"
+    },
+    "digitization_operator_id": {
+      "anyOf": [
+        {
+          "const": "op.sensor.fpa-digitization",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Digitization Operator Id"
+    },
+    "digitization_policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FpaDigitizationPolicyContract"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "digitized_counts": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Digitized Counts"
+    },
+    "digitized_validity_mask": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Digitized Validity Mask"
+    },
+    "expected_electrons_e": {
+      "description": "Expected total signal plus dark electrons per pixel, in electrons.",
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "title": "Expected Electrons E",
+      "type": "array"
+    },
+    "exposure_s": {
+      "exclusiveMinimum": 0.0,
+      "title": "Exposure S",
+      "type": "number"
+    },
+    "height_px": {
+      "exclusiveMinimum": 0,
+      "title": "Height Px",
+      "type": "integer"
+    },
+    "measurement_operator_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Measurement Operator Sha256",
+      "type": "string"
+    },
+    "noise_variance_e2": {
+      "description": "Expected shot plus read-noise variance per pixel, in electrons squared.",
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "title": "Noise Variance E2",
+      "type": "array"
+    },
+    "operator_input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Operator Input Sha256",
+      "type": "string"
+    },
+    "pixel_geometry_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Pixel Geometry Sha256",
+      "type": "string"
+    },
+    "pixel_indexing": {
+      "const": "zero-based-row-column",
+      "default": "zero-based-row-column",
+      "title": "Pixel Indexing",
+      "type": "string"
+    },
+    "pixel_operator_id": {
+      "const": "op.sensor.fpa-pixel-detector",
+      "default": "op.sensor.fpa-pixel-detector",
+      "title": "Pixel Operator Id",
+      "type": "string"
+    },
+    "point_spread_operator_id": {
+      "anyOf": [
+        {
+          "const": "op.sensor.fpa-point-spread",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Point Spread Operator Id"
+    },
+    "saturated_mask": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Saturated Mask"
+    },
+    "schema_id": {
+      "const": "plume.fpa.detector-frame@1",
+      "default": "plume.fpa.detector-frame@1",
+      "title": "Schema Id",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/FpaDetectorSourceReference"
+    },
+    "source_semantics": {
+      "minLength": 1,
+      "title": "Source Semantics",
+      "type": "string"
+    },
+    "source_times_s": {
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1,
+      "title": "Source Times S",
+      "type": "array"
+    },
+    "temporal_integration_operator_id": {
+      "anyOf": [
+        {
+          "const": "op.sensor.fpa-temporal-exposure-integral",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Temporal Integration Operator Id"
+    },
+    "validation_status": {
+      "default": "deterministic-operator-output; external-detector-validation-open",
+      "minLength": 1,
+      "title": "Validation Status",
+      "type": "string"
+    },
+    "validity_mask": {
+      "items": {
+        "items": {
+          "type": "boolean"
+        },
+        "type": "array"
+      },
+      "title": "Validity Mask",
+      "type": "array"
+    },
+    "wavelengths_m": {
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "title": "Wavelengths M",
+      "type": "array"
+    },
+    "width_px": {
+      "exclusiveMinimum": 0,
+      "title": "Width Px",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "source",
+    "source_times_s",
+    "operator_input_sha256",
+    "pixel_geometry_sha256",
+    "measurement_operator_sha256",
+    "width_px",
+    "height_px",
+    "exposure_s",
+    "wavelengths_m",
+    "expected_electrons_e",
+    "dark_electrons_e",
+    "noise_variance_e2",
+    "validity_mask",
+    "detector",
+    "source_semantics"
+  ],
+  "title": "FpaDetectorFrameResult",
+  "type": "object"
+}

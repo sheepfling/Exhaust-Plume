@@ -98,6 +98,16 @@
     false,
     true
   ],
+  "absolute_standard_uncertainty": [
+    [
+      null,
+      null
+    ],
+    [
+      0.2,
+      0.1
+    ]
+  ],
   "optical_depth": [
     [
       0.0,

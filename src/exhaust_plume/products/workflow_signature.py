@@ -245,7 +245,7 @@ def write_signature_result_csv(
   output.parent.mkdir(parents=True, exist_ok=True)
   direction_cosines = _direction_cosines(definition, request)
   with output.open('w', encoding='utf-8', newline='') as stream:
-    writer = csv.writer(stream)
+    writer = csv.writer(stream, lineterminator='\n')
     writer.writerow((
       'direction_index',
       'direction_x',
@@ -327,7 +327,7 @@ def render_signature_plots(
   spectrum_axes.legend()
   spectrum_figure.tight_layout()
   spectrum_path = output / 'signature_spectrum.png'
-  spectrum_figure.savefig(spectrum_path, dpi=140)
+  spectrum_figure.savefig(spectrum_path, dpi=140, metadata={'Software': 'Exhaust-Plume signature renderer'})
   plt.close(spectrum_figure)
 
   angular_figure, angular_axes = plt.subplots(figsize=(8.0, 5.0))
@@ -352,7 +352,7 @@ def render_signature_plots(
   angular_axes.legend()
   angular_figure.tight_layout()
   angular_path = output / 'signature_angular.png'
-  angular_figure.savefig(angular_path, dpi=140)
+  angular_figure.savefig(angular_path, dpi=140, metadata={'Software': 'Exhaust-Plume signature renderer'})
   plt.close(angular_figure)
 
   heatmap_figure, heatmap_axes = plt.subplots(figsize=(8.0, 5.0))
@@ -365,7 +365,7 @@ def render_signature_plots(
   heatmap_axes.set_ylabel('Direction cosine to source axis [1]')
   heatmap_figure.tight_layout()
   heatmap_path = output / 'signature_heatmap.png'
-  heatmap_figure.savefig(heatmap_path, dpi=140)
+  heatmap_figure.savefig(heatmap_path, dpi=140, metadata={'Software': 'Exhaust-Plume signature renderer'})
   plt.close(heatmap_figure)
   return spectrum_path, angular_path, heatmap_path
 ####
@@ -392,7 +392,7 @@ def _write_signature_timeline_tables(
 ) -> tuple[Path, Path]:
   direction_path = output / 'signature_timeline_direction_series.csv'
   with direction_path.open('w', encoding='utf-8', newline='') as stream:
-    writer = csv.writer(stream)
+    writer = csv.writer(stream, lineterminator='\n')
     writer.writerow((
       'time_s',
       'direction_index',
@@ -439,7 +439,7 @@ def _write_signature_timeline_tables(
   trajectory_path = output / 'signature_source_trajectory.csv'
   trajectory = timeline.source_trajectory()
   with trajectory_path.open('w', encoding='utf-8', newline='') as stream:
-    writer = csv.writer(stream)
+    writer = csv.writer(stream, lineterminator='\n')
     writer.writerow(('time_s', 'frame_id', 'x_m', 'y_m', 'z_m', 'source_result_id'))
     for sample, position in zip(timeline.samples, trajectory.positions_m, strict=True):
       writer.writerow((sample.time_s, trajectory.frame_id, *position, sample.result.metadata.result_id))
@@ -501,6 +501,7 @@ def render_signature_timeline_gallery(
   output = Path(output_dir)
   output.mkdir(parents=True, exist_ok=True)
   plt, np = _timeline_plot_dependencies()
+  from matplotlib.patches import Rectangle
 
   finite_heatmap_values = tuple(
     cell.mean_spectral_radiant_intensity_w_sr_m
@@ -557,6 +558,23 @@ def render_signature_timeline_gallery(
     )
     axis.set_xlabel('azimuth [deg]')
     axis.set_ylabel('elevation [deg]')
+    for cell in heatmap.cells:
+      if not cell.invalid_direction_indices:
+        continue
+      ####
+      axis.add_patch(Rectangle(
+        (
+          -180.0 + cell.azimuth_index * 360.0 / selected_binning.azimuth_bin_count,
+          -90.0 + cell.elevation_index * 180.0 / selected_binning.elevation_bin_count,
+        ),
+        360.0 / selected_binning.azimuth_bin_count,
+        180.0 / selected_binning.elevation_bin_count,
+        facecolor='none',
+        edgecolor='#343a40',
+        hatch='///',
+        linewidth=0.35,
+      ))
+    ####
   ####
   for axis in heatmap_axes_flat[len(heatmaps):]:
     axis.set_visible(False)
@@ -571,11 +589,66 @@ def render_signature_timeline_gallery(
   ####
   heatmap_figure.suptitle(
     f'Signature angular heatmaps | λ={timeline.wavelengths_m[wavelength_index] * 1.0e6:g} μm | '
-    f'frame={timeline.direction_frame_id}'
+    f'frame={timeline.direction_frame_id} | hatched=invalid; blank=unsampled'
   )
   heatmap_path = output / 'signature_timeline_heatmaps.png'
-  heatmap_figure.savefig(heatmap_path, dpi=140)
+  heatmap_figure.savefig(heatmap_path, dpi=140, metadata={'Software': 'Exhaust-Plume signature renderer'})
   plt.close(heatmap_figure)
+
+  heatmap_cells_path = output / 'signature_timeline_heatmap_cells.csv'
+  with heatmap_cells_path.open('w', newline='', encoding='utf-8') as handle:
+    writer = csv.writer(handle, lineterminator='\n')
+    writer.writerow((
+      'time_s',
+      'source_result_id',
+      'wavelength_index',
+      'wavelength_m',
+      'direction_frame_id',
+      'azimuth_bin_index',
+      'elevation_bin_index',
+      'azimuth_min_deg',
+      'azimuth_max_deg',
+      'elevation_min_deg',
+      'elevation_max_deg',
+      'sampled_direction_indices_json',
+      'valid_direction_indices_json',
+      'invalid_direction_indices_json',
+      'mean_valid_spectral_radiant_intensity_W_sr_m',
+      'valid_direction_standard_uncertainty_W_sr_m_json',
+    ))
+    for heatmap in heatmaps:
+      sample = timeline.sample_at(heatmap.time_s)
+      for cell in heatmap.cells:
+        uncertainty = sample.result.absolute_standard_uncertainty
+        valid_uncertainty = (
+          None
+          if uncertainty is None
+          else [
+            uncertainty[direction_index][wavelength_index]
+            for direction_index in cell.valid_direction_indices
+          ]
+        )
+        writer.writerow((
+          heatmap.time_s,
+          heatmap.source_result_id,
+          wavelength_index,
+          heatmap.wavelength_m,
+          heatmap.direction_frame_id,
+          cell.azimuth_index,
+          cell.elevation_index,
+          *cell.azimuth_bounds_deg,
+          *cell.elevation_bounds_deg,
+          json.dumps(cell.sampled_direction_indices, separators=(',', ':')),
+          json.dumps(cell.valid_direction_indices, separators=(',', ':')),
+          json.dumps(cell.invalid_direction_indices, separators=(',', ':')),
+          cell.mean_spectral_radiant_intensity_w_sr_m,
+          json.dumps(valid_uncertainty, separators=(',', ':'))
+          if valid_uncertainty is not None
+          else '',
+        ))
+      ####
+    ####
+  ####
 
   series_figure, series_axis = plt.subplots(figsize=(9.0, 5.6))
   for direction_series in series:
@@ -592,7 +665,12 @@ def render_signature_timeline_gallery(
       f'(az={direction_series.angular_coordinates.azimuth_deg:g}°, '
       f'el={direction_series.angular_coordinates.elevation_deg:g}°)'
     )
-    series_axis.plot(direction_series.times_s, values, marker='o', label=label)
+    (line,) = series_axis.plot(
+      direction_series.times_s,
+      values,
+      marker='o',
+      label=label,
+    )
     uncertainty = direction_series.absolute_standard_uncertainty_w_sr_m
     if any(value is not None for value in uncertainty):
       lower = tuple(
@@ -604,6 +682,38 @@ def render_signature_timeline_gallery(
         for value, error in zip(values, uncertainty, strict=True)
       )
       series_axis.fill_between(direction_series.times_s, lower, upper, alpha=0.12)
+      errorbar_times = tuple(
+        time_s
+        for time_s, value, error in zip(
+          direction_series.times_s,
+          values,
+          uncertainty,
+          strict=True,
+        )
+        if value is not None and error is not None
+      )
+      errorbar_values = tuple(
+        value
+        for value, error in zip(values, uncertainty, strict=True)
+        if value is not None and error is not None
+      )
+      errorbar_uncertainties = tuple(
+        error
+        for value, error in zip(values, uncertainty, strict=True)
+        if value is not None and error is not None
+      )
+      if errorbar_times:
+        series_axis.errorbar(
+          errorbar_times,
+          errorbar_values,
+          yerr=errorbar_uncertainties,
+          fmt='none',
+          ecolor=line.get_color(),
+          capsize=2,
+          linewidth=1.0,
+          alpha=0.85,
+        )
+      ####
     ####
   ####
   series_axis.set_title(
@@ -616,7 +726,7 @@ def render_signature_timeline_gallery(
   series_axis.legend(loc='best', fontsize='small')
   series_figure.tight_layout()
   series_path = output / 'signature_timeline_direction_series.png'
-  series_figure.savefig(series_path, dpi=140)
+  series_figure.savefig(series_path, dpi=140, metadata={'Software': 'Exhaust-Plume signature renderer'})
   plt.close(series_figure)
 
   trajectory = timeline.source_trajectory()
@@ -635,7 +745,7 @@ def render_signature_timeline_gallery(
   trajectory_axis.set_zlabel('z [m]')
   trajectory_figure.tight_layout()
   trajectory_path = output / 'signature_source_trajectory.png'
-  trajectory_figure.savefig(trajectory_path, dpi=140)
+  trajectory_figure.savefig(trajectory_path, dpi=140, metadata={'Software': 'Exhaust-Plume signature renderer'})
   plt.close(trajectory_figure)
 
   direction_table, trajectory_table = _write_signature_timeline_tables(
@@ -661,6 +771,7 @@ def render_signature_timeline_gallery(
 
   artifacts = (
     GalleryArtifact('signature.timeline-heatmaps', heatmap_path.name, 'image/png'),
+    GalleryArtifact('signature.timeline-heatmap-cells', heatmap_cells_path.name, 'text/csv'),
     GalleryArtifact('signature.timeline-direction-series', series_path.name, 'image/png'),
     GalleryArtifact('signature.source-trajectory', trajectory_path.name, 'image/png'),
     GalleryArtifact('signature.timeline-direction-table', direction_table.name, 'text/csv'),
@@ -670,6 +781,7 @@ def render_signature_timeline_gallery(
   guards = (
     'exact_sample_times_only_no_temporal_interpolation',
     'invalid_signature_samples_are_masked_or_gapped_not_zero_filled',
+    'invalid_angular_samples_are_hatched_and_unsampled_bins_remain_blank',
     'angular_heatmaps_are_display_bins_in_the_declared_direction_frame',
     'spectral_radiant_intensity_is_not_atmosphere_corrected_or_detector_response',
     'source_result_ids_and_status_codes_are_retained_for_each_sample',

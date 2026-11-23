@@ -24,7 +24,11 @@ __all__ = (
 
 
 def _spectrum(value: Sequence[float], field_name: str) -> tuple[float, ...]:
-  normalized = tuple(float(item) for item in value)
+  items = tuple(value)
+  if any(isinstance(item, bool) for item in items):
+    raise ValueError(f'{field_name} must be finite and nonnegative')
+  ####
+  normalized = tuple(float(item) for item in items)
   if not normalized:
     raise ValueError(f'{field_name} must not be empty')
   ####
@@ -49,7 +53,7 @@ class HomogeneousSegment:
     if len(source) != len(absorption):
       raise ValueError('source and absorption spectra must have matching lengths')
     ####
-    if not isfinite(self.length_m) or self.length_m < 0.0:
+    if isinstance(self.length_m, bool) or not isfinite(self.length_m) or self.length_m < 0.0:
       raise ValueError('segment length_m must be finite and nonnegative')
     ####
     object.__setattr__(self, 'source_function_w_sr_m', source)
@@ -69,7 +73,11 @@ class GrayTransferResult:
 
   def __post_init__(self) -> None:
     source = _spectrum(self.source_radiance_w_sr_m, 'source_radiance_w_sr_m')
-    transmittance = tuple(float(item) for item in self.background_transmittance)
+    transmittance_values = tuple(self.background_transmittance)
+    if any(isinstance(item, bool) for item in transmittance_values):
+      raise ValueError('background_transmittance must be finite and in [0, 1]')
+    ####
+    transmittance = tuple(float(item) for item in transmittance_values)
     depth = _spectrum(self.optical_depth, 'optical_depth')
     if len(source) != len(transmittance) or len(source) != len(depth):
       raise ValueError('gray transfer spectra must have matching lengths')

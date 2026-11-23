@@ -1,0 +1,236 @@
+{
+  "base_freeze": {
+    "freeze_id": "exhaust-plume-public-contract-freeze-v1",
+    "manifest_path": "schemas/public_contract_manifest_v1.json",
+    "manifest_sha256": "4f91c6891a19f71ea6ff3952801092d345c9908afef47823e557f3a6b790594e"
+  },
+  "capabilities": [
+    {
+      "major": 1,
+      "name": "plume.engineering.flux-section",
+      "request_schema_id": "engineering_flux_section_v1",
+      "result_schema_id": "engineering_flux_section_result_v1",
+      "wire_id": "plume.engineering.flux-section@1"
+    },
+    {
+      "major": 1,
+      "name": "plume.spatial.support",
+      "request_schema_id": "spatial_support_v1",
+      "result_schema_id": "spatial_support_result_v1",
+      "wire_id": "plume.spatial.support@1"
+    },
+    {
+      "major": 1,
+      "name": "plume.spatial.axisymmetric-zone-field",
+      "request_schema_id": "axisymmetric_zone_field_v1",
+      "result_schema_id": "axisymmetric_zone_field_result_v1",
+      "wire_id": "plume.spatial.axisymmetric-zone-field@1"
+    },
+    {
+      "major": 1,
+      "name": "plume.spatial.projected-area",
+      "request_schema_id": "projected_area_v1",
+      "result_schema_id": "projected_area_result_v1",
+      "wire_id": "plume.spatial.projected-area@1"
+    },
+    {
+      "major": 1,
+      "name": "plume.visual.model-lane",
+      "request_schema_id": "model_lane_visualization_v1",
+      "result_schema_id": "model_lane_visualization_result_v1",
+      "wire_id": "plume.visual.model-lane@1"
+    },
+    {
+      "major": 1,
+      "name": "plume.image.spectral-radiance",
+      "request_schema_id": "spectral_radiance_image_v1",
+      "result_schema_id": "spectral_radiance_image_result_v1",
+      "wire_id": "plume.image.spectral-radiance@1"
+    },
+    {
+      "major": 1,
+      "name": "plume.spatial.local-field",
+      "request_schema_id": "spatial_local_field_v1",
+      "result_schema_id": "spatial_local_field_result_v1",
+      "wire_id": "plume.spatial.local-field@1"
+    }
+  ],
+  "fixture_generator": "scripts/generate_public_contract_fixtures.py",
+  "fixtures": [
+    {
+      "expected_error": null,
+      "file": "spatial_support_result_v1.json",
+      "model": "SpatialSupportResult",
+      "sha256": "257ac3b8f3f23caaed5ea758ccedc1dd0b5f8bd4a3f354aaacdd691ee3261df4",
+      "valid": true
+    },
+    {
+      "expected_error": null,
+      "file": "projected_area_result_v1.json",
+      "model": "ProjectedAreaResult",
+      "sha256": "ed244722ed1434fc390abde904a522ac6f5860e0af8d360b756c5d063177fa94",
+      "valid": true
+    },
+    {
+      "expected_error": null,
+      "file": "axisymmetric_zone_field_result_v1.json",
+      "model": "AxisymmetricZoneFieldResult",
+      "sha256": "7372d2e3e8ea4e6f81aa2ed8c94da54473205fd0eab263c605e7c0cad5abfd99",
+      "valid": true
+    },
+    {
+      "expected_error": null,
+      "file": "model_lane_visualization_result_v1.json",
+      "model": "ModelLaneVisualizationResult",
+      "sha256": "cf46e4f0962d8d9f86666422d438e57d59742af963abc993fe88092356e23d4f",
+      "valid": true
+    },
+    {
+      "expected_error": null,
+      "file": "spectral_radiance_image_result_v1.json",
+      "model": "SpectralRadianceImageResult",
+      "sha256": "6c756992bc3a30a56557e0c9986e7880a32787746937ea686ea96a08a9fcb2cf",
+      "valid": true
+    },
+    {
+      "expected_error": null,
+      "file": "spatial_local_field_result_v1.json",
+      "model": "SpatialLocalFieldResult",
+      "sha256": "558deb33c285347858343a4c52132404faa698e6253b945c1ca9c88ee249709d",
+      "valid": true
+    },
+    {
+      "expected_error": null,
+      "file": "engineering_flux_section_result_v1.json",
+      "model": "EngineeringFluxSectionResult",
+      "sha256": "7d5957826f1fc29d682d508342b97955f768a615d9cd3c75eba5f3a1cea707c3",
+      "valid": true
+    }
+  ],
+  "manifest_version": "exhaust-plume-public-contract-extension-v1",
+  "pending_support_gates": [
+    {
+      "release_supported": false,
+      "status": "source-provider-and-observation-validation-pending",
+      "wire_id": "plume.image.spectral-radiance@1"
+    },
+    {
+      "release_supported": false,
+      "status": "provider-observation-validation-pending",
+      "wire_id": "plume.spatial.local-field@1"
+    },
+    {
+      "release_supported": false,
+      "status": "straight-integral-provider-available-measurement-validation-pending",
+      "wire_id": "plume.engineering.flux-section@1"
+    }
+  ],
+  "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "schema_generator": "src/exhaust_plume/contracts/schema_v1.py",
+  "schemas": [
+    {
+      "file": "model_lane_visualization_v1.schema.json",
+      "model": "ModelLaneVisualizationRequest",
+      "schema_id": "model_lane_visualization_v1",
+      "sha256": "51854ad4ddb35c4c5d64ce8786ec2885e7961ec42c43b845b52d2f1270e32ba3"
+    },
+    {
+      "file": "model_lane_visualization_result_v1.schema.json",
+      "model": "ModelLaneVisualizationResult",
+      "schema_id": "model_lane_visualization_result_v1",
+      "sha256": "675ca99ea1ee7d511d55f8ae2119552c62a1044c3c1238f6d200a1d03ff10d17"
+    },
+    {
+      "file": "axisymmetric_zone_field_v1.schema.json",
+      "model": "AxisymmetricZoneFieldRequest",
+      "schema_id": "axisymmetric_zone_field_v1",
+      "sha256": "7b23f8b05c0d736c79906fe6f253202209c2ad4a1424b37a699c91d63f3aca5a"
+    },
+    {
+      "file": "axisymmetric_zone_field_result_v1.schema.json",
+      "model": "AxisymmetricZoneFieldResult",
+      "schema_id": "axisymmetric_zone_field_result_v1",
+      "sha256": "1c20e5cb7f00398bd5a2b067f21aa45ea4031269ddcbc1322cbb494b1c14700b"
+    },
+    {
+      "file": "spatial_support_v1.schema.json",
+      "model": "SpatialSupportRequest",
+      "schema_id": "spatial_support_v1",
+      "sha256": "64ed57414f3fabde54516189547b49dc544fea0c99516a98268b84c2e5275882"
+    },
+    {
+      "file": "spatial_support_result_v1.schema.json",
+      "model": "SpatialSupportResult",
+      "schema_id": "spatial_support_result_v1",
+      "sha256": "614def6bed275531618d7324e51553a4a87fce998e1866ebe99159da212418d9"
+    },
+    {
+      "file": "projected_area_v1.schema.json",
+      "model": "ProjectedAreaRequest",
+      "schema_id": "projected_area_v1",
+      "sha256": "7c981983d3cf3205a13e05d26c94fae6b0f6c48a2accb4d7a3036aab6db8aaab"
+    },
+    {
+      "file": "projected_area_result_v1.schema.json",
+      "model": "ProjectedAreaResult",
+      "schema_id": "projected_area_result_v1",
+      "sha256": "1964c8c9d989d0d1a0f05e0f3f838aae8af59e713e4d2deaaf04253e37d43371"
+    },
+    {
+      "file": "spectral_radiance_image_v1.schema.json",
+      "model": "SpectralRadianceImageRequest",
+      "schema_id": "spectral_radiance_image_v1",
+      "sha256": "938ec35dca066106aa9691d70412894fd17ec7ce7db43e76abbdf65828021ff0"
+    },
+    {
+      "file": "spectral_radiance_image_result_v1.schema.json",
+      "model": "SpectralRadianceImageResult",
+      "schema_id": "spectral_radiance_image_result_v1",
+      "sha256": "1093682786127100c78b7be6fbcae5cce5c109d4a4e063d8dbaa0b15d539039c"
+    },
+    {
+      "file": "spatial_local_field_v1.schema.json",
+      "model": "SpatialLocalFieldRequest",
+      "schema_id": "spatial_local_field_v1",
+      "sha256": "1e7c587a434c685b4b2817d7a98019a680c1e3049b829b6d4fab721d2cd9be72"
+    },
+    {
+      "file": "spatial_local_field_result_v1.schema.json",
+      "model": "SpatialLocalFieldResult",
+      "schema_id": "spatial_local_field_result_v1",
+      "sha256": "9bf0fd557bb3ef4a7b79c3c8da71516744c53d8edf176db0d629255d0ae129db"
+    },
+    {
+      "file": "plume_flux_section_v1.schema.json",
+      "model": "PlumeFluxSectionV1",
+      "schema_id": "plume_flux_section_v1",
+      "sha256": "6fe20dda99cb81e4d8771ce2c81849f9bf4dd09ccf9e516f3af5962adbcceb1d"
+    },
+    {
+      "file": "engineering_flux_section_v1.schema.json",
+      "model": "EngineeringFluxSectionRequest",
+      "schema_id": "engineering_flux_section_v1",
+      "sha256": "2bbb8a1537dda2c1c2a8779aa06a88d5acf0eb4265c277fad002d8bf5b38167c"
+    },
+    {
+      "file": "engineering_flux_section_result_v1.schema.json",
+      "model": "EngineeringFluxSectionResult",
+      "schema_id": "engineering_flux_section_result_v1",
+      "sha256": "a2cee69e22d99055442e03cd9d76df6861494cb545bac100107e6b212d06ed0a"
+    }
+  ],
+  "standalone_fixtures": [
+    {
+      "expected_error": null,
+      "file": "plume_flux_section_v1.json",
+      "model": "PlumeFluxSectionV1",
+      "schema_id": "plume_flux_section_v1",
+      "sha256": "39d2a8ad4a5629840b1288455204b3a2ccb5d55117561c8223ce76359c063945",
+      "valid": true
+    }
+  ],
+  "standalone_schema_ids": [
+    "plume_flux_section_v1"
+  ],
+  "unresolved_capabilities": []
+}

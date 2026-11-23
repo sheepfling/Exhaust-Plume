@@ -1,0 +1,118 @@
+{
+  "metadata": {
+    "capability": {
+      "name": "plume.image.spectral-radiance",
+      "major": 1
+    },
+    "result_id": "fixture-spectral-radiance-image-result",
+    "request_digest_sha256": "588ce2ffa31b62e8c257680a3ea203a40e7bac5d63e8453a3a8f5f1c001c32f3",
+    "snapshot": {
+      "snapshot_id": "fixture-snapshot-1",
+      "session_id": "fixture-session-1",
+      "time_s": 0.0,
+      "source_pose": {
+        "frame_id": "world",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "dynamic_state_digest_sha256": "fixture-dynamic",
+      "ambient_state_digest_sha256": "fixture-ambient",
+      "provider_state_digest_sha256": "fixture-provider",
+      "expires_at_utc": null
+    },
+    "output_frame_id": "fixture-pixel-frame",
+    "claims": {
+      "geometry": "not_applicable",
+      "radiation": "spectral_engineering",
+      "time_model": "steady",
+      "derivation": "adapted",
+      "consistency": "co_generated"
+    },
+    "applicability": {
+      "status": "inside",
+      "reasons": []
+    },
+    "provenance": {
+      "model_lineage_id": "fixture-lineage",
+      "provider_id": "provider.fixture",
+      "provider_version": "1.0.0",
+      "configuration_digest_sha256": "fixture-configuration",
+      "asset_digests_sha256": [],
+      "parent_result_ids": [
+        "fixture-ray-result"
+      ],
+      "metadata": {
+        "source_fixture": "synthetic",
+        "pixel_geometry_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "ray_transfer_request_digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "ray_transfer_result_digest_sha256": "c454a17f942577d1af7676539b7ffe64f382a010882e3e8f969a2dfc35dd7673",
+        "spectral_radiance_image_request_digest_sha256": "588ce2ffa31b62e8c257680a3ea203a40e7bac5d63e8453a3a8f5f1c001c32f3"
+      }
+    },
+    "warnings": []
+  },
+  "pixel_frame_id": "fixture-pixel-frame",
+  "ray_frame_id": "world",
+  "ray_transfer_request_digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "ray_transfer_result_id": "fixture-ray-result",
+  "ray_transfer_result_digest_sha256": "c454a17f942577d1af7676539b7ffe64f382a010882e3e8f969a2dfc35dd7673",
+  "pixel_geometry_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "width_px": 1,
+  "height_px": 1,
+  "pixel_indexing": "zero-based-row-column",
+  "wavelengths_m": [
+    1e-6,
+    2e-6
+  ],
+  "source_spectral_radiance_W_m2_sr_m": [
+    [
+      [
+        1.3333333333333333,
+        0.6666666666666666
+      ]
+    ]
+  ],
+  "background_transmittance": [
+    [
+      [
+        0.5,
+        0.6666666666666666
+      ]
+    ]
+  ],
+  "validity_mask": [
+    [
+      true
+    ]
+  ],
+  "pixel_status": [
+    [
+      {
+        "code": "ok",
+        "message": null,
+        "retryable": false
+      }
+    ]
+  ],
+  "ray_sample_count": [
+    [
+      2
+    ]
+  ],
+  "pixel_collection_weight_m2_sr": [
+    [
+      3e-6
+    ]
+  ],
+  "aggregation_policy": "normalized-collection-weighted-mean",
+  "source_component": "plume-source-only"
+}

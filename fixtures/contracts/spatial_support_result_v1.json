@@ -1,0 +1,68 @@
+{
+  "metadata": {
+    "capability": {
+      "name": "plume.spatial.support",
+      "major": 1
+    },
+    "result_id": "fixture-support-result",
+    "request_digest_sha256": "fixture-request",
+    "snapshot": {
+      "snapshot_id": "fixture-snapshot-1",
+      "session_id": "fixture-session-1",
+      "time_s": 0.0,
+      "source_pose": {
+        "frame_id": "world",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "dynamic_state_digest_sha256": "fixture-dynamic",
+      "ambient_state_digest_sha256": "fixture-ambient",
+      "provider_state_digest_sha256": "fixture-provider",
+      "expires_at_utc": null
+    },
+    "output_frame_id": "world",
+    "claims": {
+      "geometry": "illustrative",
+      "radiation": "appearance_only",
+      "time_model": "steady",
+      "derivation": "native",
+      "consistency": "co_generated"
+    },
+    "applicability": {
+      "status": "inside",
+      "reasons": []
+    },
+    "provenance": {
+      "model_lineage_id": "fixture-lineage",
+      "provider_id": "provider.fixture",
+      "provider_version": "1.0.0",
+      "configuration_digest_sha256": "fixture-configuration",
+      "asset_digests_sha256": [],
+      "parent_result_ids": [],
+      "metadata": {}
+    },
+    "warnings": []
+  },
+  "plume_frame_aabb_min_m": [
+    0.0,
+    -0.5,
+    -0.5
+  ],
+  "plume_frame_aabb_max_m": [
+    2.0,
+    0.5,
+    0.5
+  ],
+  "characteristic_extent_m": 2.0,
+  "support_definition": "finite provider-declared support bounds",
+  "is_conservative": true
+}

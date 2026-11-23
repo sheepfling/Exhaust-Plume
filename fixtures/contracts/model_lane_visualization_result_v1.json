@@ -1,0 +1,306 @@
+{
+  "metadata": {
+    "capability": {
+      "name": "plume.visual.model-lane",
+      "major": 1
+    },
+    "result_id": "fixture-model-lane-result",
+    "request_digest_sha256": "2d5fa378988665827a3998f28d8c3ad340e147fd79768c35d5bb8d0f6a14a23c",
+    "snapshot": {
+      "snapshot_id": "fixture-snapshot-1",
+      "session_id": "fixture-session-1",
+      "time_s": 0.0,
+      "source_pose": {
+        "frame_id": "world",
+        "translation_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "dynamic_state_digest_sha256": "fixture-dynamic",
+      "ambient_state_digest_sha256": "fixture-ambient",
+      "provider_state_digest_sha256": "fixture-provider",
+      "expires_at_utc": null
+    },
+    "output_frame_id": "world",
+    "claims": {
+      "geometry": "illustrative",
+      "radiation": "appearance_only",
+      "time_model": "steady",
+      "derivation": "native",
+      "consistency": "co_generated"
+    },
+    "applicability": {
+      "status": "inside",
+      "reasons": []
+    },
+    "provenance": {
+      "model_lineage_id": "fixture-lineage",
+      "provider_id": "provider.fixture",
+      "provider_version": "1.0.0",
+      "configuration_digest_sha256": "fixture-configuration",
+      "asset_digests_sha256": [],
+      "parent_result_ids": [],
+      "metadata": {}
+    },
+    "warnings": []
+  },
+  "standardization_schema": "plume.visual.model-lane@1",
+  "lane_id": "planar-moc-primitives-v1",
+  "model_id": "fixture-planar-moc",
+  "model_version": "fixture-1",
+  "source_status": "research-only",
+  "applicability": {
+    "status": "inside",
+    "reasons": []
+  },
+  "claims": {
+    "model_fidelity": "RESEARCH_ONLY",
+    "validation_level": "UNVERIFIED",
+    "geometry_claim": "illustrative",
+    "production_claim_allowed": false,
+    "claim_notes": [
+      "synthetic contract fixture"
+    ]
+  },
+  "visual_request_digest_sha256": "677562ef4b2e089d9f1a86d6d5978ad47a36c423cc248180344812b7bccb4ff6",
+  "sectioned_tube": {
+    "metadata": {
+      "capability": {
+        "name": "plume.visual.sectioned-tube",
+        "major": 1
+      },
+      "result_id": "fixture-visual-result",
+      "request_digest_sha256": "677562ef4b2e089d9f1a86d6d5978ad47a36c423cc248180344812b7bccb4ff6",
+      "snapshot": {
+        "snapshot_id": "fixture-snapshot-1",
+        "session_id": "fixture-session-1",
+        "time_s": 0.0,
+        "source_pose": {
+          "frame_id": "world",
+          "translation_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_xyzw": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        "dynamic_state_digest_sha256": "fixture-dynamic",
+        "ambient_state_digest_sha256": "fixture-ambient",
+        "provider_state_digest_sha256": "fixture-provider",
+        "expires_at_utc": null
+      },
+      "output_frame_id": "world",
+      "claims": {
+        "geometry": "illustrative",
+        "radiation": "appearance_only",
+        "time_model": "steady",
+        "derivation": "native",
+        "consistency": "co_generated"
+      },
+      "applicability": {
+        "status": "inside",
+        "reasons": []
+      },
+      "provenance": {
+        "model_lineage_id": "fixture-lineage",
+        "provider_id": "provider.fixture",
+        "provider_version": "1.0.0",
+        "configuration_digest_sha256": "fixture-configuration",
+        "asset_digests_sha256": [],
+        "parent_result_ids": [],
+        "metadata": {}
+      },
+      "warnings": []
+    },
+    "sections": [
+      {
+        "arc_length_m": 0.0,
+        "center_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "section_to_output_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "radius_major_m": 0.5,
+        "radius_minor_m": 0.3
+      },
+      {
+        "arc_length_m": 1.0,
+        "center_m": [
+          1.0,
+          0.1,
+          0.0
+        ],
+        "section_to_output_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "radius_major_m": 0.55,
+        "radius_minor_m": 0.32
+      },
+      {
+        "arc_length_m": 2.0,
+        "center_m": [
+          2.0,
+          0.2,
+          0.0
+        ],
+        "section_to_output_xyzw": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "radius_major_m": 0.6,
+        "radius_minor_m": 0.34
+      }
+    ],
+    "channels": {
+      "core_radius_fraction": [
+        1.0,
+        0.75,
+        0.5
+      ],
+      "mixing_weight": [
+        0.0,
+        0.5,
+        1.0
+      ]
+    },
+    "visual_bounds": {
+      "minimum_m": [
+        -0.6,
+        -0.6,
+        -0.6
+      ],
+      "maximum_m": [
+        2.6,
+        0.8,
+        0.6
+      ]
+    },
+    "summary": {
+      "length_m": 2.0,
+      "maximum_radius_m": 0.6,
+      "nominal_divergence_angle_rad": 0.05
+    }
+  },
+  "section_channels": [
+    {
+      "channel_id": "core_radius_fraction",
+      "semantic": "normalized core radius",
+      "unit": "1",
+      "association": "section",
+      "values": [
+        1.0,
+        0.75,
+        0.5
+      ],
+      "uncertainties": null
+    },
+    {
+      "channel_id": "mixing_weight",
+      "semantic": "display-only synthetic mixing weight",
+      "unit": "1",
+      "association": "section",
+      "values": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "uncertainties": null
+    }
+  ],
+  "paths": [
+    {
+      "path_id": "fixture-centerline",
+      "semantic": "retained illustrative centerline",
+      "points_m": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.1,
+          0.0
+        ],
+        [
+          2.0,
+          0.2,
+          0.0
+        ]
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "field_id": "fixture-cells",
+      "semantic": "retained research cell field",
+      "coordinate_system": "axial-radial-xr",
+      "polygons_xr_m": [
+        [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.0
+          ],
+          [
+            1.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0
+          ]
+        ]
+      ],
+      "channels": {
+        "mach": {
+          "semantic": "cell Mach number",
+          "unit": "1",
+          "values": [
+            2.0
+          ],
+          "uncertainties": null
+        }
+      },
+      "region_types": [
+        "expansion"
+      ],
+      "region_labels": [
+        "cell-0"
+      ]
+    }
+  ],
+  "diagnostics": {
+    "fixture": true
+  },
+  "warnings": [
+    "synthetic contract fixture; not physical evidence"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "contract_id": "plume.fpa.detector-frame@1",
+  "fixture": {
+    "file": "fpa_detector_frame_v1.json",
+    "sha256": "0cbb4109770ad3545d1f7322ce5510191a4172f5ee4d33c2c0eee20437c67b25",
+    "synthetic": true
+  },
+  "generator": "scripts/generate_fpa_detector_contract_assets.py",
+  "manifest_version": "exhaust-plume-fpa-detector-frame-assets-v1",
+  "schema": {
+    "dialect": "https://json-schema.org/draft/2020-12/schema",
+    "file": "fpa_detector_frame_v1.schema.json",
+    "sha256": "4dea90c8665194ce304c1a0974e05d8c3c93ee2ef03a715fd34f5de07c0a2130"
+  }
+}

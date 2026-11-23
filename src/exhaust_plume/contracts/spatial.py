@@ -59,6 +59,10 @@ class AxisymmetricZone:
   phase: str
   cell_index: int
   geometry_status: GeometryStatus = GeometryStatus.VALID
+  region_type: str | None = None
+  region_label: str | None = None
+  shock_angle_rad: float | None = None
+  turn_angle_rad: float | None = None
 
   def __post_init__(self) -> None:
     polygon = np.array(self.polygon_xr_m, dtype=float, copy=True)
@@ -87,6 +91,24 @@ class AxisymmetricZone:
     ####
     if self.cell_index < 0:
       raise ValueError('cell_index must be non-negative')
+    ####
+    for name in ('region_type', 'region_label'):
+      value = getattr(self, name)
+      if value is not None and not str(value):
+        raise ValueError(f'{name} must be non-empty when supplied')
+      ####
+      if value is not None:
+        object.__setattr__(self, name, str(value))
+      ####
+    ####
+    for name in ('shock_angle_rad', 'turn_angle_rad'):
+      value = getattr(self, name)
+      if value is not None and not isfinite(value):
+        raise ValueError(f'{name} must be finite when supplied')
+      ####
+      if value is not None:
+        object.__setattr__(self, name, float(value))
+      ####
     ####
     polygon.flags.writeable = False
     object.__setattr__(self, 'polygon_xr_m', polygon)
