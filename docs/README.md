@@ -8,6 +8,8 @@ Radiant Plume is intentionally narrower than a complete infrared scene or sensor
 
 ## Start here
 
+- [Visualization survey](visualization_survey_v1.md) — plume products and the views they support.
+- [Visualization demo backlog](visualization_demo_backlog_v1.md) — demo build and walkthrough.
 - [Radiant Plume capability family](radiant_plume.md) — branding, scope, the product and capability map, naming policy, and maturity boundaries.
 - [MVP product alignment](mvp_product_alignment.md) — canonical product/code boundaries and allowed derivations.
 - [Interface contracts v1](interface_contracts_v1.md) — technical capability identities and lifecycle semantics.

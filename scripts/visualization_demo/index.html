@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; style-src 'self' file:; script-src 'self' file:; connect-src 'none'; object-src 'none'">
+  <title>Radiant Plume | Visualization demo</title>
+  <link rel="stylesheet" href="demo.css">
+  <script defer src="data.js"></script>
+  <script defer src="demo.js"></script>
+</head>
+<body>
+  <header class="mast">
+    <a class="brand" href="?scene=shape" aria-label="Radiant Plume home"><span class="mark" aria-hidden="true">≋</span> Radiant Plume</a>
+    <div class="tools">
+      <button id="export" type="button">Export view</button>
+      <button id="reset" type="button">Reset</button>
+    </div>
+  </header>
+  <nav aria-label="Demo scenes">
+    <button type="button" data-scene="shape">Shape</button>
+    <button type="button" data-scene="signature">Signature</button>
+    <button type="button" data-scene="detector">Sightline + FPA</button>
+    <button type="button" data-scene="timeline">Timeline</button>
+    <button type="button" data-scene="field">Flow field</button>
+    <button type="button" data-scene="engineering">Engineering</button>
+  </nav>
+  <main>
+    <header class="scene-heading">
+      <div><p id="case"></p><h1 id="title"></h1></div>
+      <p id="status" class="status"></p>
+    </header>
+    <section id="scene" aria-labelledby="title"></section>
+    <details id="lineage">
+      <summary>Source and view details</summary>
+      <pre id="source"></pre>
+      <a href="manifest.json">Bundle manifest</a>
+      <a href="source_results.json">Exact source results</a>
+    </details>
+    <noscript>This demo needs JavaScript to render its local datasets.</noscript>
+  </main>
+</body>
+</html>

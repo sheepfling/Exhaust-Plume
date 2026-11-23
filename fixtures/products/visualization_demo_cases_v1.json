@@ -1,0 +1,210 @@
+{
+  "curved_integral": {
+    "case_id": "constant-ambient-curved-entrainment",
+    "evidence_class": "deterministic-synthetic-closure-case",
+    "source": {
+      "position_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "velocity_mps": [
+        20.0,
+        3.0,
+        12.0
+      ],
+      "mass_flow_kgps": 1.8,
+      "temperature_K": 700.0,
+      "static_pressure_Pa": 101325.0,
+      "specific_heat_JpkgK": 1160.0,
+      "gas_constant_JpkgK": 300.0,
+      "exhaust_mass_fraction": 0.85
+    },
+    "ambient": {
+      "velocity_mps": [
+        6.0,
+        -2.0,
+        1.0
+      ],
+      "pressure_Pa": 101325.0,
+      "temperature_K": 290.0,
+      "specific_heat_JpkgK": 1005.0,
+      "gas_constant_JpkgK": 287.05
+    },
+    "entrainment_kgpspm": 0.3,
+    "max_arc_length_m": 8.0,
+    "number_of_stations": 81,
+    "relative_tolerance": 1e-08,
+    "absolute_tolerance": 1e-10,
+    "max_step_m": 0.025,
+    "claim_ceiling": "Synthetic constant-ambient and constant-entrainment solver case; no external curved-plume validation."
+  },
+  "gray_optics": {
+    "case_id": "explicit-gray-continuum-on-curved-integral-envelope",
+    "evidence_class": "synthetic-caller-supplied-optics",
+    "wavelengths_m": [
+      1e-06,
+      2e-06,
+      3e-06
+    ],
+    "source_temperature_K": 700.0,
+    "emissivity": 0.8,
+    "absorption_coefficient_per_m": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "profile_id": "whitepaper-gray-continuum-v1",
+    "support": {
+      "frame_id": "source-local",
+      "centers_m": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          2.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "radii_m": [
+        1.0,
+        1.0
+      ]
+    },
+    "sampling": {
+      "directions": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ]
+      ],
+      "transverse_sample_count": 17,
+      "plane_margin_fraction": 0.1
+    },
+    "rays": [
+      {
+        "ray_id": "axial-center",
+        "origin_m": [
+          -2.0,
+          0.0,
+          0.0
+        ],
+        "direction": [
+          1.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "ray_id": "crossflow-center",
+        "origin_m": [
+          1.0,
+          -2.0,
+          0.0
+        ],
+        "direction": [
+          0.0,
+          1.0,
+          0.0
+        ]
+      },
+      {
+        "ray_id": "crossflow-offset",
+        "origin_m": [
+          1.0,
+          -2.0,
+          0.5
+        ],
+        "direction": [
+          0.0,
+          1.0,
+          0.0
+        ]
+      },
+      {
+        "ray_id": "crossflow-miss",
+        "origin_m": [
+          1.0,
+          -2.0,
+          1.5
+        ],
+        "direction": [
+          0.0,
+          1.0,
+          0.0
+        ]
+      }
+    ],
+    "ray_t_min_m": 0.0,
+    "ray_t_max_m": 10.0,
+    "claim_ceiling": "Blackbody gray source and absorption are explicit demonstration inputs; no chemistry, line-by-line model, atmosphere inference, or external spectral validation."
+  },
+  "fpa": {
+    "case_id": "two-pixel-gray-ray-operator-demo",
+    "evidence_class": "synthetic-downstream-operator",
+    "width_px": 2,
+    "height_px": 1,
+    "ray_pixel_indices_row_col": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        1
+      ]
+    ],
+    "ray_collection_weights_m2_sr": [
+      1e-06,
+      1e-06,
+      2e-06,
+      2e-06
+    ],
+    "exposure_s": 0.01,
+    "quantum_efficiency": [
+      0.4,
+      0.5,
+      0.6
+    ],
+    "optical_throughput": [
+      0.8,
+      0.85,
+      0.9
+    ],
+    "detector_response_id": "whitepaper-synthetic-detector-v1",
+    "electrons_per_count": 200.0,
+    "bit_depth": 12,
+    "claim_ceiling": "Deterministic expected electrons and ADC counts for a synthetic ray/detector operator case; not measured imagery, a noise realization, a detection result, or external validation."
+  },
+  "straight_integral": {
+    "case_id": "pressure-matched-straight-entrainment",
+    "evidence_class": "deterministic-model-demonstration",
+    "gamma": 1.4,
+    "mach": 3.0,
+    "ambient_pressure_Pa": 100000.0,
+    "ambient_temperature_K": 300.0,
+    "total_temperature_K": 800.0,
+    "exit_radius_m": 1.0,
+    "max_axial_distance_m": 10.0,
+    "step_m": 0.5,
+    "entrainment_coefficient": 0.02,
+    "claim_ceiling": "Frozen calorically-perfect, pressure-matched top-hat continuation; finite domain limit is not a physical plume endpoint."
+  }
+}
